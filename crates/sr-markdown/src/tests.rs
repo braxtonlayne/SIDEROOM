@@ -339,7 +339,7 @@ fn json_shape() {
     assert_eq!(v[0]["type"], "bold");
     assert_eq!(v[0]["children"][0]["text"], "a");
     assert_eq!(v[2]["type"], "user_mention");
-    assert_eq!(v[2]["id"], 1);
+    assert_eq!(v[2]["id"], "1");
     let ts: serde_json::Value = serde_json::from_str(&parse_to_json("<t:5:R>")).unwrap();
     assert_eq!(ts[0]["style"], "relative");
 }
@@ -426,4 +426,27 @@ proptest! {
         let ast = parse(&s);
         prop_assert_eq!(ast, vec![Node::Text { text: s.clone() }]);
     }
+}
+
+#[test]
+fn ids_above_2_pow_53_serialize_as_strings() {
+    // 123456789012345678 > 2^53: a JSON number would lose precision in JS.
+    let src = "<@123456789012345678> <@&123456789012345679> <#123456789012345680> \
+               <:ee:123456789012345681> </cmd:123456789012345682> <1:linked-roles:123456789012345683>";
+    let json = parse_to_json(src);
+    for id in 123_456_789_012_345_678u64..=123_456_789_012_345_683 {
+        assert!(
+            json.contains(&format!("\"id\":\"{id}\"")),
+            "id {id} not a string: {json}"
+        );
+    }
+    assert!(!json.contains("\"id\":1"), "numeric id leaked: {json}");
+    // Round trip, accepting both strings and legacy numbers.
+    let ast = parse(src);
+    assert_eq!(serde_json::from_str::<Vec<Node>>(&json).unwrap(), ast);
+    let legacy = r#"[{"type":"user_mention","id":5}]"#;
+    assert_eq!(
+        serde_json::from_str::<Vec<Node>>(legacy).unwrap(),
+        vec![Node::UserMention { id: 5 }]
+    );
 }

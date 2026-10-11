@@ -3,7 +3,7 @@
 Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 09.
 
 ## LNG-MSG — Messages (backend)
-- [ ] **LNG-MSG-001** [DB] messages (partitioned), message_edits, attachments, reactions, poll_votes, read_states migrations
+- [x] **LNG-MSG-001** [DB] messages (partitioned), message_edits, attachments, reactions, poll_votes, read_states migrations
 - [ ] **LNG-MSG-002** [BE] Create message (content, nonce dedupe, reply reference, attachments by upload id, sticker ids, poll, flags, enforce limits & permissions & slowmode)
 - [ ] **LNG-MSG-003** [BE] Get messages (before/after/around/limit), get single, permission filtering
 - [ ] **LNG-MSG-004** [BE] Edit message (author only, content/embeds/flags, store previous in message_edits)

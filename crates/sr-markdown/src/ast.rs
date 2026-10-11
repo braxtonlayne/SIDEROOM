@@ -92,11 +92,20 @@ pub enum Node {
         children: Vec<Node>,
     },
     /// `<@id>` / `<@!id>`
-    UserMention { id: u64 },
+    UserMention {
+        #[serde(with = "id_str")]
+        id: u64,
+    },
     /// `<@&id>`
-    RoleMention { id: u64 },
+    RoleMention {
+        #[serde(with = "id_str")]
+        id: u64,
+    },
     /// `<#id>`
-    ChannelMention { id: u64 },
+    ChannelMention {
+        #[serde(with = "id_str")]
+        id: u64,
+    },
     /// `@everyone`
     Everyone,
     /// `@here`
@@ -104,6 +113,7 @@ pub enum Node {
     /// `<:name:id>` / `<a:name:id>`
     CustomEmoji {
         name: String,
+        #[serde(with = "id_str")]
         id: u64,
         animated: bool,
     },
@@ -113,9 +123,17 @@ pub enum Node {
         style: Option<TimestampStyle>,
     },
     /// `</name:id>`
-    SlashCommand { name: String, id: u64 },
+    SlashCommand {
+        name: String,
+        #[serde(with = "id_str")]
+        id: u64,
+    },
     /// `<id:customize|browse|guide|linked-roles[:id]>`
-    GuildNav { kind: String, id: Option<u64> },
+    GuildNav {
+        kind: String,
+        #[serde(with = "id_str_opt", default)]
+        id: Option<u64>,
+    },
     /// `<cinema:id>`
     Cinema { id: String },
     /// `<library:id>`
@@ -144,4 +162,48 @@ pub(crate) fn merge_text(nodes: Vec<Node>) -> Vec<Node> {
         out.push(n);
     }
     out
+}
+
+/// IDs are Snowflakes, which exceed 2^53, so they cross the JSON boundary as strings
+/// (like `sr_core::Snowflake`). Deserialization also accepts bare integers.
+mod id_str {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(id: &u64, s: S) -> Result<S::Ok, S::Error> {
+        s.collect_str(id)
+    }
+
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    pub(super) enum Raw {
+        Num(u64),
+        Str(String),
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<u64, D::Error> {
+        match Raw::deserialize(d)? {
+            Raw::Num(n) => Ok(n),
+            Raw::Str(s) => s.parse().map_err(serde::de::Error::custom),
+        }
+    }
+}
+
+mod id_str_opt {
+    use super::id_str::Raw;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(id: &Option<u64>, s: S) -> Result<S::Ok, S::Error> {
+        match id {
+            Some(v) => s.collect_str(v),
+            None => s.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Option<u64>, D::Error> {
+        match Option::<Raw>::deserialize(d)? {
+            None => Ok(None),
+            Some(Raw::Num(n)) => Ok(Some(n)),
+            Some(Raw::Str(s)) => s.parse().map(Some).map_err(serde::de::Error::custom),
+        }
+    }
 }

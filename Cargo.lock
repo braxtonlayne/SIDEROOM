@@ -2220,6 +2220,13 @@ dependencies = [
 [[package]]
 name = "sr-chat"
 version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "sr-core",
+ "sr-markdown",
+ "thiserror",
+ "tokio",
+]
 
 [[package]]
 name = "sr-cli"
@@ -2241,8 +2248,11 @@ dependencies = [
 name = "sr-db"
 version = "0.0.0"
 dependencies = [
+ "async-trait",
  "serde_json",
  "sqlx",
+ "sr-chat",
+ "sr-core",
  "thiserror",
  "tokio",
  "tracing",
