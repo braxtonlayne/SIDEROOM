@@ -211,7 +211,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let guilds = GuildApi(routes::guilds::backend::backend(chat, bus.clone()));
 
     let gateway = Gateway::new(
-        GatewayConfig::default(),
+        GatewayConfig {
+            // Cookie-authenticated web sessions may IDENTIFY from the public origin only.
+            allowed_origins: vec![cfg.server.public_url.trim_end_matches('/').to_owned()],
+            ..GatewayConfig::default()
+        },
         Arc::new(PgAuthenticator::new(
             auth_repo.clone(),
             pool.clone(),
