@@ -5,7 +5,7 @@ Phase 0. Spec: [entry-landing-and-login](../specs/entry-landing-and-login.md), d
 ## ENT-AUTH — Backend identity
 - [ ] **ENT-AUTH-001** [BE] Account model + repository (create, get by username/email/id, state transitions)
 - [ ] **ENT-AUTH-002** [BE] Username rules + availability check endpoint (debounced)
-- [ ] **ENT-AUTH-003** [BE] argon2id hashing (tuned params, rehash on login if params changed)
+- [x] **ENT-AUTH-003** [BE] argon2id hashing (tuned params, rehash on login if params changed)
 - [ ] **ENT-AUTH-004** [BE] Password strength validation (`zxcvbn` crate, min length 10)
 - [ ] **ENT-AUTH-005** [BE] Session create/list/revoke, rolling expiry, device naming from UA
 - [ ] **ENT-AUTH-006** [BE] CSRF token issuance + verification
@@ -20,7 +20,7 @@ Phase 0. Spec: [entry-landing-and-login](../specs/entry-landing-and-login.md), d
 - [ ] **ENT-AUTH-015** [BE] New-device login alert email (toggle)
 
 ## ENT-INV — Platform invites
-- [ ] **ENT-INV-001** [BE] Invite code generator (Crockford base32 10 chars, dash formatting, normalization)
+- [x] **ENT-INV-001** [BE] Invite code generator (Crockford base32 10 chars, dash formatting, normalization)
 - [ ] **ENT-INV-002** [BE] `GET /sr/invites/{code}` validity check (valid/invalid/closed), per-IP rate limits, no issuer leak
 - [ ] **ENT-INV-003** [BE] Create invite (eligibility: active, verified, age ≥ N days, open < credits, cap not reached, not frozen)
 - [ ] **ENT-INV-004** [BE] Revoke invite (race-safe vs redemption)
