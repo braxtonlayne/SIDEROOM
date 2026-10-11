@@ -1,15 +1,23 @@
 /**
  * Lounge data seam.
  *
- * Every Lounge component reads chat state ONLY through the hooks exported here. Today they are backed by a
- * React context filled by `MockDataProvider` (./mockData.tsx). When the gateway client and normalized store
- * land (apps/web/src/store/index.ts: useGuilds, useGuild, useChannels, useMessages, useMembers, usePresence,
- * useTyping), swap by re-implementing the hook bodies in this file (or re-exporting them from the store) and
- * replacing `<MockDataProvider>` in routes/lounge.tsx. Nothing else imports the mock.
+ * Every Lounge component reads chat state ONLY through the hooks exported here. In the app the hooks read the
+ * normalized store (apps/web/src/store) through the adapters in ./live.ts, which map the Discord-shaped store
+ * entities to the view model below (./liveMap.ts). A `MockDataProvider` (./mockData.tsx) supplies a
+ * `LoungeDataContext` for tests and Ladle, and its values win over the store when present.
  *
  * Ids are decimal-string snowflakes, like everywhere else on the wire.
  */
 import { createContext, useContext } from 'react';
+import {
+  LIVE_ACTIONS,
+  useEnsureGuild,
+  useEnsureMembers,
+  useLiveMessages,
+  useLiveSnapshot,
+  useLiveTypingIds,
+  type LiveSnapshot,
+} from './live';
 
 export type Snowflake = string;
 export type PresenceStatus = 'online' | 'idle' | 'dnd' | 'offline';
@@ -163,6 +171,8 @@ export interface MessagesState {
   hasMore: boolean;
   loadingOlder: boolean;
   loading: boolean;
+  /** The loaded window ends at the newest message (live appends are shown). Mock data: always true. */
+  atLatest?: boolean;
 }
 
 export interface LoungeActions {
@@ -195,12 +205,19 @@ export interface LoungeData {
   actions: LoungeActions;
 }
 
+/**
+ * Set only by the mock provider (tests, Ladle, `VITE_SR_MOCK=1`). Without it every hook reads the store.
+ */
 export const LoungeDataContext = createContext<LoungeData | null>(null);
 
-function useData(): LoungeData {
-  const v = useContext(LoungeDataContext);
-  if (!v) throw new Error('Lounge hooks must be used inside a data provider');
-  return v;
+/**
+ * Picks the source for one hook call. Both sources are always subscribed, so hook order never changes;
+ * the store-side effects (loading) run only when no mock is present (`active`).
+ */
+function useSource(): { mock: LoungeData | null; live: LiveSnapshot } {
+  const mock = useContext(LoungeDataContext);
+  const live = useLiveSnapshot();
+  return { mock, live };
 }
 
 const EMPTY_CHANNELS: Channel[] = [];
@@ -215,48 +232,86 @@ const EMPTY_MESSAGES: MessagesState = {
   loadingOlder: false,
   loading: false,
 };
+const NO_REQUESTS = { friends: 0, messages: 0 };
 
-export const useCurrentUser = () => useData().me;
-export const useGuilds = () => useData().guilds;
-export const useRail = () => useData().rail;
+export function useCurrentUser(): LoungeUser {
+  const { mock, live } = useSource();
+  return mock ? mock.me : live.me;
+}
+export function useGuilds(): Guild[] {
+  const { mock, live } = useSource();
+  return mock ? mock.guilds : live.guilds;
+}
+export function useRail(): RailEntry[] {
+  const { mock, live } = useSource();
+  return mock ? mock.rail : live.rail;
+}
 export function useGuild(guildId: Snowflake | undefined) {
-  const d = useData();
-  return d.guilds.find((g) => g.id === guildId);
+  const { mock, live } = useSource();
+  return (mock ?? live).guilds.find((g) => g.id === guildId);
 }
-export function useChannels(guildId: Snowflake | undefined) {
-  const d = useData();
-  return (guildId ? d.channelsByGuild[guildId] : undefined) ?? EMPTY_CHANNELS;
+export function useChannels(guildId: Snowflake | undefined): Channel[] {
+  const { mock, live } = useSource();
+  useEnsureGuild(guildId, !mock);
+  const map = mock ? mock.channelsByGuild : live.channelsByGuild;
+  return (guildId ? map[guildId] : undefined) ?? EMPTY_CHANNELS;
 }
-export const useAllChannels = () => useData().channelsByGuild;
-export const useDms = () => useData().dms;
-export const useUsers = () => useData().users;
-export function useRoles(guildId: Snowflake | undefined) {
-  const d = useData();
-  return (guildId ? d.rolesByGuild[guildId] : undefined) ?? EMPTY_ROLES;
+export function useAllChannels(): Record<Snowflake, Channel[]> {
+  const { mock, live } = useSource();
+  return mock ? mock.channelsByGuild : live.channelsByGuild;
 }
-export function useMembers(guildId: Snowflake | undefined) {
-  const d = useData();
-  return (guildId ? d.membersByGuild[guildId] : undefined) ?? EMPTY_MEMBERS;
+export function useDms(): DmChannel[] {
+  const { mock, live } = useSource();
+  return mock ? mock.dms : live.dms;
+}
+export function useUsers(): Record<Snowflake, LoungeUser> {
+  const { mock, live } = useSource();
+  return mock ? mock.users : live.users;
+}
+export function useRoles(guildId: Snowflake | undefined): Role[] {
+  const { mock, live } = useSource();
+  useEnsureGuild(guildId, !mock);
+  const map = mock ? mock.rolesByGuild : live.rolesByGuild;
+  return (guildId ? map[guildId] : undefined) ?? EMPTY_ROLES;
+}
+export function useMembers(guildId: Snowflake | undefined): Member[] {
+  const { mock, live } = useSource();
+  useEnsureMembers(guildId, !mock);
+  const map = mock ? mock.membersByGuild : live.membersByGuild;
+  return (guildId ? map[guildId] : undefined) ?? EMPTY_MEMBERS;
 }
 export function usePresence(userId: Snowflake): Presence {
-  const d = useData();
-  return d.presence[userId] ?? OFFLINE;
+  const { mock, live } = useSource();
+  return (mock ? mock.presence : live.presence)[userId] ?? OFFLINE;
 }
-export const usePresenceMap = () => useData().presence;
+export function usePresenceMap(): Record<Snowflake, Presence> {
+  const { mock, live } = useSource();
+  return mock ? mock.presence : live.presence;
+}
 export function useTyping(channelId: Snowflake | undefined): Snowflake[] {
-  const d = useData();
-  return (channelId ? d.typing[channelId] : undefined) ?? EMPTY_IDS;
+  const { mock } = useSource();
+  const typingIds = useLiveTypingIds(mock ? undefined : channelId);
+  if (mock) return (channelId ? mock.typing[channelId] : undefined) ?? EMPTY_IDS;
+  return typingIds;
 }
-export function useVoiceMembers(channelId: Snowflake) {
-  const d = useData();
-  return d.voice[channelId] ?? EMPTY_VOICE;
+export function useVoiceMembers(channelId: Snowflake): VoiceMember[] {
+  const { mock } = useSource();
+  // Voice state is not in the store yet (LNG-VOICE); live mode shows nobody connected.
+  return mock?.voice[channelId] ?? EMPTY_VOICE;
 }
 export function useMessages(channelId: Snowflake | undefined): MessagesState {
-  const d = useData();
-  return (channelId ? d.messages[channelId] : undefined) ?? EMPTY_MESSAGES;
+  const mock = useContext(LoungeDataContext);
+  const live = useLiveMessages(channelId, !mock);
+  if (mock) return (channelId ? mock.messages[channelId] : undefined) ?? EMPTY_MESSAGES;
+  return channelId ? live : EMPTY_MESSAGES;
 }
-export const useLoungeActions = () => useData().actions;
+export function useLoungeActions(): LoungeActions {
+  const mock = useContext(LoungeDataContext);
+  return mock ? mock.actions : LIVE_ACTIONS;
+}
 export function useRequestCounts() {
-  const d = useData();
-  return { friends: d.friendRequestCount, messages: d.messageRequestCount };
+  const mock = useContext(LoungeDataContext);
+  return mock
+    ? { friends: mock.friendRequestCount, messages: mock.messageRequestCount }
+    : NO_REQUESTS;
 }
