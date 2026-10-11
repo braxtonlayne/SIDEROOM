@@ -4,13 +4,13 @@ use super::deps::MessagesDeps;
 use super::error::{MsgResult, parse_id};
 use super::model::{MessageObject, PinEntry, PinsPage, iso};
 use super::render::{actor, event_payload, render_many};
+use crate::routes::Ext;
 use crate::{Principal, openapi::ErrorBody};
-use axum::{Extension, Json, extract::Path, http::StatusCode};
+use axum::{Json, extract::Path, http::StatusCode};
 use sr_chat::{Message, MessageReference, MessageType, Visibility};
 use sr_core::permissions::Permissions;
 use sr_core::{ChannelId, ErrorCode, MessageId};
 use sr_events::DomainEvent;
-use std::sync::Arc;
 
 async fn pinned(
     deps: &MessagesDeps,
@@ -37,7 +37,7 @@ async fn pinned(
 )]
 pub async fn list_pins_legacy(
     p: Principal,
-    Extension(deps): Extension<Arc<MessagesDeps>>,
+    Ext(deps): Ext<MessagesDeps>,
     Path(channel): Path<String>,
 ) -> MsgResult<Json<Vec<MessageObject>>> {
     Ok(Json(
@@ -59,7 +59,7 @@ pub async fn list_pins_legacy(
 )]
 pub async fn list_pins(
     p: Principal,
-    Extension(deps): Extension<Arc<MessagesDeps>>,
+    Ext(deps): Ext<MessagesDeps>,
     Path(channel): Path<String>,
 ) -> MsgResult<Json<PinsPage>> {
     let items = pinned(&deps, &p, &channel)
@@ -93,7 +93,7 @@ fn gid(c: &sr_chat::Channel) -> Option<sr_events::GuildId> {
 )]
 pub async fn pin(
     p: Principal,
-    Extension(deps): Extension<Arc<MessagesDeps>>,
+    Ext(deps): Ext<MessagesDeps>,
     Path((channel, message)): Path<(String, String)>,
 ) -> MsgResult<StatusCode> {
     let user = actor(&p);
@@ -118,9 +118,10 @@ pub async fn pin(
             channel_id,
         }),
         attachment_ids: Vec::new(),
-        embed_count: 0,
+        embeds: Vec::new(),
+        components: Vec::new(),
         sticker_ids: Vec::new(),
-        has_poll: false,
+        poll: None,
         mention_everyone: false,
         mention_user_ids: Vec::new(),
         mention_role_ids: Vec::new(),
@@ -163,7 +164,7 @@ pub async fn pin(
 )]
 pub async fn unpin(
     p: Principal,
-    Extension(deps): Extension<Arc<MessagesDeps>>,
+    Ext(deps): Ext<MessagesDeps>,
     Path((channel, message)): Path<(String, String)>,
 ) -> MsgResult<StatusCode> {
     let user = actor(&p);

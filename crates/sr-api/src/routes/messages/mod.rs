@@ -2,22 +2,21 @@
 //! reactions, pins, typing and upload slots (LNG-MSG-002..-009, -011, -013, -020;
 //! FND-STOR-004).
 //!
-//! Mount with [`router_with`] (collaborators supplied) under the API version prefix:
+//! Mount with [`router`] under the API version prefix. The services the handlers
+//! need are registered on the composition root as [`MessagesDeps`] through
+//! [`crate::AppStateBuilder::extension`] and read with [`crate::routes::Ext`]:
 //!
 //! ```ignore
-//! let deps = Arc::new(MessagesDeps::new(repo, store, storage, bus, entitlements, clock, 1, 1)?);
-//! let app = build_router(state, messages::router_with(deps));
+//! let deps = MessagesDeps::new(repo, store, storage, bus, entitlements, clock, 1, 1)?;
+//! let state = AppState::builder().extension(Arc::new(deps)).build();
+//! let app = build_router(state, messages::router());
 //! ```
-//!
-//! [`router`] alone has no collaborators; requests fail with 500 until a
-//! `MessagesDeps` extension is layered on. `AppState` has no slot for chat services,
-//! hence the extension (open question in `docs/open-questions.md`).
 
 pub mod attachments;
 pub mod deps;
 pub mod error;
 pub mod list;
-pub mod memory;
+
 pub mod model;
 pub mod pins;
 pub mod reactions;
@@ -30,19 +29,16 @@ pub mod typing;
 mod tests;
 
 pub use deps::{FixedEntitlements, MessagesDeps, UploadEntitlements};
-pub use memory::MemoryBackend;
-pub use store::MessageStore;
 
 use crate::{openapi::ErrorBody, state::AppState};
 use axum::{
-    Extension, Router,
+    Router,
     routing::{delete, get, post, put},
 };
-use std::sync::Arc;
 use utoipa::OpenApi;
 
-/// All message routes (relative to the API version prefix). Requires a
-/// [`MessagesDeps`] extension; see [`router_with`].
+/// All message routes (relative to the API version prefix). Handlers require a
+/// [`MessagesDeps`] registered on [`AppState`].
 pub fn router() -> Router<AppState> {
     Router::new()
         .route(
@@ -93,11 +89,6 @@ pub fn router() -> Router<AppState> {
             "/channels/{channel_id}/attachments/{upload_id}/complete",
             post(attachments::complete_upload),
         )
-}
-
-/// [`router`] with its collaborators attached.
-pub fn router_with(deps: Arc<MessagesDeps>) -> Router<AppState> {
-    router().layer(Extension(deps))
 }
 
 /// OpenAPI fragment for these routes; merge into [`crate::openapi::base`].

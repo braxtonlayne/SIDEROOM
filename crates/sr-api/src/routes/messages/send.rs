@@ -3,16 +3,19 @@
 use super::attachments::{finalize, load_upload};
 use super::deps::MessagesDeps;
 use super::error::{ApiJson, MsgResult, invalid, parse_id};
-use super::model::{BulkDeleteBody, CreateMessageBody, EditMessageBody, MessageObject};
+use super::model::{
+    AllowedMentionsBody, BulkDeleteBody, CreateMessageBody, EditMessageBody, MessageObject,
+};
 use super::render::{actor, event_payload, render_one};
 use super::store::UploadState;
+use crate::routes::Ext;
 use crate::{Principal, openapi::ErrorBody};
-use axum::{Extension, Json, extract::Path, http::StatusCode};
-use sr_chat::message_rules::EditMessageInput;
+use axum::{Json, extract::Path, http::StatusCode};
+use sr_chat::message_flags;
+use sr_chat::message_rules::{AllowedMentions, EditMessageInput};
 use sr_chat::{ChatError, SendMessage};
-use sr_core::{AttachmentId, ChannelId, ErrorCode, MessageId};
+use sr_core::{AttachmentId, ChannelId, ErrorCode, MessageId, RoleId, UserId};
 use sr_events::DomainEvent;
-use std::sync::Arc;
 
 const MAX_NONCE_LEN: usize = 25;
 
@@ -38,7 +41,7 @@ const MAX_NONCE_LEN: usize = 25;
 )]
 pub async fn create_message(
     p: Principal,
-    Extension(deps): Extension<Arc<MessagesDeps>>,
+    Ext(deps): Ext<MessagesDeps>,
     Path(channel_id): Path<String>,
     ApiJson(body): ApiJson<CreateMessageBody>,
 ) -> MsgResult<Json<MessageObject>> {
@@ -73,30 +76,21 @@ pub async fn create_message(
     let acc = deps.access(author, channel_id).await?;
     acc.require_view()?;
 
-    // Nonce dedupe (LNG-MSG-002).
-    if let Some(nonce) = &body.nonce {
-        let since = deps.now_ms() - deps.nonce_window_ms;
-        if let Some(existing) = deps
-            .store
-            .find_nonce(channel_id, author, nonce, since)
+    // Nonce dedupe (LNG-MSG-002, open question 151): only with `enforce_nonce`
+    // does a repeated nonce return the original message; otherwise a new message
+    // is created.
+    if let Some(nonce) = &body.nonce
+        && body.enforce_nonce == Some(true)
+        && let Some(existing) = deps.find_nonce(channel_id, author, nonce).await?
+        && let Some(msg) = deps
+            .repo
+            .get_message(channel_id, existing)
             .await?
-            && let Some(msg) = deps
-                .repo
-                .get_message(channel_id, existing)
-                .await?
-                .filter(sr_chat::Message::is_visible)
-        {
-            if body.enforce_nonce == Some(true) {
-                return Err(invalid(
-                    "nonce",
-                    "NONCE_IN_USE",
-                    "This nonce was already used.",
-                ));
-            }
-            let mut out = render_one(&deps, author, &msg).await?;
-            out.nonce = Some(nonce.clone());
-            return Ok(Json(out));
-        }
+            .filter(sr_chat::Message::is_visible)
+    {
+        let mut out = render_one(&deps, author, &msg).await?;
+        out.nonce = Some(nonce.clone());
+        return Ok(Json(out));
     }
 
     // Attachments: must be the caller's uploads in this channel, not yet used.
@@ -157,15 +151,34 @@ pub async fn create_message(
         }
     }
 
+    let allowed_mentions = body
+        .allowed_mentions
+        .as_ref()
+        .map(parse_allowed_mentions)
+        .transpose()?;
+    let mut flags = body.flags.unwrap_or(0);
+    if body.tts == Some(true) {
+        flags |= message_flags::TTS;
+    }
+    let embeds = body.embeds.clone().unwrap_or_default();
+    if embeds.len() > sr_chat::message::MAX_EMBEDS {
+        return Err(invalid(
+            "embeds",
+            "BASE_TYPE_MAX_LENGTH",
+            "Must be 10 or fewer in length.",
+        ));
+    }
     let req = SendMessage {
         content: body.content.clone().unwrap_or_default(),
         nonce: body.nonce.clone(),
         reply_to,
         attachment_ids: uploads.iter().map(|(a, _)| a.id).collect(),
-        embed_count: body.embeds.as_ref().map_or(0, Vec::len),
+        embeds,
+        components: body.components.clone().unwrap_or_default(),
         sticker_ids: Vec::new(),
-        has_poll: false,
-        flags: body.flags.unwrap_or(0),
+        poll: None,
+        flags,
+        allowed_mentions,
     };
     let msg = deps.send(author, channel_id, req).await?;
 
@@ -178,8 +191,7 @@ pub async fn create_message(
         deps.store.update_attachment(&att).await?;
     }
     if let Some(nonce) = &body.nonce {
-        deps.store
-            .put_nonce(channel_id, author, nonce, msg.id, deps.now_ms())
+        deps.remember_nonce(channel_id, author, nonce, msg.id)
             .await?;
     }
 
@@ -216,7 +228,7 @@ pub async fn create_message(
 )]
 pub async fn edit_message(
     p: Principal,
-    Extension(deps): Extension<Arc<MessagesDeps>>,
+    Ext(deps): Ext<MessagesDeps>,
     Path((channel_id, message_id)): Path<(String, String)>,
     ApiJson(body): ApiJson<EditMessageBody>,
 ) -> MsgResult<Json<MessageObject>> {
@@ -262,7 +274,7 @@ pub async fn edit_message(
 )]
 pub async fn delete_message(
     p: Principal,
-    Extension(deps): Extension<Arc<MessagesDeps>>,
+    Ext(deps): Ext<MessagesDeps>,
     Path((channel_id, message_id)): Path<(String, String)>,
 ) -> MsgResult<StatusCode> {
     let user = actor(&p);
@@ -299,7 +311,7 @@ pub async fn delete_message(
 )]
 pub async fn bulk_delete(
     p: Principal,
-    Extension(deps): Extension<Arc<MessagesDeps>>,
+    Ext(deps): Ext<MessagesDeps>,
     Path(channel_id): Path<String>,
     ApiJson(body): ApiJson<BulkDeleteBody>,
 ) -> MsgResult<StatusCode> {
@@ -331,4 +343,40 @@ pub async fn bulk_delete(
     })
     .await;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Parse Discord's `allowed_mentions` object (open question 152).
+fn parse_allowed_mentions(body: &AllowedMentionsBody) -> MsgResult<AllowedMentions> {
+    let parse_ids = |field: &str, raw: &[String]| -> MsgResult<Vec<u64>> {
+        raw.iter()
+            .map(|s| {
+                s.parse::<u64>()
+                    .map_err(|_| invalid(field, "NUMBER_TYPE_COERCE", "Value is not snowflake."))
+            })
+            .collect()
+    };
+    for kind in &body.parse {
+        if !matches!(kind.as_str(), "users" | "roles" | "everyone") {
+            return Err(invalid(
+                "allowed_mentions.parse",
+                "BASE_TYPE_CHOICES",
+                "Must be one of (users, roles, everyone).",
+            ));
+        }
+    }
+    let has = |k: &str| body.parse.iter().any(|p| p == k);
+    Ok(AllowedMentions {
+        parse_users: has("users"),
+        parse_roles: has("roles"),
+        parse_everyone: has("everyone"),
+        users: parse_ids("allowed_mentions.users", &body.users)?
+            .into_iter()
+            .map(UserId::new)
+            .collect(),
+        roles: parse_ids("allowed_mentions.roles", &body.roles)?
+            .into_iter()
+            .map(RoleId::new)
+            .collect(),
+        replied_user: body.replied_user,
+    })
 }

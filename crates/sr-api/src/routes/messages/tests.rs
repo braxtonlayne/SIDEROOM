@@ -1,6 +1,6 @@
 //! Endpoint tests over the in-memory backend with one-shot requests.
 
-use super::{FixedEntitlements, MemoryBackend, MessagesDeps, UploadEntitlements, router_with};
+use super::{FixedEntitlements, MessagesDeps, UploadEntitlements, router};
 use crate::{
     ApiSettings, AppState,
     auth::{BotIdentity, memory::MemoryBots},
@@ -17,6 +17,7 @@ use futures::{StreamExt, stream::BoxStream};
 use http_body_util::BodyExt;
 use serde_json::{Value, json};
 use sr_chat::guild_rules::plan_new_guild;
+use sr_chat::memory::MemoryBackend;
 use sr_chat::repo::GuildRepository;
 use sr_chat::{Member, MessageType};
 use sr_core::{ChannelId, Clock, GuildId, ManualClock, Permissions, SnowflakeGenerator, UserId};
@@ -91,23 +92,26 @@ async fn env_with(entitlements: Arc<dyn UploadEntitlements>) -> Env {
     // Rate limiting has its own tests; here it would only throttle the test client.
     let mut settings = ApiSettings::default();
     settings.rate_limit.enabled = false;
-    let state = AppState::builder()
-        .bots(bots)
-        .clock(dyn_clock.clone())
-        .settings(settings)
-        .build();
     let deps = MessagesDeps::new(
         backend.clone(),
         Arc::new(backend.clone()),
         storage.clone(),
         bus.clone(),
         entitlements,
-        dyn_clock,
+        Arc::new(backend.clone()),
+        None,
+        dyn_clock.clone(),
         1,
         1,
     )
     .unwrap();
-    let app = build_router(state, router_with(Arc::new(deps)));
+    let state = AppState::builder()
+        .bots(bots)
+        .clock(dyn_clock)
+        .settings(settings)
+        .extension(Arc::new(deps))
+        .build();
+    let app = build_router(state, router());
     Env {
         app,
         backend,
@@ -374,38 +378,40 @@ async fn history_requires_read_message_history() {
 }
 
 #[tokio::test]
-async fn nonce_dedupes_within_the_window() {
+async fn nonce_dedupes_only_with_enforce_nonce() {
     let e = env().await;
     let mut ev = e.events();
     let body = json!({"content": "once", "nonce": 12345});
+    // Without enforce_nonce a repeated nonce creates another message (Discord parity).
     let (s, a) = e.post("/messages", "bob", body.clone()).await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(a["nonce"], "12345");
-    let (s, b) = e.post("/messages", "bob", body.clone()).await;
+    let (s, b) = e.post("/messages", "bob", body).await;
     assert_eq!(s, StatusCode::OK);
-    assert_eq!(a["id"], b["id"]);
+    assert_ne!(a["id"], b["id"]);
     let (_, list) = e.get("/messages", "bob").await;
-    assert_eq!(list.as_array().unwrap().len(), 1);
+    assert_eq!(list.as_array().unwrap().len(), 2);
     next_event(&mut ev).await;
+    next_event(&mut ev).await;
+
+    // With enforce_nonce the original comes back with 200 and no new event.
+    let strict = json!({"content": "x", "nonce": "n2", "enforce_nonce": true});
+    let (s, first) = e.post("/messages", "bob", strict.clone()).await;
+    assert_eq!(s, StatusCode::OK);
+    next_event(&mut ev).await;
+    let (s, again) = e.post("/messages", "bob", strict.clone()).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(first["id"], again["id"]);
+    assert_eq!(again["nonce"], "n2");
     no_event(&mut ev).await;
 
-    // A different author may reuse the nonce; so may the same author later.
-    let (_, c) = e.post("/messages", "owner", body.clone()).await;
-    assert_ne!(c["id"], a["id"]);
+    // Another author may reuse the nonce; so may the same author after the window.
+    let (_, c) = e.post("/messages", "owner", strict.clone()).await;
+    assert_ne!(c["id"], first["id"]);
     e.clock.advance_ms(6 * 60 * 1000);
-    let (_, d) = e.post("/messages", "bob", body).await;
-    assert_ne!(d["id"], a["id"]);
+    let (_, d) = e.post("/messages", "bob", strict).await;
+    assert_ne!(d["id"], first["id"]);
 
-    // Strict mode refuses the collision.
-    let strict = json!({"content": "x", "nonce": "n2", "enforce_nonce": true});
-    assert_eq!(
-        e.post("/messages", "bob", strict.clone()).await.0,
-        StatusCode::OK
-    );
-    assert_eq!(
-        e.post("/messages", "bob", strict).await.0,
-        StatusCode::BAD_REQUEST
-    );
     let r = e
         .post(
             "/messages",

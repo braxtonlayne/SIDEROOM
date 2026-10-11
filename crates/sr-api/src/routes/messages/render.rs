@@ -5,14 +5,33 @@ use super::error::MsgResult;
 use super::model::MessageObject;
 use crate::Principal;
 use sr_chat::Message;
+use sr_chat::repo::UserSummary;
 use sr_core::UserId;
+use std::collections::{HashMap, HashSet};
 
 /// The acting user of a request.
 pub fn actor(p: &Principal) -> UserId {
     UserId::new(u64::try_from(p.user_id).unwrap_or(0))
 }
 
-/// REST view: attachments and the viewer's reactions included.
+/// Display fields for every author and mentioned user of `msgs` (open question 157).
+async fn lookup_users(
+    deps: &MessagesDeps,
+    msgs: &[Message],
+) -> MsgResult<HashMap<UserId, UserSummary>> {
+    let ids: HashSet<UserId> = msgs
+        .iter()
+        .flat_map(|m| std::iter::once(m.author_id).chain(m.mention_user_ids.iter().copied()))
+        .collect();
+    if ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let ids: Vec<UserId> = ids.into_iter().collect();
+    let found = deps.users.users(&ids).await?;
+    Ok(found.into_iter().map(|u| (u.id, u)).collect())
+}
+
+/// REST view: attachments, the viewer's reactions and user objects included.
 pub async fn render_many(
     deps: &MessagesDeps,
     viewer: UserId,
@@ -21,6 +40,7 @@ pub async fn render_many(
     let ids: Vec<_> = msgs.iter().map(|m| m.id).collect();
     let mut atts = deps.store.attachments_of(&ids).await?;
     let mut reactions = deps.store.reactions_for(&ids, viewer).await?;
+    let users = lookup_users(deps, msgs).await?;
     Ok(msgs
         .iter()
         .map(|m| {
@@ -29,6 +49,7 @@ pub async fn render_many(
                 &atts.remove(&m.id).unwrap_or_default(),
                 &reactions.remove(&m.id).unwrap_or_default(),
                 None,
+                &users,
             )
         })
         .collect())
@@ -53,5 +74,6 @@ pub async fn event_payload(deps: &MessagesDeps, msg: &Message) -> MsgResult<serd
         .remove(&msg.id)
         .unwrap_or_default();
     let nonce = deps.store.nonce_of(msg.id).await?;
-    Ok(MessageObject::build(msg, &atts, &[], nonce).to_value())
+    let users = lookup_users(deps, std::slice::from_ref(msg)).await?;
+    Ok(MessageObject::build(msg, &atts, &[], nonce, &users).to_value())
 }

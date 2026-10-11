@@ -32,6 +32,8 @@ pub struct Data {
     /// (message, emoji key) -> reactions in insertion order.
     reactions: BTreeMap<(MessageId, String), (EmojiKey, Vec<UserId>)>,
     attachments: HashMap<AttachmentId, Attachment>,
+    /// Accounts for the user lookup (open question 157).
+    pub users: HashMap<UserId, crate::repo::UserSummary>,
 }
 
 /// Cheap-to-clone handle over shared state.
@@ -502,5 +504,16 @@ impl MessageStore for MemoryBackend {
             v.sort_by_key(|a| a.id);
         }
         Ok(out)
+    }
+}
+
+#[async_trait]
+impl crate::repo::UserLookup for MemoryBackend {
+    async fn users(&self, ids: &[UserId]) -> RepoResult<Vec<crate::repo::UserSummary>> {
+        let s = self.data();
+        Ok(ids
+            .iter()
+            .filter_map(|id| s.users.get(id).cloned())
+            .collect())
     }
 }

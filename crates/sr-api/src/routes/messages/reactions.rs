@@ -5,14 +5,14 @@ use super::error::{ApiQuery, MsgError, MsgResult, invalid, parse_id};
 use super::model::{ReactionUsersQuery, UserListEntry};
 use super::render::actor;
 use super::store::EmojiKey;
+use crate::routes::Ext;
 use crate::{Principal, openapi::ErrorBody};
-use axum::{Extension, Json, extract::Path, http::StatusCode};
+use axum::{Json, extract::Path, http::StatusCode};
 use sr_chat::message_rules::{validate_add_reaction, validate_remove_reaction};
 use sr_chat::{ChatError, Message};
 use sr_core::permissions::Permissions;
 use sr_core::{ChannelId, ErrorCode, MessageId, UserId};
 use sr_events::DomainEvent;
-use std::sync::Arc;
 
 struct Target {
     user: UserId,
@@ -68,7 +68,7 @@ fn guild_of(t: &Target) -> Option<sr_events::GuildId> {
 )]
 pub async fn add_own(
     p: Principal,
-    Extension(deps): Extension<Arc<MessagesDeps>>,
+    Ext(deps): Ext<MessagesDeps>,
     Path((channel, message, raw_emoji)): Path<(String, String, String)>,
 ) -> MsgResult<StatusCode> {
     let t = target(&deps, &p, &channel, &message).await?;
@@ -143,7 +143,7 @@ async fn remove_for(
 )]
 pub async fn remove_own(
     p: Principal,
-    Extension(deps): Extension<Arc<MessagesDeps>>,
+    Ext(deps): Ext<MessagesDeps>,
     Path((channel, message, raw_emoji)): Path<(String, String, String)>,
 ) -> MsgResult<StatusCode> {
     let t = target(&deps, &p, &channel, &message).await?;
@@ -166,7 +166,7 @@ pub async fn remove_own(
 )]
 pub async fn remove_user(
     p: Principal,
-    Extension(deps): Extension<Arc<MessagesDeps>>,
+    Ext(deps): Ext<MessagesDeps>,
     Path((channel, message, raw_emoji, user)): Path<(String, String, String, String)>,
 ) -> MsgResult<StatusCode> {
     let t = target(&deps, &p, &channel, &message).await?;
@@ -191,7 +191,7 @@ pub async fn remove_user(
 )]
 pub async fn list_users(
     p: Principal,
-    Extension(deps): Extension<Arc<MessagesDeps>>,
+    Ext(deps): Ext<MessagesDeps>,
     Path((channel, message, raw_emoji)): Path<(String, String, String)>,
     ApiQuery(q): ApiQuery<ReactionUsersQuery>,
 ) -> MsgResult<Json<Vec<UserListEntry>>> {
@@ -242,7 +242,7 @@ pub async fn list_users(
 )]
 pub async fn clear_all(
     p: Principal,
-    Extension(deps): Extension<Arc<MessagesDeps>>,
+    Ext(deps): Ext<MessagesDeps>,
     Path((channel, message)): Path<(String, String)>,
 ) -> MsgResult<StatusCode> {
     let t = target(&deps, &p, &channel, &message).await?;
@@ -271,7 +271,7 @@ pub async fn clear_all(
 )]
 pub async fn clear_emoji(
     p: Principal,
-    Extension(deps): Extension<Arc<MessagesDeps>>,
+    Ext(deps): Ext<MessagesDeps>,
     Path((channel, message, raw_emoji)): Path<(String, String, String)>,
 ) -> MsgResult<StatusCode> {
     let t = target(&deps, &p, &channel, &message).await?;

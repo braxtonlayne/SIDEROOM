@@ -8,8 +8,9 @@ use super::error::{ApiJson, MsgError, MsgResult, invalid, parse_id};
 use super::model::{AttachmentObject, UploadSlot, UploadSlotsBody, UploadSlotsResponse};
 use super::render::actor;
 use super::store::{Attachment, UploadState};
+use crate::routes::Ext;
 use crate::{Principal, openapi::ErrorBody};
-use axum::{Extension, Json, extract::Path};
+use axum::{Json, extract::Path};
 use sr_chat::ChatError;
 use sr_core::permissions::Permissions;
 use sr_core::{AttachmentId, ChannelId, ErrorCode, UserId};
@@ -17,7 +18,6 @@ use sr_storage::StorageError;
 use sr_storage::storage::PresignMethod;
 use sr_storage::upload::sniff::is_strippable_image;
 use sr_storage::upload::{SizeError, sniff_mime, strip_metadata};
-use std::sync::Arc;
 
 /// Bytes read from the start of the object for sniffing.
 const SNIFF_BYTES: u64 = 512;
@@ -62,7 +62,7 @@ pub fn upload_filename(a: &Attachment) -> String {
 )]
 pub async fn request_slots(
     p: Principal,
-    Extension(deps): Extension<Arc<MessagesDeps>>,
+    Ext(deps): Ext<MessagesDeps>,
     Path(channel_id): Path<String>,
     ApiJson(body): ApiJson<UploadSlotsBody>,
 ) -> MsgResult<Json<UploadSlotsResponse>> {
@@ -248,7 +248,7 @@ pub async fn finalize(deps: &MessagesDeps, att: &mut Attachment) -> MsgResult<()
 )]
 pub async fn complete_upload(
     p: Principal,
-    Extension(deps): Extension<Arc<MessagesDeps>>,
+    Ext(deps): Ext<MessagesDeps>,
     Path((channel_id, upload_id)): Path<(String, String)>,
 ) -> MsgResult<Json<AttachmentObject>> {
     let user = actor(&p);

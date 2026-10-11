@@ -4,13 +4,13 @@
 use super::deps::MessagesDeps;
 use super::error::{MsgResult, parse_id};
 use super::render::actor;
+use crate::routes::Ext;
 use crate::{Principal, openapi::ErrorBody};
-use axum::{Extension, extract::Path, http::StatusCode};
+use axum::{extract::Path, http::StatusCode};
 use sr_chat::ChatError;
 use sr_core::permissions::Permissions;
 use sr_core::{ChannelId, ErrorCode};
 use sr_events::DomainEvent;
-use std::sync::Arc;
 
 /// Trigger the typing indicator.
 #[utoipa::path(
@@ -22,7 +22,7 @@ use std::sync::Arc;
 )]
 pub async fn trigger_typing(
     p: Principal,
-    Extension(deps): Extension<Arc<MessagesDeps>>,
+    Ext(deps): Ext<MessagesDeps>,
     Path(channel): Path<String>,
 ) -> MsgResult<StatusCode> {
     let user = actor(&p);

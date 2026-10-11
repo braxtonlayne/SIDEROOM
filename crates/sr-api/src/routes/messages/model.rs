@@ -2,7 +2,10 @@
 
 use super::store::{Attachment, ReactionSummary};
 use serde::{Deserialize, Deserializer, Serialize};
-use sr_chat::Message;
+use sr_chat::repo::UserSummary;
+use sr_chat::{Message, message_flags};
+use sr_core::UserId;
+use std::collections::HashMap;
 use utoipa::ToSchema;
 
 /// Unix milliseconds as ISO 8601 (`2026-01-02T03:04:05.678000+00:00`).
@@ -29,10 +32,30 @@ pub fn iso(ms: i64) -> String {
     )
 }
 
-/// Partial user object. Only the id is available until the users module lands.
+/// User object embedded in messages (author, mentions). Fields come from the user
+/// lookup (open question 157); without a row only the id is known.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct UserRef {
     pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub global_name: Option<String>,
+}
+
+impl UserRef {
+    /// Build from the lookup result, or the bare id when the user is unknown.
+    pub fn new(id: UserId, users: &HashMap<UserId, UserSummary>) -> Self {
+        let (username, global_name) = match users.get(&id) {
+            Some(u) => (Some(u.username.clone()), u.display_name.clone()),
+            None => (None, None),
+        };
+        Self {
+            id: id.to_string(),
+            username,
+            global_name,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -102,29 +125,31 @@ impl MessageObject {
         attachments: &[Attachment],
         reactions: &[ReactionSummary],
         nonce: Option<String>,
+        users: &HashMap<UserId, UserSummary>,
     ) -> Self {
         let gid = m.guild_id.map(|g| g.to_string());
         Self {
             id: m.id.to_string(),
             channel_id: m.channel_id.to_string(),
             guild_id: gid.clone(),
-            author: UserRef {
-                id: m.author_id.to_string(),
-            },
+            author: UserRef::new(m.author_id, users),
             content: m.content.clone(),
             timestamp: iso(m.id.snowflake().unix_ms()),
             edited_timestamp: m.edited_at_ms.map(iso),
-            tts: false,
+            tts: m.flags & message_flags::TTS != 0,
             mention_everyone: m.mention_everyone,
             mentions: m
                 .mention_user_ids
                 .iter()
-                .map(|u| UserRef { id: u.to_string() })
+                .map(|u| UserRef::new(*u, users))
                 .collect(),
             mention_roles: m.mention_role_ids.iter().map(ToString::to_string).collect(),
             attachments: attachments.iter().map(attachment_object).collect(),
-            // Embed payloads are not persisted yet (open question 98): only the count exists.
-            embeds: Vec::new(),
+            embeds: m
+                .embeds
+                .iter()
+                .map(|e| serde_json::to_value(e).unwrap_or(serde_json::Value::Null))
+                .collect(),
             reactions: reactions
                 .iter()
                 .map(|r| ReactionObject {
@@ -209,10 +234,10 @@ pub struct CreateMessageBody {
     pub nonce: Option<String>,
     #[serde(default)]
     pub tts: Option<bool>,
-    /// Only the count is kept for now.
+    /// Embeds are stored as sent (open question 98); at most 10.
     #[serde(default)]
     #[schema(value_type = Option<Vec<Object>>)]
-    pub embeds: Option<Vec<serde_json::Value>>,
+    pub embeds: Option<Vec<sr_chat::message::Embed>>,
     #[serde(default)]
     pub message_reference: Option<MessageReferenceIn>,
     #[serde(default)]
@@ -225,9 +250,17 @@ pub struct CreateMessageBody {
     #[serde(default)]
     #[schema(value_type = Option<Object>)]
     pub poll: Option<serde_json::Value>,
-    /// When true a nonce collision is an error instead of returning the existing message.
+    /// When true, a nonce already used in the window returns the original message with 200
+    /// instead of creating another (open question 151).
     #[serde(default)]
     pub enforce_nonce: Option<bool>,
+    /// Components are stored as sent; interactions are not supported yet.
+    #[serde(default)]
+    #[schema(value_type = Option<Vec<Object>>)]
+    pub components: Option<Vec<sr_chat::message::Component>>,
+    /// Which mentions may ping (open question 152).
+    #[serde(default)]
+    pub allowed_mentions: Option<AllowedMentionsBody>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, ToSchema)]
@@ -337,4 +370,18 @@ mod tests {
         let c: CreateMessageBody = serde_json::from_str("{}").unwrap();
         assert!(c.nonce.is_none());
     }
+}
+
+/// Discord's `allowed_mentions` object. `parse` may hold `users`, `roles` and
+/// `everyone`; listed `users`/`roles` ids may ping even when their kind is not parsed.
+#[derive(Debug, Clone, Default, Deserialize, ToSchema)]
+pub struct AllowedMentionsBody {
+    #[serde(default)]
+    pub parse: Vec<String>,
+    #[serde(default)]
+    pub users: Vec<String>,
+    #[serde(default)]
+    pub roles: Vec<String>,
+    #[serde(default)]
+    pub replied_user: bool,
 }

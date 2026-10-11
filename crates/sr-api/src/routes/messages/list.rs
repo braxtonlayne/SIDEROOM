@@ -6,12 +6,12 @@ use super::error::{ApiQuery, MsgResult, invalid, parse_id};
 use super::model::{ListMessagesQuery, MessageObject};
 use super::render::{actor, render_many, render_one};
 use super::store::Page;
+use crate::routes::Ext;
 use crate::{Principal, openapi::ErrorBody};
-use axum::{Extension, Json, extract::Path};
+use axum::{Json, extract::Path};
 use sr_chat::Message;
 use sr_core::permissions::Permissions;
 use sr_core::{ChannelId, ErrorCode, MessageId};
-use std::sync::Arc;
 
 pub const DEFAULT_LIMIT: u32 = 50;
 pub const MAX_LIMIT: u32 = 100;
@@ -108,7 +108,7 @@ pub async fn fetch_page(
 )]
 pub async fn list_messages(
     p: Principal,
-    Extension(deps): Extension<Arc<MessagesDeps>>,
+    Ext(deps): Ext<MessagesDeps>,
     Path(channel_id): Path<String>,
     ApiQuery(q): ApiQuery<ListMessagesQuery>,
 ) -> MsgResult<Json<Vec<MessageObject>>> {
@@ -141,7 +141,7 @@ pub async fn list_messages(
 )]
 pub async fn get_message(
     p: Principal,
-    Extension(deps): Extension<Arc<MessagesDeps>>,
+    Ext(deps): Ext<MessagesDeps>,
     Path((channel_id, message_id)): Path<(String, String)>,
 ) -> MsgResult<Json<MessageObject>> {
     let user = actor(&p);

@@ -1,14 +1,14 @@
-//! Collaborators of the message endpoints, injected as an axum `Extension`.
-//!
-//! `AppState` has no slot for chat services (it is outside this module's remit),
-//! so [`MessagesDeps`] is layered on by [`super::router_with`].
+//! Collaborators of the message endpoints. Registered on the composition root as
+//! an [`AppState`](crate::AppState) extension and read with [`crate::routes::Ext`].
 
 use super::error::{MsgError, MsgResult};
 use super::store::MessageStore;
 use async_trait::async_trait;
+use moka::future::Cache;
+use sr_chat::message_hooks::MessageHooks;
 use sr_chat::message_rules::{DeletePlan, EditMessageInput, EditPlan};
 use sr_chat::perms::{channel_permissions, dm_permissions};
-use sr_chat::repo::ChatRepository;
+use sr_chat::repo::{ChatRepository, UserLookup};
 use sr_chat::{
     Channel, ChatError, ChatLimits, ChatResult, ChatService, Message, Role, SendMessage,
 };
@@ -119,15 +119,24 @@ impl Access {
     }
 }
 
+/// How long a nonce keeps deduplicating (open question 97: a 5-minute window).
+pub const NONCE_WINDOW: Duration = Duration::from_secs(5 * 60);
+
+/// Cached `(channel, author, nonce) -> message` lookups for the nonce window.
+type NonceCache = Cache<(u64, u64, String), u64>;
+
 pub struct MessagesDeps {
     chat: Arc<dyn ChatOps>,
     pub repo: Arc<dyn ChatRepository>,
     pub store: Arc<dyn MessageStore>,
     pub storage: Arc<dyn ObjectStorage>,
+    /// Display fields for message authors and mentions (open question 157).
+    pub users: Arc<dyn UserLookup>,
     bus: Arc<dyn EventBus>,
     clock: Arc<dyn Clock>,
     ids: SnowflakeGenerator<Arc<dyn Clock>>,
     entitlements: Arc<dyn UploadEntitlements>,
+    nonces: NonceCache,
     pub limits: ChatLimits,
     pub size_policy: SizePolicy,
     /// How long a nonce keeps deduplicating (Discord: a few minutes).
@@ -139,7 +148,8 @@ impl MessagesDeps {
     /// `repo` must be a cheap handle (`Clone`) because the chat service owns one copy
     /// and the routes keep another. `worker`/`process` identify this node's snowflake
     /// generator; attachment ids use `process + 1 (mod 32)` so they never collide with
-    /// message ids minted by the chat service.
+    /// message ids minted by the chat service. `hooks` run after each stored message
+    /// (open questions 114 and 117).
     #[allow(clippy::too_many_arguments)]
     pub fn new<R: ChatRepository + Clone + 'static>(
         repo: R,
@@ -147,6 +157,8 @@ impl MessagesDeps {
         storage: Arc<dyn ObjectStorage>,
         bus: Arc<dyn EventBus>,
         entitlements: Arc<dyn UploadEntitlements>,
+        users: Arc<dyn UserLookup>,
+        hooks: Option<Arc<dyn MessageHooks>>,
         clock: Arc<dyn Clock>,
         worker: u8,
         process: u8,
@@ -154,21 +166,73 @@ impl MessagesDeps {
         let limits = ChatLimits::default();
         let chat_ids = SnowflakeGenerator::new(clock.clone(), worker, process)?;
         let ids = SnowflakeGenerator::new(clock.clone(), worker, (process + 1) % 32)?;
-        let chat = ChatService::new(repo.clone(), clock.clone(), chat_ids, limits);
+        let mut chat = ChatService::new(repo.clone(), clock.clone(), chat_ids, limits);
+        if let Some(h) = hooks {
+            chat = chat.with_hooks(h);
+        }
         Ok(Self {
             chat: Arc::new(chat),
             repo: Arc::new(repo),
             store,
             storage,
+            users,
             bus,
             clock,
             ids,
             entitlements,
+            nonces: Cache::builder().time_to_live(NONCE_WINDOW).build(),
             limits,
             size_policy: SizePolicy::default(),
-            nonce_window_ms: 5 * 60 * 1000,
+            nonce_window_ms: i64::try_from(NONCE_WINDOW.as_millis()).unwrap_or(i64::MAX),
             upload_url_ttl: Duration::from_secs(15 * 60),
         })
+    }
+
+    /// A message this author sent with `nonce` in the window, if any (open question
+    /// 97: the cache answers first, the store index is the fallback). Cache hits are
+    /// checked against the injected clock using the message's snowflake time.
+    pub async fn find_nonce(
+        &self,
+        channel: ChannelId,
+        author: UserId,
+        nonce: &str,
+    ) -> MsgResult<Option<MessageId>> {
+        let key = (channel.get(), author.get(), nonce.to_owned());
+        let now = self.now_ms();
+        if let Some(id) = self.nonces.get(&key).await {
+            let id = MessageId::new(id);
+            if now - id.snowflake().unix_ms() < self.nonce_window_ms {
+                return Ok(Some(id));
+            }
+        }
+        let found = self
+            .store
+            .find_nonce(channel, author, nonce, now - self.nonce_window_ms)
+            .await?;
+        if let Some(id) = found {
+            self.nonces.insert(key, id.get()).await;
+        }
+        Ok(found)
+    }
+
+    /// Remember a freshly created message's nonce for the window.
+    pub async fn remember_nonce(
+        &self,
+        channel: ChannelId,
+        author: UserId,
+        nonce: &str,
+        message: MessageId,
+    ) -> MsgResult<()> {
+        self.store
+            .put_nonce(channel, author, nonce, message, self.now_ms())
+            .await?;
+        self.nonces
+            .insert(
+                (channel.get(), author.get(), nonce.to_owned()),
+                message.get(),
+            )
+            .await;
+        Ok(())
     }
 
     pub fn now_ms(&self) -> i64 {
