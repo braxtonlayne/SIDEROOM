@@ -340,7 +340,7 @@ fn json_shape() {
     assert_eq!(v[0]["type"], "bold");
     assert_eq!(v[0]["children"][0]["text"], "a");
     assert_eq!(v[2]["type"], "user_mention");
-    assert_eq!(v[2]["id"], 1);
+    assert_eq!(v[2]["id"], "1");
     let ts: serde_json::Value = serde_json::from_str(&parse_to_json("<t:5:R>")).unwrap();
     assert_eq!(ts[0]["style"], "relative");
 }
@@ -485,4 +485,34 @@ fn jumbo() {
 #[test]
 fn emoji_plain_text() {
     assert_eq!(to_plain_text(&parse("hi :fire:")), "hi 🔥");
+}
+
+#[test]
+fn ids_serialize_as_strings_above_2_pow_53() {
+    let big = "18446744073709551615";
+    let src =
+        format!("<@{big}> <@&{big}> <#{big}> <:ab:{big}> </cmd:{big}> <1:linked-roles:{big}>");
+    let json = parse_to_json(&src);
+    for kind in [
+        "user_mention",
+        "role_mention",
+        "channel_mention",
+        "custom_emoji",
+        "slash_command",
+        "guild_nav",
+    ] {
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let n = v
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|n| n["type"] == kind)
+            .unwrap();
+        assert_eq!(n["id"], big, "{kind}");
+    }
+    // Round-trips, and legacy numeric ids still deserialize.
+    let nodes: Vec<Node> = serde_json::from_str(&json).unwrap();
+    assert_eq!(nodes, parse(&src));
+    let legacy: Node = serde_json::from_str(r#"{"type":"user_mention","id":7}"#).unwrap();
+    assert_eq!(legacy, Node::UserMention { id: 7 });
 }

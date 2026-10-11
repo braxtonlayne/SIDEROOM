@@ -688,7 +688,7 @@
           "items": [
             [
               {
-                "id": 1,
+                "id": "1",
                 "type": "user_mention"
               }
             ]

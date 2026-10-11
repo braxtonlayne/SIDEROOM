@@ -129,9 +129,9 @@ describe("spoilers", () => {
 
 describe("mentions", () => {
   const nodes: MdNode[] = [
-    { type: "user_mention", id: 1 },
+    { type: "user_mention", id: "1" },
     { type: "role_mention", id: "2" },
-    { type: "channel_mention", id: 3 },
+    { type: "channel_mention", id: "3" },
     { type: "everyone" },
     { type: "here" },
   ];
@@ -353,6 +353,14 @@ describe("SIDE ROOM tokens", () => {
 });
 
 describe("ast helpers", () => {
+  it("keeps ids above 2^53 exact through JSON", () => {
+    const big = "18446744073709551615";
+    const nodes = parseAstJson(`[{"type":"user_mention","id":"${big}"}]`);
+    const user = vi.fn(() => ({ name: "x" }));
+    render(<Markdown nodes={nodes} resolvers={{ user }} />);
+    expect(user).toHaveBeenCalledWith(big);
+  });
+
   it("parses AST JSON defensively", () => {
     expect(parseAstJson('[{"type":"text","text":"a"}]')).toHaveLength(1);
     expect(parseAstJson("nope")).toEqual([]);

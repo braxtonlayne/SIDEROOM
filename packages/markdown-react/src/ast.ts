@@ -3,12 +3,12 @@
  * The Rust crate is the source of truth; the shared corpus in
  * crates/sr-markdown/tests/corpus pins the shape.
  *
- * Ids (`u64` in Rust) are emitted as JSON numbers. Snowflakes above 2^53 lose precision
- * when parsed with `JSON.parse`; see docs/open-questions.md. The renderer stringifies
- * ids and accepts `string | number` so a string-id AST works unchanged.
+ * Ids (`u64` in Rust) are serialized as decimal strings, like Snowflakes elsewhere in the
+ * API, because 64-bit values exceed JS's 2^53 safe-integer range. `Id` still tolerates a
+ * number so older fixtures keep type-checking, but the parser never emits one.
  */
 
-export type Id = number | string;
+export type Id = string | number;
 
 export type TimestampStyle =
   | "short_time"

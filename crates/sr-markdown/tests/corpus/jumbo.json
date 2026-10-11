@@ -660,7 +660,7 @@
         },
         {
           "animated": false,
-          "id": 1,
+          "id": "1",
           "name": "xx",
           "type": "custom_emoji"
         }
@@ -674,7 +674,7 @@
       "ast": [
         {
           "animated": false,
-          "id": 1,
+          "id": "1",
           "name": "xx",
           "type": "custom_emoji"
         }
@@ -688,7 +688,7 @@
       "ast": [
         {
           "animated": true,
-          "id": 1,
+          "id": "1",
           "name": "xx",
           "type": "custom_emoji"
         }
@@ -702,13 +702,13 @@
       "ast": [
         {
           "animated": false,
-          "id": 1,
+          "id": "1",
           "name": "xx",
           "type": "custom_emoji"
         },
         {
           "animated": false,
-          "id": 2,
+          "id": "2",
           "name": "yy",
           "type": "custom_emoji"
         }
@@ -722,7 +722,7 @@
       "ast": [
         {
           "animated": false,
-          "id": 1,
+          "id": "1",
           "name": "xx",
           "type": "custom_emoji"
         },
@@ -732,7 +732,7 @@
         },
         {
           "animated": true,
-          "id": 2,
+          "id": "2",
           "name": "yy",
           "type": "custom_emoji"
         },
@@ -755,7 +755,7 @@
       "ast": [
         {
           "animated": false,
-          "id": 1,
+          "id": "1",
           "name": "xx",
           "type": "custom_emoji"
         },
@@ -1245,7 +1245,7 @@
           "type": "text"
         },
         {
-          "id": 1,
+          "id": "1",
           "type": "user_mention"
         }
       ],
