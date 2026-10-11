@@ -1,0 +1,23 @@
+{
+  "name": "side-room",
+  "private": true,
+  "packageManager": "pnpm@10.12.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @sideroom/web dev",
+    "build": "pnpm -r --if-present build",
+    "lint": "pnpm -r --if-present lint && prettier --check .",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,json,css,md}": "prettier --write",
+    "*.{ts,tsx}": "eslint --fix"
+  }
+}
