@@ -9,12 +9,16 @@
 //!   `before:`, `during:`, `after:`, `in:`, `pinned:`, `authorType:`). Filter
 //!   values are ids; resolving names to ids is the API layer's job.
 //! * [`MemberIndex`]: prefix search over guild members.
+//! * [`ViewableChannelCache`]: per-(user, guild) allow-list cache (60 s TTL) and
+//!   [`apply_nsfw_gate`] for NSFW channels.
 
+pub mod access;
 pub mod error;
 pub mod members;
 pub mod messages;
 pub mod query;
 
+pub use access::{ACCESS_TTL, ViewableChannelCache, apply_nsfw_gate};
 pub use error::{SearchError, SearchResult};
 pub use members::{IndexedMember, MemberHit, MemberIndex, MemberQuery};
 pub use messages::{
