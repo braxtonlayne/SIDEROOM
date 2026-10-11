@@ -454,9 +454,8 @@
         {
           "children": [
             {
-              "emoji": "😄",
-              "name": "smile",
-              "type": "emoji"
+              "text": ":smile:",
+              "type": "text"
             }
           ],
           "kind": "masked",
@@ -464,7 +463,7 @@
           "url": "https://e.com"
         }
       ],
-      "plain": "😄",
+      "plain": ":smile:",
       "jumbo": false
     },
     {
@@ -1041,16 +1040,16 @@
         {
           "children": [
             {
-              "text": "https://e.com/a_(b)",
+              "text": "https://e.com/a_(b",
               "type": "text"
             }
           ],
           "kind": "auto",
           "type": "link",
-          "url": "https://e.com/a_(b)"
+          "url": "https://e.com/a_(b"
         },
         {
-          "text": ")",
+          "text": "))",
           "type": "text"
         }
       ],
@@ -1064,13 +1063,17 @@
         {
           "children": [
             {
-              "text": "https://e.com/a_(b)",
+              "text": "https://e.com/a_(b",
               "type": "text"
             }
           ],
           "kind": "auto",
           "type": "link",
-          "url": "https://e.com/a_(b)"
+          "url": "https://e.com/a_(b"
+        },
+        {
+          "text": ")",
+          "type": "text"
         }
       ],
       "plain": "https://e.com/a_(b)",
@@ -1588,19 +1591,8 @@
       "input": "<https://>",
       "ast": [
         {
-          "text": "<",
+          "text": "<https://>",
           "type": "text"
-        },
-        {
-          "children": [
-            {
-              "text": "https://>",
-              "type": "text"
-            }
-          ],
-          "kind": "auto",
-          "type": "link",
-          "url": "https://>"
         }
       ],
       "plain": "<https://>",

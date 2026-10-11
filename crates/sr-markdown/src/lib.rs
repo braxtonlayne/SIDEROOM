@@ -14,17 +14,19 @@ mod util;
 
 pub use ast::{LinkKind, Node, TimestampStyle};
 pub use emoji::{
-    JUMBO_MAX, count_emoji_only, emoji_only_count, is_jumbo, shortcode_count, shortcode_to_emoji,
+    JUMBO_MAX, count_emoji_only, emoji_only_count, expand_shortcodes, is_jumbo, shortcode_count,
+    shortcode_to_emoji,
 };
 pub use util::{
-    DEFAULT_MAX_CHARS, DEFAULT_MAX_MENTIONS, EXTENDED_MAX_CHARS, LimitError, Limits, Mentions,
-    NoResolver, Resolver, char_count, check_limits, extract_mentions, to_plain_text,
-    to_plain_text_with,
+    DEFAULT_MAX_CHARS, DEFAULT_MAX_MENTIONS, EXTENDED_MAX_CHARS, LimitError, Limits,
+    MAX_MENTION_IDS_PER_KIND, Mentions, NoResolver, Resolver, char_count, check_limits,
+    extract_mentions, to_plain_text, to_plain_text_with,
 };
 
 /// Parse message content into an AST. Never panics; unparseable syntax stays literal text.
+/// At most [`MAX_MENTION_IDS_PER_KIND`] unique ids per kind stay mentions (Q28).
 pub fn parse(input: &str) -> Vec<Node> {
-    block::parse_document(input)
+    util::cap_mention_ids(block::parse_document(input))
 }
 
 /// Parse and serialize the AST to JSON for the React renderer.

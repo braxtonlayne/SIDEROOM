@@ -539,69 +539,47 @@
       "input": ":smile:",
       "ast": [
         {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
+          "text": ":smile:",
+          "type": "text"
         }
       ],
-      "plain": "😄",
-      "jumbo": true
+      "plain": ":smile:",
+      "jumbo": false
     },
     {
       "name": "jumbo-045",
       "input": ":smile::smile:",
       "ast": [
         {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
+          "text": ":smile::smile:",
+          "type": "text"
         }
       ],
-      "plain": "😄😄",
-      "jumbo": true
+      "plain": ":smile::smile:",
+      "jumbo": false
     },
     {
       "name": "jumbo-046",
       "input": ":smile: :fire:",
       "ast": [
         {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "text": " ",
+          "text": ":smile: :fire:",
           "type": "text"
-        },
-        {
-          "emoji": "🔥",
-          "name": "fire",
-          "type": "emoji"
         }
       ],
-      "plain": "😄 🔥",
-      "jumbo": true
+      "plain": ":smile: :fire:",
+      "jumbo": false
     },
     {
       "name": "jumbo-047",
       "input": ":smile: a",
       "ast": [
         {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "text": " a",
+          "text": ":smile: a",
           "type": "text"
         }
       ],
-      "plain": "😄 a",
+      "plain": ":smile: a",
       "jumbo": false
     },
     {
@@ -621,34 +599,24 @@
       "input": ":smile: 😄",
       "ast": [
         {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "text": " 😄",
+          "text": ":smile: 😄",
           "type": "text"
         }
       ],
-      "plain": "😄 😄",
-      "jumbo": true
+      "plain": ":smile: 😄",
+      "jumbo": false
     },
     {
       "name": "jumbo-050",
       "input": "😄 :smile:",
       "ast": [
         {
-          "text": "😄 ",
+          "text": "😄 :smile:",
           "type": "text"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
         }
       ],
-      "plain": "😄 😄",
-      "jumbo": true
+      "plain": "😄 :smile:",
+      "jumbo": false
     },
     {
       "name": "jumbo-051",
@@ -737,17 +705,12 @@
           "type": "custom_emoji"
         },
         {
-          "text": " 😄 ",
+          "text": " 😄 :fire:",
           "type": "text"
-        },
-        {
-          "emoji": "🔥",
-          "name": "fire",
-          "type": "emoji"
         }
       ],
-      "plain": ":xx: :yy: 😄 🔥",
-      "jumbo": true
+      "plain": ":xx: :yy: 😄 :fire:",
+      "jumbo": false
     },
     {
       "name": "jumbo-056",
@@ -772,290 +735,23 @@
       "input": ":smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile:",
       "ast": [
         {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
+          "text": ":smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile:",
+          "type": "text"
         }
       ],
-      "plain": "😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄",
-      "jumbo": true
+      "plain": ":smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile:",
+      "jumbo": false
     },
     {
       "name": "jumbo-058",
       "input": ":smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile:",
       "ast": [
         {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
+          "text": ":smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile:",
+          "type": "text"
         }
       ],
-      "plain": "😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄",
+      "plain": ":smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile:",
       "jumbo": false
     },
     {

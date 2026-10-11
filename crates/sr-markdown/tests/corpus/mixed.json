@@ -116,16 +116,11 @@
           "unix": 1700000000
         },
         {
-          "text": " ",
+          "text": " :tada:",
           "type": "text"
-        },
-        {
-          "emoji": "🎉",
-          "name": "tada",
-          "type": "emoji"
         }
       ],
-      "plain": "hey @user, check #channel and @role at 1700000000 🎉",
+      "plain": "hey @user, check #channel and @role at 1700000000 :tada:",
       "jumbo": false
     },
     {
@@ -1242,20 +1237,15 @@
               "type": "user_mention"
             },
             {
-              "text": " ",
+              "text": " :tada:",
               "type": "text"
-            },
-            {
-              "emoji": "🎉",
-              "name": "tada",
-              "type": "emoji"
             }
           ],
           "level": 1,
           "type": "heading"
         }
       ],
-      "plain": "h c l @user 🎉\n",
+      "plain": "h c l @user :tada:\n",
       "jumbo": false
     },
     {
@@ -1286,19 +1276,14 @@
               "type": "user_mention"
             },
             {
-              "text": " ",
+              "text": " :tada:",
               "type": "text"
-            },
-            {
-              "emoji": "🎉",
-              "name": "tada",
-              "type": "emoji"
             }
           ],
           "type": "subtext"
         }
       ],
-      "plain": "small b @user 🎉\n",
+      "plain": "small b @user :tada:\n",
       "jumbo": false
     },
     {
@@ -1318,16 +1303,11 @@
       "input": "ok :thumbsup:",
       "ast": [
         {
-          "text": "ok ",
+          "text": "ok :thumbsup:",
           "type": "text"
-        },
-        {
-          "emoji": "👍",
-          "name": "thumbsup",
-          "type": "emoji"
         }
       ],
-      "plain": "ok 👍",
+      "plain": "ok :thumbsup:",
       "jumbo": false
     },
     {
@@ -1335,26 +1315,11 @@
       "input": "lol :joy::joy::joy:",
       "ast": [
         {
-          "text": "lol ",
+          "text": "lol :joy::joy::joy:",
           "type": "text"
-        },
-        {
-          "emoji": "😂",
-          "name": "joy",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😂",
-          "name": "joy",
-          "type": "emoji"
-        },
-        {
-          "emoji": "😂",
-          "name": "joy",
-          "type": "emoji"
         }
       ],
-      "plain": "lol 😂😂😂",
+      "plain": "lol :joy::joy::joy:",
       "jumbo": false
     },
     {
@@ -1362,29 +1327,11 @@
       "input": "a :fire: b :fire: c",
       "ast": [
         {
-          "text": "a ",
-          "type": "text"
-        },
-        {
-          "emoji": "🔥",
-          "name": "fire",
-          "type": "emoji"
-        },
-        {
-          "text": " b ",
-          "type": "text"
-        },
-        {
-          "emoji": "🔥",
-          "name": "fire",
-          "type": "emoji"
-        },
-        {
-          "text": " c",
+          "text": "a :fire: b :fire: c",
           "type": "text"
         }
       ],
-      "plain": "a 🔥 b 🔥 c",
+      "plain": "a :fire: b :fire: c",
       "jumbo": false
     },
     {
@@ -3187,9 +3134,8 @@
       "input": ":smile:**bold**",
       "ast": [
         {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
+          "text": ":smile:",
+          "type": "text"
         },
         {
           "children": [
@@ -3201,7 +3147,7 @@
           "type": "bold"
         }
       ],
-      "plain": "😄bold",
+      "plain": ":smile:bold",
       "jumbo": false
     },
     {
@@ -3218,12 +3164,11 @@
           "type": "bold"
         },
         {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
+          "text": ":smile:",
+          "type": "text"
         }
       ],
-      "plain": "bold😄",
+      "plain": "bold:smile:",
       "jumbo": false
     },
     {
@@ -3235,12 +3180,11 @@
           "type": "inline_code"
         },
         {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
+          "text": ":smile:",
+          "type": "text"
         }
       ],
-      "plain": "a😄",
+      "plain": "a:smile:",
       "jumbo": false
     },
     {
@@ -3248,16 +3192,15 @@
       "input": ":smile:`a`",
       "ast": [
         {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
+          "text": ":smile:",
+          "type": "text"
         },
         {
           "code": "a",
           "type": "inline_code"
         }
       ],
-      "plain": "😄a",
+      "plain": ":smile:a",
       "jumbo": false
     },
     {

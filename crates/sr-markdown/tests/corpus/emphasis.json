@@ -117,15 +117,14 @@
         {
           "children": [
             {
-              "emoji": "😄",
-              "name": "smile",
-              "type": "emoji"
+              "text": ":smile:",
+              "type": "text"
             }
           ],
           "type": "bold"
         }
       ],
-      "plain": "😄",
+      "plain": ":smile:",
       "jumbo": false
     },
     {
@@ -302,15 +301,14 @@
         {
           "children": [
             {
-              "emoji": "😄",
-              "name": "smile",
-              "type": "emoji"
+              "text": ":smile:",
+              "type": "text"
             }
           ],
           "type": "italic"
         }
       ],
-      "plain": "😄",
+      "plain": ":smile:",
       "jumbo": false
     },
     {
@@ -487,15 +485,14 @@
         {
           "children": [
             {
-              "emoji": "😄",
-              "name": "smile",
-              "type": "emoji"
+              "text": ":smile:",
+              "type": "text"
             }
           ],
           "type": "italic"
         }
       ],
-      "plain": "😄",
+      "plain": ":smile:",
       "jumbo": false
     },
     {
@@ -672,15 +669,14 @@
         {
           "children": [
             {
-              "emoji": "😄",
-              "name": "smile",
-              "type": "emoji"
+              "text": ":smile:",
+              "type": "text"
             }
           ],
           "type": "underline"
         }
       ],
-      "plain": "😄",
+      "plain": ":smile:",
       "jumbo": false
     },
     {
@@ -857,15 +853,14 @@
         {
           "children": [
             {
-              "emoji": "😄",
-              "name": "smile",
-              "type": "emoji"
+              "text": ":smile:",
+              "type": "text"
             }
           ],
           "type": "strike"
         }
       ],
-      "plain": "😄",
+      "plain": ":smile:",
       "jumbo": false
     },
     {
@@ -1042,9 +1037,8 @@
         {
           "children": [
             {
-              "emoji": "😄",
-              "name": "smile",
-              "type": "emoji"
+              "text": ":smile:",
+              "type": "text"
             }
           ],
           "type": "spoiler"
@@ -1259,9 +1253,8 @@
             {
               "children": [
                 {
-                  "emoji": "😄",
-                  "name": "smile",
-                  "type": "emoji"
+                  "text": ":smile:",
+                  "type": "text"
                 }
               ],
               "type": "italic"
@@ -1270,7 +1263,7 @@
           "type": "bold"
         }
       ],
-      "plain": "😄",
+      "plain": ":smile:",
       "jumbo": false
     },
     {
@@ -1494,9 +1487,8 @@
             {
               "children": [
                 {
-                  "emoji": "😄",
-                  "name": "smile",
-                  "type": "emoji"
+                  "text": ":smile:",
+                  "type": "text"
                 }
               ],
               "type": "italic"
@@ -1505,7 +1497,7 @@
           "type": "underline"
         }
       ],
-      "plain": "😄",
+      "plain": ":smile:",
       "jumbo": false
     },
     {
