@@ -68,3 +68,15 @@ img.sr-md-emoji {
 button.sr-md-mention {
   cursor: pointer;
 }
+/* Shiki tokens carry both theme colours as variables (see highlight.tsx). */
+.sr-md-codeblock .sr-md-tok {
+  color: var(--shiki-light, inherit);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .sr-md-codeblock .sr-md-tok {
+    color: var(--shiki-dark, inherit);
+  }
+}
+:root[data-theme="dark"] .sr-md-codeblock .sr-md-tok {
+  color: var(--shiki-dark, inherit);
+}
