@@ -89,20 +89,20 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 
 ## DS-TOK — Design tokens & theming runtime
 - [ ] **DS-TOK-001** [FE] Token schema (TS types generated from `sr-theme` JSON schema)
-- [ ] **DS-TOK-002** [FE] `lounge-dark`, `lounge-light`, `lounge-ash`, `lounge-onyx` token sets
-- [ ] **DS-TOK-003** [FE] `sideroom` and `sideroom-broadcast` token sets (calibrated to mockups)
-- [ ] **DS-TOK-004** [FE] Theme provider: per-section theme resolution (platform default → user global → per-section override → server accent)
+- [x] **DS-TOK-002** [FE] `lounge-dark`, `lounge-light`, `lounge-ash`, `lounge-onyx` token sets
+- [x] **DS-TOK-003** [FE] `sideroom` and `sideroom-broadcast` token sets (calibrated to mockups)
+- [x] **DS-TOK-004** [FE] Theme provider: per-section theme resolution (platform default → user global → per-section override → server accent)
 - [ ] **DS-TOK-005** [FE] Font loading (Newsreader, Hanken Grotesk, IBM Plex Mono, a Lounge sans), `font-display: swap`, self-hosted WOFF2
-- [ ] **DS-TOK-006** [FE] Reduced-motion, contrast, saturation, and font-scale runtime variables
+- [x] **DS-TOK-006** [FE] Reduced-motion, contrast, saturation, and font-scale runtime variables
 
 ## DS-PRIM — Primitives (`packages/ui`)
-- [ ] **DS-PRIM-001** [FE] Button (primary/secondary/danger/link/ghost; sizes; loading; icon-only)
-- [ ] **DS-PRIM-002** [FE] TextInput, TextArea (auto-grow), PasswordInput (eye toggle, strength meter)
+- [x] **DS-PRIM-001** [FE] Button (primary/secondary/danger/link/ghost; sizes; loading; icon-only)
+- [x] **DS-PRIM-002** [FE] TextInput, TextArea (auto-grow), PasswordInput (eye toggle, strength meter)
 - [ ] **DS-PRIM-003** [FE] Checkbox, Radio group, Switch, Slider (with marks), Segmented control
 - [ ] **DS-PRIM-004** [FE] Select / Combobox / MultiSelect (searchable, virtualized)
 - [ ] **DS-PRIM-005** [FE] Tooltip, Popover, ContextMenu (nested submenus, checkbox/radio items, keyboard nav), Dropdown menu
 - [ ] **DS-PRIM-006** [FE] Modal (sizes, stacked modals, focus trap), ConfirmDialog (typed confirmation variant), Drawer
-- [ ] **DS-PRIM-007** [FE] Toast/notice system, inline Notice banners (info/warn/danger/success)
+- [x] **DS-PRIM-007** [FE] Toast/notice system, inline Notice banners (info/warn/danger/success)
 - [ ] **DS-PRIM-008** [FE] Tabs (underline + pill variants), Accordion, Collapsible category
 - [ ] **DS-PRIM-009** [FE] Avatar (status dot, speaking ring, decoration slot, animated on hover), AvatarStack
 - [ ] **DS-PRIM-010** [FE] Badge, Pill, Tag/chip (server tag chip, genre chip), Counter badge (mentions)
@@ -114,10 +114,10 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 - [ ] **DS-PRIM-016** [FE] Ladle stories for every primitive + axe a11y tests
 
 ## DS-SR — Side Room editorial kit
-- [ ] **DS-SR-001** [FE] Eyebrow (hairline + letter-spaced caps), DisplayHeading (serif, italic accent span)
+- [x] **DS-SR-001** [FE] Eyebrow (hairline + letter-spaced caps), DisplayHeading (serif, italic accent span)
 - [ ] **DS-SR-002** [FE] SR header (door logo, wordmark, tagline, right action), SR footer ("Not everywhere. *Just here.*")
 - [ ] **DS-SR-003** [FE] Section top bar (`SIDE ROOM / The lounge · The cinema · The library`, active underline, voice indicator slot)
-- [ ] **DS-SR-004** [FE] ArrowLink/ArrowButton (↗), GoldButton, OutlineButton
+- [x] **DS-SR-004** [FE] ArrowLink/ArrowButton (↗), GoldButton, OutlineButton
 - [ ] **DS-SR-005** [FE] PosterCard (2:3, hover actions, progress, corner tag), PosterRow (horizontal scroller with arrows, "Explore all ↗")
 - [ ] **DS-SR-006** [FE] Spotlight/Hero (backdrop, gradient, carousel index, auto-advance)
 - [ ] **DS-SR-007** [FE] FilterChips row (single/multi), Dropdown chip ("Room selection ▾")

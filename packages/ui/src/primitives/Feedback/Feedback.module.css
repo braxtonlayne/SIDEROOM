@@ -1,0 +1,80 @@
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--ui-bg-raised);
+  color: var(--ui-text);
+  border: 1px solid var(--ui-border);
+  border-left: 3px solid var(--notice-color);
+  border-radius: var(--ui-radius);
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+.info { --notice-color: var(--ui-info); }
+.success { --notice-color: var(--ui-success); }
+.warning { --notice-color: var(--ui-warning); }
+.danger { --notice-color: var(--ui-danger); }
+
+.icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--notice-color);
+  color: var(--ui-bg);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.content { flex: 1; min-width: 0; }
+.title { display: block; font-weight: 600; }
+.text { color: var(--ui-text-muted); }
+.dismiss {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: transparent;
+  color: var(--ui-text-muted);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.dismiss:hover { color: var(--ui-text); background: var(--ui-bg-hover); }
+.dismiss:focus-visible { outline: 2px solid var(--ui-focus); }
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.region {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(380px, calc(100vw - 32px));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--ui-font-body);
+}
+.toastItem { animation: slide var(--ui-motion-duration, 160ms) ease-out; }
+.toast { background: var(--ui-bg-overlay); box-shadow: var(--ui-shadow-overlay); }
+@keyframes slide {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toastItem { animation: none; }
+}
+:global([data-reduced-motion="true"]) .toastItem { animation: none; }
