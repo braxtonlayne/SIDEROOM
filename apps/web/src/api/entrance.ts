@@ -1,4 +1,4 @@
-// Typed Entrance calls (docs 05/06). Auth endpoints under /sr/auth/* are assumptions: see docs/open-questions.md.
+// Typed Entrance calls (docs 05/06). Endpoint paths and shapes are documented in docs/05-api-and-gateway.md section 5.1; passkey and Discord endpoints are not implemented yet.
 import { apiFetch, apiPost } from './client';
 
 export type InviteCheck = { valid: true } | { valid: false; reason?: 'closed' };

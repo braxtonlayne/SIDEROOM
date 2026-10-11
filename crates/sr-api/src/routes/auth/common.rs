@@ -1,0 +1,368 @@
+//! Shared pieces: config, the service object, error rendering, extractors,
+//! cookies.
+
+use super::{
+    mail::Mailer,
+    store::{AuthStore, StoreError},
+    throttle::{Lockout, PendingMfaTable, WindowLimiter},
+};
+use crate::{
+    HttpError,
+    auth::{SESSION_COOKIE, session_cookie},
+    state::AppState,
+};
+use axum::{
+    Json,
+    extract::{ConnectInfo, FromRequestParts},
+    http::{HeaderMap, HeaderValue, Method, StatusCode, header, request::Parts},
+    response::{IntoResponse, Response},
+};
+use serde_json::json;
+use sr_auth::{
+    AuthError,
+    password::PasswordHasher,
+    repo::SessionRecord,
+    session::{SessionPolicy, SessionToken},
+};
+use sr_core::{ApiError, ErrorCode};
+use std::{net::SocketAddr, sync::Arc};
+
+/// Snowflake id source (`sr_core::SnowflakeGenerator::generate` wrapped).
+pub type IdSource = Arc<dyn Fn() -> i64 + Send + Sync>;
+
+/// Name of the pending-2FA cookie.
+pub const MFA_COOKIE: &str = "sr_mfa";
+
+/// Tunables for the auth routes.
+#[derive(Debug, Clone)]
+pub struct AuthConfig {
+    /// TOTP issuer label shown in authenticator apps.
+    pub issuer: String,
+    /// Public base URL used in emailed links (no trailing slash).
+    pub public_url: String,
+    /// Maximum counted accounts (D-013).
+    pub account_cap: u64,
+    /// Credits granted on registration (`invites.initial_credits`).
+    pub initial_credits: i32,
+    /// Take the client IP from the last `X-Forwarded-For` entry (set only
+    /// behind a trusted reverse proxy that appends it).
+    pub trust_forwarded_for: bool,
+    /// Failed logins allowed before a lock starts.
+    pub lockout_free_attempts: u32,
+    /// First lock duration in seconds; doubles per further failure.
+    pub lockout_base_secs: i64,
+    /// Longest lock in seconds.
+    pub lockout_max_secs: i64,
+    /// Lifetime of the password-verified/2FA-pending state in seconds.
+    pub mfa_ttl_secs: i64,
+    /// Wrong second-factor codes before the pending login is discarded.
+    pub mfa_max_attempts: u32,
+    /// Minimum seconds between verification emails per account.
+    pub verify_resend_cooldown_secs: i64,
+}
+
+impl Default for AuthConfig {
+    fn default() -> Self {
+        Self {
+            issuer: "SIDE ROOM".to_owned(),
+            public_url: "http://localhost:8080".to_owned(),
+            account_cap: 20_000,
+            initial_credits: 5,
+            trust_forwarded_for: false,
+            lockout_free_attempts: 5,
+            lockout_base_secs: 30,
+            lockout_max_secs: 15 * 60,
+            mfa_ttl_secs: 5 * 60,
+            mfa_max_attempts: 5,
+            verify_resend_cooldown_secs: 60,
+        }
+    }
+}
+
+/// Everything the handlers need. Build once and share via [`Arc`].
+pub struct AuthService {
+    pub(super) store: Arc<dyn AuthStore>,
+    pub(super) mailer: Arc<dyn Mailer>,
+    pub(super) hasher: PasswordHasher,
+    pub(super) ids: IdSource,
+    pub(super) cfg: AuthConfig,
+    pub(super) ip_limits: WindowLimiter,
+    pub(super) account_lock: Lockout,
+    pub(super) ip_lock: Lockout,
+    pub(super) pending: PendingMfaTable,
+}
+
+impl AuthService {
+    /// Service with default config and password hashing parameters.
+    pub fn new(store: Arc<dyn AuthStore>, mailer: Arc<dyn Mailer>, ids: IdSource) -> Self {
+        let cfg = AuthConfig::default();
+        Self {
+            account_lock: Lockout::new(
+                cfg.lockout_free_attempts,
+                cfg.lockout_base_secs,
+                cfg.lockout_max_secs,
+            ),
+            // Per-IP: generous free budget so shared NATs are not punished.
+            ip_lock: Lockout::new(30, cfg.lockout_base_secs, cfg.lockout_max_secs),
+            store,
+            mailer,
+            hasher: PasswordHasher::default(),
+            ids,
+            cfg,
+            ip_limits: WindowLimiter::default(),
+            pending: PendingMfaTable::default(),
+        }
+    }
+
+    /// Replace the config (rebuilds the lockout policies).
+    pub fn with_config(mut self, cfg: AuthConfig) -> Self {
+        self.account_lock = Lockout::new(
+            cfg.lockout_free_attempts,
+            cfg.lockout_base_secs,
+            cfg.lockout_max_secs,
+        );
+        self.ip_lock = Lockout::new(30, cfg.lockout_base_secs, cfg.lockout_max_secs);
+        self.cfg = cfg;
+        self
+    }
+
+    /// Replace the password hasher (tests use cheap parameters).
+    pub fn with_hasher(mut self, hasher: PasswordHasher) -> Self {
+        self.hasher = hasher;
+        self
+    }
+
+    pub(super) fn next_id(&self) -> i64 {
+        (self.ids)()
+    }
+
+    /// Argon2 hashing off the async threads.
+    pub(super) async fn hash_password(&self, pw: &str) -> Result<String, AuthRouteError> {
+        let (h, pw) = (self.hasher.clone(), pw.to_owned());
+        tokio::task::spawn_blocking(move || h.hash(&pw))
+            .await
+            .map_err(|_| AuthRouteError::internal("hash task"))?
+            .map_err(AuthRouteError::from)
+    }
+
+    /// Verify against a stored hash off the async threads. A malformed stored
+    /// hash counts as a mismatch (and is logged).
+    pub(super) async fn verify_password(&self, pw: &str, stored: &str) -> bool {
+        let (h, pw, stored) = (self.hasher.clone(), pw.to_owned(), stored.to_owned());
+        match tokio::task::spawn_blocking(move || h.verify(&pw, &stored)).await {
+            Ok(Ok(ok)) => ok,
+            Ok(Err(e)) => {
+                tracing::error!(error = %e, "stored password hash unusable");
+                false
+            }
+            Err(_) => false,
+        }
+    }
+
+    /// Equalise timing for an unknown account.
+    pub(super) async fn dummy_verify(&self, pw: &str) {
+        let (h, pw) = (self.hasher.clone(), pw.to_owned());
+        let _ = tokio::task::spawn_blocking(move || h.dummy_verify(&pw)).await;
+    }
+
+    /// Create a session row and the `Set-Cookie` value for it.
+    pub(super) async fn start_session(
+        &self,
+        state: &AppState,
+        user_id: i64,
+        user_agent: Option<&str>,
+    ) -> Result<(SessionToken, String), AuthRouteError> {
+        let now = state.now_secs();
+        let token = SessionToken::generate()?;
+        let policy: &SessionPolicy = state.session_policy();
+        let rec = SessionRecord {
+            id: self.next_id(),
+            user_id,
+            token_hash: token.hash(),
+            created_at: now,
+            last_seen_at: now,
+            expires_at: policy.expiry(now, now),
+            device_name: super::validate::device_name(user_agent),
+        };
+        self.store.create_session(rec).await?;
+        let cookie = session_cookie(
+            &token,
+            state.settings().secure_cookies,
+            policy.absolute_ttl_secs,
+        );
+        Ok((token, cookie))
+    }
+
+    /// Render a verification/reset link.
+    pub(super) fn link(&self, path: &str, token: &str) -> String {
+        format!(
+            "{}/{path}/{token}",
+            self.cfg.public_url.trim_end_matches('/')
+        )
+    }
+}
+
+/// `Set-Cookie` value that clears the session cookie.
+pub(super) fn clear_session_cookie(secure: bool) -> String {
+    format!(
+        "{SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0{}",
+        if secure { "; Secure" } else { "" }
+    )
+}
+
+/// `Set-Cookie` value for the pending-2FA token (scoped to the API).
+pub(super) fn mfa_cookie(token: &SessionToken, secure: bool, max_age: i64) -> String {
+    format!(
+        "{MFA_COOKIE}={}; Path=/api; HttpOnly; SameSite=Strict; Max-Age={max_age}{}",
+        token.expose(),
+        if secure { "; Secure" } else { "" }
+    )
+}
+
+/// `Set-Cookie` value that clears the pending-2FA cookie.
+pub(super) fn clear_mfa_cookie(secure: bool) -> String {
+    format!(
+        "{MFA_COOKIE}=; Path=/api; HttpOnly; SameSite=Strict; Max-Age=0{}",
+        if secure { "; Secure" } else { "" }
+    )
+}
+
+/// Handler error: a normal API error, or a throttle with `Retry-After`.
+#[derive(Debug)]
+pub enum AuthRouteError {
+    /// Rendered as the Discord-style JSON error.
+    Api(HttpError),
+    /// 429 with `retry_after` in the body and `Retry-After` header.
+    Throttled {
+        /// Seconds until the caller may retry.
+        retry_after: i64,
+    },
+}
+
+impl AuthRouteError {
+    pub(super) fn internal(what: &str) -> Self {
+        tracing::error!(what, "auth internal error");
+        Self::Api(ErrorCode::SrInternal.into())
+    }
+}
+
+impl From<HttpError> for AuthRouteError {
+    fn from(e: HttpError) -> Self {
+        Self::Api(e)
+    }
+}
+impl From<ApiError> for AuthRouteError {
+    fn from(e: ApiError) -> Self {
+        Self::Api(e.into())
+    }
+}
+impl From<ErrorCode> for AuthRouteError {
+    fn from(e: ErrorCode) -> Self {
+        Self::Api(e.into())
+    }
+}
+impl From<StoreError> for AuthRouteError {
+    fn from(e: StoreError) -> Self {
+        tracing::error!(error = %e, "auth store failure");
+        Self::Api(ErrorCode::SrInternal.into())
+    }
+}
+impl From<AuthError> for AuthRouteError {
+    fn from(e: AuthError) -> Self {
+        tracing::error!(error = %e, "auth primitive failure");
+        Self::Api(ErrorCode::SrInternal.into())
+    }
+}
+
+impl IntoResponse for AuthRouteError {
+    fn into_response(self) -> Response {
+        match self {
+            Self::Api(e) => e.into_response(),
+            Self::Throttled { retry_after } => {
+                let retry_after = retry_after.max(1);
+                let body = json!({
+                    "code": ErrorCode::TooManyRequests.code(),
+                    "message": ErrorCode::TooManyRequests.message(),
+                    "retry_after": retry_after,
+                });
+                let mut res = (StatusCode::TOO_MANY_REQUESTS, Json(body)).into_response();
+                if let Ok(v) = HeaderValue::from_str(&retry_after.to_string()) {
+                    res.headers_mut().insert(header::RETRY_AFTER, v);
+                }
+                res
+            }
+        }
+    }
+}
+
+/// Handler result.
+pub type R<T> = Result<T, AuthRouteError>;
+
+/// The shared service plus request metadata. Extracting it also applies the
+/// browser `Origin` check on unsafe methods.
+pub struct Svc {
+    /// The service.
+    pub svc: Arc<AuthService>,
+    /// Client IP (see [`AuthConfig::trust_forwarded_for`]).
+    pub ip: String,
+}
+
+impl FromRequestParts<AppState> for Svc {
+    type Rejection = AuthRouteError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let svc = parts
+            .extensions
+            .get::<Arc<AuthService>>()
+            .cloned()
+            .ok_or_else(|| AuthRouteError::internal("AuthService extension missing"))?;
+        if !matches!(
+            parts.method,
+            Method::GET | Method::HEAD | Method::OPTIONS | Method::TRACE
+        ) && let Some(origin) = parts.headers.get(header::ORIGIN)
+        {
+            let allowed = origin.to_str().is_ok_and(|o| {
+                state
+                    .settings()
+                    .allowed_origins
+                    .iter()
+                    .any(|a| a.eq_ignore_ascii_case(o))
+            });
+            if !allowed {
+                return Err(
+                    ApiError::with_message(ErrorCode::MissingAccess, "Origin not allowed").into(),
+                );
+            }
+        }
+        let ip = client_ip(parts, svc.cfg.trust_forwarded_for);
+        Ok(Self { svc, ip })
+    }
+}
+
+fn client_ip(parts: &Parts, trust_xff: bool) -> String {
+    if trust_xff
+        && let Some(ip) = parts
+            .headers
+            .get("x-forwarded-for")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.rsplit(',').next())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+    {
+        return ip.to_owned();
+    }
+    parts
+        .extensions
+        .get::<ConnectInfo<SocketAddr>>()
+        .map_or_else(|| "unknown".to_owned(), |c| c.0.ip().to_string())
+}
+
+/// The `User-Agent` header, if valid UTF-8.
+pub(super) fn user_agent(headers: &HeaderMap) -> Option<&str> {
+    headers
+        .get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+}

@@ -317,6 +317,28 @@ describe('password reset', () => {
     expect(body).toEqual({ token: 'tok123', password: 'correct Horse 9 battery!' });
   });
 
+  it("shows the server's password verdict and keeps the link usable", async () => {
+    server.use(
+      http.post('*/api/v1/sr/auth/reset', () =>
+        HttpResponse.json(
+          {
+            code: 50035,
+            message: 'Invalid Form Body',
+            errors: { password: { _errors: [{ code: 'weak', message: 'Too easy to guess.' }] } },
+          },
+          { status: 400 },
+        ),
+      ),
+    );
+    const user = userEvent.setup();
+    at('/reset/tok123');
+    await user.type(await screen.findByLabelText('New password'), 'correct Horse 9 battery!');
+    await user.type(screen.getByLabelText('Confirm new password'), 'correct Horse 9 battery!');
+    await user.click(screen.getByRole('button', { name: /set password/i }));
+    expect(await screen.findByText('Too easy to guess.')).toBeInTheDocument();
+    expect(screen.queryByText(/expired/)).toBeNull();
+  });
+
   it('explains an expired link', async () => {
     server.use(http.post('*/api/v1/sr/auth/reset', () => HttpResponse.json({}, { status: 410 })));
     const user = userEvent.setup();

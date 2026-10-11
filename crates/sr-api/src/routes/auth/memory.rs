@@ -1,0 +1,413 @@
+//! In-memory [`AuthStore`] for tests and local bring-up. One mutex guards all
+//! state, so [`AuthStore::register`] is trivially atomic.
+
+use super::store::{
+    AccountRecord, AccountState, AuthStore, InviteState, RegisterRejection, RegisterTx, Registered,
+    StoreResult,
+};
+use crate::auth::memory::MemorySessions;
+use async_trait::async_trait;
+use sr_auth::{
+    email_token::EmailTokenPurpose,
+    invite::InviteCode,
+    repo::{SessionRecord, SessionRepository, TotpRecord},
+    session::TokenHash,
+};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::{Arc, Mutex, MutexGuard},
+};
+
+struct MemInvite {
+    issuer_id: i64,
+    state: InviteState,
+}
+
+struct MemToken {
+    user_id: i64,
+    purpose: EmailTokenPurpose,
+    hash: TokenHash,
+    expires_at: i64,
+    consumed: bool,
+}
+
+struct MemRecovery {
+    id: i64,
+    hash: String,
+    used: bool,
+}
+
+#[derive(Default)]
+struct Inner {
+    accounts: HashMap<i64, AccountRecord>,
+    invites: HashMap<String, MemInvite>,
+    /// `(account, delta, reason)`.
+    ledger: Vec<(i64, i32, &'static str)>,
+    totp: HashMap<i64, TotpRecord>,
+    recovery: HashMap<i64, Vec<MemRecovery>>,
+    tokens: Vec<MemToken>,
+    banned_emails: HashSet<String>,
+    next_recovery_id: i64,
+}
+
+/// In-memory [`AuthStore`]. Sessions are delegated to a shared
+/// [`MemorySessions`] so the `Principal` extractor (which reads
+/// `AppState::sessions`) sees sessions created by login.
+pub struct MemoryAuthStore {
+    inner: Mutex<Inner>,
+    sessions: Arc<MemorySessions>,
+}
+
+impl MemoryAuthStore {
+    /// New empty store sharing `sessions` with the `AppState`.
+    pub fn new(sessions: Arc<MemorySessions>) -> Self {
+        Self {
+            inner: Mutex::new(Inner::default()),
+            sessions,
+        }
+    }
+
+    fn lock(&self) -> MutexGuard<'_, Inner> {
+        self.inner.lock().unwrap_or_else(|p| p.into_inner())
+    }
+
+    /// Insert an account directly (seed/test helper). Grants no credits.
+    pub fn add_account(&self, a: AccountRecord) {
+        self.lock().accounts.insert(a.id, a);
+    }
+
+    /// Insert an open invite issued by `issuer_id`.
+    pub fn add_invite(&self, code: &InviteCode, issuer_id: i64) {
+        self.lock().invites.insert(
+            code.canonical().to_owned(),
+            MemInvite {
+                issuer_id,
+                state: InviteState::Open,
+            },
+        );
+    }
+
+    /// Mark an invite revoked.
+    pub fn revoke_invite(&self, code: &InviteCode) {
+        if let Some(i) = self.lock().invites.get_mut(code.canonical()) {
+            i.state = InviteState::Revoked;
+        }
+    }
+
+    /// Add a ledger entry.
+    pub fn grant(&self, account: i64, delta: i32, reason: &'static str) {
+        self.lock().ledger.push((account, delta, reason));
+    }
+
+    /// Credit balance of an account.
+    pub fn balance(&self, account: i64) -> i32 {
+        self.lock()
+            .ledger
+            .iter()
+            .filter(|(a, ..)| *a == account)
+            .map(|(_, d, _)| d)
+            .sum()
+    }
+
+    /// Ledger entries for an account as `(delta, reason)`.
+    pub fn ledger_for(&self, account: i64) -> Vec<(i32, &'static str)> {
+        self.lock()
+            .ledger
+            .iter()
+            .filter(|(a, ..)| *a == account)
+            .map(|(_, d, r)| (*d, *r))
+            .collect()
+    }
+
+    /// Treat registrations with this email as belonging to a banned Person.
+    pub fn ban_email(&self, email: &str) {
+        self.lock().banned_emails.insert(email.to_owned());
+    }
+
+    /// Fetch an account (test helper).
+    pub fn account(&self, id: i64) -> Option<AccountRecord> {
+        self.lock().accounts.get(&id).cloned()
+    }
+
+    /// Change an account's state.
+    pub fn set_state(&self, id: i64, state: AccountState) {
+        if let Some(a) = self.lock().accounts.get_mut(&id) {
+            a.state = state;
+        }
+    }
+}
+
+fn infallible<T>(r: Result<T, std::convert::Infallible>) -> StoreResult<T> {
+    match r {
+        Ok(v) => Ok(v),
+        Err(e) => match e {},
+    }
+}
+
+#[async_trait]
+impl AuthStore for MemoryAuthStore {
+    async fn invite_state(&self, code: &InviteCode) -> StoreResult<Option<InviteState>> {
+        Ok(self.lock().invites.get(code.canonical()).map(|i| i.state))
+    }
+
+    async fn counted_accounts(&self) -> StoreResult<u64> {
+        Ok(self
+            .lock()
+            .accounts
+            .values()
+            .filter(|a| a.state == AccountState::Active)
+            .count() as u64)
+    }
+
+    async fn register(&self, tx: RegisterTx) -> StoreResult<Result<Registered, RegisterRejection>> {
+        use RegisterRejection::*;
+        let mut g = self.lock();
+        let Some(inv) = g.invites.get(tx.code.canonical()) else {
+            return Ok(Err(InviteUnavailable));
+        };
+        if inv.state != InviteState::Open {
+            return Ok(Err(InviteUnavailable));
+        }
+        let issuer_id = inv.issuer_id;
+        let active = g
+            .accounts
+            .values()
+            .filter(|a| a.state == AccountState::Active)
+            .count() as u64;
+        if active >= tx.account_cap {
+            return Ok(Err(AtCap));
+        }
+        let balance: i32 = g
+            .ledger
+            .iter()
+            .filter(|(a, ..)| *a == issuer_id)
+            .map(|(_, d, _)| d)
+            .sum();
+        if balance < 1 {
+            return Ok(Err(IssuerOutOfCredits));
+        }
+        if g.banned_emails.contains(&tx.email) {
+            return Ok(Err(PersonBanned));
+        }
+        if g.accounts.values().any(|a| a.username == tx.username) {
+            return Ok(Err(UsernameTaken));
+        }
+        if g.accounts.values().any(|a| a.email == tx.email) {
+            return Ok(Err(EmailTaken));
+        }
+        g.accounts.insert(
+            tx.account_id,
+            AccountRecord {
+                id: tx.account_id,
+                username: tx.username,
+                display_name: tx.display_name,
+                email: tx.email,
+                email_verified: false,
+                password_hash: tx.password_hash,
+                state: AccountState::Active,
+                age_confirmed: None,
+            },
+        );
+        if let Some(i) = g.invites.get_mut(tx.code.canonical()) {
+            i.state = InviteState::Redeemed;
+        }
+        g.ledger.push((issuer_id, -1, "redemption"));
+        g.ledger
+            .push((tx.account_id, tx.initial_credits, "initial_grant"));
+        Ok(Ok(Registered {
+            account_id: tx.account_id,
+            issuer_id,
+        }))
+    }
+
+    async fn username_exists(&self, username: &str) -> StoreResult<bool> {
+        Ok(self
+            .lock()
+            .accounts
+            .values()
+            .any(|a| a.username == username))
+    }
+
+    async fn find_by_login(&self, login: &str) -> StoreResult<Option<AccountRecord>> {
+        Ok(self
+            .lock()
+            .accounts
+            .values()
+            .find(|a| a.username == login || a.email == login)
+            .cloned())
+    }
+
+    async fn find_by_email(&self, email: &str) -> StoreResult<Option<AccountRecord>> {
+        Ok(self
+            .lock()
+            .accounts
+            .values()
+            .find(|a| a.email == email)
+            .cloned())
+    }
+
+    async fn find_by_id(&self, id: i64) -> StoreResult<Option<AccountRecord>> {
+        Ok(self.lock().accounts.get(&id).cloned())
+    }
+
+    async fn set_password_hash(&self, id: i64, hash: &str) -> StoreResult<()> {
+        if let Some(a) = self.lock().accounts.get_mut(&id) {
+            hash.clone_into(&mut a.password_hash);
+        }
+        Ok(())
+    }
+
+    async fn mark_email_verified(&self, id: i64) -> StoreResult<()> {
+        if let Some(a) = self.lock().accounts.get_mut(&id) {
+            a.email_verified = true;
+        }
+        Ok(())
+    }
+
+    async fn set_age_confirmed(&self, id: i64, confirmed: bool, _now: i64) -> StoreResult<()> {
+        if let Some(a) = self.lock().accounts.get_mut(&id) {
+            a.age_confirmed = Some(confirmed);
+        }
+        Ok(())
+    }
+
+    async fn create_session(&self, rec: SessionRecord) -> StoreResult<()> {
+        infallible(self.sessions.create(rec).await)
+    }
+
+    async fn list_sessions(&self, user_id: i64, now: i64) -> StoreResult<Vec<SessionRecord>> {
+        infallible(self.sessions.list_for_user(user_id, now).await)
+    }
+
+    async fn revoke_session(&self, user_id: i64, session_id: i64) -> StoreResult<bool> {
+        infallible(self.sessions.revoke(user_id, session_id).await)
+    }
+
+    async fn revoke_sessions_except(&self, user_id: i64, keep: Option<i64>) -> StoreResult<u64> {
+        infallible(self.sessions.revoke_all_except(user_id, keep).await)
+    }
+
+    async fn totp_get(&self, user_id: i64) -> StoreResult<Option<TotpRecord>> {
+        Ok(self.lock().totp.get(&user_id).cloned())
+    }
+
+    async fn totp_put_pending(&self, user_id: i64, secret: &[u8]) -> StoreResult<()> {
+        self.lock().totp.insert(
+            user_id,
+            TotpRecord {
+                user_id,
+                secret: secret.to_vec(),
+                confirmed: false,
+                last_used_step: None,
+            },
+        );
+        Ok(())
+    }
+
+    async fn totp_confirm(&self, user_id: i64, step: u64) -> StoreResult<()> {
+        if let Some(t) = self.lock().totp.get_mut(&user_id) {
+            t.confirmed = true;
+            t.last_used_step = Some(step);
+        }
+        Ok(())
+    }
+
+    async fn totp_consume_step(&self, user_id: i64, step: u64) -> StoreResult<bool> {
+        let mut g = self.lock();
+        let Some(t) = g.totp.get_mut(&user_id) else {
+            return Ok(false);
+        };
+        if sr_auth::totp::step_is_fresh(step, t.last_used_step) {
+            t.last_used_step = Some(step);
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    async fn totp_delete(&self, user_id: i64) -> StoreResult<()> {
+        self.lock().totp.remove(&user_id);
+        Ok(())
+    }
+
+    async fn recovery_replace_all(&self, user_id: i64, hashes: &[String]) -> StoreResult<()> {
+        let mut g = self.lock();
+        let mut rows = Vec::with_capacity(hashes.len());
+        for h in hashes {
+            g.next_recovery_id += 1;
+            rows.push(MemRecovery {
+                id: g.next_recovery_id,
+                hash: h.clone(),
+                used: false,
+            });
+        }
+        g.recovery.insert(user_id, rows);
+        Ok(())
+    }
+
+    async fn recovery_list_unused(&self, user_id: i64) -> StoreResult<Vec<(i64, String)>> {
+        Ok(self
+            .lock()
+            .recovery
+            .get(&user_id)
+            .map(|v| {
+                v.iter()
+                    .filter(|r| !r.used)
+                    .map(|r| (r.id, r.hash.clone()))
+                    .collect()
+            })
+            .unwrap_or_default())
+    }
+
+    async fn recovery_consume(&self, user_id: i64, row_id: i64, _now: i64) -> StoreResult<bool> {
+        let mut g = self.lock();
+        let Some(r) = g
+            .recovery
+            .get_mut(&user_id)
+            .and_then(|v| v.iter_mut().find(|r| r.id == row_id))
+        else {
+            return Ok(false);
+        };
+        if r.used {
+            return Ok(false);
+        }
+        r.used = true;
+        Ok(true)
+    }
+
+    async fn email_token_put(
+        &self,
+        user_id: i64,
+        purpose: EmailTokenPurpose,
+        hash: &TokenHash,
+        expires_at: i64,
+    ) -> StoreResult<()> {
+        let mut g = self.lock();
+        g.tokens
+            .retain(|t| !(t.user_id == user_id && t.purpose == purpose && !t.consumed));
+        g.tokens.push(MemToken {
+            user_id,
+            purpose,
+            hash: *hash,
+            expires_at,
+            consumed: false,
+        });
+        Ok(())
+    }
+
+    async fn email_token_consume(
+        &self,
+        purpose: EmailTokenPurpose,
+        hash: &TokenHash,
+        now: i64,
+    ) -> StoreResult<Option<i64>> {
+        let mut g = self.lock();
+        let Some(t) = g.tokens.iter_mut().find(|t| {
+            t.purpose == purpose && t.hash.ct_eq(hash) && !t.consumed && t.expires_at > now
+        }) else {
+            return Ok(None);
+        };
+        t.consumed = true;
+        Ok(Some(t.user_id))
+    }
+}

@@ -13,6 +13,7 @@ pub mod jobs;
 pub mod lock;
 pub mod partitions;
 mod pool;
+pub mod registration;
 pub mod runner;
 mod tx;
 

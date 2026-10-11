@@ -4,29 +4,29 @@ Phase 0. Spec: [entry-landing-and-login](../specs/entry-landing-and-login.md), d
 
 ## ENT-AUTH — Backend identity
 - [ ] **ENT-AUTH-001** [BE] Account model + repository (create, get by username/email/id, state transitions)
-- [ ] **ENT-AUTH-002** [BE] Username rules + availability check endpoint (debounced)
+- [x] **ENT-AUTH-002** [BE] Username rules + availability check endpoint (debounced)
 - [x] **ENT-AUTH-003** [BE] argon2id hashing (tuned params, rehash on login if params changed)
-- [ ] **ENT-AUTH-004** [BE] Password strength validation (`zxcvbn` crate, min length 10)
-- [ ] **ENT-AUTH-005** [BE] Session create/list/revoke, rolling expiry, device naming from UA
-- [ ] **ENT-AUTH-006** [BE] CSRF token issuance + verification
-- [ ] **ENT-AUTH-007** [BE] Login endpoint (username or email) with generic error + throttling per account/IP
-- [ ] **ENT-AUTH-008** [BE] TOTP enrol/verify/disable (`totp-rs`), QR provisioning URI
-- [ ] **ENT-AUTH-009** [BE] Recovery codes generate/regenerate/consume
+- [x] **ENT-AUTH-004** [BE] Password strength validation (`zxcvbn` crate, min length 10)
+- [x] **ENT-AUTH-005** [BE] Session create/list/revoke, rolling expiry, device naming from UA
+- [x] **ENT-AUTH-006** [BE] CSRF token issuance + verification
+- [x] **ENT-AUTH-007** [BE] Login endpoint (username or email) with generic error + throttling per account/IP
+- [x] **ENT-AUTH-008** [BE] TOTP enrol/verify/disable (`totp-rs`), QR provisioning URI
+- [x] **ENT-AUTH-009** [BE] Recovery codes generate/regenerate/consume
 - [ ] **ENT-AUTH-010** [BE] WebAuthn passkeys: register, list, rename, delete, login (discoverable), 2FA use (`webauthn-rs`)
 - [ ] **ENT-AUTH-011** [BE] Discord OAuth2: authorize redirect, callback, state/PKCE, profile fetch, link/unlink
-- [ ] **ENT-AUTH-012** [BE] Email verification tokens + send (`lettre`), resend with cooldown
-- [ ] **ENT-AUTH-013** [BE] Forgot/reset password flow (30 min single-use token, no account oracle)
+- [x] **ENT-AUTH-012** [BE] Email verification tokens + send (`lettre`), resend with cooldown
+- [x] **ENT-AUTH-013** [BE] Forgot/reset password flow (30 min single-use token, no account oracle)
 - [ ] **ENT-AUTH-014** [BE] Email templates (verify, reset, new login alert, 2FA changed) in Side Room style (MJML-like HTML + text)
 - [ ] **ENT-AUTH-015** [BE] New-device login alert email (toggle)
 
 ## ENT-INV — Platform invites
 - [x] **ENT-INV-001** [BE] Invite code generator (Crockford base32 10 chars, dash formatting, normalization)
-- [ ] **ENT-INV-002** [BE] `GET /sr/invites/{code}` validity check (valid/invalid/closed), per-IP rate limits, no issuer leak
+- [x] **ENT-INV-002** [BE] `GET /sr/invites/{code}` validity check (valid/invalid/closed), per-IP rate limits, no issuer leak
 - [ ] **ENT-INV-003** [BE] Create invite (eligibility: active, verified, age ≥ N days, open < credits, cap not reached, not frozen)
 - [ ] **ENT-INV-004** [BE] Revoke invite (race-safe vs redemption)
 - [ ] **ENT-INV-005** [BE] Credits ledger + balance query + initial grant on registration
 - [ ] **ENT-INV-006** [BE] Account cap service: counted accounts query, advisory lock, `is_closed()`
-- [ ] **ENT-INV-007** [BE] `POST /sr/register` transactional redemption (invite lock, cap check, issuer credit −1, Person matching, banned-Person rejection)
+- [x] **ENT-INV-007** [BE] `POST /sr/register` transactional redemption (invite lock, cap check, issuer credit −1, Person matching, banned-Person rejection)
 - [ ] **ENT-INV-008** [BE] Person matching rules (Discord id, verified email) + staff alert on banned Person attempt
 - [ ] **ENT-INV-009** [GW] `SR_INVITE_CREDITS_UPDATE` dispatch to issuer on redemption
 - [ ] **ENT-INV-010** [TEST] Concurrency test: 50 parallel redemptions at cap−1 → exactly one success

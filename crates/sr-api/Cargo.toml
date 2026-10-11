@@ -13,6 +13,7 @@ axum = { version = "0.8", default-features = false, features = ["http1", "json",
 data-encoding = "2"
 futures.workspace = true
 governor = "0.8"
+lettre = { version = "0.11", default-features = false, features = ["builder", "hostname", "smtp-transport", "tokio1"] }
 metrics = "0.24"
 metrics-exporter-prometheus = { version = "0.16", default-features = false }
 serde.workspace = true
@@ -22,12 +23,13 @@ sr-auth = { path = "../sr-auth" }
 sr-core = { path = "../sr-core" }
 subtle = "2"
 thiserror.workspace = true
-tokio = { workspace = true, features = ["time", "sync"] }
+tokio = { workspace = true, features = ["rt", "time", "sync"] }
 tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.6", features = ["trace", "compression-gzip", "compression-br", "timeout", "cors", "request-id", "propagate-header"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 utoipa = "5"
+zxcvbn = "3"
 
 [dev-dependencies]
 http-body-util = "0.1"
