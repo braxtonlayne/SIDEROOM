@@ -15,8 +15,8 @@ const QUIET: Duration = Duration::from_millis(100);
 
 fn ev(n: u64) -> DomainEvent {
     DomainEvent::MemberJoined {
-        guild: GuildId(n),
-        user: UserId(n),
+        guild: GuildId::new(n),
+        user: UserId::new(n),
     }
 }
 
@@ -54,9 +54,11 @@ pub async fn fan_out_to_all_subscribers<B: EventBus>(bus: &B) {
 }
 
 pub async fn topics_are_isolated<B: EventBus>(bus: &B) {
-    let mut g1 = bus.subscribe(Topic::Guild(GuildId(1)));
-    let mut g2 = bus.subscribe(Topic::Guild(GuildId(2)));
-    bus.publish(Topic::Guild(GuildId(1)), ev(1)).await.unwrap();
+    let mut g1 = bus.subscribe(Topic::Guild(GuildId::new(1)));
+    let mut g2 = bus.subscribe(Topic::Guild(GuildId::new(2)));
+    bus.publish(Topic::Guild(GuildId::new(1)), ev(1))
+        .await
+        .unwrap();
     assert_eq!(timeout(WAIT, g1.next()).await.unwrap(), Some(ev(1)));
     assert!(
         timeout(QUIET, g2.next()).await.is_err(),

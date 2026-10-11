@@ -238,8 +238,8 @@ mod tests {
         }
     }
 
-    const G: GuildId = GuildId(1);
-    const C: ChannelId = ChannelId(2);
+    const G: GuildId = GuildId::new(1);
+    const C: ChannelId = ChannelId::new(2);
 
     fn guild() -> ScopeRef {
         ScopeRef::Guild { guild: G }
@@ -309,7 +309,7 @@ mod tests {
             Err(FeatureError::UnknownFeature(_))
         ));
         let user = ScopeRef::User {
-            user: sr_events::UserId(1),
+            user: sr_events::UserId::new(1),
         };
         assert!(matches!(
             s.set_settings("demo.thing", &user, Map::new()).await,

@@ -78,27 +78,32 @@ mod tests {
     #[test]
     fn routing() {
         let e = DomainEvent::MessageCreated {
-            guild: Some(GuildId(1)),
-            channel: ChannelId(2),
+            guild: Some(GuildId::new(1)),
+            channel: ChannelId::new(2),
             message_id: 3,
-            author: UserId(4),
+            author: UserId::new(4),
         };
         assert_eq!(
             e.topics(),
-            vec![Topic::Channel(ChannelId(2)), Topic::Guild(GuildId(1))]
+            vec![
+                Topic::Channel(ChannelId::new(2)),
+                Topic::Guild(GuildId::new(1))
+            ]
         );
         let dm = DomainEvent::MessageCreated {
             guild: None,
-            channel: ChannelId(2),
+            channel: ChannelId::new(2),
             message_id: 3,
-            author: UserId(4),
+            author: UserId::new(4),
         };
-        assert_eq!(dm.topics(), vec![Topic::Channel(ChannelId(2))]);
+        assert_eq!(dm.topics(), vec![Topic::Channel(ChannelId::new(2))]);
     }
 
     #[test]
     fn serde_roundtrip() {
-        let e = DomainEvent::GuildDeleted { guild: GuildId(9) };
+        let e = DomainEvent::GuildDeleted {
+            guild: GuildId::new(9),
+        };
         let s = serde_json::to_string(&e).unwrap();
         assert_eq!(serde_json::from_str::<DomainEvent>(&s).unwrap(), e);
     }

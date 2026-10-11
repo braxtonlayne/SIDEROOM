@@ -2260,6 +2260,7 @@ dependencies = [
  "futures",
  "serde",
  "serde_json",
+ "sr-core",
  "thiserror",
  "tokio",
  "tokio-stream",

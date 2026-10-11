@@ -27,7 +27,6 @@ Questions raised by implementation work that need an owner decision. Each links 
 
 ## Events and features (`feat/FND-EVT-FEAT`)
 
-15. **Placeholder ID types** in `sr-events` must be replaced with `sr-core` IDs. — [ids.rs](../crates/sr-events/src/ids.rs)
 16. **`Feature::routes()`, `FeatureCtx`, `Migration`** are placeholders until `AppState` exists. — [feature.rs](../crates/sr-features/src/feature.rs)
 17. **Merge conflict:** root `[workspace.dependencies]` was added on both this branch and `feat/FND-CORE`. — [Cargo.toml](../Cargo.toml)
 

@@ -104,7 +104,9 @@ mod tests {
         drop(bus.subscribe(Topic::Platform));
         bus.publish(
             Topic::Platform,
-            DomainEvent::GuildDeleted { guild: GuildId(1) },
+            DomainEvent::GuildDeleted {
+                guild: GuildId::new(1),
+            },
         )
         .await
         .unwrap();
