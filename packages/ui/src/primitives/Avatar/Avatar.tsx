@@ -14,6 +14,8 @@ export interface AvatarProps extends Omit<HTMLAttributes<HTMLSpanElement>, "chil
   /** Display name; used for the alt text and the initials fallback. */
   name: string;
   src?: string | null;
+  /** Q70: animated frame (GIF/WebP/APNG) shown on hover or focus; the static `src` is the default. */
+  animatedSrc?: string | null;
   size?: 24 | 32 | 40 | 56 | 80;
   status?: AvatarStatus;
   speaking?: boolean;
@@ -29,7 +31,7 @@ export function initials(name: string): string {
   return (first + last).toUpperCase();
 }
 
-export function Avatar({ name, src, size = 40, status, speaking, decoration, className, style, ...rest }: AvatarProps) {
+export function Avatar({ name, src, animatedSrc, size = 40, status, speaking, decoration, className, style, ...rest }: AvatarProps) {
   const [failed, setFailed] = useState<string | null>(null);
   const showImage = !!src && failed !== src;
   return (
@@ -40,7 +42,12 @@ export function Avatar({ name, src, size = 40, status, speaking, decoration, cla
       data-speaking={speaking || undefined}
     >
       {showImage ? (
-        <img className={styles.image} src={src} alt={name} onError={() => setFailed(src)} draggable={false} />
+        <>
+          <img className={styles.image} src={src} alt={name} onError={() => setFailed(src)} draggable={false} />
+          {animatedSrc && (
+            <img className={styles.animated} src={animatedSrc} alt="" aria-hidden="true" draggable={false} />
+          )}
+        </>
       ) : (
         <span className={styles.fallback} role="img" aria-label={name}>
           {initials(name)}

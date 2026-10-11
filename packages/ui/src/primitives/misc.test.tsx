@@ -355,11 +355,15 @@ describe("Side Room chrome", () => {
     expect(multi).toHaveBeenLastCalledWith(["x", "y"]);
   });
 
-  it("DropdownChip is a labelled select", async () => {
+  it("DropdownChip is a themed Select with the chip label", async () => {
     const onValueChange = vi.fn();
     render(<DropdownChip label="Room selection" options={[{ value: "1", label: "Lounge" }, { value: "2", label: "Cinema" }]} onValueChange={onValueChange} />);
-    await userEvent.selectOptions(screen.getByLabelText("Room selection"), "2");
+    const box = screen.getByRole("combobox", { name: "Room selection" });
+    expect(box).toHaveTextContent("Room selection");
+    await userEvent.click(box);
+    await userEvent.click(screen.getByRole("option", { name: "Cinema" }));
     expect(onValueChange).toHaveBeenCalledWith("2");
+    expect(document.querySelector("select")).toBeNull();
   });
 });
 
