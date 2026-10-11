@@ -1,0 +1,11 @@
+name: Bug
+description: Something doesn't work as specified
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes: { label: What happened, description: Steps, expected vs actual }
+    validations: { required: true }
+  - type: input
+    id: where
+    attributes: { label: Browser / device }

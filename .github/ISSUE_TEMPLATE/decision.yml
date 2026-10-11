@@ -1,0 +1,8 @@
+name: Decision needed
+description: A product question for the owner
+labels: [decision]
+body:
+  - type: textarea
+    id: question
+    attributes: { label: Question and options }
+    validations: { required: true }
