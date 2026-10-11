@@ -22,9 +22,9 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 - [ ] **LNG-GLD-017** [FE] Create Server step 3: customize (icon upload with crop, server name prefilled "<user>'s server", guidelines note), Back / Create
 - [ ] **LNG-GLD-018** [FE] Join a Server modal (invite link/code input, examples, "Don't have an invite? Check out the Directory")
 - [ ] **LNG-GLD-019** [FE] Server header button with name + chevron, banner area (if banner), boost/level indicator
-- [ ] **LNG-GLD-020** [FE] Server dropdown menu: Server Support, Invite to Server, Server Settings, Create Channel, Create Category, Create Event, App Directory, Notification Settings, Privacy Settings, Edit Per-server Profile, Hide Muted Channels (checkbox), Copy Server Info ▸ (ID, link), Security Actions (mods), Leave Server
+- [x] **LNG-GLD-020** [FE] Server dropdown menu: Server Support, Invite to Server, Server Settings, Create Channel, Create Category, Create Event, App Directory, Notification Settings, Privacy Settings, Edit Per-server Profile, Hide Muted Channels (checkbox), Copy Server Info ▸ (ID, link), Security Actions (mods), Leave Server
 - [ ] **LNG-GLD-021** [FE] Welcome/empty-server screen: "Welcome to <server>", intro line + Getting Started guide link, checklist cards (Invite your friends, Personalize your server with an icon, Send your first message, Add your first app, Support this server) with completion state
-- [ ] **LNG-GLD-022** [FE] Member list panel: role groups with counts, online/offline groups, owner crown, bot tag, activity line, virtualized lazy ranges
+- [x] **LNG-GLD-022** [FE] Member list panel: role groups with counts, online/offline groups, owner crown, bot tag, activity line, virtualized lazy ranges
 - [ ] **LNG-GLD-023** [FE] Member context menu: Profile, Mention, Message, Call, Add Note, Change Nickname, Invite to Server ▸, Remove Friend, Ignore, Block, Apps ▸, Roles ▸ (checkbox list), Timeout ▸, Kick, Ban, Transfer Ownership, Copy User ID
 - [ ] **LNG-GLD-024** [FE] Timeout modal (durations, reason), Kick modal (reason), Ban modal (delete history window, reason)
 - [ ] **LNG-GLD-025** [FE] Privacy Settings modal per server (allow DMs, message requests, activity status, joined-server visibility)
@@ -61,7 +61,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 - [ ] **LNG-CHN-020** [FE] Pins popout (list, jump, unpin)
 - [ ] **LNG-CHN-021** [FE] Read-only/announcement composer state + "Follow" button
 - [ ] **LNG-CHN-022** [FE] Age-gate interstitial for restricted channels
-- [ ] **LNG-CHN-023** [FE] Hide Muted Channels behavior
+- [x] **LNG-CHN-023** [FE] Hide Muted Channels behavior
 - [ ] **LNG-CHN-024** [FE] Rules channel + Updates channel badges (Community)
 
 ## LNG-THR — Threads

@@ -1,0 +1,47 @@
+export const EMOJI_CATEGORIES: ReadonlyArray<{ name: string; emoji: Array<[string, string]> }> = [
+  {
+    name: 'Smileys',
+    emoji: [
+      ['grinning', '😀'],
+      ['joy', '😂'],
+      ['smile', '😊'],
+      ['heart_eyes', '😍'],
+      ['wink', '😉'],
+      ['thinking', '🤔'],
+      ['sob', '😭'],
+      ['sunglasses', '😎'],
+      ['sweat_smile', '😅'],
+      ['upside_down', '🙃'],
+      ['eyes', '👀'],
+      ['skull', '💀'],
+    ],
+  },
+  {
+    name: 'Gestures',
+    emoji: [
+      ['thumbsup', '👍'],
+      ['thumbsdown', '👎'],
+      ['wave', '👋'],
+      ['clap', '👏'],
+      ['pray', '🙏'],
+      ['ok_hand', '👌'],
+      ['raised_hands', '🙌'],
+      ['muscle', '💪'],
+    ],
+  },
+  {
+    name: 'Objects',
+    emoji: [
+      ['fire', '🔥'],
+      ['tada', '🎉'],
+      ['heart', '❤️'],
+      ['sparkles', '✨'],
+      ['star', '⭐'],
+      ['popcorn', '🍿'],
+      ['clapper', '🎬'],
+      ['books', '📚'],
+      ['door', '🚪'],
+      ['100', '💯'],
+    ],
+  },
+];

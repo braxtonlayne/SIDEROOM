@@ -42,7 +42,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [ ] **LNG-MSGUI-004** [FE] Date dividers, "NEW" unread divider, unread banner with "Mark As Read"
 - [ ] **LNG-MSGUI-005** [FE] Reply preview line (avatar, name, snippet, click to jump, "Original message was deleted")
 - [ ] **LNG-MSGUI-006** [FE] Forwarded message frame ("Forwarded" + source)
-- [ ] **LNG-MSGUI-007** [FE] "(edited)" tag with tooltip timestamp
+- [x] **LNG-MSGUI-007** [FE] "(edited)" tag with tooltip timestamp
 - [ ] **LNG-MSGUI-008** [FE] Mention highlight (row tint + left bar) for messages mentioning me
 - [ ] **LNG-MSGUI-009** [FE] Image/video attachment grid & mosaic (1–10), aspect handling, blurhash placeholders, spoiler blur w/ click reveal, alt text "ALT" chip
 - [ ] **LNG-MSGUI-010** [FE] Lightbox/media viewer (zoom, pan, prev/next in message, download, open original, copy)
@@ -84,8 +84,8 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [ ] **LNG-CMP-010** [FE] Slowmode countdown, "You do not have permission to send messages in this channel", timeout state
 - [ ] **LNG-CMP-011** [FE] Character counter near limit + over-limit block (offer "upload as file")
 - [ ] **LNG-CMP-012** [FE] Voice message recorder (hold to record on mobile, click on desktop, preview, send)
-- [ ] **LNG-CMP-013** [FE] Draft persistence per channel (local)
-- [ ] **LNG-CMP-014** [FE] Up-arrow to edit last message
+- [x] **LNG-CMP-013** [FE] Draft persistence per channel (local)
+- [x] **LNG-CMP-014** [FE] Up-arrow to edit last message
 - [ ] **LNG-CMP-015** [FE] Built-in slash commands: /shrug, /tableflip, /unflip, /me, /spoiler, /nick, /tts, /thread, /msg, /giphy-equivalent (GIF provider), /remind (feature), /poll
 - [ ] **LNG-CMP-016** [FE] Composer icons row: GIF, sticker, emoji (gift icon **removed**)
 

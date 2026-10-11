@@ -19,7 +19,7 @@ describe('routes', () => {
     ['/reset/tok', 'Choose a new one.'],
     ['/no-invitation', 'No invitation?'],
     ['/house-notes', 'House notes'],
-    ['/channels', 'Lounge'],
+    ['/channels', 'Friends'],
     ['/cinema', 'Cinema'],
     ['/library', 'Library'],
     ['/admin', 'Admin'],

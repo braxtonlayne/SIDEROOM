@@ -88,7 +88,7 @@ describe('login', () => {
     const user = userEvent.setup();
     const router = at('/login?next=//evil.example');
     await fill(user);
-    await waitFor(() => expect(router.state.location.pathname).toBe('/channels'));
+    await waitFor(() => expect(router.state.location.pathname.startsWith('/channels')).toBe(true));
   });
 
   it('shows the generic error on 401', async () => {
@@ -135,7 +135,7 @@ describe('login', () => {
   it('redirects logged-in members to their last section', async () => {
     server.use(http.get('*/api/v1/users/@me', () => HttpResponse.json({ id: '1' })));
     const router = at('/login');
-    await waitFor(() => expect(router.state.location.pathname).toBe('/channels'));
+    await waitFor(() => expect(router.state.location.pathname.startsWith('/channels')).toBe(true));
   });
 });
 
@@ -153,7 +153,7 @@ describe('2FA', () => {
     await user.click(await screen.findByLabelText('Trust this device for 30 days'));
     await user.click(screen.getByLabelText('Digit 1'));
     await user.keyboard('123456');
-    await waitFor(() => expect(router.state.location.pathname).toBe('/channels'));
+    await waitFor(() => expect(router.state.location.pathname.startsWith('/channels')).toBe(true));
     expect(body).toEqual({ method: 'totp', code: '123456', trust_device: true });
   });
 
@@ -173,7 +173,7 @@ describe('2FA', () => {
     const router = at('/login/2fa');
     await user.click(await screen.findByLabelText('Digit 1'));
     await user.paste('654321');
-    await waitFor(() => expect(router.state.location.pathname).toBe('/channels'));
+    await waitFor(() => expect(router.state.location.pathname.startsWith('/channels')).toBe(true));
   });
 
   it('switches to a recovery code', async () => {
@@ -189,7 +189,7 @@ describe('2FA', () => {
     await user.click(await screen.findByRole('button', { name: 'Use a recovery code' }));
     await user.type(screen.getByLabelText('Recovery code'), 'abcd-1234');
     await user.click(screen.getByRole('button', { name: /step inside/i }));
-    await waitFor(() => expect(router.state.location.pathname).toBe('/channels'));
+    await waitFor(() => expect(router.state.location.pathname.startsWith('/channels')).toBe(true));
     expect(body).toEqual({ method: 'recovery', code: 'abcd-1234', trust_device: false });
   });
 });
@@ -245,7 +245,7 @@ describe('register', () => {
     const router = at('/register');
     await fillValid(user);
     await user.click(screen.getByRole('button', { name: /open the door/i }));
-    await waitFor(() => expect(router.state.location.pathname).toBe('/channels'));
+    await waitFor(() => expect(router.state.location.pathname.startsWith('/channels')).toBe(true));
     expect(body).toMatchObject({ code: 'ABCDE-FGHJK', email: 'sam@example.com', username: 'sam' });
     expect(sessionStorage.getItem('sr.invite')).toBeNull();
   });
