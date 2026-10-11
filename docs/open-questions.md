@@ -66,3 +66,11 @@ Questions raised by implementation work that need an owner decision. Each links 
 37. **Saturation setting uses a CSS `filter` on the provider root**, which makes `position: fixed` overlays position relative to that root while active. — [packages/ui/src/theme](../packages/ui/src/theme)
 38. **Partial primitives left unticked:** Slider, Segmented, ContextMenu, Dropdown, Drawer, Accordion, AvatarStack, Pill/Tag, ProgressBar, EmptyState, error page; DS-PRIM-004, 012–016 (Select, ScrollArea, icons, Ladle stories) not started. — [01-foundation.md](inventory/01-foundation.md)
 39. **Verified with npm/npx and no lockfile** (pnpm not installed); the package's lockfile and workspace linking are untested. — [packages/ui/package.json](../packages/ui/package.json)
+
+## UI overlays (`feat/DS-prims-overlays`)
+
+40. **Q36 resolved:** Tooltip/Popover now use a custom positioning helper (flip + shift, no `@floating-ui` dependency) shared by menus and select popups. Is a custom helper acceptable long-term, or should we adopt `@floating-ui/react` (arrow, virtual-element hit-testing, `autoUpdate` on ancestor scroll)? — [useFloating.ts](../packages/ui/src/primitives/Overlay/useFloating.ts), [position.ts](../packages/ui/src/util/position.ts)
+41. **Menus have no touch long-press** for ContextMenu (right-click, Menu key and Shift+F10 only), no submenu hover-intent delay or safe-triangle, and no arrow on Tooltip/Popover. Needed for Phase 0? — [Menu.tsx](../packages/ui/src/primitives/Menu/Menu.tsx)
+42. **Menus portal into the theme root with `position: fixed`**, which Q37's saturation `filter` breaks while active (offsets become relative to the filtered root). Same root cause as Q37. — [useFloating.ts](../packages/ui/src/primitives/Overlay/useFloating.ts)
+43. **Select/Combobox choices to confirm:** checkbox/radio menu items close the menu unless `keepOpen`; Combobox is single-value with no free-text "create" option; MultiSelect shows chips (no "+N more" overflow); option rows are fixed-height (virtualization) so `description` needs `rowHeight` ~52. No axe run on these yet (DS-PRIM-016). — [Select.tsx](../packages/ui/src/primitives/Select/Select.tsx)
+44. **`@tanstack/react-virtual` added** as a `packages/ui` dependency (no lockfile, installed with npm). — [package.json](../packages/ui/package.json)

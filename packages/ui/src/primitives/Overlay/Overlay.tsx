@@ -10,10 +10,15 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
+import { usePortalTarget } from "../../theme/ThemeProvider";
+import type { FloatingPlacement } from "../../util/position";
 import { cx } from "../../util/cx";
 import styles from "./Overlay.module.css";
+import { useFloating } from "./useFloating";
 
-export type Placement = "top" | "bottom" | "left" | "right";
+/** Preferred placement; flips and shifts automatically at viewport edges. */
+export type Placement = FloatingPlacement;
 
 type TriggerProps = {
   onMouseEnter?: (e: MouseEvent) => void;
@@ -40,6 +45,9 @@ export interface TooltipProps {
 export function Tooltip({ content, children, placement = "top", delay = 400, className }: TooltipProps) {
   const id = useId();
   const [open, setOpen] = useState(false);
+  const [anchor, setAnchor] = useState<HTMLSpanElement | null>(null);
+  const portalTarget = usePortalTarget();
+  const floating = useFloating({ open, anchor, placement });
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const clear = useCallback(() => clearTimeout(timer.current), []);
   useEffect(() => clear, [clear]);
@@ -84,13 +92,23 @@ export function Tooltip({ content, children, placement = "top", delay = 400, cla
   });
 
   return (
-    <span className={cx(styles.anchor, className)}>
+    <span ref={setAnchor} className={cx(styles.anchor, className)}>
       {child}
-      {open && (
-        <span role="tooltip" id={id} className={cx(styles.tooltip, styles[placement])}>
-          {content}
-        </span>
-      )}
+      {open &&
+        portalTarget &&
+        createPortal(
+          <span
+            role="tooltip"
+            id={id}
+            ref={floating.ref}
+            style={floating.style}
+            data-side={floating.position?.side}
+            className={styles.tooltip}
+          >
+            {content}
+          </span>,
+          portalTarget,
+        )}
     </span>
   );
 }
@@ -101,7 +119,7 @@ export interface PopoverProps {
   /** Accessible name for the popover dialog. */
   label: string;
   children: ReactNode;
-  placement?: Exclude<Placement, "left" | "right"> | "left" | "right";
+  placement?: Placement;
   open?: boolean;
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -121,8 +139,19 @@ export function Popover({
   const id = useId();
   const [internal, setInternal] = useState(defaultOpen);
   const open = controlled ?? internal;
-  const root = useRef<HTMLSpanElement>(null);
-  const panel = useRef<HTMLDivElement>(null);
+  const root = useRef<HTMLSpanElement | null>(null);
+  const panel = useRef<HTMLDivElement | null>(null);
+  const [anchor, setAnchor] = useState<HTMLSpanElement | null>(null);
+  const portalTarget = usePortalTarget();
+  const floating = useFloating({ open, anchor, placement });
+  const setPanel = useCallback(
+    (el: HTMLDivElement | null) => {
+      panel.current = el;
+      floating.ref(el);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [floating.ref],
+  );
 
   const setOpen = useCallback(
     (next: boolean) => {
@@ -137,7 +166,8 @@ export function Popover({
     const returnFocusTo = document.activeElement as HTMLElement | null;
     panel.current?.focus();
     const onDown = (e: globalThis.MouseEvent) => {
-      if (root.current && !root.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (root.current && !root.current.contains(t) && !panel.current?.contains(t)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -166,20 +196,31 @@ export function Popover({
   });
 
   return (
-    <span ref={root} className={cx(styles.anchor, className)}>
+    <span
+      ref={(el) => {
+        root.current = el;
+        setAnchor(el);
+      }}
+      className={cx(styles.anchor, className)}
+    >
       {t}
-      {open && (
-        <div
-          ref={panel}
-          id={id}
-          role="dialog"
-          aria-label={label}
-          tabIndex={-1}
-          className={cx(styles.popover, styles[placement])}
-        >
-          {children}
-        </div>
-      )}
+      {open &&
+        portalTarget &&
+        createPortal(
+          <div
+            ref={setPanel}
+            id={id}
+            role="dialog"
+            aria-label={label}
+            tabIndex={-1}
+            style={floating.style}
+            data-side={floating.position?.side}
+            className={styles.popover}
+          >
+            {children}
+          </div>,
+          portalTarget,
+        )}
     </span>
   );
 }
