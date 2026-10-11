@@ -14,7 +14,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [ ] **LNG-MSG-009** [BE] Reactions add/remove (own, others with permission, all, per-emoji), list users, burst reactions
 - [ ] **LNG-MSG-010** [BE] Polls: create, vote/unvote, end, expiry job, results, `MESSAGE_POLL_VOTE_ADD/REMOVE`
 - [ ] **LNG-MSG-011** [BE] Mentions extraction via `sr-markdown`; @everyone/@here permission gate; role mentionable gate
-- [ ] **LNG-MSG-012** [BE] Read states: ack message, mention counts, mark guild read, mark unread (set ack to previous)
+- [x] **LNG-MSG-012** [BE] Read states: ack message, mention counts, mark guild read, mark unread (set ack to previous)
 - [ ] **LNG-MSG-013** [BE] Typing indicator endpoint + 10s TTL broadcast
 - [ ] **LNG-MSG-014** [BE] Link unfurler: SSRF-safe fetch (deny private IPs, size/time limits), OpenGraph/Twitter cards/oEmbed parse, image proxying, cache by URL, operator allow/deny lists
 - [ ] **LNG-MSG-015** [BE] Embed suppression (flag), spoiler handling in embeds
@@ -112,7 +112,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [ ] **LNG-SRC-006** [FE] Search history (recent queries, clear)
 
 ## LNG-NTF — Notifications & inbox
-- [ ] **LNG-NTF-001** [BE] Notification settings model (guild/category/channel overrides, mute with expiry, suppress everyone/roles/highlights, mobile push)
+- [x] **LNG-NTF-001** [BE] Notification settings model (guild/category/channel overrides, mute with expiry, suppress everyone/roles/highlights, mobile push)
 - [ ] **LNG-NTF-002** [BE] Notification decision engine (mentions, replies, DMs, keyword highlights, thread follows)
 - [ ] **LNG-NTF-003** [BE] Web Push (VAPID) subscription management + delivery (`web-push` crate) with collapse keys
 - [ ] **LNG-NTF-004** [FE] Notification Settings modal (server: All / Only @mentions / Nothing; suppress toggles; mobile push; channel overrides list)
