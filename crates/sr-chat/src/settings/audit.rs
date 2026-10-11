@@ -220,10 +220,33 @@ impl Default for AuditRetention {
     }
 }
 
+/// Operator-configurable platform setting for guild audit retention, in days
+/// (open question 133; Admin → Limits). `0` keeps entries forever.
+pub const AUDIT_RETENTION_SETTING: &str = "moderation.audit_retention_days";
+
 impl AuditRetention {
     /// Entries created before this instant may be purged. `None` = keep forever.
     pub fn cutoff_ms(&self, now_ms: i64) -> Option<i64> {
         (self.keep_days > 0).then(|| now_ms - i64::from(self.keep_days) * DAY_MS)
+    }
+
+    /// Build from the stored [`AUDIT_RETENTION_SETTING`] value. A missing value
+    /// means the default (45 days). Anything but a non-negative integer is rejected.
+    pub fn from_setting(value: Option<&Value>) -> SettingsResult<Self> {
+        let Some(value) = value else {
+            return Ok(Self::default());
+        };
+        let days = value
+            .as_u64()
+            .and_then(|d| u32::try_from(d).ok())
+            .ok_or_else(|| {
+                SettingsError::invalid(
+                    "audit_retention_days",
+                    "NUMBER_TYPE_COERCE",
+                    "must be a whole number of days (0 = forever)",
+                )
+            })?;
+        Ok(Self { keep_days: days })
     }
 }
 
@@ -286,5 +309,26 @@ mod tests {
         let r = AuditRetention { keep_days: 45 };
         assert_eq!(r.cutoff_ms(100 * DAY_MS), Some(55 * DAY_MS));
         assert_eq!(AuditRetention { keep_days: 0 }.cutoff_ms(5), None);
+    }
+
+    #[test]
+    fn retention_setting_is_operator_configurable() {
+        assert_eq!(AuditRetention::from_setting(None).unwrap().keep_days, 45);
+        let forever = Value::from(0);
+        assert_eq!(
+            AuditRetention::from_setting(Some(&forever))
+                .unwrap()
+                .keep_days,
+            0
+        );
+        let ninety = Value::from(90);
+        assert_eq!(
+            AuditRetention::from_setting(Some(&ninety))
+                .unwrap()
+                .keep_days,
+            90
+        );
+        assert!(AuditRetention::from_setting(Some(&Value::from(-1))).is_err());
+        assert!(AuditRetention::from_setting(Some(&Value::from("45"))).is_err());
     }
 }

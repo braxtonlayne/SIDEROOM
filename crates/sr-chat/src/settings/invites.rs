@@ -65,6 +65,17 @@ impl InviteOptions {
         }
     }
 
+    /// Options for `POST /channels/{id}/invites`. `external: true` (the dialog's
+    /// "Copy link") uses [`Self::external_default`]; in-platform shares use the
+    /// server default (open question 134).
+    pub fn for_request(external: bool) -> Self {
+        if external {
+            Self::external_default()
+        } else {
+            Self::default()
+        }
+    }
+
     pub fn validate(&self) -> SettingsResult<()> {
         if self.max_age_secs > MAX_AGE_SECS {
             return Err(SettingsError::invalid(

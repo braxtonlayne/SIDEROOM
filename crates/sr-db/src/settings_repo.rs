@@ -890,8 +890,23 @@ fn opt_channel(r: &PgRow, col: &str) -> RepoResult<Option<ChannelId>> {
 #[async_trait]
 impl CommunityRepository for PgSettingsRepo {
     async fn get_community(&self, guild: GuildId) -> RepoResult<CommunitySettings> {
+        // Rules and updates channels are owned by `guilds` (open question 138).
+        let guild_row = sqlx::query(
+            "SELECT rules_channel_id, public_updates_channel_id FROM guilds WHERE id = $1",
+        )
+        .bind(i(guild.get()))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        let (rules_channel_id, updates_channel_id) = match &guild_row {
+            Some(g) => (
+                opt_channel(g, "rules_channel_id")?,
+                opt_channel(g, "public_updates_channel_id")?,
+            ),
+            None => (None, None),
+        };
         let row = sqlx::query(
-            "SELECT community_enabled, rules_channel_id, updates_channel_id, safety_alerts_channel_id, \
+            "SELECT community_enabled, safety_alerts_channel_id, \
              description, preferred_locale, onboarding_enabled, welcome_screen_enabled, guide_enabled, \
              invites_paused, raid_alert_joins_per_minute, age_restricted \
              FROM guild_community WHERE guild_id = $1",
@@ -901,13 +916,17 @@ impl CommunityRepository for PgSettingsRepo {
         .await
         .map_err(db)?;
         let Some(r) = row else {
-            return Ok(CommunitySettings::new(guild));
+            return Ok(CommunitySettings {
+                rules_channel_id,
+                updates_channel_id,
+                ..CommunitySettings::new(guild)
+            });
         };
         Ok(CommunitySettings {
             guild_id: guild,
             community_enabled: get(&r, "community_enabled")?,
-            rules_channel_id: opt_channel(&r, "rules_channel_id")?,
-            updates_channel_id: opt_channel(&r, "updates_channel_id")?,
+            rules_channel_id,
+            updates_channel_id,
             safety_alerts_channel_id: opt_channel(&r, "safety_alerts_channel_id")?,
             description: get(&r, "description")?,
             preferred_locale: get(&r, "preferred_locale")?,
@@ -925,16 +944,24 @@ impl CommunityRepository for PgSettingsRepo {
     }
 
     async fn put_community(&self, s: &CommunitySettings) -> RepoResult<()> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
         sqlx::query(
-            "INSERT INTO guild_community (guild_id, community_enabled, rules_channel_id, \
-             updates_channel_id, safety_alerts_channel_id, description, preferred_locale, \
+            "UPDATE guilds SET rules_channel_id = $2, public_updates_channel_id = $3 WHERE id = $1",
+        )
+        .bind(i(s.guild_id.get()))
+        .bind(s.rules_channel_id.map(|c| i(c.get())))
+        .bind(s.updates_channel_id.map(|c| i(c.get())))
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
+        sqlx::query(
+            "INSERT INTO guild_community (guild_id, community_enabled, \
+             safety_alerts_channel_id, description, preferred_locale, \
              onboarding_enabled, welcome_screen_enabled, guide_enabled, invites_paused, \
              raid_alert_joins_per_minute, age_restricted) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) \
              ON CONFLICT (guild_id) DO UPDATE SET \
                community_enabled = EXCLUDED.community_enabled, \
-               rules_channel_id = EXCLUDED.rules_channel_id, \
-               updates_channel_id = EXCLUDED.updates_channel_id, \
                safety_alerts_channel_id = EXCLUDED.safety_alerts_channel_id, \
                description = EXCLUDED.description, preferred_locale = EXCLUDED.preferred_locale, \
                onboarding_enabled = EXCLUDED.onboarding_enabled, \
@@ -945,8 +972,6 @@ impl CommunityRepository for PgSettingsRepo {
         )
         .bind(i(s.guild_id.get()))
         .bind(s.community_enabled)
-        .bind(s.rules_channel_id.map(|c| i(c.get())))
-        .bind(s.updates_channel_id.map(|c| i(c.get())))
         .bind(s.safety_alerts_channel_id.map(|c| i(c.get())))
         .bind(s.description.as_deref())
         .bind(&s.preferred_locale)
@@ -956,10 +981,10 @@ impl CommunityRepository for PgSettingsRepo {
         .bind(s.invites_paused)
         .bind(s.raid_alert_joins_per_minute as i32)
         .bind(s.age_restricted)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await
         .map_err(db)?;
-        Ok(())
+        tx.commit().await.map_err(db)
     }
 
     async fn get_onboarding(&self, guild: GuildId) -> RepoResult<Onboarding> {
