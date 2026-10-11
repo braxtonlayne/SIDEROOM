@@ -1,0 +1,588 @@
+{
+  "description": "Inline code spans",
+  "cases": [
+    {
+      "name": "icode-001",
+      "input": "`c`",
+      "ast": [
+        {
+          "code": "c",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "c",
+      "jumbo": false
+    },
+    {
+      "name": "icode-002",
+      "input": "``a`b``",
+      "ast": [
+        {
+          "code": "a`b",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "a`b",
+      "jumbo": false
+    },
+    {
+      "name": "icode-003",
+      "input": "`**x**`",
+      "ast": [
+        {
+          "code": "**x**",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "**x**",
+      "jumbo": false
+    },
+    {
+      "name": "icode-004",
+      "input": "`` ` ``",
+      "ast": [
+        {
+          "code": "`",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "`",
+      "jumbo": false
+    },
+    {
+      "name": "icode-005",
+      "input": "`unclosed",
+      "ast": [
+        {
+          "text": "`unclosed",
+          "type": "text"
+        }
+      ],
+      "plain": "`unclosed",
+      "jumbo": false
+    },
+    {
+      "name": "icode-006",
+      "input": "`a` and `b`",
+      "ast": [
+        {
+          "code": "a",
+          "type": "inline_code"
+        },
+        {
+          "text": " and ",
+          "type": "text"
+        },
+        {
+          "code": "b",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "a and b",
+      "jumbo": false
+    },
+    {
+      "name": "icode-007",
+      "input": "`a``b`",
+      "ast": [
+        {
+          "code": "a``b",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "a``b",
+      "jumbo": false
+    },
+    {
+      "name": "icode-008",
+      "input": "```",
+      "ast": [
+        {
+          "text": "```",
+          "type": "text"
+        }
+      ],
+      "plain": "```",
+      "jumbo": false
+    },
+    {
+      "name": "icode-009",
+      "input": "``",
+      "ast": [
+        {
+          "text": "``",
+          "type": "text"
+        }
+      ],
+      "plain": "``",
+      "jumbo": false
+    },
+    {
+      "name": "icode-010",
+      "input": "` `",
+      "ast": [
+        {
+          "code": " ",
+          "type": "inline_code"
+        }
+      ],
+      "plain": " ",
+      "jumbo": false
+    },
+    {
+      "name": "icode-011",
+      "input": "`  `",
+      "ast": [
+        {
+          "code": "  ",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "  ",
+      "jumbo": false
+    },
+    {
+      "name": "icode-012",
+      "input": "` a `",
+      "ast": [
+        {
+          "code": "a",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "a",
+      "jumbo": false
+    },
+    {
+      "name": "icode-013",
+      "input": "`  a  `",
+      "ast": [
+        {
+          "code": " a ",
+          "type": "inline_code"
+        }
+      ],
+      "plain": " a ",
+      "jumbo": false
+    },
+    {
+      "name": "icode-014",
+      "input": "`\\*`",
+      "ast": [
+        {
+          "code": "\\*",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "\\*",
+      "jumbo": false
+    },
+    {
+      "name": "icode-015",
+      "input": "`\\`",
+      "ast": [
+        {
+          "code": "\\",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "\\",
+      "jumbo": false
+    },
+    {
+      "name": "icode-016",
+      "input": "`a\nb`",
+      "ast": [
+        {
+          "code": "a\nb",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "a\nb",
+      "jumbo": false
+    },
+    {
+      "name": "icode-017",
+      "input": "``a ` b``",
+      "ast": [
+        {
+          "code": "a ` b",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "a ` b",
+      "jumbo": false
+    },
+    {
+      "name": "icode-018",
+      "input": "```a``b```",
+      "ast": [
+        {
+          "code": "a``b",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "a``b",
+      "jumbo": false
+    },
+    {
+      "name": "icode-019",
+      "input": "`😄`",
+      "ast": [
+        {
+          "code": "😄",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "😄",
+      "jumbo": false
+    },
+    {
+      "name": "icode-020",
+      "input": "`é`",
+      "ast": [
+        {
+          "code": "é",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "é",
+      "jumbo": false
+    },
+    {
+      "name": "icode-021",
+      "input": "`<@1>`",
+      "ast": [
+        {
+          "code": "<@1>",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "<@1>",
+      "jumbo": false
+    },
+    {
+      "name": "icode-022",
+      "input": "`:smile:`",
+      "ast": [
+        {
+          "code": ":smile:",
+          "type": "inline_code"
+        }
+      ],
+      "plain": ":smile:",
+      "jumbo": false
+    },
+    {
+      "name": "icode-023",
+      "input": "`https://e.com`",
+      "ast": [
+        {
+          "code": "https://e.com",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "https://e.com",
+      "jumbo": false
+    },
+    {
+      "name": "icode-024",
+      "input": "`[a](https://e.com)`",
+      "ast": [
+        {
+          "code": "[a](https://e.com)",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "[a](https://e.com)",
+      "jumbo": false
+    },
+    {
+      "name": "icode-025",
+      "input": "**a `*` b**",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            },
+            {
+              "code": "*",
+              "type": "inline_code"
+            },
+            {
+              "text": " b",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "a * b",
+      "jumbo": false
+    },
+    {
+      "name": "icode-026",
+      "input": "*a `_` b*",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            },
+            {
+              "code": "_",
+              "type": "inline_code"
+            },
+            {
+              "text": " b",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "a _ b",
+      "jumbo": false
+    },
+    {
+      "name": "icode-027",
+      "input": "||a `|` b||",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            },
+            {
+              "code": "|",
+              "type": "inline_code"
+            },
+            {
+              "text": " b",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "icode-028",
+      "input": "~~a `~` b~~",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            },
+            {
+              "code": "~",
+              "type": "inline_code"
+            },
+            {
+              "text": " b",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        }
+      ],
+      "plain": "a ~ b",
+      "jumbo": false
+    },
+    {
+      "name": "icode-029",
+      "input": "`a` `b` `c`",
+      "ast": [
+        {
+          "code": "a",
+          "type": "inline_code"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "code": "b",
+          "type": "inline_code"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "code": "c",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "a b c",
+      "jumbo": false
+    },
+    {
+      "name": "icode-030",
+      "input": "`a`**b**`c`",
+      "ast": [
+        {
+          "code": "a",
+          "type": "inline_code"
+        },
+        {
+          "children": [
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        },
+        {
+          "code": "c",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "abc",
+      "jumbo": false
+    },
+    {
+      "name": "icode-031",
+      "input": "text`code`text",
+      "ast": [
+        {
+          "text": "text",
+          "type": "text"
+        },
+        {
+          "code": "code",
+          "type": "inline_code"
+        },
+        {
+          "text": "text",
+          "type": "text"
+        }
+      ],
+      "plain": "textcodetext",
+      "jumbo": false
+    },
+    {
+      "name": "icode-032",
+      "input": "`code`text",
+      "ast": [
+        {
+          "code": "code",
+          "type": "inline_code"
+        },
+        {
+          "text": "text",
+          "type": "text"
+        }
+      ],
+      "plain": "codetext",
+      "jumbo": false
+    },
+    {
+      "name": "icode-033",
+      "input": "text `code`",
+      "ast": [
+        {
+          "text": "text ",
+          "type": "text"
+        },
+        {
+          "code": "code",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "text code",
+      "jumbo": false
+    },
+    {
+      "name": "icode-034",
+      "input": "`a\\`b`",
+      "ast": [
+        {
+          "code": "a\\",
+          "type": "inline_code"
+        },
+        {
+          "text": "b`",
+          "type": "text"
+        }
+      ],
+      "plain": "a\\b`",
+      "jumbo": false
+    },
+    {
+      "name": "icode-035",
+      "input": "````x````",
+      "ast": [
+        {
+          "code": "`x",
+          "lang": null,
+          "type": "code_block"
+        },
+        {
+          "text": "`",
+          "type": "text"
+        }
+      ],
+      "plain": "`x`",
+      "jumbo": false
+    },
+    {
+      "name": "icode-036",
+      "input": "`` a ``",
+      "ast": [
+        {
+          "code": "a",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "a",
+      "jumbo": false
+    },
+    {
+      "name": "icode-037",
+      "input": "`` ``",
+      "ast": [
+        {
+          "code": " ",
+          "type": "inline_code"
+        }
+      ],
+      "plain": " ",
+      "jumbo": false
+    },
+    {
+      "name": "icode-038",
+      "input": "` a`",
+      "ast": [
+        {
+          "code": " a",
+          "type": "inline_code"
+        }
+      ],
+      "plain": " a",
+      "jumbo": false
+    },
+    {
+      "name": "icode-039",
+      "input": "`a `",
+      "ast": [
+        {
+          "code": "a ",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "a ",
+      "jumbo": false
+    }
+  ]
+}

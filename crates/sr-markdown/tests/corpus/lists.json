@@ -1,0 +1,1382 @@
+{
+  "description": "Ordered and unordered lists, nesting",
+  "cases": [
+    {
+      "name": "list-001",
+      "input": "- a",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "a\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-002",
+      "input": "- a\n- b",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              }
+            ],
+            [
+              {
+                "text": "b",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "a\nb\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-003",
+      "input": "* a\n* b",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              }
+            ],
+            [
+              {
+                "text": "b",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "a\nb\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-004",
+      "input": "+ a",
+      "ast": [
+        {
+          "text": "+ a",
+          "type": "text"
+        }
+      ],
+      "plain": "+ a",
+      "jumbo": false
+    },
+    {
+      "name": "list-005",
+      "input": "- a\n  - b",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              },
+              {
+                "items": [
+                  [
+                    {
+                      "text": "b",
+                      "type": "text"
+                    }
+                  ]
+                ],
+                "ordered": false,
+                "start": null,
+                "type": "list"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "ab\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-006",
+      "input": "- a\n  - b\n    - c",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              },
+              {
+                "items": [
+                  [
+                    {
+                      "text": "b",
+                      "type": "text"
+                    },
+                    {
+                      "items": [
+                        [
+                          {
+                            "text": "c",
+                            "type": "text"
+                          }
+                        ]
+                      ],
+                      "ordered": false,
+                      "start": null,
+                      "type": "list"
+                    }
+                  ]
+                ],
+                "ordered": false,
+                "start": null,
+                "type": "list"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "abc\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-007",
+      "input": "- a\n    - b",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              },
+              {
+                "items": [
+                  [
+                    {
+                      "text": "b",
+                      "type": "text"
+                    }
+                  ]
+                ],
+                "ordered": false,
+                "start": null,
+                "type": "list"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "ab\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-008",
+      "input": "- a\n- b\n  - c\n- d",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              }
+            ],
+            [
+              {
+                "text": "b",
+                "type": "text"
+              },
+              {
+                "items": [
+                  [
+                    {
+                      "text": "c",
+                      "type": "text"
+                    }
+                  ]
+                ],
+                "ordered": false,
+                "start": null,
+                "type": "list"
+              }
+            ],
+            [
+              {
+                "text": "d",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "a\nbc\nd\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-009",
+      "input": "1. a",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": true,
+          "start": 1,
+          "type": "list"
+        }
+      ],
+      "plain": "a\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-010",
+      "input": "1. a\n2. b",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              }
+            ],
+            [
+              {
+                "text": "b",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": true,
+          "start": 1,
+          "type": "list"
+        }
+      ],
+      "plain": "a\nb\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-011",
+      "input": "2. a\n3. b",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              }
+            ],
+            [
+              {
+                "text": "b",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": true,
+          "start": 2,
+          "type": "list"
+        }
+      ],
+      "plain": "a\nb\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-012",
+      "input": "3) a",
+      "ast": [
+        {
+          "text": "3) a",
+          "type": "text"
+        }
+      ],
+      "plain": "3) a",
+      "jumbo": false
+    },
+    {
+      "name": "list-013",
+      "input": "1. a\n1. b",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              }
+            ],
+            [
+              {
+                "text": "b",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": true,
+          "start": 1,
+          "type": "list"
+        }
+      ],
+      "plain": "a\nb\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-014",
+      "input": "10. ten",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "ten",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": true,
+          "start": 10,
+          "type": "list"
+        }
+      ],
+      "plain": "ten\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-015",
+      "input": "0. zero",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "zero",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": true,
+          "start": 0,
+          "type": "list"
+        }
+      ],
+      "plain": "zero\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-016",
+      "input": "1. a\n   - b",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              },
+              {
+                "items": [
+                  [
+                    {
+                      "text": "b",
+                      "type": "text"
+                    }
+                  ]
+                ],
+                "ordered": false,
+                "start": null,
+                "type": "list"
+              }
+            ]
+          ],
+          "ordered": true,
+          "start": 1,
+          "type": "list"
+        }
+      ],
+      "plain": "ab\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-017",
+      "input": "- a\n  1. b",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              },
+              {
+                "items": [
+                  [
+                    {
+                      "text": "b",
+                      "type": "text"
+                    }
+                  ]
+                ],
+                "ordered": true,
+                "start": 1,
+                "type": "list"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "ab\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-018",
+      "input": "1. a\n   1. b",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              },
+              {
+                "items": [
+                  [
+                    {
+                      "text": "b",
+                      "type": "text"
+                    }
+                  ]
+                ],
+                "ordered": true,
+                "start": 1,
+                "type": "list"
+              }
+            ]
+          ],
+          "ordered": true,
+          "start": 1,
+          "type": "list"
+        }
+      ],
+      "plain": "ab\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-019",
+      "input": "-a",
+      "ast": [
+        {
+          "text": "-a",
+          "type": "text"
+        }
+      ],
+      "plain": "-a",
+      "jumbo": false
+    },
+    {
+      "name": "list-020",
+      "input": "- ",
+      "ast": [
+        {
+          "text": "- ",
+          "type": "text"
+        }
+      ],
+      "plain": "- ",
+      "jumbo": false
+    },
+    {
+      "name": "list-021",
+      "input": "-",
+      "ast": [
+        {
+          "text": "-",
+          "type": "text"
+        }
+      ],
+      "plain": "-",
+      "jumbo": false
+    },
+    {
+      "name": "list-022",
+      "input": "1.a",
+      "ast": [
+        {
+          "text": "1.a",
+          "type": "text"
+        }
+      ],
+      "plain": "1.a",
+      "jumbo": false
+    },
+    {
+      "name": "list-023",
+      "input": "1. ",
+      "ast": [
+        {
+          "text": "1. ",
+          "type": "text"
+        }
+      ],
+      "plain": "1. ",
+      "jumbo": false
+    },
+    {
+      "name": "list-024",
+      "input": "1.",
+      "ast": [
+        {
+          "text": "1.",
+          "type": "text"
+        }
+      ],
+      "plain": "1.",
+      "jumbo": false
+    },
+    {
+      "name": "list-025",
+      "input": "- **b**",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "children": [
+                  {
+                    "text": "b",
+                    "type": "text"
+                  }
+                ],
+                "type": "bold"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "b\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-026",
+      "input": "- *i*",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "children": [
+                  {
+                    "text": "i",
+                    "type": "text"
+                  }
+                ],
+                "type": "italic"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "i\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-027",
+      "input": "- `c`",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "code": "c",
+                "type": "inline_code"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "c\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-028",
+      "input": "- [a](https://e.com)",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "children": [
+                  {
+                    "text": "a",
+                    "type": "text"
+                  }
+                ],
+                "kind": "masked",
+                "type": "link",
+                "url": "https://e.com"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "a\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-029",
+      "input": "- <@1>",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "id": 1,
+                "type": "user_mention"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "@user\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-030",
+      "input": "- :smile:",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "emoji": "😄",
+                "name": "smile",
+                "type": "emoji"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "😄\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-031",
+      "input": "- ||s||",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "children": [
+                  {
+                    "text": "s",
+                    "type": "text"
+                  }
+                ],
+                "type": "spoiler"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "[spoiler]\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-032",
+      "input": "- a\n\n- b",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        },
+        {
+          "items": [
+            [
+              {
+                "text": "b",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "a\nb\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-033",
+      "input": "- a\nb",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        },
+        {
+          "text": "b",
+          "type": "text"
+        }
+      ],
+      "plain": "a\nb",
+      "jumbo": false
+    },
+    {
+      "name": "list-034",
+      "input": "- a\n b",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        },
+        {
+          "text": " b",
+          "type": "text"
+        }
+      ],
+      "plain": "a\n b",
+      "jumbo": false
+    },
+    {
+      "name": "list-035",
+      "input": "x\n- a",
+      "ast": [
+        {
+          "text": "x",
+          "type": "text"
+        },
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "xa\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-036",
+      "input": "x\n1. a",
+      "ast": [
+        {
+          "text": "x",
+          "type": "text"
+        },
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": true,
+          "start": 1,
+          "type": "list"
+        }
+      ],
+      "plain": "xa\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-037",
+      "input": "- a\nx\n- b",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        },
+        {
+          "text": "x",
+          "type": "text"
+        },
+        {
+          "items": [
+            [
+              {
+                "text": "b",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "a\nxb\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-038",
+      "input": "* a",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "a\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-039",
+      "input": "*a*",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "a",
+      "jumbo": false
+    },
+    {
+      "name": "list-040",
+      "input": "* a *",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a *",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "a *\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-041",
+      "input": "- - a",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "- a",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "- a\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-042",
+      "input": "- > q",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "> q",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "> q\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-043",
+      "input": "- # h",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "# h",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "# h\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-044",
+      "input": "-- a",
+      "ast": [
+        {
+          "text": "-- a",
+          "type": "text"
+        }
+      ],
+      "plain": "-- a",
+      "jumbo": false
+    },
+    {
+      "name": "list-045",
+      "input": "- a - b",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a - b",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "a - b\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-046",
+      "input": "a - b",
+      "ast": [
+        {
+          "text": "a - b",
+          "type": "text"
+        }
+      ],
+      "plain": "a - b",
+      "jumbo": false
+    },
+    {
+      "name": "list-047",
+      "input": "- ```x```",
+      "ast": [
+        {
+          "text": "- ",
+          "type": "text"
+        },
+        {
+          "code": "x",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "- x",
+      "jumbo": false
+    },
+    {
+      "name": "list-048",
+      "input": "1. ```x```",
+      "ast": [
+        {
+          "text": "1. ",
+          "type": "text"
+        },
+        {
+          "code": "x",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "1. x",
+      "jumbo": false
+    },
+    {
+      "name": "list-049",
+      "input": "- a\n- b\n- c\n- d\n- e",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              }
+            ],
+            [
+              {
+                "text": "b",
+                "type": "text"
+              }
+            ],
+            [
+              {
+                "text": "c",
+                "type": "text"
+              }
+            ],
+            [
+              {
+                "text": "d",
+                "type": "text"
+              }
+            ],
+            [
+              {
+                "text": "e",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "a\nb\nc\nd\ne\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-050",
+      "input": "1. a\n2. b\n3. c\n4. d",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              }
+            ],
+            [
+              {
+                "text": "b",
+                "type": "text"
+              }
+            ],
+            [
+              {
+                "text": "c",
+                "type": "text"
+              }
+            ],
+            [
+              {
+                "text": "d",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": true,
+          "start": 1,
+          "type": "list"
+        }
+      ],
+      "plain": "a\nb\nc\nd\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-051",
+      "input": "5. e\n6. f",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "e",
+                "type": "text"
+              }
+            ],
+            [
+              {
+                "text": "f",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": true,
+          "start": 5,
+          "type": "list"
+        }
+      ],
+      "plain": "e\nf\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-052",
+      "input": "- a\n\n\n- b",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "items": [
+            [
+              {
+                "text": "b",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "a\n\nb\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-053",
+      "input": "  - indented",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "indented",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "indented\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-054",
+      "input": "    - deep",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "deep",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "deep\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-055",
+      "input": "99999999999999999999. big",
+      "ast": [
+        {
+          "text": "99999999999999999999. big",
+          "type": "text"
+        }
+      ],
+      "plain": "99999999999999999999. big",
+      "jumbo": false
+    },
+    {
+      "name": "list-056",
+      "input": "1. a\n- b",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              }
+            ],
+            [
+              {
+                "text": "b",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": true,
+          "start": 1,
+          "type": "list"
+        }
+      ],
+      "plain": "a\nb\n",
+      "jumbo": false
+    },
+    {
+      "name": "list-057",
+      "input": "- a\n1. b",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              }
+            ],
+            [
+              {
+                "text": "b",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "a\nb\n",
+      "jumbo": false
+    }
+  ]
+}

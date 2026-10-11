@@ -1,0 +1,2542 @@
+{
+  "description": "Bold, italic, underline, strike, spoiler and their delimiter combinations",
+  "cases": [
+    {
+      "name": "emph-001",
+      "input": "**x**",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "x",
+      "jumbo": false
+    },
+    {
+      "name": "emph-002",
+      "input": "**a b**",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a b",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "a b",
+      "jumbo": false
+    },
+    {
+      "name": "emph-003",
+      "input": "**x y z**",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "x y z",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "x y z",
+      "jumbo": false
+    },
+    {
+      "name": "emph-004",
+      "input": "**`c`**",
+      "ast": [
+        {
+          "children": [
+            {
+              "code": "c",
+              "type": "inline_code"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "c",
+      "jumbo": false
+    },
+    {
+      "name": "emph-005",
+      "input": "**[l](https://e.com)**",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "l",
+                  "type": "text"
+                }
+              ],
+              "kind": "masked",
+              "type": "link",
+              "url": "https://e.com"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "l",
+      "jumbo": false
+    },
+    {
+      "name": "emph-006",
+      "input": "**<@1>**",
+      "ast": [
+        {
+          "children": [
+            {
+              "id": 1,
+              "type": "user_mention"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "@user",
+      "jumbo": false
+    },
+    {
+      "name": "emph-007",
+      "input": "**:smile:**",
+      "ast": [
+        {
+          "children": [
+            {
+              "emoji": "😄",
+              "name": "smile",
+              "type": "emoji"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "😄",
+      "jumbo": false
+    },
+    {
+      "name": "emph-008",
+      "input": "**😄**",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "😄",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "😄",
+      "jumbo": false
+    },
+    {
+      "name": "emph-009",
+      "input": "**a\nb**",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            },
+            {
+              "type": "line_break"
+            },
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "a\nb",
+      "jumbo": false
+    },
+    {
+      "name": "emph-010",
+      "input": "**é**",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "é",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "é",
+      "jumbo": false
+    },
+    {
+      "name": "emph-011",
+      "input": "*x*",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "x",
+      "jumbo": false
+    },
+    {
+      "name": "emph-012",
+      "input": "*a b*",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a b",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "a b",
+      "jumbo": false
+    },
+    {
+      "name": "emph-013",
+      "input": "*x y z*",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "x y z",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "x y z",
+      "jumbo": false
+    },
+    {
+      "name": "emph-014",
+      "input": "*`c`*",
+      "ast": [
+        {
+          "children": [
+            {
+              "code": "c",
+              "type": "inline_code"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "c",
+      "jumbo": false
+    },
+    {
+      "name": "emph-015",
+      "input": "*[l](https://e.com)*",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "l",
+                  "type": "text"
+                }
+              ],
+              "kind": "masked",
+              "type": "link",
+              "url": "https://e.com"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "l",
+      "jumbo": false
+    },
+    {
+      "name": "emph-016",
+      "input": "*<@1>*",
+      "ast": [
+        {
+          "children": [
+            {
+              "id": 1,
+              "type": "user_mention"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "@user",
+      "jumbo": false
+    },
+    {
+      "name": "emph-017",
+      "input": "*:smile:*",
+      "ast": [
+        {
+          "children": [
+            {
+              "emoji": "😄",
+              "name": "smile",
+              "type": "emoji"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "😄",
+      "jumbo": false
+    },
+    {
+      "name": "emph-018",
+      "input": "*😄*",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "😄",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "😄",
+      "jumbo": false
+    },
+    {
+      "name": "emph-019",
+      "input": "*a\nb*",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            },
+            {
+              "type": "line_break"
+            },
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "a\nb",
+      "jumbo": false
+    },
+    {
+      "name": "emph-020",
+      "input": "*é*",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "é",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "é",
+      "jumbo": false
+    },
+    {
+      "name": "emph-021",
+      "input": "_x_",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "x",
+      "jumbo": false
+    },
+    {
+      "name": "emph-022",
+      "input": "_a b_",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a b",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "a b",
+      "jumbo": false
+    },
+    {
+      "name": "emph-023",
+      "input": "_x y z_",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "x y z",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "x y z",
+      "jumbo": false
+    },
+    {
+      "name": "emph-024",
+      "input": "_`c`_",
+      "ast": [
+        {
+          "children": [
+            {
+              "code": "c",
+              "type": "inline_code"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "c",
+      "jumbo": false
+    },
+    {
+      "name": "emph-025",
+      "input": "_[l](https://e.com)_",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "l",
+                  "type": "text"
+                }
+              ],
+              "kind": "masked",
+              "type": "link",
+              "url": "https://e.com"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "l",
+      "jumbo": false
+    },
+    {
+      "name": "emph-026",
+      "input": "_<@1>_",
+      "ast": [
+        {
+          "children": [
+            {
+              "id": 1,
+              "type": "user_mention"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "@user",
+      "jumbo": false
+    },
+    {
+      "name": "emph-027",
+      "input": "_:smile:_",
+      "ast": [
+        {
+          "children": [
+            {
+              "emoji": "😄",
+              "name": "smile",
+              "type": "emoji"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "😄",
+      "jumbo": false
+    },
+    {
+      "name": "emph-028",
+      "input": "_😄_",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "😄",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "😄",
+      "jumbo": false
+    },
+    {
+      "name": "emph-029",
+      "input": "_a\nb_",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            },
+            {
+              "type": "line_break"
+            },
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "a\nb",
+      "jumbo": false
+    },
+    {
+      "name": "emph-030",
+      "input": "_é_",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "é",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "é",
+      "jumbo": false
+    },
+    {
+      "name": "emph-031",
+      "input": "__x__",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "x",
+      "jumbo": false
+    },
+    {
+      "name": "emph-032",
+      "input": "__a b__",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a b",
+              "type": "text"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "a b",
+      "jumbo": false
+    },
+    {
+      "name": "emph-033",
+      "input": "__x y z__",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "x y z",
+              "type": "text"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "x y z",
+      "jumbo": false
+    },
+    {
+      "name": "emph-034",
+      "input": "__`c`__",
+      "ast": [
+        {
+          "children": [
+            {
+              "code": "c",
+              "type": "inline_code"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "c",
+      "jumbo": false
+    },
+    {
+      "name": "emph-035",
+      "input": "__[l](https://e.com)__",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "l",
+                  "type": "text"
+                }
+              ],
+              "kind": "masked",
+              "type": "link",
+              "url": "https://e.com"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "l",
+      "jumbo": false
+    },
+    {
+      "name": "emph-036",
+      "input": "__<@1>__",
+      "ast": [
+        {
+          "children": [
+            {
+              "id": 1,
+              "type": "user_mention"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "@user",
+      "jumbo": false
+    },
+    {
+      "name": "emph-037",
+      "input": "__:smile:__",
+      "ast": [
+        {
+          "children": [
+            {
+              "emoji": "😄",
+              "name": "smile",
+              "type": "emoji"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "😄",
+      "jumbo": false
+    },
+    {
+      "name": "emph-038",
+      "input": "__😄__",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "😄",
+              "type": "text"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "😄",
+      "jumbo": false
+    },
+    {
+      "name": "emph-039",
+      "input": "__a\nb__",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            },
+            {
+              "type": "line_break"
+            },
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "a\nb",
+      "jumbo": false
+    },
+    {
+      "name": "emph-040",
+      "input": "__é__",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "é",
+              "type": "text"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "é",
+      "jumbo": false
+    },
+    {
+      "name": "emph-041",
+      "input": "~~x~~",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        }
+      ],
+      "plain": "x",
+      "jumbo": false
+    },
+    {
+      "name": "emph-042",
+      "input": "~~a b~~",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a b",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        }
+      ],
+      "plain": "a b",
+      "jumbo": false
+    },
+    {
+      "name": "emph-043",
+      "input": "~~x y z~~",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "x y z",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        }
+      ],
+      "plain": "x y z",
+      "jumbo": false
+    },
+    {
+      "name": "emph-044",
+      "input": "~~`c`~~",
+      "ast": [
+        {
+          "children": [
+            {
+              "code": "c",
+              "type": "inline_code"
+            }
+          ],
+          "type": "strike"
+        }
+      ],
+      "plain": "c",
+      "jumbo": false
+    },
+    {
+      "name": "emph-045",
+      "input": "~~[l](https://e.com)~~",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "l",
+                  "type": "text"
+                }
+              ],
+              "kind": "masked",
+              "type": "link",
+              "url": "https://e.com"
+            }
+          ],
+          "type": "strike"
+        }
+      ],
+      "plain": "l",
+      "jumbo": false
+    },
+    {
+      "name": "emph-046",
+      "input": "~~<@1>~~",
+      "ast": [
+        {
+          "children": [
+            {
+              "id": 1,
+              "type": "user_mention"
+            }
+          ],
+          "type": "strike"
+        }
+      ],
+      "plain": "@user",
+      "jumbo": false
+    },
+    {
+      "name": "emph-047",
+      "input": "~~:smile:~~",
+      "ast": [
+        {
+          "children": [
+            {
+              "emoji": "😄",
+              "name": "smile",
+              "type": "emoji"
+            }
+          ],
+          "type": "strike"
+        }
+      ],
+      "plain": "😄",
+      "jumbo": false
+    },
+    {
+      "name": "emph-048",
+      "input": "~~😄~~",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "😄",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        }
+      ],
+      "plain": "😄",
+      "jumbo": false
+    },
+    {
+      "name": "emph-049",
+      "input": "~~a\nb~~",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            },
+            {
+              "type": "line_break"
+            },
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        }
+      ],
+      "plain": "a\nb",
+      "jumbo": false
+    },
+    {
+      "name": "emph-050",
+      "input": "~~é~~",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "é",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        }
+      ],
+      "plain": "é",
+      "jumbo": false
+    },
+    {
+      "name": "emph-051",
+      "input": "||x||",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "emph-052",
+      "input": "||a b||",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a b",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "emph-053",
+      "input": "||x y z||",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "x y z",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "emph-054",
+      "input": "||`c`||",
+      "ast": [
+        {
+          "children": [
+            {
+              "code": "c",
+              "type": "inline_code"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "emph-055",
+      "input": "||[l](https://e.com)||",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "l",
+                  "type": "text"
+                }
+              ],
+              "kind": "masked",
+              "type": "link",
+              "url": "https://e.com"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "emph-056",
+      "input": "||<@1>||",
+      "ast": [
+        {
+          "children": [
+            {
+              "id": 1,
+              "type": "user_mention"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "emph-057",
+      "input": "||:smile:||",
+      "ast": [
+        {
+          "children": [
+            {
+              "emoji": "😄",
+              "name": "smile",
+              "type": "emoji"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "emph-058",
+      "input": "||😄||",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "😄",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "emph-059",
+      "input": "||a\nb||",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            },
+            {
+              "type": "line_break"
+            },
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "emph-060",
+      "input": "||é||",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "é",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "emph-061",
+      "input": "***x***",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "x",
+                  "type": "text"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "x",
+      "jumbo": false
+    },
+    {
+      "name": "emph-062",
+      "input": "***a b***",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "a b",
+                  "type": "text"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "a b",
+      "jumbo": false
+    },
+    {
+      "name": "emph-063",
+      "input": "***x y z***",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "x y z",
+                  "type": "text"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "x y z",
+      "jumbo": false
+    },
+    {
+      "name": "emph-064",
+      "input": "***`c`***",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "code": "c",
+                  "type": "inline_code"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "c",
+      "jumbo": false
+    },
+    {
+      "name": "emph-065",
+      "input": "***[l](https://e.com)***",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "text": "l",
+                      "type": "text"
+                    }
+                  ],
+                  "kind": "masked",
+                  "type": "link",
+                  "url": "https://e.com"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "l",
+      "jumbo": false
+    },
+    {
+      "name": "emph-066",
+      "input": "***<@1>***",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "id": 1,
+                  "type": "user_mention"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "@user",
+      "jumbo": false
+    },
+    {
+      "name": "emph-067",
+      "input": "***:smile:***",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "emoji": "😄",
+                  "name": "smile",
+                  "type": "emoji"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "😄",
+      "jumbo": false
+    },
+    {
+      "name": "emph-068",
+      "input": "***😄***",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "😄",
+                  "type": "text"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "😄",
+      "jumbo": false
+    },
+    {
+      "name": "emph-069",
+      "input": "***a\nb***",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "a",
+                  "type": "text"
+                },
+                {
+                  "type": "line_break"
+                },
+                {
+                  "text": "b",
+                  "type": "text"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "a\nb",
+      "jumbo": false
+    },
+    {
+      "name": "emph-070",
+      "input": "***é***",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "é",
+                  "type": "text"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "é",
+      "jumbo": false
+    },
+    {
+      "name": "emph-071",
+      "input": "___x___",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "x",
+                  "type": "text"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "x",
+      "jumbo": false
+    },
+    {
+      "name": "emph-072",
+      "input": "___a b___",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "a b",
+                  "type": "text"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "a b",
+      "jumbo": false
+    },
+    {
+      "name": "emph-073",
+      "input": "___x y z___",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "x y z",
+                  "type": "text"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "x y z",
+      "jumbo": false
+    },
+    {
+      "name": "emph-074",
+      "input": "___`c`___",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "code": "c",
+                  "type": "inline_code"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "c",
+      "jumbo": false
+    },
+    {
+      "name": "emph-075",
+      "input": "___[l](https://e.com)___",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "text": "l",
+                      "type": "text"
+                    }
+                  ],
+                  "kind": "masked",
+                  "type": "link",
+                  "url": "https://e.com"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "l",
+      "jumbo": false
+    },
+    {
+      "name": "emph-076",
+      "input": "___<@1>___",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "id": 1,
+                  "type": "user_mention"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "@user",
+      "jumbo": false
+    },
+    {
+      "name": "emph-077",
+      "input": "___:smile:___",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "emoji": "😄",
+                  "name": "smile",
+                  "type": "emoji"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "😄",
+      "jumbo": false
+    },
+    {
+      "name": "emph-078",
+      "input": "___😄___",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "😄",
+                  "type": "text"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "😄",
+      "jumbo": false
+    },
+    {
+      "name": "emph-079",
+      "input": "___a\nb___",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "a",
+                  "type": "text"
+                },
+                {
+                  "type": "line_break"
+                },
+                {
+                  "text": "b",
+                  "type": "text"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "a\nb",
+      "jumbo": false
+    },
+    {
+      "name": "emph-080",
+      "input": "___é___",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "é",
+                  "type": "text"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "é",
+      "jumbo": false
+    },
+    {
+      "name": "emph-081",
+      "input": "**unclosed",
+      "ast": [
+        {
+          "text": "**unclosed",
+          "type": "text"
+        }
+      ],
+      "plain": "**unclosed",
+      "jumbo": false
+    },
+    {
+      "name": "emph-082",
+      "input": "** spaced **",
+      "ast": [
+        {
+          "text": "** spaced **",
+          "type": "text"
+        }
+      ],
+      "plain": "** spaced **",
+      "jumbo": false
+    },
+    {
+      "name": "emph-083",
+      "input": "**x **",
+      "ast": [
+        {
+          "text": "**x **",
+          "type": "text"
+        }
+      ],
+      "plain": "**x **",
+      "jumbo": false
+    },
+    {
+      "name": "emph-084",
+      "input": "** x**",
+      "ast": [
+        {
+          "text": "** x**",
+          "type": "text"
+        }
+      ],
+      "plain": "** x**",
+      "jumbo": false
+    },
+    {
+      "name": "emph-085",
+      "input": "a**x**b",
+      "ast": [
+        {
+          "text": "a",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        },
+        {
+          "text": "b",
+          "type": "text"
+        }
+      ],
+      "plain": "axb",
+      "jumbo": false
+    },
+    {
+      "name": "emph-086",
+      "input": "****",
+      "ast": [
+        {
+          "text": "****",
+          "type": "text"
+        }
+      ],
+      "plain": "****",
+      "jumbo": false
+    },
+    {
+      "name": "emph-087",
+      "input": "pre **x** post",
+      "ast": [
+        {
+          "text": "pre ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        },
+        {
+          "text": " post",
+          "type": "text"
+        }
+      ],
+      "plain": "pre x post",
+      "jumbo": false
+    },
+    {
+      "name": "emph-088",
+      "input": "*unclosed",
+      "ast": [
+        {
+          "text": "*unclosed",
+          "type": "text"
+        }
+      ],
+      "plain": "*unclosed",
+      "jumbo": false
+    },
+    {
+      "name": "emph-089",
+      "input": "* spaced *",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "spaced *",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "spaced *\n",
+      "jumbo": false
+    },
+    {
+      "name": "emph-090",
+      "input": "*x *",
+      "ast": [
+        {
+          "text": "*x *",
+          "type": "text"
+        }
+      ],
+      "plain": "*x *",
+      "jumbo": false
+    },
+    {
+      "name": "emph-091",
+      "input": "* x*",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "x*",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "x*\n",
+      "jumbo": false
+    },
+    {
+      "name": "emph-092",
+      "input": "a*x*b",
+      "ast": [
+        {
+          "text": "a",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        },
+        {
+          "text": "b",
+          "type": "text"
+        }
+      ],
+      "plain": "axb",
+      "jumbo": false
+    },
+    {
+      "name": "emph-093",
+      "input": "**",
+      "ast": [
+        {
+          "text": "**",
+          "type": "text"
+        }
+      ],
+      "plain": "**",
+      "jumbo": false
+    },
+    {
+      "name": "emph-094",
+      "input": "pre *x* post",
+      "ast": [
+        {
+          "text": "pre ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        },
+        {
+          "text": " post",
+          "type": "text"
+        }
+      ],
+      "plain": "pre x post",
+      "jumbo": false
+    },
+    {
+      "name": "emph-095",
+      "input": "_unclosed",
+      "ast": [
+        {
+          "text": "_unclosed",
+          "type": "text"
+        }
+      ],
+      "plain": "_unclosed",
+      "jumbo": false
+    },
+    {
+      "name": "emph-096",
+      "input": "_ spaced _",
+      "ast": [
+        {
+          "text": "_ spaced _",
+          "type": "text"
+        }
+      ],
+      "plain": "_ spaced _",
+      "jumbo": false
+    },
+    {
+      "name": "emph-097",
+      "input": "_x _",
+      "ast": [
+        {
+          "text": "_x _",
+          "type": "text"
+        }
+      ],
+      "plain": "_x _",
+      "jumbo": false
+    },
+    {
+      "name": "emph-098",
+      "input": "_ x_",
+      "ast": [
+        {
+          "text": "_ x_",
+          "type": "text"
+        }
+      ],
+      "plain": "_ x_",
+      "jumbo": false
+    },
+    {
+      "name": "emph-099",
+      "input": "a_x_b",
+      "ast": [
+        {
+          "text": "a_x_b",
+          "type": "text"
+        }
+      ],
+      "plain": "a_x_b",
+      "jumbo": false
+    },
+    {
+      "name": "emph-100",
+      "input": "__",
+      "ast": [
+        {
+          "text": "__",
+          "type": "text"
+        }
+      ],
+      "plain": "__",
+      "jumbo": false
+    },
+    {
+      "name": "emph-101",
+      "input": "pre _x_ post",
+      "ast": [
+        {
+          "text": "pre ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        },
+        {
+          "text": " post",
+          "type": "text"
+        }
+      ],
+      "plain": "pre x post",
+      "jumbo": false
+    },
+    {
+      "name": "emph-102",
+      "input": "__unclosed",
+      "ast": [
+        {
+          "text": "__unclosed",
+          "type": "text"
+        }
+      ],
+      "plain": "__unclosed",
+      "jumbo": false
+    },
+    {
+      "name": "emph-103",
+      "input": "__ spaced __",
+      "ast": [
+        {
+          "text": "__ spaced __",
+          "type": "text"
+        }
+      ],
+      "plain": "__ spaced __",
+      "jumbo": false
+    },
+    {
+      "name": "emph-104",
+      "input": "__x __",
+      "ast": [
+        {
+          "text": "__x __",
+          "type": "text"
+        }
+      ],
+      "plain": "__x __",
+      "jumbo": false
+    },
+    {
+      "name": "emph-105",
+      "input": "__ x__",
+      "ast": [
+        {
+          "text": "__ x__",
+          "type": "text"
+        }
+      ],
+      "plain": "__ x__",
+      "jumbo": false
+    },
+    {
+      "name": "emph-106",
+      "input": "a__x__b",
+      "ast": [
+        {
+          "text": "a__x__b",
+          "type": "text"
+        }
+      ],
+      "plain": "a__x__b",
+      "jumbo": false
+    },
+    {
+      "name": "emph-107",
+      "input": "____",
+      "ast": [
+        {
+          "text": "____",
+          "type": "text"
+        }
+      ],
+      "plain": "____",
+      "jumbo": false
+    },
+    {
+      "name": "emph-108",
+      "input": "pre __x__ post",
+      "ast": [
+        {
+          "text": "pre ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "type": "underline"
+        },
+        {
+          "text": " post",
+          "type": "text"
+        }
+      ],
+      "plain": "pre x post",
+      "jumbo": false
+    },
+    {
+      "name": "emph-109",
+      "input": "~~unclosed",
+      "ast": [
+        {
+          "text": "~~unclosed",
+          "type": "text"
+        }
+      ],
+      "plain": "~~unclosed",
+      "jumbo": false
+    },
+    {
+      "name": "emph-110",
+      "input": "~~ spaced ~~",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": " spaced ",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        }
+      ],
+      "plain": " spaced ",
+      "jumbo": false
+    },
+    {
+      "name": "emph-111",
+      "input": "~~x ~~",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "x ",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        }
+      ],
+      "plain": "x ",
+      "jumbo": false
+    },
+    {
+      "name": "emph-112",
+      "input": "~~ x~~",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": " x",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        }
+      ],
+      "plain": " x",
+      "jumbo": false
+    },
+    {
+      "name": "emph-113",
+      "input": "a~~x~~b",
+      "ast": [
+        {
+          "text": "a",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        },
+        {
+          "text": "b",
+          "type": "text"
+        }
+      ],
+      "plain": "axb",
+      "jumbo": false
+    },
+    {
+      "name": "emph-114",
+      "input": "~~~~",
+      "ast": [
+        {
+          "text": "~~~~",
+          "type": "text"
+        }
+      ],
+      "plain": "~~~~",
+      "jumbo": false
+    },
+    {
+      "name": "emph-115",
+      "input": "pre ~~x~~ post",
+      "ast": [
+        {
+          "text": "pre ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        },
+        {
+          "text": " post",
+          "type": "text"
+        }
+      ],
+      "plain": "pre x post",
+      "jumbo": false
+    },
+    {
+      "name": "emph-116",
+      "input": "||unclosed",
+      "ast": [
+        {
+          "text": "||unclosed",
+          "type": "text"
+        }
+      ],
+      "plain": "||unclosed",
+      "jumbo": false
+    },
+    {
+      "name": "emph-117",
+      "input": "|| spaced ||",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": " spaced ",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "emph-118",
+      "input": "||x ||",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "x ",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "emph-119",
+      "input": "|| x||",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": " x",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "emph-120",
+      "input": "a||x||b",
+      "ast": [
+        {
+          "text": "a",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        },
+        {
+          "text": "b",
+          "type": "text"
+        }
+      ],
+      "plain": "a[spoiler]b",
+      "jumbo": false
+    },
+    {
+      "name": "emph-121",
+      "input": "||||",
+      "ast": [
+        {
+          "text": "||||",
+          "type": "text"
+        }
+      ],
+      "plain": "||||",
+      "jumbo": false
+    },
+    {
+      "name": "emph-122",
+      "input": "pre ||x|| post",
+      "ast": [
+        {
+          "text": "pre ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        },
+        {
+          "text": " post",
+          "type": "text"
+        }
+      ],
+      "plain": "pre [spoiler] post",
+      "jumbo": false
+    },
+    {
+      "name": "emph-123",
+      "input": "***unclosed",
+      "ast": [
+        {
+          "text": "***unclosed",
+          "type": "text"
+        }
+      ],
+      "plain": "***unclosed",
+      "jumbo": false
+    },
+    {
+      "name": "emph-124",
+      "input": "*** spaced ***",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "* spaced *",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "* spaced *",
+      "jumbo": false
+    },
+    {
+      "name": "emph-125",
+      "input": "***x ***",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "*x *",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "*x *",
+      "jumbo": false
+    },
+    {
+      "name": "emph-126",
+      "input": "*** x***",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "* x*",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "* x*",
+      "jumbo": false
+    },
+    {
+      "name": "emph-127",
+      "input": "a***x***b",
+      "ast": [
+        {
+          "text": "a",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "x",
+                  "type": "text"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "bold"
+        },
+        {
+          "text": "b",
+          "type": "text"
+        }
+      ],
+      "plain": "axb",
+      "jumbo": false
+    },
+    {
+      "name": "emph-128",
+      "input": "******",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "**",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "**",
+      "jumbo": false
+    },
+    {
+      "name": "emph-129",
+      "input": "pre ***x*** post",
+      "ast": [
+        {
+          "text": "pre ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "x",
+                  "type": "text"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "bold"
+        },
+        {
+          "text": " post",
+          "type": "text"
+        }
+      ],
+      "plain": "pre x post",
+      "jumbo": false
+    },
+    {
+      "name": "emph-130",
+      "input": "___unclosed",
+      "ast": [
+        {
+          "text": "___unclosed",
+          "type": "text"
+        }
+      ],
+      "plain": "___unclosed",
+      "jumbo": false
+    },
+    {
+      "name": "emph-131",
+      "input": "___ spaced ___",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "_ spaced _",
+              "type": "text"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "_ spaced _",
+      "jumbo": false
+    },
+    {
+      "name": "emph-132",
+      "input": "___x ___",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "_x _",
+              "type": "text"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "_x _",
+      "jumbo": false
+    },
+    {
+      "name": "emph-133",
+      "input": "___ x___",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "_ x_",
+              "type": "text"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "_ x_",
+      "jumbo": false
+    },
+    {
+      "name": "emph-134",
+      "input": "a___x___b",
+      "ast": [
+        {
+          "text": "a_",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "x_",
+              "type": "text"
+            }
+          ],
+          "type": "underline"
+        },
+        {
+          "text": "b",
+          "type": "text"
+        }
+      ],
+      "plain": "a_x_b",
+      "jumbo": false
+    },
+    {
+      "name": "emph-135",
+      "input": "______",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "__",
+              "type": "text"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "__",
+      "jumbo": false
+    },
+    {
+      "name": "emph-136",
+      "input": "pre ___x___ post",
+      "ast": [
+        {
+          "text": "pre ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "x",
+                  "type": "text"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "underline"
+        },
+        {
+          "text": " post",
+          "type": "text"
+        }
+      ],
+      "plain": "pre x post",
+      "jumbo": false
+    }
+  ]
+}

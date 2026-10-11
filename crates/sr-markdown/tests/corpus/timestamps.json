@@ -1,0 +1,604 @@
+{
+  "description": "Timestamps with all styles and malformed forms",
+  "cases": [
+    {
+      "name": "ts-001",
+      "input": "<t:1700000000:t>",
+      "ast": [
+        {
+          "style": "short_time",
+          "type": "timestamp",
+          "unix": 1700000000
+        }
+      ],
+      "plain": "1700000000",
+      "jumbo": false
+    },
+    {
+      "name": "ts-002",
+      "input": "<t:1700000000:T>",
+      "ast": [
+        {
+          "style": "long_time",
+          "type": "timestamp",
+          "unix": 1700000000
+        }
+      ],
+      "plain": "1700000000",
+      "jumbo": false
+    },
+    {
+      "name": "ts-003",
+      "input": "<t:1700000000:d>",
+      "ast": [
+        {
+          "style": "short_date",
+          "type": "timestamp",
+          "unix": 1700000000
+        }
+      ],
+      "plain": "1700000000",
+      "jumbo": false
+    },
+    {
+      "name": "ts-004",
+      "input": "<t:1700000000:D>",
+      "ast": [
+        {
+          "style": "long_date",
+          "type": "timestamp",
+          "unix": 1700000000
+        }
+      ],
+      "plain": "1700000000",
+      "jumbo": false
+    },
+    {
+      "name": "ts-005",
+      "input": "<t:1700000000:f>",
+      "ast": [
+        {
+          "style": "short_date_time",
+          "type": "timestamp",
+          "unix": 1700000000
+        }
+      ],
+      "plain": "1700000000",
+      "jumbo": false
+    },
+    {
+      "name": "ts-006",
+      "input": "<t:1700000000:F>",
+      "ast": [
+        {
+          "style": "long_date_time",
+          "type": "timestamp",
+          "unix": 1700000000
+        }
+      ],
+      "plain": "1700000000",
+      "jumbo": false
+    },
+    {
+      "name": "ts-007",
+      "input": "<t:1700000000:R>",
+      "ast": [
+        {
+          "style": "relative",
+          "type": "timestamp",
+          "unix": 1700000000
+        }
+      ],
+      "plain": "1700000000",
+      "jumbo": false
+    },
+    {
+      "name": "ts-008",
+      "input": "<t:1700000000>",
+      "ast": [
+        {
+          "style": null,
+          "type": "timestamp",
+          "unix": 1700000000
+        }
+      ],
+      "plain": "1700000000",
+      "jumbo": false
+    },
+    {
+      "name": "ts-009",
+      "input": "<t:0>",
+      "ast": [
+        {
+          "style": null,
+          "type": "timestamp",
+          "unix": 0
+        }
+      ],
+      "plain": "0",
+      "jumbo": false
+    },
+    {
+      "name": "ts-010",
+      "input": "<t:0:R>",
+      "ast": [
+        {
+          "style": "relative",
+          "type": "timestamp",
+          "unix": 0
+        }
+      ],
+      "plain": "0",
+      "jumbo": false
+    },
+    {
+      "name": "ts-011",
+      "input": "<t:-1>",
+      "ast": [
+        {
+          "style": null,
+          "type": "timestamp",
+          "unix": -1
+        }
+      ],
+      "plain": "-1",
+      "jumbo": false
+    },
+    {
+      "name": "ts-012",
+      "input": "<t:-1:R>",
+      "ast": [
+        {
+          "style": "relative",
+          "type": "timestamp",
+          "unix": -1
+        }
+      ],
+      "plain": "-1",
+      "jumbo": false
+    },
+    {
+      "name": "ts-013",
+      "input": "<t:-0>",
+      "ast": [
+        {
+          "style": null,
+          "type": "timestamp",
+          "unix": 0
+        }
+      ],
+      "plain": "0",
+      "jumbo": false
+    },
+    {
+      "name": "ts-014",
+      "input": "<t:999999999999999>",
+      "ast": [
+        {
+          "style": null,
+          "type": "timestamp",
+          "unix": 999999999999999
+        }
+      ],
+      "plain": "999999999999999",
+      "jumbo": false
+    },
+    {
+      "name": "ts-015",
+      "input": "<t:9999999999999999>",
+      "ast": [
+        {
+          "text": "<t:9999999999999999>",
+          "type": "text"
+        }
+      ],
+      "plain": "<t:9999999999999999>",
+      "jumbo": false
+    },
+    {
+      "name": "ts-016",
+      "input": "<t:-999999999999999>",
+      "ast": [
+        {
+          "style": null,
+          "type": "timestamp",
+          "unix": -999999999999999
+        }
+      ],
+      "plain": "-999999999999999",
+      "jumbo": false
+    },
+    {
+      "name": "ts-017",
+      "input": "<t:1700000000:x>",
+      "ast": [
+        {
+          "text": "<t:1700000000:x>",
+          "type": "text"
+        }
+      ],
+      "plain": "<t:1700000000:x>",
+      "jumbo": false
+    },
+    {
+      "name": "ts-018",
+      "input": "<t:1700000000:>",
+      "ast": [
+        {
+          "text": "<t:1700000000:>",
+          "type": "text"
+        }
+      ],
+      "plain": "<t:1700000000:>",
+      "jumbo": false
+    },
+    {
+      "name": "ts-019",
+      "input": "<t:1700000000:ff>",
+      "ast": [
+        {
+          "text": "<t:1700000000:ff>",
+          "type": "text"
+        }
+      ],
+      "plain": "<t:1700000000:ff>",
+      "jumbo": false
+    },
+    {
+      "name": "ts-020",
+      "input": "<t:1700000000:r>",
+      "ast": [
+        {
+          "text": "<t:1700000000:r>",
+          "type": "text"
+        }
+      ],
+      "plain": "<t:1700000000:r>",
+      "jumbo": false
+    },
+    {
+      "name": "ts-021",
+      "input": "<t:1700000000:R:extra>",
+      "ast": [
+        {
+          "text": "<t:1700000000:R:extra>",
+          "type": "text"
+        }
+      ],
+      "plain": "<t:1700000000:R:extra>",
+      "jumbo": false
+    },
+    {
+      "name": "ts-022",
+      "input": "<t:>",
+      "ast": [
+        {
+          "text": "<t:>",
+          "type": "text"
+        }
+      ],
+      "plain": "<t:>",
+      "jumbo": false
+    },
+    {
+      "name": "ts-023",
+      "input": "<t:abc>",
+      "ast": [
+        {
+          "text": "<t:abc>",
+          "type": "text"
+        }
+      ],
+      "plain": "<t:abc>",
+      "jumbo": false
+    },
+    {
+      "name": "ts-024",
+      "input": "<t:1.5>",
+      "ast": [
+        {
+          "text": "<t:1.5>",
+          "type": "text"
+        }
+      ],
+      "plain": "<t:1.5>",
+      "jumbo": false
+    },
+    {
+      "name": "ts-025",
+      "input": "<t:1e3>",
+      "ast": [
+        {
+          "text": "<t:1e3>",
+          "type": "text"
+        }
+      ],
+      "plain": "<t:1e3>",
+      "jumbo": false
+    },
+    {
+      "name": "ts-026",
+      "input": "<t: 1>",
+      "ast": [
+        {
+          "text": "<t: 1>",
+          "type": "text"
+        }
+      ],
+      "plain": "<t: 1>",
+      "jumbo": false
+    },
+    {
+      "name": "ts-027",
+      "input": "<t:1 >",
+      "ast": [
+        {
+          "text": "<t:1 >",
+          "type": "text"
+        }
+      ],
+      "plain": "<t:1 >",
+      "jumbo": false
+    },
+    {
+      "name": "ts-028",
+      "input": "<t:+1>",
+      "ast": [
+        {
+          "text": "<t:+1>",
+          "type": "text"
+        }
+      ],
+      "plain": "<t:+1>",
+      "jumbo": false
+    },
+    {
+      "name": "ts-029",
+      "input": "<T:1>",
+      "ast": [
+        {
+          "text": "<T:1>",
+          "type": "text"
+        }
+      ],
+      "plain": "<T:1>",
+      "jumbo": false
+    },
+    {
+      "name": "ts-030",
+      "input": "<t:1",
+      "ast": [
+        {
+          "text": "<t:1",
+          "type": "text"
+        }
+      ],
+      "plain": "<t:1",
+      "jumbo": false
+    },
+    {
+      "name": "ts-031",
+      "input": "t:1>",
+      "ast": [
+        {
+          "text": "t:1>",
+          "type": "text"
+        }
+      ],
+      "plain": "t:1>",
+      "jumbo": false
+    },
+    {
+      "name": "ts-032",
+      "input": "<t:1><t:2>",
+      "ast": [
+        {
+          "style": null,
+          "type": "timestamp",
+          "unix": 1
+        },
+        {
+          "style": null,
+          "type": "timestamp",
+          "unix": 2
+        }
+      ],
+      "plain": "12",
+      "jumbo": false
+    },
+    {
+      "name": "ts-033",
+      "input": "at <t:1700000000:t> sharp",
+      "ast": [
+        {
+          "text": "at ",
+          "type": "text"
+        },
+        {
+          "style": "short_time",
+          "type": "timestamp",
+          "unix": 1700000000
+        },
+        {
+          "text": " sharp",
+          "type": "text"
+        }
+      ],
+      "plain": "at 1700000000 sharp",
+      "jumbo": false
+    },
+    {
+      "name": "ts-034",
+      "input": "**<t:1700000000:R>**",
+      "ast": [
+        {
+          "children": [
+            {
+              "style": "relative",
+              "type": "timestamp",
+              "unix": 1700000000
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "1700000000",
+      "jumbo": false
+    },
+    {
+      "name": "ts-035",
+      "input": "`<t:1700000000:R>`",
+      "ast": [
+        {
+          "code": "<t:1700000000:R>",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "<t:1700000000:R>",
+      "jumbo": false
+    },
+    {
+      "name": "ts-036",
+      "input": "||<t:1:R>||",
+      "ast": [
+        {
+          "children": [
+            {
+              "style": "relative",
+              "type": "timestamp",
+              "unix": 1
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "ts-037",
+      "input": "> <t:1:R>",
+      "ast": [
+        {
+          "children": [
+            {
+              "style": "relative",
+              "type": "timestamp",
+              "unix": 1
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "1\n",
+      "jumbo": false
+    },
+    {
+      "name": "ts-038",
+      "input": "- <t:1:R>",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "style": "relative",
+                "type": "timestamp",
+                "unix": 1
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "1\n",
+      "jumbo": false
+    },
+    {
+      "name": "ts-039",
+      "input": "# <t:1:R>",
+      "ast": [
+        {
+          "children": [
+            {
+              "style": "relative",
+              "type": "timestamp",
+              "unix": 1
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        }
+      ],
+      "plain": "1\n",
+      "jumbo": false
+    },
+    {
+      "name": "ts-040",
+      "input": "[<t:1:R>](https://e.com)",
+      "ast": [
+        {
+          "children": [
+            {
+              "style": "relative",
+              "type": "timestamp",
+              "unix": 1
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com"
+        }
+      ],
+      "plain": "1",
+      "jumbo": false
+    },
+    {
+      "name": "ts-041",
+      "input": "\\<t:1:R>",
+      "ast": [
+        {
+          "text": "<t:1:R>",
+          "type": "text"
+        }
+      ],
+      "plain": "<t:1:R>",
+      "jumbo": false
+    },
+    {
+      "name": "ts-042",
+      "input": "<t:1:R>\n<t:2:R>",
+      "ast": [
+        {
+          "style": "relative",
+          "type": "timestamp",
+          "unix": 1
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "style": "relative",
+          "type": "timestamp",
+          "unix": 2
+        }
+      ],
+      "plain": "1\n2",
+      "jumbo": false
+    },
+    {
+      "name": "ts-043",
+      "input": "<t:00001>",
+      "ast": [
+        {
+          "style": null,
+          "type": "timestamp",
+          "unix": 1
+        }
+      ],
+      "plain": "1",
+      "jumbo": false
+    }
+  ]
+}

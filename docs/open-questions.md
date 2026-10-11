@@ -53,8 +53,8 @@ Questions raised by implementation work that need an owner decision. Each links 
 ## Markdown (`feat/LNG-markdown`)
 
 29. **Mention cap of 100 is an assumption**, not from the docs. Confirm the limit. — [crates/sr-markdown](../crates/sr-markdown/src)
-30. **WASM not built.** No `wasm` feature or wasm-bindgen yet; the `wasm32-unknown-unknown` target isn't installed here. The crate is pure `std` + serde. (LNG-MD-005 also needs the 500-case shared corpus; ~150 exist.) — [lib.rs](../crates/sr-markdown/src/lib.rs)
-31. **Shortcodes and jumbo-emoji detection (LNG-MD-003) not implemented.** — [crates/sr-markdown](../crates/sr-markdown/src)
+30. **WASM not built.** No `wasm` feature or wasm-bindgen yet; the `wasm32-unknown-unknown` target isn't installed here. The crate is pure `std` + serde. (The shared corpus now has 1,100+ cases; see 41.) — [lib.rs](../crates/sr-markdown/src/lib.rs)
+31. **(Resolved in #40-45)** Shortcodes and jumbo-emoji detection (LNG-MD-003) are implemented. — [crates/sr-markdown](../crates/sr-markdown/src)
 32. **Parsing quirks to confirm against Discord:** a fenced block is split out wherever it appears (mid-line or inside a quote); `>>>` quotes up to the next code fence; `* text` at line start is a list item, not italic. — [crates/sr-markdown](../crates/sr-markdown/src)
 
 ## UI kit (`feat/DS-tokens-prims`)
@@ -66,3 +66,14 @@ Questions raised by implementation work that need an owner decision. Each links 
 37. **Saturation setting uses a CSS `filter` on the provider root**, which makes `position: fixed` overlays position relative to that root while active. — [packages/ui/src/theme](../packages/ui/src/theme)
 38. **Partial primitives left unticked:** Slider, Segmented, ContextMenu, Dropdown, Drawer, Accordion, AvatarStack, Pill/Tag, ProgressBar, EmptyState, error page; DS-PRIM-004, 012–016 (Select, ScrollArea, icons, Ladle stories) not started. — [01-foundation.md](inventory/01-foundation.md)
 39. **Verified with npm/npx and no lockfile** (pnpm not installed); the package's lockfile and workspace linking are untested. — [packages/ui/package.json](../packages/ui/package.json)
+
+## Markdown corpus and React renderer (`feat/LNG-markdown-2`)
+
+40. **Corpus expectations are blessed from the parser output**, not hand-derived (`SR_MD_BLESS=1`). Only a sample was reviewed against Discord; the 1,100+ cases pin current behavior, including its quirks. Needs a Discord-parity review pass. — [tests/corpus](../crates/sr-markdown/tests/corpus)
+41. **LNG-MD-005 "run in WASM" is half done.** Rust runs the corpus and the React package renders it, but the WASM wrapper (other agent) must add a test asserting deep-equal AST/plain/jumbo against the same JSON files. — [tests/corpus.rs](../crates/sr-markdown/tests/corpus.rs)
+42. **Ids are JSON numbers.** `u64` snowflakes above 2^53 lose precision under `JSON.parse`. Serialize ids in the AST as strings (Discord style)? The renderer already accepts `string | number`. — [ast.rs](../crates/sr-markdown/src/ast.rs)
+43. **Shortcode table is hand-curated (~650 names incl. aliases)**, not the full Discord/emojibase set, and has no skin-tone shortcodes (`:wave::skin-tone-2:`). Generate from emojibase data at build time instead? — [emoji.rs](../crates/sr-markdown/src/emoji.rs)
+44. **Jumbo rules assumed:** 1 to 27 emoji (unicode, shortcode, custom) plus whitespace, ignoring nothing else (any other node, even a mention, disables it). Unicode detection is range-based, not a full emoji-sequence table; text-presentation symbols like `☺` count as emoji. — [emoji.rs](../crates/sr-markdown/src/emoji.rs)
+45. **Shortcode parsing side effects:** `<:x:1>` (invalid custom emoji, name too short) now yields `<`, `:x:` emoji, `1>`; `:name:` inside an unrecognized token also converts. Matches Discord? — [inline.rs](../crates/sr-markdown/src/inline.rs)
+46. **Parser quirks surfaced by the corpus** (unchanged, need a decision): `\<https://e.com>` keeps the trailing `>` inside the autolink; `***a** b*` yields bold `*a` then ` b*`; `**a*` yields italic `*a`; `* *` is a list item. — [tests/corpus](../crates/sr-markdown/tests/corpus)
+47. **Renderer gaps:** no syntax highlighting yet (only the `renderCodeBlock` hook; LNG-MD-006 left unticked), relative timestamps do not live-update, custom-emoji URL scheme and Cinema/Library cards are supplied via resolvers, and the CSS is structural only. The package was verified with npm (no pnpm), so `pnpm-lock.yaml` was not updated. — [packages/markdown-react](../packages/markdown-react)

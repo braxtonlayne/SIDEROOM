@@ -223,6 +223,7 @@ fn plain(nodes: &[Node], r: &dyn Resolver, out: &mut String) {
                 out.push_str(name);
                 out.push(':');
             }
+            Node::Emoji { emoji, .. } => out.push_str(emoji),
             Node::Timestamp { unix, .. } => out.push_str(&unix.to_string()),
             Node::SlashCommand { name, .. } => {
                 out.push('/');

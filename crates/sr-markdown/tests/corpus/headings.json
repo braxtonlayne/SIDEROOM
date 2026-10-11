@@ -1,0 +1,804 @@
+{
+  "description": "Headers 1-3 and subtext",
+  "cases": [
+    {
+      "name": "head-001",
+      "input": "# h1",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "h1",
+              "type": "text"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        }
+      ],
+      "plain": "h1\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-002",
+      "input": "## h2",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "h2",
+              "type": "text"
+            }
+          ],
+          "level": 2,
+          "type": "heading"
+        }
+      ],
+      "plain": "h2\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-003",
+      "input": "### h3",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "h3",
+              "type": "text"
+            }
+          ],
+          "level": 3,
+          "type": "heading"
+        }
+      ],
+      "plain": "h3\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-004",
+      "input": "#### h4",
+      "ast": [
+        {
+          "text": "#### h4",
+          "type": "text"
+        }
+      ],
+      "plain": "#### h4",
+      "jumbo": false
+    },
+    {
+      "name": "head-005",
+      "input": "##### h5",
+      "ast": [
+        {
+          "text": "##### h5",
+          "type": "text"
+        }
+      ],
+      "plain": "##### h5",
+      "jumbo": false
+    },
+    {
+      "name": "head-006",
+      "input": "# ",
+      "ast": [
+        {
+          "text": "# ",
+          "type": "text"
+        }
+      ],
+      "plain": "# ",
+      "jumbo": false
+    },
+    {
+      "name": "head-007",
+      "input": "#",
+      "ast": [
+        {
+          "text": "#",
+          "type": "text"
+        }
+      ],
+      "plain": "#",
+      "jumbo": false
+    },
+    {
+      "name": "head-008",
+      "input": "#no space",
+      "ast": [
+        {
+          "text": "#no space",
+          "type": "text"
+        }
+      ],
+      "plain": "#no space",
+      "jumbo": false
+    },
+    {
+      "name": "head-009",
+      "input": "# **b**",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "b",
+                  "type": "text"
+                }
+              ],
+              "type": "bold"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        }
+      ],
+      "plain": "b\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-010",
+      "input": "# a # b",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a # b",
+              "type": "text"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        }
+      ],
+      "plain": "a # b\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-011",
+      "input": "# trailing #",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "trailing #",
+              "type": "text"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        }
+      ],
+      "plain": "trailing #\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-012",
+      "input": "## a\nb",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "level": 2,
+          "type": "heading"
+        },
+        {
+          "text": "b",
+          "type": "text"
+        }
+      ],
+      "plain": "a\nb",
+      "jumbo": false
+    },
+    {
+      "name": "head-013",
+      "input": "# a\n# b",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        },
+        {
+          "children": [
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        }
+      ],
+      "plain": "a\nb\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-014",
+      "input": "a\n# b",
+      "ast": [
+        {
+          "text": "a",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        }
+      ],
+      "plain": "ab\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-015",
+      "input": "a # b",
+      "ast": [
+        {
+          "text": "a # b",
+          "type": "text"
+        }
+      ],
+      "plain": "a # b",
+      "jumbo": false
+    },
+    {
+      "name": "head-016",
+      "input": " # leading",
+      "ast": [
+        {
+          "text": " # leading",
+          "type": "text"
+        }
+      ],
+      "plain": " # leading",
+      "jumbo": false
+    },
+    {
+      "name": "head-017",
+      "input": "  # two",
+      "ast": [
+        {
+          "text": "  # two",
+          "type": "text"
+        }
+      ],
+      "plain": "  # two",
+      "jumbo": false
+    },
+    {
+      "name": "head-018",
+      "input": "# 😄",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "😄",
+              "type": "text"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        }
+      ],
+      "plain": "😄\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-019",
+      "input": "# <@1>",
+      "ast": [
+        {
+          "children": [
+            {
+              "id": 1,
+              "type": "user_mention"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        }
+      ],
+      "plain": "@user\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-020",
+      "input": "# :smile:",
+      "ast": [
+        {
+          "children": [
+            {
+              "emoji": "😄",
+              "name": "smile",
+              "type": "emoji"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        }
+      ],
+      "plain": "😄\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-021",
+      "input": "# [a](https://e.com)",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "a",
+                  "type": "text"
+                }
+              ],
+              "kind": "masked",
+              "type": "link",
+              "url": "https://e.com"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        }
+      ],
+      "plain": "a\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-022",
+      "input": "# `c`",
+      "ast": [
+        {
+          "children": [
+            {
+              "code": "c",
+              "type": "inline_code"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        }
+      ],
+      "plain": "c\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-023",
+      "input": "# ||s||",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "s",
+                  "type": "text"
+                }
+              ],
+              "type": "spoiler"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        }
+      ],
+      "plain": "[spoiler]\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-024",
+      "input": "#\ttab",
+      "ast": [
+        {
+          "text": "#\ttab",
+          "type": "text"
+        }
+      ],
+      "plain": "#\ttab",
+      "jumbo": false
+    },
+    {
+      "name": "head-025",
+      "input": "# a\n\n# b",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        },
+        {
+          "children": [
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        }
+      ],
+      "plain": "a\nb\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-026",
+      "input": "###### six",
+      "ast": [
+        {
+          "text": "###### six",
+          "type": "text"
+        }
+      ],
+      "plain": "###### six",
+      "jumbo": false
+    },
+    {
+      "name": "head-027",
+      "input": "### three\n## two\n# one",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "three",
+              "type": "text"
+            }
+          ],
+          "level": 3,
+          "type": "heading"
+        },
+        {
+          "children": [
+            {
+              "text": "two",
+              "type": "text"
+            }
+          ],
+          "level": 2,
+          "type": "heading"
+        },
+        {
+          "children": [
+            {
+              "text": "one",
+              "type": "text"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        }
+      ],
+      "plain": "three\ntwo\none\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-028",
+      "input": "-# sub",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "sub",
+              "type": "text"
+            }
+          ],
+          "type": "subtext"
+        }
+      ],
+      "plain": "sub\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-029",
+      "input": "-# sub **b**",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "sub ",
+              "type": "text"
+            },
+            {
+              "children": [
+                {
+                  "text": "b",
+                  "type": "text"
+                }
+              ],
+              "type": "bold"
+            }
+          ],
+          "type": "subtext"
+        }
+      ],
+      "plain": "sub b\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-030",
+      "input": "-#no space",
+      "ast": [
+        {
+          "text": "-#no space",
+          "type": "text"
+        }
+      ],
+      "plain": "-#no space",
+      "jumbo": false
+    },
+    {
+      "name": "head-031",
+      "input": "-# ",
+      "ast": [
+        {
+          "text": "-# ",
+          "type": "text"
+        }
+      ],
+      "plain": "-# ",
+      "jumbo": false
+    },
+    {
+      "name": "head-032",
+      "input": "-#",
+      "ast": [
+        {
+          "text": "-#",
+          "type": "text"
+        }
+      ],
+      "plain": "-#",
+      "jumbo": false
+    },
+    {
+      "name": "head-033",
+      "input": "a\n-# s",
+      "ast": [
+        {
+          "text": "a",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "s",
+              "type": "text"
+            }
+          ],
+          "type": "subtext"
+        }
+      ],
+      "plain": "as\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-034",
+      "input": "a -# s",
+      "ast": [
+        {
+          "text": "a -# s",
+          "type": "text"
+        }
+      ],
+      "plain": "a -# s",
+      "jumbo": false
+    },
+    {
+      "name": "head-035",
+      "input": "-# a\n-# b",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "type": "subtext"
+        },
+        {
+          "children": [
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "type": "subtext"
+        }
+      ],
+      "plain": "a\nb\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-036",
+      "input": "-# <@1>",
+      "ast": [
+        {
+          "children": [
+            {
+              "id": 1,
+              "type": "user_mention"
+            }
+          ],
+          "type": "subtext"
+        }
+      ],
+      "plain": "@user\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-037",
+      "input": "-# :fire:",
+      "ast": [
+        {
+          "children": [
+            {
+              "emoji": "🔥",
+              "name": "fire",
+              "type": "emoji"
+            }
+          ],
+          "type": "subtext"
+        }
+      ],
+      "plain": "🔥\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-038",
+      "input": " -# lead",
+      "ast": [
+        {
+          "text": " -# lead",
+          "type": "text"
+        }
+      ],
+      "plain": " -# lead",
+      "jumbo": false
+    },
+    {
+      "name": "head-039",
+      "input": "# h\n-# s",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "h",
+              "type": "text"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        },
+        {
+          "children": [
+            {
+              "text": "s",
+              "type": "text"
+            }
+          ],
+          "type": "subtext"
+        }
+      ],
+      "plain": "h\ns\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-040",
+      "input": "-# s\n# h",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "s",
+              "type": "text"
+            }
+          ],
+          "type": "subtext"
+        },
+        {
+          "children": [
+            {
+              "text": "h",
+              "type": "text"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        }
+      ],
+      "plain": "s\nh\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-041",
+      "input": "- # item head",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "# item head",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "# item head\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-042",
+      "input": "> # q head",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "q head",
+                  "type": "text"
+                }
+              ],
+              "level": 1,
+              "type": "heading"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "q head\n\n",
+      "jumbo": false
+    },
+    {
+      "name": "head-043",
+      "input": "\\# esc",
+      "ast": [
+        {
+          "text": "# esc",
+          "type": "text"
+        }
+      ],
+      "plain": "# esc",
+      "jumbo": false
+    },
+    {
+      "name": "head-044",
+      "input": "\\-# esc",
+      "ast": [
+        {
+          "text": "-# esc",
+          "type": "text"
+        }
+      ],
+      "plain": "-# esc",
+      "jumbo": false
+    }
+  ]
+}

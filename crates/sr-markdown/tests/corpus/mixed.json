@@ -1,0 +1,3425 @@
+{
+  "description": "Mixed content, adversarial and regression inputs",
+  "cases": [
+    {
+      "name": "mixed-001",
+      "input": "**bold** and *italic* with `code` and ||spoiler|| and ~~strike~~ and __underline__",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "bold",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        },
+        {
+          "text": " and ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "italic",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        },
+        {
+          "text": " with ",
+          "type": "text"
+        },
+        {
+          "code": "code",
+          "type": "inline_code"
+        },
+        {
+          "text": " and ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "spoiler",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        },
+        {
+          "text": " and ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "strike",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        },
+        {
+          "text": " and ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "underline",
+              "type": "text"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "bold and italic with code and [spoiler] and strike and underline",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-002",
+      "input": "hey <@1>, check <#2> and <@&3> at <t:1700000000:R> :tada:",
+      "ast": [
+        {
+          "text": "hey ",
+          "type": "text"
+        },
+        {
+          "id": 1,
+          "type": "user_mention"
+        },
+        {
+          "text": ", check ",
+          "type": "text"
+        },
+        {
+          "id": 2,
+          "type": "channel_mention"
+        },
+        {
+          "text": " and ",
+          "type": "text"
+        },
+        {
+          "id": 3,
+          "type": "role_mention"
+        },
+        {
+          "text": " at ",
+          "type": "text"
+        },
+        {
+          "style": "relative",
+          "type": "timestamp",
+          "unix": 1700000000
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "emoji": "🎉",
+          "name": "tada",
+          "type": "emoji"
+        }
+      ],
+      "plain": "hey @user, check #channel and @role at 1700000000 🎉",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-003",
+      "input": "# Title\nSome **text**\n> quote\n- item 1\n- item 2\n```js\ncode\n```",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "Title",
+              "type": "text"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        },
+        {
+          "text": "Some ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "text",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        },
+        {
+          "children": [
+            {
+              "text": "quote",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        },
+        {
+          "items": [
+            [
+              {
+                "text": "item 1",
+                "type": "text"
+              }
+            ],
+            [
+              {
+                "text": "item 2",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        },
+        {
+          "code": "code",
+          "lang": "js",
+          "type": "code_block"
+        }
+      ],
+      "plain": "Title\nSome textquote\nitem 1\nitem 2\ncode",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-004",
+      "input": "> quote **b**\n> more\nnormal\n>>> multi\nline",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "quote ",
+              "type": "text"
+            },
+            {
+              "children": [
+                {
+                  "text": "b",
+                  "type": "text"
+                }
+              ],
+              "type": "bold"
+            },
+            {
+              "type": "line_break"
+            },
+            {
+              "text": "more",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        },
+        {
+          "text": "normal",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "multi",
+              "type": "text"
+            },
+            {
+              "type": "line_break"
+            },
+            {
+              "text": "line",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "quote b\nmore\nnormalmulti\nline\n",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-005",
+      "input": "- a\n  - b\n    - c\n- d\n\n1. x\n2. y",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              },
+              {
+                "items": [
+                  [
+                    {
+                      "text": "b",
+                      "type": "text"
+                    },
+                    {
+                      "items": [
+                        [
+                          {
+                            "text": "c",
+                            "type": "text"
+                          }
+                        ]
+                      ],
+                      "ordered": false,
+                      "start": null,
+                      "type": "list"
+                    }
+                  ]
+                ],
+                "ordered": false,
+                "start": null,
+                "type": "list"
+              }
+            ],
+            [
+              {
+                "text": "d",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        },
+        {
+          "items": [
+            [
+              {
+                "text": "x",
+                "type": "text"
+              }
+            ],
+            [
+              {
+                "text": "y",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": true,
+          "start": 1,
+          "type": "list"
+        }
+      ],
+      "plain": "abc\nd\nx\ny\n",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-006",
+      "input": "[link **bold**](https://e.com) and https://f.com and <https://g.com>",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "link ",
+              "type": "text"
+            },
+            {
+              "children": [
+                {
+                  "text": "bold",
+                  "type": "text"
+                }
+              ],
+              "type": "bold"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com"
+        },
+        {
+          "text": " and ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "https://f.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://f.com"
+        },
+        {
+          "text": " and ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "https://g.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto_suppressed",
+          "type": "link",
+          "url": "https://g.com"
+        }
+      ],
+      "plain": "link bold and https://f.com and https://g.com",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-007",
+      "input": "||spoiler with **bold** and `code` and <@1>||",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "spoiler with ",
+              "type": "text"
+            },
+            {
+              "children": [
+                {
+                  "text": "bold",
+                  "type": "text"
+                }
+              ],
+              "type": "bold"
+            },
+            {
+              "text": " and ",
+              "type": "text"
+            },
+            {
+              "code": "code",
+              "type": "inline_code"
+            },
+            {
+              "text": " and ",
+              "type": "text"
+            },
+            {
+              "id": 1,
+              "type": "user_mention"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-008",
+      "input": "||[link](https://e.com)||",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "link",
+                  "type": "text"
+                }
+              ],
+              "kind": "masked",
+              "type": "link",
+              "url": "https://e.com"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-009",
+      "input": "||a||b||c||",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        },
+        {
+          "text": "b",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "c",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]b[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-010",
+      "input": "||||x||||",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "x",
+                  "type": "text"
+                }
+              ],
+              "type": "spoiler"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-011",
+      "input": "||| x |||",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "| x |",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-012",
+      "input": "||a|||b||",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a|",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        },
+        {
+          "text": "b||",
+          "type": "text"
+        }
+      ],
+      "plain": "[spoiler]b||",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-013",
+      "input": "a\\*b\\*c *d* \\_e\\_",
+      "ast": [
+        {
+          "text": "a*b*c ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "d",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        },
+        {
+          "text": " _e_",
+          "type": "text"
+        }
+      ],
+      "plain": "a*b*c d _e_",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-014",
+      "input": "*a\\*b*",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a*b",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "a*b",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-015",
+      "input": "**a\\*\\*b**",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a**b",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "a**b",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-016",
+      "input": "_a\\_b_",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a_b",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "a_b",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-017",
+      "input": "<@1><@2><@3>",
+      "ast": [
+        {
+          "id": 1,
+          "type": "user_mention"
+        },
+        {
+          "id": 2,
+          "type": "user_mention"
+        },
+        {
+          "id": 3,
+          "type": "user_mention"
+        }
+      ],
+      "plain": "@user@user@user",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-018",
+      "input": "<@1> <@2> <@3> <@4> <@5> <@1>",
+      "ast": [
+        {
+          "id": 1,
+          "type": "user_mention"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "id": 2,
+          "type": "user_mention"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "id": 3,
+          "type": "user_mention"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "id": 4,
+          "type": "user_mention"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "id": 5,
+          "type": "user_mention"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "id": 1,
+          "type": "user_mention"
+        }
+      ],
+      "plain": "@user @user @user @user @user @user",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-019",
+      "input": "@everyone @here <@1> <@&2> <#3>",
+      "ast": [
+        {
+          "type": "everyone"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "type": "here"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "id": 1,
+          "type": "user_mention"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "id": 2,
+          "type": "role_mention"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "id": 3,
+          "type": "channel_mention"
+        }
+      ],
+      "plain": "@everyone @here @user @role #channel",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-020",
+      "input": "line1\n\n\n\nline2",
+      "ast": [
+        {
+          "text": "line1",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": "line2",
+          "type": "text"
+        }
+      ],
+      "plain": "line1\n\n\n\nline2",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-021",
+      "input": "   \n   \n",
+      "ast": [
+        {
+          "text": "   ",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": "   ",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        }
+      ],
+      "plain": "   \n   \n",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-022",
+      "input": "\n\n\n# h\n\n\n",
+      "ast": [
+        {
+          "type": "line_break"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "children": [
+            {
+              "text": "h",
+              "type": "text"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "type": "line_break"
+        }
+      ],
+      "plain": "\n\nh\n\n\n",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-023",
+      "input": "# h\n\n\n- a\n\n\n> q",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "h",
+              "type": "text"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "children": [
+            {
+              "text": "q",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "h\n\na\n\nq\n",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-024",
+      "input": "```\ncode\n```\n```\ncode2\n```",
+      "ast": [
+        {
+          "code": "code",
+          "lang": null,
+          "type": "code_block"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "code": "code2",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "code\ncode2",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-025",
+      "input": "a```b```c```d```e",
+      "ast": [
+        {
+          "text": "a",
+          "type": "text"
+        },
+        {
+          "code": "b",
+          "lang": null,
+          "type": "code_block"
+        },
+        {
+          "text": "c",
+          "type": "text"
+        },
+        {
+          "code": "d",
+          "lang": null,
+          "type": "code_block"
+        },
+        {
+          "text": "e",
+          "type": "text"
+        }
+      ],
+      "plain": "abcde",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-026",
+      "input": "```a``` ```b```",
+      "ast": [
+        {
+          "code": "a",
+          "lang": null,
+          "type": "code_block"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "code": "b",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "a b",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-027",
+      "input": "`a`\n```\nb\n```\n`c`",
+      "ast": [
+        {
+          "code": "a",
+          "type": "inline_code"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "code": "b",
+          "lang": null,
+          "type": "code_block"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "code": "c",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "a\nb\nc",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-028",
+      "input": "* a\n* b\n\n*c*",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a",
+                "type": "text"
+              }
+            ],
+            [
+              {
+                "text": "b",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "children": [
+            {
+              "text": "c",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "a\nb\n\nc",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-029",
+      "input": "- **a**\n- *b*\n- `c`\n- ||d||\n- [e](https://e.com)",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "children": [
+                  {
+                    "text": "a",
+                    "type": "text"
+                  }
+                ],
+                "type": "bold"
+              }
+            ],
+            [
+              {
+                "children": [
+                  {
+                    "text": "b",
+                    "type": "text"
+                  }
+                ],
+                "type": "italic"
+              }
+            ],
+            [
+              {
+                "code": "c",
+                "type": "inline_code"
+              }
+            ],
+            [
+              {
+                "children": [
+                  {
+                    "text": "d",
+                    "type": "text"
+                  }
+                ],
+                "type": "spoiler"
+              }
+            ],
+            [
+              {
+                "children": [
+                  {
+                    "text": "e",
+                    "type": "text"
+                  }
+                ],
+                "kind": "masked",
+                "type": "link",
+                "url": "https://e.com"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "a\nb\nc\n[spoiler]\ne\n",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-030",
+      "input": "1. **a**\n   - b\n   - c\n2. d",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "children": [
+                  {
+                    "text": "a",
+                    "type": "text"
+                  }
+                ],
+                "type": "bold"
+              },
+              {
+                "items": [
+                  [
+                    {
+                      "text": "b",
+                      "type": "text"
+                    }
+                  ],
+                  [
+                    {
+                      "text": "c",
+                      "type": "text"
+                    }
+                  ]
+                ],
+                "ordered": false,
+                "start": null,
+                "type": "list"
+              }
+            ],
+            [
+              {
+                "text": "d",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": true,
+          "start": 1,
+          "type": "list"
+        }
+      ],
+      "plain": "ab\nc\nd\n",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-031",
+      "input": "> - a\n> - b",
+      "ast": [
+        {
+          "children": [
+            {
+              "items": [
+                [
+                  {
+                    "text": "a",
+                    "type": "text"
+                  }
+                ],
+                [
+                  {
+                    "text": "b",
+                    "type": "text"
+                  }
+                ]
+              ],
+              "ordered": false,
+              "start": null,
+              "type": "list"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "a\nb\n\n",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-032",
+      "input": "> 1. a\n> 2. b",
+      "ast": [
+        {
+          "children": [
+            {
+              "items": [
+                [
+                  {
+                    "text": "a",
+                    "type": "text"
+                  }
+                ],
+                [
+                  {
+                    "text": "b",
+                    "type": "text"
+                  }
+                ]
+              ],
+              "ordered": true,
+              "start": 1,
+              "type": "list"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "a\nb\n\n",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-033",
+      "input": "> # h\n> text",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "h",
+                  "type": "text"
+                }
+              ],
+              "level": 1,
+              "type": "heading"
+            },
+            {
+              "text": "text",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "h\ntext\n",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-034",
+      "input": "# **h** `c` [l](https://e.com) <@1> :tada:",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "h",
+                  "type": "text"
+                }
+              ],
+              "type": "bold"
+            },
+            {
+              "text": " ",
+              "type": "text"
+            },
+            {
+              "code": "c",
+              "type": "inline_code"
+            },
+            {
+              "text": " ",
+              "type": "text"
+            },
+            {
+              "children": [
+                {
+                  "text": "l",
+                  "type": "text"
+                }
+              ],
+              "kind": "masked",
+              "type": "link",
+              "url": "https://e.com"
+            },
+            {
+              "text": " ",
+              "type": "text"
+            },
+            {
+              "id": 1,
+              "type": "user_mention"
+            },
+            {
+              "text": " ",
+              "type": "text"
+            },
+            {
+              "emoji": "🎉",
+              "name": "tada",
+              "type": "emoji"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        }
+      ],
+      "plain": "h c l @user 🎉\n",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-035",
+      "input": "-# small **b** <@1> :tada:",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "small ",
+              "type": "text"
+            },
+            {
+              "children": [
+                {
+                  "text": "b",
+                  "type": "text"
+                }
+              ],
+              "type": "bold"
+            },
+            {
+              "text": " ",
+              "type": "text"
+            },
+            {
+              "id": 1,
+              "type": "user_mention"
+            },
+            {
+              "text": " ",
+              "type": "text"
+            },
+            {
+              "emoji": "🎉",
+              "name": "tada",
+              "type": "emoji"
+            }
+          ],
+          "type": "subtext"
+        }
+      ],
+      "plain": "small b @user 🎉\n",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-036",
+      "input": "😄 hello 😄 world 😄",
+      "ast": [
+        {
+          "text": "😄 hello 😄 world 😄",
+          "type": "text"
+        }
+      ],
+      "plain": "😄 hello 😄 world 😄",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-037",
+      "input": "ok :thumbsup:",
+      "ast": [
+        {
+          "text": "ok ",
+          "type": "text"
+        },
+        {
+          "emoji": "👍",
+          "name": "thumbsup",
+          "type": "emoji"
+        }
+      ],
+      "plain": "ok 👍",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-038",
+      "input": "lol :joy::joy::joy:",
+      "ast": [
+        {
+          "text": "lol ",
+          "type": "text"
+        },
+        {
+          "emoji": "😂",
+          "name": "joy",
+          "type": "emoji"
+        },
+        {
+          "emoji": "😂",
+          "name": "joy",
+          "type": "emoji"
+        },
+        {
+          "emoji": "😂",
+          "name": "joy",
+          "type": "emoji"
+        }
+      ],
+      "plain": "lol 😂😂😂",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-039",
+      "input": "a :fire: b :fire: c",
+      "ast": [
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "emoji": "🔥",
+          "name": "fire",
+          "type": "emoji"
+        },
+        {
+          "text": " b ",
+          "type": "text"
+        },
+        {
+          "emoji": "🔥",
+          "name": "fire",
+          "type": "emoji"
+        },
+        {
+          "text": " c",
+          "type": "text"
+        }
+      ],
+      "plain": "a 🔥 b 🔥 c",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-040",
+      "input": "Visit https://e.com/a_b_c and **https://f.com/x**",
+      "ast": [
+        {
+          "text": "Visit ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "https://e.com/a_b_c",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com/a_b_c"
+        },
+        {
+          "text": " and ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "https://f.com/x",
+                  "type": "text"
+                }
+              ],
+              "kind": "auto",
+              "type": "link",
+              "url": "https://f.com/x"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "Visit https://e.com/a_b_c and https://f.com/x",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-041",
+      "input": "https://e.com/a*b*c",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "https://e.com/a*b*c",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com/a*b*c"
+        }
+      ],
+      "plain": "https://e.com/a*b*c",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-042",
+      "input": "https://e.com/~~x~~",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "https://e.com/~~x",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com/~~x"
+        },
+        {
+          "text": "~~",
+          "type": "text"
+        }
+      ],
+      "plain": "https://e.com/~~x~~",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-043",
+      "input": "[a](https://e.com)](https://f.com)",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com"
+        },
+        {
+          "text": "](",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "https://f.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://f.com"
+        },
+        {
+          "text": ")",
+          "type": "text"
+        }
+      ],
+      "plain": "a](https://f.com)",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-044",
+      "input": "[[a](https://e.com)](https://f.com)",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "[a](https://e.com)",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://f.com"
+        }
+      ],
+      "plain": "[a](https://e.com)",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-045",
+      "input": "[a](https://e.com)(b)",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com"
+        },
+        {
+          "text": "(b)",
+          "type": "text"
+        }
+      ],
+      "plain": "a(b)",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-046",
+      "input": "\\\\*x*",
+      "ast": [
+        {
+          "text": "\\",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "\\x",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-047",
+      "input": "\\\\\\*x*",
+      "ast": [
+        {
+          "text": "\\*x*",
+          "type": "text"
+        }
+      ],
+      "plain": "\\*x*",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-048",
+      "input": "a\\\nb",
+      "ast": [
+        {
+          "text": "a\\",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": "b",
+          "type": "text"
+        }
+      ],
+      "plain": "a\\\nb",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-049",
+      "input": "\\\n",
+      "ast": [
+        {
+          "text": "\\",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        }
+      ],
+      "plain": "\\\n",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-050",
+      "input": "\\",
+      "ast": [
+        {
+          "text": "\\",
+          "type": "text"
+        }
+      ],
+      "plain": "\\",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-051",
+      "input": "**************************************************",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "children": [
+                                {
+                                  "children": [
+                                    {
+                                      "children": [
+                                        {
+                                          "children": [
+                                            {
+                                              "children": [
+                                                {
+                                                  "children": [
+                                                    {
+                                                      "children": [
+                                                        {
+                                                          "children": [
+                                                            {
+                                                              "children": [
+                                                                {
+                                                                  "children": [
+                                                                    {
+                                                                      "children": [
+                                                                        {
+                                                                          "text": "**",
+                                                                          "type": "text"
+                                                                        }
+                                                                      ],
+                                                                      "type": "italic"
+                                                                    }
+                                                                  ],
+                                                                  "type": "bold"
+                                                                }
+                                                              ],
+                                                              "type": "italic"
+                                                            }
+                                                          ],
+                                                          "type": "bold"
+                                                        }
+                                                      ],
+                                                      "type": "italic"
+                                                    }
+                                                  ],
+                                                  "type": "bold"
+                                                }
+                                              ],
+                                              "type": "italic"
+                                            }
+                                          ],
+                                          "type": "bold"
+                                        }
+                                      ],
+                                      "type": "italic"
+                                    }
+                                  ],
+                                  "type": "bold"
+                                }
+                              ],
+                              "type": "italic"
+                            }
+                          ],
+                          "type": "bold"
+                        }
+                      ],
+                      "type": "italic"
+                    }
+                  ],
+                  "type": "bold"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "**",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-052",
+      "input": "__________________________________________________",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "children": [
+                                {
+                                  "children": [
+                                    {
+                                      "children": [
+                                        {
+                                          "children": [
+                                            {
+                                              "children": [
+                                                {
+                                                  "children": [
+                                                    {
+                                                      "children": [
+                                                        {
+                                                          "children": [
+                                                            {
+                                                              "children": [
+                                                                {
+                                                                  "children": [
+                                                                    {
+                                                                      "children": [
+                                                                        {
+                                                                          "text": "__",
+                                                                          "type": "text"
+                                                                        }
+                                                                      ],
+                                                                      "type": "italic"
+                                                                    }
+                                                                  ],
+                                                                  "type": "underline"
+                                                                }
+                                                              ],
+                                                              "type": "italic"
+                                                            }
+                                                          ],
+                                                          "type": "underline"
+                                                        }
+                                                      ],
+                                                      "type": "italic"
+                                                    }
+                                                  ],
+                                                  "type": "underline"
+                                                }
+                                              ],
+                                              "type": "italic"
+                                            }
+                                          ],
+                                          "type": "underline"
+                                        }
+                                      ],
+                                      "type": "italic"
+                                    }
+                                  ],
+                                  "type": "underline"
+                                }
+                              ],
+                              "type": "italic"
+                            }
+                          ],
+                          "type": "underline"
+                        }
+                      ],
+                      "type": "italic"
+                    }
+                  ],
+                  "type": "underline"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "__",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-053",
+      "input": "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "children": [
+                                {
+                                  "children": [
+                                    {
+                                      "children": [
+                                        {
+                                          "children": [
+                                            {
+                                              "children": [
+                                                {
+                                                  "children": [
+                                                    {
+                                                      "children": [
+                                                        {
+                                                          "text": "~~",
+                                                          "type": "text"
+                                                        }
+                                                      ],
+                                                      "type": "strike"
+                                                    }
+                                                  ],
+                                                  "type": "strike"
+                                                }
+                                              ],
+                                              "type": "strike"
+                                            }
+                                          ],
+                                          "type": "strike"
+                                        }
+                                      ],
+                                      "type": "strike"
+                                    }
+                                  ],
+                                  "type": "strike"
+                                }
+                              ],
+                              "type": "strike"
+                            }
+                          ],
+                          "type": "strike"
+                        }
+                      ],
+                      "type": "strike"
+                    }
+                  ],
+                  "type": "strike"
+                }
+              ],
+              "type": "strike"
+            }
+          ],
+          "type": "strike"
+        }
+      ],
+      "plain": "~~",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-054",
+      "input": "||||||||||||||||||||||||||||||||||||||||||||||||||",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "children": [
+                                {
+                                  "children": [
+                                    {
+                                      "children": [
+                                        {
+                                          "children": [
+                                            {
+                                              "children": [
+                                                {
+                                                  "children": [
+                                                    {
+                                                      "children": [
+                                                        {
+                                                          "text": "||",
+                                                          "type": "text"
+                                                        }
+                                                      ],
+                                                      "type": "spoiler"
+                                                    }
+                                                  ],
+                                                  "type": "spoiler"
+                                                }
+                                              ],
+                                              "type": "spoiler"
+                                            }
+                                          ],
+                                          "type": "spoiler"
+                                        }
+                                      ],
+                                      "type": "spoiler"
+                                    }
+                                  ],
+                                  "type": "spoiler"
+                                }
+                              ],
+                              "type": "spoiler"
+                            }
+                          ],
+                          "type": "spoiler"
+                        }
+                      ],
+                      "type": "spoiler"
+                    }
+                  ],
+                  "type": "spoiler"
+                }
+              ],
+              "type": "spoiler"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-055",
+      "input": "``````````````````````````````````````````````````",
+      "ast": [
+        {
+          "text": "``````````````````````````````````````````````````",
+          "type": "text"
+        }
+      ],
+      "plain": "``````````````````````````````````````````````````",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-056",
+      "input": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[",
+      "ast": [
+        {
+          "text": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[",
+          "type": "text"
+        }
+      ],
+      "plain": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-057",
+      "input": "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<",
+      "ast": [
+        {
+          "text": "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<",
+          "type": "text"
+        }
+      ],
+      "plain": "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-058",
+      "input": "::::::::::::::::::::::::::::::::::::::::::::::::::",
+      "ast": [
+        {
+          "text": "::::::::::::::::::::::::::::::::::::::::::::::::::",
+          "type": "text"
+        }
+      ],
+      "plain": "::::::::::::::::::::::::::::::::::::::::::::::::::",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-059",
+      "input": ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>",
+      "ast": [
+        {
+          "text": ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>",
+          "type": "text"
+        }
+      ],
+      "plain": ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-060",
+      "input": "##################################################",
+      "ast": [
+        {
+          "text": "##################################################",
+          "type": "text"
+        }
+      ],
+      "plain": "##################################################",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-061",
+      "input": "--------------------------------------------------",
+      "ast": [
+        {
+          "text": "--------------------------------------------------",
+          "type": "text"
+        }
+      ],
+      "plain": "--------------------------------------------------",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-062",
+      "input": "************************************************************x************************************************************",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "children": [
+                                {
+                                  "children": [
+                                    {
+                                      "children": [
+                                        {
+                                          "children": [
+                                            {
+                                              "children": [
+                                                {
+                                                  "children": [
+                                                    {
+                                                      "children": [
+                                                        {
+                                                          "children": [
+                                                            {
+                                                              "children": [
+                                                                {
+                                                                  "children": [
+                                                                    {
+                                                                      "children": [
+                                                                        {
+                                                                          "children": [
+                                                                            {
+                                                                              "children": [
+                                                                                {
+                                                                                  "children": [
+                                                                                    {
+                                                                                      "text": "**",
+                                                                                      "type": "text"
+                                                                                    }
+                                                                                  ],
+                                                                                  "type": "bold"
+                                                                                }
+                                                                              ],
+                                                                              "type": "italic"
+                                                                            }
+                                                                          ],
+                                                                          "type": "bold"
+                                                                        }
+                                                                      ],
+                                                                      "type": "italic"
+                                                                    }
+                                                                  ],
+                                                                  "type": "bold"
+                                                                }
+                                                              ],
+                                                              "type": "italic"
+                                                            }
+                                                          ],
+                                                          "type": "bold"
+                                                        }
+                                                      ],
+                                                      "type": "italic"
+                                                    }
+                                                  ],
+                                                  "type": "bold"
+                                                }
+                                              ],
+                                              "type": "italic"
+                                            }
+                                          ],
+                                          "type": "bold"
+                                        }
+                                      ],
+                                      "type": "italic"
+                                    }
+                                  ],
+                                  "type": "bold"
+                                }
+                              ],
+                              "type": "italic"
+                            }
+                          ],
+                          "type": "bold"
+                        }
+                      ],
+                      "type": "italic"
+                    }
+                  ],
+                  "type": "bold"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "bold"
+        },
+        {
+          "text": "x",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "children": [
+                                {
+                                  "children": [
+                                    {
+                                      "children": [
+                                        {
+                                          "children": [
+                                            {
+                                              "children": [
+                                                {
+                                                  "children": [
+                                                    {
+                                                      "children": [
+                                                        {
+                                                          "children": [
+                                                            {
+                                                              "children": [
+                                                                {
+                                                                  "children": [
+                                                                    {
+                                                                      "children": [
+                                                                        {
+                                                                          "children": [
+                                                                            {
+                                                                              "children": [
+                                                                                {
+                                                                                  "children": [
+                                                                                    {
+                                                                                      "text": "**",
+                                                                                      "type": "text"
+                                                                                    }
+                                                                                  ],
+                                                                                  "type": "bold"
+                                                                                }
+                                                                              ],
+                                                                              "type": "italic"
+                                                                            }
+                                                                          ],
+                                                                          "type": "bold"
+                                                                        }
+                                                                      ],
+                                                                      "type": "italic"
+                                                                    }
+                                                                  ],
+                                                                  "type": "bold"
+                                                                }
+                                                              ],
+                                                              "type": "italic"
+                                                            }
+                                                          ],
+                                                          "type": "bold"
+                                                        }
+                                                      ],
+                                                      "type": "italic"
+                                                    }
+                                                  ],
+                                                  "type": "bold"
+                                                }
+                                              ],
+                                              "type": "italic"
+                                            }
+                                          ],
+                                          "type": "bold"
+                                        }
+                                      ],
+                                      "type": "italic"
+                                    }
+                                  ],
+                                  "type": "bold"
+                                }
+                              ],
+                              "type": "italic"
+                            }
+                          ],
+                          "type": "bold"
+                        }
+                      ],
+                      "type": "italic"
+                    }
+                  ],
+                  "type": "bold"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "**x**",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-063",
+      "input": "********************x********************",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "children": [
+                                {
+                                  "text": "**",
+                                  "type": "text"
+                                }
+                              ],
+                              "type": "italic"
+                            }
+                          ],
+                          "type": "bold"
+                        }
+                      ],
+                      "type": "italic"
+                    }
+                  ],
+                  "type": "bold"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "bold"
+        },
+        {
+          "text": "x",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "children": [
+                                {
+                                  "text": "**",
+                                  "type": "text"
+                                }
+                              ],
+                              "type": "italic"
+                            }
+                          ],
+                          "type": "bold"
+                        }
+                      ],
+                      "type": "italic"
+                    }
+                  ],
+                  "type": "bold"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "**x**",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-064",
+      "input": "[[[[[[[[[[[[[[[[[[[[a](](](](](](](](](](](](](](](](](](](](",
+      "ast": [
+        {
+          "text": "[[[[[[[[[[[[[[[[[[[[a](](](](](](](](](](](](](](](](](](](](",
+          "type": "text"
+        }
+      ],
+      "plain": "[[[[[[[[[[[[[[[[[[[[a](](](](](](](](](](](](](](](](](](](](",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-065",
+      "input": "||||||||||||||||||||||||||||||||||||||||||||||||||x||||||||||||||||||||||||||||||||||||||||||||||||||",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "children": [
+                                {
+                                  "children": [
+                                    {
+                                      "children": [
+                                        {
+                                          "children": [
+                                            {
+                                              "children": [
+                                                {
+                                                  "children": [
+                                                    {
+                                                      "children": [
+                                                        {
+                                                          "text": "||",
+                                                          "type": "text"
+                                                        }
+                                                      ],
+                                                      "type": "spoiler"
+                                                    }
+                                                  ],
+                                                  "type": "spoiler"
+                                                }
+                                              ],
+                                              "type": "spoiler"
+                                            }
+                                          ],
+                                          "type": "spoiler"
+                                        }
+                                      ],
+                                      "type": "spoiler"
+                                    }
+                                  ],
+                                  "type": "spoiler"
+                                }
+                              ],
+                              "type": "spoiler"
+                            }
+                          ],
+                          "type": "spoiler"
+                        }
+                      ],
+                      "type": "spoiler"
+                    }
+                  ],
+                  "type": "spoiler"
+                }
+              ],
+              "type": "spoiler"
+            }
+          ],
+          "type": "spoiler"
+        },
+        {
+          "text": "x",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "children": [
+                                {
+                                  "children": [
+                                    {
+                                      "children": [
+                                        {
+                                          "children": [
+                                            {
+                                              "children": [
+                                                {
+                                                  "children": [
+                                                    {
+                                                      "children": [
+                                                        {
+                                                          "text": "||",
+                                                          "type": "text"
+                                                        }
+                                                      ],
+                                                      "type": "spoiler"
+                                                    }
+                                                  ],
+                                                  "type": "spoiler"
+                                                }
+                                              ],
+                                              "type": "spoiler"
+                                            }
+                                          ],
+                                          "type": "spoiler"
+                                        }
+                                      ],
+                                      "type": "spoiler"
+                                    }
+                                  ],
+                                  "type": "spoiler"
+                                }
+                              ],
+                              "type": "spoiler"
+                            }
+                          ],
+                          "type": "spoiler"
+                        }
+                      ],
+                      "type": "spoiler"
+                    }
+                  ],
+                  "type": "spoiler"
+                }
+              ],
+              "type": "spoiler"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]x[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-066",
+      "input": "**a **a **a **a **a **a **a **a **a **a **a **a **a **a **a **a **a **a **a **a ",
+      "ast": [
+        {
+          "text": "**a **a **a **a **a **a **a **a **a **a **a **a **a **a **a **a **a **a **a **a ",
+          "type": "text"
+        }
+      ],
+      "plain": "**a **a **a **a **a **a **a **a **a **a **a **a **a **a **a **a **a **a **a **a ",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-067",
+      "input": "*a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a ",
+      "ast": [
+        {
+          "text": "*a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a ",
+          "type": "text"
+        }
+      ],
+      "plain": "*a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a *a ",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-068",
+      "input": "_a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a ",
+      "ast": [
+        {
+          "text": "_a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a ",
+          "type": "text"
+        }
+      ],
+      "plain": "_a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a _a ",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-069",
+      "input": "~~a ~~a ~~a ~~a ~~a ~~a ~~a ~~a ~~a ~~a ~~a ~~a ~~a ~~a ~~a ~~a ~~a ~~a ~~a ~~a ",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        }
+      ],
+      "plain": "a a a a a a a a a a a a a a a a a a a a ",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-070",
+      "input": "||a ||a ||a ||a ||a ||a ||a ||a ||a ||a ||a ||a ||a ||a ||a ||a ||a ||a ||a ||a ",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        }
+      ],
+      "plain": "[spoiler]a [spoiler]a [spoiler]a [spoiler]a [spoiler]a [spoiler]a [spoiler]a [spoiler]a [spoiler]a [spoiler]a ",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-071",
+      "input": "`a `a `a `a `a `a `a `a `a `a `a `a `a `a `a `a `a `a `a `a `a `a `a `a `a `a `a `a `a `a ",
+      "ast": [
+        {
+          "code": "a ",
+          "type": "inline_code"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "code": "a ",
+          "type": "inline_code"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "code": "a ",
+          "type": "inline_code"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "code": "a ",
+          "type": "inline_code"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "code": "a ",
+          "type": "inline_code"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "code": "a ",
+          "type": "inline_code"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "code": "a ",
+          "type": "inline_code"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "code": "a ",
+          "type": "inline_code"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "code": "a ",
+          "type": "inline_code"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "code": "a ",
+          "type": "inline_code"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "code": "a ",
+          "type": "inline_code"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "code": "a ",
+          "type": "inline_code"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "code": "a ",
+          "type": "inline_code"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "code": "a ",
+          "type": "inline_code"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "code": "a ",
+          "type": "inline_code"
+        },
+        {
+          "text": "a ",
+          "type": "text"
+        }
+      ],
+      "plain": "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a ",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-072",
+      "input": "<@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ ",
+      "ast": [
+        {
+          "text": "<@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ ",
+          "type": "text"
+        }
+      ],
+      "plain": "<@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ <@ ",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-073",
+      "input": "[a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a ",
+      "ast": [
+        {
+          "text": "[a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a ",
+          "type": "text"
+        }
+      ],
+      "plain": "[a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a [a ",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-074",
+      "input": "> > > > > > > > > > > > > > > > > > > > x",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "> > > > > > > > > > > > > > > > > > > x",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "> > > > > > > > > > > > > > > > > > > x\n",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-075",
+      "input": "- - - - - - - - - - - - - - - - - - - - x",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "- - - - - - - - - - - - - - - - - - - x",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "- - - - - - - - - - - - - - - - - - - x\n",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-076",
+      "input": "1. 1. 1. 1. 1. 1. 1. 1. 1. 1. x",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "1. 1. 1. 1. 1. 1. 1. 1. 1. x",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": true,
+          "start": 1,
+          "type": "list"
+        }
+      ],
+      "plain": "1. 1. 1. 1. 1. 1. 1. 1. 1. x\n",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-077",
+      "input": "# # # # # x",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "# # # # x",
+              "type": "text"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        }
+      ],
+      "plain": "# # # # x\n",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-078",
+      "input": "😄 **bold** 😄",
+      "ast": [
+        {
+          "text": "😄 ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "bold",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        },
+        {
+          "text": " 😄",
+          "type": "text"
+        }
+      ],
+      "plain": "😄 bold 😄",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-079",
+      "input": "日本語 **太字** *斜体* ||ネタバレ||",
+      "ast": [
+        {
+          "text": "日本語 ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "太字",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "斜体",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "ネタバレ",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "日本語 太字 斜体 [spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-080",
+      "input": "مرحبا **عالم**",
+      "ast": [
+        {
+          "text": "مرحبا ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "عالم",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "مرحبا عالم",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-081",
+      "input": "é **é**",
+      "ast": [
+        {
+          "text": "é ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "é",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "é é",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-082",
+      "input": "<@1>**bold**",
+      "ast": [
+        {
+          "id": 1,
+          "type": "user_mention"
+        },
+        {
+          "children": [
+            {
+              "text": "bold",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "@userbold",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-083",
+      "input": "**bold**<@1>",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "bold",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        },
+        {
+          "id": 1,
+          "type": "user_mention"
+        }
+      ],
+      "plain": "bold@user",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-084",
+      "input": ":smile:**bold**",
+      "ast": [
+        {
+          "emoji": "😄",
+          "name": "smile",
+          "type": "emoji"
+        },
+        {
+          "children": [
+            {
+              "text": "bold",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "😄bold",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-085",
+      "input": "**bold**:smile:",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "bold",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        },
+        {
+          "emoji": "😄",
+          "name": "smile",
+          "type": "emoji"
+        }
+      ],
+      "plain": "bold😄",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-086",
+      "input": "`a`:smile:",
+      "ast": [
+        {
+          "code": "a",
+          "type": "inline_code"
+        },
+        {
+          "emoji": "😄",
+          "name": "smile",
+          "type": "emoji"
+        }
+      ],
+      "plain": "a😄",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-087",
+      "input": ":smile:`a`",
+      "ast": [
+        {
+          "emoji": "😄",
+          "name": "smile",
+          "type": "emoji"
+        },
+        {
+          "code": "a",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "😄a",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-088",
+      "input": "a\n- b\nc",
+      "ast": [
+        {
+          "text": "a",
+          "type": "text"
+        },
+        {
+          "items": [
+            [
+              {
+                "text": "b",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        },
+        {
+          "text": "c",
+          "type": "text"
+        }
+      ],
+      "plain": "ab\nc",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-089",
+      "input": "a\n1. b\nc",
+      "ast": [
+        {
+          "text": "a",
+          "type": "text"
+        },
+        {
+          "items": [
+            [
+              {
+                "text": "b",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": true,
+          "start": 1,
+          "type": "list"
+        },
+        {
+          "text": "c",
+          "type": "text"
+        }
+      ],
+      "plain": "ab\nc",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-090",
+      "input": "a\n> b\nc",
+      "ast": [
+        {
+          "text": "a",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        },
+        {
+          "text": "c",
+          "type": "text"
+        }
+      ],
+      "plain": "ab\nc",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-091",
+      "input": "a\n# b\nc",
+      "ast": [
+        {
+          "text": "a",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        },
+        {
+          "text": "c",
+          "type": "text"
+        }
+      ],
+      "plain": "ab\nc",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-092",
+      "input": "a\n-# b\nc",
+      "ast": [
+        {
+          "text": "a",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "type": "subtext"
+        },
+        {
+          "text": "c",
+          "type": "text"
+        }
+      ],
+      "plain": "ab\nc",
+      "jumbo": false
+    },
+    {
+      "name": "mixed-093",
+      "input": "a\n```\nb\n```\nc",
+      "ast": [
+        {
+          "text": "a",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "code": "b",
+          "lang": null,
+          "type": "code_block"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": "c",
+          "type": "text"
+        }
+      ],
+      "plain": "a\nb\nc",
+      "jumbo": false
+    }
+  ]
+}

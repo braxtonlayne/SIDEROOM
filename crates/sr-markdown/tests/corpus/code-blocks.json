@@ -1,0 +1,778 @@
+{
+  "description": "Fenced code blocks and fence edge cases",
+  "cases": [
+    {
+      "name": "block-001",
+      "input": "```\ncode\n```",
+      "ast": [
+        {
+          "code": "code",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "code",
+      "jumbo": false
+    },
+    {
+      "name": "block-002",
+      "input": "```rust\nfn x() {}\n```",
+      "ast": [
+        {
+          "code": "fn x() {}",
+          "lang": "rust",
+          "type": "code_block"
+        }
+      ],
+      "plain": "fn x() {}",
+      "jumbo": false
+    },
+    {
+      "name": "block-003",
+      "input": "```js\n**no**\n```",
+      "ast": [
+        {
+          "code": "**no**",
+          "lang": "js",
+          "type": "code_block"
+        }
+      ],
+      "plain": "**no**",
+      "jumbo": false
+    },
+    {
+      "name": "block-004",
+      "input": "```one line```",
+      "ast": [
+        {
+          "code": "one line",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "one line",
+      "jumbo": false
+    },
+    {
+      "name": "block-005",
+      "input": "a ```x``` b",
+      "ast": [
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "code": "x",
+          "lang": null,
+          "type": "code_block"
+        },
+        {
+          "text": " b",
+          "type": "text"
+        }
+      ],
+      "plain": "a x b",
+      "jumbo": false
+    },
+    {
+      "name": "block-006",
+      "input": "```\nunclosed",
+      "ast": [
+        {
+          "text": "```",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": "unclosed",
+          "type": "text"
+        }
+      ],
+      "plain": "```\nunclosed",
+      "jumbo": false
+    },
+    {
+      "name": "block-007",
+      "input": "``````",
+      "ast": [
+        {
+          "text": "``````",
+          "type": "text"
+        }
+      ],
+      "plain": "``````",
+      "jumbo": false
+    },
+    {
+      "name": "block-008",
+      "input": "```py\nline1\nline2\n\n```",
+      "ast": [
+        {
+          "code": "line1\nline2\n",
+          "lang": "py",
+          "type": "code_block"
+        }
+      ],
+      "plain": "line1\nline2\n",
+      "jumbo": false
+    },
+    {
+      "name": "block-009",
+      "input": "```\n\n```",
+      "ast": [
+        {
+          "code": "",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "",
+      "jumbo": false
+    },
+    {
+      "name": "block-010",
+      "input": "```\n```",
+      "ast": [
+        {
+          "code": "",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "",
+      "jumbo": false
+    },
+    {
+      "name": "block-011",
+      "input": "```a```",
+      "ast": [
+        {
+          "code": "a",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "a",
+      "jumbo": false
+    },
+    {
+      "name": "block-012",
+      "input": "```a b```",
+      "ast": [
+        {
+          "code": "a b",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "a b",
+      "jumbo": false
+    },
+    {
+      "name": "block-013",
+      "input": "```\n  indented\n```",
+      "ast": [
+        {
+          "code": "  indented",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "  indented",
+      "jumbo": false
+    },
+    {
+      "name": "block-014",
+      "input": "```\ttab\n```",
+      "ast": [
+        {
+          "code": "\ttab",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "\ttab",
+      "jumbo": false
+    },
+    {
+      "name": "block-015",
+      "input": "```c++\nint x;\n```",
+      "ast": [
+        {
+          "code": "int x;",
+          "lang": "c++",
+          "type": "code_block"
+        }
+      ],
+      "plain": "int x;",
+      "jumbo": false
+    },
+    {
+      "name": "block-016",
+      "input": "```C#\nint x;\n```",
+      "ast": [
+        {
+          "code": "int x;",
+          "lang": "c#",
+          "type": "code_block"
+        }
+      ],
+      "plain": "int x;",
+      "jumbo": false
+    },
+    {
+      "name": "block-017",
+      "input": "```js\n```",
+      "ast": [
+        {
+          "code": "",
+          "lang": "js",
+          "type": "code_block"
+        }
+      ],
+      "plain": "",
+      "jumbo": false
+    },
+    {
+      "name": "block-018",
+      "input": "```js```",
+      "ast": [
+        {
+          "code": "js",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "js",
+      "jumbo": false
+    },
+    {
+      "name": "block-019",
+      "input": "``` js\nx\n```",
+      "ast": [
+        {
+          "code": " js\nx",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": " js\nx",
+      "jumbo": false
+    },
+    {
+      "name": "block-020",
+      "input": "```JS\nx\n```",
+      "ast": [
+        {
+          "code": "x",
+          "lang": "js",
+          "type": "code_block"
+        }
+      ],
+      "plain": "x",
+      "jumbo": false
+    },
+    {
+      "name": "block-021",
+      "input": "```js x\ny\n```",
+      "ast": [
+        {
+          "code": "js x\ny",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "js x\ny",
+      "jumbo": false
+    },
+    {
+      "name": "block-022",
+      "input": "```diff\n- a\n+ b\n```",
+      "ast": [
+        {
+          "code": "- a\n+ b",
+          "lang": "diff",
+          "type": "code_block"
+        }
+      ],
+      "plain": "- a\n+ b",
+      "jumbo": false
+    },
+    {
+      "name": "block-023",
+      "input": "```json\n{\"a\":1}\n```",
+      "ast": [
+        {
+          "code": "{\"a\":1}",
+          "lang": "json",
+          "type": "code_block"
+        }
+      ],
+      "plain": "{\"a\":1}",
+      "jumbo": false
+    },
+    {
+      "name": "block-024",
+      "input": "```\n<@1> :smile: **b**\n```",
+      "ast": [
+        {
+          "code": "<@1> :smile: **b**",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "<@1> :smile: **b**",
+      "jumbo": false
+    },
+    {
+      "name": "block-025",
+      "input": "```\n`inline`\n```",
+      "ast": [
+        {
+          "code": "`inline`",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "`inline`",
+      "jumbo": false
+    },
+    {
+      "name": "block-026",
+      "input": "```\n\\*\n```",
+      "ast": [
+        {
+          "code": "\\*",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "\\*",
+      "jumbo": false
+    },
+    {
+      "name": "block-027",
+      "input": "```\n> q\n```",
+      "ast": [
+        {
+          "code": "> q",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "> q",
+      "jumbo": false
+    },
+    {
+      "name": "block-028",
+      "input": "```\na\n\nb\n```",
+      "ast": [
+        {
+          "code": "a\n\nb",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "a\n\nb",
+      "jumbo": false
+    },
+    {
+      "name": "block-029",
+      "input": "```\n😄\n```",
+      "ast": [
+        {
+          "code": "😄",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "😄",
+      "jumbo": false
+    },
+    {
+      "name": "block-030",
+      "input": "```\né\n```",
+      "ast": [
+        {
+          "code": "é",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "é",
+      "jumbo": false
+    },
+    {
+      "name": "block-031",
+      "input": "```\n```\n```\n```",
+      "ast": [
+        {
+          "code": "",
+          "lang": null,
+          "type": "code_block"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "code": "",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "\n",
+      "jumbo": false
+    },
+    {
+      "name": "block-032",
+      "input": "```a\n```b\n```",
+      "ast": [
+        {
+          "code": "",
+          "lang": "a",
+          "type": "code_block"
+        },
+        {
+          "text": "b",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": "```",
+          "type": "text"
+        }
+      ],
+      "plain": "b\n```",
+      "jumbo": false
+    },
+    {
+      "name": "block-033",
+      "input": "before\n```\ncode\n```\nafter",
+      "ast": [
+        {
+          "text": "before",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "code": "code",
+          "lang": null,
+          "type": "code_block"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": "after",
+          "type": "text"
+        }
+      ],
+      "plain": "before\ncode\nafter",
+      "jumbo": false
+    },
+    {
+      "name": "block-034",
+      "input": "before ```\ncode\n``` after",
+      "ast": [
+        {
+          "text": "before ",
+          "type": "text"
+        },
+        {
+          "code": "code",
+          "lang": null,
+          "type": "code_block"
+        },
+        {
+          "text": " after",
+          "type": "text"
+        }
+      ],
+      "plain": "before code after",
+      "jumbo": false
+    },
+    {
+      "name": "block-035",
+      "input": "```\ncode\n``` trailing",
+      "ast": [
+        {
+          "code": "code",
+          "lang": null,
+          "type": "code_block"
+        },
+        {
+          "text": " trailing",
+          "type": "text"
+        }
+      ],
+      "plain": "code trailing",
+      "jumbo": false
+    },
+    {
+      "name": "block-036",
+      "input": "```\ncode\n```\n```\nmore\n```",
+      "ast": [
+        {
+          "code": "code",
+          "lang": null,
+          "type": "code_block"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "code": "more",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "code\nmore",
+      "jumbo": false
+    },
+    {
+      "name": "block-037",
+      "input": "> ```\n> code\n> ```",
+      "ast": [
+        {
+          "children": [],
+          "type": "quote"
+        },
+        {
+          "code": "> code\n> ",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "\n> code\n> ",
+      "jumbo": false
+    },
+    {
+      "name": "block-038",
+      "input": "- ```\n  code\n  ```",
+      "ast": [
+        {
+          "text": "- ",
+          "type": "text"
+        },
+        {
+          "code": "  code\n  ",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "-   code\n  ",
+      "jumbo": false
+    },
+    {
+      "name": "block-039",
+      "input": "# ```x```",
+      "ast": [
+        {
+          "text": "# ",
+          "type": "text"
+        },
+        {
+          "code": "x",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "# x",
+      "jumbo": false
+    },
+    {
+      "name": "block-040",
+      "input": "**```x```**",
+      "ast": [
+        {
+          "text": "**",
+          "type": "text"
+        },
+        {
+          "code": "x",
+          "lang": null,
+          "type": "code_block"
+        },
+        {
+          "text": "**",
+          "type": "text"
+        }
+      ],
+      "plain": "**x**",
+      "jumbo": false
+    },
+    {
+      "name": "block-041",
+      "input": "||```x```||",
+      "ast": [
+        {
+          "text": "||",
+          "type": "text"
+        },
+        {
+          "code": "x",
+          "lang": null,
+          "type": "code_block"
+        },
+        {
+          "text": "||",
+          "type": "text"
+        }
+      ],
+      "plain": "||x||",
+      "jumbo": false
+    },
+    {
+      "name": "block-042",
+      "input": "```\nx\n``` ```\ny\n```",
+      "ast": [
+        {
+          "code": "x",
+          "lang": null,
+          "type": "code_block"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "code": "y",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "x y",
+      "jumbo": false
+    },
+    {
+      "name": "block-043",
+      "input": "````\n```\n````",
+      "ast": [
+        {
+          "code": "`",
+          "lang": null,
+          "type": "code_block"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": "````",
+          "type": "text"
+        }
+      ],
+      "plain": "`\n````",
+      "jumbo": false
+    },
+    {
+      "name": "block-044",
+      "input": "```\r\ncrlf\r\n```",
+      "ast": [
+        {
+          "code": "\r\ncrlf\r",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "\r\ncrlf\r",
+      "jumbo": false
+    },
+    {
+      "name": "block-045",
+      "input": "```\n\n\n```",
+      "ast": [
+        {
+          "code": "\n",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "\n",
+      "jumbo": false
+    },
+    {
+      "name": "block-046",
+      "input": "```mermaid\ngraph TD\n```",
+      "ast": [
+        {
+          "code": "graph TD",
+          "lang": "mermaid",
+          "type": "code_block"
+        }
+      ],
+      "plain": "graph TD",
+      "jumbo": false
+    },
+    {
+      "name": "block-047",
+      "input": "```1\nx\n```",
+      "ast": [
+        {
+          "code": "x",
+          "lang": "1",
+          "type": "code_block"
+        }
+      ],
+      "plain": "x",
+      "jumbo": false
+    },
+    {
+      "name": "block-048",
+      "input": "```a_b\nx\n```",
+      "ast": [
+        {
+          "code": "x",
+          "lang": "a_b",
+          "type": "code_block"
+        }
+      ],
+      "plain": "x",
+      "jumbo": false
+    },
+    {
+      "name": "block-049",
+      "input": "```a-b\nx\n```",
+      "ast": [
+        {
+          "code": "x",
+          "lang": "a-b",
+          "type": "code_block"
+        }
+      ],
+      "plain": "x",
+      "jumbo": false
+    },
+    {
+      "name": "block-050",
+      "input": "```a.b\nx\n```",
+      "ast": [
+        {
+          "code": "x",
+          "lang": "a.b",
+          "type": "code_block"
+        }
+      ],
+      "plain": "x",
+      "jumbo": false
+    },
+    {
+      "name": "block-051",
+      "input": "```\n    four\n```",
+      "ast": [
+        {
+          "code": "    four",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "    four",
+      "jumbo": false
+    }
+  ]
+}
