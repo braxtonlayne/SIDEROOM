@@ -1,0 +1,9 @@
+{
+  "name": "@sideroom/api-client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run --passWithNoTests" },
+  "devDependencies": { "typescript": "^5.7.0", "vitest": "^3.0.0" }
+}
