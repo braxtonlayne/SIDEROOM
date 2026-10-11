@@ -6,3 +6,12 @@ publish.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+argon2 = "0.6.0"
+data-encoding = "2.11.1"
+getrandom = "0.4.3"
+sha2 = "0.11.0"
+subtle = "2.6.1"
+thiserror = "2.0.21"
+totp-rs = { version = "6.0.0", features = ["otpauth", "gen_secret"] }
