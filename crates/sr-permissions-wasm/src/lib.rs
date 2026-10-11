@@ -3,9 +3,14 @@
 //! decimal strings, like the API (bitfields use bit 56+, beyond `Number.MAX_SAFE_INTEGER`).
 
 use serde::Deserialize;
-use sr_core::permissions::{Overwrite, OverwriteKind, compute_base, compute_overwrites};
-use sr_core::{Permissions, Snowflake};
+use sr_core::permissions::{
+    ComputeInput, Overwrite, OverwriteKind, compute, compute_base, compute_overwrites, is_timed_out,
+};
+use sr_core::{Clock, Permissions, Snowflake};
 use wasm_bindgen::prelude::*;
+
+mod clock;
+pub use clock::JsClock;
 
 fn perms(s: &str) -> Result<Permissions, String> {
     s.trim()
@@ -122,6 +127,73 @@ pub fn has_permission(have: &str, want: &str) -> Result<bool, JsError> {
     has(have, want).map_err(|e| JsError::new(&e))
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ComputeIn {
+    is_owner: bool,
+    everyone: String,
+    role_permissions: Vec<String>,
+    guild_id: String,
+    member_id: String,
+    member_role_ids: Vec<String>,
+    overwrites: Vec<OverwriteIn>,
+    /// Unix milliseconds, or null when the member is not timed out.
+    communication_disabled_until_ms: Option<i64>,
+}
+
+/// Full channel permissions (Discord's overwrite algorithm plus the implicit rules:
+/// timeouts, VIEW_CHANNEL, SEND_MESSAGES, CONNECT). `input_json` is a JSON object with
+/// `is_owner`, `everyone`, `role_permissions`, `guild_id`, `member_id`, `member_role_ids`,
+/// `overwrites` (same shape as [`overwrites`]) and `communication_disabled_until_ms`.
+/// `now_ms` is the current unix time in milliseconds.
+pub fn compute_channel(input_json: &str, now_ms: i64) -> Result<String, String> {
+    let raw: ComputeIn = serde_json::from_str(input_json).map_err(|e| e.to_string())?;
+    let role_perms = raw
+        .role_permissions
+        .iter()
+        .map(|r| perms(r))
+        .collect::<Result<Vec<_>, _>>()?;
+    let roles = raw
+        .member_role_ids
+        .iter()
+        .map(|r| snow(r))
+        .collect::<Result<Vec<_>, _>>()?;
+    let ows = raw
+        .overwrites
+        .iter()
+        .map(|o| {
+            Ok(Overwrite {
+                id: snow(&o.id)?,
+                kind: match o.kind.as_str() {
+                    "role" => OverwriteKind::Role,
+                    "member" => OverwriteKind::Member,
+                    other => return Err(format!("invalid overwrite kind `{other}`")),
+                },
+                allow: perms(&o.allow)?,
+                deny: perms(&o.deny)?,
+            })
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    let input = ComputeInput {
+        is_owner: raw.is_owner,
+        everyone: perms(&raw.everyone)?,
+        role_perms: &role_perms,
+        guild_id: snow(&raw.guild_id)?,
+        member_id: snow(&raw.member_id)?,
+        member_role_ids: &roles,
+        overwrites: &ows,
+        timed_out: is_timed_out(raw.communication_disabled_until_ms, now_ms),
+    };
+    Ok(compute(&input).bits().to_string())
+}
+
+/// Channel-level permissions with timeouts and implicit rules, using the browser clock.
+/// Throws on malformed input. Takes and returns decimal strings, like the API.
+#[wasm_bindgen(js_name = compute)]
+pub fn compute_js(input_json: &str) -> Result<String, JsError> {
+    compute_channel(input_json, JsClock.now_unix_ms()).map_err(|e| JsError::new(&e))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -151,6 +223,26 @@ mod tests {
     fn bad_overwrite_kind_rejected() {
         let json = r#"[{"id":"1","kind":"x","allow":"0","deny":"0"}]"#;
         assert!(overwrites("0", "1", "2", &[], json).is_err());
+    }
+
+    #[test]
+    fn compute_channel_applies_timeout_with_clock_value() {
+        let json = |until: &str| {
+            format!(
+                r#"{{"is_owner":false,"everyone":"{}","role_permissions":[],
+                "guild_id":"10","member_id":"99","member_role_ids":[],"overwrites":[],
+                "communication_disabled_until_ms":{until}}}"#,
+                VIEW | SEND | (1 << 16)
+            )
+        };
+        // Timed out until 2000, now 1000: only VIEW_CHANNEL | READ_MESSAGE_HISTORY remain.
+        let out = compute_channel(&json("2000"), 1_000).expect("ok");
+        assert_eq!(out, (VIEW | (1 << 16)).to_string());
+        // Timeout expired: full set survives.
+        let out = compute_channel(&json("2000"), 3_000).expect("ok");
+        assert_eq!(out, (VIEW | SEND | (1 << 16)).to_string());
+        assert!(compute_channel(&json("null"), 1_000).is_ok());
+        assert!(compute_channel("{}", 1_000).is_err());
     }
 
     #[test]

@@ -17,4 +17,6 @@ pub use ids::*;
 pub use permissions::Permissions;
 pub use platform_permissions::PlatformPermissions;
 pub use snowflake::{Snowflake, SnowflakeGenerator};
-pub use time::{Clock, ManualClock, SystemClock};
+#[cfg(not(target_arch = "wasm32"))]
+pub use time::SystemClock;
+pub use time::{Clock, ManualClock};
