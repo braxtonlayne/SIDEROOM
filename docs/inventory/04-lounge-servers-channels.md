@@ -4,12 +4,12 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 
 ## LNG-GLD — Guilds
 - [x] **LNG-GLD-001** [DB] guilds, guild_members, roles, member_roles migrations
-- [ ] **LNG-GLD-002** [BE] Create guild (default @everyone, #general, General voice, categories) → `POST /guilds`
+- [x] **LNG-GLD-002** [BE] Create guild (default @everyone, #general, General voice, categories) → `POST /guilds`
 - [ ] **LNG-GLD-003** [BE] Create from template (built-in + Discord-compatible template JSON)
-- [ ] **LNG-GLD-004** [BE] Get/modify/delete guild; owner transfer
+- [x] **LNG-GLD-004** [BE] Get/modify/delete guild; owner transfer
 - [ ] **LNG-GLD-005** [BE] Member list/search/get/modify (nick, roles, timeout, voice mute/deaf/move), kick, prune (dry-run count)
 - [ ] **LNG-GLD-006** [BE] Bans (create with delete-message-seconds, list, remove), bulk ban
-- [ ] **LNG-GLD-007** [BE] Roles CRUD, positions, hierarchy enforcement (can't manage roles ≥ own top role)
+- [x] **LNG-GLD-007** [BE] Roles CRUD, positions, hierarchy enforcement (can't manage roles ≥ own top role)
 - [ ] **LNG-GLD-008** [BE] Guild member join/leave pipeline (system message, welcome screen, onboarding, membership screening `pending`)
 - [ ] **LNG-GLD-009** [GW] GUILD_CREATE (lazy), GUILD_UPDATE, GUILD_DELETE, GUILD_MEMBER_ADD/UPDATE/REMOVE, GUILD_ROLE_*, GUILD_BAN_*
 - [ ] **LNG-GLD-010** [GW] Lazy member list (op 102 ranges → GUILD_MEMBER_LIST_UPDATE ops SYNC/INSERT/UPDATE/DELETE)
@@ -40,8 +40,8 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 
 ## LNG-CHN — Channels
 - [x] **LNG-CHN-001** [DB] channels, permission_overwrites, channel_recipients migrations
-- [ ] **LNG-CHN-002** [BE] Create/modify/delete channel (all types), position updates (bulk), sync permissions with category
-- [ ] **LNG-CHN-003** [BE] Permission overwrite CRUD + effective-permission computation per member
+- [x] **LNG-CHN-002** [BE] Create/modify/delete channel (all types), position updates (bulk), sync permissions with category
+- [x] **LNG-CHN-003** [BE] Permission overwrite CRUD + effective-permission computation per member
 - [ ] **LNG-CHN-004** [BE] Announcement channels: follow (creates webhook in target), crosspost/publish, auto-publish feature hook
 - [ ] **LNG-CHN-005** [BE] Slowmode (rate_limit_per_user) enforcement with bypass permissions
 - [ ] **LNG-CHN-006** [BE] NSFW / age-restricted channel gate (D-032)

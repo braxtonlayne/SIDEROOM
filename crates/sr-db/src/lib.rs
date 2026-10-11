@@ -9,14 +9,15 @@ pub mod accounts;
 pub mod auth_repo;
 pub mod chat_repo;
 mod error;
+mod guild_admin_repo;
 pub mod jobs;
 pub mod lock;
 pub mod partitions;
 mod pool;
 pub mod registration;
 pub mod runner;
-pub mod social_repo;
 pub mod settings_repo;
+pub mod social_repo;
 mod tx;
 
 pub use error::{DbError, DbResult};

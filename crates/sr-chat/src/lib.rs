@@ -5,6 +5,9 @@
 //! (time is passed in). [`service::ChatService`] glues them to the repository
 //! traits in [`repo`]; Postgres implementations live in `sr-db`.
 
+pub mod admin_repo;
+pub mod admin_rules;
+pub mod admin_service;
 pub mod channel_rules;
 pub mod domain;
 pub mod error;
@@ -15,14 +18,17 @@ pub mod perms;
 pub mod repo;
 pub mod role_rules;
 pub mod service;
-pub mod social;
 pub mod settings;
+pub mod social;
 
 #[cfg(test)]
-mod memory;
+mod admin_tests;
+#[cfg(any(test, feature = "memory"))]
+pub mod memory;
 #[cfg(test)]
 mod service_tests;
 
+pub use admin_repo::{Ban, GuildAdminRepository};
 pub use domain::*;
 pub use error::{ChatError, ChatResult, RepoError};
 pub use limits::ChatLimits;

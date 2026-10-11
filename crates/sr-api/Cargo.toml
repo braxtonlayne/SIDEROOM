@@ -36,5 +36,6 @@ zxcvbn = "3"
 
 [dev-dependencies]
 bytes = "1"
+sr-chat = { path = "../sr-chat", features = ["memory"] }
 http-body-util = "0.1"
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "sync"] }

@@ -1,13 +1,14 @@
 //! In-memory repository used by the service tests.
 
+use crate::admin_repo::{Ban, GuildAdminRepository};
 use crate::domain::{Channel, Guild, Member, Message, Role};
 use crate::error::RepoError;
 use crate::guild_rules::GuildBlueprint;
 use crate::message_rules::{DeletePlan, EditPlan};
 use crate::repo::{ChannelRepository, GuildRepository, MessageRepository, RepoResult};
 use async_trait::async_trait;
-use sr_core::permissions::Overwrite;
-use sr_core::{ChannelId, GuildId, MessageId, RoleId, UserId};
+use sr_core::permissions::{Overwrite, OverwriteKind};
+use sr_core::{ChannelId, GuildId, MessageId, RoleId, Snowflake, UserId};
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 
@@ -23,11 +24,13 @@ pub struct Store {
     pub history: Vec<(MessageId, String)>,
     pub pins: HashSet<(ChannelId, MessageId)>,
     pub sent_at: HashMap<(ChannelId, UserId), i64>,
+    pub bans: Vec<Ban>,
 }
 
-#[derive(Default)]
+/// Cloning shares the same store, so tests can keep a handle while the service owns a clone.
+#[derive(Default, Clone)]
 pub struct MemoryRepo {
-    pub store: Mutex<Store>,
+    pub store: std::sync::Arc<Mutex<Store>>,
 }
 
 impl MemoryRepo {
@@ -252,5 +255,180 @@ impl MessageRepository for MemoryRepo {
             m.pinned = pinned;
         }
         Ok(())
+    }
+}
+
+#[async_trait]
+impl GuildAdminRepository for MemoryRepo {
+    async fn update_guild(&self, guild: &Guild) -> RepoResult<()> {
+        self.lock()?.guilds.insert(guild.id, guild.clone());
+        Ok(())
+    }
+
+    async fn delete_guild(&self, id: GuildId) -> RepoResult<()> {
+        let mut s = self.lock()?;
+        s.guilds.remove(&id);
+        s.members.retain(|m| m.guild_id != id);
+        s.roles.retain(|r| r.guild_id != id);
+        s.channels.retain(|_, c| c.guild_id != Some(id));
+        s.bans.retain(|b| b.guild_id != id);
+        Ok(())
+    }
+
+    async fn list_user_guilds(&self, user: UserId) -> RepoResult<Vec<Guild>> {
+        let s = self.lock()?;
+        let mut out: Vec<Guild> = s
+            .members
+            .iter()
+            .filter(|m| m.user_id == user)
+            .filter_map(|m| s.guilds.get(&m.guild_id).cloned())
+            .collect();
+        out.sort_by_key(|g| g.id);
+        Ok(out)
+    }
+
+    async fn list_members(
+        &self,
+        guild: GuildId,
+        after: Option<UserId>,
+        limit: usize,
+    ) -> RepoResult<Vec<Member>> {
+        let mut out: Vec<Member> = self
+            .lock()?
+            .members
+            .iter()
+            .filter(|m| m.guild_id == guild && after.is_none_or(|a| m.user_id > a))
+            .cloned()
+            .collect();
+        out.sort_by_key(|m| m.user_id);
+        out.truncate(limit);
+        Ok(out)
+    }
+
+    async fn update_member(&self, member: &Member) -> RepoResult<()> {
+        let mut s = self.lock()?;
+        if let Some(m) = s
+            .members
+            .iter_mut()
+            .find(|m| m.guild_id == member.guild_id && m.user_id == member.user_id)
+        {
+            *m = member.clone();
+        }
+        Ok(())
+    }
+
+    async fn remove_member(&self, guild: GuildId, user: UserId) -> RepoResult<()> {
+        self.lock()?
+            .members
+            .retain(|m| !(m.guild_id == guild && m.user_id == user));
+        Ok(())
+    }
+
+    async fn set_role_positions(
+        &self,
+        guild: GuildId,
+        positions: &[(RoleId, i32)],
+    ) -> RepoResult<()> {
+        let mut s = self.lock()?;
+        for (id, pos) in positions {
+            if let Some(r) = s
+                .roles
+                .iter_mut()
+                .find(|r| r.id == *id && r.guild_id == guild)
+            {
+                r.position = *pos;
+            }
+        }
+        Ok(())
+    }
+
+    async fn update_channel_layout(&self, channels: &[Channel]) -> RepoResult<()> {
+        let mut s = self.lock()?;
+        for c in channels {
+            if let Some(cur) = s.channels.get_mut(&c.id) {
+                cur.position = c.position;
+                cur.parent_id = c.parent_id;
+            }
+        }
+        Ok(())
+    }
+
+    async fn put_overwrite(&self, channel: ChannelId, overwrite: &Overwrite) -> RepoResult<()> {
+        let mut s = self.lock()?;
+        let list = s.overwrites.entry(channel).or_default();
+        list.retain(|o| !(o.id == overwrite.id && o.kind == overwrite.kind));
+        list.push(*overwrite);
+        Ok(())
+    }
+
+    async fn delete_overwrite(
+        &self,
+        channel: ChannelId,
+        target: Snowflake,
+        kind: OverwriteKind,
+    ) -> RepoResult<()> {
+        if let Some(list) = self.lock()?.overwrites.get_mut(&channel) {
+            list.retain(|o| !(o.id == target && o.kind == kind));
+        }
+        Ok(())
+    }
+
+    async fn replace_overwrites(
+        &self,
+        channel: ChannelId,
+        overwrites: &[Overwrite],
+    ) -> RepoResult<()> {
+        self.lock()?.overwrites.insert(channel, overwrites.to_vec());
+        Ok(())
+    }
+
+    async fn insert_ban(&self, ban: &Ban) -> RepoResult<()> {
+        let mut s = self.lock()?;
+        s.members
+            .retain(|m| !(m.guild_id == ban.guild_id && m.user_id == ban.user_id));
+        s.bans
+            .retain(|b| !(b.guild_id == ban.guild_id && b.user_id == ban.user_id));
+        s.bans.push(ban.clone());
+        Ok(())
+    }
+
+    async fn delete_ban(&self, guild: GuildId, user: UserId) -> RepoResult<bool> {
+        let mut s = self.lock()?;
+        let before = s.bans.len();
+        s.bans
+            .retain(|b| !(b.guild_id == guild && b.user_id == user));
+        Ok(s.bans.len() != before)
+    }
+
+    async fn get_ban(&self, guild: GuildId, user: UserId) -> RepoResult<Option<Ban>> {
+        Ok(self
+            .lock()?
+            .bans
+            .iter()
+            .find(|b| b.guild_id == guild && b.user_id == user)
+            .cloned())
+    }
+
+    async fn list_bans(
+        &self,
+        guild: GuildId,
+        before: Option<UserId>,
+        after: Option<UserId>,
+        limit: usize,
+    ) -> RepoResult<Vec<Ban>> {
+        let mut out: Vec<Ban> = self
+            .lock()?
+            .bans
+            .iter()
+            .filter(|b| {
+                b.guild_id == guild
+                    && before.is_none_or(|x| b.user_id < x)
+                    && after.is_none_or(|x| b.user_id > x)
+            })
+            .cloned()
+            .collect();
+        out.sort_by_key(|b| b.user_id);
+        out.truncate(limit);
+        Ok(out)
     }
 }
