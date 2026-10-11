@@ -6,6 +6,7 @@ pub mod app;
 pub mod backends;
 pub mod features_store;
 pub mod gateway_pg;
+pub mod jobs;
 pub mod ready;
 
 /// The OpenAPI document served at `/api/v1/openapi.json` and printed by
