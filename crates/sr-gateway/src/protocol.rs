@@ -49,6 +49,8 @@ pub mod close {
     pub const AUTHENTICATION_FAILED: u16 = 4004;
     pub const ALREADY_AUTHENTICATED: u16 = 4005;
     pub const SESSION_TIMED_OUT: u16 = 4009;
+    /// More than 120 client ops within 60 s on one connection.
+    pub const RATE_LIMITED: u16 = 4008;
     pub const INVALID_INTENTS: u16 = 4013;
     pub const DISALLOWED_INTENTS: u16 = 4014;
 }

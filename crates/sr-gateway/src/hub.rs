@@ -2,6 +2,7 @@
 //! driven fan-out with per-recipient permission filtering, presence, typing.
 
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::time::Duration;
@@ -14,11 +15,16 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
 
-use crate::protocol::PresenceUpdate;
+use crate::protocol::{PresenceUpdate, intents};
 use crate::session::{Out, Session};
-use crate::traits::{AuthedUser, Authenticator, GuildDirectory};
+use crate::traits::{AuthedUser, Authenticator, GuildDirectory, OpHandler};
 
-#[derive(Debug, Clone)]
+/// Discord's default `large_threshold`: guilds at or above it get no initial presences.
+pub const LARGE_THRESHOLD_DEFAULT: u64 = 50;
+/// Discord's maximum `large_threshold`.
+pub const LARGE_THRESHOLD_MAX: u64 = 250;
+
+#[derive(Clone)]
 pub struct GatewayConfig {
     /// Sent in HELLO. Docs/05 6.4: 41250 ms.
     pub heartbeat_interval: Duration,
@@ -33,6 +39,31 @@ pub struct GatewayConfig {
     pub typing_ttl: Duration,
     /// Period of the background expiry sweep.
     pub sweep_interval: Duration,
+    /// GUILD_CREATE carries `presences` only for guilds with fewer members than this
+    /// (clamped to [`LARGE_THRESHOLD_MAX`]).
+    pub large_threshold: u64,
+    /// `Origin` values allowed to authenticate with the `sr_session` cookie.
+    /// Empty disables cookie authentication.
+    pub allowed_origins: Vec<String>,
+    /// Handlers for client opcodes the gateway does not implement itself.
+    pub handlers: Vec<Arc<dyn OpHandler>>,
+}
+
+impl fmt::Debug for GatewayConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("GatewayConfig")
+            .field("heartbeat_interval", &self.heartbeat_interval)
+            .field("heartbeat_grace", &self.heartbeat_grace)
+            .field("resume_window", &self.resume_window)
+            .field("resume_buffer", &self.resume_buffer)
+            .field("resume_gateway_url", &self.resume_gateway_url)
+            .field("typing_ttl", &self.typing_ttl)
+            .field("sweep_interval", &self.sweep_interval)
+            .field("large_threshold", &self.large_threshold)
+            .field("allowed_origins", &self.allowed_origins)
+            .field("handlers", &self.handlers.len())
+            .finish()
+    }
 }
 
 impl Default for GatewayConfig {
@@ -45,6 +76,9 @@ impl Default for GatewayConfig {
             resume_gateway_url: None,
             typing_ttl: Duration::from_secs(10),
             sweep_interval: Duration::from_secs(15),
+            large_threshold: LARGE_THRESHOLD_DEFAULT,
+            allowed_origins: Vec::new(),
+            handlers: Vec::new(),
         }
     }
 }
@@ -54,7 +88,12 @@ struct State {
     sessions: HashMap<String, Arc<Session>>,
     by_guild: HashMap<GuildId, HashSet<String>>,
     guild_tasks: HashMap<GuildId, JoinHandle<()>>,
+    /// One `Topic::User` subscription per connected user (DM and self events).
+    user_tasks: HashMap<UserId, JoinHandle<()>>,
+    /// The user's chosen status (op 3 / IDENTIFY). Visible only while online.
     presence: HashMap<UserId, PresenceUpdate>,
+    /// Users with at least one attached socket.
+    online: HashSet<UserId>,
     typing: HashMap<(ChannelId, UserId), Instant>,
     background: Vec<JoinHandle<()>>,
 }
@@ -114,22 +153,50 @@ fn passthrough(name: &'static str, payload: &Value, channel: Option<ChannelId>) 
     }
 }
 
+/// Per-session view of a dispatch. Without `MESSAGE_CONTENT` a bot sees message
+/// content, embeds, attachments, components and polls only for DMs, messages that
+/// mention it, and its own messages (Discord rule, docs/05 section 6.2).
+fn redact_for(session: &Session, name: &str, data: &Value) -> Option<Value> {
+    if !matches!(name, "MESSAGE_CREATE" | "MESSAGE_UPDATE")
+        || session.intents & intents::MESSAGE_CONTENT != 0
+    {
+        return None;
+    }
+    let me = session.user.to_string();
+    let is_dm = data.get("guild_id").is_none_or(Value::is_null);
+    let own = data.pointer("/author/id").and_then(Value::as_str) == Some(me.as_str());
+    let mentioned = data
+        .get("mentions")
+        .and_then(Value::as_array)
+        .is_some_and(|m| {
+            m.iter()
+                .any(|u| u.get("id").and_then(Value::as_str) == Some(me.as_str()))
+        });
+    if is_dm || own || mentioned {
+        return None;
+    }
+    let mut v = data.clone();
+    if let Some(o) = v.as_object_mut() {
+        o.insert("content".into(), json!(""));
+        for k in ["embeds", "attachments", "components"] {
+            o.insert(k.into(), json!([]));
+        }
+        o.remove("poll");
+    }
+    Some(v)
+}
+
+/// Deliver `data` to one session, redacted for its intents.
+fn deliver_to(session: &Session, name: &str, data: &Value) {
+    match redact_for(session, name, data) {
+        Some(v) => session.deliver(name, v),
+        None => session.deliver(name, data.clone()),
+    }
+}
+
 fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
     Some(match ev {
-        DomainEvent::MessageCreated {
-            guild,
-            channel,
-            message_id,
-            author,
-        } => Dispatch {
-            name: "MESSAGE_CREATE",
-            data: json!({
-                "id": message_id.to_string(), "channel_id": channel, "guild_id": guild,
-                "author": { "id": author },
-            }),
-            channel: Some(*channel),
-        },
-        // Full-payload message family (REST originated).
+        // The message family is full-payload (Discord shaped), built by the producer.
         DomainEvent::MessageSent { channel, data, .. } => Dispatch {
             name: "MESSAGE_CREATE",
             data: data.clone(),
@@ -239,16 +306,7 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
             }),
             channel: Some(*channel),
         },
-        DomainEvent::ChannelCreated { guild, channel } => Dispatch {
-            name: "CHANNEL_CREATE",
-            data: json!({ "id": channel, "guild_id": guild }),
-            channel: Some(*channel),
-        },
-        DomainEvent::MemberJoined { guild, user } => Dispatch {
-            name: "GUILD_MEMBER_ADD",
-            data: json!({ "guild_id": guild, "user": { "id": user } }),
-            channel: None,
-        },
+        DomainEvent::MemberJoined { payload, .. } => passthrough("GUILD_MEMBER_ADD", payload, None),
         DomainEvent::MemberLeft { guild, user } => Dispatch {
             name: "GUILD_MEMBER_REMOVE",
             data: json!({ "guild_id": guild, "user": { "id": user } }),
@@ -340,6 +398,9 @@ impl Gateway {
         for (_, h) in st.guild_tasks.drain() {
             h.abort();
         }
+        for (_, h) in st.user_tasks.drain() {
+            h.abort();
+        }
     }
 
     pub(crate) fn next_conn_id(&self) -> u64 {
@@ -378,7 +439,7 @@ impl Gateway {
         let guilds = self.inner.dir.guilds_for_user(user.user_id).await;
         let mut payloads = Vec::with_capacity(guilds.len());
         for g in &guilds {
-            payloads.push(self.inner.dir.guild_payload(user.user_id, *g).await);
+            payloads.push(self.guild_create_body(user.user_id, *g).await);
         }
         let extras = self.inner.dir.ready_extras(user.user_id).await;
         let session = Arc::new(Session::new(
@@ -390,11 +451,18 @@ impl Gateway {
             conn_id,
             tx,
         ));
+        let mut sessions: Vec<Value> = self
+            .user_sessions(user.user_id)
+            .iter()
+            .map(|s| session_entry(s))
+            .collect();
+        sessions.push(session_entry(&session));
         let mut ready = json!({
             "v": 1,
             "user": user.user,
             "guilds": guilds.iter().map(|g| json!({"id": g, "unavailable": true})).collect::<Vec<_>>(),
             "session_id": session.id,
+            "sessions": sessions,
             "resume_gateway_url": cfg.resume_gateway_url,
         });
         if let (Some(r), Some(e)) = (ready.as_object_mut(), extras.as_object()) {
@@ -409,7 +477,7 @@ impl Gateway {
         for g in &guilds {
             session.add_guild(*g);
         }
-        let first = {
+        {
             let mut st = self.st();
             st.sessions.insert(session.id.clone(), session.clone());
             for g in &guilds {
@@ -419,13 +487,39 @@ impl Gateway {
                     .insert(session.id.clone());
                 self.ensure_guild_task(&mut st, *g);
             }
-            !st.presence.contains_key(&user.user_id)
-        };
-        if first {
-            self.apply_presence(user.user_id, PresenceUpdate::default())
-                .await;
+            self.ensure_user_task(&mut st, user.user_id);
         }
+        self.refresh_presence(user.user_id, false).await;
         session
+    }
+
+    /// GUILD_CREATE body: the directory's payload plus initial `presences` when the
+    /// guild is below `large_threshold` (Q53).
+    async fn guild_create_body(&self, user: UserId, guild: GuildId) -> Value {
+        let mut body = self.inner.dir.guild_payload(user, guild).await;
+        let threshold = self.inner.cfg.large_threshold.min(LARGE_THRESHOLD_MAX);
+        let members: Vec<UserId> = match body.get("members").and_then(Value::as_array) {
+            Some(m) if (m.len() as u64) < threshold => m
+                .iter()
+                .filter_map(|m| m.pointer("/user/id")?.as_str()?.parse::<u64>().ok())
+                .map(UserId::new)
+                .collect(),
+            _ => return body,
+        };
+        let presences: Vec<Value> = {
+            let st = self.st();
+            members
+                .into_iter()
+                .filter_map(|u| {
+                    let p = Self::effective(&st, u)?;
+                    (p.visible_status() != "offline").then(|| presence_body(u, guild, &p))
+                })
+                .collect()
+        };
+        if let Some(obj) = body.as_object_mut() {
+            obj.insert("presences".into(), Value::Array(presences));
+        }
+        body
     }
 
     /// Look up a resumable session for `user`.
@@ -445,14 +539,49 @@ impl Gateway {
             tokio::spawn(async move {
                 while let Some(ev) = stream.next().await {
                     let Some(inner) = weak.upgrade() else { break };
-                    if let Some(d) = to_dispatch(&ev) {
-                        Gateway { inner }
-                            .dispatch_guild(g, d.name, d.data, d.channel)
-                            .await;
-                    }
+                    Gateway { inner }.on_guild_event(g, ev).await;
                 }
             }),
         );
+    }
+
+    /// One `Topic::User` subscription per connected user: DM events and self events.
+    fn ensure_user_task(&self, st: &mut State, user: UserId) {
+        if st.user_tasks.contains_key(&user) {
+            return;
+        }
+        let mut stream = self.inner.bus.subscribe(Topic::User(user));
+        let weak: Weak<Inner> = Arc::downgrade(&self.inner);
+        st.user_tasks.insert(
+            user,
+            tokio::spawn(async move {
+                while let Some(ev) = stream.next().await {
+                    let Some(inner) = weak.upgrade() else { break };
+                    Gateway { inner }.on_user_event(user, ev).await;
+                }
+            }),
+        );
+    }
+
+    async fn on_guild_event(&self, guild: GuildId, ev: DomainEvent) {
+        self.note_typing(&ev);
+        if let Some(d) = to_dispatch(&ev) {
+            self.dispatch_guild(guild, d.name, d.data, d.channel).await;
+        }
+    }
+
+    async fn on_user_event(&self, user: UserId, ev: DomainEvent) {
+        self.note_typing(&ev);
+        if let Some(d) = to_dispatch(&ev) {
+            self.dispatch_user(user, d.name, d.data).await;
+        }
+    }
+
+    /// Typing is recorded from the bus event, so REST and gateway paths converge.
+    fn note_typing(&self, ev: &DomainEvent) {
+        if let DomainEvent::TypingStarted { channel, user, .. } = ev {
+            self.st().typing.insert((*channel, *user), Instant::now());
+        }
     }
 
     fn drop_guild_if_empty(st: &mut State, g: GuildId) {
@@ -475,7 +604,7 @@ impl Gateway {
 
     /// Remove a session and update presence; used by expiry.
     async fn remove_session(&self, s: &Arc<Session>) {
-        let last = {
+        {
             let mut st = self.st();
             st.sessions.remove(&s.id);
             for g in s.guilds() {
@@ -484,19 +613,15 @@ impl Gateway {
                 }
                 Self::drop_guild_if_empty(&mut st, g);
             }
-            let last = !st.sessions.values().any(|o| o.user == s.user);
-            if last {
+            if !st.sessions.values().any(|o| o.user == s.user) {
                 st.presence.remove(&s.user);
-            }
-            last
-        };
-        if last {
-            let upd = PresenceUpdate::offline();
-            for g in s.guilds() {
-                self.dispatch_guild(g, "PRESENCE_UPDATE", presence_body(s.user, g, &upd), None)
-                    .await;
+                if let Some(h) = st.user_tasks.remove(&s.user) {
+                    h.abort();
+                }
             }
         }
+        // Expiry only follows a detach, so the user was already marked offline.
+        self.refresh_presence(s.user, false).await;
     }
 
     /// Drop sessions whose resume window elapsed and prune typing state.
@@ -563,7 +688,16 @@ impl Gateway {
         };
         for s in targets {
             if allowed.get(&s.user).copied().unwrap_or(false) {
-                s.deliver(name, data.clone());
+                deliver_to(&s, name, &data);
+            }
+        }
+    }
+
+    /// Deliver to every session of `user` (DM and self events; no guild check).
+    pub(crate) async fn dispatch_user(&self, user: UserId, name: &str, data: Value) {
+        for s in self.user_sessions(user) {
+            if s.wants(name) {
+                deliver_to(&s, name, &data);
             }
         }
     }
@@ -572,7 +706,7 @@ impl Gateway {
     async fn handle_platform(&self, ev: DomainEvent) {
         match ev {
             DomainEvent::GuildCreated { guild, owner: user }
-            | DomainEvent::MemberJoined { guild, user } => self.join_user(user, guild).await,
+            | DomainEvent::MemberJoined { guild, user, .. } => self.join_user(user, guild).await,
             DomainEvent::MemberLeft { guild, user } => self.leave_user(user, guild),
             DomainEvent::GuildDeleted { guild } => self.drop_guild(guild),
             _ => {}
@@ -584,7 +718,7 @@ impl Gateway {
         if sessions.is_empty() {
             return;
         }
-        let payload = self.inner.dir.guild_payload(user, guild).await;
+        let payload = self.guild_create_body(user, guild).await;
         let mut st = self.st();
         for s in sessions {
             if s.add_guild(guild) {
@@ -627,41 +761,66 @@ impl Gateway {
 
     // ---- presence & typing (memory only) -----------------------------------
 
-    /// Current presence, if the user has any live or resumable session.
+    /// What other users see for `user`: `None` without any live or resumable session,
+    /// `offline` without an attached socket, otherwise the chosen status.
     pub fn presence(&self, user: UserId) -> Option<PresenceUpdate> {
-        self.st().presence.get(&user).cloned()
+        Self::effective(&self.st(), user)
     }
 
-    /// Op 3 / API entry point: set presence and broadcast to the user's guilds.
+    /// Op 3 / API entry point: store the chosen status and broadcast it while online.
     pub async fn set_presence(&self, user: UserId, update: PresenceUpdate) {
-        self.apply_presence(user, update).await;
+        self.st().presence.insert(user, update);
+        self.refresh_presence(user, true).await;
     }
 
-    async fn apply_presence(&self, user: UserId, update: PresenceUpdate) {
-        self.st().presence.insert(user, update.clone());
-        let guilds: HashSet<GuildId> = self
-            .user_sessions(user)
-            .iter()
-            .flat_map(|s| s.guilds())
-            .collect();
-        for g in guilds {
-            self.dispatch_guild(g, "PRESENCE_UPDATE", presence_body(user, g, &update), None)
-                .await;
+    fn effective(st: &State, user: UserId) -> Option<PresenceUpdate> {
+        if !st.sessions.values().any(|s| s.user == user) {
+            return None;
+        }
+        Some(if st.online.contains(&user) {
+            st.presence.get(&user).cloned().unwrap_or_default()
+        } else {
+            PresenceUpdate::offline()
+        })
+    }
+
+    /// Recompute whether `user` has an attached socket and broadcast the effective
+    /// presence on a transition (or always when `force`). Offline is immediate when
+    /// the last socket closes; the resume buffer does not keep the user online.
+    pub(crate) async fn refresh_presence(&self, user: UserId, force: bool) {
+        let (changed, update, guilds) = {
+            let mut st = self.st();
+            let online = st
+                .sessions
+                .values()
+                .any(|s| s.user == user && s.is_attached());
+            let was = st.online.contains(&user);
+            if online {
+                st.online.insert(user);
+            } else {
+                st.online.remove(&user);
+            }
+            let guilds: HashSet<GuildId> = st
+                .sessions
+                .values()
+                .filter(|s| s.user == user)
+                .flat_map(|s| s.guilds())
+                .collect();
+            (online != was, Self::effective(&st, user), guilds)
+        };
+        let Some(update) = update else { return };
+        if changed || force {
+            for g in guilds {
+                self.dispatch_guild(g, "PRESENCE_UPDATE", presence_body(user, g, &update), None)
+                    .await;
+            }
         }
     }
 
-    /// Record a typing indicator and broadcast `TYPING_START` to guild members
-    /// who can view the channel. (REST `POST /channels/{id}/typing` calls this.)
-    pub async fn typing_start(&self, user: UserId, guild: GuildId, channel: ChannelId) {
-        self.st().typing.insert((channel, user), Instant::now());
-        let ts = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.as_secs());
-        let data = json!({
-            "channel_id": channel, "guild_id": guild, "user_id": user, "timestamp": ts,
-        });
-        self.dispatch_guild(guild, "TYPING_START", data, Some(channel))
-            .await;
+    /// The socket of `session` closed (or was taken over). Marks the user offline
+    /// when it was their last attached socket.
+    pub(crate) async fn session_detached(&self, session: &Session) {
+        self.refresh_presence(session.user, false).await;
     }
 
     /// Users currently typing in `channel` (TTL not yet elapsed).
@@ -675,6 +834,16 @@ impl Gateway {
             .map(|((_, u), _)| *u)
             .collect()
     }
+}
+
+/// One entry of READY's `sessions` array.
+fn session_entry(s: &Session) -> Value {
+    let active = s.is_attached();
+    json!({
+        "session_id": s.id,
+        "status": if active { "online" } else { "offline" },
+        "active": active,
+    })
 }
 
 fn presence_body(user: UserId, guild: GuildId, p: &PresenceUpdate) -> Value {

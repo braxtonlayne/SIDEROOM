@@ -17,10 +17,11 @@ pub mod ws;
 
 pub use compress::Compression;
 pub use conn::{ConnectParams, Frame, run_connection};
-pub use hub::{Gateway, GatewayConfig};
+pub use hub::{Gateway, GatewayConfig, LARGE_THRESHOLD_DEFAULT, LARGE_THRESHOLD_MAX};
 pub use protocol::{Identify, Payload, PresenceUpdate, Resume, close, intents, op};
-pub use traits::{AuthError, AuthedUser, Authenticator, GuildDirectory};
-pub use ws::{GatewayQuery, gateway_handler, routes};
+pub use session::SessionHandle;
+pub use traits::{AuthError, AuthedUser, Authenticator, GuildDirectory, OpHandler};
+pub use ws::{GatewayQuery, SESSION_COOKIE, gateway_handler, routes};
 
 #[cfg(test)]
 mod tests;

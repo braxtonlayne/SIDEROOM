@@ -5,6 +5,8 @@ use serde_json::{Value, json};
 use sr_core::{ChannelId, GuildId, UserId};
 use thiserror::Error;
 
+use crate::session::SessionHandle;
+
 #[derive(Debug, Error)]
 pub enum AuthError {
     #[error("invalid token")]
@@ -28,6 +30,25 @@ pub struct AuthedUser {
 pub trait Authenticator: Send + Sync {
     /// Resolve a gateway token (bot token or user session token).
     async fn authenticate(&self, token: &str) -> Result<AuthedUser, AuthError>;
+
+    /// Resolve a browser `sr_session` cookie value. Used only when IDENTIFY or
+    /// RESUME carries an empty token, the upgrade request has the cookie, and
+    /// its `Origin` is in [`crate::GatewayConfig::allowed_origins`]. Default: refuse.
+    async fn authenticate_session_cookie(&self, _cookie: &str) -> Result<AuthedUser, AuthError> {
+        Err(AuthError::Invalid)
+    }
+}
+
+/// A pluggable handler for client opcodes the gateway does not implement itself
+/// (voice, member requests, watch parties, E2EE). Registered in
+/// [`crate::GatewayConfig::handlers`]. Opcodes no handler claims are ignored.
+#[async_trait]
+pub trait OpHandler: Send + Sync {
+    /// Opcodes this handler wants.
+    fn ops(&self) -> &[u8];
+
+    /// Called once per matching client op from an authenticated session.
+    async fn handle(&self, session: &SessionHandle, op: u8, d: Value);
 }
 
 /// Guild membership and visibility lookups. The permission decision

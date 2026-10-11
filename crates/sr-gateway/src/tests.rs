@@ -8,7 +8,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use serde_json::{Value, json};
 use sr_core::{ChannelId, GuildId, UserId};
-use sr_events::{DomainEvent, EventBus, InProcessBus};
+use sr_events::{DomainEvent, EventBus, InProcessBus, Topic};
 use tokio::sync::mpsc;
 
 use crate::*;
@@ -61,6 +61,10 @@ impl Authenticator for FakeAuth {
             _ => Err(AuthError::Invalid),
         }
     }
+
+    async fn authenticate_session_cookie(&self, cookie: &str) -> Result<AuthedUser, AuthError> {
+        self.authenticate(&format!("user:{cookie}")).await
+    }
 }
 
 struct Env {
@@ -96,11 +100,16 @@ async fn emit(bus: &InProcessBus, ev: DomainEvent) {
 }
 
 fn msg(guild: GuildId, channel: ChannelId, id: u64) -> DomainEvent {
-    DomainEvent::MessageCreated {
+    DomainEvent::MessageSent {
         guild: Some(guild),
         channel,
         message_id: id,
         author: u(1),
+        data: json!({
+            "id": id.to_string(), "channel_id": channel.to_string(),
+            "guild_id": guild.to_string(), "author": { "id": "1" },
+            "content": "hello", "mentions": [],
+        }),
     }
 }
 
@@ -122,7 +131,10 @@ impl Client {
         let (out_tx, rx) = mpsc::channel(256);
         tokio::spawn(run_connection(
             gw.clone(),
-            ConnectParams { compression },
+            ConnectParams {
+                compression,
+                ..Default::default()
+            },
             in_rx,
             out_tx,
         ));
@@ -352,6 +364,7 @@ async fn membership_changes_update_subscriptions() {
         DomainEvent::MemberJoined {
             guild: G1,
             user: u(5),
+            payload: json!({ "guild_id": "1", "user": { "id": "5" } }),
         },
     )
     .await;
@@ -546,7 +559,16 @@ async fn typing_is_filtered_and_expires() {
     let mut b = connect(&e);
     b.identify("bot:2", all, 1).await;
 
-    e.gw.typing_start(u(1), G1, SECRET).await;
+    emit(
+        &e.bus,
+        DomainEvent::TypingStarted {
+            guild: Some(G1),
+            channel: SECRET,
+            user: u(1),
+            timestamp: 0,
+        },
+    )
+    .await;
     let t = a.expect_event("TYPING_START").await;
     assert_eq!(t["d"]["user_id"], "1");
     assert_eq!(t["d"]["channel_id"], "11");
@@ -705,4 +727,178 @@ async fn guild_admin_events_dispatch_their_payload_objects() {
     )
     .await;
     hidden.silent().await;
+}
+
+#[tokio::test]
+async fn dm_events_reach_only_the_recipient_user_topic() {
+    let e = env();
+    let mut a = connect(&e);
+    a.identify("user:1", 0, 1).await;
+    let mut b = connect(&e);
+    b.identify("user:2", 0, 1).await;
+    settle().await;
+    a.drain().await;
+    b.drain().await;
+    let dm = DomainEvent::MessageSent {
+        guild: None,
+        channel: OPEN,
+        message_id: 9,
+        author: u(2),
+        data: json!({ "id": "9", "channel_id": "10", "author": { "id": "2" }, "content": "hi" }),
+    };
+    e.bus.publish(Topic::User(u(1)), dm).await.unwrap();
+    assert_eq!(a.expect_event("MESSAGE_CREATE").await["d"]["id"], "9");
+    b.silent().await;
+}
+
+#[tokio::test]
+async fn closing_the_last_socket_goes_offline_immediately() {
+    let e = env();
+    let mut a = connect(&e);
+    a.identify("user:1", 0, 1).await;
+    let mut b = connect(&e);
+    b.identify("user:2", 0, 1).await;
+    settle().await;
+    a.drain().await;
+    b.drain().await;
+    drop(a);
+    let p = b.expect_event("PRESENCE_UPDATE").await;
+    assert_eq!(p["d"]["user"]["id"], "1");
+    assert_eq!(p["d"]["status"], "offline");
+    // Still resumable, but no longer online.
+    assert_eq!(e.gw.session_count(), 2);
+    assert_eq!(e.gw.presence(u(1)).unwrap().status, "offline");
+}
+
+#[tokio::test]
+async fn bots_without_message_content_see_stripped_messages() {
+    let e = env();
+    let mut c = connect(&e);
+    c.identify("bot:1", GUILDS_MSGS, 1).await;
+    let base = json!({
+        "id": "5", "channel_id": "10", "guild_id": "1", "author": { "id": "2" },
+        "content": "secret", "embeds": [{ "title": "x" }], "attachments": [{ "id": "9" }],
+        "mentions": [],
+    });
+    emit(
+        &e.bus,
+        DomainEvent::MessageSent {
+            guild: Some(G1),
+            channel: OPEN,
+            message_id: 5,
+            author: u(2),
+            data: base.clone(),
+        },
+    )
+    .await;
+    let m = c.expect_event("MESSAGE_CREATE").await;
+    assert_eq!(m["d"]["content"], "");
+    assert_eq!(m["d"]["embeds"], json!([]));
+    assert_eq!(m["d"]["attachments"], json!([]));
+
+    let mut mentioned = base;
+    mentioned["id"] = json!("6");
+    mentioned["mentions"] = json!([{ "id": "1" }]);
+    emit(
+        &e.bus,
+        DomainEvent::MessageSent {
+            guild: Some(G1),
+            channel: OPEN,
+            message_id: 6,
+            author: u(2),
+            data: mentioned,
+        },
+    )
+    .await;
+    assert_eq!(
+        c.expect_event("MESSAGE_CREATE").await["d"]["content"],
+        "secret"
+    );
+}
+
+#[tokio::test]
+async fn more_than_120_ops_per_minute_close_4008() {
+    let e = env();
+    let mut c = connect(&e);
+    c.identify("user:1", 0, 1).await;
+    for _ in 0..121 {
+        c.send(json!({"op": 1, "d": null})).await;
+    }
+    assert_eq!(c.recv_close().await, 4008);
+}
+
+fn connect_with(gw: &Gateway, params: ConnectParams) -> Client {
+    let (tx, in_rx) = mpsc::channel(64);
+    let (out_tx, rx) = mpsc::channel(256);
+    tokio::spawn(run_connection(gw.clone(), params, in_rx, out_tx));
+    Client {
+        tx,
+        rx,
+        zstd: false,
+    }
+}
+
+#[tokio::test]
+async fn cookie_auth_requires_an_allowed_origin() {
+    let e = env_with(GatewayConfig {
+        allowed_origins: vec!["https://sr.test".into()],
+        ..GatewayConfig::default()
+    });
+    let mut ok = connect_with(
+        &e.gw,
+        ConnectParams {
+            session_cookie: Some("1".into()),
+            origin: Some("https://sr.test".into()),
+            ..Default::default()
+        },
+    );
+    ok.recv().await;
+    ok.send(json!({"op": 2, "d": {"token": "", "intents": 0}}))
+        .await;
+    assert_eq!(ok.expect_event("READY").await["d"]["user"]["id"], "1");
+
+    let mut bad = connect_with(
+        &e.gw,
+        ConnectParams {
+            session_cookie: Some("1".into()),
+            origin: Some("https://evil.test".into()),
+            ..Default::default()
+        },
+    );
+    bad.recv().await;
+    bad.send(json!({"op": 2, "d": {"token": "", "intents": 0}}))
+        .await;
+    assert_eq!(bad.recv_close().await, 4004);
+}
+
+struct Echo;
+
+#[async_trait]
+impl OpHandler for Echo {
+    fn ops(&self) -> &[u8] {
+        &[100]
+    }
+    async fn handle(&self, session: &SessionHandle, op: u8, d: Value) {
+        session.deliver(
+            "ECHO",
+            json!({ "op": op, "d": d, "user": session.user().to_string() }),
+        );
+    }
+}
+
+#[tokio::test]
+async fn registered_op_handlers_receive_their_ops_only() {
+    let e = env_with(GatewayConfig {
+        handlers: vec![Arc::new(Echo) as Arc<dyn OpHandler>],
+        ..GatewayConfig::default()
+    });
+    let mut c = connect(&e);
+    c.identify("user:1", 0, 1).await;
+    c.drain().await;
+    c.send(json!({"op": 100, "d": {"x": 1}})).await;
+    let v = c.expect_event("ECHO").await;
+    assert_eq!(v["d"]["d"]["x"], 1);
+    assert_eq!(v["d"]["user"], "1");
+    c.send(json!({"op": 101, "d": null})).await;
+    c.silent().await;
 }
