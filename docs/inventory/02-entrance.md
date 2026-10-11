@@ -32,29 +32,29 @@ Phase 0. Spec: [entry-landing-and-login](../specs/entry-landing-and-login.md), d
 - [ ] **ENT-INV-010** [TEST] Concurrency test: 50 parallel redemptions at cap−1 → exactly one success
 
 ## ENT-UI — Pages
-- [ ] **ENT-UI-001** [FE] Landing header (logo, tagline, "Member access ↗")
-- [ ] **ENT-UI-002** [FE] Landing hero left: eyebrow, H1 with italic "closed.", subcopy
-- [ ] **ENT-UI-003** [FE] Invite input (key icon, auto-format, uppercase, validation, Enter submit)
-- [ ] **ENT-UI-004** [FE] "Check invitation ↗" button with loading/success/error states (shake animation)
-- [ ] **ENT-UI-005** [FE] Helper row: lock "Invitation required. Always." + "No invitation?" link
-- [ ] **ENT-UI-006** [FE] Hero right: door image, corner badge, vertical tagline, hero-foot strip + "A glimpse inside ↓" smooth scroll
-- [ ] **ENT-UI-007** [FE] Section strip "One door. *A few different worlds.*" with 3 columns (lounge/cinema/library), no Board
-- [ ] **ENT-UI-008** [FE] Footer (tagline, House notes, ©)
-- [ ] **ENT-UI-009** [FE] `/join/:code` prefill + auto-check
+- [x] **ENT-UI-001** [FE] Landing header (logo, tagline, "Member access ↗")
+- [x] **ENT-UI-002** [FE] Landing hero left: eyebrow, H1 with italic "closed.", subcopy
+- [x] **ENT-UI-003** [FE] Invite input (key icon, auto-format, uppercase, validation, Enter submit)
+- [x] **ENT-UI-004** [FE] "Check invitation ↗" button with loading/success/error states (shake animation)
+- [x] **ENT-UI-005** [FE] Helper row: lock "Invitation required. Always." + "No invitation?" link
+- [x] **ENT-UI-006** [FE] Hero right: door image, corner badge, vertical tagline, hero-foot strip + "A glimpse inside ↓" smooth scroll
+- [x] **ENT-UI-007** [FE] Section strip "One door. *A few different worlds.*" with 3 columns (lounge/cinema/library), no Board
+- [x] **ENT-UI-008** [FE] Footer (tagline, House notes, ©)
+- [x] **ENT-UI-009** [FE] `/join/:code` prefill + auto-check
 - [ ] **ENT-UI-010** [FE] `/no-invitation` and `/house-notes` static pages (operator markdown)
-- [ ] **ENT-UI-011** [FE] Register page layout (left editorial panel, right form)
-- [ ] **ENT-UI-012** [FE] Register form: email, username (live check), display name, password + strength meter, confirm, house-notes checkbox, submit
-- [ ] **ENT-UI-013** [FE] Register with Discord: OAuth start, return handling, linked chip with unlink, prefill
-- [ ] **ENT-UI-014** [FE] Login page layout per mockup (left "Good to have you *back.*", right form)
-- [ ] **ENT-UI-015** [FE] Login form: Continue with Discord, divider, username/email, password (eye), Forgot password link, "Step inside ↗"
-- [ ] **ENT-UI-016** [FE] "Use a passkey" button (feature-detect WebAuthn conditional UI)
-- [ ] **ENT-UI-017** [FE] "For people already on the list / New here? You'll need an invitation ↗" row
-- [ ] **ENT-UI-018** [FE] 2FA step page: 6-digit input auto-advance, passkey option, recovery code option, trust device
-- [ ] **ENT-UI-019** [FE] Forgot password + reset pages
+- [x] **ENT-UI-011** [FE] Register page layout (left editorial panel, right form)
+- [x] **ENT-UI-012** [FE] Register form: email, username (live check), display name, password + strength meter, confirm, house-notes checkbox, submit
+- [x] **ENT-UI-013** [FE] Register with Discord: OAuth start, return handling, linked chip with unlink, prefill
+- [x] **ENT-UI-014** [FE] Login page layout per mockup (left "Good to have you *back.*", right form)
+- [x] **ENT-UI-015** [FE] Login form: Continue with Discord, divider, username/email, password (eye), Forgot password link, "Step inside ↗"
+- [x] **ENT-UI-016** [FE] "Use a passkey" button (feature-detect WebAuthn conditional UI)
+- [x] **ENT-UI-017** [FE] "For people already on the list / New here? You'll need an invitation ↗" row
+- [x] **ENT-UI-018** [FE] 2FA step page: 6-digit input auto-advance, passkey option, recovery code option, trust device
+- [x] **ENT-UI-019** [FE] Forgot password + reset pages
 - [ ] **ENT-UI-020** [FE] Verify-email landing + "verify your email" banner in app
-- [ ] **ENT-UI-021** [FE] Lockout / rate-limit / closed-door messages
+- [x] **ENT-UI-021** [FE] Lockout / rate-limit / closed-door messages
 - [ ] **ENT-UI-022** [FE] First-run onboarding modal (theme, avatar, 2FA nudge, suggested servers)
-- [ ] **ENT-UI-023** [FE] Logged-in redirect from `/` and `/login` to last section
-- [ ] **ENT-UI-024** [FE] Responsive layouts < 900px (stacked hero, door as background)
+- [x] **ENT-UI-023** [FE] Logged-in redirect from `/` and `/login` to last section
+- [x] **ENT-UI-024** [FE] Responsive layouts < 900px (stacked hero, door as background)
 - [ ] **ENT-UI-025** [FE] Operator-editable copy loading (Admin → Entrance) with defaults
 - [ ] **ENT-UI-026** [TEST] Playwright: invite → register → verify → logout → login with TOTP → passkey login
