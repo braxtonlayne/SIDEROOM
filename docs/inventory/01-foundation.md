@@ -61,15 +61,15 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 - [ ] **FND-FEAT-007** [FE] Feature custom-UI slot registry (feature id → lazy React component)
 
 ## FND-API — HTTP & gateway plumbing
-- [ ] **FND-API-001** [BE] axum app state, router composition, tower layers (trace, compression, timeout, CORS, request id)
-- [ ] **FND-API-002** [BE] Auth extractors (session cookie + CSRF, Bot token, Bearer OAuth)
-- [ ] **FND-API-003** [BE] Rate limiter (governor) with Discord-style buckets and headers, global + per-route
-- [ ] **FND-API-004** [BE] utoipa OpenAPI generation, `/api/v1/openapi.json`, `/api/v10` alias
+- [x] **FND-API-001** [BE] axum app state, router composition, tower layers (trace, compression, timeout, CORS, request id)
+- [x] **FND-API-002** [BE] Auth extractors (session cookie + CSRF, Bot token, Bearer OAuth)
+- [x] **FND-API-003** [BE] Rate limiter (governor) with Discord-style buckets and headers, global + per-route
+- [x] **FND-API-004** [BE] utoipa OpenAPI generation, `/api/v1/openapi.json`, `/api/v10` alias
 - [x] **FND-API-005** [FE] Generated TS client (openapi-typescript + fetch wrapper with retry on 429)
 - [x] **FND-API-006** [BE][GW] Gateway skeleton: HELLO, IDENTIFY, heartbeat, READY, RESUME, INVALID_SESSION, RECONNECT, zstd compression option
 - [ ] **FND-API-007** [FE] Gateway client (reconnect with backoff, resume, sequence tracking, dispatch → store)
 - [ ] **FND-API-008** [FE] Normalized client store (users, guilds, channels, members, messages caches) fed by gateway + REST
-- [ ] **FND-API-009** [BE] `/healthz`, `/readyz`, `/internal/metrics`
+- [x] **FND-API-009** [BE] `/healthz`, `/readyz`, `/internal/metrics`
 
 ## FND-STOR — Storage
 - [x] **FND-STOR-001** [BE] `sr-storage` over `object_store` S3: put/get/delete/list, presigned PUT/GET, multipart create/complete/abort
@@ -78,8 +78,8 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 - [ ] **FND-STOR-004** [BE] Upload slot service (size limit from entitlements, content-type sniffing, EXIF strip on images)
 
 ## FND-OBS — Observability
-- [ ] **FND-OBS-001** [BE] tracing JSON logs, span per request/gateway session/job
-- [ ] **FND-OBS-002** [BE] Prometheus metrics registry + standard metrics (HTTP, DB pool, gateway sessions, jobs)
+- [x] **FND-OBS-001** [BE] tracing JSON logs, span per request/gateway session/job
+- [x] **FND-OBS-002** [BE] Prometheus metrics registry + standard metrics (HTTP, DB pool, gateway sessions, jobs)
 - [ ] **FND-OBS-003** [OPS] Optional Prometheus + Grafana compose profile + dashboards
 
 ## FND-CLI — `sr-cli`
