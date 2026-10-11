@@ -9,6 +9,7 @@ use super::error::{ApiJson, MsgResult, invalid};
 use super::events::SocialEvent;
 use super::model::{CreateDmBody, DmChannelObject, EditDmBody, MessageRequestBody};
 use super::util::{actor, channel_id, user_id};
+use crate::routes::messages::DmAnnouncer;
 use crate::{Principal, openapi::ErrorBody, routes::Ext};
 use axum::{Json, extract::Path, http::StatusCode};
 use serde_json::{Value, json};
@@ -318,6 +319,39 @@ async fn remove_member(
         announce(deps, "CHANNEL_UPDATE", &after, &after.recipients).await?;
     }
     Ok(())
+}
+
+/// The message path tells recipients about a DM when its first message (or the first
+/// after they closed it) reaches them. `acc.channel` carried `last_message_id`.
+#[async_trait::async_trait]
+impl DmAnnouncer for SocialDeps {
+    async fn plan(&self, channel: ChannelId, author: UserId, first_message: bool) -> Vec<UserId> {
+        match self
+            .service
+            .dm_announcees(channel, author, first_message)
+            .await
+        {
+            Ok(users) => users,
+            Err(e) => {
+                tracing::warn!(error = %e, %channel, "planning DM announcement failed");
+                Vec::new()
+            }
+        }
+    }
+
+    async fn announce(&self, channel: ChannelId, users: &[UserId]) {
+        let dm = match self.service.repo().get_dm(channel).await {
+            Ok(Some(dm)) => dm,
+            Ok(None) => return,
+            Err(e) => {
+                tracing::warn!(error = %e, %channel, "loading DM to announce failed");
+                return;
+            }
+        };
+        if let Err(e) = announce(self, "CHANNEL_CREATE", &dm, users).await {
+            tracing::warn!(error = ?e, %channel, "announcing DM failed");
+        }
+    }
 }
 
 /// One event per addressed user: the channel object differs by viewer (the viewer

@@ -74,7 +74,7 @@ pub trait DmRepository: Send + Sync {
     ) -> RepoResult<()>;
     async fn delete_dm(&self, id: ChannelId) -> RepoResult<()>;
     /// Hide (close) or reopen a conversation for one user.
-    async fn set_hidden(&self, user: UserId, id: ChannelId, hidden: bool) -> RepoResult<()>;
+    async fn set_hidden(&self, user: UserId, id: ChannelId, hidden: bool) -> RepoResult<bool>;
     /// Conversations of `user`, most recent message first; hidden ones only on request.
     async fn list_dms(&self, user: UserId, include_hidden: bool) -> RepoResult<Vec<DmChannel>>;
     async fn count_groups(&self, user: UserId) -> RepoResult<usize>;

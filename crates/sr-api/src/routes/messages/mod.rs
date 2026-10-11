@@ -28,7 +28,7 @@ pub mod typing;
 #[cfg(test)]
 mod tests;
 
-pub use deps::{FixedEntitlements, MessagesDeps, UploadEntitlements};
+pub use deps::{DmAnnouncer, FixedEntitlements, MessagesDeps, UploadEntitlements};
 
 use crate::{openapi::ErrorBody, state::AppState};
 use axum::{

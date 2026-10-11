@@ -484,8 +484,9 @@ async fn closed_dm_hidden_until_reopened() {
     f.svc.close_dm(u(1), ch.id).await.unwrap();
     assert!(f.svc.list_dms(u(1)).await.unwrap().is_empty());
     assert_eq!(f.svc.list_dms(u(2)).await.unwrap().len(), 1);
-    f.svc.reopen_for_message(ch.id).await.unwrap();
+    assert_eq!(f.svc.reopen_for_message(ch.id).await.unwrap(), vec![u(1)]);
     assert_eq!(f.svc.list_dms(u(1)).await.unwrap().len(), 1);
+    assert!(f.svc.reopen_for_message(ch.id).await.unwrap().is_empty());
     assert!(matches!(
         f.svc.close_dm(u(3), ch.id).await,
         Err(SocialError::NotParticipant)

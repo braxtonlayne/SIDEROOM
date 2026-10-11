@@ -5,7 +5,7 @@ use crate::{
     ApiSettings, AppState,
     auth::{BotIdentity, memory::MemoryBots},
     build_router,
-    routes::messages::{FixedEntitlements, MessagesDeps},
+    routes::messages::{self, FixedEntitlements, MessagesDeps},
 };
 use axum::{
     Router,
@@ -39,6 +39,7 @@ const DAVE: u64 = 4; // not in the guild
 struct Env {
     app: Router,
     repo: Arc<MemoryRepo>,
+    backend: MemoryBackend,
     bus: Arc<InProcessBus>,
     clock: Arc<ManualClock>,
     guild: GuildId,
@@ -102,6 +103,26 @@ async fn env() -> Env {
     let mut settings = ApiSettings::default();
     settings.rate_limit.enabled = false;
 
+    // The same hook the server installs: sending reopens closed DMs.
+    let hooks: Arc<dyn sr_chat::message_hooks::MessageHooks> =
+        Arc::new(sr_chat::social::SocialService::new(
+            DynRepo(repo.clone() as Arc<dyn SocialRepository>),
+            dyn_clock.clone(),
+            SnowflakeGenerator::new(dyn_clock.clone(), 1, 4).unwrap(),
+            SocialLimits::default(),
+        ));
+    let social = Arc::new(
+        SocialDeps::new(
+            DynRepo(repo.clone() as Arc<dyn SocialRepository>),
+            Arc::new(backend.clone()),
+            bus.clone(),
+            dyn_clock.clone(),
+            SocialLimits::default(),
+            1,
+            3,
+        )
+        .unwrap(),
+    );
     let messages = MessagesDeps::new(
         backend.clone(),
         Arc::new(backend.clone()),
@@ -109,32 +130,24 @@ async fn env() -> Env {
         bus.clone(),
         Arc::new(FixedEntitlements(1 << 20)),
         Arc::new(backend.clone()),
-        None,
+        Some(hooks),
         dyn_clock.clone(),
         1,
         1,
     )
-    .unwrap();
-    let social = SocialDeps::new(
-        DynRepo(repo.clone() as Arc<dyn SocialRepository>),
-        Arc::new(backend.clone()),
-        bus.clone(),
-        dyn_clock.clone(),
-        SocialLimits::default(),
-        1,
-        3,
-    )
-    .unwrap();
+    .unwrap()
+    .with_dm_announcer(social.clone());
     let state = AppState::builder()
         .bots(bots)
         .clock(dyn_clock)
         .settings(settings)
         .extension(Arc::new(messages))
-        .extension(Arc::new(social))
+        .extension(social)
         .build();
     Env {
-        app: build_router(state, router()),
+        app: build_router(state, router().merge(messages::router())),
         repo,
+        backend,
         bus,
         clock,
         guild,
@@ -1043,4 +1056,153 @@ fn adapter_maps_every_social_event_to_a_user_scoped_dispatch() {
             other => panic!("unexpected {other:?}"),
         }
     }
+}
+
+// ---- first-message CHANNEL_CREATE (user-scoped, before MESSAGE_CREATE) ----
+
+impl Env {
+    /// Open a 1:1 DM as `a` with `b` and mirror it into the chat backend, which
+    /// the message routes read (the production repos share one database).
+    async fn open_dm_with_chat_channel(&self, a: u64, b: u64) -> String {
+        let (s, v) = self
+            .post(
+                "/users/@me/channels",
+                a,
+                json!({"recipient_id": b.to_string()}),
+            )
+            .await;
+        assert_eq!(s, StatusCode::OK, "{v}");
+        let id = v["id"].as_str().unwrap().to_owned();
+        let cid = ChannelId::new(id.parse().unwrap());
+        let mut d = self.backend.data();
+        d.channels.insert(
+            cid,
+            sr_chat::Channel::new(cid, None, sr_chat::ChannelType::Dm),
+        );
+        d.recipients.insert((cid, UserId::new(a)));
+        d.recipients.insert((cid, UserId::new(b)));
+        id
+    }
+
+    async fn say(&self, dm: &str, who: u64, text: &str) {
+        let (s, v) = self
+            .post(
+                &format!("/channels/{dm}/messages"),
+                who,
+                json!({ "content": text }),
+            )
+            .await;
+        assert_eq!(s, StatusCode::OK, "{v}");
+    }
+
+    fn share_guild(&self, a: u64, b: u64) {
+        self.repo
+            .store
+            .lock()
+            .unwrap()
+            .shared_guilds
+            .insert((UserId::new(a), UserId::new(b)));
+    }
+}
+
+async fn assert_quiet(s: &mut BoxStream<'static, DomainEvent>) {
+    assert!(
+        tokio::time::timeout(Duration::from_millis(50), s.next())
+            .await
+            .is_err(),
+        "unexpected extra event"
+    );
+}
+
+fn assert_channel_create(ev: DomainEvent, dm: &str, other: &str) {
+    match ev {
+        DomainEvent::UserScoped { name, payload, .. } => {
+            assert_eq!(name, "CHANNEL_CREATE");
+            assert_eq!(payload["id"], dm);
+            // The channel as the recipient sees it: only the other party is listed.
+            assert_eq!(payload["recipients"].as_array().unwrap().len(), 1);
+            assert_eq!(payload["recipients"][0]["id"], other);
+        }
+        other => panic!("expected CHANNEL_CREATE, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn first_dm_message_announces_channel_to_recipient_first() {
+    let e = env().await;
+    e.befriend(ALICE, BOB).await;
+    let dm = e.open_dm_with_chat_channel(ALICE, BOB).await;
+    let mut bob = e.user_events(BOB);
+    let mut alice = e.user_events(ALICE);
+
+    e.say(&dm, ALICE, "hi").await;
+    assert_channel_create(next_event(&mut bob).await, &dm, "1");
+    assert!(matches!(
+        next_event(&mut bob).await,
+        DomainEvent::MessageSent { guild: None, .. }
+    ));
+    assert_quiet(&mut bob).await;
+    // The author already knows the channel: only the message reaches her.
+    assert!(matches!(
+        next_event(&mut alice).await,
+        DomainEvent::MessageSent { guild: None, .. }
+    ));
+    assert_quiet(&mut alice).await;
+
+    // Later messages, in either direction, announce nothing.
+    e.say(&dm, ALICE, "again").await;
+    e.say(&dm, BOB, "hey").await;
+    for _ in 0..2 {
+        assert!(matches!(
+            next_event(&mut bob).await,
+            DomainEvent::MessageSent { .. }
+        ));
+    }
+    assert_quiet(&mut bob).await;
+}
+
+#[tokio::test]
+async fn reopened_dm_is_announced_again() {
+    let e = env().await;
+    e.befriend(ALICE, BOB).await;
+    let dm = e.open_dm_with_chat_channel(ALICE, BOB).await;
+    e.say(&dm, ALICE, "one").await;
+    assert_eq!(
+        e.delete(&format!("/users/@me/channels/{dm}"), BOB).await.0,
+        StatusCode::NO_CONTENT
+    );
+    let mut bob = e.user_events(BOB);
+
+    e.say(&dm, ALICE, "two").await;
+    assert_channel_create(next_event(&mut bob).await, &dm, "1");
+    assert!(matches!(
+        next_event(&mut bob).await,
+        DomainEvent::MessageSent { .. }
+    ));
+    // Reopened, so the next message is announced to nobody.
+    e.say(&dm, ALICE, "three").await;
+    assert!(matches!(
+        next_event(&mut bob).await,
+        DomainEvent::MessageSent { .. }
+    ));
+    assert_quiet(&mut bob).await;
+    assert_eq!(
+        e.get("/users/@me/channels", BOB).await.1[0]["id"],
+        dm.as_str()
+    );
+}
+
+#[tokio::test]
+async fn pending_message_request_is_not_announced() {
+    let e = env().await;
+    e.share_guild(ALICE, BOB); // not friends: Bob gets a Message Request
+    let dm = e.open_dm_with_chat_channel(ALICE, BOB).await;
+    let mut bob = e.user_events(BOB);
+
+    e.say(&dm, ALICE, "hello stranger").await;
+    assert!(matches!(
+        next_event(&mut bob).await,
+        DomainEvent::MessageSent { .. }
+    ));
+    assert_quiet(&mut bob).await;
 }
