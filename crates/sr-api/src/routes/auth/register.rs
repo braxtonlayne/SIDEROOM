@@ -143,7 +143,11 @@ pub async fn register(
         Err(RegisterRejection::AtCap) => return Err(closed()),
         Err(RegisterRejection::PersonBanned) => {
             // Generic to the client; staff are alerted (ENT-INV-008).
-            tracing::warn!(target: "staff_alert", "registration refused: banned Person");
+            svc.staff_alert(
+                sr_events::StaffAlertKind::BannedPersonAttempt,
+                "registration refused: banned Person",
+            )
+            .await;
             return Err(unusable());
         }
         Err(RegisterRejection::InviteUnavailable | RegisterRejection::IssuerOutOfCredits) => {

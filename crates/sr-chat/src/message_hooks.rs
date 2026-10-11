@@ -7,15 +7,18 @@ use crate::domain::Message;
 use crate::social::repo::SocialRepository;
 use crate::social::service::SocialService;
 use async_trait::async_trait;
+use sr_core::UserId;
 
 #[async_trait]
 pub trait MessageHooks: Send + Sync {
-    async fn message_sent(&self, message: &Message);
+    /// `notify` is every user the message pings: explicit mentions plus the
+    /// `@everyone`/`@here` and role fan-out, all already VIEW_CHANNEL-checked.
+    async fn message_sent(&self, message: &Message, notify: &[UserId]);
 }
 
 #[async_trait]
 impl<R: SocialRepository + 'static> MessageHooks for SocialService<R> {
-    async fn message_sent(&self, m: &Message) {
+    async fn message_sent(&self, m: &Message, notify: &[UserId]) {
         if m.guild_id.is_none()
             && let Err(e) = self.reopen_for_message(m.channel_id).await
         {
@@ -23,7 +26,7 @@ impl<R: SocialRepository + 'static> MessageHooks for SocialService<R> {
         }
         // Recipients were filtered for VIEW_CHANNEL before the message was stored.
         if let Err(e) = self
-            .record_eligible_mentions(m.author_id, &m.mention_user_ids, m.channel_id, |_| true)
+            .record_eligible_mentions(m.author_id, notify, m.channel_id, |_| true)
             .await
         {
             tracing::warn!(error = %e, channel = %m.channel_id, "recording mentions failed");

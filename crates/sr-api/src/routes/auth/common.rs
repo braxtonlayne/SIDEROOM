@@ -131,6 +131,8 @@ pub struct AuthService {
     pub(super) discord_flows: Pending<OAuthFlow>,
     /// Verified Discord identities waiting for registration.
     pub(super) discord_links: Pending<PendingLink>,
+    /// Event bus for staff alerts (open question 142); `None` in tests that do not care.
+    pub(super) bus: Option<Arc<dyn sr_events::EventBus>>,
 }
 
 impl AuthService {
@@ -155,6 +157,32 @@ impl AuthService {
             discord: None,
             discord_flows: Pending::default(),
             discord_links: Pending::default(),
+            bus: None,
+        }
+    }
+
+    /// Publish staff alerts (banned-Person registration attempts) on this bus.
+    pub fn with_bus(mut self, bus: Arc<dyn sr_events::EventBus>) -> Self {
+        self.bus = Some(bus);
+        self
+    }
+
+    /// Publish a `StaffAlert` on the platform topic. Best effort: the request has
+    /// already been decided, so a bus failure is only logged.
+    pub(super) async fn staff_alert(&self, kind: sr_events::StaffAlertKind, detail: &str) {
+        tracing::warn!(target: "staff_alert", kind = kind.as_str(), "{detail}");
+        if let Some(bus) = &self.bus
+            && let Err(e) = bus
+                .publish(
+                    sr_events::Topic::Platform,
+                    sr_events::DomainEvent::StaffAlert {
+                        kind,
+                        detail: detail.to_owned(),
+                    },
+                )
+                .await
+        {
+            tracing::warn!(error = %e, "failed to publish staff alert");
         }
     }
 

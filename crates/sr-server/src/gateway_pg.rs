@@ -274,6 +274,22 @@ impl GuildDirectory for PgGuildDirectory {
         })
     }
 
+    async fn staff_users(&self) -> Vec<UserId> {
+        let rows = sqlx::query_scalar::<_, i64>(
+            "SELECT gm.user_id FROM guild_members gm \
+             JOIN guilds g ON g.id = gm.guild_id WHERE g.is_staff_guild ORDER BY gm.user_id",
+        )
+        .fetch_all(&self.pool)
+        .await;
+        match rows {
+            Ok(v) => v.into_iter().map(|u| UserId::new(u as u64)).collect(),
+            Err(e) => {
+                tracing::error!(error = %e, "staff_users failed");
+                Vec::new()
+            }
+        }
+    }
+
     async fn guild_payload(&self, _user: UserId, guild: GuildId) -> Value {
         self.build_guild_create(guild).await.unwrap_or_else(|e| {
             tracing::error!(error = %e, "guild_payload failed");

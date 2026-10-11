@@ -242,7 +242,7 @@ async fn invite_create(
             .with_context(|| format!("no account '{who}'"))?,
         None => oldest_owner(pool).await?,
     };
-    let repo = repo(pool, ids);
+    let repo = repo(pool, ids.clone());
     // Retry on the (astronomically unlikely) code collision.
     for _ in 0..5 {
         let code = InviteCode::generate().map_err(|e| anyhow::anyhow!("{e}"))?;
@@ -255,6 +255,23 @@ async fn invite_create(
         };
         match repo.create(rec).await {
             Ok(()) => {
+                // Operator action outside the per-user credit economy: no ledger
+                // row, but a platform audit row (open question 46).
+                let store =
+                    PgAuthStore::new(pool.clone(), self::repo(pool, ids.clone()), ids.clone());
+                store
+                    .audit(
+                        SYSTEM_USER_ID,
+                        "invite.emergency_create",
+                        Some(issuer_id),
+                        &format!(
+                            "issuer account {issuer_id}: {}",
+                            note.as_deref().unwrap_or("")
+                        ),
+                        now_secs(),
+                    )
+                    .await
+                    .map_err(|e| anyhow::anyhow!("{e}"))?;
                 println!("{}", code.formatted());
                 println!(
                     "{}/join/{}",

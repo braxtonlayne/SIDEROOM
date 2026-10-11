@@ -118,6 +118,8 @@ struct Dispatch {
     name: &'static str,
     data: Value,
     channel: Option<ChannelId>,
+    /// When set, only these users receive the dispatch (producer-computed audience).
+    audience: Option<HashSet<UserId>>,
 }
 
 /// Unix milliseconds as an ISO 8601 UTC timestamp (`2026-01-02T03:04:05.678000+00:00`).
@@ -150,6 +152,7 @@ fn passthrough(name: &'static str, payload: &Value, channel: Option<ChannelId>) 
         name,
         data: payload.clone(),
         channel,
+        audience: None,
     }
 }
 
@@ -201,11 +204,13 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
             name: "MESSAGE_CREATE",
             data: data.clone(),
             channel: Some(*channel),
+            audience: None,
         },
         DomainEvent::MessageEdited { channel, data, .. } => Dispatch {
             name: "MESSAGE_UPDATE",
             data: data.clone(),
             channel: Some(*channel),
+            audience: None,
         },
         DomainEvent::MessageDeleted {
             guild,
@@ -217,6 +222,7 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
                 "id": message_id.to_string(), "channel_id": channel, "guild_id": guild,
             }),
             channel: Some(*channel),
+            audience: None,
         },
         DomainEvent::MessagesBulkDeleted {
             guild,
@@ -229,6 +235,7 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
                 "channel_id": channel, "guild_id": guild,
             }),
             channel: Some(*channel),
+            audience: None,
         },
         DomainEvent::ReactionAdded {
             guild,
@@ -243,6 +250,7 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
                 "guild_id": guild, "emoji": emoji, "burst": false,
             }),
             channel: Some(*channel),
+            audience: None,
         },
         DomainEvent::ReactionRemoved {
             guild,
@@ -257,6 +265,7 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
                 "guild_id": guild, "emoji": emoji, "burst": false,
             }),
             channel: Some(*channel),
+            audience: None,
         },
         DomainEvent::ReactionsCleared {
             guild,
@@ -268,6 +277,7 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
                 "channel_id": channel, "message_id": message_id.to_string(), "guild_id": guild,
             }),
             channel: Some(*channel),
+            audience: None,
         },
         DomainEvent::ReactionEmojiCleared {
             guild,
@@ -281,6 +291,7 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
                 "guild_id": guild, "emoji": emoji,
             }),
             channel: Some(*channel),
+            audience: None,
         },
         DomainEvent::ChannelPinsUpdated {
             guild,
@@ -293,6 +304,7 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
                 "last_pin_timestamp": last_pin_ms.map(iso_utc),
             }),
             channel: Some(*channel),
+            audience: None,
         },
         DomainEvent::TypingStarted {
             guild,
@@ -305,22 +317,29 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
                 "channel_id": channel, "guild_id": guild, "user_id": user, "timestamp": timestamp,
             }),
             channel: Some(*channel),
+            audience: None,
         },
         DomainEvent::MemberJoined { payload, .. } => passthrough("GUILD_MEMBER_ADD", payload, None),
         DomainEvent::MemberLeft { guild, user } => Dispatch {
             name: "GUILD_MEMBER_REMOVE",
             data: json!({ "guild_id": guild, "user": { "id": user } }),
             channel: None,
+            audience: None,
         },
-        DomainEvent::ChannelCreatedFull {
+        DomainEvent::ChannelCreated {
             channel, payload, ..
         } => passthrough("CHANNEL_CREATE", payload, Some(*channel)),
         DomainEvent::ChannelUpdated {
             channel, payload, ..
         } => passthrough("CHANNEL_UPDATE", payload, Some(*channel)),
-        // The channel no longer exists, so it cannot be permission-filtered;
-        // delivered to the whole guild.
-        DomainEvent::ChannelDeleted { payload, .. } => passthrough("CHANNEL_DELETE", payload, None),
+        // The channel no longer exists, so it cannot be permission-filtered here; the
+        // producer carries the set of members who could see it (open question 159).
+        DomainEvent::ChannelDeleted {
+            payload, viewers, ..
+        } => Dispatch {
+            audience: Some(viewers.iter().copied().collect()),
+            ..passthrough("CHANNEL_DELETE", payload, None)
+        },
         DomainEvent::GuildUpdated { payload, .. } => passthrough("GUILD_UPDATE", payload, None),
         DomainEvent::RoleCreated { payload, .. } => passthrough("GUILD_ROLE_CREATE", payload, None),
         DomainEvent::RoleUpdated { payload, .. } => passthrough("GUILD_ROLE_UPDATE", payload, None),
@@ -335,7 +354,8 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
         // Handled as subscription lifecycle by the platform pump.
         DomainEvent::GuildCreated { .. }
         | DomainEvent::GuildDeleted { .. }
-        | DomainEvent::FeatureSettingsChanged { .. } => return None,
+        | DomainEvent::FeatureSettingsChanged { .. }
+        | DomainEvent::StaffAlert { .. } => return None,
     })
 }
 
@@ -566,7 +586,8 @@ impl Gateway {
     async fn on_guild_event(&self, guild: GuildId, ev: DomainEvent) {
         self.note_typing(&ev);
         if let Some(d) = to_dispatch(&ev) {
-            self.dispatch_guild(guild, d.name, d.data, d.channel).await;
+            self.dispatch_guild(guild, d.name, d.data, d.channel, d.audience.as_ref())
+                .await;
         }
     }
 
@@ -661,6 +682,7 @@ impl Gateway {
         name: &str,
         data: Value,
         channel: Option<ChannelId>,
+        audience: Option<&HashSet<UserId>>,
     ) {
         let targets: Vec<Arc<Session>> = {
             let st = self.st();
@@ -670,6 +692,7 @@ impl Gateway {
                 .flatten()
                 .filter_map(|id| st.sessions.get(id).cloned())
                 .filter(|s| s.wants(name))
+                .filter(|s| audience.is_none_or(|a| a.contains(&s.user)))
                 .collect()
         };
         let allowed: HashMap<UserId, bool> = match channel {
@@ -709,6 +732,13 @@ impl Gateway {
             | DomainEvent::MemberJoined { guild, user, .. } => self.join_user(user, guild).await,
             DomainEvent::MemberLeft { guild, user } => self.leave_user(user, guild),
             DomainEvent::GuildDeleted { guild } => self.drop_guild(guild),
+            DomainEvent::StaffAlert { kind, detail } => {
+                let body = json!({ "kind": kind.as_str(), "detail": detail });
+                for user in self.inner.dir.staff_users().await {
+                    self.dispatch_user(user, "SR_STAFF_ALERT", body.clone())
+                        .await;
+                }
+            }
             _ => {}
         }
     }
@@ -811,8 +841,14 @@ impl Gateway {
         let Some(update) = update else { return };
         if changed || force {
             for g in guilds {
-                self.dispatch_guild(g, "PRESENCE_UPDATE", presence_body(user, g, &update), None)
-                    .await;
+                self.dispatch_guild(
+                    g,
+                    "PRESENCE_UPDATE",
+                    presence_body(user, g, &update),
+                    None,
+                    None,
+                )
+                .await;
             }
         }
     }

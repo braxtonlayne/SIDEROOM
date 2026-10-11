@@ -26,6 +26,7 @@ use sr_api::{
         guilds::GuildApi,
     },
 };
+use sr_chat::settings::SettingsService;
 use sr_chat::{ChatLimits, ChatService};
 use sr_core::{Clock, SnowflakeGenerator, SystemClock, config::Config};
 use sr_db::{
@@ -34,6 +35,7 @@ use sr_db::{
     auth_store::PgAuthStore,
     chat_repo::PgChatRepo,
     runner::JobRunner,
+    settings_repo::PgSettingsRepo,
 };
 use sr_events::{EventBus, InProcessBus};
 use sr_features::{FeatureRegistry, FeatureService};
@@ -192,6 +194,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     )
     .with_previous_keys(previous_keys);
 
+    let bus: Arc<dyn EventBus> = Arc::new(InProcessBus::new());
+
     // Entrance/auth service (open question 140): Postgres store, SMTP when
     // `[smtp]` has a host (the log mailer otherwise, for development), and the
     // shared snowflake source. It is registered on AppState below.
@@ -214,7 +218,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         mailer,
         id_src.clone(),
     )
-    .with_config(auth_cfg.clone());
+    .with_config(auth_cfg.clone())
+    // Banned-Person registration attempts raise a staff alert (open question 142).
+    .with_bus(bus.clone());
     let auth_service = if cfg.discord.client_id.is_empty() {
         auth_service
     } else {
@@ -245,8 +251,6 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .context("configuring object storage")?,
     );
 
-    let bus: Arc<dyn EventBus> = Arc::new(InProcessBus::new());
-
     // Feature crates register into the registry before it is shared (none
     // exist yet). Their routes are mounted below from `Feature::routes()`.
     let registry = Arc::new(FeatureRegistry::new());
@@ -270,7 +274,29 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .context("chat snowflake generator")?,
         ChatLimits::default(),
     );
-    let guilds = GuildApi(routes::guilds::backend::backend(chat, bus.clone()));
+    // Every guild mutation is also written to the guild audit log (open question
+    // 133); the retention purge runs as a recurring job below.
+    let audit_ids = SnowflakeGenerator::new(
+        clock.clone(),
+        cfg.server.worker_id,
+        (cfg.server.process_id + 3) % 32,
+    )
+    .context("audit snowflake generator")?;
+    let settings_service = SettingsService::new(
+        PgSettingsRepo::new(pool.clone()),
+        clock.clone(),
+        audit_ids,
+        Arc::new(|| {
+            sr_auth::random::bytes::<8>()
+                .map(u64::from_le_bytes)
+                .unwrap_or_default()
+        }),
+    );
+    let guilds = GuildApi(routes::guilds::backend::backend_with_audit(
+        chat,
+        bus.clone(),
+        Arc::new(settings_service),
+    ));
 
     // MessagesDeps: the message endpoints' collaborators (open questions 97-158).
     // Chat and message store over Postgres; the social hooks reopen closed DMs and
@@ -382,7 +408,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         &pool,
     );
     let runner = crate::jobs::register_attachment_gc(runner, &pool, storage.clone());
+    let runner = crate::jobs::register_audit_purge(runner, &pool);
     crate::jobs::schedule_recurring(&pool).await?;
+    crate::jobs::schedule_audit_purge(&pool).await?;
     crate::jobs::schedule_attachment_gc(&pool).await?;
     let jobs_task = tokio::spawn(runner.run(job_rx));
 

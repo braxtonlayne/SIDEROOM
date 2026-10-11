@@ -19,6 +19,14 @@ pub trait GuildRepository: Send + Sync {
     async fn insert_guild(&self, blueprint: &GuildBlueprint) -> RepoResult<()>;
     async fn get_guild(&self, id: GuildId) -> RepoResult<Option<Guild>>;
     async fn get_member(&self, guild: GuildId, user: UserId) -> RepoResult<Option<Member>>;
+    /// Members ordered by user id, strictly after `after`, at most `limit`. Used by
+    /// the `@everyone`/role mention fan-out (open question 117).
+    async fn page_members(
+        &self,
+        guild: GuildId,
+        after: Option<UserId>,
+        limit: usize,
+    ) -> RepoResult<Vec<Member>>;
     /// All roles including `@everyone`.
     async fn list_roles(&self, guild: GuildId) -> RepoResult<Vec<Role>>;
     /// Insert a role, first shifting every role with `position >= role.position` up by one.
@@ -39,6 +47,8 @@ pub trait ChannelRepository: Send + Sync {
     async fn delete_channel(&self, id: ChannelId) -> RepoResult<()>;
     /// Whether `user` is a recipient of a DM or group DM.
     async fn is_recipient(&self, channel: ChannelId, user: UserId) -> RepoResult<bool>;
+    /// Every recipient of a DM or group DM, hidden or not (open question 50).
+    async fn list_recipients(&self, channel: ChannelId) -> RepoResult<Vec<UserId>>;
 }
 
 #[async_trait]

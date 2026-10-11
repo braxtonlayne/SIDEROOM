@@ -14,6 +14,22 @@ pub enum Topic {
     User(UserId),
 }
 
+/// What a [`DomainEvent::StaffAlert`] is about.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StaffAlertKind {
+    /// A registration was refused because the Person is banned.
+    BannedPersonAttempt,
+}
+
+impl StaffAlertKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::BannedPersonAttempt => "banned_person_attempt",
+        }
+    }
+}
+
 /// Events emitted by domain logic. Extend as modules need them.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -36,7 +52,7 @@ pub enum DomainEvent {
         user: UserId,
     },
     /// Full `CHANNEL_CREATE` body (Discord channel object) in `payload`.
-    ChannelCreatedFull {
+    ChannelCreated {
         guild: GuildId,
         channel: ChannelId,
         payload: Value,
@@ -47,11 +63,14 @@ pub enum DomainEvent {
         channel: ChannelId,
         payload: Value,
     },
-    /// `CHANNEL_DELETE`; `payload` is the deleted channel object.
+    /// `CHANNEL_DELETE`; `payload` is the deleted channel object. `viewers` is the
+    /// set of members who could see the channel before it was deleted, computed by
+    /// the producer; the gateway delivers only to them (open question 159).
     ChannelDeleted {
         guild: GuildId,
         channel: ChannelId,
         payload: Value,
+        viewers: Vec<UserId>,
     },
     /// `GUILD_UPDATE`; `payload` is the guild object.
     GuildUpdated {
@@ -164,6 +183,14 @@ pub enum DomainEvent {
         /// Unix ms of the most recent pin, if any remain.
         last_pin_ms: Option<i64>,
     },
+    /// A staff-facing alert (`SR_STAFF_ALERT`), published on `Topic::Platform`
+    /// (open question 142).
+    StaffAlert {
+        kind: StaffAlertKind,
+        /// Human-readable detail for the staff alerts channel; never contains
+        /// secrets.
+        detail: String,
+    },
     /// `TYPING_START` triggered by `POST /channels/{id}/typing`.
     TypingStarted {
         guild: Option<GuildId>,
@@ -175,6 +202,65 @@ pub enum DomainEvent {
 }
 
 impl DomainEvent {
+    /// The channel of a message-family event that happened in a DM or group DM
+    /// (no guild). Producers route these to each recipient's `Topic::User`
+    /// (open question 50) instead of using [`Self::topics`].
+    pub fn dm_channel(&self) -> Option<ChannelId> {
+        match self {
+            Self::MessageSent {
+                guild: None,
+                channel,
+                ..
+            }
+            | Self::MessageEdited {
+                guild: None,
+                channel,
+                ..
+            }
+            | Self::MessageDeleted {
+                guild: None,
+                channel,
+                ..
+            }
+            | Self::MessagesBulkDeleted {
+                guild: None,
+                channel,
+                ..
+            }
+            | Self::ReactionAdded {
+                guild: None,
+                channel,
+                ..
+            }
+            | Self::ReactionRemoved {
+                guild: None,
+                channel,
+                ..
+            }
+            | Self::ReactionsCleared {
+                guild: None,
+                channel,
+                ..
+            }
+            | Self::ReactionEmojiCleared {
+                guild: None,
+                channel,
+                ..
+            }
+            | Self::ChannelPinsUpdated {
+                guild: None,
+                channel,
+                ..
+            }
+            | Self::TypingStarted {
+                guild: None,
+                channel,
+                ..
+            } => Some(*channel),
+            _ => None,
+        }
+    }
+
     /// Default topics this event should be routed to.
     pub fn topics(&self) -> Vec<Topic> {
         match self {
@@ -189,7 +275,7 @@ impl DomainEvent {
             | Self::MemberUpdated { guild, .. }
             | Self::MemberBanned { guild, .. }
             | Self::MemberUnbanned { guild, .. } => vec![Topic::Guild(*guild)],
-            Self::ChannelCreatedFull { guild, channel, .. }
+            Self::ChannelCreated { guild, channel, .. }
             | Self::ChannelUpdated { guild, channel, .. }
             | Self::ChannelDeleted { guild, channel, .. } => {
                 vec![Topic::Guild(*guild), Topic::Channel(*channel)]
@@ -210,7 +296,7 @@ impl DomainEvent {
                 }
                 t
             }
-            Self::FeatureSettingsChanged { .. } => vec![Topic::Platform],
+            Self::FeatureSettingsChanged { .. } | Self::StaffAlert { .. } => vec![Topic::Platform],
         }
     }
 }
@@ -281,6 +367,35 @@ mod tests {
         assert_eq!(c.topics().len(), 2);
         let s = serde_json::to_string(&c).unwrap();
         assert_eq!(serde_json::from_str::<DomainEvent>(&s).unwrap(), c);
+    }
+
+    #[test]
+    fn dm_events_are_identified_for_per_recipient_routing() {
+        let dm = DomainEvent::MessageSent {
+            guild: None,
+            channel: ChannelId::new(2),
+            message_id: 3,
+            author: UserId::new(4),
+            data: serde_json::Value::Null,
+        };
+        assert_eq!(dm.dm_channel(), Some(ChannelId::new(2)));
+        let guild_msg = DomainEvent::MessageDeleted {
+            guild: Some(GuildId::new(1)),
+            channel: ChannelId::new(2),
+            message_id: 3,
+        };
+        assert_eq!(guild_msg.dm_channel(), None);
+    }
+
+    #[test]
+    fn staff_alert_routes_to_the_platform_topic() {
+        let e = DomainEvent::StaffAlert {
+            kind: StaffAlertKind::BannedPersonAttempt,
+            detail: "x".into(),
+        };
+        assert_eq!(e.topics(), vec![Topic::Platform]);
+        let s = serde_json::to_string(&e).unwrap();
+        assert_eq!(serde_json::from_str::<DomainEvent>(&s).unwrap(), e);
     }
 
     #[test]

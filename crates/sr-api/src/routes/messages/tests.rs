@@ -1168,15 +1168,16 @@ async fn allowed_mentions_gate_pings_and_tts_is_a_flag() {
         )
         .await;
     assert_eq!(code(&r), (StatusCode::BAD_REQUEST, Some(50035)));
-    // tts needs SEND_TTS_MESSAGES: members lack it by default, the owner is an admin.
-    let r = e
+    // tts needs SEND_TTS_MESSAGES, which @everyone has by default (Discord).
+    let (s, m) = e
         .post(
             "/messages",
             "bob",
             json!({"content": "hear me", "tts": true}),
         )
         .await;
-    assert_eq!(code(&r), (StatusCode::FORBIDDEN, Some(50013)));
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(m["tts"], true);
     let (_, m) = e
         .post(
             "/messages",
@@ -1200,4 +1201,39 @@ async fn embeds_are_stored_and_echoed() {
     assert_eq!(m["embeds"][0]["fields"][0]["name"], "a");
     let (_, list) = e.get("/messages", "bob").await;
     assert_eq!(list[0]["embeds"][0]["title"], "Hello");
+}
+
+#[tokio::test]
+async fn dm_events_go_once_to_each_recipients_user_topic() {
+    let e = env().await;
+    let dm = ChannelId::new(777);
+    {
+        let mut d = e.backend.data();
+        d.channels.insert(
+            dm,
+            sr_chat::Channel::new(dm, None, sr_chat::ChannelType::Dm),
+        );
+        d.recipients.insert((dm, UserId::new(OWNER)));
+        d.recipients.insert((dm, UserId::new(BOB)));
+    }
+    let mut owner = e.bus.subscribe(Topic::User(UserId::new(OWNER)));
+    let mut bob = e.bus.subscribe(Topic::User(UserId::new(BOB)));
+    let mut carol = e.bus.subscribe(Topic::User(UserId::new(CAROL)));
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri(format!("/api/v1/channels/{dm}/messages"))
+        .header("authorization", "Bot bob")
+        .header("content-type", "application/json")
+        .body(Body::from(json!({ "content": "psst" }).to_string()))
+        .unwrap();
+    let resp = e.app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    for s in [&mut owner, &mut bob] {
+        assert!(matches!(
+            next_event(s).await,
+            DomainEvent::MessageSent { guild: None, .. }
+        ));
+        no_event(s).await;
+    }
+    no_event(&mut carol).await;
 }

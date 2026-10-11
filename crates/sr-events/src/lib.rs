@@ -10,5 +10,5 @@ pub mod event;
 pub mod ids;
 
 pub use bus::{EventBus, EventError, InProcessBus};
-pub use event::{DomainEvent, Topic};
+pub use event::{DomainEvent, StaffAlertKind, Topic};
 pub use ids::{ChannelId, GuildId, RoleId, UserId};
