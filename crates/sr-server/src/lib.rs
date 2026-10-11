@@ -8,6 +8,8 @@ pub mod features_store;
 pub mod gateway_pg;
 pub mod jobs;
 pub mod ready;
+pub mod search_jobs;
+pub mod settings_pg;
 
 /// The OpenAPI document served at `/api/v1/openapi.json` and printed by
 /// `sr-server openapi`.

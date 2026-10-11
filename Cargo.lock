@@ -4059,6 +4059,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "axum",
+ "serde",
  "serde_json",
  "sqlx",
  "sr-api",
@@ -4069,7 +4070,9 @@ dependencies = [
  "sr-events",
  "sr-features",
  "sr-gateway",
+ "sr-search",
  "sr-storage",
+ "thiserror 2.0.21",
  "tokio",
  "tracing",
 ]
