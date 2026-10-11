@@ -59,3 +59,16 @@ openapi:
 # Run the server against the dev stack (SR_* env overrides apply)
 serve:
     SR_DATABASE__URL="$DATABASE_URL" cargo run -p sr-server
+
+# Phase 0 exit-gate e2e (FND-CI-004): fresh DB, migrate, run sr-server, run Playwright.
+# Usage: just e2e [playwright args], e.g. `just e2e --project=chromium`. Wipes the dev Postgres volume.
+e2e *args:
+    pnpm install --frozen-lockfile
+    pnpm --filter @sideroom/e2e exec playwright install --with-deps chromium firefox webkit
+    {{compose}} down -v
+    {{compose}} up -d --wait postgres
+    {{compose}} up -d garage
+    ./deploy/compose/garage/bootstrap.sh
+    cargo build -p sr-server -p sr-cli
+    ./target/debug/sr-cli migrate
+    ./deploy/compose/e2e-run.sh {{args}}

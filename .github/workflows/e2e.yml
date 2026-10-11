@@ -1,6 +1,5 @@
 name: E2E
-# FND-CI-004 skeleton. The job activates once apps/web/playwright.config.ts exists;
-# until then it reports success without running anything.
+# FND-CI-004: Phase 0 exit-gate and entrance smoke tests (e2e/), one job per browser.
 on:
   push: { branches: [main] }
   pull_request:
@@ -9,56 +8,46 @@ concurrency:
   cancel-in-progress: true
 env:
   DATABASE_URL: postgres://sideroom:sideroom_dev@127.0.0.1:5432/sideroom
+  CARGO_TERM_COLOR: always
 jobs:
   playwright:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         browser: [chromium, firefox, webkit]
     steps:
       - uses: actions/checkout@v4
-      - name: Detect Playwright config
-        id: pw
-        run: |
-          if [ -f apps/web/playwright.config.ts ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; echo "No Playwright config yet; skipping."; fi
       - uses: dtolnay/rust-toolchain@stable
-        if: steps.pw.outputs.present == 'true'
       - uses: Swatinem/rust-cache@v2
-        if: steps.pw.outputs.present == 'true'
       - uses: pnpm/action-setup@v4
-        if: steps.pw.outputs.present == 'true'
       - uses: actions/setup-node@v4
-        if: steps.pw.outputs.present == 'true'
         with:
           node-version: lts/*
           cache: pnpm
-      - uses: extractions/setup-just@v2
-        if: steps.pw.outputs.present == 'true'
-      - name: Start the compose stack
-        if: steps.pw.outputs.present == 'true'
+      - name: Start Postgres and Garage
         run: |
           docker compose -f deploy/compose/dev.yml up -d --wait postgres
           docker compose -f deploy/compose/dev.yml up -d garage
           ./deploy/compose/garage/bootstrap.sh
-      - name: Migrate, seed, start the server
-        if: steps.pw.outputs.present == 'true'
+      - name: Build sr-server and sr-cli
+        run: cargo build -p sr-server -p sr-cli
+      - run: pnpm install --frozen-lockfile
+      - name: Install the browser
+        run: pnpm --filter @sideroom/e2e exec playwright install --with-deps ${{ matrix.browser }}
+      - name: Migrate, start the server, run Playwright
+        # global-setup.ts bootstraps the Owner; e2e-run.sh starts sr-server and stops it afterwards.
         run: |
-          cargo build -p sr-server -p sr-cli
           ./target/debug/sr-cli migrate
-          ./target/debug/sr-cli seed
-          (./target/debug/sr-server > server.log 2>&1 &)
-          timeout 60 sh -c 'until curl -fs http://127.0.0.1:8080/readyz; do sleep 1; done'
-      - name: Install and run Playwright
-        if: steps.pw.outputs.present == 'true'
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm --filter @sideroom/web exec playwright install --with-deps ${{ matrix.browser }}
-          pnpm --filter @sideroom/web exec playwright test --project=${{ matrix.browser }}
+          ./deploy/compose/e2e-run.sh --project=${{ matrix.browser }}
+        env:
+          CI: "true"
       - uses: actions/upload-artifact@v4
-        if: always() && steps.pw.outputs.present == 'true'
+        if: always()
         with:
           name: e2e-${{ matrix.browser }}
           path: |
-            apps/web/playwright-report
+            e2e/playwright-report
+            e2e/test-results
             server.log

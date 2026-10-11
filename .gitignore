@@ -7,3 +7,4 @@ dist/
 /target
 node_modules
 dist
+server.log
