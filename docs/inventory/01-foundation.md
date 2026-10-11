@@ -17,7 +17,7 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 
 ## FND-CI — Continuous integration
 - [x] **FND-CI-001** [OPS] GitHub Actions: Rust fmt + clippy (`-D warnings`) + nextest with Postgres service
-- [x] **FND-CI-002** [OPS] `sqlx prepare --check` (offline query metadata committed)
+- [ ] **FND-CI-002** [OPS] `sqlx prepare --check` (offline query metadata committed)
 - [x] **FND-CI-003** [OPS] Web lint, typecheck, Vitest
 - [ ] **FND-CI-004** [OPS] Playwright e2e job against the compose stack (Chromium, Firefox, WebKit)
 - [x] **FND-CI-005** [OPS] WASM build + wasm tests (`wasm-bindgen-test` headless)
