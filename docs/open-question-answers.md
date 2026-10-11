@@ -1,5 +1,7 @@
 # Open question answers
 
+> Historical record: this file keeps the full answer to every original open question. The live list of questions that still need a human is in [open-questions.md](open-questions.md).
+
 Answers to every entry in [open-questions.md](open-questions.md) (171 questions, same numbering, state as of `integration/phase0` at `a21ac26`). Rules applied: [01-decisions-log.md](01-decisions-log.md) wins over everything; Discord parity by default (AGENTS.md §3.3); Rust first (D-150); no telemetry; product-level limits live in the database, infrastructure in config (doc 12 §3).
 
 Status key:
