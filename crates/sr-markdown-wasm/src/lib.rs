@@ -78,6 +78,41 @@ pub fn default_max_mentions() -> usize {
     sr_markdown::DEFAULT_MAX_MENTIONS
 }
 
+/// Replace `:shortcode:` names with unicode emoji. The composer calls this at send time (Q89);
+/// the parser itself leaves shortcodes literal.
+#[wasm_bindgen(js_name = expandShortcodes)]
+pub fn expand_shortcodes_js(input: &str) -> String {
+    sr_markdown::expand_shortcodes(input)
+}
+
+/// True when the message renders with jumbo emoji (the same rule the server applies).
+#[wasm_bindgen(js_name = isJumbo)]
+pub fn is_jumbo_js(input: &str) -> bool {
+    sr_markdown::is_jumbo(&parse(input))
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod wasm_tests {
+    use super::*;
+    use wasm_bindgen_test::{wasm_bindgen_test, wasm_bindgen_test_configure};
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    /// The `JsError` path is only constructible on the wasm target.
+    #[wasm_bindgen_test]
+    fn check_limits_throws_js_error() {
+        assert!(check_limits_js("abc", 2, 10).is_err());
+        assert!(check_limits_js("abc", 3, 10).is_ok());
+    }
+
+    #[wasm_bindgen_test]
+    fn parse_and_jumbo_round_trip() {
+        assert!(is_jumbo_js(&expand_shortcodes_js(":smile:")));
+        assert!(!is_jumbo_js(":smile:"));
+        assert!(parse_markdown("**x**").contains("\"bold\""));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
