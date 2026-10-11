@@ -17,7 +17,6 @@ serde_json = "1"
 thiserror = "2"
 tracing = "0.1"
 sr-auth = { path = "../sr-auth" }
-sr-core = { path = "../sr-core", default-features = false }
 aes-gcm = "0.10"
 
 [dev-dependencies]
