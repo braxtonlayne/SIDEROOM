@@ -49,7 +49,7 @@ test.describe('Phase 0 exit gate', () => {
     const { owner } = state();
     await page.goto('/login');
     await page.getByLabel('Username or email').fill(owner.username);
-    await page.getByLabel('Password').fill(owner.password);
+    await page.getByLabel('Password', { exact: true }).fill(owner.password);
     await page.getByRole('button', { name: 'Step inside' }).click();
     await expect(page).toHaveURL(/\/channels/);
   });
@@ -106,7 +106,7 @@ test.describe('Phase 0 exit gate', () => {
 
     await page.goto('/login');
     await page.getByLabel('Username or email').fill(friend.username);
-    await page.getByLabel('Password').fill(friend.password);
+    await page.getByLabel('Password', { exact: true }).fill(friend.password);
     await page.getByRole('button', { name: 'Step inside' }).click();
     await expect(page).toHaveURL(/\/login\/2fa/);
 
