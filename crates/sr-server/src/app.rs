@@ -33,6 +33,7 @@ use crate::{
     backends::{NoBearers, NoBots},
     features_store::PgSettingsStore,
     gateway_pg::{PgAuthenticator, PgGuildDirectory},
+    jobs,
     ready::{DbReady, StorageReady},
 };
 
@@ -272,7 +273,13 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     });
 
     let (job_tx, job_rx) = watch::channel(false);
-    let runner = JobRunner::new(pool.clone(), format!("srv-{}", std::process::id()));
+    let runner = jobs::register(
+        JobRunner::new(pool.clone(), format!("srv-{}", std::process::id())),
+        &pool,
+    );
+    jobs::schedule_recurring(&pool)
+        .await
+        .context("scheduling recurring jobs")?;
     let jobs_task = tokio::spawn(runner.run(job_rx));
 
     // REST: every feature module, feature-owned routes, and the guild backend.

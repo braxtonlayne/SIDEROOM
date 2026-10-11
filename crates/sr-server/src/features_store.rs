@@ -1,9 +1,6 @@
-//! Postgres [`SettingsStore`] over `feature_enablements` (migration 0003).
-//!
-//! The table has a NOT NULL `enabled` and no channel scope, so: an inherited
-//! flag (`enabled: None`) is stored as `enabled = false` with
-//! `config.inherit = true`, and channel scope is rejected with a backend
-//! error until the enum gains a `channel` value (docs/open-questions.md).
+//! Postgres [`SettingsStore`] over `feature_enablements` (migrations 0003 and
+//! 0050). `enabled` is nullable: `NULL` means "inherit from the parent scope"
+//! (`enabled: None`), and every scope including `channel` is stored natively.
 
 use async_trait::async_trait;
 use serde_json::{Map, Value, json};
@@ -23,14 +20,13 @@ impl PgSettingsStore {
     }
 }
 
-fn key(scope: &ScopeRef) -> Result<(&'static str, i64), StoreError> {
+/// `(enablement_scope value, scope_id)` for a scope.
+fn key(scope: &ScopeRef) -> (&'static str, i64) {
     match scope {
-        ScopeRef::Platform => Ok(("platform", 0)),
-        ScopeRef::Guild { guild } => Ok(("guild", guild.get() as i64)),
-        ScopeRef::User { user } => Ok(("user", user.get() as i64)),
-        ScopeRef::Channel { .. } => Err(StoreError::Backend(
-            "channel-scoped settings are not stored yet".into(),
-        )),
+        ScopeRef::Platform => ("platform", 0),
+        ScopeRef::Guild { guild } => ("guild", guild.get() as i64),
+        ScopeRef::Channel { channel, .. } => ("channel", channel.get() as i64),
+        ScopeRef::User { user } => ("user", user.get() as i64),
     }
 }
 
@@ -45,7 +41,7 @@ impl SettingsStore for PgSettingsStore {
         feature_id: &str,
         scope: &ScopeRef,
     ) -> Result<Option<SettingsRecord>, StoreError> {
-        let (kind, id) = key(scope)?;
+        let (kind, id) = key(scope);
         let row = sqlx::query(
             "SELECT enabled, config FROM feature_enablements \
              WHERE feature = $1 AND scope = $2::enablement_scope AND scope_id = $3",
@@ -57,18 +53,15 @@ impl SettingsStore for PgSettingsStore {
         .await
         .map_err(be)?;
         let Some(r) = row else { return Ok(None) };
-        let enabled: bool = r.try_get("enabled").map_err(be)?;
+        // NULL is the inherit state (migration 0050).
+        let enabled: Option<bool> = r.try_get("enabled").map_err(be)?;
         let config: Value = r.try_get("config").map_err(be)?;
-        let inherit = config.get("inherit").and_then(Value::as_bool) == Some(true);
         let values: Map<String, Value> = config
             .get("values")
             .and_then(Value::as_object)
             .cloned()
             .unwrap_or_default();
-        Ok(Some(SettingsRecord {
-            enabled: if inherit { None } else { Some(enabled) },
-            values,
-        }))
+        Ok(Some(SettingsRecord { enabled, values }))
     }
 
     async fn put(
@@ -77,8 +70,8 @@ impl SettingsStore for PgSettingsStore {
         scope: &ScopeRef,
         record: SettingsRecord,
     ) -> Result<(), StoreError> {
-        let (kind, id) = key(scope)?;
-        let config = json!({ "inherit": record.enabled.is_none(), "values": record.values });
+        let (kind, id) = key(scope);
+        let config = json!({ "values": record.values });
         sqlx::query(
             "INSERT INTO feature_enablements (id, feature, scope, scope_id, enabled, config) \
              VALUES ($1, $2, $3::enablement_scope, $4, $5, $6) \
@@ -89,7 +82,7 @@ impl SettingsStore for PgSettingsStore {
         .bind(feature_id)
         .bind(kind)
         .bind(id)
-        .bind(record.enabled.unwrap_or(false))
+        .bind(record.enabled)
         .bind(config)
         .execute(&self.pool)
         .await
@@ -98,7 +91,7 @@ impl SettingsStore for PgSettingsStore {
     }
 
     async fn delete(&self, feature_id: &str, scope: &ScopeRef) -> Result<(), StoreError> {
-        let (kind, id) = key(scope)?;
+        let (kind, id) = key(scope);
         sqlx::query(
             "DELETE FROM feature_enablements \
              WHERE feature = $1 AND scope = $2::enablement_scope AND scope_id = $3",
@@ -119,12 +112,12 @@ mod tests {
     use sr_core::{ChannelId, GuildId};
 
     #[test]
-    fn channel_scope_is_rejected() {
+    fn channel_scope_is_stored_natively() {
         let s = ScopeRef::Channel {
             guild: GuildId::new(1),
             channel: ChannelId::new(2),
         };
-        assert!(key(&s).is_err());
-        assert_eq!(key(&ScopeRef::Platform).unwrap(), ("platform", 0));
+        assert_eq!(key(&s), ("channel", 2));
+        assert_eq!(key(&ScopeRef::Platform), ("platform", 0));
     }
 }
