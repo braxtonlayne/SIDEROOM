@@ -6,3 +6,11 @@ publish.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+anyhow = "1"
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
+sr-api = { path = "../sr-api" }
+sr-core = { path = "../sr-core" }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "signal"] }
+tracing = "0.1"
