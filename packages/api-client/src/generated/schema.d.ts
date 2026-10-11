@@ -4,6 +4,925 @@
  */
 
 export interface paths {
+    "/channels/{channel_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a guild channel the caller can view. */
+        get: operations["get_channel"];
+        put?: never;
+        post?: never;
+        /** Delete a guild channel; a deleted category orphans its children. */
+        delete: operations["delete_channel"];
+        options?: never;
+        head?: never;
+        /** Modify a guild channel. Needs `MANAGE_CHANNELS`. */
+        patch: operations["modify_channel"];
+        trace?: never;
+    };
+    "/channels/{channel_id}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Request an upload slot for each file. */
+        post: operations["request_slots"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/attachments/{upload_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark an uploaded file complete and learn its verified content type. */
+        post: operations["complete_upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Active invites of a channel (`MANAGE_CHANNELS`). */
+        get: operations["list_channel_invites"];
+        put?: never;
+        /**
+         * Create an invite (`CREATE_INSTANT_INVITE`). With `external: true` the defaults
+         *     are single use; explicit `max_age`/`max_uses` always win.
+         */
+        post: operations["create_invite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get channel messages. */
+        get: operations["list_messages"];
+        put?: never;
+        /**
+         * Create a message.
+         * @description Mentions are parsed with `sr-markdown` and gated by permissions (`@everyone`,
+         *     unmentionable roles ping nobody). A repeated `nonce` from the same author in the
+         *     same channel within five minutes returns the original message instead of
+         *     creating another.
+         */
+        post: operations["create_message"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/messages/bulk-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bulk delete 2-100 messages younger than 14 days (MANAGE_MESSAGES). */
+        post: operations["bulk_delete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/messages/pins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pins with pin times (Discord's newer shape). At most 250 pins exist, so one page. */
+        get: operations["list_pins"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/messages/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search one channel (or DM) the caller can read. */
+        get: operations["search_channel"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/messages/{message_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a single channel message. */
+        get: operations["get_message"];
+        put?: never;
+        post?: never;
+        /** Delete a message (author, or MANAGE_MESSAGES). Soft delete: purged after 30 days. */
+        delete: operations["delete_message"];
+        options?: never;
+        head?: never;
+        /** Edit a message (author only for content; embed suppression also by MANAGE_MESSAGES). */
+        patch: operations["edit_message"];
+        trace?: never;
+    };
+    "/channels/{channel_id}/messages/{message_id}/ack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Acknowledge a message: the marker moves forward to it and the mention badge
+         *     resets. With `manual: true` ("mark as unread") the marker is set to exactly this
+         *     message and `mention_count` is restored.
+         */
+        post: operations["ack_message"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/messages/{message_id}/reactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove every reaction from a message (MANAGE_MESSAGES). */
+        delete: operations["clear_all"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/messages/{message_id}/reactions/{emoji}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the users who reacted with an emoji. */
+        get: operations["list_users"];
+        put?: never;
+        post?: never;
+        /** Remove all reactions of one emoji (MANAGE_MESSAGES). */
+        delete: operations["clear_emoji"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/messages/{message_id}/reactions/{emoji}/@me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Add the caller's reaction. */
+        put: operations["add_own"];
+        post?: never;
+        /** Remove the caller's reaction. */
+        delete: operations["remove_own"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/messages/{message_id}/reactions/{emoji}/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove another user's reaction (MANAGE_MESSAGES). */
+        delete: operations["remove_user"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/permissions/{overwrite_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Create or replace a permission overwrite (`type` 0 role, 1 member). */
+        put: operations["put_overwrite"];
+        post?: never;
+        /** Delete a permission overwrite. */
+        delete: operations["delete_overwrite"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/pins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Legacy pins list (array of messages). */
+        get: operations["list_pins_legacy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/pins/ack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark the channel's pins as seen. */
+        post: operations["ack_pins"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/pins/{message_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Pin a message (MANAGE_MESSAGES, max 250 per channel). */
+        put: operations["pin"];
+        post?: never;
+        /** Unpin a message. */
+        delete: operations["unpin"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/recipients/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Add a friend to a group DM. Adding to a 1:1 DM spawns a new group and returns
+         *     it (200); adding to a group answers 204.
+         */
+        put: operations["add_recipient"];
+        post?: never;
+        /** Remove a member from a group DM (owner), or leave it (yourself). */
+        delete: operations["remove_recipient"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/typing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Trigger the typing indicator. */
+        post: operations["trigger_typing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/webhooks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Webhooks of a channel (`MANAGE_WEBHOOKS`). */
+        get: operations["list_channel_webhooks"];
+        put?: never;
+        /**
+         * Create a webhook in a channel (`MANAGE_WEBHOOKS`; 15 per channel). The response
+         *     carries the token once.
+         */
+        post: operations["create_webhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a guild with `@everyone`, two categories, `#general` and a voice channel. */
+        post: operations["create_guild"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/templates/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Preview a template by its code (any signed-in user). */
+        get: operations["get_template"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a guild (members only). */
+        get: operations["get_guild"];
+        put?: never;
+        post?: never;
+        /** Delete a guild (owner only; the Staff Server cannot be deleted). */
+        delete: operations["delete_guild"];
+        options?: never;
+        head?: never;
+        /** Modify a guild; `MANAGE_GUILD`, or the owner for `owner_id`. */
+        patch: operations["modify_guild"];
+        trace?: never;
+    };
+    "/guilds/{guild_id}/audit-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List audit-log entries, newest first (`VIEW_AUDIT_LOG`). Filter by `user_id`
+         *     and `action_type`; page with `before`.
+         */
+        get: operations["list_audit_log"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/auto-moderation/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the guild's AutoMod rules (`MANAGE_GUILD`). */
+        get: operations["list_rules"];
+        put?: never;
+        /**
+         * Create a rule (`MANAGE_GUILD`). Per-type quotas follow Discord: 6 keyword rules,
+         *     3 link rules, 1 of every other type.
+         */
+        post: operations["create_rule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/auto-moderation/rules/{rule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one rule (`MANAGE_GUILD`). */
+        get: operations["get_rule"];
+        put?: never;
+        post?: never;
+        /** Delete a rule (`MANAGE_GUILD`). */
+        delete: operations["delete_rule"];
+        options?: never;
+        head?: never;
+        /** Modify a rule (`MANAGE_GUILD`). */
+        patch: operations["modify_rule"];
+        trace?: never;
+    };
+    "/guilds/{guild_id}/bans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List bans (`BAN_MEMBERS`), ordered by user id. */
+        get: operations["list_bans"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/bans/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one ban (`BAN_MEMBERS`). */
+        get: operations["get_ban"];
+        /** Ban a user (member or not). The reason comes from `X-Audit-Log-Reason` or the body. */
+        put: operations["create_ban"];
+        post?: never;
+        /** Remove a ban (`BAN_MEMBERS`). */
+        delete: operations["remove_ban"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Channels of the guild that the caller can view. */
+        get: operations["list_channels"];
+        put?: never;
+        /** Create a channel or category (`type` 4). Needs `MANAGE_CHANNELS`. */
+        post: operations["create_channel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Bulk update `position` and `parent_id`. Needs `MANAGE_CHANNELS`. */
+        patch: operations["reorder_channels"];
+        trace?: never;
+    };
+    "/guilds/{guild_id}/emojis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a guild's emoji (any member). */
+        get: operations["list_emojis"];
+        put?: never;
+        /**
+         * Upload an emoji (`CREATE_GUILD_EXPRESSIONS` or `MANAGE_GUILD_EXPRESSIONS`).
+         *     250 static and 250 animated slots for every server (open question 135).
+         */
+        post: operations["create_emoji"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/emojis/{emoji_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one emoji (any member). */
+        get: operations["get_emoji"];
+        put?: never;
+        post?: never;
+        /** Delete an emoji (`MANAGE_GUILD_EXPRESSIONS`). */
+        delete: operations["delete_emoji"];
+        options?: never;
+        head?: never;
+        /** Rename an emoji or change its role restriction (`MANAGE_GUILD_EXPRESSIONS`). */
+        patch: operations["modify_emoji"];
+        trace?: never;
+    };
+    "/guilds/{guild_id}/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Active invites of a guild (`MANAGE_GUILD`), newest first. */
+        get: operations["list_guild_invites"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Page through the members of a guild, ordered by user id. */
+        get: operations["list_members"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/members/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one member. */
+        get: operations["get_member"];
+        put?: never;
+        post?: never;
+        /** Remove a member from the guild (`KICK_MEMBERS`, hierarchy applies). */
+        delete: operations["kick_member"];
+        options?: never;
+        head?: never;
+        /** Modify nickname, roles or timeout of a member, subject to the role hierarchy. */
+        patch: operations["modify_member"];
+        trace?: never;
+    };
+    "/guilds/{guild_id}/members/{user_id}/roles/{role_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Add a role to a member. */
+        put: operations["add_member_role"];
+        post?: never;
+        /** Remove a role from a member. */
+        delete: operations["remove_member_role"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/messages/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search a guild's messages across every channel the caller can read. */
+        get: operations["search_guild"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/onboarding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Onboarding settings (any member; the answer options are what new members see). */
+        get: operations["get_onboarding"];
+        /**
+         * Replace the onboarding configuration (`MANAGE_GUILD`). Enabling it needs 7
+         *     default channels, 5 of them open to `@everyone`; at most 15 questions with 50
+         *     answers each. Ids you omit are assigned.
+         */
+        put: operations["put_onboarding"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Roles of the guild (members only), ordered by position. */
+        get: operations["list_roles"];
+        put?: never;
+        /** Create a role directly above `@everyone`. Needs `MANAGE_ROLES`; the caller can only grant bits they hold. */
+        post: operations["create_role"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Bulk update role positions. Returns every role of the guild. */
+        patch: operations["reorder_roles"];
+        trace?: never;
+    };
+    "/guilds/{guild_id}/roles/{role_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a role the caller outranks; members lose it. */
+        delete: operations["delete_role"];
+        options?: never;
+        head?: never;
+        /** Modify a role the caller outranks. */
+        patch: operations["modify_role"];
+        trace?: never;
+    };
+    "/guilds/{guild_id}/sr/community": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** SIDE ROOM community and safety settings (`MANAGE_GUILD`). */
+        get: operations["get_community"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit community and safety settings (`MANAGE_GUILD`). Enabling community
+         *     needs a rules and an updates channel plus the verification and content-filter
+         *     levels from the safety checklist.
+         */
+        patch: operations["modify_community"];
+        trace?: never;
+    };
+    "/guilds/{guild_id}/stickers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a guild's stickers (any member). */
+        get: operations["list_stickers"];
+        put?: never;
+        /** Upload a sticker (`MANAGE_GUILD_EXPRESSIONS`); 60 slots for every server. */
+        post: operations["create_sticker"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/stickers/{sticker_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one sticker (any member). */
+        get: operations["get_sticker"];
+        put?: never;
+        post?: never;
+        /** Delete a sticker (`MANAGE_GUILD_EXPRESSIONS`). */
+        delete: operations["delete_sticker"];
+        options?: never;
+        head?: never;
+        /** Edit a sticker's name, description or tags (`MANAGE_GUILD_EXPRESSIONS`). */
+        patch: operations["modify_sticker"];
+        trace?: never;
+    };
+    "/guilds/{guild_id}/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The guild's template, if it has one (`MANAGE_GUILD`). */
+        get: operations["list_guild_templates"];
+        put?: never;
+        /** Create the guild's template (`MANAGE_GUILD`); a guild has at most one. */
+        post: operations["create_template"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/templates/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Sync the template with the guild's current state (`MANAGE_GUILD`). */
+        put: operations["sync_template"];
+        post?: never;
+        /** Delete the template (`MANAGE_GUILD`); returns it. */
+        delete: operations["delete_template"];
+        options?: never;
+        head?: never;
+        /** Change the template's name or description (`MANAGE_GUILD`). */
+        patch: operations["modify_template"];
+        trace?: never;
+    };
+    "/guilds/{guild_id}/webhooks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Webhooks of a guild (`MANAGE_WEBHOOKS`). */
+        get: operations["list_guild_webhooks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/welcome-screen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The welcome screen. Members see it while it is enabled; managers always. */
+        get: operations["get_welcome_screen"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Edit the welcome screen (`MANAGE_GUILD`): up to 5 channel cards. */
+        patch: operations["modify_welcome_screen"];
+        trace?: never;
+    };
+    "/invites/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resolve an invite code (any signed-in user). Revoked, expired and used-up
+         *     invites are all `Unknown Invite`.
+         */
+        get: operations["get_invite"];
+        put?: never;
+        /**
+         * Accept an invite and join the guild. Already being a member returns the invite
+         *     without using it up. Banned users get 403 `User banned`.
+         */
+        post: operations["accept_invite"];
+        /**
+         * Revoke an invite (`MANAGE_CHANNELS` on its channel or `MANAGE_GUILD`). Returns
+         *     the revoked invite.
+         */
+        delete: operations["delete_invite"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/read-states/ack-bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Acknowledge many channels at once ("mark server as read"). */
+        post: operations["ack_bulk"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sr/csrf": {
         parameters: {
             query?: never;
@@ -35,13 +954,630 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        /**
+         * Edit the caller's profile: `bio` (190), `pronouns` (40), `banner`, `accent_color`
+         *     and `custom_status`. Absent fields stay, `null` clears.
+         */
+        patch: operations["edit_self"];
+        trace?: never;
+    };
+    "/users/@me/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Open conversations of the caller (hidden ones excluded), newest first. */
+        get: operations["list"];
+        put?: never;
+        /**
+         * Open (or find) a 1:1 DM with `recipient_id`, or create a group DM from
+         *     `recipients` (the caller's friends).
+         */
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/users/@me/channels/{channel_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Close a 1:1 DM (it reappears on the next message) or leave a group DM. */
+        delete: operations["close"];
+        options?: never;
+        head?: never;
+        /** Rename a group DM, change its icon, or transfer ownership (owner only). */
+        patch: operations["edit"];
+        trace?: never;
+    };
+    "/users/@me/channels/{channel_id}/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Move a Message Request to `accepted`, `ignored` or `spam`. */
+        put: operations["respond_to_request"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/guilds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Guilds the caller belongs to. Bearer tokens need the `guilds` scope. */
+        get: operations["list_my_guilds"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/guilds/{guild_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Leave a guild. The owner must transfer ownership first. */
+        delete: operations["leave_guild"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/guilds/{guild_id}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Settings of one guild (`@me` for DMs) with the caller's channel overrides in it. */
+        get: operations["get_settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change notification level, mutes and suppression toggles of a guild, plus
+         *     overrides for channels in it. A mute is `muted: true` with an optional
+         *     `mute_config.selected_time_window` (seconds, or -1 until turned off).
+         */
+        patch: operations["patch_settings"];
+        trace?: never;
+    };
+    "/users/@me/ignores": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Users the caller has ignored (Q110: independent of friendship). */
+        get: operations["list_ignores"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/ignores/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Ignore a user: their messages, activity and DM notifications are hidden, the
+         *     friendship stays.
+         */
+        put: operations["ignore"];
+        post?: never;
+        /** Stop ignoring a user. */
+        delete: operations["unignore"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/notes/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's note on a user; 404 when there is none. */
+        get: operations["get_note"];
+        /** Set the note (max 256 characters); an empty or null note deletes it. */
+        put: operations["put_note"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/presence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The stored presence preference with expiries applied. */
+        get: operations["get_presence"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Choose `online`, `idle`, `dnd` or `invisible` (optionally for
+         *     `duration_seconds`) and set or clear the custom status.
+         */
+        patch: operations["patch_presence"];
+        trace?: never;
+    };
+    "/users/@me/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's own profile. */
+        get: operations["get_own_profile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/read-states": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every read marker of the caller (the gateway READY payload carries the same list). */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/relationships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** All relationships of the caller: friends, blocks and pending requests. */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/@me/relationships/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One relationship of the caller; 404 when there is none. */
+        get: operations["get_one"];
+        /**
+         * Send a friend request, accept an incoming one (`type` 1 or omitted), or block
+         *     (`type` 2).
+         */
+        put: operations["put"];
+        post?: never;
+        /** Remove a friend, cancel or decline a request, or unblock. */
+        delete: operations["delete"];
+        options?: never;
+        head?: never;
+        /** Set or clear a friend's private nickname (max 32 characters). */
+        patch: operations["set_nickname"];
+        trace?: never;
+    };
+    "/users/{user_id}/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A user's profile: bio, pronouns, banner, accent colour and the connections they
+         *     made visible.
+         */
+        get: operations["get_profile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhooks/{webhook_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a webhook (`MANAGE_WEBHOOKS`). */
+        get: operations["get_webhook"];
+        put?: never;
+        post?: never;
+        /** Delete a webhook (`MANAGE_WEBHOOKS`). */
+        delete: operations["delete_webhook"];
+        options?: never;
+        head?: never;
+        /** Modify a webhook's name or channel (`MANAGE_WEBHOOKS`). */
+        patch: operations["modify_webhook"];
+        trace?: never;
+    };
+    "/webhooks/{webhook_id}/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a webhook by id and token (no other authentication). */
+        get: operations["get_webhook_with_token"];
+        put?: never;
+        /**
+         * Execute a webhook: post a message into its channel. `?wait=true` returns the
+         *     message. A wrong token and an unknown id both answer 404.
+         */
+        post: operations["execute_webhook"];
+        /** Delete a webhook by id and token. */
+        delete: operations["delete_webhook_with_token"];
+        options?: never;
+        head?: never;
+        /** Modify a webhook's name by id and token. */
+        patch: operations["modify_webhook_with_token"];
         trace?: never;
     };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AckBody: {
+            /** @description "Mark as unread": move the marker to exactly this message. */
+            manual?: boolean | null;
+            /**
+             * Format: int32
+             * @description With `manual`, the mention badge to restore.
+             */
+            mention_count?: number | null;
+        };
+        AckResponse: {
+            token?: string | null;
+        };
+        ActionMetadata: {
+            channel_id?: string | null;
+            custom_message?: string | null;
+            /** Format: int32 */
+            duration_seconds?: number | null;
+        };
+        ActionObject: {
+            metadata?: components["schemas"]["ActionMetadata"];
+            /**
+             * Format: int32
+             * @description 1 block message, 2 send alert message, 3 timeout.
+             */
+            type: number;
+        };
+        /**
+         * @description Discord's `allowed_mentions` object. `parse` may hold `users`, `roles` and
+         *     `everyone`; listed `users`/`roles` ids may ping even when their kind is not parsed.
+         */
+        AllowedMentionsBody: {
+            parse?: string[];
+            replied_user?: boolean;
+            roles?: string[];
+            users?: string[];
+        };
+        AttachmentObject: {
+            content_type?: string | null;
+            description?: string | null;
+            /** @description Set when the attachment is a large file that will expire. */
+            expires_at?: string | null;
+            filename: string;
+            id: string;
+            /** Format: int64 */
+            size: number;
+            /** @description Relative CDN path (`/cdn/attachments/...`); signing happens at the edge. */
+            url: string;
+        };
+        /** @description An uploaded file referenced by a new message. */
+        AttachmentRef: {
+            description?: string | null;
+            /** @description The `id` returned by the upload-slot call (client id echo or upload id). */
+            id?: string | null;
+            /** @description `upload_filename` returned by the upload-slot call. */
+            uploaded_filename?: string | null;
+        };
+        AuditChangeObject: {
+            key: string;
+            new_value?: unknown;
+            old_value?: unknown;
+        };
+        AuditEntryObject: {
+            /** Format: int32 */
+            action_type: number;
+            changes: components["schemas"]["AuditChangeObject"][];
+            id: string;
+            options?: unknown;
+            reason?: string | null;
+            target_id?: string | null;
+            user_id: string;
+        };
+        /**
+         * @description The audit-log envelope. The lists SIDE ROOM does not populate yet are empty
+         *     arrays so Discord clients can parse the shape.
+         */
+        AuditLogObject: {
+            audit_log_entries: components["schemas"]["AuditEntryObject"][];
+            auto_moderation_rules: Record<string, never>[];
+            guild_scheduled_events: Record<string, never>[];
+            integrations: Record<string, never>[];
+            threads: Record<string, never>[];
+            users: components["schemas"]["UserRef"][];
+            webhooks: Record<string, never>[];
+        };
+        BanBody: {
+            /**
+             * Format: int32
+             * @description Deprecated Discord field, 0 to 7.
+             */
+            delete_message_days?: number | null;
+            /**
+             * Format: int32
+             * @description Seconds of message history to delete, 0 to 604800.
+             */
+            delete_message_seconds?: number | null;
+            /** @description Convenience; Discord carries the reason in `X-Audit-Log-Reason`. */
+            reason?: string | null;
+        };
+        BanObject: {
+            reason?: string | null;
+            user: components["schemas"]["UserRef"];
+        };
+        BulkAckBody: {
+            read_states: components["schemas"]["BulkAckEntry"][];
+        };
+        BulkAckEntry: {
+            channel_id: string;
+            message_id: string;
+        };
+        BulkDeleteBody: {
+            messages: string[];
+        };
+        ChannelObject: {
+            /** Format: int32 */
+            bitrate?: number | null;
+            /** Format: int32 */
+            flags: number;
+            guild_id?: string | null;
+            id: string;
+            last_message_id?: string | null;
+            name?: string | null;
+            nsfw: boolean;
+            parent_id?: string | null;
+            permission_overwrites: components["schemas"]["OverwriteObject"][];
+            /** Format: int32 */
+            position: number;
+            /** Format: int32 */
+            rate_limit_per_user: number;
+            topic?: string | null;
+            /** Format: int32 */
+            type: number;
+            /** Format: int32 */
+            user_limit?: number | null;
+        };
+        ChannelOverrideBody: {
+            /**
+             * Format: int32
+             * @description 0, 1 or 2; `null` inherits.
+             */
+            message_notifications?: number | null;
+            mute_config?: null | components["schemas"]["MuteConfigIn"];
+            /** @description `false` unmutes; `true` mutes for `mute_config` (default until turned off). */
+            muted?: boolean | null;
+        };
+        ChannelOverrideObject: {
+            channel_id: string;
+            /** Format: int32 */
+            message_notifications?: number | null;
+            mute_config?: null | components["schemas"]["MuteConfigObject"];
+            muted: boolean;
+        };
+        CommunityObject: {
+            age_restricted: boolean;
+            community_enabled: boolean;
+            description?: string | null;
+            guide_enabled: boolean;
+            guild_id: string;
+            /** @description Security Actions: invites are paused for everyone (LNG-SSET-038). */
+            invites_paused: boolean;
+            onboarding_enabled: boolean;
+            preferred_locale: string;
+            public_updates_channel_id?: string | null;
+            /**
+             * Format: int32
+             * @description Alert when more than this many members join per minute; 0 = off.
+             */
+            raid_alert_joins_per_minute: number;
+            rules_channel_id?: string | null;
+            safety_alerts_channel_id?: string | null;
+            welcome_screen_enabled: boolean;
+        };
+        ConnectionObject: {
+            id: string;
+            name: string;
+            type: string;
+            verified: boolean;
+        };
+        CreateChannelBody: {
+            /** Format: int32 */
+            bitrate?: number | null;
+            name: string;
+            nsfw?: boolean | null;
+            parent_id?: string | null;
+            permission_overwrites?: components["schemas"]["OverwriteBody"][];
+            /** Format: int32 */
+            position?: number | null;
+            /** Format: int32 */
+            rate_limit_per_user?: number | null;
+            topic?: string | null;
+            /**
+             * Format: int32
+             * @description Discord channel type; defaults to 0 (text). 4 creates a category.
+             */
+            type?: number | null;
+            /** Format: int32 */
+            user_limit?: number | null;
+        };
+        CreateDmBody: {
+            name?: string | null;
+            /** @description A 1:1 DM with this user. */
+            recipient_id?: string | null;
+            /** @description A group DM with these users (the caller becomes the owner). */
+            recipients?: string[] | null;
+        };
+        CreateEmojiBody: {
+            /** @description `data:image/png;base64,...` (PNG, JPEG, GIF or WebP; at most 256 KiB). */
+            image: string;
+            /** @description 2-32 letters, digits and underscores. */
+            name: string;
+            /** @description Role ids that may use the emoji; empty or absent = everyone. */
+            roles?: string[];
+        };
+        CreateGuildBody: {
+            /** @description Accepted for compatibility; icon upload arrives with the media pipeline. */
+            icon?: string | null;
+            name: string;
+        };
+        /** @description Body of `POST /channels/{id}/invites`. Every field is optional. */
+        CreateInviteBody: {
+            /**
+             * @description SIDE ROOM: the invite is for sharing outside the platform ("Copy link").
+             *     It defaults to a single use (open question 134).
+             */
+            external?: boolean | null;
+            /**
+             * Format: int32
+             * @description Seconds until expiry, 0 to 604800 (default 86400).
+             */
+            max_age?: number | null;
+            /**
+             * Format: int32
+             * @description 0 to 100 (default 0 = unlimited; 1 for `external`).
+             */
+            max_uses?: number | null;
+            temporary?: boolean | null;
+            /** @description Accepted for Discord compatibility; every call creates a new invite. */
+            unique?: boolean | null;
+        };
+        CreateMessageBody: {
+            allowed_mentions?: null | components["schemas"]["AllowedMentionsBody"];
+            attachments?: components["schemas"]["AttachmentRef"][] | null;
+            /** @description Components are stored as sent; interactions are not supported yet. */
+            components?: Record<string, never>[] | null;
+            content?: string | null;
+            /** @description Embeds are stored as sent (open question 98); at most 10. */
+            embeds?: Record<string, never>[] | null;
+            /**
+             * @description When true, a nonce already used in the window returns the original message with 200
+             *     instead of creating another (open question 151).
+             */
+            enforce_nonce?: boolean | null;
+            /** Format: int32 */
+            flags?: number | null;
+            message_reference?: null | components["schemas"]["MessageReferenceIn"];
+            nonce?: string | null;
+            poll?: Record<string, never> | null;
+            /** @description Not supported yet (stickers/polls have no storage); a non-empty value is rejected. */
+            sticker_ids?: string[] | null;
+            tts?: boolean | null;
+        };
+        CreateRoleBody: {
+            /** Format: int32 */
+            color?: number | null;
+            hoist?: boolean | null;
+            mentionable?: boolean | null;
+            name?: string | null;
+            /** @description Decimal permission bitfield. */
+            permissions?: string | null;
+            unicode_emoji?: string | null;
+        };
+        CreateStickerBody: {
+            description?: string | null;
+            /** @description Data URI: PNG, APNG, GIF or Lottie JSON (at most 512 KiB). */
+            file: string;
+            name: string;
+            /** @description A related emoji or comma-separated tags. */
+            tags: string;
+        };
+        CreateTemplateBody: {
+            /** @description At most 120 characters. */
+            description?: string | null;
+            /** @description 1-100 characters. */
+            name: string;
+        };
+        CreateWebhookBody: {
+            /** @description 1-80 characters, no `@everyone`/`@here`. */
+            name: string;
+        };
         /** @description Body of `GET /sr/csrf`. */
         CsrfToken: {
             /** @description Value for the `X-SR-CSRF` header. */
@@ -53,6 +1589,66 @@ export interface components {
             auth: string;
             /** @description Snowflake id as a string. */
             id: string;
+        };
+        CustomStatusBody: {
+            emoji_id?: string | null;
+            emoji_name?: string | null;
+            /** @description ISO 8601 expiry; omitted keeps it until cleared. */
+            expires_at?: string | null;
+            text?: string | null;
+        };
+        CustomStatusObject: {
+            emoji_id?: string | null;
+            emoji_name?: string | null;
+            expires_at?: string | null;
+            text?: string | null;
+        };
+        DmChannelObject: {
+            icon?: string | null;
+            id: string;
+            /** @description Set only on a conversation sitting in the viewer's Message Requests. */
+            is_message_request?: boolean | null;
+            last_message_id?: string | null;
+            name?: string | null;
+            owner_id?: string | null;
+            /** @description Everyone except the viewer, in join order. */
+            recipients: components["schemas"]["UserObject"][];
+            /**
+             * Format: int32
+             * @description 1 DM, 3 group DM.
+             */
+            type: number;
+        };
+        EditDmBody: {
+            /** @description Icon key; `null` removes the icon. */
+            icon?: string | null;
+            name?: string | null;
+            /** @description Transfers ownership (owner only). */
+            owner_id?: string | null;
+        };
+        EditMessageBody: {
+            content?: string | null;
+            /** Format: int32 */
+            flags?: number | null;
+        };
+        EditSelfBody: {
+            /** Format: int32 */
+            accent_color?: number | null;
+            /** @description Banner key from the media pipeline; `null` removes it. */
+            banner?: string | null;
+            bio?: string | null;
+            custom_status?: null | components["schemas"]["CustomStatusBody"];
+            pronouns?: string | null;
+        };
+        EmojiObject: {
+            animated: boolean;
+            available: boolean;
+            id: string;
+            managed: boolean;
+            name: string;
+            require_colons: boolean;
+            roles: string[];
+            user: components["schemas"]["UserRef"];
         };
         /** @description Discord-style error body (doc 05 section 3). */
         ErrorBody: {
@@ -66,6 +1662,628 @@ export interface components {
             /** @description Human-readable message. */
             message: string;
         };
+        ExecuteWebhookBody: {
+            avatar_url?: string | null;
+            components?: Record<string, never>[] | null;
+            content?: string | null;
+            embeds?: Record<string, never>[] | null;
+            /** Format: int32 */
+            flags?: number | null;
+            tts?: boolean | null;
+            /** @description Accepted; see the module docs (TODO(webhook-author)). */
+            username?: string | null;
+        };
+        FileSpec: {
+            /** @description What the client believes the type is; verified by sniffing at completion. */
+            content_type?: string | null;
+            description?: string | null;
+            /** Format: int64 */
+            file_size: number;
+            filename: string;
+            /** @description Client-chosen id, echoed back. */
+            id?: string | null;
+            spoiler?: boolean | null;
+        };
+        GuildObject: {
+            channels?: components["schemas"]["ChannelObject"][] | null;
+            /** Format: int32 */
+            default_message_notifications: number;
+            description?: string | null;
+            /** Format: int32 */
+            explicit_content_filter: number;
+            features: string[];
+            icon?: string | null;
+            id: string;
+            name: string;
+            owner_id: string;
+            preferred_locale: string;
+            roles?: components["schemas"]["RoleObject"][] | null;
+            system_channel_id?: string | null;
+            /** Format: int32 */
+            verification_level: number;
+        };
+        /** @description Entry of `GET /users/@me/guilds`. */
+        GuildPreviewObject: {
+            features: string[];
+            icon?: string | null;
+            id: string;
+            name: string;
+            owner: boolean;
+            permissions: string;
+        };
+        GuildSettingsBody: {
+            /** @description Channel id to override. */
+            channel_overrides?: Record<string, never> | null;
+            /**
+             * Format: int32
+             * @description 0, 1 or 2; `null` inherits the guild default.
+             */
+            message_notifications?: number | null;
+            mobile_push?: boolean | null;
+            mute_config?: null | components["schemas"]["MuteConfigIn"];
+            mute_scheduled_events?: boolean | null;
+            muted?: boolean | null;
+            suppress_everyone?: boolean | null;
+            suppress_highlights?: boolean | null;
+            suppress_roles?: boolean | null;
+        };
+        InviteChannel: {
+            id: string;
+            name?: string | null;
+            /** Format: int32 */
+            type: number;
+        };
+        InviteGuild: {
+            icon?: string | null;
+            id: string;
+            name: string;
+        };
+        /** @description Discord-shaped invite object. */
+        InviteObject: {
+            channel: components["schemas"]["InviteChannel"];
+            code: string;
+            created_at: string;
+            expires_at?: string | null;
+            guild: components["schemas"]["InviteGuild"];
+            inviter: components["schemas"]["UserRef"];
+            /**
+             * Format: int32
+             * @description Seconds; 0 = never expires.
+             */
+            max_age: number;
+            /** Format: int32 */
+            max_uses: number;
+            temporary: boolean;
+            /**
+             * Format: int32
+             * @description Always 0 (guild invite).
+             */
+            type: number;
+            /** Format: int32 */
+            uses: number;
+        };
+        MemberObject: {
+            avatar?: string | null;
+            communication_disabled_until?: string | null;
+            deaf: boolean;
+            /** Format: int32 */
+            flags: number;
+            /** @description Only present on gateway payloads. */
+            guild_id?: string | null;
+            joined_at: string;
+            mute: boolean;
+            nick?: string | null;
+            pending: boolean;
+            premium_since?: string | null;
+            roles: string[];
+            user: components["schemas"]["UserRef"];
+        };
+        MessageObject: {
+            attachments: components["schemas"]["AttachmentObject"][];
+            author: components["schemas"]["UserRef"];
+            channel_id: string;
+            content: string;
+            edited_timestamp?: string | null;
+            embeds: Record<string, never>[];
+            /** Format: int32 */
+            flags: number;
+            guild_id?: string | null;
+            id: string;
+            mention_everyone: boolean;
+            mention_roles: string[];
+            mentions: components["schemas"]["UserRef"][];
+            message_reference?: null | components["schemas"]["MessageReferenceObject"];
+            nonce?: string | null;
+            pinned: boolean;
+            reactions?: components["schemas"]["ReactionObject"][];
+            timestamp: string;
+            tts: boolean;
+            /** Format: int32 */
+            type: number;
+        };
+        MessageReferenceIn: {
+            /**
+             * @description Default true: a missing target is an error. When false the message is
+             *     sent without a reply.
+             */
+            fail_if_not_exists?: boolean | null;
+            message_id: string;
+        };
+        MessageReferenceObject: {
+            channel_id: string;
+            guild_id?: string | null;
+            message_id: string;
+        };
+        MessageRequestBody: {
+            /** @description `accepted`, `ignored` or `spam`. */
+            state: string;
+        };
+        ModifyChannelBody: {
+            /** Format: int32 */
+            bitrate?: number | null;
+            /** @description Copy the category's overwrites onto this channel. */
+            lock_permissions?: boolean;
+            name?: string | null;
+            nsfw?: boolean | null;
+            parent_id?: string | null;
+            /** Format: int32 */
+            position?: number | null;
+            /** Format: int32 */
+            rate_limit_per_user?: number | null;
+            topic?: string | null;
+            /** Format: int32 */
+            user_limit?: number | null;
+        };
+        ModifyCommunityBody: {
+            age_restricted?: boolean | null;
+            community_enabled?: boolean | null;
+            description?: string | null;
+            guide_enabled?: boolean | null;
+            invites_paused?: boolean | null;
+            onboarding_enabled?: boolean | null;
+            preferred_locale?: string | null;
+            public_updates_channel_id?: string | null;
+            /** Format: int32 */
+            raid_alert_joins_per_minute?: number | null;
+            rules_channel_id?: string | null;
+            safety_alerts_channel_id?: string | null;
+            welcome_screen_enabled?: boolean | null;
+        };
+        ModifyEmojiBody: {
+            name?: string | null;
+            roles?: string[] | null;
+        };
+        ModifyGuildBody: {
+            /** Format: int32 */
+            default_message_notifications?: number | null;
+            description?: string | null;
+            /** Format: int32 */
+            explicit_content_filter?: number | null;
+            /** @description Accepted and ignored for now. */
+            icon?: string | null;
+            name?: string | null;
+            /** @description Transfers ownership (owner only). */
+            owner_id?: string | null;
+            preferred_locale?: string | null;
+            system_channel_id?: string | null;
+            /** Format: int32 */
+            verification_level?: number | null;
+        };
+        ModifyMemberBody: {
+            /** @description ISO8601 end of the timeout, or `null` to clear it. */
+            communication_disabled_until?: string | null;
+            nick?: string | null;
+            roles?: string[] | null;
+        };
+        ModifyRoleBody: {
+            /** Format: int32 */
+            color?: number | null;
+            hoist?: boolean | null;
+            mentionable?: boolean | null;
+            name?: string | null;
+            permissions?: string | null;
+        };
+        ModifyStickerBody: {
+            description?: string | null;
+            name?: string | null;
+            tags?: string | null;
+        };
+        ModifyTemplateBody: {
+            description?: string | null;
+            name?: string | null;
+        };
+        ModifyWebhookBody: {
+            /** @description Move to another channel of the same server (management endpoint only). */
+            channel_id?: string | null;
+            name?: string | null;
+        };
+        ModifyWelcomeScreenBody: {
+            description?: string | null;
+            enabled?: boolean | null;
+            welcome_channels?: components["schemas"]["WelcomeChannelDto"][] | null;
+        };
+        /** @description Mute window of a change that sets `muted: true`. */
+        MuteConfigIn: {
+            /**
+             * Format: int64
+             * @description 900, 3600, 10800, 28800, 86400 seconds, or -1 for "until I turn it back on".
+             */
+            selected_time_window?: number | null;
+        };
+        MuteConfigObject: {
+            /** @description `null` when muted until turned off. */
+            end_time?: string | null;
+            /**
+             * Format: int64
+             * @description `-1` when muted until turned off.
+             */
+            selected_time_window?: number | null;
+        };
+        NicknameBody: {
+            /** @description Empty or null clears the nickname (max 32 characters). */
+            nickname?: string | null;
+        };
+        NoteBody: {
+            /** @description Empty or null clears the note (max 256 characters). */
+            note?: string | null;
+        };
+        NoteObject: {
+            note: string;
+            note_user_id: string;
+            user_id: string;
+        };
+        OnboardingDto: {
+            default_channel_ids?: string[];
+            enabled?: boolean;
+            prompts?: components["schemas"]["PromptDto"][];
+        };
+        OnboardingObject: {
+            default_channel_ids: string[];
+            enabled: boolean;
+            guild_id: string;
+            prompts: components["schemas"]["PromptDto"][];
+        };
+        OptionDto: {
+            channel_ids?: string[];
+            description?: string | null;
+            emoji?: string | null;
+            /** @description Omit on create; the server assigns ids. */
+            id?: string | null;
+            role_ids?: string[];
+            title: string;
+        };
+        OverwriteBody: {
+            allow?: string | null;
+            deny?: string | null;
+            /** @description Required when creating a channel, ignored on `PUT`. */
+            id?: string | null;
+            /**
+             * Format: int32
+             * @description 0 = role, 1 = member.
+             */
+            type: number;
+        };
+        OverwriteObject: {
+            allow: string;
+            deny: string;
+            id: string;
+            /**
+             * Format: int32
+             * @description 0 = role, 1 = member.
+             */
+            type: number;
+        };
+        PartialEmoji: {
+            id?: string | null;
+            name: string;
+        };
+        PinEntry: {
+            message: components["schemas"]["MessageObject"];
+            pinned_at: string;
+        };
+        PinsPage: {
+            has_more: boolean;
+            items: components["schemas"]["PinEntry"][];
+        };
+        PresenceBody: {
+            custom_status?: null | components["schemas"]["CustomStatusBody"];
+            /**
+             * Format: int64
+             * @description Revert to `online` after this many seconds (for example "DND for 1 hour").
+             */
+            duration_seconds?: number | null;
+            /** @description `online`, `idle`, `dnd` or `invisible`. */
+            status?: string | null;
+        };
+        PresenceObject: {
+            custom_status?: null | components["schemas"]["CustomStatusObject"];
+            /** @description `online`, `idle`, `dnd` or `invisible`. */
+            status: string;
+            status_expires_at?: string | null;
+        };
+        ProfileObject: {
+            connected_accounts: components["schemas"]["ConnectionObject"][];
+            user: components["schemas"]["UserObject"];
+            user_profile: components["schemas"]["UserProfileFields"];
+        };
+        PromptDto: {
+            id?: string | null;
+            in_onboarding?: boolean;
+            options: components["schemas"]["OptionDto"][];
+            required?: boolean;
+            single_select?: boolean;
+            title: string;
+        };
+        PutRelationshipBody: {
+            /**
+             * Format: int32
+             * @description 1 (default) sends or accepts a friend request, 2 blocks.
+             */
+            type?: number | null;
+        };
+        ReactionObject: {
+            /** Format: int32 */
+            count: number;
+            emoji: components["schemas"]["PartialEmoji"];
+            me: boolean;
+        };
+        ReadStateObject: {
+            /** @description The channel id. */
+            id: string;
+            last_message_id?: string | null;
+            last_pin_timestamp?: string | null;
+            /** Format: int32 */
+            mention_count: number;
+        };
+        ReadStatesResponse: {
+            entries: components["schemas"]["ReadStateObject"][];
+        };
+        RelationshipObject: {
+            /** @description The other user's id. */
+            id: string;
+            nickname?: string | null;
+            since: string;
+            /**
+             * Format: int32
+             * @description 1 friend, 2 blocked, 3 incoming request, 4 outgoing request.
+             */
+            type: number;
+            user: components["schemas"]["UserObject"];
+        };
+        ReorderChannelEntry: {
+            id: string;
+            lock_permissions?: boolean;
+            parent_id?: string | null;
+            /** Format: int32 */
+            position?: number | null;
+        };
+        ReorderRoleEntry: {
+            id: string;
+            /** Format: int32 */
+            position: number;
+        };
+        RoleObject: {
+            /** Format: int32 */
+            color: number;
+            /** Format: int32 */
+            flags: number;
+            hoist: boolean;
+            icon?: string | null;
+            id: string;
+            managed: boolean;
+            mentionable: boolean;
+            name: string;
+            /** @description Decimal permission bitfield. */
+            permissions: string;
+            /** Format: int32 */
+            position: number;
+            unicode_emoji?: string | null;
+        };
+        /**
+         * @description Body of create (all of `name`, `event_type`, `trigger_type`, `actions` required)
+         *     and modify (every field optional; `trigger_type` cannot change).
+         */
+        RuleBody: {
+            actions?: components["schemas"]["ActionObject"][] | null;
+            enabled?: boolean | null;
+            /** Format: int32 */
+            event_type?: number | null;
+            exempt_channels?: string[] | null;
+            exempt_roles?: string[] | null;
+            name?: string | null;
+            trigger_metadata?: null | components["schemas"]["TriggerMetadata"];
+            /** Format: int32 */
+            trigger_type?: number | null;
+        };
+        RuleObject: {
+            actions: components["schemas"]["ActionObject"][];
+            creator_id: string;
+            enabled: boolean;
+            /**
+             * Format: int32
+             * @description 1 message send, 2 member update.
+             */
+            event_type: number;
+            exempt_channels: string[];
+            exempt_roles: string[];
+            guild_id: string;
+            id: string;
+            name: string;
+            trigger_metadata: components["schemas"]["TriggerMetadata"];
+            /** Format: int32 */
+            trigger_type: number;
+        };
+        /**
+         * @description Discord search response: each result is a one-message group (no context
+         *     lines), flagged with `hit: true`.
+         */
+        SearchResponse: {
+            doing_deep_historical_index: boolean;
+            messages: components["schemas"]["MessageObject"][][];
+            total_results: number;
+        };
+        SearchSnippet: {
+            /** @description Byte ranges into `text`. */
+            highlights: [
+                number,
+                number
+            ][];
+            text: string;
+        };
+        SelfObject: {
+            /** Format: int32 */
+            accent_color?: number | null;
+            banner?: string | null;
+            bio?: string | null;
+            custom_status?: null | components["schemas"]["CustomStatusObject"];
+            pronouns?: string | null;
+            user: components["schemas"]["UserObject"];
+        };
+        StickerObject: {
+            available: boolean;
+            description?: string | null;
+            /**
+             * Format: int32
+             * @description 1 PNG, 2 APNG, 3 Lottie, 4 GIF.
+             */
+            format_type: number;
+            guild_id: string;
+            id: string;
+            name: string;
+            tags: string;
+            /**
+             * Format: int32
+             * @description 2 = guild sticker.
+             */
+            type: number;
+            user: components["schemas"]["UserRef"];
+        };
+        TemplateObject: {
+            code: string;
+            created_at: string;
+            creator: components["schemas"]["UserRef"];
+            creator_id: string;
+            description?: string | null;
+            /** @description Whether the guild changed since the last sync (guild-scoped reads only). */
+            is_dirty?: boolean | null;
+            name: string;
+            /** @description The snapshot: `settings`, `roles` and `channels` with local ids. */
+            serialized_source_guild: Record<string, never>;
+            source_guild_id: string;
+            updated_at: string;
+            /** Format: int32 */
+            usage_count: number;
+        };
+        TriggerMetadata: {
+            allow_list?: string[];
+            keyword_filter?: string[];
+            link_allow_domains?: string[];
+            link_block_all?: boolean;
+            link_block_domains?: string[];
+            mention_raid_protection_enabled?: boolean;
+            /** Format: int32 */
+            mention_total_limit?: number | null;
+            /** @description 1 profanity, 2 sexual content, 3 slurs. */
+            presets?: number[];
+            regex_patterns?: string[];
+        };
+        UploadSlot: {
+            /**
+             * Format: int64
+             * @description Large files expire after this many seconds; absent for normal files.
+             */
+            expires_after?: number | null;
+            /** @description Echo of the client id (or the upload id when none was sent). */
+            id: string;
+            /**
+             * Format: int64
+             * @description The maximum accepted size for this caller.
+             */
+            max_size: number;
+            /** @description Opaque name to pass as `uploaded_filename` when creating the message. */
+            upload_filename: string;
+            /** @description Server-side upload id; reference it from the message. */
+            upload_id: string;
+            upload_url: string;
+            /** Format: int64 */
+            upload_url_expires_in: number;
+        };
+        UploadSlotsBody: {
+            files: components["schemas"]["FileSpec"][];
+        };
+        UploadSlotsResponse: {
+            attachments: components["schemas"]["UploadSlot"][];
+        };
+        UserGuildSettingsObject: {
+            channel_overrides: components["schemas"]["ChannelOverrideObject"][];
+            /** @description `null` for the DM scope. */
+            guild_id?: string | null;
+            /**
+             * Format: int32
+             * @description 0 all messages, 1 only mentions, 2 nothing; `null` inherits the guild default.
+             */
+            message_notifications?: number | null;
+            mobile_push: boolean;
+            mute_config?: null | components["schemas"]["MuteConfigObject"];
+            mute_scheduled_events: boolean;
+            muted: boolean;
+            suppress_everyone: boolean;
+            suppress_highlights: boolean;
+            suppress_roles: boolean;
+        };
+        UserListEntry: {
+            id: string;
+        };
+        UserObject: {
+            /** @description Avatar key, when one is set. */
+            avatar?: string | null;
+            global_name?: string | null;
+            id: string;
+            username?: string | null;
+        };
+        UserProfileFields: {
+            /** Format: int32 */
+            accent_color?: number | null;
+            banner?: string | null;
+            bio?: string | null;
+            pronouns?: string | null;
+        };
+        /**
+         * @description User object embedded in messages (author, mentions). Fields come from the user
+         *     lookup (open question 157); without a row only the id is known.
+         */
+        UserRef: {
+            global_name?: string | null;
+            id: string;
+            username?: string | null;
+        };
+        WebhookObject: {
+            avatar?: string | null;
+            channel_id: string;
+            guild_id: string;
+            id: string;
+            name: string;
+            /** @description Only in the creation response; it cannot be recovered afterwards. */
+            token?: string | null;
+            /**
+             * Format: int32
+             * @description 1 incoming, 2 channel follower, 3 application.
+             */
+            type: number;
+            /** @description Execution path, only when the token is known. */
+            url?: string | null;
+            user?: null | components["schemas"]["UserRef"];
+        };
+        WelcomeChannelDto: {
+            channel_id: string;
+            description: string;
+            emoji_name?: string | null;
+        };
+        WelcomeScreenObject: {
+            description?: string | null;
+            enabled: boolean;
+            welcome_channels: components["schemas"]["WelcomeChannelDto"][];
+        };
     };
     responses: never;
     parameters: never;
@@ -75,6 +2293,3963 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChannelObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChannelObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modify_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifyChannelBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChannelObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    request_slots: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UploadSlotsBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadSlotsResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description File larger than the caller's limit */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    complete_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Upload id from the slot response */
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachmentObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_channel_invites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_invite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        /** @description Optional */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInviteBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_messages: {
+        parameters: {
+            query?: {
+                /** @description 1-100, default 50 */
+                limit?: number;
+                /** @description Messages before this id */
+                before?: string;
+                /** @description Messages after this id */
+                after?: string;
+                /** @description Messages around this id */
+                around?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_message: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateMessageBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Slowmode; includes `retry_after` seconds */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    bulk_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkDeleteBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_pins: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PinsPage"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    search_channel: {
+        parameters: {
+            query?: {
+                /** @description Search-box syntax with inline filters */
+                q?: string;
+                /** @description Text to find */
+                content?: string;
+                /** @description Comma-separated user ids */
+                author_id?: string;
+                /** @description Comma-separated user ids */
+                mentions?: string;
+                /** @description link, embed, file, image, video, sound, sticker, poll */
+                has?: string;
+                /** @description Only pinned or only unpinned */
+                pinned?: boolean;
+                /** @description user, bot, webhook */
+                author_type?: string;
+                /** @description timestamp (default) or relevance */
+                sort_by?: string;
+                /** @description desc (default) or asc */
+                sort_order?: string;
+                /** @description 1-25, default 25 */
+                limit?: number;
+                /** @description 0-9975 */
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_message: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Message snowflake */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_message: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Message snowflake */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    edit_message: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Message snowflake */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditMessageBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    ack_message: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Message snowflake */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        /** @description Optional */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AckBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AckResponse"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    clear_all: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Message snowflake */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_users: {
+        parameters: {
+            query?: {
+                /** @description 1-100, default 25 */
+                limit?: number;
+                /** @description User id to start after */
+                after?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Message snowflake */
+                message_id: string;
+                /** @description Unicode emoji, or `name:id` */
+                emoji: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserListEntry"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    clear_emoji: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Message snowflake */
+                message_id: string;
+                /** @description Unicode emoji, or `name:id` */
+                emoji: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    add_own: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Message snowflake */
+                message_id: string;
+                /** @description Unicode emoji, or `name:id` for custom emoji (URL-encoded) */
+                emoji: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove_own: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Message snowflake */
+                message_id: string;
+                /** @description Unicode emoji, or `name:id` */
+                emoji: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove_user: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Message snowflake */
+                message_id: string;
+                /** @description Unicode emoji, or `name:id` */
+                emoji: string;
+                /** @description User snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put_overwrite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Role or user snowflake */
+                overwrite_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OverwriteBody"];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_overwrite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Role or user snowflake */
+                overwrite_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_pins_legacy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    ack_pins: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Acknowledged */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    pin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Message snowflake */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    unpin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Message snowflake */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    add_recipient: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description DM snowflake */
+                channel_id: string;
+                /** @description User to add */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DmChannelObject"];
+                };
+            };
+            /** @description Added */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove_recipient: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Group DM snowflake */
+                channel_id: string;
+                /** @description User to remove */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    trigger_typing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_channel_webhooks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_webhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateWebhookBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateGuildBody"];
+            };
+        };
+        responses: {
+            /** @description The new guild with its roles and channels */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuildObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Template code */
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateObject"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuildObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modify_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifyGuildBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuildObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_audit_log: {
+        parameters: {
+            query?: {
+                /** @description Actor filter */
+                user_id?: string;
+                /** @description Event number filter */
+                action_type?: number;
+                /** @description Entry id cursor */
+                before?: string;
+                /** @description 1 to 100, default 50 */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditLogObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_rules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_rule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RuleBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_rule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Rule snowflake */
+                rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_rule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Rule snowflake */
+                rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modify_rule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Rule snowflake */
+                rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RuleBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuleObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_bans: {
+        parameters: {
+            query?: {
+                /** @description 1 to 1000, default 1000 */
+                limit?: number;
+                /** @description User snowflake cursor */
+                before?: string;
+                /** @description User snowflake cursor */
+                after?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BanObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_ban: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description User snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BanObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_ban: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Stored as the ban reason */
+                "X-Audit-Log-Reason"?: string | null;
+            };
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description User snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        /** @description Optional */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BanBody"];
+            };
+        };
+        responses: {
+            /** @description Banned */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove_ban: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description User snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Unbanned */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_channels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChannelObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateChannelBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChannelObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    reorder_channels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReorderChannelEntry"][];
+            };
+        };
+        responses: {
+            /** @description Reordered */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_emojis: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmojiObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_emoji: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateEmojiBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmojiObject"];
+                };
+            };
+            /** @description Invalid image, or 30008 when the slots are full */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_emoji: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Emoji snowflake */
+                emoji_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmojiObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_emoji: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Emoji snowflake */
+                emoji_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modify_emoji: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Emoji snowflake */
+                emoji_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifyEmojiBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmojiObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_guild_invites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_members: {
+        parameters: {
+            query?: {
+                /** @description 1 to 1000, default 1 */
+                limit?: number;
+                /** @description User snowflake cursor */
+                after?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_member: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description User snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    kick_member: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description User snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Kicked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modify_member: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description User snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifyMemberBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    add_member_role: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description User snowflake */
+                user_id: string;
+                /** @description Role snowflake */
+                role_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Added */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove_member_role: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description User snowflake */
+                user_id: string;
+                /** @description Role snowflake */
+                role_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    search_guild: {
+        parameters: {
+            query?: {
+                /** @description Search-box syntax with inline filters */
+                q?: string;
+                /** @description Text to find */
+                content?: string;
+                /** @description Comma-separated user ids */
+                author_id?: string;
+                /** @description Comma-separated user ids */
+                mentions?: string;
+                /** @description link, embed, file, image, video, sound, sticker, poll */
+                has?: string;
+                /** @description Comma-separated channel ids */
+                channel_id?: string;
+                /** @description Only pinned or only unpinned */
+                pinned?: boolean;
+                /** @description user, bot, webhook */
+                author_type?: string;
+                /** @description timestamp (default) or relevance */
+                sort_by?: string;
+                /** @description desc (default) or asc */
+                sort_order?: string;
+                /** @description 1-25, default 25 */
+                limit?: number;
+                /** @description 0-9975 */
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_onboarding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put_onboarding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_roles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_role: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRoleBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    reorder_roles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReorderRoleEntry"][];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleObject"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_role: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Role snowflake */
+                role_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modify_role: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Role snowflake */
+                role_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifyRoleBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_community: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommunityObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modify_community: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifyCommunityBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommunityObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_stickers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StickerObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_sticker: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateStickerBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StickerObject"];
+                };
+            };
+            /** @description Invalid file, or 30039 when the slots are full */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_sticker: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Sticker snowflake */
+                sticker_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StickerObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_sticker: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Sticker snowflake */
+                sticker_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modify_sticker: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Sticker snowflake */
+                sticker_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifyStickerBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StickerObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_guild_templates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTemplateBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    sync_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Template code */
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Template code */
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modify_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Template code */
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifyTemplateBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TemplateObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_guild_webhooks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_welcome_screen: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WelcomeScreenObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modify_welcome_screen: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifyWelcomeScreenBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WelcomeScreenObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_invite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invite code */
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteObject"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    accept_invite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invite code */
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_invite: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Stored in the audit log */
+                "X-Audit-Log-Reason"?: string | null;
+            };
+            path: {
+                /** @description Invite code */
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    ack_bulk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkAckBody"];
+            };
+        };
+        responses: {
+            /** @description Acknowledged */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     csrf_token: {
         parameters: {
             query?: never;
@@ -120,6 +6295,1152 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    edit_self: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditSelfBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SelfObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DmChannelObject"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDmBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DmChannelObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    close: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description DM snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Closed or left */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    edit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Group DM snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditDmBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DmChannelObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    respond_to_request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description DM snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageRequestBody"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_my_guilds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuildPreviewObject"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    leave_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Left */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake, or `@me` for DMs */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserGuildSettingsObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake, or `@me` for DMs */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuildSettingsBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserGuildSettingsObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_ignores: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserObject"][];
+                };
+            };
+        };
+    };
+    ignore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description User snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ignored */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    unignore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description User snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No longer ignored */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_note: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description User snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteObject"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put_note: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description User snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoteBody"];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_presence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresenceObject"];
+                };
+            };
+        };
+    };
+    patch_presence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PresenceBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresenceObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_own_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileObject"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadStatesResponse"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationshipObject"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_one: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Other user's snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationshipObject"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Other user's snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PutRelationshipBody"];
+            };
+        };
+        responses: {
+            /** @description Done */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Other user's snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_nickname: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Friend's snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NicknameBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationshipObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description User snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileObject"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_webhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Webhook snowflake */
+                webhook_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_webhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Webhook snowflake */
+                webhook_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modify_webhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Webhook snowflake */
+                webhook_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifyWebhookBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_webhook_with_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Webhook snowflake */
+                webhook_id: string;
+                /** @description Execution token */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookObject"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    execute_webhook: {
+        parameters: {
+            query?: {
+                /** @description Return the created message */
+                wait?: boolean;
+                /** @description Not supported yet */
+                thread_id?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Webhook snowflake */
+                webhook_id: string;
+                /** @description Execution token */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExecuteWebhookBody"];
+            };
+        };
+        responses: {
+            /** @description With `wait=true` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageObject"];
+                };
+            };
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_webhook_with_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Webhook snowflake */
+                webhook_id: string;
+                /** @description Execution token */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modify_webhook_with_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Webhook snowflake */
+                webhook_id: string;
+                /** @description Execution token */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifyWebhookBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
