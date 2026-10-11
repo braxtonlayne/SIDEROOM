@@ -568,3 +568,44 @@ impl EmailTokenRepository for PgAuthRepo {
         Ok(id)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A pool that never connects: these tests exercise only the envelope.
+    fn repo(key: [u8; 32]) -> PgAuthRepo {
+        let pool =
+            PgPool::connect_lazy("postgres://sideroom:x@127.0.0.1:1/none").expect("lazy pool");
+        PgAuthRepo::new(pool, Arc::new(|| 1), key)
+    }
+
+    #[tokio::test]
+    async fn secrets_survive_key_rotation_and_stay_bound_to_their_account() {
+        let old = repo([1u8; 32]);
+        let sealed = old.seal(42, b"totp-secret").unwrap();
+        assert_eq!(sealed[0], key_version(&[1u8; 32]));
+
+        let rotated = repo([2u8; 32]).with_previous_keys(vec![[1u8; 32]]);
+        assert_eq!(rotated.open(42, &sealed).unwrap(), b"totp-secret");
+        // The account id is the AAD: a row moved to another account is refused.
+        assert!(rotated.open(43, &sealed).is_err());
+        // Without the previous key the old ciphertext is unreadable.
+        assert!(repo([2u8; 32]).open(42, &sealed).is_err());
+    }
+
+    #[tokio::test]
+    async fn new_ciphertexts_use_the_current_key() {
+        let rotated = repo([2u8; 32]).with_previous_keys(vec![[1u8; 32]]);
+        let sealed = rotated.seal(7, b"x").unwrap();
+        assert_eq!(sealed[0], key_version(&[2u8; 32]));
+        assert_eq!(rotated.open(7, &sealed).unwrap(), b"x");
+    }
+
+    #[test]
+    fn secret_key_hex_is_validated() {
+        assert_eq!(parse_secret_key(&"ab".repeat(32)).unwrap(), [0xab; 32]);
+        assert!(parse_secret_key("zz").is_err());
+        assert!(parse_secret_key(&"zz".repeat(32)).is_err());
+    }
+}

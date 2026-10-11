@@ -183,6 +183,19 @@ impl AuthStore for PgAuthStore {
         row.as_ref().map(account_from_row).transpose()
     }
 
+    async fn find_by_discord(&self, provider_user_id: &str) -> StoreResult<Option<AccountRecord>> {
+        let sql = format!(
+            "SELECT {ACCOUNT_COLS} FROM accounts WHERE id = (SELECT account_id FROM \
+             external_identities WHERE provider = 'discord' AND provider_user_id = $1)"
+        );
+        let row = sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(provider_user_id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(store_err)?;
+        row.as_ref().map(account_from_row).transpose()
+    }
+
     async fn set_password_hash(&self, id: i64, hash: &str) -> StoreResult<()> {
         sqlx::query("UPDATE accounts SET password_hash = $2, updated_at = now() WHERE id = $1")
             .bind(id)

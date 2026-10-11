@@ -2,6 +2,7 @@
 //! cookies.
 
 use super::{
+    discord::{DiscordOAuth, DiscordSettings, OAuthFlow, Pending, PendingLink},
     mail::Mailer,
     store::{AuthStore, StoreError},
     throttle::{Lockout, PendingMfaTable, WindowLimiter},
@@ -124,6 +125,12 @@ pub struct AuthService {
     pub(super) account_lock: Lockout,
     pub(super) ip_lock: Lockout,
     pub(super) pending: PendingMfaTable,
+    /// Discord OAuth client; `None` when `[discord]` has no client id.
+    pub(super) discord: Option<DiscordOAuth>,
+    /// Started Discord flows, keyed by OAuth `state`.
+    pub(super) discord_flows: Pending<OAuthFlow>,
+    /// Verified Discord identities waiting for registration.
+    pub(super) discord_links: Pending<PendingLink>,
 }
 
 impl AuthService {
@@ -145,7 +152,16 @@ impl AuthService {
             cfg,
             ip_limits: WindowLimiter::default(),
             pending: PendingMfaTable::default(),
+            discord: None,
+            discord_flows: Pending::default(),
+            discord_links: Pending::default(),
         }
+    }
+
+    /// Enable Discord sign-in and registration (open questions 78 and 79).
+    pub fn with_discord(mut self, settings: &DiscordSettings) -> Result<Self, String> {
+        self.discord = Some(DiscordOAuth::new(settings)?);
+        Ok(self)
     }
 
     /// Replace the config (rebuilds the lockout policies).

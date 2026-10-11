@@ -59,6 +59,8 @@ struct Inner {
     trusted: Vec<MemTrusted>,
     /// `(actor, action, target, note)`.
     audit: Vec<(i64, String, Option<i64>, String)>,
+    /// Discord user id to account id (external identities).
+    discord: HashMap<String, i64>,
     banned_emails: HashSet<String>,
     next_row_id: i64,
 }
@@ -224,6 +226,9 @@ impl AuthStore for MemoryAuthStore {
         if g.accounts.values().any(|a| a.email == tx.email) {
             return Ok(Err(EmailTaken));
         }
+        if let Some(d) = &tx.discord_id {
+            g.discord.entry(d.clone()).or_insert(tx.account_id);
+        }
         g.accounts.insert(
             tx.account_id,
             AccountRecord {
@@ -278,6 +283,14 @@ impl AuthStore for MemoryAuthStore {
 
     async fn find_by_id(&self, id: i64) -> StoreResult<Option<AccountRecord>> {
         Ok(self.lock().accounts.get(&id).cloned())
+    }
+
+    async fn find_by_discord(&self, provider_user_id: &str) -> StoreResult<Option<AccountRecord>> {
+        let g = self.lock();
+        Ok(g.discord
+            .get(provider_user_id)
+            .and_then(|id| g.accounts.get(id))
+            .cloned())
     }
 
     async fn set_password_hash(&self, id: i64, hash: &str) -> StoreResult<()> {

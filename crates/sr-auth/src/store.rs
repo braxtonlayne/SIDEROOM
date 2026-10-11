@@ -165,6 +165,8 @@ pub trait AuthStore: Send + Sync {
     async fn find_by_email(&self, email: &str) -> StoreResult<Option<AccountRecord>>;
     /// Find by id.
     async fn find_by_id(&self, id: i64) -> StoreResult<Option<AccountRecord>>;
+    /// The account linked to a Discord user id (open question 79).
+    async fn find_by_discord(&self, provider_user_id: &str) -> StoreResult<Option<AccountRecord>>;
     /// Replace the password hash.
     async fn set_password_hash(&self, id: i64, hash: &str) -> StoreResult<()>;
     /// Mark the email verified (idempotent).

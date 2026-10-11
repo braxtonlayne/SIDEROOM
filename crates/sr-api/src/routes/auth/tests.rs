@@ -1464,3 +1464,197 @@ async fn missing_service_extension_is_a_500_not_a_panic() {
         .unwrap();
     assert_eq!(r.status(), StatusCode::INTERNAL_SERVER_ERROR);
 }
+
+// ---- login link, trusted devices, Discord (open questions 43, 78, 144) ----
+
+/// Store a one-time token for `purpose` and return its raw value.
+async fn issue_token(h: &H, user: i64, purpose: sr_auth::email_token::EmailTokenPurpose) -> String {
+    let t = sr_auth::email_token::EmailToken::generate(purpose).unwrap();
+    h.store
+        .email_token_put(user, purpose, &t.hash(), h.now() as i64 + 3600)
+        .await
+        .unwrap();
+    t.expose().to_owned()
+}
+
+#[tokio::test]
+async fn login_link_signs_in_once_and_only_with_its_own_purpose() {
+    use sr_auth::email_token::EmailTokenPurpose::{LoginLink, ResetPassword};
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+
+    // A reset token does not log anyone in.
+    let reset = issue_token(&h, 1, ResetPassword).await;
+    let wrong = h
+        .post("/api/v1/sr/auth/login-link", json!({ "token": reset }))
+        .send()
+        .await;
+    assert_eq!(wrong.status, StatusCode::BAD_REQUEST);
+
+    let link = issue_token(&h, 1, LoginLink).await;
+    let ok = h
+        .post("/api/v1/sr/auth/login-link", json!({ "token": link }))
+        .send()
+        .await;
+    assert_eq!(ok.status, StatusCode::OK, "{:?}", ok.body);
+    assert!(ok.cookie("sr_session").is_some());
+
+    let reused = h
+        .post("/api/v1/sr/auth/login-link", json!({ "token": link }))
+        .send()
+        .await;
+    assert_eq!(reused.status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn trusted_device_skips_the_second_factor_until_revoked() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    let s = h.login("alice").await;
+    let (secret, _) = enrol_totp(&h, &s).await;
+
+    let mfa = login_expecting_mfa(&h).await;
+    h.clock.advance_ms(60_000);
+    let code = totp::current_code(&secret, "SIDE ROOM", "alice", h.now()).unwrap();
+    let ok = h
+        .post(
+            "/api/v1/sr/auth/2fa",
+            json!({"method": "totp", "code": code, "trust_device": true}),
+        )
+        .cookie("sr_mfa", &mfa)
+        .ua(UA_CHROME)
+        .send()
+        .await;
+    assert_eq!(ok.status, StatusCode::OK, "{:?}", ok.body);
+    let trusted = ok.cookie("sr_trusted").expect("trusted-device cookie");
+
+    // The trusted browser signs in with the password alone.
+    let login = |cookie: Option<&str>| {
+        let call = h.post(
+            "/api/v1/sr/auth/login",
+            json!({"login": "alice", "password": PW}),
+        );
+        match cookie {
+            Some(c) => call.cookie("sr_trusted", c),
+            None => call,
+        }
+    };
+    let skip = login(Some(&trusted)).send().await;
+    assert_eq!(skip.body["status"], "ok", "{:?}", skip.body);
+    let plain = login(None).send().await;
+    assert_eq!(plain.body["status"], "mfa_required");
+
+    // Listed under Devices, and revocable.
+    let list = h
+        .get("/api/v1/sr/auth/trusted-devices")
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(list.status, StatusCode::OK);
+    let id = list.body[0]["id"].as_str().unwrap().to_owned();
+    let del = h
+        .call(
+            Method::DELETE,
+            &format!("/api/v1/sr/auth/trusted-devices/{id}"),
+        )
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(del.status, StatusCode::NO_CONTENT);
+    let after = login(Some(&trusted)).send().await;
+    assert_eq!(after.body["status"], "mfa_required");
+}
+
+/// The harness with Discord configured (no network: only the local checks run).
+fn discord_harness() -> H {
+    let sessions = Arc::new(MemorySessions::new());
+    let clock = Arc::new(ManualClock::new(NOW_MS));
+    let mut settings = ApiSettings::default();
+    settings.rate_limit.enabled = false;
+    let store = Arc::new(MemoryAuthStore::new(sessions.clone()));
+    let mailer = Arc::new(MemoryMailer::new());
+    let next = Arc::new(AtomicI64::new(10_000));
+    let ids: super::IdSource = Arc::new(move || next.fetch_add(1, Ordering::SeqCst));
+    let svc = AuthService::new(store.clone(), mailer.clone(), ids)
+        .with_hasher(cheap_hasher())
+        .with_discord(&super::DiscordSettings {
+            client_id: "1234".into(),
+            client_secret: "secret".into(),
+            redirect_uri: "https://chat.example.org/api/v1/sr/auth/discord/callback".into(),
+        })
+        .unwrap();
+    let state = AppState::builder()
+        .sessions(sessions)
+        .clock(clock.clone())
+        .settings(settings)
+        .extension(Arc::new(svc))
+        .build();
+    let app = build_router(state.clone(), super::router());
+    H {
+        app,
+        state,
+        store,
+        mailer,
+        clock,
+        hasher: cheap_hasher(),
+    }
+}
+
+#[tokio::test]
+async fn discord_start_redirects_with_a_state_cookie() {
+    let h = discord_harness();
+    let r = h
+        .get("/api/v1/sr/auth/discord/start?intent=login&next=/lounge")
+        .send()
+        .await;
+    assert_eq!(r.status, StatusCode::FOUND);
+    let location = r.headers[header::LOCATION].to_str().unwrap().to_owned();
+    assert!(location.starts_with("https://discord.com/oauth2/authorize?"));
+    let state = r.cookie("sr_oauth_state").expect("state cookie");
+    assert!(location.contains(&format!("state={state}")));
+    assert!(location.contains("scope=identify"));
+
+    let bad = h
+        .get("/api/v1/sr/auth/discord/start?intent=steal")
+        .send()
+        .await;
+    assert_eq!(bad.status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn discord_callback_refuses_a_mismatched_state() {
+    let h = discord_harness();
+    let start = h
+        .get("/api/v1/sr/auth/discord/start?intent=login")
+        .send()
+        .await;
+    let state = start.cookie("sr_oauth_state").unwrap();
+    let r = h
+        .get("/api/v1/sr/auth/discord/callback?code=abc&state=forged")
+        .cookie("sr_oauth_state", &state)
+        .send()
+        .await;
+    assert_eq!(r.status, StatusCode::FOUND);
+    assert_eq!(
+        r.headers[header::LOCATION].to_str().unwrap(),
+        "/login?error=discord_failed"
+    );
+}
+
+#[tokio::test]
+async fn discord_pending_link_is_empty_without_a_cookie() {
+    let h = discord_harness();
+    let r = h.get("/api/v1/sr/auth/discord/pending").send().await;
+    assert_eq!(r.status, StatusCode::OK);
+    assert_eq!(r.body["pending"], false);
+}
+
+#[tokio::test]
+async fn discord_routes_are_404_when_not_configured() {
+    let h = harness();
+    let r = h
+        .get("/api/v1/sr/auth/discord/start?intent=login")
+        .send()
+        .await;
+    assert_eq!(r.status, StatusCode::NOT_FOUND);
+}

@@ -2,6 +2,7 @@
 //! docs/06-identity-accounts-invites.md section 8.
 
 mod commands;
+mod guilds;
 
 use std::path::PathBuf;
 

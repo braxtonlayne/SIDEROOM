@@ -18,6 +18,7 @@ pub mod recovery;
 pub mod repo;
 pub mod session;
 pub mod store;
+pub mod tokens;
 pub mod totp;
 
 pub use error::AuthError;

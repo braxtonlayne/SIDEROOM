@@ -19,7 +19,7 @@ use sr_db::{
     auth_store::PgAuthStore,
 };
 
-use crate::{Cli, Command, InviteCmd, UserCmd};
+use crate::{Cli, Command, InviteCmd, UserCmd, guilds};
 
 /// Initial invite credits per account (config `invites.initial_credits`, doc 06 5.3).
 const INITIAL_CREDITS: i32 = 5;
@@ -78,6 +78,10 @@ fn id_source(server: &sr_core::config::ServerConfig) -> Result<IdSource> {
 
 fn now_secs() -> i64 {
     SystemClock.now_unix_ms() / 1000
+}
+
+fn now_ms() -> i64 {
+    SystemClock.now_unix_ms()
 }
 
 fn hasher() -> Result<PasswordHasher> {
@@ -198,9 +202,8 @@ async fn bootstrap(
         bail!("username or email already in use");
     }
 
-    // The Staff Server (is_staff_guild) needs the guilds/roles tables, which are
-    // not in the schema yet. See docs/open-questions.md.
-    println!("note: Staff Server not created (guild schema not yet defined)");
+    let staff = guilds::create_staff_guild(pool, &cfg.server, owner_id, now_ms()).await?;
+    println!("Staff Server created (guild {staff}); default staff roles are not created yet.");
 
     let link = login_link(pool, cfg, ids, owner_id).await?;
     println!("Owner '{username}' created (id {owner_id}).");
@@ -385,8 +388,26 @@ async fn seed(
             }
         }
     }
+    let mut member_ids = Vec::new();
+    for (username, _) in SEED_USERS {
+        if let Some(id) = accounts::find_account_id(pool, username).await? {
+            member_ids.push(id);
+        }
+    }
+    let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM guilds WHERE name = $1)")
+        .bind(guilds::DEV_GUILD_NAME)
+        .fetch_one(pool)
+        .await?;
+    let mut dev_guild = String::from("dev guild already exists");
+    if !exists && let Some(&owner) = member_ids.first() {
+        let g = guilds::seed_dev_guild(pool, &cfg.server, owner, &member_ids, now_ms()).await?;
+        dev_guild = format!(
+            "created dev guild {g} with {} messages",
+            guilds::DEV_MESSAGES
+        );
+    }
     println!(
-        "seeded {created} new dev account(s) ({} already existed); servers, messages and library samples are not seeded (schema not yet defined)",
+        "seeded {created} new dev account(s) ({} already existed); {dev_guild}; library samples are not seeded (schema not yet defined)",
         SEED_USERS.len() - created
     );
     Ok(())

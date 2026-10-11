@@ -17,6 +17,7 @@
 
 mod account;
 mod common;
+mod discord;
 mod invites;
 mod login;
 mod mfa;
@@ -32,6 +33,7 @@ pub mod mail;
 pub mod memory;
 
 pub use common::{AuthConfig, AuthRouteError, AuthService, IdSource};
+pub use discord::DiscordSettings;
 pub use store::{
     AccountRecord, AccountState, AuthStore, InviteState, RegisterRejection, RegisterTx, Registered,
     StoreError, StoreResult,
@@ -58,6 +60,12 @@ pub fn router() -> Router<AppState> {
         .route("/sr/auth/logout-all", post(sessions::logout_all))
         .route("/sr/auth/sessions", get(sessions::list))
         .route("/sr/auth/sessions/{id}", delete(sessions::revoke))
+        .route("/sr/auth/discord/start", get(discord::start))
+        .route("/sr/auth/discord/callback", get(discord::callback))
+        .route(
+            "/sr/auth/discord/pending",
+            get(discord::pending).delete(discord::forget),
+        )
         .route("/sr/auth/trusted-devices", get(trusted::list))
         .route("/sr/auth/trusted-devices/{id}", delete(trusted::revoke))
         .route("/sr/auth/totp/enroll", post(mfa::enroll))

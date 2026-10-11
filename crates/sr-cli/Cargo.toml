@@ -15,8 +15,10 @@ path = "src/main.rs"
 anyhow = "1"
 clap = { version = "4", features = ["derive", "env"] }
 rpassword = "7"
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "postgres"] }
 sr-api = { path = "../sr-api" }
 sr-auth = { path = "../sr-auth" }
+sr-chat = { path = "../sr-chat" }
 sr-core = { path = "../sr-core" }
 sr-db = { path = "../sr-db" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

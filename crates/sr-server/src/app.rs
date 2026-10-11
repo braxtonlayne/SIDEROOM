@@ -20,7 +20,7 @@ use sr_api::{
     routes::{
         self,
         auth::{
-            AuthConfig, AuthService,
+            AuthConfig, AuthService, DiscordSettings,
             mail::{LogMailer, Mailer, SmtpMailer},
         },
         guilds::GuildApi,
@@ -205,18 +205,33 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     } else {
         Arc::new(SmtpMailer::from_config(&cfg.smtp).context("configuring [smtp]")?)
     };
-    let auth_service = Arc::new(
-        AuthService::new(
-            Arc::new(PgAuthStore::new(
-                pool.clone(),
-                auth_repo.clone(),
-                id_src.clone(),
-            )),
-            mailer,
+    let auth_service = AuthService::new(
+        Arc::new(PgAuthStore::new(
+            pool.clone(),
+            auth_repo.clone(),
             id_src.clone(),
-        )
-        .with_config(auth_cfg.clone()),
-    );
+        )),
+        mailer,
+        id_src.clone(),
+    )
+    .with_config(auth_cfg.clone());
+    let auth_service = if cfg.discord.client_id.is_empty() {
+        auth_service
+    } else {
+        // Discord OAuth; the callback URL must match the one registered with Discord.
+        let redirect_uri = format!(
+            "{}/api/v1/sr/auth/discord/callback",
+            cfg.server.public_url.trim_end_matches('/')
+        );
+        auth_service
+            .with_discord(&DiscordSettings {
+                client_id: cfg.discord.client_id.clone(),
+                client_secret: cfg.discord.client_secret.expose().to_owned(),
+                redirect_uri,
+            })
+            .map_err(|e| anyhow::anyhow!("configuring [discord]: {e}"))?
+    };
+    let auth_service = Arc::new(auth_service);
 
     let s = &cfg.storage;
     let storage: Arc<dyn ObjectStorage> = Arc::new(

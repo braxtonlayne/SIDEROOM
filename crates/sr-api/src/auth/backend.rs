@@ -1,7 +1,7 @@
-//! Dyn-safe backends the extractors call. Real implementations arrive with
-//! `sr-db`; [`SessionBackend`] is blanket-implemented for every
-//! [`sr_auth::repo::SessionRepository`], so the future Postgres repository
-//! plugs in directly.
+//! Dyn-safe backends the extractors call. The bot and bearer traits and their
+//! token formats live in `sr_auth::tokens` (open question 56); this module
+//! keeps the session backend, which is blanket-implemented for every
+//! [`sr_auth::repo::SessionRepository`].
 
 use async_trait::async_trait;
 use sr_auth::{
@@ -9,10 +9,7 @@ use sr_auth::{
     session::TokenHash,
 };
 
-/// Opaque backend failure (maps to a 500).
-#[derive(Debug, thiserror::Error)]
-#[error("auth backend error: {0}")]
-pub struct BackendError(pub String);
+pub use sr_auth::tokens::{BackendError, BearerBackend, BearerIdentity, BotBackend, BotIdentity};
 
 /// Session lookup used by the cookie extractor.
 #[async_trait]
@@ -35,36 +32,4 @@ impl<R: SessionRepository> SessionBackend for R {
             .await
             .map_err(|e| BackendError(e.to_string()))
     }
-}
-
-/// A bot identified by its token.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BotIdentity {
-    /// The bot's user id.
-    pub user_id: i64,
-    /// Owning application id.
-    pub application_id: i64,
-}
-
-/// Bot token verification.
-#[async_trait]
-pub trait BotBackend: Send + Sync {
-    /// `None` when the token is unknown or revoked.
-    async fn authenticate(&self, token: &str) -> Result<Option<BotIdentity>, BackendError>;
-}
-
-/// An OAuth2 access token's owner and scopes.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BearerIdentity {
-    /// The authorising user.
-    pub user_id: i64,
-    /// Granted scopes (`identify`, `guilds`, ...).
-    pub scopes: Vec<String>,
-}
-
-/// OAuth2 bearer token verification.
-#[async_trait]
-pub trait BearerBackend: Send + Sync {
-    /// `None` when the token is unknown, expired or revoked.
-    async fn authenticate(&self, token: &str) -> Result<Option<BearerIdentity>, BackendError>;
 }
