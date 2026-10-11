@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import { Avatar, CounterBadge, Icon, VirtualList } from '@sideroom/ui';
 import { useState } from 'react';
-import { ComingSoon } from './components/ComingSoon';
+import { ComingSoon } from '@sideroom/ui';
 import { dmTitle, HOME } from './channels';
 import { usePresenceMap, useDms, useRequestCounts, useUsers, type DmChannel } from './data';
 import { useLoungeRoute } from './nav';

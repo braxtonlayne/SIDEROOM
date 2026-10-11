@@ -1,8 +1,8 @@
 import { Link } from '@tanstack/react-router';
 import { Avatar, ContextMenu, CounterBadge, Icon, Tooltip, type MenuEntry } from '@sideroom/ui';
 import { useState, type ReactNode } from 'react';
-import { RailPill, type RailPillState } from './components/RailPill';
-import { ComingSoon } from './components/ComingSoon';
+import { RailPill, type RailPillState } from '@sideroom/ui';
+import { ComingSoon } from '@sideroom/ui';
 import { firstTextChannel, HOME } from './channels';
 import {
   useAllChannels,

@@ -1,8 +1,9 @@
+/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex -- a focusable window splitter (ARIA separator with arrow keys) is interactive; jsx-a11y does not model it */
 import { useRef } from 'react';
 import type { KeyboardEvent, PointerEvent } from 'react';
 
 /**
- * Missing from @sideroom/ui: a vertical separator that resizes the panel to its right.
+ * A vertical separator that resizes the panel to its right.
  * Pointer drag and Arrow keys; announces its value as a slider-like separator.
  */
 export interface ResizeHandleProps {

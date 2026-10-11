@@ -4,6 +4,7 @@ import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import { afterAll, beforeAll, vi } from 'vitest';
 import { createAppRouter } from '../../router';
 import { resetComposerDrafts } from '../Composer';
+import { setMarkdownEngine, testFallbackEngine } from '../markdown';
 import { useLoungeUi } from '../store';
 
 // These tests drive the Lounge against the deterministic mock seed (opt-in via VITE_SR_MOCK=1).
@@ -93,6 +94,23 @@ describe('Lounge shell', () => {
     expect(box).toHaveValue('');
     const strong = await screen.findByText('world');
     expect(strong.tagName).toBe('STRONG');
+  });
+
+  it('expands :shortcodes: through the engine when the message is sent', async () => {
+    setMarkdownEngine({
+      ...testFallbackEngine,
+      expandShortcodes: (t) => t.replace(':smile:', '😄'),
+    });
+    try {
+      at('/channels/1001/2001');
+      const box = await screen.findByRole('textbox', { name: 'Message #general' });
+      await userEvent.type(box, 'hi :smile:');
+      await userEvent.keyboard('{Enter}');
+      expect(await screen.findByText(/hi 😄/)).toBeInTheDocument();
+      expect(screen.queryByText(/:smile:/)).not.toBeInTheDocument();
+    } finally {
+      setMarkdownEngine(testFallbackEngine);
+    }
   });
 
   it('Shift+Enter inserts a newline instead of sending', async () => {

@@ -1,6 +1,6 @@
 import { Avatar, Icon, Tooltip, useToast } from '@sideroom/ui';
 import { useState } from 'react';
-import { ComingSoon } from './components/ComingSoon';
+import { ComingSoon } from '@sideroom/ui';
 import { useCurrentUser, usePresence } from './data';
 import { useLoungeUi } from './store';
 

@@ -46,5 +46,11 @@ export * from "./primitives/Settings/SettingsLayout";
 export * from "./icons/Icon";
 export * from "./icons/paths";
 export * from "./sideroom/Chrome";
+// Lounge kit moved from apps/web (Q167)
+export * from "./primitives/Rail/RailPill";
+export * from "./primitives/Resize/ResizeHandle";
+export * from "./sideroom/ComingSoon";
+export * from "./util/useMediaQuery";
+export { observeRectWithFallback } from "./util/virtual";
 export * from "./sideroom/Poster";
 export * from "./sideroom/FilterChips";

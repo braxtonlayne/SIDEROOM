@@ -5,10 +5,11 @@ import type { TouchEvent } from 'react';
 import { ChannelSidebar } from './ChannelSidebar';
 import { ChannelView } from './ChannelView';
 import { SectionBar, TitleStrip } from './Chrome';
-import { MOBILE_QUERY, useMediaQuery } from './components/useMediaQuery';
-import { ResizeHandle } from './components/ResizeHandle';
-import { ComingSoon } from './components/ComingSoon';
+import { MOBILE_QUERY, useMediaQuery } from '@sideroom/ui';
+import { ResizeHandle } from '@sideroom/ui';
+import { ComingSoon } from '@sideroom/ui';
 import { firstTextChannel, HOME, navigableChannels, step } from './channels';
+import { loadMarkdownEngine } from './markdown';
 import {
   useAllChannels,
   useChannels,
@@ -187,6 +188,13 @@ function Shell() {
   useEffect(() => {
     if (guildId) setLocation(guildId, channelId);
   }, [guildId, channelId, setLocation]);
+
+  // Start the WASM markdown parser; messages show as plain text until it is ready.
+  useEffect(() => {
+    loadMarkdownEngine().catch(() => {
+      /* stays on plain text; the next mount retries */
+    });
+  }, []);
 
   // Picking a channel on mobile reveals the chat pane.
   useEffect(() => {

@@ -1,5 +1,6 @@
-import { Button, Modal } from '@sideroom/ui';
 import type { ReactNode } from 'react';
+import { Button } from '../primitives/Button/Button';
+import { Modal } from '../primitives/Modal/Modal';
 
 /** Placeholder modal for flows owned by other inventory items (Create Server, Directory, ...). */
 export function ComingSoon({

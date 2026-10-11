@@ -8,8 +8,8 @@ import {
   type MenuEntry,
 } from '@sideroom/ui';
 import { useState } from 'react';
-import { ComingSoon } from './components/ComingSoon';
-import { RailPill } from './components/RailPill';
+import { ComingSoon } from '@sideroom/ui';
+import { RailPill } from '@sideroom/ui';
 import { groupChannels, isVoiceLike } from './channels';
 import {
   useChannels,

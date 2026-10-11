@@ -47,6 +47,16 @@ export const login = async (req: { login: string; password: string }) => {
   return res;
 };
 
+/**
+ * Owner one-time login link (open question 43): `POST /sr/auth/login-link {token}` exchanges the token for
+ * a session cookie. The token is single use and lasts an hour; it never resets a password.
+ */
+export const loginWithLink = async (token: string) => {
+  const res = await apiPost<{ status: 'ok' }>('/sr/auth/login-link', { token });
+  await refreshCsrf();
+  return res;
+};
+
 export interface TwoFactorRequest {
   method: 'totp' | 'recovery';
   code: string;

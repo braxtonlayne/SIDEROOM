@@ -20,6 +20,9 @@ importers:
       '@sideroom/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@sideroom/wasm':
+        specifier: workspace:*
+        version: link:../../packages/wasm
       '@tanstack/react-query':
         specifier: ^5.59.0
         version: 5.104.1(react@19.3.0)
