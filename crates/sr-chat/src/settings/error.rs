@@ -64,10 +64,14 @@ impl SettingsError {
             Self::UnknownEmoji | Self::UnknownSticker => ApiError::new(ErrorCode::UnknownEmoji),
             Self::UnknownWebhook => ApiError::new(ErrorCode::UnknownWebhook),
             Self::UnknownRule | Self::UnknownTemplate => ApiError::new(ErrorCode::General),
-            Self::LimitReached(what) => ApiError::with_message(
-                ErrorCode::InvalidFormBody,
-                format!("Maximum number of {what} reached"),
-            ),
+            Self::LimitReached(what) => match *what {
+                "static emoji" | "animated emoji" => ApiError::new(ErrorCode::MaxEmojis),
+                "stickers" => ApiError::new(ErrorCode::MaxStickers),
+                _ => ApiError::with_message(
+                    ErrorCode::InvalidFormBody,
+                    format!("Maximum number of {what} reached"),
+                ),
+            },
             Self::MissingPermissions => ApiError::new(ErrorCode::MissingPermissions),
             Self::Invalid {
                 field,

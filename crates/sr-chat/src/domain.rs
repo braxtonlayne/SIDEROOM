@@ -293,6 +293,8 @@ pub mod message_flags {
     pub const EPHEMERAL: u32 = 1 << 6;
     pub const SUPPRESS_NOTIFICATIONS: u32 = 1 << 12;
     pub const IS_VOICE_MESSAGE: u32 = 1 << 13;
+    /// Text-to-speech request (LNG-MSG-002); stored as a flag (open question 152).
+    pub const TTS: u32 = 1 << 14;
 }
 
 /// D-121: user_deleted / staff_removed are hidden from user views.
@@ -322,9 +324,11 @@ pub struct Message {
     pub edited_at_ms: Option<i64>,
     pub reference: Option<MessageReference>,
     pub attachment_ids: Vec<AttachmentId>,
-    pub embed_count: u8,
+    /// Embed payloads (open question 98); the count is `embeds.len()`.
+    pub embeds: Vec<crate::message::Embed>,
+    pub components: Vec<crate::message::Component>,
     pub sticker_ids: Vec<u64>,
-    pub has_poll: bool,
+    pub poll: Option<crate::message::Poll>,
     pub mention_everyone: bool,
     pub mention_user_ids: Vec<UserId>,
     pub mention_role_ids: Vec<RoleId>,
@@ -338,7 +342,23 @@ pub struct Message {
 }
 
 impl Message {
+    /// Whether the message carries a poll.
+    pub fn has_poll(&self) -> bool {
+        self.poll.is_some()
+    }
+
+    /// Number of embeds (the API reports the count against the limit).
+    pub fn embed_count(&self) -> usize {
+        self.embeds.len()
+    }
+
     pub fn is_visible(&self) -> bool {
         self.visibility == Visibility::Visible
     }
+}
+
+/// Whether a message of this type counts towards slowmode. System messages
+/// (joins, pins, call notices) do not (open question 154).
+pub fn counts_for_slowmode(kind: MessageType) -> bool {
+    matches!(kind, MessageType::Default | MessageType::Reply)
 }

@@ -1,15 +1,15 @@
-//! In-memory backend implementing both `sr_chat::repo::ChatRepository` and
-//! [`MessageStore`], for tests and local bring-up before the Postgres versions land.
+//! In-memory backend implementing both [`ChatRepository`] and
+//! [`MessageStore`], for tests and local bring-up (open question 148).
 
-use super::store::{
+use crate::repo::{
     Attachment, EmojiKey, MessageStore, Page, ReactionSummary, StoreError, StoreResult, UploadState,
 };
 use async_trait::async_trait;
-use sr_chat::error::RepoError;
-use sr_chat::guild_rules::GuildBlueprint;
-use sr_chat::message_rules::{DeletePlan, EditPlan};
-use sr_chat::repo::{ChannelRepository, GuildRepository, MessageRepository, RepoResult};
-use sr_chat::{Channel, Guild, Member, Message, Role};
+
+use crate::domain::{Channel, Guild, Member, Message, Role, Visibility};
+use crate::guild_rules::GuildBlueprint;
+use crate::message_rules::{DeletePlan, EditPlan};
+use crate::repo::{ChannelRepository, GuildRepository, MessageRepository, RepoResult};
 use sr_core::permissions::Overwrite;
 use sr_core::{AttachmentId, ChannelId, GuildId, MessageId, RoleId, UserId};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -196,14 +196,45 @@ impl MessageRepository for MemoryBackend {
     async fn insert_message(&self, message: &Message) -> RepoResult<()> {
         let mut s = self.data();
         s.messages.push(message.clone());
-        s.sent_at.insert(
-            (message.channel_id, message.author_id),
-            message.id.snowflake().unix_ms(),
-        );
+        if crate::domain::counts_for_slowmode(message.kind) {
+            s.sent_at.insert(
+                (message.channel_id, message.author_id),
+                message.id.snowflake().unix_ms(),
+            );
+        }
         if let Some(c) = s.channels.get_mut(&message.channel_id) {
             c.last_message_id = Some(message.id);
         }
         Ok(())
+    }
+
+    async fn hide_user_messages(
+        &self,
+        author: UserId,
+        channels: &[ChannelId],
+        since_ms: i64,
+        now_ms: i64,
+        purge_after_ms: i64,
+    ) -> RepoResult<Vec<(ChannelId, Vec<MessageId>)>> {
+        let mut guard = self.data();
+        let d = &mut *guard;
+        let mut out: Vec<(ChannelId, Vec<MessageId>)> =
+            channels.iter().map(|c| (*c, Vec::new())).collect();
+        for m in d.messages.iter_mut() {
+            if m.author_id != author || !m.is_visible() || m.id.snowflake().unix_ms() < since_ms {
+                continue;
+            }
+            let Some(slot) = out.iter_mut().find(|(c, _)| *c == m.channel_id) else {
+                continue;
+            };
+            m.visibility = Visibility::UserDeleted;
+            m.deleted_at_ms = Some(now_ms);
+            m.purge_after_ms = m.hold_id.is_none().then_some(purge_after_ms);
+            m.pinned = false;
+            d.pins.remove(&m.id);
+            slot.1.push(m.id);
+        }
+        Ok(out)
     }
 
     async fn apply_edit(&self, plan: &EditPlan) -> RepoResult<()> {
@@ -471,11 +502,5 @@ impl MessageStore for MemoryBackend {
             v.sort_by_key(|a| a.id);
         }
         Ok(out)
-    }
-}
-
-impl From<RepoError> for StoreError {
-    fn from(e: RepoError) -> Self {
-        Self(e.0)
     }
 }

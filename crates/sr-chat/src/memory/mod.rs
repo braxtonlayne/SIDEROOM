@@ -1,12 +1,14 @@
 //! In-memory repository used by the service tests.
 
+pub mod messages;
 use crate::admin_repo::{Ban, GuildAdminRepository};
-use crate::domain::{Channel, Guild, Member, Message, Role};
+use crate::domain::{Channel, Guild, Member, Message, Role, Visibility};
 use crate::error::RepoError;
 use crate::guild_rules::GuildBlueprint;
 use crate::message_rules::{DeletePlan, EditPlan};
 use crate::repo::{ChannelRepository, GuildRepository, MessageRepository, RepoResult};
 use async_trait::async_trait;
+pub use messages::{Data, MemoryBackend};
 use sr_core::permissions::{Overwrite, OverwriteKind};
 use sr_core::{ChannelId, GuildId, MessageId, RoleId, Snowflake, UserId};
 use std::collections::{HashMap, HashSet};
@@ -187,10 +189,12 @@ impl MessageRepository for MemoryRepo {
     async fn insert_message(&self, message: &Message) -> RepoResult<()> {
         let mut s = self.lock()?;
         s.messages.push(message.clone());
-        s.sent_at.insert(
-            (message.channel_id, message.author_id),
-            message.id.snowflake().unix_ms(),
-        );
+        if crate::domain::counts_for_slowmode(message.kind) {
+            s.sent_at.insert(
+                (message.channel_id, message.author_id),
+                message.id.snowflake().unix_ms(),
+            );
+        }
         if let Some(c) = s.channels.get_mut(&message.channel_id) {
             c.last_message_id = Some(message.id);
         }
@@ -235,6 +239,35 @@ impl MessageRepository for MemoryRepo {
             .iter()
             .filter(|(c, _)| *c == channel)
             .count())
+    }
+
+    async fn hide_user_messages(
+        &self,
+        author: UserId,
+        channels: &[ChannelId],
+        since_ms: i64,
+        now_ms: i64,
+        purge_after_ms: i64,
+    ) -> RepoResult<Vec<(ChannelId, Vec<MessageId>)>> {
+        let mut s = self.lock()?;
+        let s = &mut *s;
+        let mut out: Vec<(ChannelId, Vec<MessageId>)> =
+            channels.iter().map(|c| (*c, Vec::new())).collect();
+        for m in s.messages.iter_mut() {
+            if m.author_id != author || !m.is_visible() || m.id.snowflake().unix_ms() < since_ms {
+                continue;
+            }
+            let Some(slot) = out.iter_mut().find(|(c, _)| *c == m.channel_id) else {
+                continue;
+            };
+            m.visibility = Visibility::UserDeleted;
+            m.deleted_at_ms = Some(now_ms);
+            m.purge_after_ms = m.hold_id.is_none().then_some(purge_after_ms);
+            m.pinned = false;
+            s.pins.remove(&(m.channel_id, m.id));
+            slot.1.push(m.id);
+        }
+        Ok(out)
     }
 
     async fn set_pinned(

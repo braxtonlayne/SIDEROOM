@@ -13,6 +13,8 @@ pub mod domain;
 pub mod error;
 pub mod guild_rules;
 pub mod limits;
+pub mod message;
+pub mod message_hooks;
 pub mod message_rules;
 pub mod perms;
 pub mod repo;

@@ -6,8 +6,11 @@ use crate::domain::{Channel, Guild, Member, Message, Role, Visibility};
 use crate::error::{ChatError, ChatResult};
 use crate::guild_rules::{self, GuildBlueprint};
 use crate::limits::ChatLimits;
+use crate::message::{Component, Embed, Poll};
+use crate::message_hooks::MessageHooks;
 use crate::message_rules::{
-    self, CreateContext, CreateMessageInput, DeletePlan, EditContext, EditMessageInput, EditPlan,
+    self, AllowedMentions, CreateContext, CreateMessageInput, DeletePlan, EditContext,
+    EditMessageInput, EditPlan,
 };
 use crate::perms::{GuildActor, channel_permissions, dm_permissions};
 use crate::repo::ChatRepository;
@@ -23,6 +26,7 @@ pub struct ChatService<R> {
     pub(crate) clock: Arc<dyn Clock>,
     pub(crate) ids: SnowflakeGenerator<Arc<dyn Clock>>,
     pub(crate) limits: ChatLimits,
+    pub(crate) hooks: Option<Arc<dyn MessageHooks>>,
 }
 
 /// Request body of "create message" with attachments already resolved to upload ids.
@@ -32,10 +36,13 @@ pub struct SendMessage {
     pub nonce: Option<String>,
     pub reply_to: Option<MessageId>,
     pub attachment_ids: Vec<AttachmentId>,
-    pub embed_count: usize,
+    pub embeds: Vec<Embed>,
+    pub components: Vec<Component>,
     pub sticker_ids: Vec<u64>,
-    pub has_poll: bool,
+    pub poll: Option<Poll>,
     pub flags: u32,
+    /// `None` means Discord's default: every parsed mention may ping.
+    pub allowed_mentions: Option<AllowedMentions>,
 }
 
 /// Resolved view of a channel for one user.
@@ -57,6 +64,7 @@ impl<R: ChatRepository> ChatService<R> {
             clock,
             ids,
             limits,
+            hooks: None,
         }
     }
 
@@ -192,7 +200,42 @@ impl<R: ChatRepository> ChatService<R> {
         Ok(channel)
     }
 
-    // ------------------------------------------------------- messages
+    /// Install the post-send hooks (reopen DMs, mention counts; open questions 114
+    /// and 117). Without hooks a message is only stored.
+    pub fn with_hooks(mut self, hooks: Arc<dyn MessageHooks>) -> Self {
+        self.hooks = Some(hooks);
+        self
+    }
+
+    /// Mentioned users who may view the channel (open questions 98 and 117). DMs
+    /// count recipients; guild channels count members with VIEW_CHANNEL.
+    async fn eligible_mentions(
+        &self,
+        guild: Option<&Guild>,
+        channel: &Channel,
+        users: Vec<UserId>,
+    ) -> ChatResult<Vec<UserId>> {
+        let mut out = Vec::with_capacity(users.len());
+        let now = self.now();
+        for u in users {
+            let ok = match guild {
+                None => self.repo.is_recipient(channel.id, u).await?,
+                Some(g) => match self.repo.get_member(g.id, u).await? {
+                    Some(member) => {
+                        let roles = self.repo.list_roles(g.id).await?;
+                        let overwrites = self.repo.get_overwrites(channel.id).await?;
+                        channel_permissions(g, &member, &roles, &overwrites, now)
+                            .has(Permissions::VIEW_CHANNEL)
+                    }
+                    None => false,
+                },
+            };
+            if ok {
+                out.push(u);
+            }
+        }
+        Ok(out)
+    }
 
     pub async fn send_message(
         &self,
@@ -215,9 +258,9 @@ impl<R: ChatRepository> ChatService<R> {
             nonce: req.nonce,
             reply_to: req.reply_to,
             attachment_count: req.attachment_ids.len(),
-            embed_count: req.embed_count,
+            embed_count: req.embeds.len(),
             sticker_ids: req.sticker_ids.clone(),
-            has_poll: req.has_poll,
+            has_poll: req.poll.is_some(),
             flags: req.flags,
         };
         let now = self.now();
@@ -234,6 +277,25 @@ impl<R: ChatRepository> ChatService<R> {
                 limits: &self.limits,
             },
         )?;
+
+        // Mentions: the request's allowed_mentions gate the pings (open question 152),
+        // then only users who can see the channel are kept (open questions 98, 117).
+        let mut mentions = match &req.allowed_mentions {
+            Some(allowed) => message_rules::apply_allowed_mentions(
+                v.mentions,
+                allowed,
+                reply_target.as_ref().map(|m| m.author_id),
+            ),
+            None => v.mentions,
+        };
+        let guild = match acc.channel.guild_id {
+            Some(gid) => Some(self.guild(gid).await?),
+            None => None,
+        };
+        mentions.users = self
+            .eligible_mentions(guild.as_ref(), &acc.channel, mentions.users)
+            .await?;
+
         let message = Message {
             id: MessageId::from(self.ids.generate()),
             channel_id,
@@ -245,13 +307,14 @@ impl<R: ChatRepository> ChatService<R> {
             edited_at_ms: None,
             reference: v.reference,
             attachment_ids: req.attachment_ids,
-            embed_count: u8::try_from(req.embed_count).unwrap_or(u8::MAX),
+            embeds: req.embeds,
+            components: req.components,
             sticker_ids: req.sticker_ids,
-            has_poll: req.has_poll,
-            mention_everyone: v.mentions.everyone,
-            mention_user_ids: v.mentions.users,
-            mention_role_ids: v.mentions.roles,
-            mention_channel_ids: v.mentions.channels,
+            poll: req.poll,
+            mention_everyone: mentions.everyone,
+            mention_user_ids: mentions.users,
+            mention_role_ids: mentions.roles,
+            mention_channel_ids: mentions.channels,
             pinned: false,
             visibility: Visibility::Visible,
             deleted_at_ms: None,
@@ -259,6 +322,9 @@ impl<R: ChatRepository> ChatService<R> {
             hold_id: None,
         };
         self.repo.insert_message(&message).await?;
+        if let Some(hooks) = &self.hooks {
+            hooks.message_sent(&message).await;
+        }
         Ok(message)
     }
 

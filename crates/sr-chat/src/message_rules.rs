@@ -13,6 +13,7 @@ use sr_markdown::{LimitError, Mentions};
 
 /// Flags a client may set on a new message.
 const CLIENT_FLAGS: u32 = message_flags::SUPPRESS_EMBEDS
+    | message_flags::TTS
     | message_flags::SUPPRESS_NOTIFICATIONS
     | message_flags::IS_VOICE_MESSAGE;
 
@@ -64,6 +65,42 @@ pub fn resolve_mentions(
             .collect(),
         channels: parsed.channels.iter().map(|c| ChannelId::new(*c)).collect(),
     }
+}
+
+/// The request's `allowed_mentions` (Discord semantics, open question 152). When
+/// `parse_*` is set, every mention of that kind may ping; otherwise only the ids
+/// listed in `users`/`roles` may. `replied_user` adds the author of the replied-to
+/// message.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AllowedMentions {
+    pub parse_users: bool,
+    pub parse_roles: bool,
+    pub parse_everyone: bool,
+    pub users: Vec<UserId>,
+    pub roles: Vec<RoleId>,
+    pub replied_user: bool,
+}
+
+/// Drop the mentions the request does not allow to ping. Text is unchanged.
+pub fn apply_allowed_mentions(
+    mut mentions: ResolvedMentions,
+    allowed: &AllowedMentions,
+    reply_author: Option<UserId>,
+) -> ResolvedMentions {
+    mentions.everyone &= allowed.parse_everyone;
+    mentions
+        .users
+        .retain(|u| allowed.parse_users || allowed.users.contains(u));
+    mentions
+        .roles
+        .retain(|r| allowed.parse_roles || allowed.roles.contains(r));
+    if allowed.replied_user
+        && let Some(author) = reply_author
+        && !mentions.users.contains(&author)
+    {
+        mentions.users.push(author);
+    }
+    mentions
 }
 
 // ---------------------------------------------------------------- create
@@ -169,6 +206,9 @@ pub fn validate_create(
 
     let content = input.content.trim().to_owned();
     let flags = input.flags & CLIENT_FLAGS;
+    if flags & message_flags::TTS != 0 {
+        require(ctx.perms, Permissions::SEND_TTS_MESSAGES)?;
+    }
     if flags & message_flags::IS_VOICE_MESSAGE != 0 {
         require(ctx.perms, Permissions::SEND_VOICE_MESSAGES)?;
         if input.attachment_count != 1 || !content.is_empty() {
@@ -222,7 +262,7 @@ pub fn validate_create(
     })
 }
 
-/// Slowmode (LNG-CHN-005). MANAGE_MESSAGES and MANAGE_CHANNELS bypass it.
+/// Slowmode (LNG-CHN-005). MANAGE_MESSAGES, MANAGE_CHANNELS and BYPASS_SLOWMODE bypass it.
 pub fn check_slowmode(
     channel: &Channel,
     perms: Permissions,
@@ -232,6 +272,7 @@ pub fn check_slowmode(
     if channel.rate_limit_per_user == 0
         || perms.has(Permissions::MANAGE_MESSAGES)
         || perms.has(Permissions::MANAGE_CHANNELS)
+        || perms.has(Permissions::BYPASS_SLOWMODE)
     {
         return Ok(());
     }
@@ -324,9 +365,9 @@ pub fn validate_edit(input: &EditMessageInput, ctx: &EditContext<'_>) -> ChatRes
     };
     if content_changes {
         let has_other = !m.attachment_ids.is_empty()
-            || m.embed_count > 0
+            || m.embed_count() > 0
             || !m.sticker_ids.is_empty()
-            || m.has_poll;
+            || m.has_poll();
         if content.is_empty() && !has_other {
             return Err(ChatError::EmptyMessage);
         }

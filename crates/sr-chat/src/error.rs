@@ -78,10 +78,7 @@ impl ChatError {
             Self::MaxRoles => ApiError::new(ErrorCode::MaxRoles),
             Self::MaxPins => ApiError::new(ErrorCode::MaxPins),
             Self::MaxReactions => ApiError::new(ErrorCode::MaxReactions),
-            Self::Slowmode { .. } => ApiError::with_message(
-                ErrorCode::TooManyRequests,
-                "Slowmode is enabled in this channel",
-            ),
+            Self::Slowmode { .. } => ApiError::new(ErrorCode::SlowmodeRateLimit),
             Self::Invalid {
                 field,
                 code,
