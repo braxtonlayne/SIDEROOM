@@ -1,12 +1,20 @@
 //! Router composition and tower layers (FND-API-001).
 
-use crate::{health, observability, openapi, rate_limit::rate_limit, state::AppState};
+use crate::{
+    auth::{SESSION_COOKIE, csrf, parse_cookie},
+    health, observability, openapi,
+    rate_limit::rate_limit,
+    state::AppState,
+};
 use axum::{
     Router,
+    extract::State,
     http::{HeaderName, HeaderValue, Method, Request, StatusCode, header},
-    middleware::{from_fn, from_fn_with_state},
+    middleware::{Next, from_fn, from_fn_with_state},
+    response::{Html, IntoResponse, Response},
     routing::get,
 };
+use sr_core::ErrorCode;
 use std::time::Duration;
 use tower::ServiceBuilder;
 use tower_http::{
@@ -25,21 +33,59 @@ const REQUEST_ID: &str = "x-request-id";
 /// `/api/v1` and the `/api/v10` alias. `extra_v1` carries feature routes
 /// (relative to the version prefix). Auth is per-handler via the
 /// [`crate::Principal`] extractor; rate limiting applies to every API route.
+/// Panics if two routers register the same method and path.
 pub fn build_router(state: AppState, extra_v1: Router<AppState>) -> Router {
     let v1 = Router::new()
         .route("/openapi.json", get(openapi::openapi_json))
         .route("/users/@me", get(openapi::current_user))
         .route("/sr/csrf", get(openapi::csrf_token))
         .merge(extra_v1)
-        .route_layer(from_fn_with_state(state.clone(), rate_limit));
+        .route_layer(from_fn_with_state(state.clone(), rate_limit))
+        .route_layer(from_fn_with_state(state.clone(), origin_check));
 
     let app = Router::new()
         .route("/healthz", get(health::healthz))
         .route("/readyz", get(health::readyz))
+        .route("/developers/docs/api", get(api_docs))
         .nest("/api/v1", v1.clone())
         .nest("/api/v10", v1)
         .fallback(not_found);
     with_common_layers(app, &state).with_state(state)
+}
+
+/// Request-id layers for routes outside [`build_router`] (the gateway socket).
+pub fn with_request_id<S: Clone + Send + Sync + 'static>(app: Router<S>) -> Router<S> {
+    let id = HeaderName::from_static(REQUEST_ID);
+    app.layer(
+        ServiceBuilder::new()
+            .layer(SetRequestIdLayer::new(id.clone(), MakeRequestUuid))
+            .layer(PropagateHeaderLayer::new(id)),
+    )
+}
+
+/// Defence in depth for `SameSite=Lax` cookies (open question 55): a
+/// cookie-authenticated non-safe request whose `Origin` (or, without one,
+/// `Referer`) is outside the CORS allow-list is refused before any handler runs.
+/// Requests without the session cookie or with a bearer/bot header are not
+/// cookie-authenticated and pass through.
+async fn origin_check(
+    State(state): State<AppState>,
+    req: Request<axum::body::Body>,
+    next: Next,
+) -> Response {
+    let cookie_authed = !csrf::is_safe_method(req.method())
+        && req.headers().get(header::AUTHORIZATION).is_none()
+        && parse_cookie(req.headers(), SESSION_COOKIE).is_some();
+    if cookie_authed && !csrf::origin_allowed(req.headers(), &state.settings().allowed_origins) {
+        return crate::HttpError::from(ErrorCode::MissingAccess).into_response();
+    }
+    next.run(req).await
+}
+
+/// The API reference viewer (doc 05 section 4), a single static page that
+/// embeds the OpenAPI document.
+async fn api_docs(State(state): State<AppState>) -> Html<String> {
+    Html(utoipa_scalar::Scalar::new(state.openapi().clone()).to_html())
 }
 
 /// Router for the loopback-only operations listener: `/internal/metrics`.
