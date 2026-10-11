@@ -1,0 +1,19 @@
+name: Build task
+description: A unit of work from the component inventory
+labels: [task]
+body:
+  - type: input
+    id: items
+    attributes: { label: Inventory item IDs, placeholder: "LNG-MSG-014" }
+    validations: { required: true }
+  - type: input
+    id: spec
+    attributes: { label: Spec section, placeholder: "docs/specs/lounge-chat.md §6.2" }
+  - type: textarea
+    id: acceptance
+    attributes: { label: Acceptance criteria }
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Phase
+      options: ["0 Foundation","1 Lounge text","2 Lounge voice","3 Staff/Donations","4 Library","5 Cinema","6 Developer platform","7 Moderation"]
