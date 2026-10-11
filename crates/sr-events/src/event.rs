@@ -8,7 +8,18 @@ use crate::ids::{ChannelId, GuildId, RoleId, UserId};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "id", rename_all = "snake_case")]
 pub enum Topic {
+    /// Platform-wide lifecycle and staff events.
     Platform,
+    /// A tap on the whole bus: the bus fans every event published to any other
+    /// topic out here too (see [`crate::InProcessBus`]). For platform-internal
+    /// consumers that must see every event of a family regardless of where its
+    /// producer routed it (the search indexer, caches). Never publish to it
+    /// directly from a producer, and never expose it to clients.
+    ///
+    /// An event published to N topics shows up N times, adjacent to each other;
+    /// DM events are published once per recipient. Consumers that need each event
+    /// once wrap the stream in [`crate::FirehoseDedup`].
+    Firehose,
     Guild(GuildId),
     Channel(ChannelId),
     User(UserId),
@@ -200,6 +211,61 @@ pub enum DomainEvent {
         name: String,
         payload: serde_json::Value,
     },
+    /// `INVITE_CREATE`; `payload` is the Discord invite object.
+    InviteCreated {
+        guild: GuildId,
+        channel: ChannelId,
+        payload: Value,
+    },
+    /// `INVITE_DELETE`; `payload` is `{channel_id, guild_id, code}`.
+    InviteDeleted {
+        guild: GuildId,
+        channel: ChannelId,
+        payload: Value,
+    },
+    /// `GUILD_EMOJIS_UPDATE`; `payload` is `{guild_id, emojis}`.
+    EmojisUpdated {
+        guild: GuildId,
+        payload: Value,
+    },
+    /// `GUILD_STICKERS_UPDATE`; `payload` is `{guild_id, stickers}`.
+    StickersUpdated {
+        guild: GuildId,
+        payload: Value,
+    },
+    /// `WEBHOOKS_UPDATE`; the gateway builds `{guild_id, channel_id}`.
+    WebhooksUpdated {
+        guild: GuildId,
+        channel: ChannelId,
+    },
+    /// `AUTO_MODERATION_RULE_CREATE`; `payload` is the rule object. Delivered only
+    /// to members with MANAGE_GUILD.
+    AutoModRuleCreated {
+        guild: GuildId,
+        payload: Value,
+    },
+    /// `AUTO_MODERATION_RULE_UPDATE`; as [`Self::AutoModRuleCreated`].
+    AutoModRuleUpdated {
+        guild: GuildId,
+        payload: Value,
+    },
+    /// `AUTO_MODERATION_RULE_DELETE`; `payload` is the deleted rule object.
+    AutoModRuleDeleted {
+        guild: GuildId,
+        payload: Value,
+    },
+    /// `AUTO_MODERATION_ACTION_EXECUTION`; Discord payload. Delivered only to
+    /// members with MANAGE_GUILD.
+    AutoModActionExecuted {
+        guild: GuildId,
+        payload: Value,
+    },
+    /// `GUILD_AUDIT_LOG_ENTRY_CREATE`; `payload` is the audit entry plus
+    /// `guild_id`. Delivered only to members with VIEW_AUDIT_LOG.
+    AuditLogEntryCreated {
+        guild: GuildId,
+        payload: Value,
+    },
     /// `TYPING_START` triggered by `POST /channels/{id}/typing`.
     TypingStarted {
         guild: Option<GuildId>,
@@ -283,7 +349,17 @@ impl DomainEvent {
             | Self::RoleDeleted { guild, .. }
             | Self::MemberUpdated { guild, .. }
             | Self::MemberBanned { guild, .. }
-            | Self::MemberUnbanned { guild, .. } => vec![Topic::Guild(*guild)],
+            | Self::MemberUnbanned { guild, .. }
+            | Self::InviteCreated { guild, .. }
+            | Self::InviteDeleted { guild, .. }
+            | Self::EmojisUpdated { guild, .. }
+            | Self::StickersUpdated { guild, .. }
+            | Self::WebhooksUpdated { guild, .. }
+            | Self::AutoModRuleCreated { guild, .. }
+            | Self::AutoModRuleUpdated { guild, .. }
+            | Self::AutoModRuleDeleted { guild, .. }
+            | Self::AutoModActionExecuted { guild, .. }
+            | Self::AuditLogEntryCreated { guild, .. } => vec![Topic::Guild(*guild)],
             Self::ChannelCreated { guild, channel, .. }
             | Self::ChannelUpdated { guild, channel, .. }
             | Self::ChannelDeleted { guild, channel, .. } => {
@@ -421,6 +497,62 @@ mod tests {
         );
         let s = serde_json::to_string(&e).unwrap();
         assert_eq!(serde_json::from_str::<DomainEvent>(&s).unwrap(), e);
+    }
+
+    #[test]
+    fn settings_events_route_to_the_guild_topic() {
+        let g = GuildId::new(1);
+        let c = ChannelId::new(2);
+        let p = serde_json::json!({ "guild_id": "1" });
+        let all = vec![
+            DomainEvent::InviteCreated {
+                guild: g,
+                channel: c,
+                payload: p.clone(),
+            },
+            DomainEvent::InviteDeleted {
+                guild: g,
+                channel: c,
+                payload: p.clone(),
+            },
+            DomainEvent::EmojisUpdated {
+                guild: g,
+                payload: p.clone(),
+            },
+            DomainEvent::StickersUpdated {
+                guild: g,
+                payload: p.clone(),
+            },
+            DomainEvent::WebhooksUpdated {
+                guild: g,
+                channel: c,
+            },
+            DomainEvent::AutoModRuleCreated {
+                guild: g,
+                payload: p.clone(),
+            },
+            DomainEvent::AutoModRuleUpdated {
+                guild: g,
+                payload: p.clone(),
+            },
+            DomainEvent::AutoModRuleDeleted {
+                guild: g,
+                payload: p.clone(),
+            },
+            DomainEvent::AutoModActionExecuted {
+                guild: g,
+                payload: p.clone(),
+            },
+            DomainEvent::AuditLogEntryCreated {
+                guild: g,
+                payload: p,
+            },
+        ];
+        for e in all {
+            assert_eq!(e.topics(), vec![Topic::Guild(g)], "{e:?}");
+            let s = serde_json::to_string(&e).unwrap();
+            assert_eq!(serde_json::from_str::<DomainEvent>(&s).unwrap(), e);
+        }
     }
 
     #[test]

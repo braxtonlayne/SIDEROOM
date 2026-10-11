@@ -8,7 +8,8 @@ use super::model::{
 };
 use super::render::{actor, event_payload, render_one};
 use super::store::UploadState;
-use crate::routes::Ext;
+use crate::routes::settings::{AutoModGateHandle, MessageCheck, alert_execution_payload};
+use crate::routes::{Ext, MaybeExt};
 use crate::{Principal, openapi::ErrorBody};
 use axum::{Json, extract::Path, http::StatusCode};
 use sr_chat::message_flags;
@@ -42,6 +43,7 @@ const MAX_NONCE_LEN: usize = 25;
 pub async fn create_message(
     p: Principal,
     Ext(deps): Ext<MessagesDeps>,
+    MaybeExt(gate): MaybeExt<AutoModGateHandle>,
     Path(channel_id): Path<String>,
     ApiJson(body): ApiJson<CreateMessageBody>,
 ) -> MsgResult<Json<MessageObject>> {
@@ -91,6 +93,29 @@ pub async fn create_message(
         let mut out = render_one(&deps, author, &msg).await?;
         out.nonce = Some(nonce.clone());
         return Ok(Json(out));
+    }
+
+    // AutoMod (LNG-SSET-059/060): a blocking rule rejects the message before it is
+    // stored (Discord error 200000). A failing check lets the message through and
+    // is logged: AutoMod is a filter, not a security boundary, and must not take
+    // chat down with it.
+    let mut verdict = None;
+    if let (Some(gate), Some(guild)) = (&gate, acc.channel.guild_id) {
+        let check = MessageCheck {
+            guild,
+            channel: channel_id,
+            author,
+            content: body.content.clone().unwrap_or_default(),
+            ..MessageCheck::default()
+        };
+        match gate.0.evaluate(&check).await {
+            Ok(v) if v.block.is_some() => {
+                publish_alerts(&deps, guild, &v, None).await;
+                return Err(ErrorCode::AutoModBlocked.into());
+            }
+            Ok(v) => verdict = Some(v),
+            Err(e) => tracing::warn!(status = e.0.status(), "AutoMod check failed; allowing"),
+        }
     }
 
     // Attachments: must be the caller's uploads in this channel, not yet used.
@@ -208,9 +233,29 @@ pub async fn create_message(
         data,
     })
     .await;
+    if let (Some(v), Some(guild)) = (&verdict, msg.guild_id) {
+        publish_alerts(&deps, guild, v, Some(msg.id)).await;
+    }
     let mut out = render_one(&deps, author, &msg).await?;
     out.nonce.clone_from(&body.nonce);
     Ok(Json(out))
+}
+
+/// Announce each `send_alert_message` action of `verdict` as an
+/// `AUTO_MODERATION_ACTION_EXECUTION` event (blocks are announced by the gate).
+async fn publish_alerts(
+    deps: &MessagesDeps,
+    guild: sr_core::GuildId,
+    verdict: &crate::routes::settings::AutoModVerdict,
+    message: Option<MessageId>,
+) {
+    for alert in &verdict.alerts {
+        deps.publish(DomainEvent::AutoModActionExecuted {
+            guild,
+            payload: alert_execution_payload(guild, alert, message),
+        })
+        .await;
+    }
 }
 
 /// Edit a message (author only for content; embed suppression also by MANAGE_MESSAGES).

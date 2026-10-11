@@ -19,6 +19,10 @@ use super::expressions::{
 use super::invites::{self, GuildInvite, InviteOptions, MAX_INVITES_PER_GUILD};
 use super::repo::SettingsRepository;
 
+/// Called with every audit entry right after it is stored (best effort, must not
+/// block: spawn for async work). Used to push `GUILD_AUDIT_LOG_ENTRY_CREATE`.
+pub type AuditObserver = Arc<dyn Fn(&AuditEntry) + Send + Sync>;
+
 /// Source of invite-code entropy.
 pub type Entropy = Arc<dyn Fn() -> u64 + Send + Sync>;
 
@@ -42,6 +46,7 @@ pub struct SettingsService<R> {
     rule_cache: RuleCache,
     /// Per-member message history for the rate and duplicate checks.
     spam: SpamWindow,
+    audit_observer: Option<AuditObserver>,
 }
 
 pub(super) fn require(perms: Permissions, needed: Permissions) -> SettingsResult<()> {
@@ -89,7 +94,14 @@ impl<R: SettingsRepository> SettingsService<R> {
             presets: PresetLists::new(),
             rule_cache: RuleCache::default(),
             spam: SpamWindow::default(),
+            audit_observer: None,
         }
+    }
+
+    /// Observe every stored audit entry.
+    pub fn with_audit_observer(mut self, observer: AuditObserver) -> Self {
+        self.audit_observer = Some(observer);
+        self
     }
 
     pub fn with_spam_window(mut self, spam: SpamWindow) -> Self {
@@ -168,8 +180,18 @@ impl<R: SettingsRepository> SettingsService<R> {
             self.now(),
         )?
         .with_changes(changes);
-        self.repo.append_audit(&entry).await?;
+        self.store_audit(&entry).await?;
         Ok(entry)
+    }
+
+    /// Store an already built entry (one carrying `options`, say) and notify the
+    /// audit observer.
+    pub async fn store_audit(&self, entry: &AuditEntry) -> SettingsResult<()> {
+        self.repo.append_audit(entry).await?;
+        if let Some(observe) = &self.audit_observer {
+            observe(entry);
+        }
+        Ok(())
     }
 
     pub async fn list_audit(

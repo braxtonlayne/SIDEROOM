@@ -78,6 +78,13 @@ impl SettingsDeps {
         self
     }
 
+    /// Observe every audit entry the settings service stores (see
+    /// [`super::audit::bus_audit_observer`]).
+    pub fn with_audit_observer(mut self, observer: sr_chat::settings::AuditObserver) -> Self {
+        self.service = self.service.with_audit_observer(observer);
+        self
+    }
+
     /// How an accepted invite adds the member (see [`super::join`]).
     pub fn with_joiner(mut self, joiner: Arc<dyn MemberJoiner>) -> Self {
         self.joiner = joiner;

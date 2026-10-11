@@ -59,6 +59,13 @@ struct Env {
 }
 
 async fn env_with(entitlements: Arc<dyn UploadEntitlements>) -> Env {
+    env_full(entitlements, None).await
+}
+
+async fn env_full(
+    entitlements: Arc<dyn UploadEntitlements>,
+    gate: Option<crate::routes::settings::AutoModGateHandle>,
+) -> Env {
     let clock = Arc::new(ManualClock::new(T0));
     let dyn_clock: Arc<dyn Clock> = clock.clone();
     let backend = MemoryBackend::new();
@@ -105,12 +112,15 @@ async fn env_with(entitlements: Arc<dyn UploadEntitlements>) -> Env {
         1,
     )
     .unwrap();
-    let state = AppState::builder()
+    let mut state = AppState::builder()
         .bots(bots)
         .clock(dyn_clock)
         .settings(settings)
-        .extension(Arc::new(deps))
-        .build();
+        .extension(Arc::new(deps));
+    if let Some(g) = gate {
+        state = state.extension(Arc::new(g));
+    }
+    let state = state.build();
     let app = build_router(state, router());
     Env {
         app,
@@ -1236,4 +1246,115 @@ async fn dm_events_go_once_to_each_recipients_user_topic() {
         no_event(s).await;
     }
     no_event(&mut carol).await;
+}
+
+// ---- AutoMod gate on message create ---------------------------------------------
+
+/// Blocks "badword", alerts on "alertword", errors on "boom".
+struct FakeGate;
+
+#[async_trait]
+impl crate::routes::settings::AutoModGate for FakeGate {
+    async fn evaluate(
+        &self,
+        msg: &crate::routes::settings::MessageCheck,
+    ) -> Result<crate::routes::settings::AutoModVerdict, crate::HttpError> {
+        use crate::routes::settings::AutoModVerdict;
+        use crate::routes::settings::automod_gate::{Alert, Block};
+        let mut v = AutoModVerdict::default();
+        if msg.content.contains("boom") {
+            return Err(sr_core::ErrorCode::SrInternal.into());
+        }
+        if msg.content.contains("badword") {
+            v.block = Some(Block {
+                rule_id: 7,
+                rule_name: "words".into(),
+                custom_message: None,
+            });
+        }
+        if msg.content.contains("alertword") || msg.content.contains("badword") {
+            v.alerts.push(Alert {
+                channel_id: ChannelId::new(99),
+                rule_id: 7,
+                rule_name: "words".into(),
+                matched: "word".into(),
+                user_id: msg.author,
+                source_channel_id: msg.channel,
+                content: msg.content.clone(),
+            });
+        }
+        Ok(v)
+    }
+}
+
+async fn gated_env() -> Env {
+    env_full(
+        Arc::new(FixedEntitlements(30 * MIB)),
+        Some(crate::routes::settings::AutoModGateHandle(Arc::new(
+            FakeGate,
+        ))),
+    )
+    .await
+}
+
+#[tokio::test]
+async fn automod_block_rejects_with_200000_and_stores_nothing() {
+    let e = gated_env().await;
+    let mut guild_events = e.bus.subscribe(Topic::Guild(e.guild));
+    let r = e
+        .post("/messages", "bob", json!({ "content": "a badword here" }))
+        .await;
+    assert_eq!(
+        code(&r),
+        (StatusCode::BAD_REQUEST, Some(200_000)),
+        "{}",
+        r.1
+    );
+    // Not stored: the channel history is empty.
+    let (_, list) = e.get("/messages", "bob").await;
+    assert!(ids(&list).is_empty(), "{list}");
+    // The alert action of the blocking rule is still announced, without a message id.
+    match next_event(&mut guild_events).await {
+        DomainEvent::AutoModActionExecuted { guild, payload } => {
+            assert_eq!(guild, e.guild);
+            assert_eq!(payload["action"]["type"], 2);
+            assert!(payload.get("message_id").is_none());
+        }
+        other => panic!("unexpected {other:?}"),
+    }
+    // Clean messages still go through.
+    e.say("bob", "hello").await;
+}
+
+#[tokio::test]
+async fn automod_alert_publishes_the_execution_event_after_storing() {
+    let e = gated_env().await;
+    let mut guild_events = e.bus.subscribe(Topic::Guild(e.guild));
+    let m = e.say("bob", "an alertword appears").await;
+    let ev = loop {
+        let ev = next_event(&mut guild_events).await;
+        if matches!(ev, DomainEvent::AutoModActionExecuted { .. }) {
+            break ev;
+        }
+    };
+    match ev {
+        DomainEvent::AutoModActionExecuted { payload, .. } => {
+            assert_eq!(payload["message_id"], m["id"]);
+            assert_eq!(payload["action"]["metadata"]["channel_id"], "99");
+            assert_eq!(payload["rule_id"], "7");
+        }
+        other => panic!("unexpected {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn a_failing_automod_check_lets_the_message_through() {
+    let e = gated_env().await;
+    e.say("bob", "boom goes the check").await;
+}
+
+#[tokio::test]
+async fn messages_work_without_a_registered_gate() {
+    let e = env().await;
+    e.say("bob", "a badword here").await;
 }

@@ -78,6 +78,7 @@ error_codes! {
     TwoFactorRequired = 60003, 403, "Two factor is required for this operation";
     ReactionBlocked = 90001, 403, "Reaction was blocked";
     ApiResourceOverloaded = 130000, 503, "API resource is currently overloaded. Try again a little later";
+    AutoModBlocked = 200000, 400, "Message was blocked by AutoMod";
 
     // SIDE ROOM specific (>= 900000).
     SrFeatureDisabled = 900001, 403, "This feature is disabled on this installation";
@@ -230,6 +231,8 @@ mod tests {
         assert_eq!(ErrorCode::MaxFriends.code(), 30002);
         assert_eq!(ErrorCode::MaxGroupDms.code(), 30011);
         assert_eq!(ErrorCode::NoUsersWithDiscordTag.code(), 80004);
+        assert_eq!(ErrorCode::AutoModBlocked.code(), 200000);
+        assert_eq!(ErrorCode::AutoModBlocked.http_status(), 400);
         assert_eq!(ErrorCode::SrIgnoreListFull.code(), 900101);
         assert_eq!(
             ErrorCode::SlowmodeRateLimit.message(),

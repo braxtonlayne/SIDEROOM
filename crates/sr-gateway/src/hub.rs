@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use serde_json::{Value, json};
-use sr_core::{ChannelId, GuildId, UserId};
+use sr_core::{ChannelId, GuildId, Permissions, UserId};
 use sr_events::{DomainEvent, EventBus, Topic};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
@@ -153,6 +153,21 @@ fn passthrough(name: &'static str, payload: &Value, channel: Option<ChannelId>) 
         data: payload.clone(),
         channel,
         audience: None,
+    }
+}
+
+/// Guild-level permission a recipient must hold for `name`, on top of the intent
+/// check. These dispatches describe moderation and configuration state that
+/// ordinary members must not see.
+pub fn required_guild_permission(name: &str) -> Option<Permissions> {
+    match name {
+        "INVITE_CREATE" | "INVITE_DELETE" => Some(Permissions::MANAGE_CHANNELS),
+        "AUTO_MODERATION_RULE_CREATE"
+        | "AUTO_MODERATION_RULE_UPDATE"
+        | "AUTO_MODERATION_RULE_DELETE"
+        | "AUTO_MODERATION_ACTION_EXECUTION" => Some(Permissions::MANAGE_GUILD),
+        "GUILD_AUDIT_LOG_ENTRY_CREATE" => Some(Permissions::VIEW_AUDIT_LOG),
+        _ => None,
     }
 }
 
@@ -350,6 +365,39 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
         DomainEvent::MemberBanned { payload, .. } => passthrough("GUILD_BAN_ADD", payload, None),
         DomainEvent::MemberUnbanned { payload, .. } => {
             passthrough("GUILD_BAN_REMOVE", payload, None)
+        }
+        DomainEvent::InviteCreated {
+            channel, payload, ..
+        } => passthrough("INVITE_CREATE", payload, Some(*channel)),
+        DomainEvent::InviteDeleted {
+            channel, payload, ..
+        } => passthrough("INVITE_DELETE", payload, Some(*channel)),
+        DomainEvent::EmojisUpdated { payload, .. } => {
+            passthrough("GUILD_EMOJIS_UPDATE", payload, None)
+        }
+        DomainEvent::StickersUpdated { payload, .. } => {
+            passthrough("GUILD_STICKERS_UPDATE", payload, None)
+        }
+        DomainEvent::WebhooksUpdated { guild, channel } => Dispatch {
+            name: "WEBHOOKS_UPDATE",
+            data: json!({ "guild_id": guild, "channel_id": channel }),
+            channel: Some(*channel),
+            audience: None,
+        },
+        DomainEvent::AutoModRuleCreated { payload, .. } => {
+            passthrough("AUTO_MODERATION_RULE_CREATE", payload, None)
+        }
+        DomainEvent::AutoModRuleUpdated { payload, .. } => {
+            passthrough("AUTO_MODERATION_RULE_UPDATE", payload, None)
+        }
+        DomainEvent::AutoModRuleDeleted { payload, .. } => {
+            passthrough("AUTO_MODERATION_RULE_DELETE", payload, None)
+        }
+        DomainEvent::AutoModActionExecuted { payload, .. } => {
+            passthrough("AUTO_MODERATION_ACTION_EXECUTION", payload, None)
+        }
+        DomainEvent::AuditLogEntryCreated { payload, .. } => {
+            passthrough("GUILD_AUDIT_LOG_ENTRY_CREATE", payload, None)
         }
         // Handled as subscription lifecycle by the platform pump.
         DomainEvent::GuildCreated { .. }
@@ -700,20 +748,25 @@ impl Gateway {
                 .filter(|s| audience.is_none_or(|a| a.contains(&s.user)))
                 .collect()
         };
-        let allowed: HashMap<UserId, bool> = match channel {
-            None => targets.iter().map(|s| (s.user, true)).collect(),
-            Some(ch) => {
-                let users: HashSet<UserId> = targets.iter().map(|s| s.user).collect();
-                let checks = users.into_iter().map(|u| {
-                    let dir = self.inner.dir.clone();
-                    async move { (u, dir.can_view_channel(u, guild, ch).await) }
-                });
-                futures::future::join_all(checks)
-                    .await
-                    .into_iter()
-                    .collect()
+        let needs = required_guild_permission(name);
+        let users: HashSet<UserId> = targets.iter().map(|s| s.user).collect();
+        let checks = users.into_iter().map(|u| {
+            let dir = self.inner.dir.clone();
+            async move {
+                let mut ok = true;
+                if let Some(ch) = channel {
+                    ok = dir.can_view_channel(u, guild, ch).await;
+                }
+                if ok && let Some(p) = needs {
+                    ok = dir.has_guild_permission(u, guild, p).await;
+                }
+                (u, ok)
             }
-        };
+        });
+        let allowed: HashMap<UserId, bool> = futures::future::join_all(checks)
+            .await
+            .into_iter()
+            .collect();
         for s in targets {
             if allowed.get(&s.user).copied().unwrap_or(false) {
                 deliver_to(&s, name, &data);

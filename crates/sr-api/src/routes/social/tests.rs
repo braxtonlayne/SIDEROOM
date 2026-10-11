@@ -1206,3 +1206,23 @@ async fn pending_message_request_is_not_announced() {
     ));
     assert_quiet(&mut bob).await;
 }
+
+#[tokio::test]
+async fn accepting_a_message_request_announces_the_channel_to_the_recipient() {
+    let e = env().await;
+    e.share_guild(ALICE, BOB); // not friends: Bob gets a Message Request
+    let dm = e.open_dm_with_chat_channel(ALICE, BOB).await;
+    let mut bob = e.user_events(BOB);
+    let mut alice = e.user_events(ALICE);
+
+    let url = format!("/users/@me/channels/{dm}/request");
+    let accept = || e.put(&url, BOB, Some(json!({"state": "accepted"})));
+    assert_eq!(accept().await.0, StatusCode::NO_CONTENT);
+    assert_channel_create(next_event(&mut bob).await, &dm, "1");
+    assert_quiet(&mut bob).await;
+    // Only the accepting recipient is told.
+    assert_quiet(&mut alice).await;
+    // Accepting again changes nothing, so announces nothing.
+    assert_eq!(accept().await.0, StatusCode::NO_CONTENT);
+    assert_quiet(&mut bob).await;
+}

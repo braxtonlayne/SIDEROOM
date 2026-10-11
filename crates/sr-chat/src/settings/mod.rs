@@ -24,4 +24,4 @@ pub mod memory;
 mod service_tests;
 
 pub use error::{SettingsError, SettingsResult};
-pub use service::SettingsService;
+pub use service::{AuditObserver, SettingsService};

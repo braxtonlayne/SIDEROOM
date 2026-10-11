@@ -199,9 +199,23 @@ pub async fn respond_to_request(
             "Must be accepted, ignored or spam.",
         )
     })?;
-    deps.service
-        .respond_to_request(me, channel_id(&channel)?, state)
-        .await?;
+    let cid = channel_id(&channel)?;
+    let before = deps.service.request_state(me, cid).await?;
+    deps.service.respond_to_request(me, cid, state).await?;
+    // A request-state DM was invisible to the recipient; accepting it is the moment
+    // the channel appears in their client (Q114).
+    if state == RequestState::Accepted
+        && matches!(
+            before,
+            Some(RequestState::Pending | RequestState::Ignored | RequestState::Spam)
+        )
+    {
+        match deps.service.repo().get_dm(cid).await {
+            Ok(Some(dm)) => announce(&deps, "CHANNEL_CREATE", &dm, &[me]).await?,
+            Ok(None) => {}
+            Err(e) => tracing::warn!(error = %e, %cid, "loading DM to announce failed"),
+        }
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
