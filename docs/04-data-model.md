@@ -45,6 +45,12 @@ Unique (provider, provider_user_id) applies **across all accounts, including del
 ### `sessions`, `mfa_totp`, `webauthn_credentials`, `recovery_codes`, `email_tokens`
 Standard. Tokens are stored as SHA-256 hashes.
 
+### `login_events` (migration 0001)
+Login IP history, kept 180 days (doc 09 §1). Visible to staff with `MANAGE_ACCOUNTS`.
+
+### `accounts.age_confirmed` (migration 0001)
+Nullable boolean beside `age_confirmed_at`. `true`/`false` records the age-gate answer (doc 06 §7); `age_confirmed_at` records the yes.
+
 ### `platform_invites`
 | col | type | notes |
 |---|---|---|
@@ -68,7 +74,9 @@ Append-only. `(account_id, delta, reason enum{initial_grant, redemption, purchas
 id, name, icon_key, banner_key, splash_key, owner_id, description, `features text[]` (e.g. `COMMUNITY`, `DISCOVERABLE`, `STAFF`), verification_level, default_message_notifications, explicit_content_filter, mfa_level, system_channel_id, rules_channel_id, public_updates_channel_id, afk_channel_id, afk_timeout, preferred_locale, vanity_code, nsfw_level, `is_staff_guild bool` (exactly one row true, enforced by a partial unique index), boost_level (derived), traits jsonb, settings jsonb.
 
 ### `guild_members`
-(guild_id, user_id) pk, nick, avatar_key (per-server), banner_key, bio, joined_at, premium_since, communication_disabled_until, flags, pending (membership screening), `roles bigint[]`.
+(guild_id, user_id) pk, nick, avatar_key (per-server), banner_key, bio, joined_at, premium_since, communication_disabled_until, flags, pending (membership screening).
+
+Roles are a join table, `member_roles (guild_id, user_id, role_id)`, not an array column. Foreign keys cascade on role or member delete. The API still exposes `roles: [role ids]` on the member object.
 
 ### `roles`
 id, guild_id, name, color, secondary_color, icon_key, unicode_emoji, hoist, position, permissions (bigint, Discord bit layout), mentionable, managed, tags jsonb.
@@ -173,6 +181,7 @@ id, message_id, uploader_id, filename, content_type, size_bytes, width, height, 
 
 ## 13. Indexing notes
 
+- Migration-level additions beyond the tables above: `login_events` and `accounts.age_confirmed` (section 1), the `jobs` queue (migration 0004; recurring singleton jobs use reserved ids below 1024), and `feature_enablements` with channel scope and nullable `enabled` for inherit (migration 0050).
 - `messages`: (channel_id, id DESC), partial index `WHERE visibility='visible'`, and (purge_after) WHERE purge_after IS NOT NULL.
 - `attachments`: (expires_at) WHERE is_large AND state='ready'.
 - `guild_members`: (user_id) for "my guilds".
