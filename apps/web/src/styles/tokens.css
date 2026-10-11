@@ -1,0 +1,21 @@
+:root {
+  --sr-bg-0: #111110;
+  --sr-bg-1: #161613;
+  --sr-bg-2: #1c1d18;
+  --sr-line: #2a2b24;
+  --sr-text: #ece6d6;
+  --sr-text-2: #a9a493;
+  --sr-gold: #c2b08f;
+  --sr-font-display: 'Newsreader', 'Source Serif 4', Georgia, serif;
+  --sr-font-body: 'Hanken Grotesk', 'Inter', system-ui, sans-serif;
+  --sr-radius: 2px;
+}
+body {
+  margin: 0;
+  background: var(--sr-bg-0);
+  color: var(--sr-text);
+  font-family: var(--sr-font-body);
+}
+a {
+  color: var(--sr-gold);
+}

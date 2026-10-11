@@ -6,10 +6,10 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 - [ ] **FND-REPO-001** [OPS] Cargo workspace root (`Cargo.toml`, `rust-toolchain.toml` pinned stable, edition 2024, workspace lints: `unsafe_code = "forbid"` except FFI crates)
 - [ ] **FND-REPO-002** [OPS] Crate skeletons per doc 02 §3 (`sr-core`, `sr-db`, `sr-auth`, `sr-features`, `sr-events`, `sr-gateway`, `sr-api`, `sr-chat`, `sr-markdown`, `sr-search`, `sr-storage`, `sr-media`, `sr-reader`, `sr-tv`, `sr-review`, `sr-payments`, `sr-voice-proto`, `sr-e2ee`, `sr-theme`, `sr-server`, `sr-voice`, `sr-transcoder`, `sr-cli`, `sr-sdk`)
 - [ ] **FND-REPO-003** [OPS] pnpm workspace (`apps/web`, `packages/ui`, `packages/api-client`, `packages/wasm`)
-- [ ] **FND-REPO-004** [OPS] Vite + React 19 + TS strict app scaffold with TanStack Router, Query, Zustand
+- [x] **FND-REPO-004** [OPS] Vite + React 19 + TS strict app scaffold with TanStack Router, Query, Zustand
 - [ ] **FND-REPO-005** [OPS] wasm-pack build pipeline producing `packages/wasm` (ESM, typed bindings) for each `*-wasm` target
 - [x] **FND-REPO-006** [OPS] `cargo-deny` config (licences allowlist, advisories, bans)
-- [ ] **FND-REPO-007** [OPS] ESLint/Prettier (or Biome) config, lint-staged + pre-commit hook
+- [x] **FND-REPO-007** [OPS] ESLint/Prettier (or Biome) config, lint-staged + pre-commit hook
 - [x] **FND-REPO-008** [OPS] `.editorconfig`, `CODEOWNERS` (owner), Dependabot/Renovate config
 - [x] **FND-REPO-009** [OPS] Dev stack: `deploy/compose/dev.yml` (Postgres 17, Garage single-node + bucket bootstrap, Caddy, Mailpit for SMTP, coturn)
 - [x] **FND-REPO-010** [OPS] `justfile`/`xtask`: `dev`, `test`, `lint`, `migrate`, `seed`, `gen-api`, `wasm`
@@ -65,9 +65,9 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 - [ ] **FND-API-002** [BE] Auth extractors (session cookie + CSRF, Bot token, Bearer OAuth)
 - [ ] **FND-API-003** [BE] Rate limiter (governor) with Discord-style buckets and headers, global + per-route
 - [ ] **FND-API-004** [BE] utoipa OpenAPI generation, `/api/v1/openapi.json`, `/api/v10` alias
-- [ ] **FND-API-005** [FE] Generated TS client (openapi-typescript + fetch wrapper with retry on 429)
+- [x] **FND-API-005** [FE] Generated TS client (openapi-typescript + fetch wrapper with retry on 429)
 - [ ] **FND-API-006** [BE][GW] Gateway skeleton: HELLO, IDENTIFY, heartbeat, READY, RESUME, INVALID_SESSION, RECONNECT, zstd compression option
-- [ ] **FND-API-007** [FE] Gateway client (reconnect with backoff, resume, sequence tracking, dispatch → store)
+- [x] **FND-API-007** [FE] Gateway client (reconnect with backoff, resume, sequence tracking, dispatch → store)
 - [ ] **FND-API-008** [FE] Normalized client store (users, guilds, channels, members, messages caches) fed by gateway + REST
 - [ ] **FND-API-009** [BE] `/healthz`, `/readyz`, `/internal/metrics`
 

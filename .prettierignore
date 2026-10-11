@@ -1,0 +1,12 @@
+node_modules
+dist
+target
+pnpm-lock.yaml
+Cargo.lock
+docs
+crates
+packages
+.github
+*.md
+*.yml
+*.yaml
