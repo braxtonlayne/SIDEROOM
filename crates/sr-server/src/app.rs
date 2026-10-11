@@ -341,7 +341,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(Arc::new(guilds.clone()))
         .extension(Arc::new(messages))
         .readiness(Arc::new(DbReady::new(pool.clone(), readiness_timeout)))
-        .readiness(Arc::new(StorageReady::new(storage)))
+        .readiness(Arc::new(StorageReady::new(storage.clone())))
         .build();
 
     let public = TcpListener::bind(&cfg.server.bind)
@@ -381,7 +381,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         JobRunner::new(pool.clone(), format!("srv-{}", std::process::id())),
         &pool,
     );
+    let runner = crate::jobs::register_attachment_gc(runner, &pool, storage.clone());
     crate::jobs::schedule_recurring(&pool).await?;
+    crate::jobs::schedule_attachment_gc(&pool).await?;
     let jobs_task = tokio::spawn(runner.run(job_rx));
 
     // REST: every feature module, feature-owned routes, and the guild backend.
