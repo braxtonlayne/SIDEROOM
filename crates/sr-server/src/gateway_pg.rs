@@ -274,6 +274,29 @@ impl GuildDirectory for PgGuildDirectory {
         })
     }
 
+    async fn has_guild_permission(
+        &self,
+        user: UserId,
+        guild: GuildId,
+        needed: Permissions,
+    ) -> bool {
+        let res: Result<bool, sr_chat::error::RepoError> = async {
+            let (Some(g), Some(member)) = (
+                self.chat.get_guild(guild).await?,
+                self.chat.get_member(guild, user).await?,
+            ) else {
+                return Ok(false);
+            };
+            let roles = self.chat.list_roles(guild).await?;
+            Ok(sr_chat::perms::guild_permissions(&g, &member, &roles).contains(needed))
+        }
+        .await;
+        res.unwrap_or_else(|e| {
+            tracing::error!(error = %e, "has_guild_permission failed");
+            false
+        })
+    }
+
     async fn staff_users(&self) -> Vec<UserId> {
         let rows = sqlx::query_scalar::<_, i64>(
             "SELECT gm.user_id FROM guild_members gm \

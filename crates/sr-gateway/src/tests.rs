@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use serde_json::{Value, json};
-use sr_core::{ChannelId, GuildId, UserId};
+use sr_core::{ChannelId, GuildId, Permissions, UserId};
 use sr_events::{DomainEvent, EventBus, InProcessBus, Topic};
 use tokio::sync::mpsc;
 
@@ -27,6 +27,7 @@ struct FakeDir {
     guilds: Mutex<HashMap<UserId, Vec<GuildId>>>,
     hidden: Mutex<HashSet<(UserId, ChannelId)>>,
     staff: Mutex<Vec<UserId>>,
+    perms: Mutex<HashMap<(UserId, GuildId), Permissions>>,
 }
 
 #[async_trait]
@@ -41,6 +42,13 @@ impl GuildDirectory for FakeDir {
     }
     async fn staff_users(&self) -> Vec<UserId> {
         self.staff.lock().unwrap().clone()
+    }
+    async fn has_guild_permission(&self, user: UserId, g: GuildId, needed: Permissions) -> bool {
+        self.perms
+            .lock()
+            .unwrap()
+            .get(&(user, g))
+            .is_some_and(|p| p.contains(needed))
     }
     async fn can_view_channel(&self, user: UserId, _g: GuildId, ch: ChannelId) -> bool {
         !self.hidden.lock().unwrap().contains(&(user, ch))
@@ -971,4 +979,269 @@ async fn staff_alert_is_dispatched_to_staff_only() {
     let d = staff.expect_event("SR_STAFF_ALERT").await;
     assert_eq!(d["d"]["kind"], "banned_person_attempt");
     other.silent().await;
+}
+
+// ---- settings dispatches (invites, expressions, webhooks, automod, audit log) -------
+
+/// User 1 is a moderator of G1; user 2 is a plain member.
+fn grant_moderator(e: &Env) {
+    e.dir.perms.lock().unwrap().insert(
+        (u(1), G1),
+        Permissions::MANAGE_GUILD | Permissions::MANAGE_CHANNELS | Permissions::VIEW_AUDIT_LOG,
+    );
+}
+
+const ALL_SETTINGS_INTENTS: u64 = intents::GUILDS
+    | intents::GUILD_MODERATION
+    | intents::GUILD_EXPRESSIONS
+    | intents::GUILD_WEBHOOKS
+    | intents::GUILD_INVITES
+    | intents::AUTO_MODERATION_CONFIGURATION
+    | intents::AUTO_MODERATION_EXECUTION;
+
+#[tokio::test]
+async fn invite_create_and_delete_dispatch() {
+    let e = env();
+    grant_moderator(&e);
+    let mut admin = connect(&e);
+    admin.identify("bot:1", intents::GUILD_INVITES, 1).await;
+    let mut member = connect(&e);
+    member.identify("bot:2", intents::GUILD_INVITES, 1).await;
+    let mut no_intent = connect(&e);
+    no_intent.identify("bot:1", intents::GUILDS, 1).await;
+
+    emit(
+        &e.bus,
+        DomainEvent::InviteCreated {
+            guild: G1,
+            channel: OPEN,
+            payload: json!({ "code": "abc", "channel_id": "10", "guild_id": "1" }),
+        },
+    )
+    .await;
+    let d = admin.expect_event("INVITE_CREATE").await;
+    assert_eq!(d["d"]["code"], "abc");
+    member.silent().await; // lacks MANAGE_CHANNELS
+    no_intent.silent().await;
+
+    emit(
+        &e.bus,
+        DomainEvent::InviteDeleted {
+            guild: G1,
+            channel: OPEN,
+            payload: json!({ "code": "abc", "channel_id": "10", "guild_id": "1" }),
+        },
+    )
+    .await;
+    assert_eq!(
+        admin.expect_event("INVITE_DELETE").await["d"]["code"],
+        "abc"
+    );
+    member.silent().await;
+}
+
+#[tokio::test]
+async fn invite_for_a_hidden_channel_is_not_delivered() {
+    let e = env();
+    // Both can manage channels, but user 2 cannot view SECRET.
+    for uid in [1, 2] {
+        e.dir
+            .perms
+            .lock()
+            .unwrap()
+            .insert((u(uid), G1), Permissions::MANAGE_CHANNELS);
+    }
+    let mut a = connect(&e);
+    a.identify("bot:1", intents::GUILD_INVITES, 1).await;
+    let mut b = connect(&e);
+    b.identify("bot:2", intents::GUILD_INVITES, 1).await;
+    emit(
+        &e.bus,
+        DomainEvent::InviteCreated {
+            guild: G1,
+            channel: SECRET,
+            payload: json!({ "code": "zzz" }),
+        },
+    )
+    .await;
+    a.expect_event("INVITE_CREATE").await;
+    b.silent().await;
+}
+
+#[tokio::test]
+async fn expressions_updates_dispatch_with_the_expressions_intent() {
+    let e = env();
+    let mut c = connect(&e);
+    c.identify("bot:2", intents::GUILD_EXPRESSIONS, 1).await;
+    let mut other = connect(&e);
+    other.identify("bot:1", intents::GUILDS, 1).await;
+    emit(
+        &e.bus,
+        DomainEvent::EmojisUpdated {
+            guild: G1,
+            payload: json!({ "guild_id": "1", "emojis": [{ "id": "5", "name": "pog" }] }),
+        },
+    )
+    .await;
+    let d = c.expect_event("GUILD_EMOJIS_UPDATE").await;
+    assert_eq!(d["d"]["emojis"][0]["name"], "pog");
+    emit(
+        &e.bus,
+        DomainEvent::StickersUpdated {
+            guild: G1,
+            payload: json!({ "guild_id": "1", "stickers": [] }),
+        },
+    )
+    .await;
+    assert_eq!(
+        c.expect_event("GUILD_STICKERS_UPDATE").await["d"]["guild_id"],
+        "1"
+    );
+    other.silent().await;
+}
+
+#[tokio::test]
+async fn webhooks_update_carries_guild_and_channel() {
+    let e = env();
+    let mut a = connect(&e);
+    a.identify("bot:1", intents::GUILD_WEBHOOKS, 1).await;
+    let mut b = connect(&e);
+    b.identify("bot:2", intents::GUILD_WEBHOOKS, 1).await;
+    let mut no_intent = connect(&e);
+    no_intent.identify("bot:1", intents::GUILDS, 1).await;
+    emit(
+        &e.bus,
+        DomainEvent::WebhooksUpdated {
+            guild: G1,
+            channel: SECRET,
+        },
+    )
+    .await;
+    let d = a.expect_event("WEBHOOKS_UPDATE").await;
+    assert_eq!(d["d"], json!({ "guild_id": "1", "channel_id": "11" }));
+    b.silent().await; // cannot view the channel
+    no_intent.silent().await;
+}
+
+#[tokio::test]
+async fn automod_dispatches_go_to_guild_managers_with_the_right_intent() {
+    let e = env();
+    grant_moderator(&e);
+    let mut config = connect(&e);
+    config
+        .identify("bot:1", intents::AUTO_MODERATION_CONFIGURATION, 1)
+        .await;
+    let mut exec = connect(&e);
+    exec.identify("bot:1", intents::AUTO_MODERATION_EXECUTION, 1)
+        .await;
+    let mut member = connect(&e);
+    member
+        .identify(
+            "bot:2",
+            intents::AUTO_MODERATION_CONFIGURATION | intents::AUTO_MODERATION_EXECUTION,
+            1,
+        )
+        .await;
+    let rule = json!({ "id": "7", "guild_id": "1", "name": "no links" });
+
+    emit(
+        &e.bus,
+        DomainEvent::AutoModRuleCreated {
+            guild: G1,
+            payload: rule.clone(),
+        },
+    )
+    .await;
+    assert_eq!(
+        config.expect_event("AUTO_MODERATION_RULE_CREATE").await["d"]["id"],
+        "7"
+    );
+    emit(
+        &e.bus,
+        DomainEvent::AutoModRuleUpdated {
+            guild: G1,
+            payload: rule.clone(),
+        },
+    )
+    .await;
+    config.expect_event("AUTO_MODERATION_RULE_UPDATE").await;
+    emit(
+        &e.bus,
+        DomainEvent::AutoModRuleDeleted {
+            guild: G1,
+            payload: rule,
+        },
+    )
+    .await;
+    config.expect_event("AUTO_MODERATION_RULE_DELETE").await;
+    emit(
+        &e.bus,
+        DomainEvent::AutoModActionExecuted {
+            guild: G1,
+            payload: json!({ "guild_id": "1", "rule_id": "7", "user_id": "2" }),
+        },
+    )
+    .await;
+    let d = exec.expect_event("AUTO_MODERATION_ACTION_EXECUTION").await;
+    assert_eq!(d["d"]["rule_id"], "7");
+    // The configuration socket has no execution intent and vice versa.
+    config.silent().await;
+    exec.silent().await;
+    // A plain member never sees any of them, intent or not.
+    member.silent().await;
+}
+
+#[tokio::test]
+async fn audit_log_entries_go_only_to_members_with_view_audit_log() {
+    let e = env();
+    grant_moderator(&e);
+    let mut moderator = connect(&e);
+    moderator
+        .identify("bot:1", intents::GUILD_MODERATION, 1)
+        .await;
+    let mut member = connect(&e);
+    member.identify("bot:2", intents::GUILD_MODERATION, 1).await;
+    let mut no_intent = connect(&e);
+    no_intent.identify("bot:1", intents::GUILDS, 1).await;
+    emit(
+        &e.bus,
+        DomainEvent::AuditLogEntryCreated {
+            guild: G1,
+            payload: json!({ "id": "99", "guild_id": "1", "action_type": 1 }),
+        },
+    )
+    .await;
+    let d = moderator.expect_event("GUILD_AUDIT_LOG_ENTRY_CREATE").await;
+    assert_eq!(d["d"]["id"], "99");
+    member.silent().await;
+    no_intent.silent().await;
+}
+
+#[tokio::test]
+async fn settings_dispatches_use_discord_intent_bits() {
+    assert_eq!(
+        intents::required_for("INVITE_CREATE"),
+        Some(intents::GUILD_INVITES)
+    );
+    assert_eq!(intents::required_for("GUILD_EMOJIS_UPDATE"), Some(1 << 3));
+    assert_eq!(
+        intents::required_for("WEBHOOKS_UPDATE"),
+        Some(intents::GUILD_WEBHOOKS)
+    );
+    assert_eq!(
+        intents::required_for("AUTO_MODERATION_RULE_UPDATE"),
+        Some(1 << 20)
+    );
+    assert_eq!(
+        intents::required_for("AUTO_MODERATION_ACTION_EXECUTION"),
+        Some(1 << 21)
+    );
+    assert_eq!(
+        intents::required_for("GUILD_AUDIT_LOG_ENTRY_CREATE"),
+        Some(intents::GUILD_MODERATION)
+    );
+    // All of them are accepted at IDENTIFY.
+    let e = env();
+    let mut c = connect(&e);
+    c.identify("bot:1", ALL_SETTINGS_INTENTS, 1).await;
 }

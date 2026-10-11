@@ -60,11 +60,16 @@ pub mod intents {
     pub const GUILDS: u64 = 1 << 0;
     pub const GUILD_MEMBERS: u64 = 1 << 1;
     pub const GUILD_MODERATION: u64 = 1 << 2;
+    pub const GUILD_EXPRESSIONS: u64 = 1 << 3;
+    pub const GUILD_WEBHOOKS: u64 = 1 << 5;
+    pub const GUILD_INVITES: u64 = 1 << 6;
     pub const GUILD_PRESENCES: u64 = 1 << 8;
     pub const GUILD_MESSAGES: u64 = 1 << 9;
     pub const GUILD_MESSAGE_REACTIONS: u64 = 1 << 10;
     pub const GUILD_MESSAGE_TYPING: u64 = 1 << 11;
     pub const MESSAGE_CONTENT: u64 = 1 << 15;
+    pub const AUTO_MODERATION_CONFIGURATION: u64 = 1 << 20;
+    pub const AUTO_MODERATION_EXECUTION: u64 = 1 << 21;
     /// Privileged: need approval for released apps (docs/05 section 6.2).
     pub const PRIVILEGED: u64 = GUILD_MEMBERS | GUILD_PRESENCES | MESSAGE_CONTENT;
     /// Every bit defined by Discord (0..=26 minus gaps is not worth modelling).
@@ -82,7 +87,16 @@ pub mod intents {
             "GUILD_DELETE" | "GUILD_UPDATE" | "CHANNEL_CREATE" | "CHANNEL_UPDATE"
             | "CHANNEL_DELETE" | "GUILD_ROLE_CREATE" | "GUILD_ROLE_UPDATE"
             | "GUILD_ROLE_DELETE" => Some(GUILDS),
-            "GUILD_BAN_ADD" | "GUILD_BAN_REMOVE" => Some(GUILD_MODERATION),
+            "GUILD_BAN_ADD" | "GUILD_BAN_REMOVE" | "GUILD_AUDIT_LOG_ENTRY_CREATE" => {
+                Some(GUILD_MODERATION)
+            }
+            "GUILD_EMOJIS_UPDATE" | "GUILD_STICKERS_UPDATE" => Some(GUILD_EXPRESSIONS),
+            "WEBHOOKS_UPDATE" => Some(GUILD_WEBHOOKS),
+            "INVITE_CREATE" | "INVITE_DELETE" => Some(GUILD_INVITES),
+            "AUTO_MODERATION_RULE_CREATE"
+            | "AUTO_MODERATION_RULE_UPDATE"
+            | "AUTO_MODERATION_RULE_DELETE" => Some(AUTO_MODERATION_CONFIGURATION),
+            "AUTO_MODERATION_ACTION_EXECUTION" => Some(AUTO_MODERATION_EXECUTION),
             "GUILD_MEMBER_ADD" | "GUILD_MEMBER_REMOVE" | "GUILD_MEMBER_UPDATE" => {
                 Some(GUILD_MEMBERS)
             }

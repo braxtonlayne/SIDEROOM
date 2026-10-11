@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use serde_json::{Value, json};
-use sr_core::{ChannelId, GuildId, UserId};
+use sr_core::{ChannelId, GuildId, Permissions, UserId};
 use thiserror::Error;
 
 use crate::session::SessionHandle;
@@ -59,6 +59,19 @@ pub trait GuildDirectory: Send + Sync {
     async fn guilds_for_user(&self, user: UserId) -> Vec<GuildId>;
 
     async fn can_view_channel(&self, user: UserId, guild: GuildId, channel: ChannelId) -> bool;
+
+    /// Whether `user` holds all of `needed` at guild level (owner and
+    /// administrator bypass applied). Gates moderation and configuration
+    /// dispatches such as `GUILD_AUDIT_LOG_ENTRY_CREATE`; see
+    /// [`crate::hub::required_guild_permission`]. Default: no (fail closed).
+    async fn has_guild_permission(
+        &self,
+        _user: UserId,
+        _guild: GuildId,
+        _needed: Permissions,
+    ) -> bool {
+        false
+    }
 
     /// Body of `GUILD_CREATE` for `user`. Default is a bare stub.
     async fn guild_payload(&self, _user: UserId, guild: GuildId) -> Value {
