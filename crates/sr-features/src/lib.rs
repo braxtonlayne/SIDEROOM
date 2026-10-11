@@ -7,7 +7,7 @@ pub mod service;
 pub mod store;
 
 pub use feature::{
-    Feature, FeatureCtx, FeatureError, FeatureMeta, FeatureRegistry, Migration, Scope, ScopeRef,
+    Feature, FeatureCtx, FeatureError, FeatureMeta, FeatureRegistry, Scope, ScopeRef,
 };
 pub use schema::{Field, FieldKind, SettingsSchema, ValidationError};
 pub use service::FeatureService;

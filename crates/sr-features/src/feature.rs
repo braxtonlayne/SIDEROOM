@@ -1,12 +1,15 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use axum::Router;
 use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
-use sr_events::{ChannelId, DomainEvent, GuildId, Topic, UserId};
+use sr_core::Clock;
+use sr_events::{ChannelId, DomainEvent, EventBus, GuildId, Topic, UserId};
 use thiserror::Error;
 
 use crate::schema::{SettingsSchema, ValidationError};
+use crate::service::FeatureService;
 use crate::store::StoreError;
 
 #[derive(Debug, Error)]
@@ -85,19 +88,17 @@ pub struct FeatureMeta {
     pub default_enabled: bool,
 }
 
-/// TODO(FND-DB): placeholder for a feature-owned SQL migration.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Migration {
-    pub id: &'static str,
-    pub sql: &'static str,
+/// Handles a feature gets from the composition root (doc 11 section 1.1).
+/// Feature tables live in `crates/sr-db/migrations` (one forward-only series),
+/// so there is no per-feature migration hook.
+#[derive(Clone)]
+pub struct FeatureCtx {
+    pub bus: Arc<dyn EventBus>,
+    pub settings: FeatureService,
+    pub clock: Arc<dyn Clock>,
 }
 
-/// TODO: handles given to features (db pool, bus, http clients) once those exist.
-#[derive(Debug, Default, Clone)]
-pub struct FeatureCtx {}
-
 /// A unit of functionality with auto-rendered settings (doc 11 section 1.1).
-/// TODO: `routes()` returning an axum router once `AppState` exists.
 pub trait Feature: Send + Sync + 'static {
     /// Stable id, e.g. "lounge.slowmode_plus".
     fn id(&self) -> &'static str;
@@ -111,8 +112,10 @@ pub trait Feature: Send + Sync + 'static {
     ) -> BoxFuture<'a, Result<(), FeatureError>> {
         Box::pin(async { Ok(()) })
     }
-    fn migrations(&self) -> &'static [Migration] {
-        &[]
+    /// Routes served under `/api/v1/sr/features/{id}/`, or `None`. Features
+    /// own their state: the router has no `AppState`.
+    fn routes(&self) -> Option<Router> {
+        None
     }
 }
 
