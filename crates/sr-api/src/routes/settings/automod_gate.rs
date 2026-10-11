@@ -23,7 +23,6 @@ use async_trait::async_trait;
 use serde_json::json;
 use sr_chat::settings::audit::{AuditAction, AuditEntry};
 use sr_chat::settings::automod::{Action, MessageContext, RuleMatch};
-use sr_chat::settings::repo::AuditRepository;
 use sr_core::permissions::Permissions;
 use sr_core::{ChannelId, GuildId, UserId};
 use std::sync::Arc;
@@ -166,7 +165,7 @@ impl AutoModGate for SettingsDeps {
                 }))
             });
             if let Ok(entry) = entry
-                && let Err(e) = self.service.repo().append_audit(&entry).await
+                && let Err(e) = self.service.store_audit(&entry).await
             {
                 tracing::warn!(error = %e, "could not record an AutoMod block");
             }
@@ -185,5 +184,53 @@ impl AutoModGate for SettingsDeps {
             .await;
         }
         Ok(verdict)
+    }
+}
+
+/// `AUTO_MODERATION_ACTION_EXECUTION` body for a `send_alert_message` action
+/// (Discord action type 2). `message_id` is absent when the message was blocked.
+pub fn alert_execution_payload(
+    guild: GuildId,
+    alert: &Alert,
+    message_id: Option<sr_core::MessageId>,
+) -> serde_json::Value {
+    let mut v = json!({
+        "guild_id": guild.to_string(),
+        "action": { "type": 2, "metadata": { "channel_id": alert.channel_id.to_string() } },
+        "rule_id": alert.rule_id.to_string(),
+        "user_id": alert.user_id.to_string(),
+        "channel_id": alert.source_channel_id.to_string(),
+        "content": alert.content,
+        "matched_keyword": alert.matched,
+        "matched_content": alert.matched,
+    });
+    if let (Some(id), Some(o)) = (message_id, v.as_object_mut()) {
+        o.insert("message_id".into(), json!(id.to_string()));
+    }
+    v
+}
+
+#[cfg(test)]
+mod alert_payload_tests {
+    use super::*;
+
+    #[test]
+    fn alert_payload_is_discord_shaped() {
+        let alert = Alert {
+            channel_id: ChannelId::new(9),
+            rule_id: 7,
+            rule_name: "r".into(),
+            matched: "bad".into(),
+            user_id: UserId::new(2),
+            source_channel_id: ChannelId::new(3),
+            content: "a bad word".into(),
+        };
+        let v = alert_execution_payload(GuildId::new(1), &alert, Some(sr_core::MessageId::new(5)));
+        assert_eq!(v["action"]["type"], 2);
+        assert_eq!(v["action"]["metadata"]["channel_id"], "9");
+        assert_eq!(v["rule_id"], "7");
+        assert_eq!(v["message_id"], "5");
+        let blocked = alert_execution_payload(GuildId::new(1), &alert, None);
+        assert!(blocked.get("message_id").is_none());
     }
 }

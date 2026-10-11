@@ -25,7 +25,7 @@ use sr_api::{
         },
         guilds::GuildApi,
         search::SearchDeps,
-        settings::{AutoModGateHandle, SettingsDeps, events::TodoBusAdapter},
+        settings::{AutoModGateHandle, SettingsDeps, events::BusSettingsEvents},
     },
 };
 use sr_chat::settings::SettingsService;
@@ -353,7 +353,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             (cfg.server.process_id + 3) % 32,
         )
         .context("settings snowflake generator")?
-        .with_events(Arc::new(TodoBusAdapter::new(bus.clone()))),
+        .with_events(Arc::new(BusSettingsEvents::new(bus.clone()))),
     );
     let search_dir = std::env::var("SR_SEARCH_DIR").unwrap_or_else(|_| "data/search".to_owned());
     let message_index = Arc::new(

@@ -54,6 +54,21 @@ impl<T: Send + Sync + 'static> FromRequestParts<AppState> for Ext<T> {
     }
 }
 
+/// Like [`Ext`], for a service that is allowed to be absent (optional hooks such
+/// as the AutoMod gate): `None` instead of a 500.
+pub struct MaybeExt<T: Send + Sync + 'static>(pub Option<Arc<T>>);
+
+impl<T: Send + Sync + 'static> FromRequestParts<AppState> for MaybeExt<T> {
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(
+        _parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        Ok(Self(state.extension::<T>()))
+    }
+}
+
 /// Every feature router, relative to the `/api/v1` prefix. Merging panics on
 /// an overlapping method and path, so this doubles as the startup check.
 pub fn all() -> Router<AppState> {

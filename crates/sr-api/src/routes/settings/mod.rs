@@ -37,7 +37,9 @@ pub mod webhooks;
 #[cfg(test)]
 mod tests;
 
-pub use automod_gate::{AutoModGate, AutoModGateHandle, AutoModVerdict, MessageCheck};
+pub use automod_gate::{
+    AutoModGate, AutoModGateHandle, AutoModVerdict, MessageCheck, alert_execution_payload,
+};
 pub use deps::{Entropy, SettingsDeps};
 pub use events::{SettingsEvent, SettingsEvents};
 pub use join::MemberJoiner;

@@ -8,6 +8,7 @@
 use super::deps::{GuildAccess, SettingsDeps, actor, id, invalid, re, se};
 use super::events::SettingsEvent;
 use crate::routes::Ext;
+use crate::routes::guilds::dto::GuildObject;
 use crate::routes::messages::error::ApiJson;
 use crate::{Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
 use axum::{Json, Router, extract::Path, routing::get};
@@ -68,6 +69,63 @@ async fn require_guild_channels(
         }
     }
     Ok(())
+}
+
+/// Tell the guild's gateway sessions that community, onboarding, welcome-screen
+/// or safety settings changed, as a `GUILD_UPDATE` with the full guild object
+/// (core fields plus the community fields clients read from the guild).
+async fn publish_guild_update(deps: &SettingsDeps, acc: &GuildAccess) {
+    let gid = acc.guild.id;
+    let settings = match deps.service.community(acc.perms, gid).await {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::warn!(error = %e, "GUILD_UPDATE skipped: community settings unreadable");
+            return;
+        }
+    };
+    let mut payload = serde_json::to_value(GuildObject::new(&acc.guild, Some(&acc.roles), None))
+        .unwrap_or_default();
+    if let Some(o) = payload.as_object_mut() {
+        let ch = |c: Option<ChannelId>| c.map(|c| c.to_string());
+        let mut features = Vec::new();
+        if settings.community_enabled {
+            features.push("COMMUNITY");
+        }
+        if settings.welcome_screen_enabled {
+            features.push("WELCOME_SCREEN_ENABLED");
+        }
+        if settings.onboarding_enabled {
+            features.push("GUILD_ONBOARDING");
+        }
+        o.insert("features".into(), serde_json::json!(features));
+        o.insert(
+            "rules_channel_id".into(),
+            serde_json::json!(ch(settings.rules_channel_id)),
+        );
+        o.insert(
+            "public_updates_channel_id".into(),
+            serde_json::json!(ch(settings.updates_channel_id)),
+        );
+        o.insert(
+            "safety_alerts_channel_id".into(),
+            serde_json::json!(ch(settings.safety_alerts_channel_id)),
+        );
+        o.insert(
+            "preferred_locale".into(),
+            serde_json::json!(settings.preferred_locale),
+        );
+        if settings.description.is_some() {
+            o.insert(
+                "description".into(),
+                serde_json::json!(settings.description),
+            );
+        }
+    }
+    deps.publish(SettingsEvent::CommunityChanged {
+        guild: gid,
+        payload,
+    })
+    .await;
 }
 
 // ---- community -------------------------------------------------------------------
@@ -237,8 +295,7 @@ pub async fn modify_community(
         .save_community(acc.perms, user, s, safety)
         .await
         .map_err(se)?;
-    deps.publish(SettingsEvent::CommunityChanged { guild: gid })
-        .await;
+    publish_guild_update(&deps, &acc).await;
     Ok(Json(CommunityObject::of(&saved)))
 }
 
@@ -465,8 +522,7 @@ pub async fn put_onboarding(
         )
         .await
         .map_err(se)?;
-    deps.publish(SettingsEvent::CommunityChanged { guild: gid })
-        .await;
+    publish_guild_update(&deps, &acc).await;
     Ok(Json(OnboardingObject::of(&saved)))
 }
 
@@ -581,7 +637,6 @@ pub async fn modify_welcome_screen(
         .save_welcome_screen(acc.perms, w)
         .await
         .map_err(se)?;
-    deps.publish(SettingsEvent::CommunityChanged { guild: gid })
-        .await;
+    publish_guild_update(&deps, &acc).await;
     Ok(Json(WelcomeScreenObject::of(&saved)))
 }

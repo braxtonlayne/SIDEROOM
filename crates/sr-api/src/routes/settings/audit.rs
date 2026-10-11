@@ -8,6 +8,7 @@ use crate::{Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
 use axum::{Json, Router, extract::Path, routing::get};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sr_chat::settings::AuditObserver;
 use sr_chat::settings::audit::{AuditAction, AuditEntry, AuditQuery, MAX_PAGE};
 use sr_core::{GuildId, UserId};
 use utoipa::ToSchema;
@@ -210,5 +211,65 @@ mod tests {
             v["changes"][0],
             json!({"key": "name", "new_value": "party"})
         );
+    }
+}
+
+/// An audit observer that announces each stored entry on the bus as
+/// `GUILD_AUDIT_LOG_ENTRY_CREATE` (the gateway delivers it only to members with
+/// `VIEW_AUDIT_LOG`). Install it on every `SettingsService` that records audit
+/// entries. The publish runs on a spawned task so recording never waits on it.
+pub fn bus_audit_observer(bus: std::sync::Arc<dyn sr_events::EventBus>) -> AuditObserver {
+    std::sync::Arc::new(move |entry: &AuditEntry| {
+        let guild = entry.guild_id;
+        let mut payload = serde_json::to_value(AuditEntryObject::of(entry)).unwrap_or_default();
+        if let Some(o) = payload.as_object_mut() {
+            o.insert("guild_id".into(), Value::String(guild.to_string()));
+        }
+        let ev = sr_events::DomainEvent::AuditLogEntryCreated { guild, payload };
+        let bus = bus.clone();
+        tokio::spawn(async move {
+            for topic in ev.topics() {
+                if let Err(e) = bus.publish(topic, ev.clone()).await {
+                    tracing::warn!(error = %e, "failed to publish audit log entry event");
+                }
+            }
+        });
+    })
+}
+
+#[cfg(test)]
+mod observer_tests {
+    use super::*;
+    use futures::StreamExt;
+    use sr_events::{DomainEvent, EventBus, InProcessBus, Topic};
+
+    #[tokio::test]
+    async fn stored_entries_are_published_with_the_guild_id() {
+        let bus = std::sync::Arc::new(InProcessBus::new());
+        let mut s = bus.subscribe(Topic::Guild(GuildId::new(1)));
+        let observe = bus_audit_observer(bus.clone());
+        let entry = AuditEntry::new(
+            9,
+            GuildId::new(1),
+            UserId::new(2),
+            AuditAction::RoleCreate,
+            Some(5),
+            Some("why"),
+            1_000,
+        )
+        .unwrap();
+        observe(&entry);
+        let ev = tokio::time::timeout(std::time::Duration::from_secs(2), s.next())
+            .await
+            .unwrap()
+            .unwrap();
+        let DomainEvent::AuditLogEntryCreated { guild, payload } = ev else {
+            panic!("wrong event");
+        };
+        assert_eq!(guild, GuildId::new(1));
+        assert_eq!(payload["id"], "9");
+        assert_eq!(payload["guild_id"], "1");
+        assert_eq!(payload["user_id"], "2");
+        assert_eq!(payload["reason"], "why");
     }
 }

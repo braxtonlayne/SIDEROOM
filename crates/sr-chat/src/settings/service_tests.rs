@@ -369,3 +369,18 @@ async fn spam_rule_uses_the_member_window_and_the_rule_cache() {
     };
     assert!(svc.check_message(G, &exempt).await.unwrap().is_empty());
 }
+
+#[tokio::test]
+async fn audit_observer_sees_each_stored_entry() {
+    let (svc, _clock) = setup();
+    let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let sink = seen.clone();
+    let svc = svc.with_audit_observer(Arc::new(move |e| {
+        sink.lock().unwrap().push((e.id, e.action));
+    }));
+    let e = svc
+        .record_audit(G, ADMIN, AuditAction::RoleCreate, Some(5), vec![], None)
+        .await
+        .unwrap();
+    assert_eq!(*seen.lock().unwrap(), vec![(e.id, AuditAction::RoleCreate)]);
+}
