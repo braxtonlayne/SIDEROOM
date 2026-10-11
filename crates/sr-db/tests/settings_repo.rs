@@ -243,7 +243,8 @@ async fn emoji_rules_templates_and_community_round_trip() {
         channels: vec![],
     };
     let tmpl = GuildTemplate::new(
-        format!("T{}", test_ids.generate().get()),
+        // 16 alphanumeric characters, the length the real generator produces.
+        format!("T{:015}", test_ids.generate().get() % 1_000_000_000_000_000),
         g,
         owner,
         "Template",
