@@ -17,6 +17,7 @@ fn ev(n: u64) -> DomainEvent {
     DomainEvent::MemberJoined {
         guild: GuildId::new(n),
         user: UserId::new(n),
+        payload: serde_json::Value::Null,
     }
 }
 

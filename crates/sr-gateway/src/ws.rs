@@ -3,7 +3,8 @@
 use axum::Router;
 use axum::extract::ws::{CloseFrame, Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Query, State};
-use axum::http::StatusCode;
+use axum::http::header::{COOKIE, ORIGIN};
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use futures::{SinkExt, StreamExt};
@@ -29,6 +30,7 @@ pub struct GatewayQuery {
 pub async fn gateway_handler(
     State(gw): State<Gateway>,
     Query(q): Query<GatewayQuery>,
+    headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Response {
     if !matches!(q.v, Some(1 | 10)) {
@@ -40,8 +42,31 @@ pub async fn gateway_handler(
     let Some(compression) = Compression::parse(q.compress.as_deref().unwrap_or("")) else {
         return (StatusCode::BAD_REQUEST, "unsupported compression").into_response();
     };
-    let params = ConnectParams { compression };
+    let params = ConnectParams {
+        compression,
+        session_cookie: session_cookie(&headers),
+        origin: headers
+            .get(ORIGIN)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned),
+    };
     ws.on_upgrade(move |socket| serve_socket(gw, params, socket))
+}
+
+/// Name of the browser session cookie (matches the REST API).
+pub const SESSION_COOKIE: &str = "sr_session";
+
+/// The `sr_session` value from any `Cookie` header, if present.
+fn session_cookie(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get_all(COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .flat_map(|s| s.split(';'))
+        .find_map(|kv| {
+            let (name, value) = kv.trim().split_once('=')?;
+            (name == SESSION_COOKIE && !value.is_empty()).then(|| value.to_owned())
+        })
 }
 
 /// A router with just `/gateway`, for standalone use or `Router::merge`.

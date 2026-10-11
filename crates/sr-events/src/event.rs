@@ -25,23 +25,15 @@ pub enum DomainEvent {
     GuildDeleted {
         guild: GuildId,
     },
+    /// `GUILD_MEMBER_ADD`; `payload` is the full member object (Discord shape).
     MemberJoined {
         guild: GuildId,
         user: UserId,
+        payload: Value,
     },
     MemberLeft {
         guild: GuildId,
         user: UserId,
-    },
-    MessageCreated {
-        guild: Option<GuildId>,
-        channel: ChannelId,
-        message_id: u64,
-        author: UserId,
-    },
-    ChannelCreated {
-        guild: GuildId,
-        channel: ChannelId,
     },
     /// Full `CHANNEL_CREATE` body (Discord channel object) in `payload`.
     ChannelCreatedFull {
@@ -108,8 +100,7 @@ pub enum DomainEvent {
         scope: Topic,
     },
     /// A message was created; `data` is the full Discord-shaped message object
-    /// (dispatched as `MESSAGE_CREATE`). Supersedes the skeletal
-    /// [`DomainEvent::MessageCreated`] for REST-originated messages.
+    /// (dispatched as `MESSAGE_CREATE`). The only message-create event.
     MessageSent {
         guild: Option<GuildId>,
         channel: ChannelId,
@@ -198,14 +189,12 @@ impl DomainEvent {
             | Self::MemberUpdated { guild, .. }
             | Self::MemberBanned { guild, .. }
             | Self::MemberUnbanned { guild, .. } => vec![Topic::Guild(*guild)],
-            Self::ChannelCreated { guild, channel }
-            | Self::ChannelCreatedFull { guild, channel, .. }
+            Self::ChannelCreatedFull { guild, channel, .. }
             | Self::ChannelUpdated { guild, channel, .. }
             | Self::ChannelDeleted { guild, channel, .. } => {
                 vec![Topic::Guild(*guild), Topic::Channel(*channel)]
             }
-            Self::MessageCreated { guild, channel, .. }
-            | Self::MessageSent { guild, channel, .. }
+            Self::MessageSent { guild, channel, .. }
             | Self::MessageEdited { guild, channel, .. }
             | Self::MessageDeleted { guild, channel, .. }
             | Self::MessagesBulkDeleted { guild, channel, .. }
@@ -232,11 +221,12 @@ mod tests {
 
     #[test]
     fn routing() {
-        let e = DomainEvent::MessageCreated {
+        let e = DomainEvent::MessageSent {
             guild: Some(GuildId::new(1)),
             channel: ChannelId::new(2),
             message_id: 3,
             author: UserId::new(4),
+            data: serde_json::Value::Null,
         };
         assert_eq!(
             e.topics(),
@@ -245,11 +235,12 @@ mod tests {
                 Topic::Guild(GuildId::new(1))
             ]
         );
-        let dm = DomainEvent::MessageCreated {
+        let dm = DomainEvent::MessageSent {
             guild: None,
             channel: ChannelId::new(2),
             message_id: 3,
             author: UserId::new(4),
+            data: serde_json::Value::Null,
         };
         assert_eq!(dm.topics(), vec![Topic::Channel(ChannelId::new(2))]);
     }

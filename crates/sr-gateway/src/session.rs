@@ -158,6 +158,11 @@ impl Session {
             .is_some_and(|t| Instant::now().duration_since(t) > self.window)
     }
 
+    /// Whether a live socket is currently attached (not just resumable).
+    pub fn is_attached(&self) -> bool {
+        self.lock().link.is_some()
+    }
+
     pub fn guilds(&self) -> Vec<GuildId> {
         self.lock().guilds.iter().copied().collect()
     }
@@ -173,5 +178,30 @@ impl Session {
     /// Whether this session should receive `event` given its intents.
     pub fn wants(&self, event: &str) -> bool {
         crate::protocol::intents::required_for(event).is_none_or(|bit| self.intents & bit != 0)
+    }
+}
+
+/// What an [`crate::traits::OpHandler`] gets to see of an authenticated session.
+#[derive(Clone)]
+pub struct SessionHandle {
+    inner: Arc<Session>,
+}
+
+impl SessionHandle {
+    pub(crate) fn new(inner: Arc<Session>) -> Self {
+        Self { inner }
+    }
+
+    pub fn id(&self) -> &str {
+        &self.inner.id
+    }
+
+    pub fn user(&self) -> UserId {
+        self.inner.user
+    }
+
+    /// Send a dispatch to this session only.
+    pub fn deliver(&self, name: &str, data: Value) {
+        self.inner.deliver(name, data);
     }
 }

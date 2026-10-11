@@ -11,7 +11,8 @@ use tokio::time::{Instant, sleep_until};
 use crate::compress::{Compression, zstd_compress};
 use crate::hub::Gateway;
 use crate::protocol::{Identify, Payload, PresenceUpdate, Resume, close, intents, op};
-use crate::session::{Out, Session};
+use crate::session::{Out, Session, SessionHandle};
+use crate::traits::{AuthError, AuthedUser};
 
 /// Transport-level frame. The axum adapter maps WebSocket messages to these;
 /// tests drive them directly.
@@ -22,10 +23,18 @@ pub enum Frame {
     Close { code: u16, reason: String },
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct ConnectParams {
     pub compression: Compression,
+    /// Value of the `sr_session` cookie on the upgrade request, if any.
+    pub session_cookie: Option<String>,
+    /// `Origin` header of the upgrade request, if any.
+    pub origin: Option<String>,
 }
+
+/// Inbound client ops allowed per connection in each window (docs/05 section 6.2).
+const RATE_LIMIT_OPS: u32 = 120;
+const RATE_LIMIT_WINDOW: std::time::Duration = std::time::Duration::from_secs(60);
 
 struct Conn {
     gw: Gateway,
@@ -36,6 +45,8 @@ struct Conn {
     session_tx: Option<mpsc::Sender<Out>>,
     cap: usize,
     deadline: Instant,
+    window_start: Instant,
+    window_ops: u32,
 }
 
 /// Why the loop ended.
@@ -67,6 +78,8 @@ pub async fn run_connection(
         session_tx: Some(session_tx),
         cap,
         deadline,
+        window_start: Instant::now(),
+        window_ops: 0,
     };
     let stop = c.run(&mut incoming, &mut session_rx).await;
     if let Stop::Close(code, reason) = stop {
@@ -78,8 +91,9 @@ pub async fn run_connection(
             })
             .await;
     }
-    if let Some(s) = &c.session {
+    if let Some(s) = c.session.clone() {
         s.detach(c.id);
+        c.gw.session_detached(&s).await;
     }
 }
 
@@ -112,6 +126,9 @@ impl Conn {
                 f = incoming.recv() => match f {
                     None | Some(Frame::Close { .. }) => Err(Stop::Gone),
                     Some(Frame::Binary(_)) => Err(Stop::Close(close::DECODE_ERROR, "binary frames unsupported")),
+                    Some(Frame::Text(_)) if !self.count_op() => {
+                        Err(Stop::Close(close::RATE_LIMITED, "rate limited"))
+                    }
                     Some(Frame::Text(t)) => self.on_text(&t, session_rx).await,
                 },
             };
@@ -119,6 +136,35 @@ impl Conn {
                 return s;
             }
         }
+    }
+
+    /// Count one inbound op; `false` once the window's budget is spent.
+    fn count_op(&mut self) -> bool {
+        if self.window_start.elapsed() >= RATE_LIMIT_WINDOW {
+            self.window_start = Instant::now();
+            self.window_ops = 0;
+        }
+        self.window_ops += 1;
+        self.window_ops <= RATE_LIMIT_OPS
+    }
+
+    /// Resolve IDENTIFY/RESUME credentials. An empty token means cookie auth: the
+    /// upgrade must carry `sr_session` and an `Origin` in the allowed list.
+    async fn authenticate(&self, token: &str) -> Result<AuthedUser, AuthError> {
+        if !token.is_empty() {
+            return self.gw.inner.auth.authenticate(token).await;
+        }
+        let cfg = self.gw.config();
+        let origin = self.params.origin.as_deref().ok_or(AuthError::Invalid)?;
+        if !cfg.allowed_origins.iter().any(|o| o == origin) {
+            return Err(AuthError::Invalid);
+        }
+        let cookie = self
+            .params
+            .session_cookie
+            .as_deref()
+            .ok_or(AuthError::Invalid)?;
+        self.gw.inner.auth.authenticate_session_cookie(cookie).await
     }
 
     async fn send_text(&self, text: String) -> Result<(), Stop> {
@@ -162,8 +208,19 @@ impl Conn {
                 }
                 Ok(())
             }
-            // Voice, member requests, SR ops: owned by other crates; accepted.
-            _ => Ok(()),
+            // Voice, member requests, SR ops: routed to registered handlers; unclaimed
+            // opcodes are ignored.
+            _ => {
+                if let Some(s) = self.session.clone() {
+                    let handle = SessionHandle::new(s);
+                    for h in self.gw.config().handlers.clone() {
+                        if h.ops().contains(&p.op) {
+                            h.handle(&handle, p.op, p.d.clone()).await;
+                        }
+                    }
+                }
+                Ok(())
+            }
         }
     }
 
@@ -177,9 +234,6 @@ impl Conn {
         let id: Identify = serde_json::from_value(d)
             .map_err(|_| Stop::Close(close::DECODE_ERROR, "decode error"))?;
         let user = self
-            .gw
-            .inner
-            .auth
             .authenticate(&id.token)
             .await
             .map_err(|_| Stop::Close(close::AUTHENTICATION_FAILED, "authentication failed"))?;
@@ -217,9 +271,6 @@ impl Conn {
         let r: Resume = serde_json::from_value(d)
             .map_err(|_| Stop::Close(close::DECODE_ERROR, "decode error"))?;
         let user = self
-            .gw
-            .inner
-            .auth
             .authenticate(&r.token)
             .await
             .map_err(|_| Stop::Close(close::AUTHENTICATION_FAILED, "authentication failed"))?;
@@ -231,6 +282,7 @@ impl Conn {
                 *session_rx = rx;
                 self.session_tx = None;
                 s.deliver_marker("RESUMED");
+                self.gw.refresh_presence(s.user, false).await;
                 self.session = Some(s);
                 Ok(())
             }
