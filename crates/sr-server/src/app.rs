@@ -272,7 +272,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     });
 
     let (job_tx, job_rx) = watch::channel(false);
-    let runner = JobRunner::new(pool.clone(), format!("srv-{}", std::process::id()));
+    let runner = crate::jobs::register(
+        JobRunner::new(pool.clone(), format!("srv-{}", std::process::id())),
+        &pool,
+    );
+    crate::jobs::schedule_recurring(&pool).await?;
     let jobs_task = tokio::spawn(runner.run(job_rx));
 
     // REST: every feature module, feature-owned routes, and the guild backend.

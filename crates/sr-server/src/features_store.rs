@@ -1,9 +1,7 @@
 //! Postgres [`SettingsStore`] over `feature_enablements` (migration 0003).
 //!
-//! The table has a NOT NULL `enabled` and no channel scope, so: an inherited
-//! flag (`enabled: None`) is stored as `enabled = false` with
-//! `config.inherit = true`, and channel scope is rejected with a backend
-//! error until the enum gains a `channel` value (docs/open-questions.md).
+//! Since migration 0050 `enabled` is nullable (NULL = inherit) and the scope
+//! enum includes `channel`.
 
 use async_trait::async_trait;
 use serde_json::{Map, Value, json};
@@ -28,9 +26,7 @@ fn key(scope: &ScopeRef) -> Result<(&'static str, i64), StoreError> {
         ScopeRef::Platform => Ok(("platform", 0)),
         ScopeRef::Guild { guild } => Ok(("guild", guild.get() as i64)),
         ScopeRef::User { user } => Ok(("user", user.get() as i64)),
-        ScopeRef::Channel { .. } => Err(StoreError::Backend(
-            "channel-scoped settings are not stored yet".into(),
-        )),
+        ScopeRef::Channel { channel, .. } => Ok(("channel", channel.get() as i64)),
     }
 }
 
@@ -57,7 +53,8 @@ impl SettingsStore for PgSettingsStore {
         .await
         .map_err(be)?;
         let Some(r) = row else { return Ok(None) };
-        let enabled: bool = r.try_get("enabled").map_err(be)?;
+        // NULL means "inherit" since migration 0050.
+        let enabled: Option<bool> = r.try_get("enabled").map_err(be)?;
         let config: Value = r.try_get("config").map_err(be)?;
         let inherit = config.get("inherit").and_then(Value::as_bool) == Some(true);
         let values: Map<String, Value> = config
@@ -66,7 +63,7 @@ impl SettingsStore for PgSettingsStore {
             .cloned()
             .unwrap_or_default();
         Ok(Some(SettingsRecord {
-            enabled: if inherit { None } else { Some(enabled) },
+            enabled: if inherit { None } else { enabled },
             values,
         }))
     }
@@ -89,7 +86,7 @@ impl SettingsStore for PgSettingsStore {
         .bind(feature_id)
         .bind(kind)
         .bind(id)
-        .bind(record.enabled.unwrap_or(false))
+        .bind(record.enabled)
         .bind(config)
         .execute(&self.pool)
         .await
@@ -119,12 +116,12 @@ mod tests {
     use sr_core::{ChannelId, GuildId};
 
     #[test]
-    fn channel_scope_is_rejected() {
+    fn channel_scope_uses_the_channel_id() {
         let s = ScopeRef::Channel {
             guild: GuildId::new(1),
             channel: ChannelId::new(2),
         };
-        assert!(key(&s).is_err());
+        assert_eq!(key(&s).unwrap(), ("channel", 2));
         assert_eq!(key(&ScopeRef::Platform).unwrap(), ("platform", 0));
     }
 }
