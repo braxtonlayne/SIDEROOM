@@ -81,6 +81,15 @@ struct Dispatch {
     channel: Option<ChannelId>,
 }
 
+/// A dispatch whose `d` is the event's ready-made Discord payload object.
+fn passthrough(name: &'static str, payload: &Value, channel: Option<ChannelId>) -> Dispatch {
+    Dispatch {
+        name,
+        data: payload.clone(),
+        channel,
+    }
+}
+
 fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
     Some(match ev {
         DomainEvent::MessageCreated {
@@ -111,6 +120,26 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
             data: json!({ "guild_id": guild, "user": { "id": user } }),
             channel: None,
         },
+        DomainEvent::ChannelCreatedFull {
+            channel, payload, ..
+        } => passthrough("CHANNEL_CREATE", payload, Some(*channel)),
+        DomainEvent::ChannelUpdated {
+            channel, payload, ..
+        } => passthrough("CHANNEL_UPDATE", payload, Some(*channel)),
+        // The channel no longer exists, so it cannot be permission-filtered;
+        // delivered to the whole guild.
+        DomainEvent::ChannelDeleted { payload, .. } => passthrough("CHANNEL_DELETE", payload, None),
+        DomainEvent::GuildUpdated { payload, .. } => passthrough("GUILD_UPDATE", payload, None),
+        DomainEvent::RoleCreated { payload, .. } => passthrough("GUILD_ROLE_CREATE", payload, None),
+        DomainEvent::RoleUpdated { payload, .. } => passthrough("GUILD_ROLE_UPDATE", payload, None),
+        DomainEvent::RoleDeleted { payload, .. } => passthrough("GUILD_ROLE_DELETE", payload, None),
+        DomainEvent::MemberUpdated { payload, .. } => {
+            passthrough("GUILD_MEMBER_UPDATE", payload, None)
+        }
+        DomainEvent::MemberBanned { payload, .. } => passthrough("GUILD_BAN_ADD", payload, None),
+        DomainEvent::MemberUnbanned { payload, .. } => {
+            passthrough("GUILD_BAN_REMOVE", payload, None)
+        }
         // Handled as subscription lifecycle by the platform pump.
         DomainEvent::GuildCreated { .. }
         | DomainEvent::GuildDeleted { .. }

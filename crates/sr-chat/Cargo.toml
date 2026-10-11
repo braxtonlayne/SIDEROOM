@@ -4,6 +4,10 @@ version = "0.0.0"
 edition.workspace = true
 publish.workspace = true
 
+[features]
+# Public in-memory repository for tests of dependent crates.
+memory = []
+
 [dependencies]
 sr-core = { path = "../sr-core", default-features = false }
 sr-markdown = { path = "../sr-markdown" }

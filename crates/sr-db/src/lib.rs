@@ -9,6 +9,7 @@ pub mod accounts;
 pub mod auth_repo;
 pub mod chat_repo;
 mod error;
+mod guild_admin_repo;
 pub mod jobs;
 pub mod lock;
 pub mod partitions;

@@ -555,3 +555,75 @@ async fn typing_is_filtered_and_expires() {
     tokio::time::sleep(Duration::from_millis(250)).await;
     assert!(e.gw.typing_users(SECRET).is_empty());
 }
+
+#[tokio::test]
+async fn guild_admin_events_dispatch_their_payload_objects() {
+    use sr_core::RoleId;
+    let e = env();
+    let mut c = connect(&e);
+    c.identify("bot:1", intents::GUILDS | intents::GUILD_MODERATION, 1)
+        .await;
+    emit(
+        &e.bus,
+        DomainEvent::RoleCreated {
+            guild: G1,
+            role: RoleId::new(50),
+            payload: json!({ "guild_id": "1", "role": { "id": "50", "name": "mods" } }),
+        },
+    )
+    .await;
+    let m = c.expect_event("GUILD_ROLE_CREATE").await;
+    assert_eq!(m["d"]["role"]["name"], "mods");
+
+    emit(
+        &e.bus,
+        DomainEvent::ChannelUpdated {
+            guild: G1,
+            channel: OPEN,
+            payload: json!({ "id": "10", "name": "renamed", "guild_id": "1" }),
+        },
+    )
+    .await;
+    assert_eq!(
+        c.expect_event("CHANNEL_UPDATE").await["d"]["name"],
+        "renamed"
+    );
+
+    emit(
+        &e.bus,
+        DomainEvent::MemberBanned {
+            guild: G1,
+            user: u(9),
+            payload: json!({ "guild_id": "1", "user": { "id": "9" } }),
+        },
+    )
+    .await;
+    assert_eq!(
+        c.expect_event("GUILD_BAN_ADD").await["d"]["user"]["id"],
+        "9"
+    );
+
+    // Hidden channels do not leak updates; member updates need GUILD_MEMBERS.
+    emit(
+        &e.bus,
+        DomainEvent::MemberUpdated {
+            guild: G1,
+            user: u(9),
+            payload: json!({ "guild_id": "1" }),
+        },
+    )
+    .await;
+    c.silent().await;
+    let mut hidden = connect(&e);
+    hidden.identify("bot:2", intents::GUILDS, 1).await;
+    emit(
+        &e.bus,
+        DomainEvent::ChannelUpdated {
+            guild: G1,
+            channel: SECRET,
+            payload: json!({ "id": "11" }),
+        },
+    )
+    .await;
+    hidden.silent().await;
+}

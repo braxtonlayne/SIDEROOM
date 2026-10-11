@@ -19,10 +19,10 @@ use sr_core::{
 use std::sync::Arc;
 
 pub struct ChatService<R> {
-    repo: R,
-    clock: Arc<dyn Clock>,
-    ids: SnowflakeGenerator<Arc<dyn Clock>>,
-    limits: ChatLimits,
+    pub(crate) repo: R,
+    pub(crate) clock: Arc<dyn Clock>,
+    pub(crate) ids: SnowflakeGenerator<Arc<dyn Clock>>,
+    pub(crate) limits: ChatLimits,
 }
 
 /// Request body of "create message" with attachments already resolved to upload ids.
@@ -39,10 +39,10 @@ pub struct SendMessage {
 }
 
 /// Resolved view of a channel for one user.
-struct Access {
-    channel: Channel,
-    perms: Permissions,
-    roles: Vec<Role>,
+pub(crate) struct Access {
+    pub(crate) channel: Channel,
+    pub(crate) perms: Permissions,
+    pub(crate) roles: Vec<Role>,
 }
 
 impl<R: ChatRepository> ChatService<R> {
@@ -60,11 +60,11 @@ impl<R: ChatRepository> ChatService<R> {
         }
     }
 
-    fn now(&self) -> i64 {
+    pub(crate) fn now(&self) -> i64 {
         self.clock.now_unix_ms()
     }
 
-    async fn guild(&self, id: GuildId) -> ChatResult<Guild> {
+    pub(crate) async fn guild(&self, id: GuildId) -> ChatResult<Guild> {
         self.repo
             .get_guild(id)
             .await?
@@ -72,7 +72,11 @@ impl<R: ChatRepository> ChatService<R> {
     }
 
     /// Member and roles of a guild; non-members get `MissingAccess`.
-    async fn guild_actor(&self, guild: &Guild, user: UserId) -> ChatResult<(Member, Vec<Role>)> {
+    pub(crate) async fn guild_actor(
+        &self,
+        guild: &Guild,
+        user: UserId,
+    ) -> ChatResult<(Member, Vec<Role>)> {
         let member = self
             .repo
             .get_member(guild.id, user)
@@ -82,7 +86,7 @@ impl<R: ChatRepository> ChatService<R> {
         Ok((member, roles))
     }
 
-    async fn access(&self, user: UserId, channel_id: ChannelId) -> ChatResult<Access> {
+    pub(crate) async fn access(&self, user: UserId, channel_id: ChannelId) -> ChatResult<Access> {
         let channel = self
             .repo
             .get_channel(channel_id)

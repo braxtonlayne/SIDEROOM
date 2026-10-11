@@ -17,6 +17,8 @@ pub enum ChatError {
     UnknownMessage,
     #[error("unknown member")]
     UnknownMember,
+    #[error("unknown ban")]
+    UnknownBan,
     #[error("unknown role")]
     UnknownRole,
     #[error("missing permissions")]
@@ -66,6 +68,7 @@ impl ChatError {
             Self::UnknownMessage => ApiError::new(ErrorCode::UnknownMessage),
             Self::UnknownMember => ApiError::new(ErrorCode::UnknownMember),
             Self::UnknownRole => ApiError::new(ErrorCode::UnknownRole),
+            Self::UnknownBan => ApiError::new(ErrorCode::UnknownBan),
             Self::MissingPermissions => ApiError::new(ErrorCode::MissingPermissions),
             Self::MissingAccess => ApiError::new(ErrorCode::MissingAccess),
             Self::EmptyMessage => ApiError::new(ErrorCode::CannotSendEmptyMessage),

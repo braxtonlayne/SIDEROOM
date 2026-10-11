@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use crate::ids::{ChannelId, GuildId, UserId};
+use serde_json::Value;
+
+use crate::ids::{ChannelId, GuildId, RoleId, UserId};
 
 /// Routing key for the bus. Subscribers only see events published to the topic.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -41,6 +43,65 @@ pub enum DomainEvent {
         guild: GuildId,
         channel: ChannelId,
     },
+    /// Full `CHANNEL_CREATE` body (Discord channel object) in `payload`.
+    ChannelCreatedFull {
+        guild: GuildId,
+        channel: ChannelId,
+        payload: Value,
+    },
+    /// `CHANNEL_UPDATE`; `payload` is the channel object.
+    ChannelUpdated {
+        guild: GuildId,
+        channel: ChannelId,
+        payload: Value,
+    },
+    /// `CHANNEL_DELETE`; `payload` is the deleted channel object.
+    ChannelDeleted {
+        guild: GuildId,
+        channel: ChannelId,
+        payload: Value,
+    },
+    /// `GUILD_UPDATE`; `payload` is the guild object.
+    GuildUpdated {
+        guild: GuildId,
+        payload: Value,
+    },
+    /// `GUILD_ROLE_CREATE`; `payload` is `{guild_id, role}`.
+    RoleCreated {
+        guild: GuildId,
+        role: RoleId,
+        payload: Value,
+    },
+    /// `GUILD_ROLE_UPDATE`; `payload` is `{guild_id, role}`.
+    RoleUpdated {
+        guild: GuildId,
+        role: RoleId,
+        payload: Value,
+    },
+    /// `GUILD_ROLE_DELETE`; `payload` is `{guild_id, role_id}`.
+    RoleDeleted {
+        guild: GuildId,
+        role: RoleId,
+        payload: Value,
+    },
+    /// `GUILD_MEMBER_UPDATE`; `payload` is the member object plus `guild_id`.
+    MemberUpdated {
+        guild: GuildId,
+        user: UserId,
+        payload: Value,
+    },
+    /// `GUILD_BAN_ADD`; `payload` is `{guild_id, user}`.
+    MemberBanned {
+        guild: GuildId,
+        user: UserId,
+        payload: Value,
+    },
+    /// `GUILD_BAN_REMOVE`; `payload` is `{guild_id, user}`.
+    MemberUnbanned {
+        guild: GuildId,
+        user: UserId,
+        payload: Value,
+    },
     /// A feature's enabled flag or settings changed at `scope`. Caches key off this.
     FeatureSettingsChanged {
         feature_id: String,
@@ -56,6 +117,18 @@ impl DomainEvent {
             | Self::GuildDeleted { guild }
             | Self::MemberJoined { guild, .. }
             | Self::MemberLeft { guild, .. } => vec![Topic::Guild(*guild), Topic::Platform],
+            Self::GuildUpdated { guild, .. }
+            | Self::RoleCreated { guild, .. }
+            | Self::RoleUpdated { guild, .. }
+            | Self::RoleDeleted { guild, .. }
+            | Self::MemberUpdated { guild, .. }
+            | Self::MemberBanned { guild, .. }
+            | Self::MemberUnbanned { guild, .. } => vec![Topic::Guild(*guild)],
+            Self::ChannelCreatedFull { guild, channel, .. }
+            | Self::ChannelUpdated { guild, channel, .. }
+            | Self::ChannelDeleted { guild, channel, .. } => {
+                vec![Topic::Guild(*guild), Topic::Channel(*channel)]
+            }
             Self::MessageCreated { guild, channel, .. } => {
                 let mut t = vec![Topic::Channel(*channel)];
                 if let Some(g) = guild {
@@ -97,6 +170,24 @@ mod tests {
             author: UserId::new(4),
         };
         assert_eq!(dm.topics(), vec![Topic::Channel(ChannelId::new(2))]);
+    }
+
+    #[test]
+    fn guild_events_route_to_the_guild_topic() {
+        let e = DomainEvent::RoleUpdated {
+            guild: GuildId::new(1),
+            role: RoleId::new(5),
+            payload: serde_json::json!({ "guild_id": "1" }),
+        };
+        assert_eq!(e.topics(), vec![Topic::Guild(GuildId::new(1))]);
+        let c = DomainEvent::ChannelUpdated {
+            guild: GuildId::new(1),
+            channel: ChannelId::new(2),
+            payload: serde_json::Value::Null,
+        };
+        assert_eq!(c.topics().len(), 2);
+        let s = serde_json::to_string(&c).unwrap();
+        assert_eq!(serde_json::from_str::<DomainEvent>(&s).unwrap(), c);
     }
 
     #[test]

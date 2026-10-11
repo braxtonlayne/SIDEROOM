@@ -57,6 +57,7 @@ pub mod close {
 pub mod intents {
     pub const GUILDS: u64 = 1 << 0;
     pub const GUILD_MEMBERS: u64 = 1 << 1;
+    pub const GUILD_MODERATION: u64 = 1 << 2;
     pub const GUILD_PRESENCES: u64 = 1 << 8;
     pub const GUILD_MESSAGES: u64 = 1 << 9;
     pub const GUILD_MESSAGE_TYPING: u64 = 1 << 11;
@@ -69,8 +70,13 @@ pub mod intents {
     /// Intent required to receive a dispatch, if any.
     pub fn required_for(event: &str) -> Option<u64> {
         match event {
-            "GUILD_DELETE" | "CHANNEL_CREATE" => Some(GUILDS),
-            "GUILD_MEMBER_ADD" | "GUILD_MEMBER_REMOVE" => Some(GUILD_MEMBERS),
+            "GUILD_DELETE" | "GUILD_UPDATE" | "CHANNEL_CREATE" | "CHANNEL_UPDATE"
+            | "CHANNEL_DELETE" | "GUILD_ROLE_CREATE" | "GUILD_ROLE_UPDATE"
+            | "GUILD_ROLE_DELETE" => Some(GUILDS),
+            "GUILD_BAN_ADD" | "GUILD_BAN_REMOVE" => Some(GUILD_MODERATION),
+            "GUILD_MEMBER_ADD" | "GUILD_MEMBER_REMOVE" | "GUILD_MEMBER_UPDATE" => {
+                Some(GUILD_MEMBERS)
+            }
             "PRESENCE_UPDATE" => Some(GUILD_PRESENCES),
             "MESSAGE_CREATE" => Some(GUILD_MESSAGES),
             "TYPING_START" => Some(GUILD_MESSAGE_TYPING),

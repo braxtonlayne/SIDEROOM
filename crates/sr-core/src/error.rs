@@ -43,6 +43,7 @@ error_codes! {
     UnknownEmoji = 10014, 404, "Unknown Emoji";
     UnknownWebhook = 10015, 404, "Unknown Webhook";
     UnknownSession = 10020, 404, "Unknown Session";
+    UnknownBan = 10026, 404, "Unknown Ban";
     BotsCannotUseThisEndpoint = 20001, 403, "Bots cannot use this endpoint";
     OnlyBotsCanUseThisEndpoint = 20002, 403, "Only bots can use this endpoint";
     MaxGuilds = 30001, 400, "Maximum number of guilds reached";

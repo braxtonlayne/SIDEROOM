@@ -21,7 +21,7 @@ use sr_core::{AttachmentId, ChannelId, GuildId, MessageId, RoleId, Snowflake, Us
 /// Postgres-backed chat repository.
 #[derive(Clone)]
 pub struct PgChatRepo {
-    pool: PgPool,
+    pub(crate) pool: PgPool,
 }
 
 impl PgChatRepo {
@@ -30,7 +30,7 @@ impl PgChatRepo {
     }
 }
 
-fn db(e: sqlx::Error) -> RepoError {
+pub(crate) fn db(e: sqlx::Error) -> RepoError {
     RepoError(e.to_string())
 }
 
@@ -39,10 +39,10 @@ fn bad(what: &str) -> RepoError {
 }
 
 // Ids are positive Snowflakes (< 2^63), so these casts are lossless.
-fn i(id: u64) -> i64 {
+pub(crate) fn i(id: u64) -> i64 {
     id as i64
 }
-fn u(v: i64) -> u64 {
+pub(crate) fn u(v: i64) -> u64 {
     v as u64
 }
 
@@ -63,11 +63,11 @@ fn vis_parse(s: &str) -> RepoResult<Visibility> {
     })
 }
 
-const GUILD_COLS: &str = "id, name, description, icon_key, owner_id, is_staff_guild, \
+pub(crate) const GUILD_COLS: &str = "id, name, description, icon_key, owner_id, is_staff_guild, \
     system_channel_id, verification_level, default_message_notifications, \
     explicit_content_filter, preferred_locale";
 
-fn guild_from(r: &PgRow) -> Result<Guild, sqlx::Error> {
+pub(crate) fn guild_from(r: &PgRow) -> Result<Guild, sqlx::Error> {
     Ok(Guild {
         id: GuildId::new(u(r.try_get("id")?)),
         name: r.try_get("name")?,
