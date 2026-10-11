@@ -74,9 +74,10 @@ fn registry_covers_every_ui_kit_token() {
 #[test]
 fn builtin_ids_match_ui_kit() {
     let src = std::fs::read_to_string(
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/ui/src/tokens/types.ts"),
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../packages/ui/src/theme/tokens.generated.ts"),
     )
-    .expect("types.ts");
+    .expect("tokens.generated.ts");
     for id in sr_theme::BUILTIN_THEME_IDS {
         assert!(
             src.contains(&format!("\"{id}\"")),

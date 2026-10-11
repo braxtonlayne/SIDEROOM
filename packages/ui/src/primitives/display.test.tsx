@@ -141,3 +141,20 @@ describe("Side Room editorial kit", () => {
     expect(screen.getByRole("button", { name: "Member access" })).toBeInTheDocument();
   });
 });
+
+describe("Avatar animated frame (Q70)", () => {
+  it("renders the animated frame over the static one, hidden from assistive tech", () => {
+    const { container } = render(<Avatar name="Ada Lovelace" src="/a.png" animatedSrc="/a.gif" />);
+    const imgs = container.querySelectorAll("img");
+    expect(imgs).toHaveLength(2);
+    expect(imgs[0]).toHaveAttribute("alt", "Ada Lovelace");
+    expect(imgs[1]).toHaveAttribute("alt", "");
+    expect(imgs[1]).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByRole("img", { name: "Ada Lovelace" })).toBeInTheDocument();
+  });
+
+  it("has no animated frame without an image", () => {
+    const { container } = render(<Avatar name="Ada Lovelace" animatedSrc="/a.gif" />);
+    expect(container.querySelectorAll("img")).toHaveLength(0);
+  });
+});

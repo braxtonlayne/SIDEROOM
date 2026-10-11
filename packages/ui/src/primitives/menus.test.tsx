@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -139,7 +139,8 @@ describe("DropdownMenu", () => {
     render(<Harness />);
     await userEvent.click(screen.getByRole("button", { name: "Open" }));
     await userEvent.hover(screen.getByRole("menuitem", { name: /Share/ }));
-    expect(screen.getByRole("menu", { name: "Share" })).toBeInTheDocument();
+    // Q60: submenus open after a 150 ms hover intent.
+    expect(await screen.findByRole("menu", { name: "Share" })).toBeInTheDocument();
     await userEvent.hover(screen.getByRole("menuitem", { name: "Copy" }));
     expect(screen.queryByRole("menu", { name: "Share" })).toBeNull();
     await userEvent.click(document.body);
@@ -163,6 +164,35 @@ describe("ContextMenu", () => {
     await userEvent.keyboard("{ArrowDown}{ArrowUp}{Enter}");
     expect(onSelect).toHaveBeenCalled();
     expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("opens on a 500 ms touch long-press and not on a short tap or a scroll", () => {
+    vi.useFakeTimers();
+    try {
+      render(
+        <ContextMenu label="Touch actions" items={[{ label: "Reply" }]}>
+          <p>Touch me</p>
+        </ContextMenu>,
+      );
+      const target = screen.getByText("Touch me");
+      fireEvent.touchStart(target, { touches: [{ clientX: 10, clientY: 10 }] });
+      act(() => vi.advanceTimersByTime(499));
+      expect(screen.queryByRole("menu")).toBeNull();
+      fireEvent.touchEnd(target);
+      act(() => vi.advanceTimersByTime(600));
+      expect(screen.queryByRole("menu")).toBeNull();
+
+      fireEvent.touchStart(target, { touches: [{ clientX: 10, clientY: 10 }] });
+      fireEvent.touchMove(target, { touches: [{ clientX: 40, clientY: 10 }] });
+      act(() => vi.advanceTimersByTime(600));
+      expect(screen.queryByRole("menu")).toBeNull();
+
+      fireEvent.touchStart(target, { touches: [{ clientX: 10, clientY: 10 }] });
+      act(() => vi.advanceTimersByTime(500));
+      expect(screen.getByRole("menu", { name: "Touch actions" })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("does nothing when disabled", () => {

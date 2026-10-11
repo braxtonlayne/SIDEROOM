@@ -4,13 +4,8 @@ import { usePortalTarget } from "../../theme/ThemeProvider";
 import { cx } from "../../util/cx";
 import { Button } from "../Button/Button";
 import { TextInput } from "../Input/TextInput";
+import { useFocusTrap, useOverlayStack } from "../Overlay/overlayStack";
 import styles from "./Modal.module.css";
-
-const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
-/** Open modals, topmost last. Only the topmost handles Escape and Tab. */
-const stack: symbol[] = [];
 
 export interface ModalProps {
   open: boolean;
@@ -49,59 +44,12 @@ export function Modal({
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
-  useEffect(() => {
-    if (!open) return;
-    const token = Symbol("modal");
-    stack.push(token);
-    const previouslyFocused = document.activeElement as HTMLElement | null;
-    const dialog = dialogRef.current;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    const target =
-      initialFocusRef?.current ?? dialog?.querySelector<HTMLElement>(`[data-autofocus], ${FOCUSABLE}`) ?? dialog;
-    target?.focus();
-
-    const onKey = (e: KeyboardEvent) => {
-      if (stack[stack.length - 1] !== token) return;
-      if (e.key === "Escape" && closeOnEscape) {
-        e.stopPropagation();
-        onCloseRef.current();
-        return;
-      }
-      if (e.key !== "Tab" || !dialog) return;
-      const items = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE));
-      if (items.length === 0) {
-        e.preventDefault();
-        dialog.focus();
-        return;
-      }
-      const first = items[0]!;
-      const last = items[items.length - 1]!;
-      const active = document.activeElement;
-      if (e.shiftKey && (active === first || active === dialog)) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && active === last) {
-        e.preventDefault();
-        first.focus();
-      } else if (!dialog.contains(active)) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener("keydown", onKey, true);
-
-    return () => {
-      document.removeEventListener("keydown", onKey, true);
-      const i = stack.indexOf(token);
-      if (i >= 0) stack.splice(i, 1);
-      if (stack.length === 0) document.body.style.overflow = prevOverflow;
-      previouslyFocused?.focus?.();
-    };
-    // initialFocusRef is read once on open.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, closeOnEscape]);
+  const { isTopmost } = useOverlayStack({
+    open,
+    lockScroll: true,
+    onEscape: closeOnEscape ? () => onCloseRef.current() : undefined,
+  });
+  useFocusTrap({ open, containerRef: dialogRef, isTopmost, initialFocusRef });
 
   if (!open || !portalTarget) return null;
 

@@ -131,16 +131,13 @@ export function ToastProvider({ children, max = 5 }: { children: ReactNode; max?
       {children}
       {target &&
         createPortal(
-          <ol
-            className={styles.region}
-            role={urgent ? "alert" : "status"}
-            aria-live={urgent ? "assertive" : "polite"}
-            aria-label="Notifications"
-          >
-            {toasts.map((t) => (
-              <ToastView key={t.id} toast={t} onDismiss={dismiss} />
-            ))}
-          </ol>,
+          <div role={urgent ? "alert" : "status"} aria-live={urgent ? "assertive" : "polite"} aria-label="Notifications">
+            <ol className={styles.region}>
+              {toasts.map((t) => (
+                <ToastView key={t.id} toast={t} onDismiss={dismiss} />
+              ))}
+            </ol>
+          </div>,
           target,
         )}
     </ToastContext.Provider>

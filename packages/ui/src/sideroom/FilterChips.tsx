@@ -1,4 +1,5 @@
-import { useId, useState, type ReactNode, type SelectHTMLAttributes } from "react";
+import { useState, type ReactNode } from "react";
+import { Select } from "../primitives/Select/Select";
 import { cx } from "../util/cx";
 import styles from "./FilterChips.module.css";
 
@@ -66,41 +67,37 @@ export function FilterChips(props: FilterChipsProps) {
   );
 }
 
-export interface DropdownChipProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, "onChange" | "value" | "defaultValue"> {
-  /** Accessible name and the placeholder text ("Room selection"). */
+export interface DropdownChipProps {
+  /** Accessible name and the placeholder shown until a value is chosen ("Room selection"). */
   label: string;
   options: Array<{ value: string; label: string }>;
   value?: string;
   defaultValue?: string;
   onValueChange?: (value: string) => void;
+  className?: string;
+  disabled?: boolean;
 }
 
 /**
- * DS-SR-007: chip-styled dropdown ("Room selection ▾"). Built on a native `<select>` so the
- * popup, keyboard handling and mobile pickers are the platform's.
+ * DS-SR-007: chip-styled dropdown ("Room selection ▾"). Built on the themed `Select` primitive
+ * (Q74), so its popup follows the theme and the keyboard model is the primitive's.
  */
-export function DropdownChip({ label, options, value, defaultValue, onValueChange, className, id, ...rest }: DropdownChipProps) {
-  const auto = useId();
-  const selectId = id ?? auto;
+export function DropdownChip({ label, options, value, defaultValue, onValueChange, className, disabled }: DropdownChipProps) {
+  const controlledProps =
+    value === undefined
+      ? { defaultValue: defaultValue ?? null }
+      : { value };
   return (
     <span className={cx(styles.dropdown, className)}>
-      <label htmlFor={selectId} className={styles.dropLabel}>
-        {label}
-      </label>
-      <select
-        {...rest}
-        id={selectId}
+      <Select
+        aria-label={label}
+        placeholder={label}
+        options={options}
+        disabled={disabled}
         className={styles.select}
-        value={value}
-        defaultValue={value === undefined ? (defaultValue ?? options[0]?.value) : undefined}
-        onChange={(e) => onValueChange?.(e.target.value)}
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+        onValueChange={onValueChange}
+        {...controlledProps}
+      />
     </span>
   );
 }

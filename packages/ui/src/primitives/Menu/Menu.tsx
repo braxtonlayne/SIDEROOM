@@ -16,8 +16,16 @@ import { createPortal } from "react-dom";
 import { usePortalTarget } from "../../theme/ThemeProvider";
 import type { FloatingPlacement } from "../../util/position";
 import { cx } from "../../util/cx";
+import { useOverlayStack } from "../Overlay/overlayStack";
 import { useFloating, type FloatingAnchor } from "../Overlay/useFloating";
 import styles from "./Menu.module.css";
+
+/** Q60: a submenu opens after the pointer rests on its item this long (no safe triangle). */
+export const SUBMENU_HOVER_INTENT_MS = 150;
+/** Q60: touch long-press opens a ContextMenu after this long. */
+export const LONG_PRESS_MS = 500;
+/** A touch that moves further than this before the timer fires is a scroll, not a press. */
+const LONG_PRESS_SLOP_PX = 10;
 
 /* ------------------------------------------------------------------ model */
 
@@ -98,6 +106,7 @@ function MenuPanel({ entries, label, rootId, anchor, placement, focusFirst, onCl
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [openSub, setOpenSub] = useState<{ index: number; anchor: HTMLElement; focus: boolean } | null>(null);
   const typed = useRef({ buffer: "", timer: undefined as ReturnType<typeof setTimeout> | undefined });
+  const intent = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const groupId = useId();
 
   const setPanel = useCallback(
@@ -119,7 +128,10 @@ function MenuPanel({ entries, label, rootId, anchor, placement, focusFirst, onCl
 
   useEffect(() => {
     const t = typed.current;
-    return () => clearTimeout(t.timer);
+    return () => {
+      clearTimeout(t.timer);
+      clearTimeout(intent.current);
+    };
   }, []);
 
   if (!portalTarget) return null;
@@ -213,8 +225,16 @@ function MenuPanel({ entries, label, rootId, anchor, placement, focusFirst, onCl
     const el = e.currentTarget;
     if (el.getAttribute("aria-disabled") === "true") return;
     if (document.activeElement !== el) el.focus({ preventScroll: true });
-    if (sub) setOpenSub((cur) => (cur?.index === index ? cur : { index, anchor: el, focus: false }));
-    else setOpenSub(null);
+    clearTimeout(intent.current);
+    if (sub) {
+      // Hover intent: the submenu opens only if the pointer rests on this item.
+      intent.current = setTimeout(
+        () => setOpenSub((cur) => (cur?.index === index ? cur : { index, anchor: el, focus: false })),
+        SUBMENU_HOVER_INTENT_MS,
+      );
+    } else {
+      setOpenSub(null);
+    }
   };
 
   const finish = (keepOpen?: boolean) => {
@@ -385,6 +405,9 @@ export function MenuSurface({ entries, label, anchor, placement, ignore, onClose
   const rootId = useId();
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
+  // Q77: menus join the overlay stack so a Modal or Drawer above them owns Escape. Menus keep
+  // their own Escape handling (MenuPanel) and do not lock scroll.
+  useOverlayStack({ open: true });
   const ignoreRef = useRef(ignore);
   ignoreRef.current = ignore;
   useEffect(() => {
@@ -510,6 +533,8 @@ export function ContextMenu({ children, items, label, className, disabled, onOpe
   const [point, setPoint] = useState<{ x: number; y: number } | null>(null);
   const returnTo = useRef<HTMLElement | null>(null);
 
+  const press = useRef<{ x: number; y: number; timer: ReturnType<typeof setTimeout> } | null>(null);
+
   const close = useCallback(
     (restore: boolean) => {
       setPoint(null);
@@ -519,16 +544,45 @@ export function ContextMenu({ children, items, label, className, disabled, onOpe
     [onOpenChange],
   );
 
+  const openAt = useCallback(
+    (x: number, y: number) => {
+      returnTo.current = document.activeElement as HTMLElement | null;
+      setPoint({ x, y });
+      onOpenChange?.(true);
+    },
+    [onOpenChange],
+  );
+
+  const cancelPress = useCallback(() => {
+    if (press.current) clearTimeout(press.current.timer);
+    press.current = null;
+  }, []);
+  useEffect(() => cancelPress, [cancelPress]);
+
   return (
     <div
       className={cx(styles.contextRegion, className)}
       onContextMenu={(e) => {
         if (disabled || e.defaultPrevented) return;
         e.preventDefault();
-        returnTo.current = document.activeElement as HTMLElement | null;
-        setPoint({ x: e.clientX, y: e.clientY });
-        onOpenChange?.(true);
+        cancelPress();
+        openAt(e.clientX, e.clientY);
       }}
+      // Q60: touch long-press (500 ms) opens the menu where the finger rests; a moving touch is a scroll.
+      onTouchStart={(e) => {
+        const t = e.touches[0];
+        if (disabled || !t) return;
+        cancelPress();
+        const { clientX: x, clientY: y } = t;
+        press.current = { x, y, timer: setTimeout(() => openAt(x, y), LONG_PRESS_MS) };
+      }}
+      onTouchMove={(e) => {
+        const t = e.touches[0];
+        const p = press.current;
+        if (p && t && Math.hypot(t.clientX - p.x, t.clientY - p.y) > LONG_PRESS_SLOP_PX) cancelPress();
+      }}
+      onTouchEnd={cancelPress}
+      onTouchCancel={cancelPress}
     >
       {children}
       {point && <MenuSurface entries={items} label={label} anchor={point} placement="bottom-start" onClose={close} />}

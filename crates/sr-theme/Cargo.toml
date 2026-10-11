@@ -4,10 +4,26 @@ version = "0.0.0"
 edition.workspace = true
 publish.workspace = true
 
+[features]
+# Enables the `sr-theme-emit` binary (TypeScript and JSON Schema generators).
+emit = []
+# Enables the `sr-theme-icons` binary (PWA and favicon rendering, Q71). Not part of the wasm build.
+icons = ["dep:resvg"]
+
+[[bin]]
+name = "sr-theme-emit"
+required-features = ["emit"]
+
+[[bin]]
+name = "sr-theme-icons"
+required-features = ["icons"]
+
 [dependencies]
 schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+image = { version = "0.25", default-features = false, features = ["png", "webp"] }
+resvg = { version = "0.45", default-features = false, optional = true }
 
 [lints]
 workspace = true

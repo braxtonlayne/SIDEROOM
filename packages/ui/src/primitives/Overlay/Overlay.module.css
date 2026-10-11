@@ -22,3 +22,39 @@
 .popover { padding: 12px; min-width: 200px; }
 .popover:focus { outline: none; }
 
+
+/* Q60: tooltips have an arrow pointing at their anchor; popovers do not. The arrow is a rotated
+   square drawn from the tooltip's own border colour; `data-side` is the side the tooltip sits on. */
+.tooltip::after {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: var(--ui-bg-overlay);
+  border: 1px solid var(--ui-border);
+  transform: rotate(45deg);
+}
+.tooltip[data-side="top"]::after {
+  bottom: -5px;
+  left: calc(50% - 4px);
+  border-top: 0;
+  border-left: 0;
+}
+.tooltip[data-side="bottom"]::after {
+  top: -5px;
+  left: calc(50% - 4px);
+  border-bottom: 0;
+  border-right: 0;
+}
+.tooltip[data-side="left"]::after {
+  right: -5px;
+  top: calc(50% - 4px);
+  border-bottom: 0;
+  border-left: 0;
+}
+.tooltip[data-side="right"]::after {
+  left: -5px;
+  top: calc(50% - 4px);
+  border-top: 0;
+  border-right: 0;
+}

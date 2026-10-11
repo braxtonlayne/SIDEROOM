@@ -27,8 +27,8 @@ const SECTIONS: &[&str] = &[
 /// 2 MB per image, 10 MB per package (docs/10 section 4).
 pub const MAX_ASSET_BYTES: u64 = 2 * 1024 * 1024;
 pub const MAX_TOTAL_ASSET_BYTES: u64 = 10 * 1024 * 1024;
-/// Per-font cap. Not in the docs; see docs/open-questions.md.
-pub const MAX_FONT_BYTES: u64 = 1024 * 1024;
+/// Per-font cap: 2 MB, same as images (Q66).
+pub const MAX_FONT_BYTES: u64 = 2 * 1024 * 1024;
 
 const MAX_VALUE_LEN: usize = 256;
 const WCAG_AA_TEXT: f64 = 4.5;
@@ -385,7 +385,7 @@ fn fonts(pkg: &ThemePackage, r: &mut ValidationReport) {
             r.err(
                 "font-too-large",
                 format!("{base}.bytes"),
-                "font exceeds 1 MB",
+                "font exceeds 2 MB",
             );
         }
         if f.family.trim().is_empty()

@@ -70,6 +70,30 @@ export function prefersReducedMotion(): boolean {
     : false;
 }
 
+/** Colour values that relative colour syntax can read (no `var()`, no `color-mix()`). */
+const SIMPLE_COLOR = /^(#[0-9a-f]{3,8}|rgba?\([^()]*\)|hsla?\([^()]*\))$/i;
+
+/**
+ * Q35 / Q61: saturation without CSS `filter`. A `filter` makes `position: fixed` descendants
+ * position against the filtered root, which breaks popovers and menus while it is active.
+ * Each simple colour token keeps its authored value in a `--sat-base-*` twin and is re-derived
+ * with relative colour syntax, so no containing block is created. At 100 the tokens pass through.
+ */
+export function saturatedTokens(tokens: Record<string, string>, saturation: number): Record<string, string> {
+  if (clamp(saturation, 0, 100) >= 100) return tokens;
+  const out: Record<string, string> = {};
+  for (const [name, value] of Object.entries(tokens)) {
+    if (name.startsWith("--") && SIMPLE_COLOR.test(value.trim())) {
+      const base = `--sat-base-${name.slice(2)}`;
+      out[base] = value.trim();
+      out[name] = `oklch(from var(${base}) l calc(c * var(--ui-saturation)) h / alpha)`;
+    } else {
+      out[name] = value;
+    }
+  }
+  return out;
+}
+
 /** DS-TOK-006: runtime variables, applied on the provider root. */
 export function appearanceVars(settings: AppearanceSettings, systemReducedMotion: boolean): Record<string, string> {
   const reduced = settings.reducedMotion === "on" || (settings.reducedMotion === "system" && systemReducedMotion);
