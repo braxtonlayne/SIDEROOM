@@ -91,7 +91,9 @@ id, guild_id null (null = DM/group DM), type (Discord enum: 0 text, 1 DM, 2 voic
 As in Discord.
 
 ### `channel_recipients`
-For DMs and group DMs.
+For DMs and group DMs. Per-recipient columns:
+- `request_state` (`accepted`, `pending`, `ignored`, `spam`; default `accepted`). A non-friend's first DM lands as `pending` on the recipient's row when their message-requests setting allows it (migration 0072).
+- `hidden_at` (the recipient closed the DM; a new message reopens it) and `seq` (join order, used for ownership hand-over). Migration 0021.
 
 ## 3. Messages
 
@@ -132,7 +134,15 @@ id, message_id, uploader_id, filename, content_type, size_bytes, width, height, 
 
 ## 4. Social
 
-`relationships` (user_id, target_id, type: friend / blocked / pending_incoming / pending_outgoing / ignored, nickname), `user_notes`, `user_settings` (jsonb blob, versioned like Discord's proto settings), `guild_member_settings` (notification overrides), `presences` (memory only).
+`relationships` (user_id, target_id, type: friend / blocked / pending_incoming / pending_outgoing, nickname). Codes follow Discord (1 to 4). Nicknames exist only on `friend` rows, up to 32 characters (migration 0020).
+
+`user_ignores` (user_id, target_id, created_at; primary key on the pair). Ignore is its own table, not a relationship type, so ignoring a friend keeps the friendship. Ignoring hides messages, activity and DM notifications. Relationship type 6 ("ignored") is retired and its rows moved here (migration 0070).
+
+`user_notes` (user_id, target_id, note up to 256 characters, created_at, updated_at; primary key on the pair). Private notes on any user (migration 0071).
+
+`user_privacy` (user_id primary key; booleans `fr_everyone`, `fr_friends_of_friends`, `fr_server_members`, `dm_server_members`, `dm_message_requests`). The server enforces these rules, so they keep typed columns (migration 0020). When the Discord-shaped `user_settings` blob lands, these fields are projected into it on read and written back to this table.
+
+`user_settings` (jsonb blob, versioned like Discord's proto settings), `guild_member_settings` (notification overrides), `presences` (memory only).
 
 ## 5. Expression
 
