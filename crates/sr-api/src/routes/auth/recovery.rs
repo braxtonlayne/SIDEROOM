@@ -12,16 +12,13 @@ use serde_json::{Value, json};
 use sr_auth::recovery::generate_batch;
 use sr_core::{ApiError, ErrorCode};
 
-/// Generate a fresh batch, replace the stored hashes and return the
+/// Generate a fresh batch, replace the stored digests and return the
 /// plaintext codes (formatted) for one-time display.
 pub(super) async fn issue_recovery_codes(
     svc: &AuthService,
     user_id: i64,
 ) -> Result<Vec<String>, AuthRouteError> {
-    let hasher = svc.hasher.clone();
-    let batch = tokio::task::spawn_blocking(move || generate_batch(&hasher))
-        .await
-        .map_err(|_| AuthRouteError::internal("recovery batch task"))??;
+    let batch = generate_batch()?;
     svc.store
         .recovery_replace_all(user_id, &batch.hashes)
         .await?;

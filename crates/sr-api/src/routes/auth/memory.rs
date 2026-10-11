@@ -1,10 +1,6 @@
 //! In-memory [`AuthStore`] for tests and local bring-up. One mutex guards all
 //! state, so [`AuthStore::register`] is trivially atomic.
 
-use super::store::{
-    AccountRecord, AccountState, AuthStore, InviteState, RegisterRejection, RegisterTx, Registered,
-    StoreResult,
-};
 use crate::auth::memory::MemorySessions;
 use async_trait::async_trait;
 use sr_auth::{
@@ -12,6 +8,10 @@ use sr_auth::{
     invite::InviteCode,
     repo::{SessionRecord, SessionRepository, TotpRecord},
     session::TokenHash,
+    store::{
+        AccountRecord, AccountState, AuthStore, InviteState, RegisterRejection, RegisterTx,
+        Registered, StoreResult, TrustedDeviceRecord,
+    },
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -33,8 +33,18 @@ struct MemToken {
 
 struct MemRecovery {
     id: i64,
-    hash: String,
+    hash: TokenHash,
     used: bool,
+}
+
+struct MemTrusted {
+    id: i64,
+    user_id: i64,
+    hash: TokenHash,
+    name: Option<String>,
+    created_at: i64,
+    expires_at: i64,
+    revoked: bool,
 }
 
 #[derive(Default)]
@@ -46,8 +56,20 @@ struct Inner {
     totp: HashMap<i64, TotpRecord>,
     recovery: HashMap<i64, Vec<MemRecovery>>,
     tokens: Vec<MemToken>,
+    trusted: Vec<MemTrusted>,
+    /// `(actor, action, target, note)`.
+    audit: Vec<(i64, String, Option<i64>, String)>,
+    /// Discord user id to account id (external identities).
+    discord: HashMap<String, i64>,
     banned_emails: HashSet<String>,
-    next_recovery_id: i64,
+    next_row_id: i64,
+}
+
+impl Inner {
+    fn next_id(&mut self) -> i64 {
+        self.next_row_id += 1;
+        self.next_row_id
+    }
 }
 
 /// In-memory [`AuthStore`]. Sessions are delegated to a shared
@@ -135,6 +157,15 @@ impl MemoryAuthStore {
             a.state = state;
         }
     }
+
+    /// Platform audit rows as `(actor, action, target)` (test helper).
+    pub fn audit_rows(&self) -> Vec<(i64, String, Option<i64>)> {
+        self.lock()
+            .audit
+            .iter()
+            .map(|(a, act, t, _)| (*a, act.clone(), *t))
+            .collect()
+    }
 }
 
 fn infallible<T>(r: Result<T, std::convert::Infallible>) -> StoreResult<T> {
@@ -195,10 +226,14 @@ impl AuthStore for MemoryAuthStore {
         if g.accounts.values().any(|a| a.email == tx.email) {
             return Ok(Err(EmailTaken));
         }
+        if let Some(d) = &tx.discord_id {
+            g.discord.entry(d.clone()).or_insert(tx.account_id);
+        }
         g.accounts.insert(
             tx.account_id,
             AccountRecord {
                 id: tx.account_id,
+                person_id: tx.new_person_id,
                 username: tx.username,
                 display_name: tx.display_name,
                 email: tx.email,
@@ -250,6 +285,14 @@ impl AuthStore for MemoryAuthStore {
         Ok(self.lock().accounts.get(&id).cloned())
     }
 
+    async fn find_by_discord(&self, provider_user_id: &str) -> StoreResult<Option<AccountRecord>> {
+        let g = self.lock();
+        Ok(g.discord
+            .get(provider_user_id)
+            .and_then(|id| g.accounts.get(id))
+            .cloned())
+    }
+
     async fn set_password_hash(&self, id: i64, hash: &str) -> StoreResult<()> {
         if let Some(a) = self.lock().accounts.get_mut(&id) {
             hash.clone_into(&mut a.password_hash);
@@ -285,6 +328,86 @@ impl AuthStore for MemoryAuthStore {
 
     async fn revoke_sessions_except(&self, user_id: i64, keep: Option<i64>) -> StoreResult<u64> {
         infallible(self.sessions.revoke_all_except(user_id, keep).await)
+    }
+
+    async fn trusted_device_put(
+        &self,
+        user_id: i64,
+        hash: &TokenHash,
+        device_name: Option<&str>,
+        expires_at: i64,
+    ) -> StoreResult<()> {
+        let mut g = self.lock();
+        let id = g.next_id();
+        g.trusted.push(MemTrusted {
+            id,
+            user_id,
+            hash: *hash,
+            name: device_name.map(str::to_owned),
+            created_at: 0,
+            expires_at,
+            revoked: false,
+        });
+        Ok(())
+    }
+
+    async fn trusted_device_matches(
+        &self,
+        user_id: i64,
+        hash: &TokenHash,
+        now: i64,
+    ) -> StoreResult<bool> {
+        Ok(self.lock().trusted.iter().any(|t| {
+            t.user_id == user_id && !t.revoked && t.expires_at > now && t.hash.ct_eq(hash)
+        }))
+    }
+
+    async fn trusted_devices_list(
+        &self,
+        user_id: i64,
+        now: i64,
+    ) -> StoreResult<Vec<TrustedDeviceRecord>> {
+        Ok(self
+            .lock()
+            .trusted
+            .iter()
+            .filter(|t| t.user_id == user_id && !t.revoked && t.expires_at > now)
+            .map(|t| TrustedDeviceRecord {
+                id: t.id,
+                device_name: t.name.clone(),
+                created_at: t.created_at,
+                expires_at: t.expires_at,
+            })
+            .collect())
+    }
+
+    async fn trusted_device_revoke(&self, user_id: i64, id: i64) -> StoreResult<bool> {
+        let mut g = self.lock();
+        match g
+            .trusted
+            .iter_mut()
+            .find(|t| t.id == id && t.user_id == user_id && !t.revoked)
+        {
+            Some(t) => {
+                t.revoked = true;
+                Ok(true)
+            }
+            None => Ok(false),
+        }
+    }
+
+    async fn trusted_devices_revoke_all(&self, user_id: i64) -> StoreResult<u64> {
+        let mut n = 0;
+        for t in self
+            .lock()
+            .trusted
+            .iter_mut()
+            .filter(|t| t.user_id == user_id && !t.revoked)
+        {
+            t.revoked = true;
+            n += 1;
+        }
+        Ok(n)
     }
 
     async fn totp_get(&self, user_id: i64) -> StoreResult<Option<TotpRecord>> {
@@ -330,14 +453,13 @@ impl AuthStore for MemoryAuthStore {
         Ok(())
     }
 
-    async fn recovery_replace_all(&self, user_id: i64, hashes: &[String]) -> StoreResult<()> {
+    async fn recovery_replace_all(&self, user_id: i64, hashes: &[TokenHash]) -> StoreResult<()> {
         let mut g = self.lock();
         let mut rows = Vec::with_capacity(hashes.len());
         for h in hashes {
-            g.next_recovery_id += 1;
             rows.push(MemRecovery {
-                id: g.next_recovery_id,
-                hash: h.clone(),
+                id: g.next_id(),
+                hash: *h,
                 used: false,
             });
         }
@@ -345,7 +467,7 @@ impl AuthStore for MemoryAuthStore {
         Ok(())
     }
 
-    async fn recovery_list_unused(&self, user_id: i64) -> StoreResult<Vec<(i64, String)>> {
+    async fn recovery_list_unused(&self, user_id: i64) -> StoreResult<Vec<(i64, TokenHash)>> {
         Ok(self
             .lock()
             .recovery
@@ -353,7 +475,7 @@ impl AuthStore for MemoryAuthStore {
             .map(|v| {
                 v.iter()
                     .filter(|r| !r.used)
-                    .map(|r| (r.id, r.hash.clone()))
+                    .map(|r| (r.id, r.hash))
                     .collect()
             })
             .unwrap_or_default())
@@ -409,5 +531,19 @@ impl AuthStore for MemoryAuthStore {
         };
         t.consumed = true;
         Ok(Some(t.user_id))
+    }
+
+    async fn audit(
+        &self,
+        actor_id: i64,
+        action: &str,
+        target_id: Option<i64>,
+        note: &str,
+        _now: i64,
+    ) -> StoreResult<()> {
+        self.lock()
+            .audit
+            .push((actor_id, action.to_owned(), target_id, note.to_owned()));
+        Ok(())
     }
 }

@@ -2,6 +2,7 @@
 //! docs/06-identity-accounts-invites.md section 8.
 
 mod commands;
+mod guilds;
 
 use std::path::PathBuf;
 
@@ -41,6 +42,9 @@ pub enum Command {
     /// Account recovery tools.
     #[command(subcommand)]
     User(UserCmd),
+    /// Re-encrypt every stored TOTP secret under `server.secret_key`. Run after
+    /// moving the old key into `server.secret_key_previous` (open question 40).
+    RotateSecretKey,
     /// Insert development data. Refuses non-local instances without --force.
     Seed {
         /// Password for all seeded accounts.

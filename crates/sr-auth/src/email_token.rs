@@ -15,6 +15,9 @@ pub enum EmailTokenPurpose {
     VerifyEmail,
     /// Reset a forgotten password (30 minutes, doc 06 §4).
     ResetPassword,
+    /// One-time Owner login link from `sr-cli bootstrap` (1 hour, open
+    /// question 43). Logs in but never resets the password.
+    LoginLink,
 }
 
 impl EmailTokenPurpose {
@@ -22,14 +25,16 @@ impl EmailTokenPurpose {
         match self {
             Self::VerifyEmail => "sideroom/email-token/verify/v1",
             Self::ResetPassword => "sideroom/email-token/reset/v1",
+            Self::LoginLink => "sideroom/email-token/login-link/v1",
         }
     }
 
-    /// Default lifetime in seconds: reset 30 min, verify 24 h.
+    /// Default lifetime in seconds: reset 30 min, verify 24 h, login link 1 h.
     pub fn default_ttl_secs(self) -> i64 {
         match self {
             Self::VerifyEmail => 24 * 3600,
             Self::ResetPassword => 30 * 60,
+            Self::LoginLink => 3600,
         }
     }
 }
@@ -74,7 +79,12 @@ impl EmailToken {
 
     /// Expiry timestamp using the purpose's default TTL.
     pub fn expires_at(&self, now: i64) -> i64 {
-        now.saturating_add(self.purpose.default_ttl_secs())
+        self.expires_at_in(now, self.purpose.default_ttl_secs())
+    }
+
+    /// Expiry timestamp for an explicit lifetime (from `AuthConfig`).
+    pub fn expires_at_in(&self, now: i64, ttl_secs: i64) -> i64 {
+        now.saturating_add(ttl_secs)
     }
 }
 

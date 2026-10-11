@@ -79,8 +79,8 @@ Implemented in `crates/sr-api/src/routes/auth/` (`routes::auth::router_with(serv
 | `GET /sr/usernames/check?username=` | none | n/a | `{available:bool}` (invalid and reserved names are unavailable). 30/min per IP |
 | `POST /sr/register` | none | `{code,email,username,display_name?,password,accepted_house_notes:true}` | 201 `{id}` and the `sr_session` cookie. 400 with field errors (`email`, `username`, `display_name`, `password`, `rules`); 403 `900006` for any unusable invite; 403 `900005` when closed. Consumes the invite, checks the cap and issuer credit, writes ledger rows (issuer -1 `redemption`, new account +5 `initial_grant`) in one transaction, and emails a verification link. 5/min and 20/day per IP |
 | `POST /sr/age-gate` | session | `{over_18:bool}` | 204. Stores the "Are you 18 or older?" answer (D-032) |
-| `POST /sr/auth/login` | none | `{login,password}` (username or email) | `{status:"ok"}` and the session cookie, or `{status:"mfa_required",methods:["totp","recovery"]}` and a 5-minute `sr_mfa` cookie. 401 `"That doesn't match our list."` for unknown account or wrong password alike; 429 with `retry_after` after 5 failures per login name (30 s doubling to 15 min) or 30 per IP; 403 `900007`/`900008` for deactivated or banned accounts, only after the correct password |
-| `POST /sr/auth/2fa` | `sr_mfa` cookie | `{method:"totp" or "recovery",code,trust_device}` | `{status:"ok"}` (+ `recovery_codes_remaining` for recovery) and the session cookie. 401 on a wrong, replayed or expired code; the pending login is dropped after 5 wrong codes. `trust_device` is accepted and ignored for now |
+| `POST /sr/auth/login` | none | `{login,password}` (username or email) | `{status:"ok"}` and the session cookie, or `{status:"mfa_required",methods:["totp","recovery"]}` and a 5-minute `sr_mfa` cookie. 401 `"That doesn't match our list."` for unknown account or wrong password alike; 429 with `retry_after` after 5 failures per login name and client address (30 s doubling to 15 min), 50 attempts per login name per hour, or 30 per IP; 403 `900007`/`900008` for deactivated or banned accounts, only after the correct password |
+| `POST /sr/auth/2fa` | `sr_mfa` cookie | `{method:"totp" or "recovery",code,trust_device}` | `{status:"ok"}` (+ `recovery_codes_remaining` for recovery) and the session cookie. 401 on a wrong, replayed or expired code; the pending login is dropped after 5 wrong codes. `trust_device: true` also sets a 30-day `sr_trusted` cookie (API-scoped); a login from that browser skips the second factor until the device is revoked (`GET`/`DELETE /sr/auth/trusted-devices[/{id}]`) |
 | `POST /sr/auth/logout`, `POST /sr/auth/logout-all` | session | n/a | 204 and the cookie is cleared |
 | `GET /sr/auth/sessions` | session | n/a | `[{id,device_name,created_at,last_seen_at,expires_at,current}]`, newest first |
 | `DELETE /sr/auth/sessions/{id}` | session | n/a | 204, or 404 `10020` |
@@ -92,8 +92,15 @@ Implemented in `crates/sr-api/src/routes/auth/` (`routes::auth::router_with(serv
 | `POST /sr/auth/reset` | none | `{token,password}` | 204 and all sessions are revoked; 2FA is still required at the next login. 400 `errors.token` for an invalid, used or expired (30 min) link; 400 `errors.password` for a weak password (the link stays valid) |
 | `POST /sr/auth/verify-email` | none | `{token}` | 204, or 400 `errors.token` (24 h, single use) |
 | `POST /sr/auth/verify-email/resend` | session | n/a | 204. One mail per account per minute (429 otherwise); no-op once verified |
+| `POST /sr/auth/login-link` | none | `{token}` | `{status:"ok"}` and the session cookie for the one-time Owner link printed by `sr-cli bootstrap` (1 hour, single use). 400 `errors.token` otherwise; a reset link never logs in |
+| `GET /sr/auth/trusted-devices` | session | n/a | `[{id,device_name,created_at,expires_at}]` |
+| `DELETE /sr/auth/trusted-devices/{id}` | session | n/a | 204, or 404 `10020` |
+| `GET /sr/auth/discord/start?intent=login` or `register`, optional `next` | none | n/a | 302 to Discord with a 10-minute `sr_oauth_state` cookie. 404 when `[discord]` has no client id |
+| `GET /sr/auth/discord/callback` | cookies | n/a | 302 back to the app: `/login` (signed in, or `?error=discord_unlinked`), `/login/2fa` when a second factor applies, or `/register` with a 10-minute `sr_oauth` cookie holding a pending Discord link (consumed by `POST /sr/register`). The server-side state is checked, so a forged callback is refused |
+| `GET /sr/auth/discord/pending` | cookie | n/a | `{pending:true,username}` or `{pending:false}` |
+| `DELETE /sr/auth/discord/pending` | cookie | n/a | 204 and the pending link is dropped |
 
-Not implemented yet: passkeys (`/sr/auth/passkey/*`) and the Discord OAuth endpoints (`/sr/auth/discord/*`), both still called by the Entrance UI. The CSRF token is issued by `GET /sr/csrf` (section 2).
+Not implemented yet: passkeys (`/sr/auth/passkey/*`). The `webauthn-rs` crate depends on the C `openssl` library, which needs an ADR (doc 03 section 4) before it can be used. Discord OAuth is implemented (`oauth2` with rustls) as listed above. The CSRF token is issued by `GET /sr/csrf` (section 2).
 
 ## 6. Gateway
 

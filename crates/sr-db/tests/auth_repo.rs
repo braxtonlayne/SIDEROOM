@@ -48,6 +48,7 @@ async fn account(pool: &PgPool) -> i64 {
     let ok = accounts::create_account(
         pool,
         &NewAccount {
+            flags: 0,
             id,
             person_id: uid(),
             // usernames are limited to 32 chars
@@ -190,9 +191,7 @@ async fn recovery_codes_single_use() {
     let pool = pool().await;
     let r = repo(&pool);
     let user = account(&pool).await;
-    r.replace_all(user, &["h1".into(), "h2".into()])
-        .await
-        .unwrap();
+    r.replace_all(user, &batch(2)).await.unwrap();
     let unused = r.list_unused(user).await.unwrap();
     assert_eq!(unused.len(), 2);
     assert!(
@@ -206,7 +205,7 @@ async fn recovery_codes_single_use() {
             .unwrap()
     );
     assert_eq!(r.list_unused(user).await.unwrap().len(), 1);
-    r.replace_all(user, &["h3".into()]).await.unwrap();
+    r.replace_all(user, &batch(1)).await.unwrap();
     assert_eq!(r.list_unused(user).await.unwrap().len(), 1);
 }
 
@@ -296,7 +295,7 @@ async fn reset_2fa_clears_factors_and_sessions() {
     let r = repo(&pool);
     let user = account(&pool).await;
     r.put_pending(user, b"secret").await.unwrap();
-    r.replace_all(user, &["h".into()]).await.unwrap();
+    r.replace_all(user, &batch(1)).await.unwrap();
     let tok = SessionToken::generate().unwrap();
     let t = now();
     SessionRepository::create(
@@ -365,4 +364,14 @@ async fn partition_manager_is_idempotent_and_routes_rows() {
         .execute(&pool)
         .await
         .unwrap();
+}
+
+/// `n` recovery-code digests (any distinct values will do for these tests).
+fn batch(n: usize) -> Vec<sr_auth::session::TokenHash> {
+    sr_auth::recovery::generate_batch()
+        .expect("recovery batch")
+        .hashes
+        .into_iter()
+        .take(n)
+        .collect()
 }

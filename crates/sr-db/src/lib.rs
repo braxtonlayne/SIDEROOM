@@ -7,6 +7,7 @@
 
 pub mod accounts;
 pub mod auth_repo;
+pub mod auth_store;
 pub mod chat_repo;
 mod error;
 mod guild_admin_repo;

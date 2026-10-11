@@ -86,7 +86,7 @@ pub async fn forgot(
                     account.id,
                     EmailTokenPurpose::ResetPassword,
                     &token.hash(),
-                    token.expires_at(now),
+                    token.expires_at_in(now, svc.cfg.reset_ttl_secs),
                 )
                 .await
                 .map_err(|e| e.to_string())?;
@@ -146,6 +146,8 @@ pub async fn reset(
     let hash = svc.hash_password(&body.password).await?;
     svc.store.set_password_hash(user_id, &hash).await?;
     svc.store.revoke_sessions_except(user_id, None).await?;
+    // A changed password also ends "trust this device" on every browser.
+    svc.store.trusted_devices_revoke_all(user_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

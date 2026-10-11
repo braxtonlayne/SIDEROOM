@@ -35,6 +35,7 @@ async fn issuer(pool: &PgPool, credits: i32) -> i64 {
     let ok = accounts::create_account(
         pool,
         &NewAccount {
+            flags: 0,
             id,
             person_id: uid(),
             username: &name[..name.len().min(32)],
@@ -68,6 +69,8 @@ async fn invite(pool: &PgPool, issuer: i64) -> InviteCode {
 fn reg(code: &InviteCode, cap: i64, tag: &str) -> NewRegistration {
     let id = uid();
     NewRegistration {
+        discord_id: None,
+        identity_id: uid(),
         account_id: id,
         person_id: uid(),
         ledger_ids: [uid(), uid()],

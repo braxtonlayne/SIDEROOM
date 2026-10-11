@@ -206,7 +206,18 @@ pub struct Config {
     pub storage: StorageConfig,
     pub log: LogConfig,
     pub smtp: SmtpConfig,
+    pub discord: DiscordConfig,
     pub gateway: GatewayLimits,
+}
+
+/// `[discord]`: OAuth sign-in and registration (open question 79). An empty
+/// `client_id` disables the Discord routes. The redirect URI registered with
+/// Discord is `<public_url>/api/v1/sr/auth/discord/callback`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DiscordConfig {
+    pub client_id: String,
+    pub client_secret: Secret,
 }
 
 /// Host part of an absolute URL (`[::1]` keeps its brackets).

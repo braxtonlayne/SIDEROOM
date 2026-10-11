@@ -2,12 +2,13 @@
 
 use super::{
     common::{AuthRouteError, AuthService, R, Svc, user_agent},
+    discord::{LINK_COOKIE, clear_oauth_cookie},
     mail,
     store::{InviteState, RegisterRejection, RegisterTx},
     throttle::Rule,
     validate,
 };
-use crate::state::AppState;
+use crate::{auth::parse_cookie, state::AppState};
 use axum::{
     Json,
     extract::State,
@@ -113,9 +114,17 @@ pub async fn register(
     }
 
     let password_hash = svc.hash_password(&body.password).await?;
+    // A Discord identity proven on /sr/auth/discord/callback is linked to the
+    // new account (open question 78); it is consumed only on success.
+    let link_token = parse_cookie(&headers, LINK_COOKIE).map(str::to_owned);
+    let link = link_token
+        .as_deref()
+        .and_then(|t| svc.discord_links.get(t, now));
     let outcome = svc
         .store
         .register(RegisterTx {
+            discord_id: link.as_ref().map(|l| l.discord_id.clone()),
+            identity_id: svc.next_id(),
             account_id: svc.next_id(),
             new_person_id: svc.next_id(),
             ledger_ids: [svc.next_id(), svc.next_id()],
@@ -155,11 +164,17 @@ pub async fn register(
     let (_, cookie) = svc
         .start_session(&state, registered.account_id, user_agent(&headers))
         .await?;
+    let mut cookies = vec![(header::SET_COOKIE, cookie)];
+    if let Some(token) = &link_token {
+        svc.discord_links.take(token, now);
+        let secure = state.settings().secure_cookies;
+        cookies.push((header::SET_COOKIE, clear_oauth_cookie(LINK_COOKIE, secure)));
+    }
     spawn_verification(svc.clone(), state.now_secs(), registered.account_id, email);
 
     Ok((
         StatusCode::CREATED,
-        AppendHeaders([(header::SET_COOKIE, cookie)]),
+        AppendHeaders(cookies),
         Json(json!({ "id": registered.account_id.to_string() })),
     ))
 }
@@ -186,7 +201,7 @@ pub(super) async fn send_verification(
             user_id,
             EmailTokenPurpose::VerifyEmail,
             &token.hash(),
-            token.expires_at(now),
+            token.expires_at_in(now, svc.cfg.verify_ttl_secs),
         )
         .await
         .map_err(|e| e.to_string())?;
