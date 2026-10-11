@@ -19,8 +19,14 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
-      - run: cargo install cross --locked
-      - run: cross build --release --target ${{ matrix.target }} -p sr-server -p sr-voice -p sr-transcoder -p sr-cli
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ziglang==0.13.0
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-zigbuild
+      - run: cargo zigbuild --release --target ${{ matrix.target }} -p sr-server -p sr-voice -p sr-transcoder -p sr-cli
       - name: Package
         run: |
           d=dist/${{ matrix.target }}
@@ -39,9 +45,9 @@ jobs:
     strategy:
       matrix:
         include:
-          - { image: sideroom-server, file: deploy/docker/server.Dockerfile, suffix: "" }
-          - { image: sideroom-voice, file: deploy/docker/voice.Dockerfile, suffix: "" }
-          - { image: sideroom-transcoder, file: deploy/docker/transcoder.Dockerfile, suffix: "-cuda" }
+          - { image: sideroom-server, file: deploy/docker/server.Dockerfile, suffix: "", platforms: "linux/amd64,linux/arm64" }
+          - { image: sideroom-voice, file: deploy/docker/voice.Dockerfile, suffix: "", platforms: "linux/amd64" }
+          - { image: sideroom-transcoder, file: deploy/docker/transcoder.Dockerfile, suffix: "-cuda", platforms: "linux/amd64" }
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -54,6 +60,7 @@ jobs:
         with:
           context: .
           file: ${{ matrix.file }}
+          platforms: ${{ matrix.platforms }}
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:${{ github.ref_name }}${{ matrix.suffix }}
           cache-from: type=gha
