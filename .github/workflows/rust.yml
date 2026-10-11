@@ -1,0 +1,38 @@
+name: Rust
+on:
+  push: { branches: [main] }
+  pull_request:
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+  DATABASE_URL: postgres://sideroom:sideroom_ci@localhost:5432/sideroom
+concurrency:
+  group: rust-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  fmt-clippy-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: sideroom
+          POSTGRES_PASSWORD: sideroom_ci
+          POSTGRES_DB: sideroom
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sideroom" --health-interval 5s
+          --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: "rustfmt, clippy" }
+      - uses: Swatinem/rust-cache@v2
+      - uses: mozilla-actions/sccache-action@v0.0.6
+      - run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - uses: taiki-e/install-action@v2
+        with: { tool: "cargo-nextest,cargo-deny" }
+      - run: cargo nextest run --workspace
+      - run: cargo deny check

@@ -1,0 +1,25 @@
+# Dev reverse proxy: http://localhost:8088 -> web (Vite) + sr-server on the host.
+{
+	auto_https off
+	admin off
+}
+
+:80 {
+	encode zstd gzip
+
+	handle /api/* {
+		reverse_proxy host.docker.internal:8080
+	}
+	handle /gateway* {
+		reverse_proxy host.docker.internal:8080
+	}
+	handle /cdn/* {
+		reverse_proxy host.docker.internal:8080
+	}
+	handle /internal/* {
+		respond 404
+	}
+	handle {
+		reverse_proxy host.docker.internal:5173
+	}
+}
