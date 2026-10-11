@@ -474,10 +474,9 @@ async fn one_to_one_dm_open_list_close_and_event() {
 
     // Created once; the adapter rides CHANNEL_CREATE on the user topic.
     match next_event(&mut alice_events).await {
-        DomainEvent::ChannelCreatedFull {
-            channel, payload, ..
-        } => {
-            assert_eq!(channel.to_string(), id);
+        DomainEvent::UserScoped { name, payload, .. } => {
+            assert_eq!(name, "CHANNEL_CREATE");
+            assert_eq!(payload["id"], id.as_str());
             assert_eq!(payload["recipients"][0]["id"], "2");
         }
         other => panic!("unexpected {other:?}"),
@@ -566,7 +565,7 @@ async fn group_dm_lifecycle() {
     let id = v["id"].as_str().unwrap().to_owned();
     // Carol is told, and sees everyone but herself.
     match next_event(&mut carol_events).await {
-        DomainEvent::ChannelCreatedFull { payload, .. } => {
+        DomainEvent::UserScoped { payload, .. } => {
             let mut ids: Vec<&str> = payload["recipients"]
                 .as_array()
                 .unwrap()
@@ -588,10 +587,13 @@ async fn group_dm_lifecycle() {
         )
         .await;
     assert_eq!((s, v["name"].as_str()), (StatusCode::OK, Some("the crew")));
-    assert!(matches!(
-        next_event(&mut carol_events).await,
-        DomainEvent::ChannelUpdated { .. }
-    ));
+    match next_event(&mut carol_events).await {
+        DomainEvent::UserScoped { name, payload, .. } => {
+            assert_eq!(name, "CHANNEL_UPDATE");
+            assert_eq!(payload["name"], "the crew");
+        }
+        other => panic!("unexpected {other:?}"),
+    }
     let (s, _) = e
         .patch(
             &format!("/users/@me/channels/{id}"),
@@ -1016,22 +1018,29 @@ async fn unauthenticated_requests_are_refused() {
 }
 
 #[test]
-fn adapter_maps_only_dm_channel_events() {
+fn adapter_maps_every_social_event_to_a_user_scoped_dispatch() {
     let u = UserId::new(1);
     let ch = ChannelId::new(5);
-    let create = events::SocialEvent::new("CHANNEL_CREATE", vec![u], json!({})).for_channel(ch);
-    assert!(matches!(
-        events::to_domain(&create),
-        Some(DomainEvent::ChannelCreatedFull { .. })
-    ));
-    let del = events::SocialEvent::new("CHANNEL_DELETE", vec![u], json!({})).for_channel(ch);
-    assert!(matches!(
-        events::to_domain(&del),
-        Some(DomainEvent::ChannelDeleted { .. })
-    ));
-    // Everything else waits for a user-scoped variant (see events.rs).
-    let rel = events::SocialEvent::new("RELATIONSHIP_ADD", vec![u], json!({}));
-    assert!(events::to_domain(&rel).is_none());
-    let ack = events::SocialEvent::new("MESSAGE_ACK", vec![u], json!({})).for_channel(ch);
-    assert!(events::to_domain(&ack).is_none());
+    for (name, with_channel) in [
+        ("CHANNEL_CREATE", true),
+        ("CHANNEL_DELETE", true),
+        ("RELATIONSHIP_ADD", false),
+        ("MESSAGE_ACK", true),
+    ] {
+        let mut ev = events::SocialEvent::new(name, vec![u], json!({"k": 1}));
+        if with_channel {
+            ev = ev.for_channel(ch);
+        }
+        match events::to_domain(&ev) {
+            Some(DomainEvent::UserScoped {
+                users,
+                name: n,
+                payload,
+            }) => {
+                assert_eq!((users, n.as_str()), (vec![u], name));
+                assert_eq!(payload["k"], 1);
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+    }
 }

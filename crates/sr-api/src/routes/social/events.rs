@@ -4,15 +4,11 @@
 //! this wave), so handlers describe what happened as a [`SocialEvent`] and
 //! [`publish_social`] is the single adapter to the bus.
 //!
-//! TODO(social-events): once `DomainEvent` gains a user-scoped variant (see the
-//! list in the hand-off report: `UserScoped { users, name, payload }`, routed to
-//! `Topic::User`), replace the body of [`to_domain`] with that variant and delete
-//! the lossy mapping. Until then only the DM channel events ride on the existing
-//! `Channel*` variants (published to each recipient's `Topic::User`); every other
-//! event is logged and dropped.
+//! Every social dispatch is a [`DomainEvent::UserScoped`] published to each addressed
+//! user's topic.
 
 use serde_json::Value;
-use sr_core::{ChannelId, GuildId, UserId};
+use sr_core::{ChannelId, UserId};
 use sr_events::{DomainEvent, EventBus, Topic};
 
 /// A Discord gateway dispatch addressed to specific users.
@@ -43,31 +39,14 @@ impl SocialEvent {
     }
 }
 
-/// DM events have no guild; `0` is the "no guild" marker on the legacy variants.
-const NO_GUILD: GuildId = GuildId::new(0);
-
-/// TODO(social-events): the lossy adapter described in the module docs.
+/// Map a social event onto the bus: every social dispatch is a self-scoped
+/// [`DomainEvent::UserScoped`] (DM channel events included, since they have no guild).
 pub fn to_domain(ev: &SocialEvent) -> Option<DomainEvent> {
-    let channel = ev.channel?;
-    let payload = ev.payload.clone();
-    match ev.name {
-        "CHANNEL_CREATE" => Some(DomainEvent::ChannelCreatedFull {
-            guild: NO_GUILD,
-            channel,
-            payload,
-        }),
-        "CHANNEL_UPDATE" => Some(DomainEvent::ChannelUpdated {
-            guild: NO_GUILD,
-            channel,
-            payload,
-        }),
-        "CHANNEL_DELETE" => Some(DomainEvent::ChannelDeleted {
-            guild: NO_GUILD,
-            channel,
-            payload,
-        }),
-        _ => None,
-    }
+    Some(DomainEvent::UserScoped {
+        users: ev.users.clone(),
+        name: ev.name.to_owned(),
+        payload: ev.payload.clone(),
+    })
 }
 
 /// Publish to every addressed user's topic. Best effort: the mutation already

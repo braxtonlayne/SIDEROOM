@@ -756,6 +756,30 @@ async fn dm_events_reach_only_the_recipient_user_topic() {
 }
 
 #[tokio::test]
+async fn user_scoped_events_are_dispatched_by_name_to_the_addressed_user_only() {
+    let e = env();
+    let mut a = connect(&e);
+    a.identify("user:1", 0, 1).await;
+    let mut b = connect(&e);
+    b.identify("user:2", 0, 1).await;
+    settle().await;
+    a.drain().await;
+    b.drain().await;
+    emit(
+        &e.bus,
+        DomainEvent::UserScoped {
+            users: vec![u(1)],
+            name: "RELATIONSHIP_ADD".into(),
+            payload: json!({ "id": "2", "type": 1 }),
+        },
+    )
+    .await;
+    let r = a.expect_event("RELATIONSHIP_ADD").await;
+    assert_eq!(r["d"]["id"], "2");
+    b.silent().await;
+}
+
+#[tokio::test]
 async fn closing_the_last_socket_goes_offline_immediately() {
     let e = env();
     let mut a = connect(&e);

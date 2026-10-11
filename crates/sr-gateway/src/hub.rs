@@ -355,7 +355,8 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
         DomainEvent::GuildCreated { .. }
         | DomainEvent::GuildDeleted { .. }
         | DomainEvent::FeatureSettingsChanged { .. }
-        | DomainEvent::StaffAlert { .. } => return None,
+        | DomainEvent::StaffAlert { .. }
+        | DomainEvent::UserScoped { .. } => return None,
     })
 }
 
@@ -593,6 +594,10 @@ impl Gateway {
 
     async fn on_user_event(&self, user: UserId, ev: DomainEvent) {
         self.note_typing(&ev);
+        if let DomainEvent::UserScoped { name, payload, .. } = &ev {
+            self.dispatch_user(user, name, payload.clone()).await;
+            return;
+        }
         if let Some(d) = to_dispatch(&ev) {
             self.dispatch_user(user, d.name, d.data).await;
         }

@@ -191,6 +191,15 @@ pub enum DomainEvent {
         /// secrets.
         detail: String,
     },
+    /// A Discord dispatch addressed to specific users (relationship, ack, note,
+    /// user-settings and similar self-scoped events). Producers publish it to each
+    /// addressed user's `Topic::User`; the gateway sends `name` and `payload`
+    /// as-is to that user's sessions.
+    UserScoped {
+        users: Vec<UserId>,
+        name: String,
+        payload: serde_json::Value,
+    },
     /// `TYPING_START` triggered by `POST /channels/{id}/typing`.
     TypingStarted {
         guild: Option<GuildId>,
@@ -296,6 +305,7 @@ impl DomainEvent {
                 }
                 t
             }
+            Self::UserScoped { users, .. } => users.iter().map(|u| Topic::User(*u)).collect(),
             Self::FeatureSettingsChanged { .. } | Self::StaffAlert { .. } => vec![Topic::Platform],
         }
     }
@@ -394,6 +404,21 @@ mod tests {
             detail: "x".into(),
         };
         assert_eq!(e.topics(), vec![Topic::Platform]);
+        let s = serde_json::to_string(&e).unwrap();
+        assert_eq!(serde_json::from_str::<DomainEvent>(&s).unwrap(), e);
+    }
+
+    #[test]
+    fn user_scoped_routes_to_each_user_topic() {
+        let e = DomainEvent::UserScoped {
+            users: vec![UserId::new(1), UserId::new(2)],
+            name: "RELATIONSHIP_ADD".into(),
+            payload: serde_json::json!({ "id": "2", "type": 1 }),
+        };
+        assert_eq!(
+            e.topics(),
+            vec![Topic::User(UserId::new(1)), Topic::User(UserId::new(2))]
+        );
         let s = serde_json::to_string(&e).unwrap();
         assert_eq!(serde_json::from_str::<DomainEvent>(&s).unwrap(), e);
     }
