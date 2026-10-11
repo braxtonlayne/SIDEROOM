@@ -26,14 +26,14 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 - [ ] **FND-CI-008** [OPS] Cache strategy (sccache / rust-cache, pnpm store)
 
 ## FND-CORE — `sr-core`
-- [ ] **FND-CORE-001** [BE] Snowflake generator (SIDE ROOM epoch 2026-01-01, worker/process bits, monotonic), string serde
-- [ ] **FND-CORE-002** [BE] Error taxonomy (`thiserror`) + mapping to Discord-style JSON error bodies and codes
-- [ ] **FND-CORE-003** [BE][WASM] Permission bitflags (Discord bits 0–50, SR bits 56–59) + `compute_base`, `compute_overwrites`, `has` helpers
-- [ ] **FND-CORE-004** [BE] Platform permission bitflags (doc 07 §3)
-- [ ] **FND-CORE-005** [BE] Domain IDs newtypes (`UserId`, `GuildId`, `ChannelId`, …) with serde
-- [ ] **FND-CORE-006** [BE] Clock abstraction (injectable for tests: purge/expiry/TV time-travel)
-- [ ] **FND-CORE-007** [BE] Config types + figment loader (TOML + `SR_*` env)
-- [ ] **FND-CORE-008** [TEST] Permission computation property tests vs a Discord reference fixture set
+- [x] **FND-CORE-001** [BE] Snowflake generator (SIDE ROOM epoch 2026-01-01, worker/process bits, monotonic), string serde
+- [x] **FND-CORE-002** [BE] Error taxonomy (`thiserror`) + mapping to Discord-style JSON error bodies and codes
+- [x] **FND-CORE-003** [BE][WASM] Permission bitflags (Discord bits 0–50, SR bits 56–59) + `compute_base`, `compute_overwrites`, `has` helpers
+- [x] **FND-CORE-004** [BE] Platform permission bitflags (doc 07 §3)
+- [x] **FND-CORE-005** [BE] Domain IDs newtypes (`UserId`, `GuildId`, `ChannelId`, …) with serde
+- [x] **FND-CORE-006** [BE] Clock abstraction (injectable for tests: purge/expiry/TV time-travel)
+- [x] **FND-CORE-007** [BE] Config types + figment loader (TOML + `SR_*` env)
+- [x] **FND-CORE-008** [TEST] Permission computation property tests vs a Discord reference fixture set
 
 ## FND-DB — `sr-db`
 - [ ] **FND-DB-001** [DB] sqlx pool, migration runner, health check

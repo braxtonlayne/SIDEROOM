@@ -1,0 +1,74 @@
+{
+  "_comment": "Hand-derived from Discord's documented permission computation. Bits: VIEW_CHANNEL=1024 SEND_MESSAGES=2048 READ_MESSAGE_HISTORY=65536 ADD_REACTIONS=64 ATTACH_FILES=32768 ADMINISTRATOR=8. Guild id 100, owner 1, member 2. expected 'ALL' = every defined bit.",
+  "cases": [
+    {
+      "name": "everyone only",
+      "everyone": 68608, "roles": {}, "member_roles": [], "overwrites": [],
+      "expected": 68608
+    },
+    {
+      "name": "everyone overwrite denies send",
+      "everyone": 68608, "roles": {}, "member_roles": [],
+      "overwrites": [{"id": 100, "type": "role", "allow": 0, "deny": 2048}],
+      "expected": 66560
+    },
+    {
+      "name": "role overwrite allow beats everyone deny",
+      "everyone": 68608, "roles": {"200": 0}, "member_roles": [200],
+      "overwrites": [
+        {"id": 100, "type": "role", "allow": 0, "deny": 2048},
+        {"id": 200, "type": "role", "allow": 2048, "deny": 0}
+      ],
+      "expected": 68608
+    },
+    {
+      "name": "role allow wins over another role deny (aggregated)",
+      "everyone": 68608, "roles": {"200": 0, "201": 0}, "member_roles": [200, 201],
+      "overwrites": [
+        {"id": 200, "type": "role", "allow": 0, "deny": 2048},
+        {"id": 201, "type": "role", "allow": 2048, "deny": 0}
+      ],
+      "expected": 68608
+    },
+    {
+      "name": "member deny beats role allow",
+      "everyone": 68608, "roles": {"200": 0}, "member_roles": [200],
+      "overwrites": [
+        {"id": 200, "type": "role", "allow": 2048, "deny": 0},
+        {"id": 2, "type": "member", "allow": 0, "deny": 2048}
+      ],
+      "expected": 66560
+    },
+    {
+      "name": "administrator role bypasses denies",
+      "everyone": 68608, "roles": {"200": 8}, "member_roles": [200],
+      "overwrites": [{"id": 2, "type": "member", "allow": 0, "deny": 1024}],
+      "expected": "ALL"
+    },
+    {
+      "name": "owner bypasses denies",
+      "owner": true,
+      "everyone": 0, "roles": {}, "member_roles": [],
+      "overwrites": [{"id": 2, "type": "member", "allow": 0, "deny": 1024}],
+      "expected": "ALL"
+    },
+    {
+      "name": "role permissions union",
+      "everyone": 68608, "roles": {"200": 64}, "member_roles": [200],
+      "overwrites": [],
+      "expected": 68672
+    },
+    {
+      "name": "member overwrite allow and deny together",
+      "everyone": 68608, "roles": {}, "member_roles": [],
+      "overwrites": [{"id": 2, "type": "member", "allow": 32768, "deny": 1024}],
+      "expected": 100352
+    },
+    {
+      "name": "overwrites for roles the member lacks are ignored",
+      "everyone": 68608, "roles": {"300": 0}, "member_roles": [],
+      "overwrites": [{"id": 300, "type": "role", "allow": 0, "deny": 2048}],
+      "expected": 68608
+    }
+  ]
+}
