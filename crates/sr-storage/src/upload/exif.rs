@@ -1,9 +1,19 @@
 //! Metadata stripping for JPEG and PNG (EXIF, XMP, IPTC, text chunks).
 //!
-//! Pixel data and colour profiles (ICC) are left untouched. Removing EXIF also
-//! drops the orientation tag; clients render the stored pixels as-is.
+//! Images without an orientation tag keep their pixels and ICC profile
+//! untouched. When the EXIF orientation asks for a rotation or flip, the pixels
+//! are turned upright first (open question 25), so the stored image displays the
+//! same after the tag is gone. Those images are re-encoded: JPEG at quality 92
+//! and the ICC profile is dropped.
 
+use std::io::Cursor;
+
+use image::codecs::jpeg::JpegEncoder;
+use image::metadata::Orientation;
+use image::{DynamicImage, ImageDecoder, ImageFormat, ImageReader};
 use thiserror::Error;
+
+const JPEG_QUALITY: u8 = 92;
 
 /// Stripping failures.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
@@ -16,15 +26,42 @@ pub enum StripError {
     Malformed,
 }
 
-/// Strip metadata from a JPEG or PNG, detected by magic bytes.
+/// Strip metadata from a JPEG or PNG, detected by magic bytes. Applies the EXIF
+/// orientation to the pixels first when one is present.
 pub fn strip_metadata(data: &[u8]) -> Result<Vec<u8>, StripError> {
-    if data.starts_with(&[0xFF, 0xD8]) {
-        strip_jpeg(data)
+    let (format, stripped) = if data.starts_with(&[0xFF, 0xD8]) {
+        (ImageFormat::Jpeg, strip_jpeg(data)?)
     } else if data.starts_with(b"\x89PNG\r\n\x1a\n") {
-        strip_png(data)
+        (ImageFormat::Png, strip_png(data)?)
     } else {
-        Err(StripError::Unsupported)
+        return Err(StripError::Unsupported);
+    };
+    Ok(upright(data, format)?.unwrap_or(stripped))
+}
+
+/// Decode `data`, apply its EXIF orientation and re-encode. Returns `None` when
+/// there is nothing to apply, including when the decoder cannot read the
+/// orientation (the byte-level stripper has already validated the structure).
+fn upright(data: &[u8], format: ImageFormat) -> Result<Option<Vec<u8>>, StripError> {
+    let Ok(mut decoder) = ImageReader::with_format(Cursor::new(data), format).into_decoder() else {
+        return Ok(None);
+    };
+    let orientation = decoder.orientation().unwrap_or(Orientation::NoTransforms);
+    if orientation == Orientation::NoTransforms {
+        return Ok(None);
     }
+    let mut img = DynamicImage::from_decoder(decoder).map_err(|_| StripError::Malformed)?;
+    img.apply_orientation(orientation);
+    let mut out = Vec::new();
+    match format {
+        ImageFormat::Jpeg => JpegEncoder::new_with_quality(&mut out, JPEG_QUALITY)
+            .encode_image(&img)
+            .map_err(|_| StripError::Malformed)?,
+        _ => img
+            .write_to(&mut Cursor::new(&mut out), ImageFormat::Png)
+            .map_err(|_| StripError::Malformed)?,
+    }
+    Ok(Some(out))
 }
 
 fn strip_jpeg(data: &[u8]) -> Result<Vec<u8>, StripError> {
@@ -148,6 +185,47 @@ mod tests {
         let out = strip_metadata(&p).unwrap();
         assert!(!contains(&out, b"SECRETEXIF") && !contains(&out, b"Author"));
         assert!(contains(&out, b"IHDR") && contains(&out, b"pixels") && contains(&out, b"IEND"));
+    }
+
+    /// A 4x2 JPEG whose EXIF orientation tag is `tag`.
+    fn jpeg_with_orientation(tag: u16) -> Vec<u8> {
+        let img =
+            DynamicImage::ImageRgb8(image::RgbImage::from_pixel(4, 2, image::Rgb([200, 10, 10])));
+        let mut base = Vec::new();
+        JpegEncoder::new(&mut base).encode_image(&img).unwrap();
+        // TIFF header, one IFD entry (Orientation, SHORT, count 1), no next IFD.
+        let mut tiff = b"II*\0".to_vec();
+        tiff.extend_from_slice(&8u32.to_le_bytes());
+        tiff.extend_from_slice(&1u16.to_le_bytes());
+        tiff.extend_from_slice(&0x0112u16.to_le_bytes());
+        tiff.extend_from_slice(&3u16.to_le_bytes());
+        tiff.extend_from_slice(&1u32.to_le_bytes());
+        tiff.extend_from_slice(&tag.to_le_bytes());
+        tiff.extend_from_slice(&[0, 0]);
+        tiff.extend_from_slice(&0u32.to_le_bytes());
+        let mut payload = b"Exif\0\0".to_vec();
+        payload.extend(tiff);
+        let mut out = base[..2].to_vec();
+        out.extend(seg(0xE1, &payload));
+        out.extend_from_slice(&base[2..]);
+        out
+    }
+
+    #[test]
+    fn orientation_is_applied_and_tag_removed() {
+        // Tag 6 means "rotate 90 degrees clockwise to display": 4x2 becomes 2x4.
+        let out = strip_metadata(&jpeg_with_orientation(6)).unwrap();
+        assert!(!contains(&out, b"Exif"));
+        let img = image::load_from_memory(&out).unwrap();
+        assert_eq!((img.width(), img.height()), (2, 4));
+    }
+
+    #[test]
+    fn no_orientation_keeps_dimensions() {
+        let out = strip_metadata(&jpeg_with_orientation(1)).unwrap();
+        assert!(!contains(&out, b"Exif"));
+        let img = image::load_from_memory(&out).unwrap();
+        assert_eq!((img.width(), img.height()), (4, 2));
     }
 
     #[test]
