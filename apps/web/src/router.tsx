@@ -14,6 +14,8 @@ import { Register } from './routes/entrance/Register';
 import { ServerInvite } from './routes/entrance/ServerInvite';
 import { HouseNotes, NoInvitation } from './routes/entrance/Static';
 import { TwoFactor } from './routes/entrance/TwoFactor';
+import { DiscordCallback } from './routes/entrance/DiscordCallback';
+import { VerifyEmail } from './routes/entrance/VerifyEmail';
 
 const root = createRootRoute({ component: Outlet });
 const r = <P extends string>(path: P, component: () => React.JSX.Element | null) =>
@@ -53,6 +55,8 @@ const routeTree = root.addChildren([
   r('/register', Register),
   r('/forgot', Forgot),
   r('/reset/$token', Reset),
+  r('/verify-email/$token', VerifyEmail),
+  r('/oauth/discord/callback', DiscordCallback),
   r('/no-invitation', NoInvitation),
   r('/house-notes', HouseNotes),
   r('/invite/$code', ServerInvite),

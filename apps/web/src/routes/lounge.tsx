@@ -15,7 +15,8 @@ import { useLoungeUi } from '../lounge/store';
  * One layout route renders the whole shell; the shell reads the params. The child routes exist so the
  * router accepts and types these URLs.
  *
- * DATA SWAP: replace <MockDataProvider> with the real store provider (see lounge/data.ts).
+ * Data: <MockDataProvider> opens the gateway and the hooks in lounge/data.ts read the real store; set
+ * VITE_SR_MOCK=1 to use the deterministic seed data instead.
  */
 function LoungeRoot() {
   return (
