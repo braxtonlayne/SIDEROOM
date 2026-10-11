@@ -145,7 +145,11 @@ async fn role_gated_moderation_flow() {
             f.guild,
             NewRole {
                 name: Some("Mods".into()),
-                permissions: Some(Permissions::MANAGE_MESSAGES | Permissions::MANAGE_CHANNELS),
+                permissions: Some(
+                    Permissions::MANAGE_MESSAGES
+                        | Permissions::PIN_MESSAGES
+                        | Permissions::MANAGE_CHANNELS,
+                ),
                 ..Default::default()
             },
         )
