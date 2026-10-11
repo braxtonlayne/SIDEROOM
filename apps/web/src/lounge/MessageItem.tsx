@@ -3,7 +3,7 @@ import { Avatar, DropdownMenu, Icon, Popover, Tooltip, type MenuEntry } from '@s
 import { memo } from 'react';
 import { EmojiPicker } from './components/EmojiPicker';
 import type { Message, Snowflake } from './data';
-import { isJumbo, parseMarkdown } from './markdown';
+import { isJumbo, parseMarkdown, useMarkdownReady } from './markdown';
 import { formatClock, formatFullTime, formatMessageTime } from './time';
 
 export interface MessageItemProps {
@@ -35,13 +35,15 @@ function MessageBody({
   resolvers,
   onMentionClick,
 }: Pick<MessageItemProps, 'resolvers' | 'onMentionClick'> & { m: Message }) {
+  // Re-renders this body once the WASM parser is ready (plain text until then).
+  useMarkdownReady();
   const nodes = parseMarkdown(m.content);
   return (
     <>
       {m.content && (
         <Markdown
           nodes={nodes}
-          jumbo={isJumbo(nodes)}
+          jumbo={isJumbo(m.content)}
           resolvers={resolvers}
           {...(onMentionClick ? { onMentionClick } : {})}
         />

@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { groupChannels, navigableChannels, step } from '../channels';
 import { insertAt, toggleWrap, typingLabel } from '../composerText';
 import type { Channel, Member, Message, Presence, Role } from '../data';
-import { isJumbo, parseMarkdown } from '../markdown';
+import { isJumbo, parseMarkdown, setMarkdownEngine, testFallbackEngine } from '../markdown';
 import { buildMemberRows } from '../memberGroups';
 import { buildRows } from '../messageRows';
 import { matchShortcut } from '../shortcuts';
@@ -94,7 +94,32 @@ describe('composer text', () => {
   });
 });
 
-describe('markdown fallback parser', () => {
+describe('markdown engine seam', () => {
+  afterEach(() => setMarkdownEngine(testFallbackEngine));
+
+  it('renders plain text, with line breaks, until the WASM engine is ready', () => {
+    setMarkdownEngine(null);
+    expect(parseMarkdown('**a**\nb')).toEqual([
+      { type: 'text', text: '**a**' },
+      { type: 'line_break' },
+      { type: 'text', text: 'b' },
+    ]);
+    expect(isJumbo('😀')).toBe(false);
+  });
+
+  it('delegates parsing and jumbo detection to the active engine', () => {
+    setMarkdownEngine({
+      parse: () => [{ type: 'everyone' }],
+      isJumbo: (t) => t === '🎉',
+      expandShortcodes: (t) => t,
+    });
+    expect(parseMarkdown('anything')).toEqual([{ type: 'everyone' }]);
+    expect(isJumbo('🎉')).toBe(true);
+    expect(isJumbo('x')).toBe(false);
+  });
+});
+
+describe('markdown test stand-in', () => {
   it('parses common Discord syntax', () => {
     const nodes = parseMarkdown('hi **bold** *it* `code` <@5> ||s|| <#7>');
     const types = nodes.map((n) => n.type);
@@ -121,9 +146,8 @@ describe('markdown fallback parser', () => {
     });
     expect(parseMarkdown('> hi')[0]?.type).toBe('quote');
   });
-  it('detects jumbo emoji-only messages', () => {
-    expect(isJumbo([{ type: 'emoji', name: 'x', emoji: '😀' }])).toBe(true);
-    expect(isJumbo([{ type: 'text', text: 'a' }])).toBe(false);
+  it('does not treat plain text as jumbo', () => {
+    expect(isJumbo('hello')).toBe(false);
   });
 });
 
