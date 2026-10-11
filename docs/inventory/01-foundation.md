@@ -47,15 +47,15 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 - [ ] **FND-DB-009** [OPS] Seed command (dev data: users, servers, messages, library samples with CC0 media)
 
 ## FND-EVT — `sr-events`
-- [ ] **FND-EVT-001** [BE] `EventBus` trait + `InProcessBus` (tokio broadcast per topic)
-- [ ] **FND-EVT-002** [BE] `DomainEvent` enum + topic routing (guild, channel, user, platform)
-- [ ] **FND-EVT-003** [TEST] Bus contract tests (reusable for future implementations)
+- [x] **FND-EVT-001** [BE] `EventBus` trait + `InProcessBus` (tokio broadcast per topic)
+- [x] **FND-EVT-002** [BE] `DomainEvent` enum + topic routing (guild, channel, user, platform)
+- [x] **FND-EVT-003** [TEST] Bus contract tests (reusable for future implementations)
 
 ## FND-FEAT — `sr-features`
-- [ ] **FND-FEAT-001** [BE] `Feature` trait, registry, startup registration macro
-- [ ] **FND-FEAT-002** [BE] `SettingsSchema` types (bool, int, enum, string, duration, color, role/channel/emoji pickers, list, group) + JSON serialization
-- [ ] **FND-FEAT-003** [BE] Scoped settings storage (platform/guild/channel/user) + defaults resolution + validation
-- [ ] **FND-FEAT-004** [BE] `is_enabled(id, scope)` with moka cache + invalidation events
+- [x] **FND-FEAT-001** [BE] `Feature` trait, registry, startup registration macro
+- [x] **FND-FEAT-002** [BE] `SettingsSchema` types (bool, int, enum, string, duration, color, role/channel/emoji pickers, list, group) + JSON serialization
+- [x] **FND-FEAT-003** [BE] Scoped settings storage (platform/guild/channel/user) + defaults resolution + validation
+- [x] **FND-FEAT-004** [BE] `is_enabled(id, scope)` with moka cache + invalidation events
 - [ ] **FND-FEAT-005** [BE] `/sr/features` API (list registry, get/set settings per scope, permission-gated)
 - [ ] **FND-FEAT-006** [FE] `<SchemaForm>` auto-renderer for every schema field type, with unsaved-changes bar
 - [ ] **FND-FEAT-007** [FE] Feature custom-UI slot registry (feature id → lazy React component)
