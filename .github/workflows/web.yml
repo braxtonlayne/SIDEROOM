@@ -10,12 +10,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Same toolchain setup as wasm.yml: the web app imports the WASM bundle from @sideroom/wasm.
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown }
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with: { tool: "wasm-pack" }
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Builds packages/wasm/dist, which the web build and tests load.
+      - run: pnpm --filter @sideroom/wasm build
       - run: pnpm -r --if-present lint
       - run: pnpm -r --if-present typecheck
       - run: pnpm -r --if-present test
+      - run: pnpm --filter @sideroom/web build
