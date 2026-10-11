@@ -1,0 +1,8 @@
+[package]
+name = "sr-server"
+version = "0.0.0"
+edition.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true

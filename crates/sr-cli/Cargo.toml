@@ -1,0 +1,8 @@
+[package]
+name = "sr-cli"
+version = "0.0.0"
+edition.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
