@@ -2,6 +2,7 @@
 import { create } from 'zustand';
 import {
   type StoreData,
+  cmpId,
   emptyData,
   emptyWindow,
   mergeIds,
@@ -10,7 +11,39 @@ import {
   reduceDispatch,
 } from './reducer';
 import * as rest from './rest';
-import type { ConnectionStatus, Message, MessageWindow } from './types';
+import type { ConnectionStatus, Message, MessageReaction, MessageWindow } from './types';
+
+/** Minimum gap between two read-state acks for one channel (Q128). */
+export const ACK_THROTTLE_MS = 1000;
+const ackTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const lastAckAt = new Map<string, number>();
+
+const reactionKey = (r: MessageReaction) => r.emoji.name ?? r.emoji.id ?? '';
+
+/** In-flight de-duplication for keyed loads (the promise is shared until it settles). */
+const inflight = new Map<string, Promise<void>>();
+function once(key: string, run: () => Promise<void>): Promise<void> {
+  const pending = inflight.get(key);
+  if (pending) return pending;
+  const p = run().finally(() => inflight.delete(key));
+  inflight.set(key, p);
+  return p;
+}
+
+/** Optimistic reaction change; the server result is not needed to render the toggle. */
+function withReaction(m: Message, emoji: string, add: boolean): Message {
+  const list = [...(m.reactions ?? [])];
+  const i = list.findIndex((r) => reactionKey(r) === emoji);
+  const cur = list[i];
+  if (add) {
+    if (cur) list[i] = { ...cur, count: cur.count + 1, me: true };
+    else list.push({ emoji: { id: null, name: emoji }, count: 1, me: true });
+  } else if (cur) {
+    if (cur.count <= 1) list.splice(i, 1);
+    else list[i] = { ...cur, count: cur.count - 1, me: false };
+  }
+  return { ...m, reactions: list };
+}
 
 export interface StoreActions {
   setConnection: (s: ConnectionStatus) => void;
@@ -24,9 +57,18 @@ export interface StoreActions {
   loadMembers: (guildId: string) => Promise<void>;
   loadInitialMessages: (channelId: string) => Promise<void>;
   loadOlderMessages: (channelId: string) => Promise<void>;
-  sendMessage: (channelId: string, content: string) => Promise<Message>;
+  /** Optimistic send; `replyToId` makes it a reply. */
+  sendMessage: (channelId: string, content: string, replyToId?: string | null) => Promise<Message>;
   retryMessage: (channelId: string, nonce: string) => Promise<Message>;
   discardMessage: (channelId: string, nonce: string) => void;
+  editMessage: (channelId: string, messageId: string, content: string) => Promise<Message>;
+  /**
+   * Mark the channel read up to its newest loaded message. Throttled to one POST per second per
+   * channel; a call inside the window is sent once the window ends (trailing).
+   */
+  ackChannel: (channelId: string) => void;
+  /** Add or remove the signed-in user's reaction (optimistic; rolled back on failure). */
+  toggleReaction: (channelId: string, messageId: string, emoji: string) => Promise<void>;
 }
 
 export interface StoreState extends StoreData, StoreActions {
@@ -55,10 +97,15 @@ export const useStore = create<StoreState>()((set, get) => {
     return { users, messages };
   };
 
-  const deliver = async (channelId: string, content: string, nonce: string): Promise<Message> => {
+  const deliver = async (
+    channelId: string,
+    content: string,
+    nonce: string,
+    replyToId: string | null,
+  ): Promise<Message> => {
     const pid = pendingId(nonce);
     try {
-      const msg = await rest.postMessage(channelId, content, nonce);
+      const msg = await rest.postMessage(channelId, content, nonce, replyToId);
       // The gateway may already have reconciled; putServerMessage is idempotent.
       set((s) => {
         const w = s.windows[channelId];
@@ -113,19 +160,22 @@ export const useStore = create<StoreState>()((set, get) => {
       });
     },
 
-    loadGuild: async (guildId) => {
-      const [guild, channels, roles] = await Promise.all([
-        rest.fetchGuild(guildId),
-        rest.fetchChannels(guildId),
-        rest.fetchRoles(guildId),
-      ]);
-      get().applyDispatch('GUILD_CREATE', { ...guild, channels, roles });
-    },
+    // Several Lounge components may ask for the same guild in one commit: share one request.
+    loadGuild: (guildId) =>
+      once(`guild:${guildId}`, async () => {
+        const [guild, channels, roles] = await Promise.all([
+          rest.fetchGuild(guildId),
+          rest.fetchChannels(guildId),
+          rest.fetchRoles(guildId),
+        ]);
+        get().applyDispatch('GUILD_CREATE', { ...guild, channels, roles });
+      }),
 
-    loadMembers: async (guildId) => {
-      const members = await rest.fetchMembers(guildId);
-      get().applyDispatch('GUILD_MEMBERS_CHUNK', { guild_id: guildId, members });
-    },
+    loadMembers: (guildId) =>
+      once(`members:${guildId}`, async () => {
+        const members = await rest.fetchMembers(guildId);
+        get().applyDispatch('GUILD_MEMBERS_CHUNK', { guild_id: guildId, members });
+      }),
 
     loadInitialMessages: async (channelId) => {
       const w = get().windows[channelId];
@@ -194,7 +244,7 @@ export const useStore = create<StoreState>()((set, get) => {
       }
     },
 
-    sendMessage: (channelId, content) => {
+    sendMessage: (channelId, content, replyToId = null) => {
       const s = get();
       const author = s.currentUserId ? s.users[s.currentUserId] : undefined;
       if (!author) return Promise.reject(new Error('Not signed in'));
@@ -209,6 +259,7 @@ export const useStore = create<StoreState>()((set, get) => {
         content,
         timestamp: new Date().toISOString(),
         nonce,
+        ...(replyToId ? { message_reference: { message_id: replyToId } } : {}),
         local: { status: 'sending', nonce },
       };
       set((st) => {
@@ -218,7 +269,7 @@ export const useStore = create<StoreState>()((set, get) => {
           windows: { ...st.windows, [channelId]: { ...w, pending: [...w.pending, pid] } },
         };
       });
-      return deliver(channelId, content, nonce);
+      return deliver(channelId, content, nonce, replyToId);
     },
 
     retryMessage: (channelId, nonce) => {
@@ -227,7 +278,51 @@ export const useStore = create<StoreState>()((set, get) => {
       set((st) => ({
         messages: { ...st.messages, [m.id]: { ...m, local: { status: 'sending', nonce } } },
       }));
-      return deliver(channelId, m.content, nonce);
+      return deliver(channelId, m.content, nonce, m.message_reference?.message_id ?? null);
+    },
+
+    editMessage: async (channelId, messageId, content) => {
+      const msg = await rest.editMessage(channelId, messageId, content);
+      set((s) => putServerMessage(s, msg));
+      return msg;
+    },
+
+    ackChannel: (channelId) => {
+      const fire = () => {
+        ackTimers.delete(channelId);
+        lastAckAt.set(channelId, Date.now());
+        const s = get();
+        const newest = s.windows[channelId]?.ids.at(-1);
+        const read = s.readStates[channelId]?.last_message_id ?? null;
+        if (!newest || (read && cmpId(read, newest) >= 0)) return;
+        set((st) => ({
+          readStates: {
+            ...st.readStates,
+            [channelId]: { channel_id: channelId, last_message_id: newest, mention_count: 0 },
+          },
+        }));
+        rest.ackMessage(channelId, newest).catch(() => {
+          /* read state is re-sent on the next view; a failed ack is not user-visible */
+        });
+      };
+      const wait = (lastAckAt.get(channelId) ?? 0) + ACK_THROTTLE_MS - Date.now();
+      if (wait <= 0) fire();
+      else if (!ackTimers.has(channelId)) ackTimers.set(channelId, setTimeout(fire, wait));
+    },
+
+    toggleReaction: async (channelId, messageId, emoji) => {
+      const before = get().messages[messageId];
+      if (!before) return;
+      const mine = before.reactions?.some((r) => r.me && reactionKey(r) === emoji) ?? false;
+      set((s) => ({
+        messages: { ...s.messages, [messageId]: withReaction(before, emoji, !mine) },
+      }));
+      try {
+        if (mine) await rest.removeReaction(channelId, messageId, emoji);
+        else await rest.addReaction(channelId, messageId, emoji);
+      } catch {
+        set((s) => ({ messages: { ...s.messages, [messageId]: before } }));
+      }
     },
 
     discardMessage: (channelId, nonce) =>
@@ -252,5 +347,8 @@ export const useStore = create<StoreState>()((set, get) => {
 });
 
 export function resetStore(): void {
+  for (const t of ackTimers.values()) clearTimeout(t);
+  ackTimers.clear();
+  lastAckAt.clear();
   useStore.setState({ ...emptyData(), connection: 'idle' });
 }
