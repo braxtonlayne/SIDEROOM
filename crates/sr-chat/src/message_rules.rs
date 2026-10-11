@@ -459,8 +459,8 @@ fn check_pin_access(perms: Permissions, message: &Message, channel: &Channel) ->
         return Err(ChatError::UnknownMessage);
     }
     require_view(perms)?;
-    // Discord gates pinning on MANAGE_MESSAGES (a dedicated bit is not in our table yet).
-    require(perms, Permissions::MANAGE_MESSAGES)
+    // Discord 2025 split pinning out of MANAGE_MESSAGES: PIN_MESSAGES is required (Q95).
+    require(perms, Permissions::PIN_MESSAGES)
 }
 
 pub fn validate_pin(
