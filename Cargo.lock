@@ -4043,7 +4043,9 @@ name = "sr-search"
 version = "0.0.0"
 dependencies = [
  "moka",
+ "sr-chat",
  "sr-core",
+ "sr-markdown",
  "tantivy",
  "tempfile",
  "thiserror 2.0.21",

@@ -13,6 +13,7 @@
 //!   [`apply_nsfw_gate`] for NSFW channels.
 
 pub mod access;
+pub mod chat;
 pub mod error;
 pub mod members;
 pub mod messages;
