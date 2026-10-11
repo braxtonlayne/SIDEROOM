@@ -1,0 +1,13 @@
+.linear { position: relative; overflow: hidden; width: 100%; border-radius: 999px; background: var(--ui-border); }
+.bar { height: 100%; border-radius: inherit; background: var(--ui-accent); transition: width var(--ui-motion-duration, 160ms); }
+.linear.indeterminate .bar { position: absolute; width: 40%; animation: slide 1.4s ease-in-out infinite; }
+@keyframes slide { from { left: -40%; } to { left: 100%; } }
+.circular { display: inline-block; }
+.circleTrack { stroke: var(--ui-border); }
+.circleFill { stroke: var(--ui-accent); transition: stroke-dashoffset var(--ui-motion-duration, 160ms); }
+.circular.indeterminate svg { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+:global([data-reduced-motion="true"]) .bar,
+:global([data-reduced-motion="true"]) .circleFill { transition: none; }
+:global([data-reduced-motion="true"]) .linear.indeterminate .bar { animation: none; left: 30%; }
+:global([data-reduced-motion="true"]) .circular.indeterminate svg { animation: none; }

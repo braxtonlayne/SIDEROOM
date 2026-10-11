@@ -1,0 +1,18 @@
+.kbd {
+  display: inline-block;
+  min-width: 1.5em;
+  padding: 1px 6px;
+  box-sizing: border-box;
+  border: 1px solid var(--ui-border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--ui-bg-raised);
+  color: var(--ui-text);
+  font-family: var(--ui-font-mono);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  text-align: center;
+}
+.combo { display: inline-flex; align-items: center; gap: 4px; }
+.part { display: inline-flex; align-items: center; gap: 4px; }
+.plus { color: var(--ui-text-faint); font-size: 0.75rem; }

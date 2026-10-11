@@ -1,4 +1,4 @@
-import { useState, type HTMLAttributes } from "react";
+import { useState, type HTMLAttributes, type ReactNode } from "react";
 import { cx } from "../../util/cx";
 import styles from "./Avatar.module.css";
 
@@ -17,6 +17,8 @@ export interface AvatarProps extends Omit<HTMLAttributes<HTMLSpanElement>, "chil
   size?: 24 | 32 | 40 | 56 | 80;
   status?: AvatarStatus;
   speaking?: boolean;
+  /** Decoration slot: decorative overlay (frame, hat) above the image; rendered aria-hidden. */
+  decoration?: ReactNode;
 }
 
 export function initials(name: string): string {
@@ -27,7 +29,7 @@ export function initials(name: string): string {
   return (first + last).toUpperCase();
 }
 
-export function Avatar({ name, src, size = 40, status, speaking, className, style, ...rest }: AvatarProps) {
+export function Avatar({ name, src, size = 40, status, speaking, decoration, className, style, ...rest }: AvatarProps) {
   const [failed, setFailed] = useState<string | null>(null);
   const showImage = !!src && failed !== src;
   return (
@@ -42,6 +44,11 @@ export function Avatar({ name, src, size = 40, status, speaking, className, styl
       ) : (
         <span className={styles.fallback} role="img" aria-label={name}>
           {initials(name)}
+        </span>
+      )}
+      {decoration && (
+        <span className={styles.decoration} aria-hidden="true">
+          {decoration}
         </span>
       )}
       {status && (
