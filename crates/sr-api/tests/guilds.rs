@@ -76,6 +76,7 @@ fn fixture() -> Fx {
     let mut doc = openapi::base();
     doc.merge(guilds::openapi());
     let state = AppState::builder()
+        .extension(Arc::new(guilds::GuildApi(backend)))
         .bots(bots)
         .bearers(bearers)
         .clock(clock)
@@ -83,7 +84,7 @@ fn fixture() -> Fx {
         .openapi(doc)
         .build();
     Fx {
-        app: build_router(state, guilds::with_backend(backend)),
+        app: build_router(state, guilds::router()),
         repo,
         bus,
     }

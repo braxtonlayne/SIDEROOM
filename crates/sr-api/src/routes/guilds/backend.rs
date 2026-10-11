@@ -4,7 +4,7 @@
 //! so handlers talk to the object-safe [`GuildBackend`]. [`ChatBackend`] is the
 //! one implementation: it calls the service (which enforces permissions) and
 //! then publishes the matching [`DomainEvent`] on the bus. The composition root
-//! builds it with [`backend`] and installs it with [`super::with_backend`].
+//! builds it with [`backend`] and registers it as a [`super::GuildApi`] extension.
 
 use super::dto::{ChannelObject, GuildObject, MemberObject, RoleObject, UserRef};
 use async_trait::async_trait;
@@ -14,12 +14,13 @@ use sr_chat::admin_repo::{Ban, GuildAdminRepository};
 use sr_chat::admin_rules::{ChannelMove, GuildPatch, MemberPatch};
 use sr_chat::channel_rules::{ChannelPatch, NewChannel};
 use sr_chat::guild_rules::GuildBlueprint;
-use sr_chat::repo::ChatRepository;
+use sr_chat::repo::{ChatRepository, UserSummary};
 use sr_chat::role_rules::{NewRole, RolePatch};
 use sr_chat::{ChannelWithOverwrites, ChatResult, ChatService, Guild, Member, Role};
 use sr_core::permissions::{Overwrite, Permissions};
 use sr_core::{ChannelId, GuildId, RoleId, Snowflake, UserId};
 use sr_events::{DomainEvent, EventBus};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Everything the guild routes need, as one object-safe trait. The acting user
@@ -135,7 +136,10 @@ pub trait GuildBackend: Send + Sync {
         guild: GuildId,
         user: UserId,
         reason: Option<String>,
+        delete_message_seconds: u32,
     ) -> ChatResult<()>;
+    // users
+    async fn user_summaries(&self, ids: &[UserId]) -> ChatResult<Vec<UserSummary>>;
     async fn unban(&self, actor: UserId, guild: GuildId, user: UserId) -> ChatResult<()>;
 }
 
@@ -145,7 +149,7 @@ pub struct ChatBackend<R> {
     bus: Arc<dyn EventBus>,
 }
 
-/// Erase the repository type for installation with [`super::with_backend`].
+/// Erase the repository type for registration as a [`super::GuildApi`].
 pub fn backend<R>(svc: ChatService<R>, bus: Arc<dyn EventBus>) -> Arc<dyn GuildBackend>
 where
     R: ChatRepository + GuildAdminRepository + 'static,
@@ -183,11 +187,26 @@ impl<R: ChatRepository + GuildAdminRepository> ChatBackend<R> {
         }
     }
 
+    /// Display fields for event payloads; a failed lookup degrades to bare ids.
+    async fn users_of(&self, ids: &[UserId]) -> HashMap<UserId, UserSummary> {
+        match self.svc.user_summaries(ids).await {
+            Ok(v) => v.into_iter().map(|u| (u.id, u)).collect(),
+            Err(e) => {
+                tracing::warn!(error = %e, "user lookup for an event payload failed");
+                HashMap::new()
+            }
+        }
+    }
+
     async fn emit_member_updated(&self, m: &Member) {
         self.emit(DomainEvent::MemberUpdated {
             guild: m.guild_id,
             user: m.user_id,
-            payload: val(&MemberObject::new(m, true)),
+            payload: val(&MemberObject::new(
+                m,
+                true,
+                &self.users_of(&[m.user_id]).await,
+            )),
         })
         .await;
     }
@@ -478,18 +497,38 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
         guild: GuildId,
         user: UserId,
         reason: Option<String>,
+        delete_message_seconds: u32,
     ) -> ChatResult<()> {
-        let (ban, was_member) = self.svc.ban_member(actor, guild, user, reason).await?;
-        if was_member {
+        let out = self
+            .svc
+            .ban_member_purging(actor, guild, user, reason, delete_message_seconds)
+            .await?;
+        if out.was_member {
             self.emit_member_left(guild, user).await;
         }
         self.emit(DomainEvent::MemberBanned {
             guild,
             user,
-            payload: json!({ "guild_id": guild.to_string(), "user": val(&UserRef::new(ban.user_id)) }),
+            payload: json!({ "guild_id": guild.to_string(), "user": val(&UserRef::new(out.ban.user_id)) }),
         })
         .await;
+        // One bulk-delete dispatch per channel that lost messages (open question 158).
+        for (channel, ids) in out.purged {
+            if ids.is_empty() {
+                continue;
+            }
+            self.emit(DomainEvent::MessagesBulkDeleted {
+                guild: Some(guild),
+                channel,
+                message_ids: ids.iter().map(|m| m.get()).collect(),
+            })
+            .await;
+        }
         Ok(())
+    }
+
+    async fn user_summaries(&self, ids: &[UserId]) -> ChatResult<Vec<UserSummary>> {
+        self.svc.user_summaries(ids).await
     }
 
     async fn unban(&self, actor: UserId, guild: GuildId, user: UserId) -> ChatResult<()> {

@@ -16,7 +16,7 @@ use crate::repo::ChatRepository;
 use crate::role_rules::{self, RolePatch};
 use crate::service::ChatService;
 use sr_core::permissions::{Overwrite, OverwriteKind, Permissions};
-use sr_core::{ChannelId, GuildId, RoleId, Snowflake, UserId};
+use sr_core::{ChannelId, GuildId, MessageId, RoleId, Snowflake, UserId};
 
 /// Page size bounds for member and ban listings (Discord: 1..=1000).
 pub const MAX_PAGE: usize = 1000;
@@ -487,6 +487,21 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
         user: UserId,
         reason: Option<String>,
     ) -> ChatResult<(Ban, bool)> {
+        let out = self.ban_member_purging(actor, id, user, reason, 0).await?;
+        Ok((out.ban, out.was_member))
+    }
+
+    /// [`Self::ban_member`] that also bulk-hides the user's messages from the last
+    /// `delete_message_seconds` (open question 158, D-121). The hidden ids per
+    /// channel come back for the caller's `MESSAGE_DELETE_BULK` dispatch.
+    pub async fn ban_member_purging(
+        &self,
+        actor: UserId,
+        id: GuildId,
+        user: UserId,
+        reason: Option<String>,
+        delete_message_seconds: u32,
+    ) -> ChatResult<BanOutcome> {
         let c = self.ctx(actor, id).await?;
         let reason = admin_rules::validate_ban_reason(reason)?;
         let was_member = match self.repo.get_member(id, user).await? {
@@ -515,7 +530,33 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
             created_at_ms: self.now(),
         };
         self.repo.insert_ban(&ban).await?;
-        Ok((ban, was_member))
+        let mut purged = Vec::new();
+        if delete_message_seconds > 0 {
+            let channels: Vec<ChannelId> = self
+                .repo
+                .list_guild_channels(id)
+                .await?
+                .into_iter()
+                .map(|ch| ch.id)
+                .collect();
+            let now = self.now();
+            let since = now - i64::from(delete_message_seconds) * 1000;
+            purged = self
+                .repo
+                .hide_user_messages(
+                    user,
+                    &channels,
+                    since,
+                    now,
+                    now + self.limits.purge_after_ms,
+                )
+                .await?;
+        }
+        Ok(BanOutcome {
+            ban,
+            was_member,
+            purged,
+        })
     }
 
     pub async fn unban(&self, actor: UserId, id: GuildId, user: UserId) -> ChatResult<()> {
@@ -527,5 +568,27 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
             return Err(ChatError::UnknownBan);
         }
         Ok(())
+    }
+}
+
+/// Result of [`ChatService::ban_member_purging`].
+#[derive(Debug, Clone)]
+pub struct BanOutcome {
+    pub ban: Ban,
+    pub was_member: bool,
+    /// Hidden message ids per channel (empty unless messages were purged).
+    pub purged: Vec<(ChannelId, Vec<MessageId>)>,
+}
+
+impl<R: ChatRepository> ChatService<R> {
+    /// Display fields for member, ban and message objects (open question 157).
+    pub async fn user_summaries(
+        &self,
+        ids: &[UserId],
+    ) -> ChatResult<Vec<crate::repo::UserSummary>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        Ok(self.repo.users(ids).await?)
     }
 }

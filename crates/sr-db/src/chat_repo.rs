@@ -14,9 +14,14 @@ use sr_chat::domain::{
 use sr_chat::error::RepoError;
 use sr_chat::guild_rules::GuildBlueprint;
 use sr_chat::message_rules::{DeletePlan, EditPlan};
-use sr_chat::repo::{ChannelRepository, GuildRepository, MessageRepository, RepoResult};
+use sr_chat::repo::{
+    Attachment, ChannelRepository, EmojiKey, GuildRepository, MessageRepository, MessageStore,
+    Page, ReactionSummary, RepoResult, StoreError, StoreResult, UploadState, UserLookup,
+    UserSummary,
+};
 use sr_core::permissions::{Overwrite, OverwriteKind, Permissions};
 use sr_core::{AttachmentId, ChannelId, GuildId, MessageId, RoleId, Snowflake, UserId};
+use std::collections::HashMap;
 
 /// Postgres-backed chat repository.
 #[derive(Clone)]
@@ -143,11 +148,18 @@ fn channel_from(r: &PgRow) -> RepoResult<Channel> {
 const MSG_COLS: &str = "id, channel_id, guild_id, author_id, type, content, flags, \
     (extract(epoch FROM edited_at) * 1000)::bigint AS edited_ms, reference, \
     COALESCE((SELECT array_agg(a.id) FROM attachments a WHERE a.message_id = messages.id), '{}') AS attachment_ids, \
-    jsonb_array_length(embeds) AS embed_count, sticker_ids, (poll IS NOT NULL) AS has_poll, \
+    embeds, components, poll, sticker_ids, \
     mention_everyone, mention_user_ids, mention_role_ids, mention_channel_ids, pinned, \
     visibility::text AS visibility, \
     (extract(epoch FROM deleted_at) * 1000)::bigint AS deleted_ms, \
     (extract(epoch FROM purge_after) * 1000)::bigint AS purge_ms, hold_id";
+
+/// A jsonb array column decoded into `T`; malformed rows yield an empty list rather
+/// than failing the read (the write path always stores valid payloads).
+fn json_vec<T: for<'de> serde::Deserialize<'de>>(r: &PgRow, name: &str) -> RepoResult<Vec<T>> {
+    let v: serde_json::Value = r.try_get(name).map_err(db)?;
+    Ok(serde_json::from_value(v).unwrap_or_default())
+}
 
 fn message_from(r: &PgRow) -> RepoResult<Message> {
     let ids = |name: &str| -> RepoResult<Vec<u64>> {
@@ -185,10 +197,13 @@ fn message_from(r: &PgRow) -> RepoResult<Message> {
             .into_iter()
             .map(AttachmentId::new)
             .collect(),
-        embed_count: u8::try_from(r.try_get::<i32, _>("embed_count").map_err(db)?)
-            .unwrap_or(u8::MAX),
+        embeds: json_vec(r, "embeds")?,
+        components: json_vec(r, "components")?,
+        poll: r
+            .try_get::<Option<serde_json::Value>, _>("poll")
+            .map_err(db)?
+            .and_then(|v| serde_json::from_value(v).ok()),
         sticker_ids: ids("sticker_ids")?,
-        has_poll: r.try_get("has_poll").map_err(db)?,
         mention_everyone: r.try_get("mention_everyone").map_err(db)?,
         mention_user_ids: ids("mention_user_ids")?
             .into_iter()
@@ -583,15 +598,21 @@ impl MessageRepository for PgChatRepo {
                 "channel_id": r.channel_id.to_string(),
             })
         });
+        let embeds = serde_json::to_value(&m.embeds).map_err(|e| RepoError(e.to_string()))?;
+        let components =
+            serde_json::to_value(&m.components).map_err(|e| RepoError(e.to_string()))?;
+        let poll = m
+            .poll
+            .as_ref()
+            .map(serde_json::to_value)
+            .transpose()
+            .map_err(|e| RepoError(e.to_string()))?;
         let mut tx = self.pool.begin().await.map_err(db)?;
-        // Embed and poll payloads are not part of the domain type yet: embeds are
-        // stored empty and a poll as an empty object (see docs/open-questions.md).
         sqlx::query(
             "INSERT INTO messages (id, channel_id, guild_id, author_id, type, content, flags, \
-             reference, sticker_ids, poll, mention_everyone, mention_user_ids, mention_role_ids, \
-             mention_channel_ids, pinned) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, \
-             CASE WHEN $10 THEN '{}'::jsonb END, $11, $12, $13, $14, $15)",
+             reference, embeds, components, sticker_ids, poll, mention_everyone, \
+             mention_user_ids, mention_role_ids, mention_channel_ids, pinned) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)",
         )
         .bind(i(m.id.get()))
         .bind(i(m.channel_id.get()))
@@ -601,8 +622,10 @@ impl MessageRepository for PgChatRepo {
         .bind(&m.content)
         .bind(i32::try_from(m.flags).unwrap_or(0))
         .bind(reference)
+        .bind(embeds)
+        .bind(components)
         .bind(m.sticker_ids.iter().map(|s| i(*s)).collect::<Vec<_>>())
-        .bind(m.has_poll)
+        .bind(poll)
         .bind(m.mention_everyone)
         .bind(ids_i64(&m.mention_user_ids, UserId::get))
         .bind(ids_i64(&m.mention_role_ids, RoleId::get))
@@ -685,7 +708,7 @@ impl MessageRepository for PgChatRepo {
     async fn last_sent_ms(&self, channel: ChannelId, user: UserId) -> RepoResult<Option<i64>> {
         // Snowflake ids sort by time, so the newest id carries the send time.
         let id: Option<i64> = sqlx::query_scalar(
-            "SELECT max(id) FROM messages WHERE channel_id = $1 AND author_id = $2",
+            "SELECT max(id) FROM messages WHERE channel_id = $1 AND author_id = $2 AND type IN (0, 19)",
         )
         .bind(i(channel.get()))
         .bind(i(user.get()))
@@ -702,6 +725,60 @@ impl MessageRepository for PgChatRepo {
             .await
             .map_err(db)?;
         Ok(usize::try_from(n).unwrap_or(0))
+    }
+
+    async fn hide_user_messages(
+        &self,
+        author: UserId,
+        channels: &[ChannelId],
+        since_ms: i64,
+        now_ms: i64,
+        purge_after_ms: i64,
+    ) -> RepoResult<Vec<(ChannelId, Vec<MessageId>)>> {
+        let channel_ids: Vec<i64> = channels.iter().map(|c| i(c.get())).collect();
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        // Pins of the hidden messages go first; the message row keeps its pinned flag
+        // cleared by the update below.
+        sqlx::query(
+            "DELETE FROM pins WHERE message_id IN ( \
+                SELECT id FROM messages \
+                WHERE author_id = $1 AND channel_id = ANY($2) AND visibility = 'visible' \
+                  AND id >= sr_snowflake_floor(to_timestamp($3::double precision / 1000.0)))",
+        )
+        .bind(i(author.get()))
+        .bind(&channel_ids)
+        .bind(since_ms)
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
+        let rows = sqlx::query(
+            "UPDATE messages SET visibility = 'user_deleted', pinned = FALSE, \
+             deleted_at = to_timestamp($4::double precision / 1000.0), \
+             purge_after = CASE WHEN hold_id IS NULL \
+                 THEN to_timestamp($5::double precision / 1000.0) END \
+             WHERE author_id = $1 AND channel_id = ANY($2) AND visibility = 'visible' \
+               AND id >= sr_snowflake_floor(to_timestamp($3::double precision / 1000.0)) \
+             RETURNING id, channel_id",
+        )
+        .bind(i(author.get()))
+        .bind(&channel_ids)
+        .bind(since_ms)
+        .bind(now_ms)
+        .bind(purge_after_ms)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(db)?;
+        tx.commit().await.map_err(db)?;
+        let mut out: Vec<(ChannelId, Vec<MessageId>)> =
+            channels.iter().map(|c| (*c, Vec::new())).collect();
+        for r in &rows {
+            let id = MessageId::new(u(r.try_get("id").map_err(db)?));
+            let ch = ChannelId::new(u(r.try_get("channel_id").map_err(db)?));
+            if let Some(slot) = out.iter_mut().find(|(c, _)| *c == ch) {
+                slot.1.push(id);
+            }
+        }
+        Ok(out)
     }
 
     async fn set_pinned(
@@ -742,4 +819,424 @@ impl MessageRepository for PgChatRepo {
             .map_err(db)?;
         tx.commit().await.map_err(db)
     }
+}
+
+/// Discord's attachment spoiler flag, kept in `attachments.flags`.
+pub const ATTACHMENT_SPOILER_FLAG: i32 = 1 << 3;
+
+const ATTACHMENT_COLS: &str = "id, channel_id, uploader_id, filename, size_bytes, storage_key, \
+    declared_content_type, content_type, description, flags, message_id, \
+    state::text AS state, (extract(epoch FROM expires_at) * 1000)::bigint AS expires_ms, \
+    (extract(epoch FROM created_at) * 1000)::bigint AS created_ms";
+
+fn attachment_from(r: &PgRow) -> Result<Attachment, sqlx::Error> {
+    let message_id: Option<i64> = r.try_get("message_id")?;
+    let state_text: String = r.try_get("state")?;
+    let state = match (message_id, state_text.as_str()) {
+        (Some(_), _) => UploadState::Attached,
+        (None, "pending") => UploadState::Pending,
+        (None, _) => UploadState::Ready,
+    };
+    let flags: i32 = r.try_get("flags")?;
+    Ok(Attachment {
+        id: AttachmentId::new(u(r.try_get("id")?)),
+        channel_id: ChannelId::new(u(r.try_get::<Option<i64>, _>("channel_id")?.unwrap_or(0))),
+        uploader: UserId::new(u(r.try_get("uploader_id")?)),
+        filename: r.try_get("filename")?,
+        size: u(r.try_get("size_bytes")?),
+        key: r.try_get("storage_key")?,
+        declared_content_type: r.try_get("declared_content_type")?,
+        content_type: r.try_get("content_type")?,
+        description: r.try_get("description")?,
+        spoiler: flags & ATTACHMENT_SPOILER_FLAG != 0,
+        state,
+        message_id: message_id.map(|m| MessageId::new(u(m))),
+        expires_at_ms: r.try_get("expires_ms")?,
+        created_at_ms: r.try_get("created_ms")?,
+    })
+}
+
+fn sdb(e: sqlx::Error) -> StoreError {
+    StoreError(e.to_string())
+}
+
+fn upload_state_text(s: UploadState) -> &'static str {
+    match s {
+        UploadState::Pending => "pending",
+        UploadState::Ready | UploadState::Attached => "ready",
+    }
+}
+
+/// Postgres-backed [`MessageStore`]: history paging, nonces, pins, reactions and
+/// attachment rows (open question 148). Tests are `#[ignore]` and need
+/// `SR_TEST_DATABASE_URL`.
+#[derive(Clone)]
+pub struct PgMessageStore {
+    pool: PgPool,
+}
+
+impl PgMessageStore {
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
+    }
+}
+
+#[async_trait]
+impl MessageStore for PgMessageStore {
+    async fn fetch(&self, channel: ChannelId, page: Page) -> StoreResult<Vec<Message>> {
+        let order = if page.ascending { "ASC" } else { "DESC" };
+        let sql = format!(
+            "SELECT {MSG_COLS} FROM messages WHERE channel_id = $1 AND visibility = 'visible' \
+             AND ($2::bigint IS NULL OR id < $2) AND ($3::bigint IS NULL OR id > $3) \
+             ORDER BY id {order} LIMIT $4"
+        );
+        let rows = sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(i(channel.get()))
+            .bind(page.before.map(|m| i(m.get())))
+            .bind(page.after.map(|m| i(m.get())))
+            .bind(i64::try_from(page.limit).unwrap_or(i64::MAX))
+            .fetch_all(&self.pool)
+            .await
+            .map_err(sdb)?;
+        rows.iter()
+            .map(|r| message_from(r).map_err(StoreError::from))
+            .collect()
+    }
+
+    async fn list_pins(&self, channel: ChannelId) -> StoreResult<Vec<(Message, i64)>> {
+        let sql = format!(
+            "SELECT {MSG_COLS}, (SELECT (extract(epoch FROM p.pinned_at) * 1000)::bigint \
+             FROM pins p WHERE p.channel_id = messages.channel_id \
+             AND p.message_id = messages.id) AS pinned_ms \
+             FROM messages WHERE channel_id = $1 AND visibility = 'visible' AND pinned \
+             ORDER BY pinned_ms DESC NULLS LAST"
+        );
+        let rows = sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(i(channel.get()))
+            .fetch_all(&self.pool)
+            .await
+            .map_err(sdb)?;
+        rows.iter()
+            .map(|r| {
+                let m = message_from(r).map_err(StoreError::from)?;
+                let at: i64 = r.try_get("pinned_ms").map_err(sdb)?;
+                Ok((m, at))
+            })
+            .collect()
+    }
+
+    async fn find_nonce(
+        &self,
+        channel: ChannelId,
+        author: UserId,
+        nonce: &str,
+        since_ms: i64,
+    ) -> StoreResult<Option<MessageId>> {
+        let id: Option<i64> = sqlx::query_scalar(
+            "SELECT id FROM messages WHERE channel_id = $1 AND author_id = $2 AND nonce = $3 \
+             AND id >= sr_snowflake_floor(to_timestamp($4::double precision / 1000.0)) \
+             ORDER BY id DESC LIMIT 1",
+        )
+        .bind(i(channel.get()))
+        .bind(i(author.get()))
+        .bind(nonce)
+        .bind(since_ms)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(sdb)?;
+        Ok(id.map(|v| MessageId::new(u(v))))
+    }
+
+    async fn put_nonce(
+        &self,
+        channel: ChannelId,
+        _author: UserId,
+        nonce: &str,
+        message: MessageId,
+        _now_ms: i64,
+    ) -> StoreResult<()> {
+        sqlx::query("UPDATE messages SET nonce = $3 WHERE channel_id = $1 AND id = $2")
+            .bind(i(channel.get()))
+            .bind(i(message.get()))
+            .bind(nonce)
+            .execute(&self.pool)
+            .await
+            .map_err(sdb)?;
+        Ok(())
+    }
+
+    async fn nonce_of(&self, message: MessageId) -> StoreResult<Option<String>> {
+        let v: Option<Option<String>> =
+            sqlx::query_scalar("SELECT nonce FROM messages WHERE id = $1")
+                .bind(i(message.get()))
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(sdb)?;
+        Ok(v.flatten())
+    }
+
+    async fn add_reaction(
+        &self,
+        _channel: ChannelId,
+        message: MessageId,
+        user: UserId,
+        emoji: &EmojiKey,
+        now_ms: i64,
+    ) -> StoreResult<bool> {
+        let res = sqlx::query(
+            "INSERT INTO reactions (message_id, emoji_key, user_id, created_at) \
+             VALUES ($1, $2, $3, to_timestamp($4::double precision / 1000.0)) \
+             ON CONFLICT DO NOTHING",
+        )
+        .bind(i(message.get()))
+        .bind(emoji.key())
+        .bind(i(user.get()))
+        .bind(now_ms)
+        .execute(&self.pool)
+        .await
+        .map_err(sdb)?;
+        Ok(res.rows_affected() == 1)
+    }
+
+    async fn remove_reaction(
+        &self,
+        message: MessageId,
+        user: UserId,
+        emoji: &EmojiKey,
+    ) -> StoreResult<bool> {
+        let res = sqlx::query(
+            "DELETE FROM reactions WHERE message_id = $1 AND emoji_key = $2 AND user_id = $3",
+        )
+        .bind(i(message.get()))
+        .bind(emoji.key())
+        .bind(i(user.get()))
+        .execute(&self.pool)
+        .await
+        .map_err(sdb)?;
+        Ok(res.rows_affected() > 0)
+    }
+
+    async fn clear_reactions(&self, message: MessageId) -> StoreResult<()> {
+        sqlx::query("DELETE FROM reactions WHERE message_id = $1")
+            .bind(i(message.get()))
+            .execute(&self.pool)
+            .await
+            .map_err(sdb)?;
+        Ok(())
+    }
+
+    async fn clear_emoji(&self, message: MessageId, emoji: &EmojiKey) -> StoreResult<bool> {
+        let res = sqlx::query("DELETE FROM reactions WHERE message_id = $1 AND emoji_key = $2")
+            .bind(i(message.get()))
+            .bind(emoji.key())
+            .execute(&self.pool)
+            .await
+            .map_err(sdb)?;
+        Ok(res.rows_affected() > 0)
+    }
+
+    async fn reactions_for(
+        &self,
+        messages: &[MessageId],
+        viewer: UserId,
+    ) -> StoreResult<HashMap<MessageId, Vec<ReactionSummary>>> {
+        let ids: Vec<i64> = messages.iter().map(|m| i(m.get())).collect();
+        let rows = sqlx::query(
+            "SELECT message_id, emoji_key, count(*) AS n, bool_or(user_id = $2) AS me \
+             FROM reactions WHERE message_id = ANY($1) \
+             GROUP BY message_id, emoji_key ORDER BY message_id, min(created_at), emoji_key",
+        )
+        .bind(ids)
+        .bind(i(viewer.get()))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(sdb)?;
+        let mut out: HashMap<MessageId, Vec<ReactionSummary>> = HashMap::new();
+        for r in &rows {
+            let key: String = r.try_get("emoji_key").map_err(sdb)?;
+            let Some(emoji) = EmojiKey::parse(&key) else {
+                continue;
+            };
+            let mid = MessageId::new(u(r.try_get("message_id").map_err(sdb)?));
+            let n: i64 = r.try_get("n").map_err(sdb)?;
+            out.entry(mid).or_default().push(ReactionSummary {
+                emoji,
+                count: u32::try_from(n).unwrap_or(u32::MAX),
+                me: r.try_get("me").map_err(sdb)?,
+            });
+        }
+        Ok(out)
+    }
+
+    async fn reaction_users(
+        &self,
+        message: MessageId,
+        emoji: &EmojiKey,
+        after: Option<UserId>,
+        limit: usize,
+    ) -> StoreResult<Vec<UserId>> {
+        let rows: Vec<i64> = sqlx::query_scalar(
+            "SELECT user_id FROM reactions WHERE message_id = $1 AND emoji_key = $2 \
+             AND ($3::bigint IS NULL OR user_id > $3) ORDER BY user_id LIMIT $4",
+        )
+        .bind(i(message.get()))
+        .bind(emoji.key())
+        .bind(after.map(|u| i(u.get())))
+        .bind(i64::try_from(limit).unwrap_or(i64::MAX))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(sdb)?;
+        Ok(rows.into_iter().map(|v| UserId::new(u(v))).collect())
+    }
+
+    async fn insert_attachment(&self, a: &Attachment) -> StoreResult<()> {
+        let expires_secs = a.expires_at_ms.map(|ms| ms as f64 / 1000.0);
+        sqlx::query(
+            "INSERT INTO attachments (id, channel_id, uploader_id, filename, size_bytes, \
+             storage_key, declared_content_type, content_type, description, flags, is_large, \
+             expires_at, state) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, \
+             to_timestamp($12::double precision), $13::attachment_state)",
+        )
+        .bind(i(a.id.get()))
+        .bind(i(a.channel_id.get()))
+        .bind(i(a.uploader.get()))
+        .bind(&a.filename)
+        .bind(i64::try_from(a.size).unwrap_or(i64::MAX))
+        .bind(&a.key)
+        .bind(a.declared_content_type.as_deref())
+        .bind(a.content_type.as_deref())
+        .bind(a.description.as_deref())
+        .bind(if a.spoiler {
+            ATTACHMENT_SPOILER_FLAG
+        } else {
+            0
+        })
+        .bind(a.expires_at_ms.is_some())
+        .bind(expires_secs)
+        .bind(upload_state_text(a.state))
+        .execute(&self.pool)
+        .await
+        .map_err(sdb)?;
+        Ok(())
+    }
+
+    async fn get_attachments(&self, ids: &[AttachmentId]) -> StoreResult<Vec<Attachment>> {
+        let ids: Vec<i64> = ids.iter().map(|a| i(a.get())).collect();
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT {ATTACHMENT_COLS} FROM attachments WHERE id = ANY($1)"
+        )))
+        .bind(ids)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(sdb)?;
+        rows.iter()
+            .map(|r| attachment_from(r).map_err(sdb))
+            .collect()
+    }
+
+    async fn update_attachment(&self, a: &Attachment) -> StoreResult<()> {
+        let expires_secs = a.expires_at_ms.map(|ms| ms as f64 / 1000.0);
+        sqlx::query(
+            "UPDATE attachments SET message_id = $2, state = $3::attachment_state, \
+             description = $4, content_type = $5, flags = $6, \
+             expires_at = to_timestamp($7::double precision), updated_at = now() \
+             WHERE id = $1",
+        )
+        .bind(i(a.id.get()))
+        .bind(a.message_id.map(|m| i(m.get())))
+        .bind(upload_state_text(a.state))
+        .bind(a.description.as_deref())
+        .bind(a.content_type.as_deref())
+        .bind(if a.spoiler {
+            ATTACHMENT_SPOILER_FLAG
+        } else {
+            0
+        })
+        .bind(expires_secs)
+        .execute(&self.pool)
+        .await
+        .map_err(sdb)?;
+        Ok(())
+    }
+
+    async fn attachments_of(
+        &self,
+        messages: &[MessageId],
+    ) -> StoreResult<HashMap<MessageId, Vec<Attachment>>> {
+        let ids: Vec<i64> = messages.iter().map(|m| i(m.get())).collect();
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT {ATTACHMENT_COLS} FROM attachments WHERE message_id = ANY($1) ORDER BY id"
+        )))
+        .bind(ids)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(sdb)?;
+        let mut out: HashMap<MessageId, Vec<Attachment>> = HashMap::new();
+        for r in &rows {
+            let a = attachment_from(r).map_err(sdb)?;
+            if let Some(m) = a.message_id {
+                out.entry(m).or_default().push(a);
+            }
+        }
+        Ok(out)
+    }
+}
+
+#[async_trait]
+impl UserLookup for PgChatRepo {
+    async fn users(&self, ids: &[UserId]) -> RepoResult<Vec<UserSummary>> {
+        let ids: Vec<i64> = ids.iter().map(|u| i(u.get())).collect();
+        let rows = sqlx::query(
+            "SELECT id, username::text AS username, display_name, avatar_key \
+             FROM accounts WHERE id = ANY($1)",
+        )
+        .bind(ids)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        let mut out = Vec::with_capacity(rows.len());
+        for r in &rows {
+            out.push(UserSummary {
+                id: UserId::new(u(r.try_get("id").map_err(db)?)),
+                username: r.try_get("username").map_err(db)?,
+                display_name: r.try_get("display_name").map_err(db)?,
+                avatar_key: r.try_get("avatar_key").map_err(db)?,
+            });
+        }
+        Ok(out)
+    }
+}
+
+/// Upload slots still pending after `cutoff_ms` (Unix ms) that no message references
+/// (open question 153). Returns the id and storage key of each.
+pub async fn stale_pending_attachments(
+    pool: &PgPool,
+    cutoff_ms: i64,
+    limit: i64,
+) -> crate::DbResult<Vec<(AttachmentId, String)>> {
+    let rows: Vec<(i64, String)> = sqlx::query_as(
+        "SELECT id, storage_key FROM attachments \
+         WHERE state = 'pending' AND message_id IS NULL \
+           AND created_at < to_timestamp($1::double precision / 1000.0) \
+         ORDER BY created_at LIMIT $2",
+    )
+    .bind(cutoff_ms)
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(id, key)| (AttachmentId::new(u(id)), key))
+        .collect())
+}
+
+/// Delete attachment rows by id; returns how many were removed.
+pub async fn delete_attachment_rows(pool: &PgPool, ids: &[AttachmentId]) -> crate::DbResult<u64> {
+    let ids: Vec<i64> = ids.iter().map(|a| i(a.get())).collect();
+    let res = sqlx::query("DELETE FROM attachments WHERE id = ANY($1) AND message_id IS NULL")
+        .bind(ids)
+        .execute(pool)
+        .await?;
+    Ok(res.rows_affected())
 }

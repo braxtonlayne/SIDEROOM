@@ -67,7 +67,8 @@ pub trait MessageRepository: Send + Sync {
     ) -> RepoResult<()>;
     /// Bulk-hide `author`'s visible messages in `channels` created at or after
     /// `since_ms`, as `user_deleted` (D-121). Returns the hidden ids per channel
-    /// (open question 158). Held messages keep `purge_after` unset (D-122).
+    /// (open question 158). `purge_after_ms` is an absolute time; held messages keep
+    /// `purge_after` unset (D-122).
     async fn hide_user_messages(
         &self,
         author: UserId,
@@ -79,8 +80,11 @@ pub trait MessageRepository: Send + Sync {
 }
 
 /// Everything the service needs.
-pub trait ChatRepository: GuildRepository + ChannelRepository + MessageRepository {}
-impl<T: GuildRepository + ChannelRepository + MessageRepository> ChatRepository for T {}
+pub trait ChatRepository:
+    GuildRepository + ChannelRepository + MessageRepository + UserLookup
+{
+}
+impl<T: GuildRepository + ChannelRepository + MessageRepository + UserLookup> ChatRepository for T {}
 
 /// Summary of a user account as embedded in guild and message objects (open
 /// question 157).

@@ -5,11 +5,12 @@
 //!
 //! ```ignore
 //! let svc = ChatService::new(PgChatRepo::new(pool), clock, ids, ChatLimits::default());
-//! let guilds = guilds::with_backend(guilds::backend::backend(svc, bus.clone()));
+//! let guilds = guilds::GuildApi(guilds::backend::backend(svc, bus.clone()));
 //! let state = AppState::builder()
 //!     .openapi({ let mut d = openapi::base(); d.merge(guilds::openapi()); d })
+//!     .extension(Arc::new(guilds))
 //!     .build();
-//! let app = build_router(state, guilds);
+//! let app = build_router(state, guilds::router());
 //! ```
 //!
 //! All permission decisions are made inside `sr-chat`; handlers only translate
@@ -26,15 +27,14 @@ pub mod roles;
 pub mod util;
 
 use crate::state::AppState;
-use axum::{Extension, Router};
-use std::sync::Arc;
+use axum::Router;
 use utoipa::OpenApi;
 
 pub use backend::GuildBackend;
 pub use util::GuildApi;
 
-/// All guild routes (relative to `/api/v1`). Handlers need a [`GuildBackend`]:
-/// install it with [`with_backend`] (or `.layer(Extension(GuildApi(..)))`).
+/// All guild routes (relative to `/api/v1`). Handlers need a [`GuildApi`] registered
+/// on the [`AppState`].
 pub fn router() -> Router<AppState> {
     Router::new()
         .merge(guild::routes())
@@ -42,11 +42,6 @@ pub fn router() -> Router<AppState> {
         .merge(roles::routes())
         .merge(members::routes())
         .merge(bans::routes())
-}
-
-/// [`router`] with the backend installed.
-pub fn with_backend(backend: Arc<dyn GuildBackend>) -> Router<AppState> {
-    router().layer(Extension(GuildApi(backend)))
 }
 
 /// OpenAPI fragment for these routes; merge it into [`crate::openapi::base`].

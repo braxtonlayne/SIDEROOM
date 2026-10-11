@@ -12,6 +12,8 @@ use sr_db::jobs::{self, Job};
 use sr_db::partitions;
 use sr_db::runner::{HandlerError, JobRunner};
 use sr_db::{DbResult, PgPool};
+use sr_storage::ObjectStorage;
+use std::sync::Arc;
 
 /// Reserved singleton id for `db.partitions.ensure`.
 pub const PARTITIONS_JOB_ID: i64 = 1;
@@ -130,6 +132,68 @@ pub async fn schedule_recurring(pool: &PgPool) -> DbResult<()> {
     Ok(())
 }
 
+/// Reserved singleton id for `attachments.gc_unreferenced`.
+pub const ATTACHMENT_GC_JOB_ID: i64 = 3;
+/// Kind of the hourly sweep of abandoned upload slots (open question 153).
+pub const ATTACHMENT_GC_KIND: &str = "attachments.gc_unreferenced";
+const ATTACHMENT_GC_INTERVAL: Duration = Duration::from_secs(3600);
+/// Pending slots older than this are abandoned.
+const ATTACHMENT_GC_AGE_MS: i64 = 24 * 60 * 60 * 1000;
+const ATTACHMENT_GC_BATCH: i64 = 500;
+
+/// Deletes pending upload slots older than 24 hours and their stored objects. An
+/// object that fails to delete keeps its row, so the next run retries it.
+async fn attachment_gc_handler(
+    pool: PgPool,
+    storage: Arc<dyn ObjectStorage>,
+    job: Job,
+) -> Result<(), HandlerError> {
+    let cutoff = now_unix_ms() - ATTACHMENT_GC_AGE_MS;
+    let stale =
+        sr_db::chat_repo::stale_pending_attachments(&pool, cutoff, ATTACHMENT_GC_BATCH).await?;
+    let mut removable = Vec::with_capacity(stale.len());
+    for (id, key) in stale {
+        match storage.delete(&key).await {
+            Ok(()) => removable.push(id),
+            Err(e) => {
+                tracing::warn!(error = %e, key = %key, "deleting an abandoned upload failed; retrying later");
+            }
+        }
+    }
+    let removed = sr_db::chat_repo::delete_attachment_rows(&pool, &removable).await?;
+    if removed > 0 {
+        tracing::info!(removed, "garbage-collected abandoned uploads");
+    }
+    jobs::reschedule_running(&pool, job.id, ATTACHMENT_GC_INTERVAL).await?;
+    Ok(())
+}
+
+/// Register the attachment sweep on `runner`. It needs the object store, so it is
+/// separate from [`register`]. Pair with [`schedule_attachment_gc`].
+pub fn register_attachment_gc(
+    runner: JobRunner,
+    pool: &PgPool,
+    storage: Arc<dyn ObjectStorage>,
+) -> JobRunner {
+    let pool = pool.clone();
+    runner.register(ATTACHMENT_GC_KIND, 1, move |job| {
+        Box::pin(attachment_gc_handler(pool.clone(), storage.clone(), job))
+    })
+}
+
+/// Create or re-arm the attachment sweep singleton. Call only when
+/// [`register_attachment_gc`] is on the runner, or the job is dead-lettered.
+pub async fn schedule_attachment_gc(pool: &PgPool) -> DbResult<()> {
+    jobs::schedule_singleton(
+        pool,
+        ATTACHMENT_GC_JOB_ID,
+        ATTACHMENT_GC_KIND,
+        &json!({}),
+        Duration::ZERO,
+    )
+    .await?;
+    Ok(())
+}
 #[cfg(test)]
 mod tests {
     use super::*;

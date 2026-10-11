@@ -1,7 +1,7 @@
 //! Guild bans: list, get, create, remove.
 
 use super::dto::{BanBody, BanObject};
-use super::util::{Api, actor, ce, id};
+use super::util::{Api, actor, ce, id, users_for};
 use crate::{HttpError, Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
 use axum::{
     Json, Router,
@@ -67,7 +67,10 @@ pub async fn list_bans(
         .list_bans(user, gid, before, after, q.limit.unwrap_or(1000))
         .await
         .map_err(ce)?;
-    Ok(Json(bans.iter().map(BanObject::from).collect()))
+    let users = users_for(&*api, bans.iter().map(|b| b.user_id)).await?;
+    Ok(Json(
+        bans.iter().map(|b| BanObject::new(b, &users)).collect(),
+    ))
 }
 
 /// Get one ban (`BAN_MEMBERS`).
@@ -90,7 +93,8 @@ pub async fn get_ban(
     let gid: GuildId = id("guild_id", &guild_id)?;
     let uid: UserId = id("user_id", &user_id)?;
     let ban = api.get_ban(actor, gid, uid).await.map_err(ce)?;
-    Ok(Json(BanObject::from(&ban)))
+    let users = users_for(&*api, [ban.user_id]).await?;
+    Ok(Json(BanObject::new(&ban, &users)))
 }
 
 /// Ban a user (member or not). The reason comes from `X-Audit-Log-Reason` or the body.
@@ -132,9 +136,19 @@ pub async fn create_ban(
         .get("x-audit-log-reason")
         .and_then(|v| v.to_str().ok())
         .map(str::to_owned);
-    api.ban_member(actor, gid, uid, header_reason.or(body.reason))
-        .await
-        .map_err(ce)?;
+    let delete_seconds = body
+        .delete_message_seconds
+        .or(body.delete_message_days.map(|d| d * 86_400))
+        .unwrap_or(0);
+    api.ban_member(
+        actor,
+        gid,
+        uid,
+        header_reason.or(body.reason),
+        delete_seconds,
+    )
+    .await
+    .map_err(ce)?;
     Ok(StatusCode::NO_CONTENT)
 }
 

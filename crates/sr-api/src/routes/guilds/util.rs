@@ -1,18 +1,22 @@
 //! Shared handler plumbing: backend extractor, id/permission parsing, error mapping.
 
 use super::backend::GuildBackend;
+use crate::routes::Ext;
 use crate::{AuthKind, HttpError, Principal, state::AppState};
 use axum::{extract::FromRequestParts, http::request::Parts};
 use sr_chat::ChatError;
+use sr_chat::repo::UserSummary;
 use sr_core::permissions::Permissions;
 use sr_core::{ApiError, ErrorCode, UserId};
+use std::collections::HashMap;
 use std::{str::FromStr, sync::Arc};
 
-/// Installed as a request extension by [`super::with_backend`].
+/// Registered on [`AppState`] by the composition root
+/// (`.extension(Arc::new(GuildApi(..)))`).
 #[derive(Clone)]
 pub struct GuildApi(pub Arc<dyn GuildBackend>);
 
-/// Extractor yielding the installed backend; a missing backend is a server
+/// Extractor yielding the registered backend; a missing backend is a server
 /// misconfiguration (500), never a client error.
 pub struct Api(pub Arc<dyn GuildBackend>);
 
@@ -21,15 +25,10 @@ impl FromRequestParts<AppState> for Api {
 
     async fn from_request_parts(
         parts: &mut Parts,
-        _state: &AppState,
+        state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        match parts.extensions.get::<GuildApi>() {
-            Some(g) => Ok(Self(g.0.clone())),
-            None => {
-                tracing::error!("guild routes mounted without a backend; use guilds::with_backend");
-                Err(ErrorCode::SrInternal.into())
-            }
-        }
+        let Ext(g) = Ext::<GuildApi>::from_request_parts(parts, state).await?;
+        Ok(Self(g.0.clone()))
     }
 }
 
@@ -73,4 +72,16 @@ pub fn actor(p: &Principal) -> Result<UserId, HttpError> {
         AuthKind::Bearer { .. } => Err(ErrorCode::MissingAccess.into()),
         _ => Ok(UserId::new(u64::try_from(p.user_id).unwrap_or(0))),
     }
+}
+
+/// Display fields for `ids`, keyed by id (open question 157). Unknown ids are absent.
+pub async fn users_for(
+    api: &dyn GuildBackend,
+    ids: impl IntoIterator<Item = UserId>,
+) -> Result<HashMap<UserId, UserSummary>, HttpError> {
+    let mut ids: Vec<UserId> = ids.into_iter().collect();
+    ids.sort();
+    ids.dedup();
+    let found = api.user_summaries(&ids).await.map_err(ce)?;
+    Ok(found.into_iter().map(|u| (u.id, u)).collect())
 }

@@ -19,6 +19,7 @@ use sr_core::{
 };
 use sr_events::{DomainEvent, EventBus};
 use sr_storage::ObjectStorage;
+use sr_storage::cdn::CdnSigner;
 use sr_storage::upload::SizePolicy;
 use std::sync::Arc;
 use std::time::Duration;
@@ -119,6 +120,9 @@ impl Access {
     }
 }
 
+/// Lifetime of a signed attachment URL (open question 153).
+pub const ATTACHMENT_URL_TTL: Duration = Duration::from_secs(24 * 60 * 60);
+
 /// How long a nonce keeps deduplicating (open question 97: a 5-minute window).
 pub const NONCE_WINDOW: Duration = Duration::from_secs(5 * 60);
 
@@ -137,6 +141,7 @@ pub struct MessagesDeps {
     ids: SnowflakeGenerator<Arc<dyn Clock>>,
     entitlements: Arc<dyn UploadEntitlements>,
     nonces: NonceCache,
+    cdn: Option<CdnSigner>,
     pub limits: ChatLimits,
     pub size_policy: SizePolicy,
     /// How long a nonce keeps deduplicating (Discord: a few minutes).
@@ -181,11 +186,30 @@ impl MessagesDeps {
             ids,
             entitlements,
             nonces: Cache::builder().time_to_live(NONCE_WINDOW).build(),
+            cdn: None,
             limits,
             size_policy: SizePolicy::default(),
             nonce_window_ms: i64::try_from(NONCE_WINDOW.as_millis()).unwrap_or(i64::MAX),
             upload_url_ttl: Duration::from_secs(15 * 60),
         })
+    }
+
+    /// Sign attachment URLs with the server secret (open question 153). Without a
+    /// signer the relative paths are returned unchanged.
+    pub fn with_cdn_signer(mut self, signer: CdnSigner) -> Self {
+        self.cdn = Some(signer);
+        self
+    }
+
+    /// `path?ex=..&sig=..` valid for 24 hours from now, when a signer is installed.
+    pub fn sign_attachment_url(&self, path: &str) -> String {
+        match &self.cdn {
+            Some(signer) => {
+                let now_s = u64::try_from(self.now_ms().div_euclid(1000)).unwrap_or(0);
+                signer.signed_url(path, now_s + ATTACHMENT_URL_TTL.as_secs())
+            }
+            None => path.to_owned(),
+        }
     }
 
     /// A message this author sent with `nonce` in the window, if any (open question

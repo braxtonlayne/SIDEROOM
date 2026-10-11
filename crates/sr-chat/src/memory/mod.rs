@@ -465,3 +465,10 @@ impl GuildAdminRepository for MemoryRepo {
         Ok(out)
     }
 }
+
+#[async_trait]
+impl crate::repo::UserLookup for MemoryRepo {
+    async fn users(&self, _ids: &[UserId]) -> RepoResult<Vec<crate::repo::UserSummary>> {
+        Ok(Vec::new())
+    }
+}

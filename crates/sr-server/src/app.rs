@@ -272,6 +272,42 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     );
     let guilds = GuildApi(routes::guilds::backend::backend(chat, bus.clone()));
 
+    // MessagesDeps: the message endpoints' collaborators (open questions 97-158).
+    // Chat and message store over Postgres; the social hooks reopen closed DMs and
+    // record mention badges (Q114, Q117) on their own snowflake worker; attachment
+    // URLs are signed with the server secret (Q153).
+    let social_ids = SnowflakeGenerator::new(
+        clock.clone(),
+        cfg.server.worker_id,
+        (cfg.server.process_id + 2) % 32,
+    )
+    .context("social snowflake generator")?;
+    let social: Arc<dyn sr_chat::message_hooks::MessageHooks> =
+        Arc::new(sr_chat::social::SocialService::new(
+            sr_db::social_repo::PgSocialRepo::new(pool.clone()),
+            clock.clone(),
+            social_ids,
+            sr_chat::social::SocialLimits::default(),
+        ));
+    let messages = routes::messages::MessagesDeps::new(
+        PgChatRepo::new(pool.clone()),
+        Arc::new(sr_db::chat_repo::PgMessageStore::new(pool.clone())),
+        storage.clone(),
+        bus.clone(),
+        Arc::new(routes::messages::FixedEntitlements(
+            sr_storage::upload::SizePolicy::default().standard_limit,
+        )),
+        Arc::new(PgChatRepo::new(pool.clone())),
+        Some(social),
+        clock.clone(),
+        cfg.server.worker_id,
+        cfg.server.process_id,
+    )
+    .context("message snowflake generator")?
+    .with_cdn_signer(sr_storage::cdn::CdnSigner::new(
+        secret_key(cfg.server.secret_key.expose())?.to_vec(),
+    ));
+
     let gateway = Gateway::new(
         GatewayConfig {
             // Cookie-authenticated web sessions may IDENTIFY from the public origin only.
@@ -303,6 +339,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .bearers(Arc::new(NoBearers))
         .openapi(routes::openapi())
         .extension(Arc::new(guilds.clone()))
+        .extension(Arc::new(messages))
         .readiness(Arc::new(DbReady::new(pool.clone(), readiness_timeout)))
         .readiness(Arc::new(StorageReady::new(storage)))
         .build();

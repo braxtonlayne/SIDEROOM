@@ -4,7 +4,10 @@
 use serde::{Deserialize, Deserializer, Serialize};
 use sr_chat::admin_repo::Ban;
 use sr_chat::domain::{Channel, ChannelWithOverwrites, Guild, Member, Role};
+use sr_chat::repo::UserSummary;
+use sr_core::UserId;
 use sr_core::permissions::{Overwrite, OverwriteKind};
+use std::collections::HashMap;
 use utoipa::ToSchema;
 
 // ------------------------------------------------------------------ time
@@ -108,18 +111,39 @@ where
 
 // --------------------------------------------------------------- responses
 
-/// Minimal user reference (`{ "id": "..." }`); profile fields arrive with the users feature.
+/// User object embedded in members, bans and messages. Name fields come from the
+/// user lookup (open question 157); without one only the id is known.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct UserRef {
     pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub global_name: Option<String>,
 }
 
 impl UserRef {
+    /// The bare reference (id only).
     pub fn new(id: impl ToString) -> Self {
-        Self { id: id.to_string() }
+        Self {
+            id: id.to_string(),
+            username: None,
+            global_name: None,
+        }
+    }
+
+    /// The reference for `id`, with name fields when the lookup knows the user.
+    pub fn of(id: UserId, users: &HashMap<UserId, UserSummary>) -> Self {
+        match users.get(&id) {
+            Some(u) => Self {
+                id: id.to_string(),
+                username: Some(u.username.clone()),
+                global_name: u.display_name.clone(),
+            },
+            None => Self::new(id),
+        }
     }
 }
-
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct RoleObject {
     pub id: String,
@@ -295,9 +319,9 @@ pub struct MemberObject {
 }
 
 impl MemberObject {
-    pub fn new(m: &Member, with_guild_id: bool) -> Self {
+    pub fn new(m: &Member, with_guild_id: bool, users: &HashMap<UserId, UserSummary>) -> Self {
         Self {
-            user: UserRef::new(m.user_id),
+            user: UserRef::of(m.user_id, users),
             nick: m.nick.clone(),
             avatar: None,
             roles: m.role_ids.iter().map(ToString::to_string).collect(),
@@ -319,11 +343,11 @@ pub struct BanObject {
     pub user: UserRef,
 }
 
-impl From<&Ban> for BanObject {
-    fn from(b: &Ban) -> Self {
+impl BanObject {
+    pub fn new(b: &Ban, users: &HashMap<UserId, UserSummary>) -> Self {
         Self {
             reason: b.reason.clone(),
-            user: UserRef::new(b.user_id),
+            user: UserRef::of(b.user_id, users),
         }
     }
 }

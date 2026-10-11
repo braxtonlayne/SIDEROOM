@@ -1,7 +1,7 @@
 //! Guild members: list, get, modify, kick.
 
 use super::dto::{MemberObject, ModifyMemberBody, parse_iso8601};
-use super::util::{Api, actor, ce, id};
+use super::util::{Api, actor, ce, id, users_for};
 use crate::{HttpError, Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
 use axum::{
     Json, Router,
@@ -59,10 +59,11 @@ pub async fn list_members(
         .list_members(user, gid, after, q.limit.unwrap_or(1))
         .await
         .map_err(ce)?;
+    let users = users_for(&*api, members.iter().map(|m| m.user_id)).await?;
     Ok(Json(
         members
             .iter()
-            .map(|m| MemberObject::new(m, false))
+            .map(|m| MemberObject::new(m, false, &users))
             .collect(),
     ))
 }
@@ -87,7 +88,8 @@ pub async fn get_member(
     let gid: GuildId = id("guild_id", &guild_id)?;
     let uid: UserId = id("user_id", &user_id)?;
     let m = api.get_member(actor, gid, uid).await.map_err(ce)?;
-    Ok(Json(MemberObject::new(&m, false)))
+    let users = users_for(&*api, [m.user_id]).await?;
+    Ok(Json(MemberObject::new(&m, false, &users)))
 }
 
 /// Modify nickname, roles or timeout of a member, subject to the role hierarchy.
@@ -137,7 +139,8 @@ pub async fn modify_member(
         communication_disabled_until_ms: timeout,
     };
     let m = api.edit_member(actor, gid, uid, patch).await.map_err(ce)?;
-    Ok(Json(MemberObject::new(&m, false)))
+    let users = users_for(&*api, [m.user_id]).await?;
+    Ok(Json(MemberObject::new(&m, false, &users)))
 }
 
 /// Remove a member from the guild (`KICK_MEMBERS`, hierarchy applies).

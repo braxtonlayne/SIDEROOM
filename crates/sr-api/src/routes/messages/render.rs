@@ -31,6 +31,15 @@ async fn lookup_users(
     Ok(found.into_iter().map(|u| (u.id, u)).collect())
 }
 
+/// Attachment URLs are signed for the viewer (open question 153).
+fn sign_attachments(deps: &MessagesDeps, objects: &mut [MessageObject]) {
+    for o in objects {
+        for a in &mut o.attachments {
+            a.url = deps.sign_attachment_url(&a.url);
+        }
+    }
+}
+
 /// REST view: attachments, the viewer's reactions and user objects included.
 pub async fn render_many(
     deps: &MessagesDeps,
@@ -41,7 +50,7 @@ pub async fn render_many(
     let mut atts = deps.store.attachments_of(&ids).await?;
     let mut reactions = deps.store.reactions_for(&ids, viewer).await?;
     let users = lookup_users(deps, msgs).await?;
-    Ok(msgs
+    let mut out: Vec<MessageObject> = msgs
         .iter()
         .map(|m| {
             MessageObject::build(
@@ -52,7 +61,9 @@ pub async fn render_many(
                 &users,
             )
         })
-        .collect())
+        .collect();
+    sign_attachments(deps, &mut out);
+    Ok(out)
 }
 
 pub async fn render_one(
@@ -75,5 +86,7 @@ pub async fn event_payload(deps: &MessagesDeps, msg: &Message) -> MsgResult<serd
         .unwrap_or_default();
     let nonce = deps.store.nonce_of(msg.id).await?;
     let users = lookup_users(deps, std::slice::from_ref(msg)).await?;
-    Ok(MessageObject::build(msg, &atts, &[], nonce, &users).to_value())
+    let mut obj = MessageObject::build(msg, &atts, &[], nonce, &users);
+    sign_attachments(deps, std::slice::from_mut(&mut obj));
+    Ok(obj.to_value())
 }
