@@ -237,6 +237,46 @@ impl<R: ChatRepository> ChatService<R> {
         Ok(out)
     }
 
+    /// Everyone an `@everyone`/`@here` or role mention notifies: guild members
+    /// (paged) who hold a pinged role, or all of them for `@everyone`, and who have
+    /// VIEW_CHANNEL (open question 117). Explicit user mentions are handled by
+    /// [`Self::eligible_mentions`].
+    async fn fanout_recipients(
+        &self,
+        guild: &Guild,
+        channel: &Channel,
+        mentions: &message_rules::ResolvedMentions,
+    ) -> ChatResult<Vec<UserId>> {
+        if !mentions.everyone && mentions.roles.is_empty() {
+            return Ok(Vec::new());
+        }
+        const PAGE: usize = 1000;
+        const MAX_PAGES: usize = 100;
+        let roles = self.repo.list_roles(guild.id).await?;
+        let overwrites = self.repo.get_overwrites(channel.id).await?;
+        let now = self.now();
+        let mut out = Vec::new();
+        let mut after = None;
+        for _ in 0..MAX_PAGES {
+            let page = self.repo.page_members(guild.id, after, PAGE).await?;
+            for m in &page {
+                let pinged =
+                    mentions.everyone || m.role_ids.iter().any(|r| mentions.roles.contains(r));
+                if pinged
+                    && channel_permissions(guild, m, &roles, &overwrites, now)
+                        .has(Permissions::VIEW_CHANNEL)
+                {
+                    out.push(m.user_id);
+                }
+            }
+            match page.last() {
+                Some(last) if page.len() == PAGE => after = Some(last.user_id),
+                _ => break,
+            }
+        }
+        Ok(out)
+    }
+
     pub async fn send_message(
         &self,
         author: UserId,
@@ -295,6 +335,10 @@ impl<R: ChatRepository> ChatService<R> {
         mentions.users = self
             .eligible_mentions(guild.as_ref(), &acc.channel, mentions.users)
             .await?;
+        let mut notify = mentions.users.clone();
+        if let Some(g) = &guild {
+            notify.extend(self.fanout_recipients(g, &acc.channel, &mentions).await?);
+        }
 
         let message = Message {
             id: MessageId::from(self.ids.generate()),
@@ -323,7 +367,7 @@ impl<R: ChatRepository> ChatService<R> {
         };
         self.repo.insert_message(&message).await?;
         if let Some(hooks) = &self.hooks {
-            hooks.message_sent(&message).await;
+            hooks.message_sent(&message, &notify).await;
         }
         Ok(message)
     }

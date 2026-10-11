@@ -334,6 +334,47 @@ impl GuildRepository for PgChatRepo {
         row.as_ref().map(guild_from).transpose().map_err(db)
     }
 
+    async fn page_members(
+        &self,
+        guild: GuildId,
+        after: Option<UserId>,
+        limit: usize,
+    ) -> RepoResult<Vec<Member>> {
+        let rows = sqlx::query(
+            "SELECT gm.user_id, gm.nick, gm.pending, \
+             (extract(epoch FROM gm.joined_at) * 1000)::bigint AS joined_ms, \
+             (extract(epoch FROM gm.communication_disabled_until) * 1000)::bigint AS timeout_ms, \
+             COALESCE((SELECT array_agg(mr.role_id) FROM member_roles mr \
+                       WHERE mr.guild_id = gm.guild_id AND mr.user_id = gm.user_id), '{}') AS role_ids \
+             FROM guild_members gm WHERE gm.guild_id = $1 AND gm.user_id > $2 \
+             ORDER BY gm.user_id LIMIT $3",
+        )
+        .bind(i(guild.get()))
+        .bind(after.map_or(0, |a| i(a.get())))
+        .bind(i64::try_from(limit).unwrap_or(i64::MAX))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter()
+            .map(|r| {
+                Ok(Member {
+                    guild_id: guild,
+                    user_id: UserId::new(u(r.try_get("user_id").map_err(db)?)),
+                    nick: r.try_get("nick").map_err(db)?,
+                    role_ids: r
+                        .try_get::<Vec<i64>, _>("role_ids")
+                        .map_err(db)?
+                        .into_iter()
+                        .map(|v| RoleId::new(u(v)))
+                        .collect(),
+                    joined_at_ms: r.try_get("joined_ms").map_err(db)?,
+                    communication_disabled_until_ms: r.try_get("timeout_ms").map_err(db)?,
+                    pending: r.try_get("pending").map_err(db)?,
+                })
+            })
+            .collect()
+    }
+
     async fn get_member(&self, guild: GuildId, user: UserId) -> RepoResult<Option<Member>> {
         let row = sqlx::query(
             "SELECT gm.nick, gm.pending, \

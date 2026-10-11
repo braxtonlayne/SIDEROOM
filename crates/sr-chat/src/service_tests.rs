@@ -317,3 +317,56 @@ async fn ids_are_unique_and_increasing() {
     let b = f.svc.send_message(BOB, f.general, say("b")).await.unwrap();
     assert!(b.id > a.id);
 }
+
+struct Recorder(std::sync::Mutex<Vec<Vec<UserId>>>);
+
+#[async_trait::async_trait]
+impl crate::message_hooks::MessageHooks for Recorder {
+    async fn message_sent(&self, _: &crate::domain::Message, notify: &[UserId]) {
+        self.0.lock().unwrap().push(notify.to_vec());
+    }
+}
+
+#[tokio::test]
+async fn everyone_and_role_mentions_fan_out_to_viewers() {
+    let mut f = fixture().await;
+    let rec = Arc::new(Recorder(Default::default()));
+    f.svc = f.svc.with_hooks(rec.clone());
+    let carol = UserId::new(3);
+    let dave = UserId::new(4);
+    let role = f
+        .svc
+        .create_role(
+            OWNER,
+            f.guild,
+            NewRole {
+                name: Some("crew".into()),
+                mentionable: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    {
+        let mut s = f.svc.repo_for_tests().store.lock().unwrap();
+        let mut c = member(f.guild, carol);
+        c.role_ids = vec![role.id];
+        s.members.push(c);
+        s.members.push(member(f.guild, dave));
+    }
+    // A role ping reaches only its holders.
+    let content = format!("<@&{}> assemble", role.id.get());
+    f.svc
+        .send_message(BOB, f.general, say(&content))
+        .await
+        .unwrap();
+    assert_eq!(rec.0.lock().unwrap()[0], vec![carol]);
+    // @everyone reaches every member who can view the channel.
+    f.svc
+        .send_message(OWNER, f.general, say("@everyone hi"))
+        .await
+        .unwrap();
+    let mut got = rec.0.lock().unwrap()[1].clone();
+    got.sort();
+    assert_eq!(got, vec![OWNER, BOB, carol, dave]);
+}

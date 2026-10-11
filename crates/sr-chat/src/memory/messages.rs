@@ -70,6 +70,24 @@ impl GuildRepository for MemoryBackend {
         Ok(self.data().guilds.get(&id).cloned())
     }
 
+    async fn page_members(
+        &self,
+        guild: GuildId,
+        after: Option<UserId>,
+        limit: usize,
+    ) -> RepoResult<Vec<Member>> {
+        let mut out: Vec<Member> = self
+            .data()
+            .members
+            .iter()
+            .filter(|m| m.guild_id == guild && after.is_none_or(|a| m.user_id > a))
+            .cloned()
+            .collect();
+        out.sort_by_key(|m| m.user_id);
+        out.truncate(limit);
+        Ok(out)
+    }
+
     async fn get_member(&self, guild: GuildId, user: UserId) -> RepoResult<Option<Member>> {
         Ok(self
             .data()
