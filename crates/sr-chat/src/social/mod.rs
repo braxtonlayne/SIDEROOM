@@ -130,6 +130,8 @@ impl SocialError {
             }
             Self::NotParticipant => ApiError::new(ErrorCode::MissingAccess),
             Self::NotOwner => ApiError::new(ErrorCode::MissingPermissions),
+            Self::MaxFriends => ApiError::new(ErrorCode::MaxFriends),
+            Self::MaxGroupDms => ApiError::new(ErrorCode::MaxGroupDms),
             Self::Invalid {
                 field,
                 code,
