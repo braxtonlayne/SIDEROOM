@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import { Icon, Tooltip } from '@sideroom/ui';
 import { useState } from 'react';
-import { ComingSoon } from './components/ComingSoon';
+import { ComingSoon } from '@sideroom/ui';
 import { useLoungeUi } from './store';
 
 /** Thin global section bar above everything (spec 1). Collapsible via the store setting. */
