@@ -5,6 +5,7 @@ use serde_json::{Value, json};
 use sqlx::{PgPool, Row};
 use sr_api::routes::guilds::dto::{ChannelObject, GuildObject, MemberObject, iso8601};
 use sr_auth::{repo::SessionRepository, session::SessionPolicy, session::SessionToken};
+use sr_chat::repo::UserLookup;
 use sr_chat::{
     perms::channel_permissions,
     repo::{ChannelRepository, GuildRepository},
@@ -140,13 +141,26 @@ impl PgGuildDirectory {
         if let Some(obj) = body.as_object_mut() {
             obj.insert("threads".into(), json!([]));
             if member_ids.len() as u64 <= LARGE_THRESHOLD_DEFAULT {
-                let mut members = Vec::with_capacity(member_ids.len());
+                let mut found = Vec::with_capacity(member_ids.len());
                 for id in member_ids {
                     let user = UserId::new(id as u64);
                     if let Some(m) = self.chat.get_member(guild, user).await? {
-                        members.push(MemberObject::new(&m, false));
+                        found.push(m);
                     }
                 }
+                // Name fields for the member objects (open question 157).
+                let ids: Vec<UserId> = found.iter().map(|m| m.user_id).collect();
+                let users: std::collections::HashMap<UserId, sr_chat::repo::UserSummary> = self
+                    .chat
+                    .users(&ids)
+                    .await?
+                    .into_iter()
+                    .map(|u| (u.id, u))
+                    .collect();
+                let members: Vec<MemberObject> = found
+                    .iter()
+                    .map(|m| MemberObject::new(m, false, &users))
+                    .collect();
                 obj.insert("members".into(), json!(members));
             }
         }
