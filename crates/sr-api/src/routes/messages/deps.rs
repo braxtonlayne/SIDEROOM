@@ -42,6 +42,19 @@ impl UploadEntitlements for FixedEntitlements {
     }
 }
 
+/// Tells DM recipients about a conversation the first time it reaches them (a
+/// user-scoped `CHANNEL_CREATE`), implemented by the social routes so the message
+/// path need not know about `SocialService`.
+#[async_trait]
+pub trait DmAnnouncer: Send + Sync {
+    /// Recipients (never `author`) who must be told, decided BEFORE the message is
+    /// stored because storing it reopens closed DMs. `first_message` is true when
+    /// the channel has no messages yet.
+    async fn plan(&self, channel: ChannelId, author: UserId, first_message: bool) -> Vec<UserId>;
+    /// Send each of `users` the channel object as they see it.
+    async fn announce(&self, channel: ChannelId, users: &[UserId]);
+}
+
 /// Object-safe view of the `ChatService` operations used here.
 #[async_trait]
 trait ChatOps: Send + Sync {
@@ -142,6 +155,7 @@ pub struct MessagesDeps {
     entitlements: Arc<dyn UploadEntitlements>,
     nonces: NonceCache,
     cdn: Option<CdnSigner>,
+    dm_announcer: Option<Arc<dyn DmAnnouncer>>,
     pub limits: ChatLimits,
     pub size_policy: SizePolicy,
     /// How long a nonce keeps deduplicating (Discord: a few minutes).
@@ -187,6 +201,7 @@ impl MessagesDeps {
             entitlements,
             nonces: Cache::builder().time_to_live(NONCE_WINDOW).build(),
             cdn: None,
+            dm_announcer: None,
             limits,
             size_policy: SizePolicy::default(),
             nonce_window_ms: i64::try_from(NONCE_WINDOW.as_millis()).unwrap_or(i64::MAX),
@@ -199,6 +214,32 @@ impl MessagesDeps {
     pub fn with_cdn_signer(mut self, signer: CdnSigner) -> Self {
         self.cdn = Some(signer);
         self
+    }
+
+    /// Announce DMs to recipients who have not heard of them (see [`DmAnnouncer`]).
+    pub fn with_dm_announcer(mut self, announcer: Arc<dyn DmAnnouncer>) -> Self {
+        self.dm_announcer = Some(announcer);
+        self
+    }
+
+    /// Recipients that need a `CHANNEL_CREATE` for this send; call before storing.
+    pub async fn plan_dm_announce(&self, channel: &Channel, author: UserId) -> Vec<UserId> {
+        match &self.dm_announcer {
+            Some(a) if channel.guild_id.is_none() => {
+                a.plan(channel.id, author, channel.last_message_id.is_none())
+                    .await
+            }
+            _ => Vec::new(),
+        }
+    }
+
+    /// Deliver the announcements planned by [`Self::plan_dm_announce`].
+    pub async fn announce_dm(&self, channel: ChannelId, users: &[UserId]) {
+        if let Some(a) = &self.dm_announcer
+            && !users.is_empty()
+        {
+            a.announce(channel, users).await;
+        }
     }
 
     /// `path?ex=..&sig=..` valid for 24 hours from now, when a signer is installed.

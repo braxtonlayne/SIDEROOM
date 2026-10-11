@@ -383,7 +383,8 @@ impl<R: SocialRepository> SocialService<R> {
     /// "Close DM": hide it from the list; it reappears on the next message.
     pub async fn close_dm(&self, user: UserId, channel: ChannelId) -> SocialResult<()> {
         self.get_dm_for(user, channel).await?;
-        Ok(self.repo.set_hidden(user, channel, true).await?)
+        self.repo.set_hidden(user, channel, true).await?;
+        Ok(())
     }
 
     /// `user`'s Message Request state in a conversation (`None` if not a recipient).
@@ -415,13 +416,52 @@ impl<R: SocialRepository> SocialService<R> {
     }
 
     /// Reopen for every recipient who closed it (called when a message arrives).
-    pub async fn reopen_for_message(&self, channel: ChannelId) -> SocialResult<()> {
+    /// Returns the users whose row was actually un-hidden.
+    pub async fn reopen_for_message(&self, channel: ChannelId) -> SocialResult<Vec<UserId>> {
+        let mut reopened = Vec::new();
         if let Some(ch) = self.repo.get_dm(channel).await? {
             for u in &ch.recipients {
-                self.repo.set_hidden(*u, channel, false).await?;
+                if self.repo.set_hidden(*u, channel, false).await? {
+                    reopened.push(*u);
+                }
             }
         }
-        Ok(())
+        Ok(reopened)
+    }
+
+    /// Recipients other than `author` who have not been told about this DM yet and
+    /// may be: those who closed it, plus everyone when `first_message` (nobody but
+    /// the opener has heard of a brand-new DM). Message requests that are still
+    /// pending, ignored or spam stay hidden, as in Discord. Call before the
+    /// message is stored, because storing it reopens closed DMs.
+    pub async fn dm_announcees(
+        &self,
+        channel: ChannelId,
+        author: UserId,
+        first_message: bool,
+    ) -> SocialResult<Vec<UserId>> {
+        let Some(ch) = self.repo.get_dm(channel).await? else {
+            return Ok(Vec::new());
+        };
+        let mut out = Vec::new();
+        for u in ch.recipients.iter().copied().filter(|u| *u != author) {
+            if !first_message {
+                let open = self
+                    .repo
+                    .list_dms(u, false)
+                    .await?
+                    .iter()
+                    .any(|d| d.id == channel);
+                if open {
+                    continue;
+                }
+            }
+            let state = self.repo.get_request_state(u, channel).await?;
+            if matches!(state, None | Some(RequestState::Accepted)) {
+                out.push(u);
+            }
+        }
+        Ok(out)
     }
 
     pub async fn list_dms(&self, user: UserId) -> SocialResult<Vec<DmChannel>> {

@@ -398,6 +398,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         (cfg.server.process_id + 3) % 32,
     )
     .context("social api snowflake generator")?;
+    // The first message of a DM (or the first after Close DM) announces the channel to
+    // each recipient before the message itself.
+    let social_api = Arc::new(social_api);
+    let messages = messages.with_dm_announcer(social_api.clone());
 
     let settings = ApiSettings {
         trust_forwarded_for: cfg.server.trust_forwarded_for,
@@ -415,7 +419,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .openapi(routes::openapi())
         .extension(Arc::new(guilds.clone()))
         .extension(Arc::new(messages))
-        .extension(Arc::new(social_api))
+        .extension(social_api)
         .extension(settings_deps.clone())
         .extension(Arc::new(AutoModGateHandle(settings_deps)))
         .extension(search_deps)

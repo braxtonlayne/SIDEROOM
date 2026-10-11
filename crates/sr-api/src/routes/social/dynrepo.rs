@@ -115,7 +115,7 @@ impl DmRepository for DynRepo {
     async fn delete_dm(&self, id: ChannelId) -> RepoResult<()> {
         self.0.delete_dm(id).await
     }
-    async fn set_hidden(&self, user: UserId, id: ChannelId, hidden: bool) -> RepoResult<()> {
+    async fn set_hidden(&self, user: UserId, id: ChannelId, hidden: bool) -> RepoResult<bool> {
         self.0.set_hidden(user, id, hidden).await
     }
     async fn list_dms(&self, user: UserId, include_hidden: bool) -> RepoResult<Vec<DmChannel>> {

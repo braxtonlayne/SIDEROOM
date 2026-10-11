@@ -320,14 +320,14 @@ impl DmRepository for MemoryRepo {
         Ok(())
     }
 
-    async fn set_hidden(&self, user: UserId, id: ChannelId, hidden: bool) -> RepoResult<()> {
+    async fn set_hidden(&self, user: UserId, id: ChannelId, hidden: bool) -> RepoResult<bool> {
         let mut s = self.lock()?;
-        if hidden {
-            s.hidden.insert((user, id));
+        let key = (user, id);
+        Ok(if hidden {
+            s.hidden.insert(key)
         } else {
-            s.hidden.remove(&(user, id));
-        }
-        Ok(())
+            s.hidden.remove(&key)
+        })
     }
 
     async fn list_dms(&self, user: UserId, include_hidden: bool) -> RepoResult<Vec<DmChannel>> {

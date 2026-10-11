@@ -8,7 +8,7 @@ use sr_chat::social::notifications::{MuteDuration, NotificationLevel};
 use sr_chat::social::presence::{CustomStatus, Status};
 use sr_chat::social::profile::{Connection, ProfileEdit};
 use sr_chat::social::relationships::RelationshipKind;
-use sr_chat::social::repo::{Privacy, RelationshipRepository};
+use sr_chat::social::repo::{DmRepository, Privacy, RelationshipRepository};
 use sr_chat::social::{SocialError, SocialLimits, SocialService};
 use sr_core::{Clock, MessageId, SnowflakeGenerator, SystemClock, UserId};
 use sr_db::social_repo::PgSocialRepo;
@@ -138,8 +138,23 @@ async fn dm_and_group_lifecycle() {
     assert_eq!(again.channel.id, dm.channel.id);
     svc.close_dm(u[0], dm.channel.id).await.unwrap();
     assert!(svc.list_dms(u[0]).await.unwrap().is_empty());
-    svc.reopen_for_message(dm.channel.id).await.unwrap();
+    assert_eq!(
+        svc.reopen_for_message(dm.channel.id).await.unwrap(),
+        vec![u[0]]
+    );
     assert_eq!(svc.list_dms(u[0]).await.unwrap().len(), 1);
+    // Nothing is hidden any more, so a second reopen changes nothing.
+    assert!(
+        svc.reopen_for_message(dm.channel.id)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let repo = svc.repo();
+    assert!(repo.set_hidden(u[0], dm.channel.id, true).await.unwrap());
+    assert!(!repo.set_hidden(u[0], dm.channel.id, true).await.unwrap());
+    assert!(repo.set_hidden(u[0], dm.channel.id, false).await.unwrap());
+    assert!(!repo.set_hidden(u[0], dm.channel.id, false).await.unwrap());
 
     let g = svc
         .create_group_dm(u[0], &[u[1], u[2]], Some("crew"))

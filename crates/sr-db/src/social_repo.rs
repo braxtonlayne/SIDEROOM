@@ -547,11 +547,13 @@ impl DmRepository for PgSocialRepo {
         Ok(())
     }
 
-    async fn set_hidden(&self, user: UserId, id: ChannelId, hidden: bool) -> RepoResult<()> {
-        sqlx::query(
+    async fn set_hidden(&self, user: UserId, id: ChannelId, hidden: bool) -> RepoResult<bool> {
+        // Only a row whose visibility actually flips counts as changed.
+        let done = sqlx::query(
             "UPDATE channel_recipients \
-             SET hidden_at = CASE WHEN $3 THEN COALESCE(hidden_at, now()) ELSE NULL END \
-             WHERE channel_id = $1 AND user_id = $2",
+             SET hidden_at = CASE WHEN $3 THEN now() ELSE NULL END \
+             WHERE channel_id = $1 AND user_id = $2 \
+               AND (hidden_at IS NULL) = $3",
         )
         .bind(i(id.get()))
         .bind(i(user.get()))
@@ -559,7 +561,7 @@ impl DmRepository for PgSocialRepo {
         .execute(&self.pool)
         .await
         .map_err(db)?;
-        Ok(())
+        Ok(done.rows_affected() > 0)
     }
 
     async fn list_dms(&self, user: UserId, include_hidden: bool) -> RepoResult<Vec<DmChannel>> {
