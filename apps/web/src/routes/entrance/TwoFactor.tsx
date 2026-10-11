@@ -6,6 +6,7 @@ import { submitTwoFactor } from '../../api/entrance';
 import { AuthSplit, FormHead } from '../../components/AuthSplit';
 import { FormError } from '../../components/FormParts';
 import { PasskeyButton } from '../../components/PasskeyButton';
+import { clearMfaMethods, readMfaMethods } from '../../lib/mfaMethods';
 import { minutesFromSeconds, safeNext } from '../../lib/validation';
 import { useUiStore } from '../../state/session';
 
@@ -73,14 +74,22 @@ export function TwoFactor() {
   const router = useRouter();
   const search = useSearch({ strict: false }) as { next?: string };
   const next = safeNext(search.next);
-  const [mode, setMode] = useState<'totp' | 'recovery'>('totp');
+  // Q83: only the methods the server offered at the password step are shown.
+  const [methods] = useState(readMfaMethods);
+  const hasTotp = methods.includes('totp');
+  const hasRecovery = methods.includes('recovery');
+  const hasPasskey = methods.includes('webauthn');
+  const [mode, setMode] = useState<'totp' | 'recovery'>(hasTotp ? 'totp' : 'recovery');
   const [code, setCode] = useState('');
   const [recovery, setRecovery] = useState('');
   const [trust, setTrust] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const finish = () => router.history.push(next ?? useUiStore.getState().lastSection);
+  const finish = () => {
+    clearMfaMethods();
+    router.history.push(next ?? useUiStore.getState().lastSection);
+  };
 
   const submit = async (method: 'totp' | 'recovery', value: string) => {
     setBusy(true);
@@ -162,17 +171,19 @@ export function TwoFactor() {
         <GoldButton type="submit" arrow disabled={busy} aria-busy={busy}>
           {busy ? 'Checking…' : 'Step inside'}
         </GoldButton>
-        {mode === 'totp' && <PasskeyButton onDone={finish} onError={setError} />}
-        <button
-          type="button"
-          className="ent-linkbtn"
-          onClick={() => {
-            setMode(mode === 'totp' ? 'recovery' : 'totp');
-            setError(null);
-          }}
-        >
-          {mode === 'totp' ? 'Use a recovery code' : 'Use an authenticator code'}
-        </button>
+        {hasPasskey && <PasskeyButton onDone={finish} onError={setError} />}
+        {hasTotp && hasRecovery && (
+          <button
+            type="button"
+            className="ent-linkbtn"
+            onClick={() => {
+              setMode(mode === 'totp' ? 'recovery' : 'totp');
+              setError(null);
+            }}
+          >
+            {mode === 'totp' ? 'Use a recovery code' : 'Use an authenticator code'}
+          </button>
+        )}
         <Link to="/login" className="ent-linkbtn">
           Back to sign in
         </Link>

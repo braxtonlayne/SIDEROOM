@@ -7,6 +7,7 @@ import { AuthSplit, FormHead } from '../../components/AuthSplit';
 import { Divider, DiscordButton, FormError } from '../../components/FormParts';
 import { LockIcon } from '../../components/icons';
 import { PasskeyButton } from '../../components/PasskeyButton';
+import { rememberMfaMethods } from '../../lib/mfaMethods';
 import { minutesFromSeconds, safeNext } from '../../lib/validation';
 import { useRedirectIfLoggedIn } from '../../lib/useRedirectIfLoggedIn';
 import { useUiStore } from '../../state/session';
@@ -48,6 +49,7 @@ export function Login() {
     try {
       const res = await login({ login: id.trim(), password: pw });
       if (res.status === 'mfa_required') {
+        rememberMfaMethods(res.methods);
         void router.navigate({ to: '/login/2fa', search: next ? { next } : {} });
       } else finish();
     } catch (err) {
