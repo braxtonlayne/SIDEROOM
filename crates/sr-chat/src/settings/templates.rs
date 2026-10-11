@@ -14,7 +14,30 @@ use super::error::{SettingsError, SettingsResult};
 
 pub const MAX_NAME_CHARS: usize = 100;
 pub const MAX_DESCRIPTION_CHARS: usize = 120;
-pub const CODE_LEN: usize = 12;
+/// Template codes are 16 base62 characters (open question 138).
+pub const CODE_LEN: usize = 16;
+const CODE_ALPHABET: &[u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
+/// Random template code from a source of 64-bit entropy. Bytes at or above 248
+/// are rejected so every character of the alphabet is equally likely.
+pub fn generate_code(mut entropy: impl FnMut() -> u64) -> String {
+    let mut out = String::with_capacity(CODE_LEN);
+    let mut bits = 0u64;
+    let mut left = 0;
+    while out.len() < CODE_LEN {
+        if left == 0 {
+            bits = entropy();
+            left = 8;
+        }
+        let byte = (bits & 0xff) as u8;
+        bits >>= 8;
+        left -= 1;
+        if byte < 248 {
+            out.push(CODE_ALPHABET[usize::from(byte % 62)] as char);
+        }
+    }
+    out
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SnapRole {
@@ -299,6 +322,21 @@ pub fn instantiate(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn template_codes_are_16_base62() {
+        let mut n = 99u64;
+        let code = generate_code(|| {
+            n = n
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            n
+        });
+        assert_eq!(code.len(), 16);
+        assert!(code.bytes().all(|b| b.is_ascii_alphanumeric()));
+        // A degenerate entropy source still terminates.
+        assert_eq!(generate_code(|| 0).len(), 16);
+    }
 
     fn role(id: u64, guild: u64, name: &str, perms: Permissions, managed: bool) -> Role {
         Role {
