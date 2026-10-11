@@ -3,9 +3,10 @@
 //! Every route belongs to a bucket (`METHOD pattern`, overridable per route).
 //! A request is counted against a per-identity global limiter (default 50/s,
 //! like Discord) and against its bucket, keyed by identity and the route's
-//! "major parameter" (the channel, guild or webhook id). Enforcement uses
-//! `governor` (GCRA); `Remaining`/`Reset` for the headers come from a small
-//! fixed-window tracker, because governor does not expose remaining burst.
+//! "major parameter" (the channel, guild or webhook id). Enforcement and the
+//! `Remaining`/`Reset` headers both come from `governor` (GCRA): the state
+//! snapshot reports the remaining burst, and the time to a full bucket follows
+//! from the emission interval.
 
 use crate::{observability::names, state::AppState};
 use axum::{
@@ -18,6 +19,7 @@ use axum::{
 use governor::{
     Quota, RateLimiter as Governor,
     clock::{Clock, DefaultClock},
+    middleware::StateInformationMiddleware,
     state::keyed::DefaultKeyedStateStore,
 };
 use serde_json::json;
@@ -25,16 +27,22 @@ use sr_core::ErrorCode;
 use std::{
     collections::HashMap,
     hash::{DefaultHasher, Hash, Hasher},
-    net::SocketAddr,
+    net::{IpAddr, SocketAddr},
     num::NonZeroU32,
     sync::{
         Arc, Mutex,
         atomic::{AtomicU64, Ordering},
     },
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-type KeyedLimiter = Governor<String, DefaultKeyedStateStore<String>, DefaultClock>;
+type KeyedLimiter =
+    Governor<String, DefaultKeyedStateStore<String>, DefaultClock, StateInformationMiddleware>;
+
+/// A keyed GCRA limiter whose successful checks return a state snapshot.
+fn keyed(quota: Quota) -> KeyedLimiter {
+    Governor::keyed(quota).with_middleware::<StateInformationMiddleware>()
+}
 
 /// A bucket's allowance: `limit` requests per `window`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -106,7 +114,6 @@ struct Bucket {
     id: String,
     spec: BucketSpec,
     gov: KeyedLimiter,
-    windows: Mutex<HashMap<String, (Instant, u32)>>,
 }
 
 /// Header values describing a bucket after a request was counted.
@@ -163,7 +170,7 @@ impl RateLimiter {
     pub fn new(cfg: RateLimitConfig) -> Self {
         let per_sec = NonZeroU32::new(cfg.global_per_second.max(1)).unwrap_or(NonZeroU32::MIN);
         Self {
-            global: Governor::keyed(Quota::per_second(per_sec)),
+            global: keyed(Quota::per_second(per_sec)),
             cfg,
             buckets: Mutex::new(HashMap::new()),
             calls: AtomicU64::new(0),
@@ -184,8 +191,7 @@ impl RateLimiter {
         let b = Arc::new(Bucket {
             id: hash_hex(route_key),
             spec,
-            gov: Governor::keyed(spec.quota()),
-            windows: Mutex::new(HashMap::new()),
+            gov: keyed(spec.quota()),
         });
         map.insert(route_key.to_owned(), b.clone());
         b
@@ -216,28 +222,24 @@ impl RateLimiter {
         }
         let bucket = self.bucket(route_key);
         let key = format!("{identity}|{resource}");
-        let denied = bucket.gov.check_key(&key).err();
-        let now = Instant::now();
-        let (remaining, reset_after) = {
-            let mut w = lock(&bucket.windows);
-            let e = w.entry(key).or_insert((now, 0));
-            if now.duration_since(e.0) >= bucket.spec.window {
-                *e = (now, 0);
+        let limit = bucket.spec.limit.max(1);
+        // Emission interval is window / limit, so a bucket with `used` spent
+        // cells refills completely after `used` intervals.
+        let refill = |used: u32| (bucket.spec.window / limit) * used;
+        let (denied, remaining, reset_after) = match bucket.gov.check_key(&key) {
+            Ok(snapshot) => {
+                let remaining = snapshot.remaining_burst_capacity().min(limit);
+                (None, remaining, refill(limit - remaining))
             }
-            if denied.is_none() {
-                e.1 = e.1.saturating_add(1);
+            Err(nu) => {
+                let wait = nu.wait_time_from(clock.now());
+                (Some(wait), 0, wait)
             }
-            let rem = if denied.is_some() {
-                0
-            } else {
-                bucket.spec.limit.saturating_sub(e.1)
-            };
-            let after = bucket.spec.window.saturating_sub(now.duration_since(e.0));
-            (rem, after.as_secs_f64())
         };
         let epoch = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_or(0.0, |d| d.as_secs_f64());
+        let reset_after = reset_after.as_secs_f64();
         let info = RateInfo {
             limit: bucket.spec.limit,
             remaining,
@@ -247,8 +249,8 @@ impl RateLimiter {
         };
         match denied {
             None => Decision::Allowed(info),
-            Some(nu) => Decision::Limited {
-                retry_after: nu.wait_time_from(clock.now()).as_secs_f64(),
+            Some(wait) => Decision::Limited {
+                retry_after: wait.as_secs_f64(),
                 global: false,
                 info: Some(info),
             },
@@ -258,10 +260,8 @@ impl RateLimiter {
     /// Drop idle keys so memory stays bounded.
     fn sweep(&self) {
         self.global.retain_recent();
-        let now = Instant::now();
         for b in lock(&self.buckets).values() {
             b.gov.retain_recent();
-            lock(&b.windows).retain(|_, (start, _)| now.duration_since(*start) < b.spec.window);
         }
     }
 }
@@ -311,16 +311,34 @@ fn major_resource<'a>(pattern: &str, path: &'a str) -> &'a str {
     }
 }
 
-fn identity(req: &Request) -> String {
+/// The caller's address: the socket peer, or, when the proxy is trusted, the
+/// last `X-Forwarded-For` entry (the one Caddy appended). Open question 57.
+pub fn client_ip(req: &Request, trust_forwarded_for: bool) -> Option<IpAddr> {
+    if trust_forwarded_for {
+        let forwarded = req
+            .headers()
+            .get("x-forwarded-for")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.rsplit(',').next())
+            .and_then(|s| s.trim().parse().ok());
+        if forwarded.is_some() {
+            return forwarded;
+        }
+    }
+    req.extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|c| c.0.ip())
+}
+
+fn identity(req: &Request, trust_forwarded_for: bool) -> String {
     if let Some(a) = req.headers().get(header::AUTHORIZATION) {
         return format!("auth:{}", hash_hex(a.to_str().unwrap_or("")));
     }
     if let Some(c) = crate::auth::parse_cookie(req.headers(), crate::auth::SESSION_COOKIE) {
         return format!("sess:{}", hash_hex(c));
     }
-    req.extensions()
-        .get::<ConnectInfo<SocketAddr>>()
-        .map_or_else(|| "ip:unknown".to_owned(), |c| format!("ip:{}", c.0.ip()))
+    client_ip(req, trust_forwarded_for)
+        .map_or_else(|| "ip:unknown".to_owned(), |ip| format!("ip:{ip}"))
 }
 
 /// Middleware; install with `route_layer` so the matched route is known.
@@ -331,7 +349,7 @@ pub async fn rate_limit(State(state): State<AppState>, req: Request, next: Next)
     let pattern = normalise(matched.as_str()).to_owned();
     let route_key = format!("{} {}", req.method(), pattern);
     let resource = major_resource(&pattern, req.uri().path()).to_owned();
-    let who = identity(&req);
+    let who = identity(&req, state.settings().trust_forwarded_for);
     match state.rate_limiter().check(&route_key, &resource, &who) {
         Decision::Allowed(info) => {
             let mut resp = next.run(req).await;
