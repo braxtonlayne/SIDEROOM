@@ -7,6 +7,11 @@ export DATABASE_URL := env_var_or_default("DATABASE_URL", "postgres://sideroom:s
 default:
     @just --list
 
+# One-time developer setup: use the repo's git hooks and enable corepack (for pnpm)
+setup:
+    git config core.hooksPath .githooks
+    corepack enable
+
 # Start the dev stack (Postgres, Garage, Caddy, Mailpit, coturn) and bootstrap Garage
 dev:
     {{compose}} up -d --wait postgres
@@ -56,7 +61,9 @@ wasm:
 openapi:
     cargo run -q -p sr-server -- openapi
 
-# Run the server against the dev stack (SR_* env overrides apply)
+# Run the server against the dev stack (SR_* env overrides apply).
+# Only the database URL is exported here. Set SR_STORAGE__BUCKET and the Garage keys
+# from deploy/compose/.env yourself, and set SR_SERVER__SECRET_KEY for stable TOTP secrets.
 serve:
     SR_DATABASE__URL="$DATABASE_URL" cargo run -p sr-server
 
@@ -72,3 +79,7 @@ e2e *args:
     cargo build -p sr-server -p sr-cli
     ./target/debug/sr-cli migrate
     ./deploy/compose/e2e-run.sh {{args}}
+
+# Regenerate the PWA and favicon icons from packages/ui/assets/door-mark.svg (commit the output)
+icons:
+    cargo run -q -p sr-theme --features icons --bin sr-theme-icons -- packages/ui/assets/door-mark.svg apps/web/public/icons
