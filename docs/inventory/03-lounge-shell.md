@@ -52,9 +52,9 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 
 ## LNG-FRD — Friends
 - [x] **LNG-FRD-001** [DB] relationships table + migrations
-- [ ] **LNG-FRD-002** [BE] Relationship API (send by username, accept, ignore, cancel, remove, block, unblock, ignore user) → `/users/@me/relationships`
+- [x] **LNG-FRD-002** [BE] Relationship API (send by username, accept, ignore, cancel, remove, block, unblock, ignore user) → `/users/@me/relationships` (REST by user id; add-by-username lookup follows with the users directory)
 - [ ] **LNG-FRD-003** [GW] `RELATIONSHIP_ADD/UPDATE/REMOVE` dispatches
-- [ ] **LNG-FRD-004** [BE] Friend request privacy enforcement (everyone / friends of friends / server members)
+- [x] **LNG-FRD-004** [BE] Friend request privacy enforcement (everyone / friends of friends / server members)
 - [ ] **LNG-FRD-005** [FE] Friends header with tabs Online / All / Pending / Add Friend, New Group DM icon
 - [ ] **LNG-FRD-006** [FE] Dismissible info banner "Looking for accounts you've blocked or ignored? Go to settings"
 - [ ] **LNG-FRD-007** [FE] Friends search box
@@ -67,9 +67,9 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [ ] **LNG-FRD-014** [FE] Active Now empty state ("It's quiet for now…")
 
 ## LNG-DM — Direct & group messages
-- [ ] **LNG-DM-001** [BE] Create/open DM (`POST /users/@me/channels`), group DM create/add/remove recipient/rename/icon/leave/transfer owner
-- [ ] **LNG-DM-002** [BE] DM permission rules (blocked users, "allow DMs from server members" setting, message requests)
-- [ ] **LNG-DM-003** [BE] Message Requests inbox (accept, ignore, block, spam folder)
+- [x] **LNG-DM-001** [BE] Create/open DM (`POST /users/@me/channels`), group DM create/add/remove recipient/rename/icon/leave/transfer owner
+- [x] **LNG-DM-002** [BE] DM permission rules (blocked users, "allow DMs from server members" setting, message requests)
+- [x] **LNG-DM-003** [BE] Message Requests inbox (accept, ignore, block, spam folder)
 - [ ] **LNG-DM-004** [FE] DM header: avatar + name (click → profile), call, video, pins, add friends to DM, profile panel toggle, search "Search <username>"
 - [ ] **LNG-DM-005** [FE] DM welcome header ("This is the beginning of your direct message history with @x", mutual servers, Remove Friend/Block buttons)
 - [ ] **LNG-DM-006** [FE] DM right profile panel (banner, avatar, name, username • pronouns, badges, add-friend & ⋯ buttons, bio, Member Since, mutual friends/servers summary row, View Full Profile)
@@ -89,7 +89,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [ ] **LNG-PRF-009** [FE] Avatar decorations & profile effects (free, from approved packs)
 - [ ] **LNG-PRF-010** [FE] Profile theme colors (two-color gradient) applied to popout/modal
 - [ ] **LNG-PRF-011** [FE] Per-server profile rendering in guild context
-- [ ] **LNG-PRF-012** [BE] User notes CRUD (private)
+- [x] **LNG-PRF-012** [BE] User notes CRUD (private)
 - [ ] **LNG-PRF-013** [BE][FE] Presence: status, custom status, activities (game, watching, reading, listening), client platform icons (web/mobile)
 - [ ] **LNG-PRF-014** [GW] `PRESENCE_UPDATE` fan-out (friends + shared guilds, intent-filtered)
 - [ ] **LNG-PRF-015** [BE] Idle detection (client reports AFK after 10 min) + multi-session presence merging
