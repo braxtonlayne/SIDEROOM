@@ -14,3 +14,4 @@ pub fn all() -> Router<AppState> {
 pub fn openapi() -> utoipa::openapi::OpenApi {
     crate::openapi::base()
 }
+pub mod auth;

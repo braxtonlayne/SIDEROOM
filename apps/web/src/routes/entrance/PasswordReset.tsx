@@ -98,6 +98,14 @@ export function Reset() {
       await resetPassword(token, pw);
       setDone(true);
     } catch (ex) {
+      // The server's zxcvbn verdict is authoritative (400 with errors.password); the link stays valid.
+      const weak =
+        ex instanceof ApiError ? ex.body?.errors?.password?._errors?.[0]?.message : undefined;
+      if (weak) {
+        setErrors({ pw: weak });
+        setBusy(false);
+        return;
+      }
       setError(
         ex instanceof ApiError && (ex.status === 400 || ex.status === 404 || ex.status === 410)
           ? 'That link has expired or was already used. Ask for a new one.'
