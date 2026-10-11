@@ -65,6 +65,12 @@ pub trait GuildDirectory: Send + Sync {
         json!({ "id": guild })
     }
 
+    /// Members of the staff guild; they receive `SR_STAFF_ALERT` dispatches
+    /// (open question 142). Default: nobody.
+    async fn staff_users(&self) -> Vec<UserId> {
+        Vec::new()
+    }
+
     /// Extra READY fields (`private_channels`, `relationships`, ...).
     async fn ready_extras(&self, _user: UserId) -> Value {
         json!({})

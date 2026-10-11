@@ -237,6 +237,57 @@ impl<R: ChatRepository> ChatService<R> {
         Ok(out)
     }
 
+    /// Guild members (paged by user id) for whom `pick` holds and who have
+    /// VIEW_CHANNEL in `channel`.
+    async fn viewers_where(
+        &self,
+        guild: &Guild,
+        channel: &Channel,
+        pick: impl Fn(&Member) -> bool,
+    ) -> ChatResult<Vec<UserId>> {
+        const PAGE: usize = 1000;
+        const MAX_PAGES: usize = 100;
+        let roles = self.repo.list_roles(guild.id).await?;
+        let overwrites = self.repo.get_overwrites(channel.id).await?;
+        let now = self.now();
+        let mut out = Vec::new();
+        let mut after = None;
+        for _ in 0..MAX_PAGES {
+            let page = self.repo.page_members(guild.id, after, PAGE).await?;
+            for m in &page {
+                if pick(m)
+                    && channel_permissions(guild, m, &roles, &overwrites, now)
+                        .has(Permissions::VIEW_CHANNEL)
+                {
+                    out.push(m.user_id);
+                }
+            }
+            match page.last() {
+                Some(last) if page.len() == PAGE => after = Some(last.user_id),
+                _ => break,
+            }
+        }
+        Ok(out)
+    }
+
+    /// Everyone who can currently see `channel` (guild members with VIEW_CHANNEL,
+    /// or the recipients of a DM). Producers compute this before a delete so the
+    /// gateway can restrict `CHANNEL_DELETE` (open question 159).
+    pub async fn channel_viewers(&self, channel_id: ChannelId) -> ChatResult<Vec<UserId>> {
+        let channel = self
+            .repo
+            .get_channel(channel_id)
+            .await?
+            .ok_or(ChatError::UnknownChannel)?;
+        match channel.guild_id {
+            None => Ok(self.repo.list_recipients(channel_id).await?),
+            Some(gid) => {
+                let guild = self.guild(gid).await?;
+                self.viewers_where(&guild, &channel, |_| true).await
+            }
+        }
+    }
+
     /// Everyone an `@everyone`/`@here` or role mention notifies: guild members
     /// (paged) who hold a pinged role, or all of them for `@everyone`, and who have
     /// VIEW_CHANNEL (open question 117). Explicit user mentions are handled by
@@ -250,31 +301,10 @@ impl<R: ChatRepository> ChatService<R> {
         if !mentions.everyone && mentions.roles.is_empty() {
             return Ok(Vec::new());
         }
-        const PAGE: usize = 1000;
-        const MAX_PAGES: usize = 100;
-        let roles = self.repo.list_roles(guild.id).await?;
-        let overwrites = self.repo.get_overwrites(channel.id).await?;
-        let now = self.now();
-        let mut out = Vec::new();
-        let mut after = None;
-        for _ in 0..MAX_PAGES {
-            let page = self.repo.page_members(guild.id, after, PAGE).await?;
-            for m in &page {
-                let pinged =
-                    mentions.everyone || m.role_ids.iter().any(|r| mentions.roles.contains(r));
-                if pinged
-                    && channel_permissions(guild, m, &roles, &overwrites, now)
-                        .has(Permissions::VIEW_CHANNEL)
-                {
-                    out.push(m.user_id);
-                }
-            }
-            match page.last() {
-                Some(last) if page.len() == PAGE => after = Some(last.user_id),
-                _ => break,
-            }
-        }
-        Ok(out)
+        self.viewers_where(guild, channel, |m| {
+            mentions.everyone || m.role_ids.iter().any(|r| mentions.roles.contains(r))
+        })
+        .await
     }
 
     pub async fn send_message(

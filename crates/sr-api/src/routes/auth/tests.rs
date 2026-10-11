@@ -50,6 +50,7 @@ struct H {
     mailer: Arc<MemoryMailer>,
     clock: Arc<ManualClock>,
     hasher: PasswordHasher,
+    bus: Arc<sr_events::InProcessBus>,
 }
 
 fn harness_with(cap: u64) -> H {
@@ -61,8 +62,10 @@ fn harness_with(cap: u64) -> H {
     let mailer = Arc::new(MemoryMailer::new());
     let next = Arc::new(AtomicI64::new(10_000));
     let ids: super::IdSource = Arc::new(move || next.fetch_add(1, Ordering::SeqCst));
+    let bus = Arc::new(sr_events::InProcessBus::new());
     let svc = Arc::new(
         AuthService::new(store.clone(), mailer.clone(), ids)
+            .with_bus(bus.clone())
             .with_hasher(cheap_hasher())
             .with_config(AuthConfig {
                 account_cap: cap,
@@ -84,6 +87,7 @@ fn harness_with(cap: u64) -> H {
         mailer,
         clock,
         hasher: cheap_hasher(),
+        bus,
     }
 }
 
@@ -593,6 +597,7 @@ async fn register_banned_person_gets_generic_error() {
     let h = harness();
     let code = h.issuer_with_invite(1, 5);
     h.store.ban_email("bad@x.test");
+    let mut alerts = sr_events::EventBus::subscribe(&*h.bus, sr_events::Topic::Platform);
     let r = h
         .post("/api/v1/sr/register", reg_body(&code, "bad", "bad@x.test"))
         .send()
@@ -600,6 +605,15 @@ async fn register_banned_person_gets_generic_error() {
     assert_eq!(r.status, StatusCode::FORBIDDEN);
     assert_eq!(r.body["code"], 900006);
     assert_eq!(h.store.balance(1), 5);
+    // Staff are alerted on the platform topic (open question 142).
+    let ev = futures::StreamExt::next(&mut alerts).await.unwrap();
+    assert!(matches!(
+        ev,
+        sr_events::DomainEvent::StaffAlert {
+            kind: sr_events::StaffAlertKind::BannedPersonAttempt,
+            ..
+        }
+    ));
 }
 
 #[tokio::test]
@@ -1597,6 +1611,7 @@ fn discord_harness() -> H {
         mailer,
         clock,
         hasher: cheap_hasher(),
+        bus: Arc::new(sr_events::InProcessBus::new()),
     }
 }
 

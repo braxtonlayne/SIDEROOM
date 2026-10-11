@@ -19,6 +19,7 @@ use sr_api::{
     routes::guilds,
 };
 use sr_chat::memory::MemoryRepo;
+use sr_chat::settings::audit::AuditAction;
 use sr_chat::{ChatLimits, ChatService, Member};
 use sr_core::{Clock, GuildId, ManualClock, SnowflakeGenerator, UserId};
 use sr_events::{DomainEvent, EventBus, InProcessBus, Topic};
@@ -34,12 +35,19 @@ struct Fx {
 }
 
 fn fixture() -> Fx {
+    fixture_with(None)
+}
+
+fn fixture_with(audit: Option<Arc<dyn guilds::backend::AuditSink>>) -> Fx {
     let clock: Arc<dyn Clock> = Arc::new(ManualClock::new(T0));
     let ids = SnowflakeGenerator::new(clock.clone(), 1, 1).unwrap();
     let repo = MemoryRepo::default();
     let svc = ChatService::new(repo.clone(), clock.clone(), ids, ChatLimits::default());
     let bus = Arc::new(InProcessBus::new());
-    let backend = guilds::backend::backend(svc, bus.clone());
+    let backend = match audit {
+        Some(a) => guilds::backend::backend_with_audit(svc, bus.clone(), a),
+        None => guilds::backend::backend(svc, bus.clone()),
+    };
 
     let bots = Arc::new(MemoryBots::new());
     for (token, user) in [("owner", 1), ("bob", 2), ("carol", 3), ("stranger", 9)] {
@@ -743,20 +751,18 @@ async fn mutations_publish_domain_events() {
     )
     .await;
     let ev = next_event(&mut events).await.unwrap();
-    assert!(
-        matches!(ev, DomainEvent::ChannelCreatedFull { .. }),
-        "{ev:?}"
-    );
+    assert!(matches!(ev, DomainEvent::ChannelCreated { .. }), "{ev:?}");
     del(
         &f,
         &format!("/channels/{}", newch["id"].as_str().unwrap()),
         "owner",
     )
     .await;
-    assert!(matches!(
-        next_event(&mut events).await,
-        Some(DomainEvent::ChannelDeleted { .. })
-    ));
+    // The viewer set is computed by the producer before the delete (Q159).
+    let Some(DomainEvent::ChannelDeleted { viewers, .. }) = next_event(&mut events).await else {
+        panic!("expected ChannelDeleted");
+    };
+    assert!(viewers.contains(&UserId::new(1)));
 
     put(&f, &format!("/guilds/{gid}/bans/2"), "owner", json!({})).await;
     assert!(matches!(
@@ -818,4 +824,84 @@ async fn openapi_lists_guild_paths() {
     assert!(doc["components"]["schemas"]["GuildObject"].is_object());
     // The base document is still there.
     assert!(paths.contains_key("/users/@me") || paths.contains_key("/sr/csrf"));
+}
+
+type Logged = (AuditAction, Option<u64>, Option<String>);
+
+#[derive(Default)]
+struct Recorder(std::sync::Mutex<Vec<Logged>>);
+
+#[async_trait::async_trait]
+impl guilds::backend::AuditSink for Recorder {
+    async fn record(
+        &self,
+        _guild: GuildId,
+        _actor: UserId,
+        action: AuditAction,
+        target_id: Option<u64>,
+        _changes: Vec<sr_chat::settings::audit::AuditChange>,
+        reason: Option<&str>,
+    ) {
+        self.0
+            .lock()
+            .unwrap()
+            .push((action, target_id, reason.map(str::to_owned)));
+    }
+}
+
+#[tokio::test]
+async fn guild_mutations_are_audited_and_role_creation_announces_shifted_roles() {
+    let rec = Arc::new(Recorder::default());
+    let f = fixture_with(Some(rec.clone()));
+    let (gid, _) = guild(&f).await;
+    let g = GuildId::new(gid.parse().unwrap());
+    let mut events = f.bus.subscribe(Topic::Guild(g));
+
+    let (_, first) = post(
+        &f,
+        &format!("/guilds/{gid}/roles"),
+        "owner",
+        json!({ "name": "a" }),
+    )
+    .await;
+    assert!(matches!(
+        next_event(&mut events).await,
+        Some(DomainEvent::RoleCreated { .. })
+    ));
+    post(
+        &f,
+        &format!("/guilds/{gid}/roles"),
+        "owner",
+        json!({ "name": "b" }),
+    )
+    .await;
+    assert!(matches!(
+        next_event(&mut events).await,
+        Some(DomainEvent::RoleCreated { .. })
+    ));
+    // The new role pushed "a" up one position, so it is announced too.
+    let Some(DomainEvent::RoleUpdated { role, .. }) = next_event(&mut events).await else {
+        panic!("expected RoleUpdated for the shifted role");
+    };
+    assert_eq!(role.get().to_string(), first["id"].as_str().unwrap());
+
+    put(
+        &f,
+        &format!("/guilds/{gid}/bans/2"),
+        "owner",
+        json!({ "reason": "spam" }),
+    )
+    .await;
+    let log = rec.0.lock().unwrap().clone();
+    let actions: Vec<_> = log.iter().map(|e| e.0).collect();
+    assert_eq!(
+        actions,
+        vec![
+            AuditAction::RoleCreate,
+            AuditAction::RoleCreate,
+            AuditAction::MemberBanAdd
+        ]
+    );
+    assert_eq!(log[2].1, Some(2));
+    assert_eq!(log[2].2.as_deref(), Some("spam"));
 }

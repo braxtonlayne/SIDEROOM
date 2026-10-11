@@ -16,6 +16,9 @@ use sr_chat::channel_rules::{ChannelPatch, NewChannel};
 use sr_chat::guild_rules::GuildBlueprint;
 use sr_chat::repo::{ChatRepository, UserSummary};
 use sr_chat::role_rules::{NewRole, RolePatch};
+use sr_chat::settings::SettingsService;
+use sr_chat::settings::audit::{AuditAction, AuditChange};
+use sr_chat::settings::repo::SettingsRepository;
 use sr_chat::{ChannelWithOverwrites, ChatResult, ChatService, Guild, Member, Role};
 use sr_core::permissions::{Overwrite, Permissions};
 use sr_core::{ChannelId, GuildId, RoleId, Snowflake, UserId};
@@ -143,10 +146,47 @@ pub trait GuildBackend: Send + Sync {
     async fn unban(&self, actor: UserId, guild: GuildId, user: UserId) -> ChatResult<()>;
 }
 
+/// Where guild mutations are recorded in the guild audit log (open questions 133
+/// and 158). Object-safe so the backend need not know the settings repository.
+#[async_trait]
+pub trait AuditSink: Send + Sync {
+    async fn record(
+        &self,
+        guild: GuildId,
+        actor: UserId,
+        action: AuditAction,
+        target_id: Option<u64>,
+        changes: Vec<AuditChange>,
+        reason: Option<&str>,
+    );
+}
+
+#[async_trait]
+impl<R: SettingsRepository + 'static> AuditSink for SettingsService<R> {
+    async fn record(
+        &self,
+        guild: GuildId,
+        actor: UserId,
+        action: AuditAction,
+        target_id: Option<u64>,
+        changes: Vec<AuditChange>,
+        reason: Option<&str>,
+    ) {
+        // The change is already committed; a failed audit write is logged, not surfaced.
+        if let Err(e) = self
+            .record_audit(guild, actor, action, target_id, changes, reason)
+            .await
+        {
+            tracing::warn!(error = %e, ?action, "failed to record audit entry");
+        }
+    }
+}
+
 /// [`GuildBackend`] over a [`ChatService`] and an [`EventBus`].
 pub struct ChatBackend<R> {
     svc: ChatService<R>,
     bus: Arc<dyn EventBus>,
+    audit: Option<Arc<dyn AuditSink>>,
 }
 
 /// Erase the repository type for registration as a [`super::GuildApi`].
@@ -154,7 +194,27 @@ pub fn backend<R>(svc: ChatService<R>, bus: Arc<dyn EventBus>) -> Arc<dyn GuildB
 where
     R: ChatRepository + GuildAdminRepository + 'static,
 {
-    Arc::new(ChatBackend { svc, bus })
+    Arc::new(ChatBackend {
+        svc,
+        bus,
+        audit: None,
+    })
+}
+
+/// Like [`backend`], and every guild mutation is also written to the audit log.
+pub fn backend_with_audit<R>(
+    svc: ChatService<R>,
+    bus: Arc<dyn EventBus>,
+    audit: Arc<dyn AuditSink>,
+) -> Arc<dyn GuildBackend>
+where
+    R: ChatRepository + GuildAdminRepository + 'static,
+{
+    Arc::new(ChatBackend {
+        svc,
+        bus,
+        audit: Some(audit),
+    })
 }
 
 fn val<T: Serialize>(t: &T) -> Value {
@@ -184,6 +244,20 @@ impl<R: ChatRepository + GuildAdminRepository> ChatBackend<R> {
                 payload: val(&ChannelObject::from(c)),
             })
             .await;
+        }
+    }
+
+    async fn audit(
+        &self,
+        guild: GuildId,
+        actor: UserId,
+        action: AuditAction,
+        target: u64,
+        reason: Option<&str>,
+    ) {
+        if let Some(a) = &self.audit {
+            a.record(guild, actor, action, Some(target), Vec::new(), reason)
+                .await;
         }
     }
 
@@ -238,6 +312,8 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
 
     async fn edit_guild(&self, actor: UserId, id: GuildId, patch: GuildPatch) -> ChatResult<Guild> {
         let g = self.svc.edit_guild(actor, id, patch).await?;
+        self.audit(id, actor, AuditAction::GuildUpdate, id.get(), None)
+            .await;
         let roles = self.svc.list_roles(actor, id).await.unwrap_or_default();
         self.emit(DomainEvent::GuildUpdated {
             guild: id,
@@ -293,11 +369,19 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
                 }
             };
         }
-        self.emit(DomainEvent::ChannelCreatedFull {
+        self.emit(DomainEvent::ChannelCreated {
             guild,
             channel: view.channel.id,
             payload: val(&ChannelObject::from(&view)),
         })
+        .await;
+        self.audit(
+            guild,
+            actor,
+            AuditAction::ChannelCreate,
+            view.channel.id.get(),
+            None,
+        )
         .await;
         Ok(view)
     }
@@ -311,6 +395,10 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
     ) -> ChatResult<ChannelWithOverwrites> {
         let view = self.svc.edit_channel(actor, id, patch, mv).await?;
         self.emit_channel_updated(&view).await;
+        if let Some(g) = view.channel.guild_id {
+            self.audit(g, actor, AuditAction::ChannelUpdate, id.get(), None)
+                .await;
+        }
         Ok(view)
     }
 
@@ -320,6 +408,8 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
         id: ChannelId,
     ) -> ChatResult<ChannelWithOverwrites> {
         let before = self.svc.get_channel_view(actor, id).await.ok();
+        // The viewer set must be computed while the channel still exists (Q159).
+        let viewers = self.svc.channel_viewers(id).await.unwrap_or_default();
         let ch = self.svc.delete_channel(actor, id).await?;
         let view = ChannelWithOverwrites {
             overwrites: before.map(|b| b.overwrites).unwrap_or_default(),
@@ -330,8 +420,11 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
                 guild,
                 channel: id,
                 payload: val(&ChannelObject::from(&view)),
+                viewers,
             })
             .await;
+            self.audit(guild, actor, AuditAction::ChannelDelete, id.get(), None)
+                .await;
         }
         Ok(view)
     }
@@ -344,6 +437,14 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
     ) -> ChatResult<()> {
         for c in self.svc.reorder_channels(actor, guild, moves).await? {
             self.emit_channel_updated(&c).await;
+            self.audit(
+                guild,
+                actor,
+                AuditAction::ChannelUpdate,
+                c.channel.id.get(),
+                None,
+            )
+            .await;
         }
         Ok(())
     }
@@ -354,8 +455,19 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
         channel: ChannelId,
         overwrite: Overwrite,
     ) -> ChatResult<()> {
+        let target = overwrite.id;
         let view = self.svc.set_overwrite(actor, channel, overwrite).await?;
         self.emit_channel_updated(&view).await;
+        if let Some(g) = view.channel.guild_id {
+            self.audit(
+                g,
+                actor,
+                AuditAction::ChannelOverwriteUpdate,
+                target.get(),
+                None,
+            )
+            .await;
+        }
         Ok(())
     }
 
@@ -367,6 +479,16 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
     ) -> ChatResult<()> {
         let view = self.svc.delete_overwrite(actor, channel, target).await?;
         self.emit_channel_updated(&view).await;
+        if let Some(g) = view.channel.guild_id {
+            self.audit(
+                g,
+                actor,
+                AuditAction::ChannelOverwriteDelete,
+                target.get(),
+                None,
+            )
+            .await;
+        }
         Ok(())
     }
 
@@ -375,6 +497,7 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
     }
 
     async fn create_role(&self, actor: UserId, guild: GuildId, input: NewRole) -> ChatResult<Role> {
+        let before = self.svc.list_roles(actor, guild).await.unwrap_or_default();
         let role = self.svc.create_role(actor, guild, input).await?;
         self.emit(DomainEvent::RoleCreated {
             guild,
@@ -382,6 +505,23 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
             payload: role_payload(guild, &role),
         })
         .await;
+        // Creating a role shifts the roles at or above it up one position; each of
+        // them gets a GUILD_ROLE_UPDATE (open question 159).
+        for r in self.svc.list_roles(actor, guild).await.unwrap_or_default() {
+            let moved = before
+                .iter()
+                .any(|o| o.id == r.id && o.position != r.position);
+            if moved && r.id != role.id {
+                self.emit(DomainEvent::RoleUpdated {
+                    guild,
+                    role: r.id,
+                    payload: role_payload(guild, &r),
+                })
+                .await;
+            }
+        }
+        self.audit(guild, actor, AuditAction::RoleCreate, role.id.get(), None)
+            .await;
         Ok(role)
     }
 
@@ -399,6 +539,8 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
             payload: role_payload(guild, &r),
         })
         .await;
+        self.audit(guild, actor, AuditAction::RoleUpdate, role.get(), None)
+            .await;
         Ok(r)
     }
 
@@ -416,6 +558,8 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
                 payload: role_payload(guild, r),
             })
             .await;
+            self.audit(guild, actor, AuditAction::RoleUpdate, r.id.get(), None)
+                .await;
         }
         self.svc.list_roles(actor, guild).await
     }
@@ -428,6 +572,8 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
             payload: json!({ "guild_id": guild.to_string(), "role_id": role.to_string() }),
         })
         .await;
+        self.audit(guild, actor, AuditAction::RoleDelete, role.get(), None)
+            .await;
         Ok(())
     }
 
@@ -441,6 +587,14 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
     ) -> ChatResult<()> {
         let m = self.svc.assign_role(actor, guild, user, role, add).await?;
         self.emit_member_updated(&m).await;
+        self.audit(
+            guild,
+            actor,
+            AuditAction::MemberRoleUpdate,
+            user.get(),
+            None,
+        )
+        .await;
         Ok(())
     }
 
@@ -467,12 +621,16 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
     ) -> ChatResult<Member> {
         let m = self.svc.edit_member(actor, guild, user, patch).await?;
         self.emit_member_updated(&m).await;
+        self.audit(guild, actor, AuditAction::MemberUpdate, user.get(), None)
+            .await;
         Ok(m)
     }
 
     async fn kick_member(&self, actor: UserId, guild: GuildId, user: UserId) -> ChatResult<()> {
         self.svc.kick_member(actor, guild, user).await?;
         self.emit_member_left(guild, user).await;
+        self.audit(guild, actor, AuditAction::MemberKick, user.get(), None)
+            .await;
         Ok(())
     }
 
@@ -499,10 +657,19 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
         reason: Option<String>,
         delete_message_seconds: u32,
     ) -> ChatResult<()> {
+        let audit_reason = reason.clone();
         let out = self
             .svc
             .ban_member_purging(actor, guild, user, reason, delete_message_seconds)
             .await?;
+        self.audit(
+            guild,
+            actor,
+            AuditAction::MemberBanAdd,
+            user.get(),
+            audit_reason.as_deref(),
+        )
+        .await;
         if out.was_member {
             self.emit_member_left(guild, user).await;
         }
@@ -523,6 +690,17 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
                 message_ids: ids.iter().map(|m| m.get()).collect(),
             })
             .await;
+            if let Some(a) = &self.audit {
+                a.record(
+                    guild,
+                    actor,
+                    AuditAction::MessageBulkDelete,
+                    Some(channel.get()),
+                    vec![AuditChange::new("count", None, Some(json!(ids.len())))],
+                    audit_reason.as_deref(),
+                )
+                .await;
+            }
         }
         Ok(())
     }
@@ -533,6 +711,8 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
 
     async fn unban(&self, actor: UserId, guild: GuildId, user: UserId) -> ChatResult<()> {
         self.svc.unban(actor, guild, user).await?;
+        self.audit(guild, actor, AuditAction::MemberBanRemove, user.get(), None)
+            .await;
         self.emit(DomainEvent::MemberUnbanned {
             guild,
             user,

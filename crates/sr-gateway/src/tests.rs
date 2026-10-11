@@ -26,6 +26,7 @@ fn u(n: u64) -> UserId {
 struct FakeDir {
     guilds: Mutex<HashMap<UserId, Vec<GuildId>>>,
     hidden: Mutex<HashSet<(UserId, ChannelId)>>,
+    staff: Mutex<Vec<UserId>>,
 }
 
 #[async_trait]
@@ -37,6 +38,9 @@ impl GuildDirectory for FakeDir {
             .get(&user)
             .cloned()
             .unwrap_or_default()
+    }
+    async fn staff_users(&self) -> Vec<UserId> {
+        self.staff.lock().unwrap().clone()
     }
     async fn can_view_channel(&self, user: UserId, _g: GuildId, ch: ChannelId) -> bool {
         !self.hidden.lock().unwrap().contains(&(user, ch))
@@ -901,4 +905,46 @@ async fn registered_op_handlers_receive_their_ops_only() {
     assert_eq!(v["d"]["user"], "1");
     c.send(json!({"op": 101, "d": null})).await;
     c.silent().await;
+}
+
+#[tokio::test]
+async fn channel_delete_reaches_only_the_producer_computed_viewers() {
+    let e = env();
+    let mut a = connect(&e);
+    a.identify("bot:1", intents::GUILDS, 1).await;
+    let mut b = connect(&e);
+    b.identify("bot:2", intents::GUILDS, 1).await;
+    emit(
+        &e.bus,
+        DomainEvent::ChannelDeleted {
+            guild: G1,
+            channel: SECRET,
+            payload: json!({ "id": "11", "name": "secret" }),
+            viewers: vec![u(1)],
+        },
+    )
+    .await;
+    assert_eq!(a.expect_event("CHANNEL_DELETE").await["d"]["id"], "11");
+    b.silent().await;
+}
+
+#[tokio::test]
+async fn staff_alert_is_dispatched_to_staff_only() {
+    let e = env();
+    e.dir.staff.lock().unwrap().push(u(1));
+    let mut staff = connect(&e);
+    staff.identify("bot:1", intents::GUILDS, 1).await;
+    let mut other = connect(&e);
+    other.identify("bot:2", intents::GUILDS, 1).await;
+    emit(
+        &e.bus,
+        DomainEvent::StaffAlert {
+            kind: sr_events::StaffAlertKind::BannedPersonAttempt,
+            detail: "registration refused".into(),
+        },
+    )
+    .await;
+    let d = staff.expect_event("SR_STAFF_ALERT").await;
+    assert_eq!(d["d"]["kind"], "banned_person_attempt");
+    other.silent().await;
 }
