@@ -1,0 +1,26 @@
+//! Server-settings domain (docs/specs/lounge-chat.md section 11, inventory
+//! `06-lounge-server-settings.md`): guild invites, audit log, custom emoji and
+//! stickers, AutoMod, webhooks, templates and community/onboarding flags.
+//!
+//! Everything here is pure: validation and rules take the current time as an
+//! argument, persistence goes through the traits in [`repo`], and the Postgres
+//! implementation lives in `sr-db::settings_repo`. There are no REST routes yet.
+
+pub mod audit;
+pub mod automod;
+pub mod community;
+pub mod error;
+pub mod expressions;
+pub mod invites;
+pub mod repo;
+pub mod service;
+pub mod templates;
+pub mod webhooks;
+
+#[cfg(test)]
+mod memory;
+#[cfg(test)]
+mod service_tests;
+
+pub use error::{SettingsError, SettingsResult};
+pub use service::SettingsService;

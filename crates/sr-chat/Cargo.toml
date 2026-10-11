@@ -8,6 +8,9 @@ publish.workspace = true
 sr-core = { path = "../sr-core", default-features = false }
 sr-markdown = { path = "../sr-markdown" }
 async-trait.workspace = true
+regex = { version = "1", default-features = false, features = ["std", "unicode-perl", "unicode-case", "unicode-gencat", "perf"] }
+serde.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]

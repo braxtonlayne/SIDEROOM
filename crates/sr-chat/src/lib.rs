@@ -15,6 +15,7 @@ pub mod perms;
 pub mod repo;
 pub mod role_rules;
 pub mod service;
+pub mod settings;
 
 #[cfg(test)]
 mod memory;
