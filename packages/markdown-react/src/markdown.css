@@ -1,0 +1,70 @@
+/* Minimal structural styles; themes override via the sr-md-* classes and tokens. */
+.sr-md {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.sr-md-jumbo .sr-md-emoji {
+  font-size: 2.75rem;
+  line-height: 1.1;
+}
+.sr-md-jumbo img.sr-md-emoji {
+  width: 3rem;
+  height: 3rem;
+}
+img.sr-md-emoji {
+  width: 1.375em;
+  height: 1.375em;
+  vertical-align: -0.3em;
+  object-fit: contain;
+}
+.sr-md-code,
+.sr-md-codeblock {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  background: var(--sr-code-bg, rgb(127 127 127 / 0.15));
+  border-radius: 4px;
+}
+.sr-md-code {
+  padding: 0 0.25em;
+}
+.sr-md-codeblock {
+  padding: 0.5em 0.75em;
+  margin: 0.25em 0;
+  overflow-x: auto;
+  white-space: pre;
+}
+.sr-md-quote {
+  margin: 0.25em 0;
+  padding-left: 0.75em;
+  border-left: 4px solid var(--sr-quote-bar, rgb(127 127 127 / 0.5));
+}
+.sr-md-heading {
+  margin: 0.5em 0 0.25em;
+}
+.sr-md-list {
+  margin: 0.25em 0;
+  padding-left: 1.5em;
+}
+.sr-md-spoiler[data-revealed="false"] {
+  cursor: pointer;
+  background: var(--sr-spoiler-bg, #202225);
+  border-radius: 3px;
+}
+.sr-md-spoiler[data-revealed="false"] .sr-md-spoiler-content {
+  opacity: 0;
+  pointer-events: none;
+}
+.sr-md-spoiler[data-revealed="true"] {
+  background: var(--sr-spoiler-revealed-bg, rgb(127 127 127 / 0.2));
+  border-radius: 3px;
+}
+.sr-md-mention {
+  background: var(--sr-mention-bg, rgb(88 101 242 / 0.25));
+  border-radius: 3px;
+  padding: 0 2px;
+  font: inherit;
+  border: 0;
+  color: inherit;
+}
+button.sr-md-mention {
+  cursor: pointer;
+}

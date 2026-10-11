@@ -30,9 +30,9 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 ## LNG-MD — `sr-markdown`
 - [x] **LNG-MD-001** [BE][WASM] Parser: bold, italic, underline, strike, spoiler, inline code, code block with lang, block quote (single/multi), headers 1–3, subtext, ordered/unordered lists, masked links, autolinks, escapes
 - [x] **LNG-MD-002** [BE][WASM] Mentions & tokens: user, role, channel, everyone/here, custom emoji (static/animated), timestamp styles (t,T,d,D,f,F,R), slash-command mention, guild nav, `<cinema:id>`, `<library:id>`
-- [ ] **LNG-MD-003** [BE][WASM] Unicode emoji shortcode table (`:smile:` → 😄) + emoji-only "jumbo" detection
+- [x] **LNG-MD-003** [BE][WASM] Unicode emoji shortcode table (`:smile:` → 😄) + emoji-only "jumbo" detection
 - [x] **LNG-MD-004** [BE][WASM] AST → plain text (search/notifications), AST JSON for the React renderer
-- [ ] **LNG-MD-005** [TEST] Shared fixture corpus (≥ 500 cases) run in Rust and WASM
+- [x] **LNG-MD-005** [TEST] Shared fixture corpus (≥ 500 cases) run in Rust and WASM
 - [ ] **LNG-MD-006** [FE] React AST renderer + syntax highlighting (lazy-loaded grammar set)
 
 ## LNG-MSGUI — Message list UI

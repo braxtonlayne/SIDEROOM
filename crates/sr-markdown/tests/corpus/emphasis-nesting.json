@@ -1,0 +1,1437 @@
+{
+  "description": "Nested and overlapping emphasis",
+  "cases": [
+    {
+      "name": "nest-001",
+      "input": "**bold *it***",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "bold ",
+              "type": "text"
+            },
+            {
+              "children": [
+                {
+                  "text": "it",
+                  "type": "text"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "bold it",
+      "jumbo": false
+    },
+    {
+      "name": "nest-002",
+      "input": "**a __b__ c**",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            },
+            {
+              "children": [
+                {
+                  "text": "b",
+                  "type": "text"
+                }
+              ],
+              "type": "underline"
+            },
+            {
+              "text": " c",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "a b c",
+      "jumbo": false
+    },
+    {
+      "name": "nest-003",
+      "input": "*a **b** c*",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            },
+            {
+              "children": [
+                {
+                  "text": "b",
+                  "type": "text"
+                }
+              ],
+              "type": "bold"
+            },
+            {
+              "text": " c",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "a b c",
+      "jumbo": false
+    },
+    {
+      "name": "nest-004",
+      "input": "__a **b** c__",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            },
+            {
+              "children": [
+                {
+                  "text": "b",
+                  "type": "text"
+                }
+              ],
+              "type": "bold"
+            },
+            {
+              "text": " c",
+              "type": "text"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "a b c",
+      "jumbo": false
+    },
+    {
+      "name": "nest-005",
+      "input": "||*x*||",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "x",
+                  "type": "text"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "nest-006",
+      "input": "~~**x**~~",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "x",
+                  "type": "text"
+                }
+              ],
+              "type": "bold"
+            }
+          ],
+          "type": "strike"
+        }
+      ],
+      "plain": "x",
+      "jumbo": false
+    },
+    {
+      "name": "nest-007",
+      "input": "**~~x~~**",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "x",
+                  "type": "text"
+                }
+              ],
+              "type": "strike"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "x",
+      "jumbo": false
+    },
+    {
+      "name": "nest-008",
+      "input": "||**~~__*x*__~~**||",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "children": [
+                        {
+                          "children": [
+                            {
+                              "text": "x",
+                              "type": "text"
+                            }
+                          ],
+                          "type": "italic"
+                        }
+                      ],
+                      "type": "underline"
+                    }
+                  ],
+                  "type": "strike"
+                }
+              ],
+              "type": "bold"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "nest-009",
+      "input": "**a** and *b* and __c__ and ~~d~~ and ||e||",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        },
+        {
+          "text": " and ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        },
+        {
+          "text": " and ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "c",
+              "type": "text"
+            }
+          ],
+          "type": "underline"
+        },
+        {
+          "text": " and ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "d",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        },
+        {
+          "text": " and ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "e",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "a and b and c and d and [spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "nest-010",
+      "input": "**a**b**c**",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        },
+        {
+          "text": "b",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "c",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "abc",
+      "jumbo": false
+    },
+    {
+      "name": "nest-011",
+      "input": "*a*b*c*",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        },
+        {
+          "text": "b",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "c",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "abc",
+      "jumbo": false
+    },
+    {
+      "name": "nest-012",
+      "input": "**a *b* c *d* e**",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            },
+            {
+              "children": [
+                {
+                  "text": "b",
+                  "type": "text"
+                }
+              ],
+              "type": "italic"
+            },
+            {
+              "text": " c ",
+              "type": "text"
+            },
+            {
+              "children": [
+                {
+                  "text": "d",
+                  "type": "text"
+                }
+              ],
+              "type": "italic"
+            },
+            {
+              "text": " e",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "a b c d e",
+      "jumbo": false
+    },
+    {
+      "name": "nest-013",
+      "input": "_a **b** c_",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            },
+            {
+              "children": [
+                {
+                  "text": "b",
+                  "type": "text"
+                }
+              ],
+              "type": "bold"
+            },
+            {
+              "text": " c",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "a b c",
+      "jumbo": false
+    },
+    {
+      "name": "nest-014",
+      "input": "__a *b* c__",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            },
+            {
+              "children": [
+                {
+                  "text": "b",
+                  "type": "text"
+                }
+              ],
+              "type": "italic"
+            },
+            {
+              "text": " c",
+              "type": "text"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "a b c",
+      "jumbo": false
+    },
+    {
+      "name": "nest-015",
+      "input": "*__x__*",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "x",
+                  "type": "text"
+                }
+              ],
+              "type": "underline"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "x",
+      "jumbo": false
+    },
+    {
+      "name": "nest-016",
+      "input": "__*x*__",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "x",
+                  "type": "text"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "x",
+      "jumbo": false
+    },
+    {
+      "name": "nest-017",
+      "input": "***a** b*",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "*a",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        },
+        {
+          "text": " b*",
+          "type": "text"
+        }
+      ],
+      "plain": "*a b*",
+      "jumbo": false
+    },
+    {
+      "name": "nest-018",
+      "input": "***a* b**",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "a",
+                  "type": "text"
+                }
+              ],
+              "type": "italic"
+            },
+            {
+              "text": " b",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "a b",
+      "jumbo": false
+    },
+    {
+      "name": "nest-019",
+      "input": "**a*",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "*a",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "*a",
+      "jumbo": false
+    },
+    {
+      "name": "nest-020",
+      "input": "*a**",
+      "ast": [
+        {
+          "text": "*a**",
+          "type": "text"
+        }
+      ],
+      "plain": "*a**",
+      "jumbo": false
+    },
+    {
+      "name": "nest-021",
+      "input": "**a**b*",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        },
+        {
+          "text": "b*",
+          "type": "text"
+        }
+      ],
+      "plain": "ab*",
+      "jumbo": false
+    },
+    {
+      "name": "nest-022",
+      "input": "~~a **b** c~~",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            },
+            {
+              "children": [
+                {
+                  "text": "b",
+                  "type": "text"
+                }
+              ],
+              "type": "bold"
+            },
+            {
+              "text": " c",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        }
+      ],
+      "plain": "a b c",
+      "jumbo": false
+    },
+    {
+      "name": "nest-023",
+      "input": "||a ~~b~~ c||",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            },
+            {
+              "children": [
+                {
+                  "text": "b",
+                  "type": "text"
+                }
+              ],
+              "type": "strike"
+            },
+            {
+              "text": " c",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "nest-024",
+      "input": "**a ||b|| c**",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            },
+            {
+              "children": [
+                {
+                  "text": "b",
+                  "type": "text"
+                }
+              ],
+              "type": "spoiler"
+            },
+            {
+              "text": " c",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "a [spoiler] c",
+      "jumbo": false
+    },
+    {
+      "name": "nest-025",
+      "input": "||a **b** c||",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a ",
+              "type": "text"
+            },
+            {
+              "children": [
+                {
+                  "text": "b",
+                  "type": "text"
+                }
+              ],
+              "type": "bold"
+            },
+            {
+              "text": " c",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "nest-026",
+      "input": "**a\n**b**",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            },
+            {
+              "type": "line_break"
+            },
+            {
+              "text": "**b",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "a\n**b",
+      "jumbo": false
+    },
+    {
+      "name": "nest-027",
+      "input": "*one\ntwo*",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "one",
+              "type": "text"
+            },
+            {
+              "type": "line_break"
+            },
+            {
+              "text": "two",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "one\ntwo",
+      "jumbo": false
+    },
+    {
+      "name": "nest-028",
+      "input": "**one\n\ntwo**",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "one",
+              "type": "text"
+            },
+            {
+              "type": "line_break"
+            },
+            {
+              "type": "line_break"
+            },
+            {
+              "text": "two",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "one\n\ntwo",
+      "jumbo": false
+    },
+    {
+      "name": "nest-029",
+      "input": "~~a\nb~~",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            },
+            {
+              "type": "line_break"
+            },
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        }
+      ],
+      "plain": "a\nb",
+      "jumbo": false
+    },
+    {
+      "name": "nest-030",
+      "input": "||a\nb||",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            },
+            {
+              "type": "line_break"
+            },
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "nest-031",
+      "input": "____",
+      "ast": [
+        {
+          "text": "____",
+          "type": "text"
+        }
+      ],
+      "plain": "____",
+      "jumbo": false
+    },
+    {
+      "name": "nest-032",
+      "input": "_ _",
+      "ast": [
+        {
+          "text": "_ _",
+          "type": "text"
+        }
+      ],
+      "plain": "_ _",
+      "jumbo": false
+    },
+    {
+      "name": "nest-033",
+      "input": "* *",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "*",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "*\n",
+      "jumbo": false
+    },
+    {
+      "name": "nest-034",
+      "input": "** **",
+      "ast": [
+        {
+          "text": "** **",
+          "type": "text"
+        }
+      ],
+      "plain": "** **",
+      "jumbo": false
+    },
+    {
+      "name": "nest-035",
+      "input": "**_x_**",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "x",
+                  "type": "text"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "x",
+      "jumbo": false
+    },
+    {
+      "name": "nest-036",
+      "input": "__**x**__",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "x",
+                  "type": "text"
+                }
+              ],
+              "type": "bold"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "x",
+      "jumbo": false
+    },
+    {
+      "name": "nest-037",
+      "input": "*`a`*",
+      "ast": [
+        {
+          "children": [
+            {
+              "code": "a",
+              "type": "inline_code"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "a",
+      "jumbo": false
+    },
+    {
+      "name": "nest-038",
+      "input": "`*a*`",
+      "ast": [
+        {
+          "code": "*a*",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "*a*",
+      "jumbo": false
+    },
+    {
+      "name": "nest-039",
+      "input": "**`a`**",
+      "ast": [
+        {
+          "children": [
+            {
+              "code": "a",
+              "type": "inline_code"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "a",
+      "jumbo": false
+    },
+    {
+      "name": "nest-040",
+      "input": "`**a**`",
+      "ast": [
+        {
+          "code": "**a**",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "**a**",
+      "jumbo": false
+    },
+    {
+      "name": "nest-041",
+      "input": "**a** **b**",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "a b",
+      "jumbo": false
+    },
+    {
+      "name": "nest-042",
+      "input": "*a* *b*",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "a b",
+      "jumbo": false
+    },
+    {
+      "name": "nest-043",
+      "input": "||a|| ||b||",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler] [spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "nest-044",
+      "input": "~~a~~ ~~b~~",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        }
+      ],
+      "plain": "a b",
+      "jumbo": false
+    },
+    {
+      "name": "nest-045",
+      "input": "x**a**",
+      "ast": [
+        {
+          "text": "x",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "xa",
+      "jumbo": false
+    },
+    {
+      "name": "nest-046",
+      "input": "**a**x",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        },
+        {
+          "text": "x",
+          "type": "text"
+        }
+      ],
+      "plain": "ax",
+      "jumbo": false
+    },
+    {
+      "name": "nest-047",
+      "input": "x*a*x",
+      "ast": [
+        {
+          "text": "x",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        },
+        {
+          "text": "x",
+          "type": "text"
+        }
+      ],
+      "plain": "xax",
+      "jumbo": false
+    },
+    {
+      "name": "nest-048",
+      "input": "x_a_x",
+      "ast": [
+        {
+          "text": "x_a_x",
+          "type": "text"
+        }
+      ],
+      "plain": "x_a_x",
+      "jumbo": false
+    },
+    {
+      "name": "nest-049",
+      "input": "x__a__x",
+      "ast": [
+        {
+          "text": "x__a__x",
+          "type": "text"
+        }
+      ],
+      "plain": "x__a__x",
+      "jumbo": false
+    },
+    {
+      "name": "nest-050",
+      "input": "snake_case_word",
+      "ast": [
+        {
+          "text": "snake_case_word",
+          "type": "text"
+        }
+      ],
+      "plain": "snake_case_word",
+      "jumbo": false
+    },
+    {
+      "name": "nest-051",
+      "input": "two_words_here and_more",
+      "ast": [
+        {
+          "text": "two_words_here and_more",
+          "type": "text"
+        }
+      ],
+      "plain": "two_words_here and_more",
+      "jumbo": false
+    },
+    {
+      "name": "nest-052",
+      "input": "_a_b_",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a_b",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "a_b",
+      "jumbo": false
+    },
+    {
+      "name": "nest-053",
+      "input": "__init__",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "init",
+              "type": "text"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": "init",
+      "jumbo": false
+    },
+    {
+      "name": "nest-054",
+      "input": "2 * 3 * 4",
+      "ast": [
+        {
+          "text": "2 * 3 * 4",
+          "type": "text"
+        }
+      ],
+      "plain": "2 * 3 * 4",
+      "jumbo": false
+    },
+    {
+      "name": "nest-055",
+      "input": "2*3*4",
+      "ast": [
+        {
+          "text": "2",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "3",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        },
+        {
+          "text": "4",
+          "type": "text"
+        }
+      ],
+      "plain": "234",
+      "jumbo": false
+    },
+    {
+      "name": "nest-056",
+      "input": "a * b",
+      "ast": [
+        {
+          "text": "a * b",
+          "type": "text"
+        }
+      ],
+      "plain": "a * b",
+      "jumbo": false
+    },
+    {
+      "name": "nest-057",
+      "input": "a _ b",
+      "ast": [
+        {
+          "text": "a _ b",
+          "type": "text"
+        }
+      ],
+      "plain": "a _ b",
+      "jumbo": false
+    },
+    {
+      "name": "nest-058",
+      "input": "~single~",
+      "ast": [
+        {
+          "text": "~single~",
+          "type": "text"
+        }
+      ],
+      "plain": "~single~",
+      "jumbo": false
+    },
+    {
+      "name": "nest-059",
+      "input": "~~~triple~~~",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "~triple~",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        }
+      ],
+      "plain": "~triple~",
+      "jumbo": false
+    },
+    {
+      "name": "nest-060",
+      "input": "~~ ~~",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": " ",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        }
+      ],
+      "plain": " ",
+      "jumbo": false
+    },
+    {
+      "name": "nest-061",
+      "input": "|single|",
+      "ast": [
+        {
+          "text": "|single|",
+          "type": "text"
+        }
+      ],
+      "plain": "|single|",
+      "jumbo": false
+    },
+    {
+      "name": "nest-062",
+      "input": "||| |||",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "| |",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "nest-063",
+      "input": "* a *",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "a *",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "a *\n",
+      "jumbo": false
+    },
+    {
+      "name": "nest-064",
+      "input": "_ a _",
+      "ast": [
+        {
+          "text": "_ a _",
+          "type": "text"
+        }
+      ],
+      "plain": "_ a _",
+      "jumbo": false
+    }
+  ]
+}

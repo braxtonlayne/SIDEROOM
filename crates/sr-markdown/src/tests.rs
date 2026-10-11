@@ -54,6 +54,7 @@ fn show1(n: &Node) -> String {
         Node::CustomEmoji { name, id, animated } => {
             format!("emoji({}{name},{id})", if *animated { "a:" } else { "" })
         }
+        Node::Emoji { name, emoji } => format!("emo({name},{emoji})"),
         Node::Timestamp { unix, style } => format!("ts({unix},{style:?})"),
         Node::SlashCommand { name, id } => format!("cmd({name},{id})"),
         Node::GuildNav { kind, id } => format!("nav({kind},{id:?})"),
@@ -220,7 +221,7 @@ fn corpus() {
         ("`@everyone`", r#"code("@everyone")"#),
         ("<:smile:123>", "emoji(smile,123)"),
         ("<a:dance:456>", "emoji(a:dance,456)"),
-        ("<:x:1>", r#""<:x:1>""#),
+        ("<:x:1>", r#""<" emo(x,❌) "1>""#),
         ("<:bad name:1>", r#""<:bad name:1>""#),
         ("<t:1618953630>", "ts(1618953630,None)"),
         ("<t:1618953630:R>", "ts(1618953630,Some(Relative))"),
@@ -339,7 +340,7 @@ fn json_shape() {
     assert_eq!(v[0]["type"], "bold");
     assert_eq!(v[0]["children"][0]["text"], "a");
     assert_eq!(v[2]["type"], "user_mention");
-    assert_eq!(v[2]["id"], 1);
+    assert_eq!(v[2]["id"], "1");
     let ts: serde_json::Value = serde_json::from_str(&parse_to_json("<t:5:R>")).unwrap();
     assert_eq!(ts[0]["style"], "relative");
 }
@@ -426,4 +427,92 @@ proptest! {
         let ast = parse(&s);
         prop_assert_eq!(ast, vec![Node::Text { text: s.clone() }]);
     }
+}
+
+#[test]
+fn shortcodes() {
+    assert_eq!(p(":smile:"), "emo(smile,😄)");
+    assert_eq!(p(":SMILE:"), "emo(smile,😄)");
+    assert_eq!(p(":+1:"), "emo(+1,👍)");
+    assert_eq!(p("a :fire: b"), r#""a " emo(fire,🔥) " b""#);
+    assert_eq!(p(":fire::fire:"), "emo(fire,🔥) emo(fire,🔥)");
+    assert_eq!(p(":nope:"), r#"":nope:""#);
+    assert_eq!(p("12:30:45"), r#""12:30:45""#);
+    assert_eq!(p("::"), r#""::""#);
+    assert_eq!(p("`:fire:`"), r#"code(":fire:")"#);
+    assert_eq!(p("<:fire:123>"), "emoji(fire,123)");
+    assert_eq!(p(r"\:fire:"), r#"":fire:""#);
+}
+
+#[test]
+fn shortcode_table_is_sane() {
+    assert!(shortcode_count() >= 500);
+    let mut seen = std::collections::HashSet::new();
+    for (n, e) in super::emoji::table() {
+        assert!(seen.insert(*n), "duplicate shortcode {n}");
+        assert_eq!(n, &n.to_ascii_lowercase());
+        assert!(n.bytes().all(crate::emoji::is_shortcode_char), "{n}");
+        assert_eq!(count_emoji_only(e), Some(1), "{n} is not exactly one emoji");
+    }
+}
+
+#[test]
+fn jumbo() {
+    let j = |s: &str| is_jumbo(&parse(s));
+    assert!(j("😄"));
+    assert!(j(":smile:"));
+    assert!(j("😄 :fire: <:xx:1> <a:yy:2>"));
+    assert!(j("😄😄
+😄"));
+    assert!(j("👍🏽"));
+    assert!(j("👨‍👩‍👧‍👦"));
+    assert!(j("🇺🇸"));
+    assert!(j("1️⃣"));
+    assert!(!j(""));
+    assert!(!j("   "));
+    assert!(!j("hi 😄"));
+    assert!(!j("1"));
+    assert!(!j("**😄**"));
+    assert!(!j("> 😄"));
+    assert!(!j("<@1>"));
+    assert!(!j(":nope:"));
+    assert!(j(&"😄".repeat(27)));
+    assert!(!j(&"😄".repeat(28)));
+    assert_eq!(emoji_only_count(&parse("😄 😄")), Some(2));
+    assert_eq!(emoji_only_count(&parse("a")), None);
+}
+
+#[test]
+fn emoji_plain_text() {
+    assert_eq!(to_plain_text(&parse("hi :fire:")), "hi 🔥");
+}
+
+#[test]
+fn ids_serialize_as_strings_above_2_pow_53() {
+    let big = "18446744073709551615";
+    let src =
+        format!("<@{big}> <@&{big}> <#{big}> <:ab:{big}> </cmd:{big}> <1:linked-roles:{big}>");
+    let json = parse_to_json(&src);
+    for kind in [
+        "user_mention",
+        "role_mention",
+        "channel_mention",
+        "custom_emoji",
+        "slash_command",
+        "guild_nav",
+    ] {
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let n = v
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|n| n["type"] == kind)
+            .unwrap();
+        assert_eq!(n["id"], big, "{kind}");
+    }
+    // Round-trips, and legacy numeric ids still deserialize.
+    let nodes: Vec<Node> = serde_json::from_str(&json).unwrap();
+    assert_eq!(nodes, parse(&src));
+    let legacy: Node = serde_json::from_str(r#"{"type":"user_mention","id":7}"#).unwrap();
+    assert_eq!(legacy, Node::UserMention { id: 7 });
 }

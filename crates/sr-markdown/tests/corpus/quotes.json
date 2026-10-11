@@ -1,0 +1,781 @@
+{
+  "description": "Block quotes, single-line and multi-line",
+  "cases": [
+    {
+      "name": "quote-001",
+      "input": "> q",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "q",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "q\n",
+      "jumbo": false
+    },
+    {
+      "name": "quote-002",
+      "input": "> a\n> b",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            },
+            {
+              "type": "line_break"
+            },
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "a\nb\n",
+      "jumbo": false
+    },
+    {
+      "name": "quote-003",
+      "input": "> a\nb",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        },
+        {
+          "text": "b",
+          "type": "text"
+        }
+      ],
+      "plain": "a\nb",
+      "jumbo": false
+    },
+    {
+      "name": "quote-004",
+      "input": ">no space",
+      "ast": [
+        {
+          "text": ">no space",
+          "type": "text"
+        }
+      ],
+      "plain": ">no space",
+      "jumbo": false
+    },
+    {
+      "name": "quote-005",
+      "input": "> **b**",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "b",
+                  "type": "text"
+                }
+              ],
+              "type": "bold"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "b\n",
+      "jumbo": false
+    },
+    {
+      "name": "quote-006",
+      "input": ">> nested",
+      "ast": [
+        {
+          "text": ">> nested",
+          "type": "text"
+        }
+      ],
+      "plain": ">> nested",
+      "jumbo": false
+    },
+    {
+      "name": "quote-007",
+      "input": "> > nested",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "> nested",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "> nested\n",
+      "jumbo": false
+    },
+    {
+      "name": "quote-008",
+      "input": "> ",
+      "ast": [
+        {
+          "children": [],
+          "type": "quote"
+        }
+      ],
+      "plain": "\n",
+      "jumbo": false
+    },
+    {
+      "name": "quote-009",
+      "input": ">",
+      "ast": [
+        {
+          "text": ">",
+          "type": "text"
+        }
+      ],
+      "plain": ">",
+      "jumbo": false
+    },
+    {
+      "name": "quote-010",
+      "input": ">  two spaces",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": " two spaces",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": " two spaces\n",
+      "jumbo": false
+    },
+    {
+      "name": "quote-011",
+      "input": "> a\n\n> b",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        },
+        {
+          "children": [
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "a\nb\n",
+      "jumbo": false
+    },
+    {
+      "name": "quote-012",
+      "input": "> a\n>\n> b",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        },
+        {
+          "text": ">",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "a\n>b\n",
+      "jumbo": false
+    },
+    {
+      "name": "quote-013",
+      "input": ">>> all\nof\nthis",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "all",
+              "type": "text"
+            },
+            {
+              "type": "line_break"
+            },
+            {
+              "text": "of",
+              "type": "text"
+            },
+            {
+              "type": "line_break"
+            },
+            {
+              "text": "this",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "all\nof\nthis\n",
+      "jumbo": false
+    },
+    {
+      "name": "quote-014",
+      "input": ">>> a",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "a\n",
+      "jumbo": false
+    },
+    {
+      "name": "quote-015",
+      "input": ">>> a\n> b",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            },
+            {
+              "type": "line_break"
+            },
+            {
+              "text": "> b",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "a\n> b\n",
+      "jumbo": false
+    },
+    {
+      "name": "quote-016",
+      "input": ">>>",
+      "ast": [
+        {
+          "text": ">>>",
+          "type": "text"
+        }
+      ],
+      "plain": ">>>",
+      "jumbo": false
+    },
+    {
+      "name": "quote-017",
+      "input": ">>>no space",
+      "ast": [
+        {
+          "text": ">>>no space",
+          "type": "text"
+        }
+      ],
+      "plain": ">>>no space",
+      "jumbo": false
+    },
+    {
+      "name": "quote-018",
+      "input": ">>> ",
+      "ast": [
+        {
+          "children": [],
+          "type": "quote"
+        }
+      ],
+      "plain": "\n",
+      "jumbo": false
+    },
+    {
+      "name": "quote-019",
+      "input": "x\n>>> y\nz",
+      "ast": [
+        {
+          "text": "x",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "y",
+              "type": "text"
+            },
+            {
+              "type": "line_break"
+            },
+            {
+              "text": "z",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "xy\nz\n",
+      "jumbo": false
+    },
+    {
+      "name": "quote-020",
+      "input": "x > y",
+      "ast": [
+        {
+          "text": "x > y",
+          "type": "text"
+        }
+      ],
+      "plain": "x > y",
+      "jumbo": false
+    },
+    {
+      "name": "quote-021",
+      "input": "a\n> b\nc",
+      "ast": [
+        {
+          "text": "a",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        },
+        {
+          "text": "c",
+          "type": "text"
+        }
+      ],
+      "plain": "ab\nc",
+      "jumbo": false
+    },
+    {
+      "name": "quote-022",
+      "input": "> # heading",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "heading",
+                  "type": "text"
+                }
+              ],
+              "level": 1,
+              "type": "heading"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "heading\n\n",
+      "jumbo": false
+    },
+    {
+      "name": "quote-023",
+      "input": "> -# sub",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "sub",
+                  "type": "text"
+                }
+              ],
+              "type": "subtext"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "sub\n\n",
+      "jumbo": false
+    },
+    {
+      "name": "quote-024",
+      "input": "> - item",
+      "ast": [
+        {
+          "children": [
+            {
+              "items": [
+                [
+                  {
+                    "text": "item",
+                    "type": "text"
+                  }
+                ]
+              ],
+              "ordered": false,
+              "start": null,
+              "type": "list"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "item\n\n",
+      "jumbo": false
+    },
+    {
+      "name": "quote-025",
+      "input": "> 1. one",
+      "ast": [
+        {
+          "children": [
+            {
+              "items": [
+                [
+                  {
+                    "text": "one",
+                    "type": "text"
+                  }
+                ]
+              ],
+              "ordered": true,
+              "start": 1,
+              "type": "list"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "one\n\n",
+      "jumbo": false
+    },
+    {
+      "name": "quote-026",
+      "input": "> `code`",
+      "ast": [
+        {
+          "children": [
+            {
+              "code": "code",
+              "type": "inline_code"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "code\n",
+      "jumbo": false
+    },
+    {
+      "name": "quote-027",
+      "input": "> ```\n> code\n> ```",
+      "ast": [
+        {
+          "children": [],
+          "type": "quote"
+        },
+        {
+          "code": "> code\n> ",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": "\n> code\n> ",
+      "jumbo": false
+    },
+    {
+      "name": "quote-028",
+      "input": "> ||sp||",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "sp",
+                  "type": "text"
+                }
+              ],
+              "type": "spoiler"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "[spoiler]\n",
+      "jumbo": false
+    },
+    {
+      "name": "quote-029",
+      "input": "> <@1>",
+      "ast": [
+        {
+          "children": [
+            {
+              "id": "1",
+              "type": "user_mention"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "@user\n",
+      "jumbo": false
+    },
+    {
+      "name": "quote-030",
+      "input": "> :smile:",
+      "ast": [
+        {
+          "children": [
+            {
+              "emoji": "😄",
+              "name": "smile",
+              "type": "emoji"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "😄\n",
+      "jumbo": false
+    },
+    {
+      "name": "quote-031",
+      "input": "> https://e.com",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "https://e.com",
+                  "type": "text"
+                }
+              ],
+              "kind": "auto",
+              "type": "link",
+              "url": "https://e.com"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "https://e.com\n",
+      "jumbo": false
+    },
+    {
+      "name": "quote-032",
+      "input": "> [a](https://e.com)",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "a",
+                  "type": "text"
+                }
+              ],
+              "kind": "masked",
+              "type": "link",
+              "url": "https://e.com"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "a\n",
+      "jumbo": false
+    },
+    {
+      "name": "quote-033",
+      "input": "> a\n> b\n> c\n> d",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            },
+            {
+              "type": "line_break"
+            },
+            {
+              "text": "b",
+              "type": "text"
+            },
+            {
+              "type": "line_break"
+            },
+            {
+              "text": "c",
+              "type": "text"
+            },
+            {
+              "type": "line_break"
+            },
+            {
+              "text": "d",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "a\nb\nc\nd\n",
+      "jumbo": false
+    },
+    {
+      "name": "quote-034",
+      "input": "> \\> not nested",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "> not nested",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "> not nested\n",
+      "jumbo": false
+    },
+    {
+      "name": "quote-035",
+      "input": "\\> escaped",
+      "ast": [
+        {
+          "text": "> escaped",
+          "type": "text"
+        }
+      ],
+      "plain": "> escaped",
+      "jumbo": false
+    },
+    {
+      "name": "quote-036",
+      "input": " > leading space",
+      "ast": [
+        {
+          "text": " > leading space",
+          "type": "text"
+        }
+      ],
+      "plain": " > leading space",
+      "jumbo": false
+    },
+    {
+      "name": "quote-037",
+      "input": "  > two leading",
+      "ast": [
+        {
+          "text": "  > two leading",
+          "type": "text"
+        }
+      ],
+      "plain": "  > two leading",
+      "jumbo": false
+    },
+    {
+      "name": "quote-038",
+      "input": "> a\n b",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        },
+        {
+          "text": " b",
+          "type": "text"
+        }
+      ],
+      "plain": "a\n b",
+      "jumbo": false
+    },
+    {
+      "name": "quote-039",
+      "input": ">>>>",
+      "ast": [
+        {
+          "text": ">>>>",
+          "type": "text"
+        }
+      ],
+      "plain": ">>>>",
+      "jumbo": false
+    },
+    {
+      "name": "quote-040",
+      "input": ">> a\n> b",
+      "ast": [
+        {
+          "text": ">> a",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": ">> ab\n",
+      "jumbo": false
+    }
+  ]
+}

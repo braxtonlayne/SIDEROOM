@@ -1,0 +1,1758 @@
+{
+  "description": "Masked links, autolinks, suppressed embeds",
+  "cases": [
+    {
+      "name": "link-001",
+      "input": "[a](https://e.com)",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com"
+        }
+      ],
+      "plain": "a",
+      "jumbo": false
+    },
+    {
+      "name": "link-002",
+      "input": "[a b](https://e.com/x?y=1&z=2)",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a b",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com/x?y=1&z=2"
+        }
+      ],
+      "plain": "a b",
+      "jumbo": false
+    },
+    {
+      "name": "link-003",
+      "input": "[a](http://e.com)",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "http://e.com"
+        }
+      ],
+      "plain": "a",
+      "jumbo": false
+    },
+    {
+      "name": "link-004",
+      "input": "[a](https://e.com \"title\")",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com"
+        }
+      ],
+      "plain": "a",
+      "jumbo": false
+    },
+    {
+      "name": "link-005",
+      "input": "[a](<https://e.com>)",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com"
+        }
+      ],
+      "plain": "a",
+      "jumbo": false
+    },
+    {
+      "name": "link-006",
+      "input": "[a](https://e.com/(x))",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com/(x)"
+        }
+      ],
+      "plain": "a",
+      "jumbo": false
+    },
+    {
+      "name": "link-007",
+      "input": "[a](https://e.com/a_b_c)",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com/a_b_c"
+        }
+      ],
+      "plain": "a",
+      "jumbo": false
+    },
+    {
+      "name": "link-008",
+      "input": "[a](ftp://e.com)",
+      "ast": [
+        {
+          "text": "[a](ftp://e.com)",
+          "type": "text"
+        }
+      ],
+      "plain": "[a](ftp://e.com)",
+      "jumbo": false
+    },
+    {
+      "name": "link-009",
+      "input": "[a](javascript:alert(1))",
+      "ast": [
+        {
+          "text": "[a](javascript:alert(1))",
+          "type": "text"
+        }
+      ],
+      "plain": "[a](javascript:alert(1))",
+      "jumbo": false
+    },
+    {
+      "name": "link-010",
+      "input": "[a](//e.com)",
+      "ast": [
+        {
+          "text": "[a](//e.com)",
+          "type": "text"
+        }
+      ],
+      "plain": "[a](//e.com)",
+      "jumbo": false
+    },
+    {
+      "name": "link-011",
+      "input": "[a](/relative)",
+      "ast": [
+        {
+          "text": "[a](/relative)",
+          "type": "text"
+        }
+      ],
+      "plain": "[a](/relative)",
+      "jumbo": false
+    },
+    {
+      "name": "link-012",
+      "input": "[a](e.com)",
+      "ast": [
+        {
+          "text": "[a](e.com)",
+          "type": "text"
+        }
+      ],
+      "plain": "[a](e.com)",
+      "jumbo": false
+    },
+    {
+      "name": "link-013",
+      "input": "[a]()",
+      "ast": [
+        {
+          "text": "[a]()",
+          "type": "text"
+        }
+      ],
+      "plain": "[a]()",
+      "jumbo": false
+    },
+    {
+      "name": "link-014",
+      "input": "[](https://e.com)",
+      "ast": [
+        {
+          "text": "[](",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "https://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com"
+        },
+        {
+          "text": ")",
+          "type": "text"
+        }
+      ],
+      "plain": "[](https://e.com)",
+      "jumbo": false
+    },
+    {
+      "name": "link-015",
+      "input": "[a]",
+      "ast": [
+        {
+          "text": "[a]",
+          "type": "text"
+        }
+      ],
+      "plain": "[a]",
+      "jumbo": false
+    },
+    {
+      "name": "link-016",
+      "input": "[a](",
+      "ast": [
+        {
+          "text": "[a](",
+          "type": "text"
+        }
+      ],
+      "plain": "[a](",
+      "jumbo": false
+    },
+    {
+      "name": "link-017",
+      "input": "[a](https://e.com",
+      "ast": [
+        {
+          "text": "[a](",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "https://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com"
+        }
+      ],
+      "plain": "[a](https://e.com",
+      "jumbo": false
+    },
+    {
+      "name": "link-018",
+      "input": "[a] (https://e.com)",
+      "ast": [
+        {
+          "text": "[a] (",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "https://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com"
+        },
+        {
+          "text": ")",
+          "type": "text"
+        }
+      ],
+      "plain": "[a] (https://e.com)",
+      "jumbo": false
+    },
+    {
+      "name": "link-019",
+      "input": "[a](https://e.com )",
+      "ast": [
+        {
+          "text": "[a](",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "https://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com"
+        },
+        {
+          "text": " )",
+          "type": "text"
+        }
+      ],
+      "plain": "[a](https://e.com )",
+      "jumbo": false
+    },
+    {
+      "name": "link-020",
+      "input": "[a]( https://e.com)",
+      "ast": [
+        {
+          "text": "[a]( ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "https://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com"
+        },
+        {
+          "text": ")",
+          "type": "text"
+        }
+      ],
+      "plain": "[a]( https://e.com)",
+      "jumbo": false
+    },
+    {
+      "name": "link-021",
+      "input": "[**b**](https://e.com)",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "b",
+                  "type": "text"
+                }
+              ],
+              "type": "bold"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com"
+        }
+      ],
+      "plain": "b",
+      "jumbo": false
+    },
+    {
+      "name": "link-022",
+      "input": "[*i*](https://e.com)",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "i",
+                  "type": "text"
+                }
+              ],
+              "type": "italic"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com"
+        }
+      ],
+      "plain": "i",
+      "jumbo": false
+    },
+    {
+      "name": "link-023",
+      "input": "[`c`](https://e.com)",
+      "ast": [
+        {
+          "children": [
+            {
+              "code": "c",
+              "type": "inline_code"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com"
+        }
+      ],
+      "plain": "c",
+      "jumbo": false
+    },
+    {
+      "name": "link-024",
+      "input": "[<@1>](https://e.com)",
+      "ast": [
+        {
+          "children": [
+            {
+              "id": "1",
+              "type": "user_mention"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com"
+        }
+      ],
+      "plain": "@user",
+      "jumbo": false
+    },
+    {
+      "name": "link-025",
+      "input": "[:smile:](https://e.com)",
+      "ast": [
+        {
+          "children": [
+            {
+              "emoji": "😄",
+              "name": "smile",
+              "type": "emoji"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com"
+        }
+      ],
+      "plain": "😄",
+      "jumbo": false
+    },
+    {
+      "name": "link-026",
+      "input": "[[x]](https://e.com)",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "[x]",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com"
+        }
+      ],
+      "plain": "[x]",
+      "jumbo": false
+    },
+    {
+      "name": "link-027",
+      "input": "[a [b] c](https://e.com)",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a [b] c",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com"
+        }
+      ],
+      "plain": "a [b] c",
+      "jumbo": false
+    },
+    {
+      "name": "link-028",
+      "input": "[https://a.com](https://b.com)",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "https://a.com",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://b.com"
+        }
+      ],
+      "plain": "https://a.com",
+      "jumbo": false
+    },
+    {
+      "name": "link-029",
+      "input": "[a](https://e.com)[b](https://f.com)",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com"
+        },
+        {
+          "children": [
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://f.com"
+        }
+      ],
+      "plain": "ab",
+      "jumbo": false
+    },
+    {
+      "name": "link-030",
+      "input": "x [a](https://e.com) y",
+      "ast": [
+        {
+          "text": "x ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com"
+        },
+        {
+          "text": " y",
+          "type": "text"
+        }
+      ],
+      "plain": "x a y",
+      "jumbo": false
+    },
+    {
+      "name": "link-031",
+      "input": "**[a](https://e.com)**",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "a",
+                  "type": "text"
+                }
+              ],
+              "kind": "masked",
+              "type": "link",
+              "url": "https://e.com"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "a",
+      "jumbo": false
+    },
+    {
+      "name": "link-032",
+      "input": "||[a](https://e.com)||",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "a",
+                  "type": "text"
+                }
+              ],
+              "kind": "masked",
+              "type": "link",
+              "url": "https://e.com"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "link-033",
+      "input": "> [a](https://e.com)",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "a",
+                  "type": "text"
+                }
+              ],
+              "kind": "masked",
+              "type": "link",
+              "url": "https://e.com"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "a\n",
+      "jumbo": false
+    },
+    {
+      "name": "link-034",
+      "input": "- [a](https://e.com)",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "children": [
+                  {
+                    "text": "a",
+                    "type": "text"
+                  }
+                ],
+                "kind": "masked",
+                "type": "link",
+                "url": "https://e.com"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "a\n",
+      "jumbo": false
+    },
+    {
+      "name": "link-035",
+      "input": "[a](https://e.com/😄)",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com/😄"
+        }
+      ],
+      "plain": "a",
+      "jumbo": false
+    },
+    {
+      "name": "link-036",
+      "input": "[😄](https://e.com)",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "😄",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com"
+        }
+      ],
+      "plain": "😄",
+      "jumbo": false
+    },
+    {
+      "name": "link-037",
+      "input": "[a](https://e.com/é)",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com/é"
+        }
+      ],
+      "plain": "a",
+      "jumbo": false
+    },
+    {
+      "name": "link-038",
+      "input": "[a](https://e.com\n)",
+      "ast": [
+        {
+          "text": "[a](",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "https://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": ")",
+          "type": "text"
+        }
+      ],
+      "plain": "[a](https://e.com\n)",
+      "jumbo": false
+    },
+    {
+      "name": "link-039",
+      "input": "[a\nb](https://e.com)",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            },
+            {
+              "type": "line_break"
+            },
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com"
+        }
+      ],
+      "plain": "a\nb",
+      "jumbo": false
+    },
+    {
+      "name": "link-040",
+      "input": "[a](https://e.com)\n[b](https://f.com)",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "children": [
+            {
+              "text": "b",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://f.com"
+        }
+      ],
+      "plain": "a\nb",
+      "jumbo": false
+    },
+    {
+      "name": "link-041",
+      "input": "https://e.com",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "https://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com"
+        }
+      ],
+      "plain": "https://e.com",
+      "jumbo": false
+    },
+    {
+      "name": "link-042",
+      "input": "http://e.com",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "http://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "http://e.com"
+        }
+      ],
+      "plain": "http://e.com",
+      "jumbo": false
+    },
+    {
+      "name": "link-043",
+      "input": "https://e.com/path?q=1#frag",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "https://e.com/path?q=1#frag",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com/path?q=1#frag"
+        }
+      ],
+      "plain": "https://e.com/path?q=1#frag",
+      "jumbo": false
+    },
+    {
+      "name": "link-044",
+      "input": "visit https://e.com now",
+      "ast": [
+        {
+          "text": "visit ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "https://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com"
+        },
+        {
+          "text": " now",
+          "type": "text"
+        }
+      ],
+      "plain": "visit https://e.com now",
+      "jumbo": false
+    },
+    {
+      "name": "link-045",
+      "input": "https://e.com.",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "https://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com"
+        },
+        {
+          "text": ".",
+          "type": "text"
+        }
+      ],
+      "plain": "https://e.com.",
+      "jumbo": false
+    },
+    {
+      "name": "link-046",
+      "input": "https://e.com,",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "https://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com"
+        },
+        {
+          "text": ",",
+          "type": "text"
+        }
+      ],
+      "plain": "https://e.com,",
+      "jumbo": false
+    },
+    {
+      "name": "link-047",
+      "input": "https://e.com!",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "https://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com"
+        },
+        {
+          "text": "!",
+          "type": "text"
+        }
+      ],
+      "plain": "https://e.com!",
+      "jumbo": false
+    },
+    {
+      "name": "link-048",
+      "input": "https://e.com?",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "https://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com"
+        },
+        {
+          "text": "?",
+          "type": "text"
+        }
+      ],
+      "plain": "https://e.com?",
+      "jumbo": false
+    },
+    {
+      "name": "link-049",
+      "input": "(https://e.com)",
+      "ast": [
+        {
+          "text": "(",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "https://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com"
+        },
+        {
+          "text": ")",
+          "type": "text"
+        }
+      ],
+      "plain": "(https://e.com)",
+      "jumbo": false
+    },
+    {
+      "name": "link-050",
+      "input": "(see https://e.com/a_(b))",
+      "ast": [
+        {
+          "text": "(see ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "https://e.com/a_(b)",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com/a_(b)"
+        },
+        {
+          "text": ")",
+          "type": "text"
+        }
+      ],
+      "plain": "(see https://e.com/a_(b))",
+      "jumbo": false
+    },
+    {
+      "name": "link-051",
+      "input": "https://e.com/a_(b)",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "https://e.com/a_(b)",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com/a_(b)"
+        }
+      ],
+      "plain": "https://e.com/a_(b)",
+      "jumbo": false
+    },
+    {
+      "name": "link-052",
+      "input": "https://e.com/a)",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "https://e.com/a",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com/a"
+        },
+        {
+          "text": ")",
+          "type": "text"
+        }
+      ],
+      "plain": "https://e.com/a)",
+      "jumbo": false
+    },
+    {
+      "name": "link-053",
+      "input": "\"https://e.com\"",
+      "ast": [
+        {
+          "text": "\"",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "https://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com"
+        },
+        {
+          "text": "\"",
+          "type": "text"
+        }
+      ],
+      "plain": "\"https://e.com\"",
+      "jumbo": false
+    },
+    {
+      "name": "link-054",
+      "input": "'https://e.com'",
+      "ast": [
+        {
+          "text": "'",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "https://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com"
+        },
+        {
+          "text": "'",
+          "type": "text"
+        }
+      ],
+      "plain": "'https://e.com'",
+      "jumbo": false
+    },
+    {
+      "name": "link-055",
+      "input": "*https://e.com*",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "https://e.com",
+                  "type": "text"
+                }
+              ],
+              "kind": "auto",
+              "type": "link",
+              "url": "https://e.com"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "https://e.com",
+      "jumbo": false
+    },
+    {
+      "name": "link-056",
+      "input": "**https://e.com**",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "https://e.com",
+                  "type": "text"
+                }
+              ],
+              "kind": "auto",
+              "type": "link",
+              "url": "https://e.com"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "https://e.com",
+      "jumbo": false
+    },
+    {
+      "name": "link-057",
+      "input": "||https://e.com||",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "https://e.com",
+                  "type": "text"
+                }
+              ],
+              "kind": "auto",
+              "type": "link",
+              "url": "https://e.com"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "link-058",
+      "input": "_https://e.com_",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "https://e.com",
+                  "type": "text"
+                }
+              ],
+              "kind": "auto",
+              "type": "link",
+              "url": "https://e.com"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "https://e.com",
+      "jumbo": false
+    },
+    {
+      "name": "link-059",
+      "input": "https://e.com/a_b_c",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "https://e.com/a_b_c",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com/a_b_c"
+        }
+      ],
+      "plain": "https://e.com/a_b_c",
+      "jumbo": false
+    },
+    {
+      "name": "link-060",
+      "input": "https://e.com/*x*",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "https://e.com/*x",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com/*x"
+        },
+        {
+          "text": "*",
+          "type": "text"
+        }
+      ],
+      "plain": "https://e.com/*x*",
+      "jumbo": false
+    },
+    {
+      "name": "link-061",
+      "input": "https://e.com/~x~",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "https://e.com/~x",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com/~x"
+        },
+        {
+          "text": "~",
+          "type": "text"
+        }
+      ],
+      "plain": "https://e.com/~x~",
+      "jumbo": false
+    },
+    {
+      "name": "link-062",
+      "input": "https://e.com/a||b",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "https://e.com/a",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com/a"
+        },
+        {
+          "text": "||b",
+          "type": "text"
+        }
+      ],
+      "plain": "https://e.com/a||b",
+      "jumbo": false
+    },
+    {
+      "name": "link-063",
+      "input": "xhttps://e.com",
+      "ast": [
+        {
+          "text": "xhttps://e.com",
+          "type": "text"
+        }
+      ],
+      "plain": "xhttps://e.com",
+      "jumbo": false
+    },
+    {
+      "name": "link-064",
+      "input": "https://",
+      "ast": [
+        {
+          "text": "https://",
+          "type": "text"
+        }
+      ],
+      "plain": "https://",
+      "jumbo": false
+    },
+    {
+      "name": "link-065",
+      "input": "http://",
+      "ast": [
+        {
+          "text": "http://",
+          "type": "text"
+        }
+      ],
+      "plain": "http://",
+      "jumbo": false
+    },
+    {
+      "name": "link-066",
+      "input": "https:// e.com",
+      "ast": [
+        {
+          "text": "https:// e.com",
+          "type": "text"
+        }
+      ],
+      "plain": "https:// e.com",
+      "jumbo": false
+    },
+    {
+      "name": "link-067",
+      "input": "https:///e.com",
+      "ast": [
+        {
+          "text": "https:///e.com",
+          "type": "text"
+        }
+      ],
+      "plain": "https:///e.com",
+      "jumbo": false
+    },
+    {
+      "name": "link-068",
+      "input": "https://e.com\nnext",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "https://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": "next",
+          "type": "text"
+        }
+      ],
+      "plain": "https://e.com\nnext",
+      "jumbo": false
+    },
+    {
+      "name": "link-069",
+      "input": "https://a.com https://b.com",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "https://a.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://a.com"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "https://b.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://b.com"
+        }
+      ],
+      "plain": "https://a.com https://b.com",
+      "jumbo": false
+    },
+    {
+      "name": "link-070",
+      "input": "https://e.com<@1>",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "https://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com"
+        },
+        {
+          "id": "1",
+          "type": "user_mention"
+        }
+      ],
+      "plain": "https://e.com@user",
+      "jumbo": false
+    },
+    {
+      "name": "link-071",
+      "input": "https://😄.com",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "https://😄.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://😄.com"
+        }
+      ],
+      "plain": "https://😄.com",
+      "jumbo": false
+    },
+    {
+      "name": "link-072",
+      "input": "https://e.com/😄",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "https://e.com/😄",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com/😄"
+        }
+      ],
+      "plain": "https://e.com/😄",
+      "jumbo": false
+    },
+    {
+      "name": "link-073",
+      "input": "<https://e.com>",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "https://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto_suppressed",
+          "type": "link",
+          "url": "https://e.com"
+        }
+      ],
+      "plain": "https://e.com",
+      "jumbo": false
+    },
+    {
+      "name": "link-074",
+      "input": "<http://e.com>",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "http://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto_suppressed",
+          "type": "link",
+          "url": "http://e.com"
+        }
+      ],
+      "plain": "http://e.com",
+      "jumbo": false
+    },
+    {
+      "name": "link-075",
+      "input": "<https://e.com/a b>",
+      "ast": [
+        {
+          "text": "<",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "https://e.com/a",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com/a"
+        },
+        {
+          "text": " b>",
+          "type": "text"
+        }
+      ],
+      "plain": "<https://e.com/a b>",
+      "jumbo": false
+    },
+    {
+      "name": "link-076",
+      "input": "<https://>",
+      "ast": [
+        {
+          "text": "<",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "https://>",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://>"
+        }
+      ],
+      "plain": "<https://>",
+      "jumbo": false
+    },
+    {
+      "name": "link-077",
+      "input": "<ftp://e.com>",
+      "ast": [
+        {
+          "text": "<ftp://e.com>",
+          "type": "text"
+        }
+      ],
+      "plain": "<ftp://e.com>",
+      "jumbo": false
+    },
+    {
+      "name": "link-078",
+      "input": "<https://e.com",
+      "ast": [
+        {
+          "text": "<",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "https://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com"
+        }
+      ],
+      "plain": "<https://e.com",
+      "jumbo": false
+    },
+    {
+      "name": "link-079",
+      "input": "<https://e.com/path?q=1>",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "https://e.com/path?q=1",
+              "type": "text"
+            }
+          ],
+          "kind": "auto_suppressed",
+          "type": "link",
+          "url": "https://e.com/path?q=1"
+        }
+      ],
+      "plain": "https://e.com/path?q=1",
+      "jumbo": false
+    },
+    {
+      "name": "link-080",
+      "input": "x <https://e.com> y",
+      "ast": [
+        {
+          "text": "x ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "https://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto_suppressed",
+          "type": "link",
+          "url": "https://e.com"
+        },
+        {
+          "text": " y",
+          "type": "text"
+        }
+      ],
+      "plain": "x https://e.com y",
+      "jumbo": false
+    },
+    {
+      "name": "link-081",
+      "input": "**<https://e.com>**",
+      "ast": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "text": "https://e.com",
+                  "type": "text"
+                }
+              ],
+              "kind": "auto_suppressed",
+              "type": "link",
+              "url": "https://e.com"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "https://e.com",
+      "jumbo": false
+    },
+    {
+      "name": "link-082",
+      "input": "[a](<https://e.com>)",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com"
+        }
+      ],
+      "plain": "a",
+      "jumbo": false
+    },
+    {
+      "name": "link-083",
+      "input": "<mailto:a@b.com>",
+      "ast": [
+        {
+          "text": "<mailto:a@b.com>",
+          "type": "text"
+        }
+      ],
+      "plain": "<mailto:a@b.com>",
+      "jumbo": false
+    },
+    {
+      "name": "link-084",
+      "input": "<e.com>",
+      "ast": [
+        {
+          "text": "<e.com>",
+          "type": "text"
+        }
+      ],
+      "plain": "<e.com>",
+      "jumbo": false
+    }
+  ]
+}

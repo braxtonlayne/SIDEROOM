@@ -82,6 +82,7 @@ impl<'a> Parser<'a> {
                 b'[' if !self.in_link => handled = self.masked(i),
                 b'h' if !self.in_link => handled = self.bare_url(i),
                 b'@' => handled = self.at(i),
+                b':' => handled = self.shortcode(i),
                 b'*' | b'_' | b'~' | b'|' => handled = self.emphasis(i),
                 _ => {}
             }
@@ -154,6 +155,26 @@ impl<'a> Parser<'a> {
         } else {
             None
         }
+    }
+
+    fn shortcode(&self, i: usize) -> Option<(Node, usize)> {
+        let rest = &self.b[i + 1..];
+        let n = rest
+            .iter()
+            .take(41)
+            .position(|&c| !crate::emoji::is_shortcode_char(c))?;
+        if n == 0 || rest[n] != b':' {
+            return None;
+        }
+        let name = &self.s[i + 1..i + 1 + n];
+        let emoji = crate::emoji::shortcode_to_emoji(name)?;
+        Some((
+            Node::Emoji {
+                name: name.to_ascii_lowercase(),
+                emoji: emoji.to_string(),
+            },
+            n + 2,
+        ))
     }
 
     fn angle(&self, i: usize) -> Option<(Node, usize)> {
