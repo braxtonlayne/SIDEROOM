@@ -72,8 +72,8 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 - [ ] **FND-API-009** [BE] `/healthz`, `/readyz`, `/internal/metrics`
 
 ## FND-STOR — Storage
-- [ ] **FND-STOR-001** [BE] `sr-storage` over `object_store` S3: put/get/delete/list, presigned PUT/GET, multipart create/complete/abort
-- [ ] **FND-STOR-002** [BE] Signed CDN URL scheme (`/cdn/...?ex=&sig=`) + verification middleware + Range support
+- [x] **FND-STOR-001** [BE] `sr-storage` over `object_store` S3: put/get/delete/list, presigned PUT/GET, multipart create/complete/abort
+- [x] **FND-STOR-002** [BE] Signed CDN URL scheme (`/cdn/...?ex=&sig=`) + verification middleware + Range support
 - [ ] **FND-STOR-003** [BE] Image proxy/resizer for avatars/icons/emoji (`?size=` 16–4096, WebP/AVIF/PNG/GIF, animated support)
 - [ ] **FND-STOR-004** [BE] Upload slot service (size limit from entitlements, content-type sniffing, EXIF strip on images)
 
