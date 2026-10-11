@@ -350,6 +350,19 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     );
     gateway.start();
 
+    // Social endpoints (relationships, DMs, acks, notification settings, profiles):
+    // their own service on its own snowflake worker (process id + 3).
+    let social_api = routes::social::SocialDeps::new(
+        routes::social::DynRepo::new(sr_db::social_repo::PgSocialRepo::new(pool.clone())),
+        Arc::new(PgChatRepo::new(pool.clone())),
+        bus.clone(),
+        clock.clone(),
+        sr_chat::social::SocialLimits::default(),
+        cfg.server.worker_id,
+        (cfg.server.process_id + 3) % 32,
+    )
+    .context("social api snowflake generator")?;
+
     let settings = ApiSettings {
         trust_forwarded_for: cfg.server.trust_forwarded_for,
         ..ApiSettings::for_public_url(&cfg.server.public_url)
@@ -366,6 +379,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .openapi(routes::openapi())
         .extension(Arc::new(guilds.clone()))
         .extension(Arc::new(messages))
+        .extension(Arc::new(social_api))
         .readiness(Arc::new(DbReady::new(pool.clone(), readiness_timeout)))
         .readiness(Arc::new(StorageReady::new(storage.clone())))
         .build();

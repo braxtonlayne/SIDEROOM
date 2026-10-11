@@ -13,8 +13,9 @@
 //!   branch delegates to the DM service) and `/users/@me/guilds*`.
 //! * `messages`: `/channels/{id}/{messages,pins,typing,attachments}*`.
 //! * `auth`: `/sr/*` entrance routes.
-//! * future `users` module: `/users/*` except `/users/@me/guilds`.
-//! * future DM module: `POST /users/@me/channels`.
+//! * `social`: relationships, ignores, notes, DMs (`/users/@me/channels*`, `/channels/{id}/recipients/*`),
+//!   acks and read states, notification settings, profiles (`PATCH /users/@me`, `/users/{id}/profile`)
+//!   and `/users/@me/presence`. Only `GET /users/@me` stays with the base router.
 
 use crate::{error::HttpError, openapi, state::AppState};
 use axum::{Router, extract::FromRequestParts, http::request::Parts};
@@ -24,6 +25,7 @@ use std::{any::type_name, sync::Arc};
 pub mod auth;
 pub mod guilds;
 pub mod messages;
+pub mod social;
 
 /// Extractor for a service registered on [`AppState`]. A missing service is a
 /// server misconfiguration: it logs once per request and answers 500
@@ -57,6 +59,7 @@ pub fn all() -> Router<AppState> {
         .merge(auth::router())
         .merge(messages::router())
         .merge(guilds::router())
+        .merge(social::router())
 }
 
 /// Feature-owned routers (`Feature::routes()`), nested under
@@ -75,6 +78,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     let mut doc = openapi::base();
     doc.merge(messages::openapi());
     doc.merge(guilds::openapi());
+    doc.merge(social::openapi());
     doc
 }
 
