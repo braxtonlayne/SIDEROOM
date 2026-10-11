@@ -7,10 +7,21 @@
 //! finish in-flight jobs (same grace), close the pool.
 
 use anyhow::Context;
-use axum::Router;
-use sr_api::{ApiSettings, AppState, build_router, internal_router, routes};
+use axum::{
+    Extension, Router,
+    extract::{Request, State},
+    http::StatusCode,
+    middleware::{Next, from_fn_with_state},
+    response::{IntoResponse, Response},
+};
+use sr_api::{
+    ApiSettings, AppState, build_router, internal_router,
+    router::with_request_id,
+    routes::{self, guilds::GuildApi},
+};
+use sr_chat::{ChatLimits, ChatService};
 use sr_core::{Clock, SnowflakeGenerator, SystemClock, config::Config};
-use sr_db::{DbConfig, auth_repo::PgAuthRepo, runner::JobRunner};
+use sr_db::{DbConfig, auth_repo::PgAuthRepo, chat_repo::PgChatRepo, runner::JobRunner};
 use sr_events::{EventBus, InProcessBus};
 use sr_features::{FeatureRegistry, FeatureService};
 use sr_gateway::{Gateway, GatewayConfig};
@@ -112,6 +123,23 @@ pub async fn serve_until(
     }
 }
 
+/// State for [`connection_cap`].
+#[derive(Clone)]
+struct ConnectionCap {
+    gateway: Gateway,
+    max: usize,
+}
+
+/// Refuse new gateway upgrades with 503 once `gateway.max_connections`
+/// sessions are open (open question 107).
+async fn connection_cap(State(cap): State<ConnectionCap>, req: Request, next: Next) -> Response {
+    if cap.gateway.session_count() >= cap.max {
+        tracing::warn!(max = cap.max, "gateway connection cap reached");
+        return (StatusCode::SERVICE_UNAVAILABLE, "gateway is at capacity").into_response();
+    }
+    next.run(req).await
+}
+
 /// Run the whole server until `shutdown` resolves.
 pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Result<()> {
     let grace = Duration::from_secs(cfg.server.shutdown_grace_secs);
@@ -122,6 +150,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let pool = sr_db::connect(&db_cfg)
         .await
         .context("connecting to Postgres (is it up? has `sr-cli migrate` run?)")?;
+    if cfg.database.auto_migrate {
+        sr_db::migrate(&pool)
+            .await
+            .context("running migrations (database.auto_migrate)")?;
+        tracing::info!("migrations applied");
+    }
 
     let ids = Arc::new(
         SnowflakeGenerator::new(SystemClock, cfg.server.worker_id, cfg.server.process_id)
@@ -151,14 +185,30 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
 
     let bus: Arc<dyn EventBus> = Arc::new(InProcessBus::new());
 
-    // Held for the lifetime of the process; feature crates register into the
-    // registry before it is shared (none exist yet).
+    // Feature crates register into the registry before it is shared (none
+    // exist yet). Their routes are mounted below from `Feature::routes()`.
+    let registry = Arc::new(FeatureRegistry::new());
     let features = FeatureService::new(
-        Arc::new(FeatureRegistry::new()),
+        registry.clone(),
         Arc::new(PgSettingsStore::new(pool.clone(), ids.clone())),
         Some(bus.clone()),
     );
     let features_listener = features.spawn_invalidation_listener();
+
+    // Guild endpoints: the chat service over Postgres, with its own snowflake
+    // worker (process id + 1, as the message deps use) so ids never collide.
+    let chat = ChatService::new(
+        PgChatRepo::new(pool.clone()),
+        clock.clone(),
+        SnowflakeGenerator::new(
+            clock.clone(),
+            cfg.server.worker_id,
+            (cfg.server.process_id + 1) % 32,
+        )
+        .context("chat snowflake generator")?,
+        ChatLimits::default(),
+    );
+    let guilds = GuildApi(routes::guilds::backend::backend(chat, bus.clone()));
 
     let gateway = Gateway::new(
         GatewayConfig::default(),
@@ -172,7 +222,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     );
     gateway.start();
 
-    let settings = ApiSettings::for_public_url(&cfg.server.public_url);
+    let settings = ApiSettings {
+        trust_forwarded_for: cfg.server.trust_forwarded_for,
+        ..ApiSettings::for_public_url(&cfg.server.public_url)
+    };
     let readiness_timeout = settings.readiness_timeout;
     let state = AppState::builder()
         .settings(settings)
@@ -181,6 +234,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .bots(Arc::new(NoBots))
         .bearers(Arc::new(NoBearers))
         .openapi(routes::openapi())
+        .extension(Arc::new(guilds.clone()))
         .readiness(Arc::new(DbReady::new(pool.clone(), readiness_timeout)))
         .readiness(Arc::new(StorageReady::new(storage)))
         .build();
@@ -221,10 +275,29 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = JobRunner::new(pool.clone(), format!("srv-{}", std::process::id()));
     let jobs_task = tokio::spawn(runner.run(job_rx));
 
+    // REST: every feature module, feature-owned routes, and the guild backend.
+    // The guild handlers still read it from the request, so it is also layered
+    // onto the router until they take `Ext<GuildApi>` from `AppState`.
+    let api = routes::all()
+        .merge(routes::features(
+            registry
+                .iter()
+                .filter_map(|f| f.routes().map(|r| (f.id(), r))),
+        ))
+        .layer(Extension(guilds));
+
     // The gateway is served at `/gateway` on the public listener, beside the
-    // REST API (Discord clients expect it at the root).
-    let app =
-        build_router(state, routes::all()).merge(sr_gateway::routes().with_state(gateway.clone()));
+    // REST API (Discord clients expect it at the root). It gets request ids
+    // and a connection cap, but not the API's rate limit or timeout layers.
+    let gateway_routes = with_request_id(sr_gateway::routes().with_state(gateway.clone()))
+        .route_layer(from_fn_with_state(
+            ConnectionCap {
+                gateway: gateway.clone(),
+                max: cfg.gateway.max_connections,
+            },
+            connection_cap,
+        ));
+    let app = build_router(state, api).merge(gateway_routes);
 
     let gw = gateway.clone();
     let result = serve_until(public, app, shutdown, move || gw.request_reconnect(), grace).await;
