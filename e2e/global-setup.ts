@@ -39,7 +39,7 @@ export default function globalSetup() {
     loginLink = out.match(/https?:\/\/\S+\/login\/link\?token=\S+/)?.[0] ?? null;
     if (!loginLink) throw new Error(`no login link in bootstrap output:\n${out}`);
   } catch (e) {
-    if (!/already in use/i.test(String(e))) throw e;
+    if (!/already (in use|bootstrapped)/i.test(String(e))) throw e;
     console.warn('[e2e] Owner already exists; reusing it (login link not available).');
   }
 
