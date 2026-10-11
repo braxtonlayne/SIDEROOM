@@ -66,7 +66,7 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 - [ ] **FND-API-003** [BE] Rate limiter (governor) with Discord-style buckets and headers, global + per-route
 - [ ] **FND-API-004** [BE] utoipa OpenAPI generation, `/api/v1/openapi.json`, `/api/v10` alias
 - [x] **FND-API-005** [FE] Generated TS client (openapi-typescript + fetch wrapper with retry on 429)
-- [ ] **FND-API-006** [BE][GW] Gateway skeleton: HELLO, IDENTIFY, heartbeat, READY, RESUME, INVALID_SESSION, RECONNECT, zstd compression option
+- [x] **FND-API-006** [BE][GW] Gateway skeleton: HELLO, IDENTIFY, heartbeat, READY, RESUME, INVALID_SESSION, RECONNECT, zstd compression option
 - [ ] **FND-API-007** [FE] Gateway client (reconnect with backoff, resume, sequence tracking, dispatch → store)
 - [ ] **FND-API-008** [FE] Normalized client store (users, guilds, channels, members, messages caches) fed by gateway + REST
 - [ ] **FND-API-009** [BE] `/healthz`, `/readyz`, `/internal/metrics`
