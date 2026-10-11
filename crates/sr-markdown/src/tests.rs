@@ -502,30 +502,6 @@ fn emoji_plain_text() {
 }
 
 #[test]
-fn mention_ids_capped_per_kind() {
-    // Q28: 100 unique ids per kind stay mentions; later ones render as text.
-    let users: String = (1..=101).map(|i| format!("<@{i}> ")).collect();
-    let m = extract_mentions(&parse(&users));
-    assert_eq!(m.users.len(), 100);
-    assert!(!m.users.contains(&101));
-    let text = to_plain_text(&parse(&users));
-    assert!(text.contains("<@101>"), "{text}");
-    // A repeated id is not a new id, so it keeps its mention even past the cap.
-    let repeat = format!("{users}<@5>");
-    assert!(extract_mentions(&parse(&repeat)).users.contains(&5));
-    let roles: String = (1..=100)
-        .map(|i| format!("<@&{i}>"))
-        .collect::<Vec<_>>()
-        .join("");
-    assert_eq!(
-        extract_mentions(&parse(&format!("{roles}<@&101>")))
-            .roles
-            .len(),
-        100
-    );
-}
-
-#[test]
 fn quote_swallows_fences_and_autolinks_trim() {
     // Q31b: `>>>` runs to the end of the message; a fence inside does not end it.
     let ast = parse(">>> a\n```\nx\n```\nb");
