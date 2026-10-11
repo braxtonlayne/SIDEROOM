@@ -8,7 +8,7 @@ use super::presence::{CustomStatus, PresencePrefs, Status, merge_sessions};
 use super::profile::{Connection, Profile, ProfileEdit};
 use super::read_state::{self, ReadState};
 use super::relationships::{PairState, RelationshipKind as K};
-use super::repo::{Privacy, RelationshipRepository};
+use super::repo::{Privacy, ProfileRepository, RelationshipRepository};
 use super::service::{ScopeUpdate, SocialService};
 use super::{SocialError, SocialLimits};
 use crate::social::relationships::FriendRequestSources;
@@ -152,23 +152,176 @@ async fn mutual_blocks_survive_one_unblock() {
 }
 
 #[tokio::test]
-async fn ignored_target_never_sees_request() {
+async fn ignored_sender_request_stays_hidden_from_target() {
     let f = fx();
     f.svc.ignore(u(2), u(1)).await.unwrap();
     f.svc.send_friend_request(u(1), u(2)).await.unwrap();
-    let theirs = f.svc.list_relationships(u(2)).await.unwrap();
-    assert_eq!(theirs.len(), 1);
-    assert_eq!(theirs[0].kind, K::Ignored);
-    f.svc.unignore(u(2), u(1)).await.unwrap();
+    // Sender sees the pending request; the ignoring target sees nothing.
+    assert_eq!(
+        f.svc.list_relationships(u(1)).await.unwrap()[0].kind,
+        K::PendingOutgoing
+    );
     assert!(f.svc.list_relationships(u(2)).await.unwrap().is_empty());
+    assert_eq!(f.svc.list_ignores(u(2)).await.unwrap(), vec![u(1)]);
+    f.svc.unignore(u(2), u(1)).await.unwrap();
+    assert!(f.svc.list_ignores(u(2)).await.unwrap().is_empty());
 }
 
 #[tokio::test]
-async fn ignoring_incoming_request_clears_sender_view() {
+async fn ignore_is_independent_of_friendship() {
     let f = fx();
-    f.svc.send_friend_request(u(1), u(2)).await.unwrap();
-    f.svc.ignore(u(2), u(1)).await.unwrap();
-    assert!(f.svc.list_relationships(u(1)).await.unwrap().is_empty());
+    befriend(&f, 1, 2).await;
+    f.svc.ignore(u(1), u(2)).await.unwrap();
+    // Friend rows are untouched on both sides.
+    assert_eq!(
+        f.svc.list_relationships(u(1)).await.unwrap()[0].kind,
+        K::Friend
+    );
+    assert_eq!(
+        f.svc.list_relationships(u(2)).await.unwrap()[0].kind,
+        K::Friend
+    );
+    assert!(f.svc.is_ignoring(u(1), u(2)).await.unwrap());
+    assert!(!f.svc.is_ignoring(u(2), u(1)).await.unwrap());
+    // Idempotent, and an ignored friend can still be messaged (friendship decides).
+    f.svc.ignore(u(1), u(2)).await.unwrap();
+    assert_eq!(f.svc.list_ignores(u(1)).await.unwrap(), vec![u(2)]);
+    assert!(matches!(
+        f.svc.open_dm(u(2), u(1)).await.unwrap().access,
+        DmAccess::Allowed
+    ));
+}
+
+#[tokio::test]
+async fn ignore_rules_self_blocked_and_unknown() {
+    let f = fx();
+    assert!(matches!(
+        f.svc.ignore(u(1), u(1)).await,
+        Err(SocialError::SelfTarget)
+    ));
+    assert!(matches!(
+        f.svc.ignore(u(1), u(99)).await,
+        Err(SocialError::UnknownUser)
+    ));
+    f.svc.block(u(1), u(2)).await.unwrap();
+    assert!(matches!(
+        f.svc.ignore(u(1), u(2)).await,
+        Err(SocialError::BlockedByYou)
+    ));
+}
+
+#[tokio::test]
+async fn private_notes_limit_and_clear() {
+    let f = fx();
+    f.svc
+        .set_note(u(1), u(2), Some("  met at con  "))
+        .await
+        .unwrap();
+    assert_eq!(
+        f.svc.get_note(u(1), u(2)).await.unwrap().as_deref(),
+        Some("met at con")
+    );
+    // Notes are private to the author.
+    assert_eq!(f.svc.get_note(u(2), u(1)).await.unwrap(), None);
+    assert!(matches!(
+        f.svc.set_note(u(1), u(2), Some(&"x".repeat(257))).await,
+        Err(SocialError::Invalid { .. })
+    ));
+    assert!(matches!(
+        f.svc.set_note(u(1), u(1), Some("me")).await,
+        Err(SocialError::SelfTarget)
+    ));
+    f.svc.set_note(u(1), u(2), Some("   ")).await.unwrap();
+    assert_eq!(f.svc.get_note(u(1), u(2)).await.unwrap(), None);
+}
+
+#[tokio::test]
+async fn message_request_pending_then_responded() {
+    use super::dm::RequestState;
+    let f = fx();
+    f.svc.repo().share_guild(u(1), u(2));
+    let opened = f.svc.open_dm(u(1), u(2)).await.unwrap();
+    assert_eq!(opened.access, DmAccess::Request);
+    let id = opened.channel.id;
+    assert_eq!(
+        f.svc.request_state(u(2), id).await.unwrap(),
+        Some(RequestState::Pending)
+    );
+    // The sender's own row is not a request.
+    assert_eq!(
+        f.svc.request_state(u(1), id).await.unwrap(),
+        Some(RequestState::Accepted)
+    );
+    assert!(matches!(
+        f.svc
+            .respond_to_request(u(2), id, RequestState::Pending)
+            .await,
+        Err(SocialError::Invalid { .. })
+    ));
+    f.svc
+        .respond_to_request(u(2), id, RequestState::Spam)
+        .await
+        .unwrap();
+    assert_eq!(
+        f.svc.request_state(u(2), id).await.unwrap(),
+        Some(RequestState::Spam)
+    );
+}
+
+#[tokio::test]
+async fn friends_dm_has_no_request() {
+    use super::dm::RequestState;
+    let f = fx();
+    befriend(&f, 1, 2).await;
+    let id = f.svc.open_dm(u(1), u(2)).await.unwrap().channel.id;
+    assert_eq!(
+        f.svc.request_state(u(2), id).await.unwrap(),
+        Some(RequestState::Accepted)
+    );
+}
+
+#[tokio::test]
+async fn connections_verified_only_via_oauth() {
+    let f = fx();
+    f.svc
+        .repo()
+        .put_profile(&Profile {
+            user: u(1),
+            ..Profile::default()
+        })
+        .await
+        .unwrap();
+    let conn = |verified| Connection {
+        user: u(1),
+        provider: "github".into(),
+        external_id: "octo".into(),
+        display_name: "octo".into(),
+        verified,
+        visible: true,
+        created_ms: 0,
+    };
+    f.svc.upsert_connection(conn(true)).await.unwrap();
+    assert!(!f.svc.get_profile(u(1), u(1)).await.unwrap().connections[0].verified);
+    f.svc.upsert_verified_connection(conn(false)).await.unwrap();
+    assert!(f.svc.get_profile(u(1), u(1)).await.unwrap().connections[0].verified);
+    // A plain re-link keeps the proven flag.
+    f.svc.upsert_connection(conn(false)).await.unwrap();
+    assert!(f.svc.get_profile(u(1), u(1)).await.unwrap().connections[0].verified);
+}
+
+#[tokio::test]
+async fn mentions_counted_only_for_eligible_users() {
+    let f = fx();
+    let ch = ChannelId::new(7_000);
+    f.svc
+        .record_eligible_mentions(u(1), &[u(1), u(2), u(3), u(3)], ch, |user| user != u(3))
+        .await
+        .unwrap();
+    let states = f.svc.read_states(u(2)).await.unwrap();
+    assert_eq!(states.len(), 1);
+    assert_eq!(states[0].mention_count, 1);
+    assert!(f.svc.read_states(u(3)).await.unwrap().is_empty());
+    assert!(f.svc.read_states(u(1)).await.unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -261,6 +414,7 @@ fn dm_access_matrix() {
     let friends = PairState {
         mine: Some(K::Friend),
         theirs: Some(K::Friend),
+        ..PairState::default()
     };
     assert_eq!(dm_access(friends, &p, false), DmAccess::Allowed);
     let strangers = PairState::default();
@@ -279,7 +433,16 @@ fn dm_access_matrix() {
     let blocked = PairState {
         mine: None,
         theirs: Some(K::Blocked),
+        ..PairState::default()
     };
+    let ignored_by_recipient = PairState {
+        they_ignore_me: true,
+        ..PairState::default()
+    };
+    assert_eq!(
+        dm_access(ignored_by_recipient, &open, true),
+        DmAccess::Request
+    );
     assert_eq!(dm_access(blocked, &p, true), DmAccess::Denied);
 }
 
@@ -982,13 +1145,43 @@ async fn presence_status_and_custom_status() {
 
 #[test]
 fn session_merge_priority() {
-    assert_eq!(merge_sessions(&[]), Status::Offline);
-    assert_eq!(merge_sessions(&[Status::Idle, Status::Dnd]), Status::Dnd);
+    use Status::{Dnd, Idle, Invisible, Offline, Online};
+    // No contributing session means offline, whatever was chosen.
+    assert_eq!(merge_sessions(Online, &[]), Offline);
+    assert_eq!(merge_sessions(Dnd, &[]), Offline);
+    assert_eq!(merge_sessions(Online, &[Invisible]), Offline);
+    // A chosen dnd / idle / invisible applies to every session.
+    assert_eq!(merge_sessions(Dnd, &[Online, Idle]), Dnd);
+    assert_eq!(merge_sessions(Idle, &[Online]), Idle);
+    assert_eq!(merge_sessions(Invisible, &[Online]), Invisible);
+    // Otherwise online if any session is active; idle only when all are idle.
+    assert_eq!(merge_sessions(Online, &[Idle, Online]), Online);
+    assert_eq!(merge_sessions(Online, &[Idle, Idle]), Idle);
+    assert_eq!(merge_sessions(Online, &[Idle, Invisible]), Idle);
+    assert_eq!(merge_sessions(Online, &[Idle, Dnd]), Dnd);
+}
+
+#[tokio::test]
+async fn effective_status_uses_chosen_setting() {
+    let f = fx();
+    let sessions = [Status::Online, Status::Idle];
     assert_eq!(
-        merge_sessions(&[Status::Idle, Status::Online, Status::Dnd]),
+        f.svc.effective_status(u(1), &sessions).await.unwrap(),
         Status::Online
     );
-    assert_eq!(merge_sessions(&[Status::Invisible]), Status::Offline);
+    f.svc
+        .set_status(u(1), Status::Dnd, Some(3_600_000))
+        .await
+        .unwrap();
+    assert_eq!(
+        f.svc.effective_status(u(1), &sessions).await.unwrap(),
+        Status::Dnd
+    );
+    f.clock.advance_ms(3_600_000);
+    assert_eq!(
+        f.svc.effective_status(u(1), &sessions).await.unwrap(),
+        Status::Online
+    );
 }
 
 #[test]

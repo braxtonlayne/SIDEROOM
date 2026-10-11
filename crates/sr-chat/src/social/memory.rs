@@ -1,7 +1,7 @@
 //! In-memory implementation of the social repository traits, for tests of this
 //! crate and of consumers that need a database-free fake.
 
-use super::dm::{DmChannel, DmKind};
+use super::dm::{DmChannel, DmKind, RequestState};
 use super::notifications::{ChannelOverride, ScopeSettings};
 use super::presence::PresencePrefs;
 use super::profile::{Connection, Profile};
@@ -29,6 +29,11 @@ pub struct Store {
     pub profiles: HashMap<UserId, Profile>,
     pub connections: Vec<Connection>,
     pub presence: HashMap<UserId, PresencePrefs>,
+    /// Ordered `(ignorer, ignored)` pairs.
+    pub ignores: HashSet<(UserId, UserId)>,
+    pub notes: HashMap<(UserId, UserId), String>,
+    /// Message Request state per `(recipient, channel)`; absent means accepted.
+    pub requests: HashMap<(UserId, ChannelId), RequestState>,
 }
 
 #[derive(Default)]
@@ -162,6 +167,49 @@ impl RelationshipRepository for MemoryRepo {
 
     async fn put_privacy(&self, user: UserId, privacy: &Privacy) -> RepoResult<()> {
         self.lock()?.privacy.insert(user, *privacy);
+        Ok(())
+    }
+
+    async fn is_ignoring(&self, user: UserId, target: UserId) -> RepoResult<bool> {
+        Ok(self.lock()?.ignores.contains(&(user, target)))
+    }
+
+    async fn list_ignores(&self, user: UserId) -> RepoResult<Vec<UserId>> {
+        let mut out: Vec<UserId> = self
+            .lock()?
+            .ignores
+            .iter()
+            .filter(|(u, _)| *u == user)
+            .map(|(_, t)| *t)
+            .collect();
+        out.sort();
+        Ok(out)
+    }
+
+    async fn put_ignore(&self, user: UserId, target: UserId) -> RepoResult<()> {
+        self.lock()?.ignores.insert((user, target));
+        Ok(())
+    }
+
+    async fn delete_ignore(&self, user: UserId, target: UserId) -> RepoResult<()> {
+        self.lock()?.ignores.remove(&(user, target));
+        Ok(())
+    }
+
+    async fn get_note(&self, user: UserId, target: UserId) -> RepoResult<Option<String>> {
+        Ok(self.lock()?.notes.get(&(user, target)).cloned())
+    }
+
+    async fn set_note(&self, user: UserId, target: UserId, note: Option<&str>) -> RepoResult<()> {
+        let mut s = self.lock()?;
+        match note {
+            Some(n) => {
+                s.notes.insert((user, target), n.to_owned());
+            }
+            None => {
+                s.notes.remove(&(user, target));
+            }
+        }
         Ok(())
     }
 }
@@ -301,6 +349,36 @@ impl DmRepository for MemoryRepo {
             .filter(|d| d.kind == DmKind::Group && d.has(user))
             .count())
     }
+
+    async fn get_request_state(
+        &self,
+        user: UserId,
+        id: ChannelId,
+    ) -> RepoResult<Option<RequestState>> {
+        let s = self.lock()?;
+        let Some(d) = s.dms.get(&id) else {
+            return Ok(None);
+        };
+        if !d.has(user) {
+            return Ok(None);
+        }
+        Ok(Some(
+            s.requests
+                .get(&(user, id))
+                .copied()
+                .unwrap_or(RequestState::Accepted),
+        ))
+    }
+
+    async fn set_request_state(
+        &self,
+        user: UserId,
+        id: ChannelId,
+        state: RequestState,
+    ) -> RepoResult<()> {
+        self.lock()?.requests.insert((user, id), state);
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -420,10 +498,19 @@ impl ProfileRepository for MemoryRepo {
 
     async fn upsert_connection(&self, c: &Connection) -> RepoResult<()> {
         let mut s = self.lock()?;
+        // A re-link keeps an existing verified flag (only OAuth proves a link).
+        let was_verified = s.connections.iter().any(|x| {
+            x.user == c.user
+                && x.provider == c.provider
+                && x.external_id == c.external_id
+                && x.verified
+        });
         s.connections.retain(|x| {
             !(x.user == c.user && x.provider == c.provider && x.external_id == c.external_id)
         });
-        s.connections.push(c.clone());
+        let mut stored = c.clone();
+        stored.verified |= was_verified;
+        s.connections.push(stored);
         Ok(())
     }
 

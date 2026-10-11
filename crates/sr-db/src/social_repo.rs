@@ -10,7 +10,7 @@ use sqlx::postgres::PgRow;
 use sqlx::{PgPool, Row};
 
 use sr_chat::error::RepoError;
-use sr_chat::social::dm::{DmChannel, DmKind, DmPrivacy};
+use sr_chat::social::dm::{DmChannel, DmKind, DmPrivacy, RequestState};
 use sr_chat::social::notifications::{ChannelOverride, Mute, NotificationLevel, ScopeSettings};
 use sr_chat::social::presence::{CustomStatus, PresencePrefs, Status};
 use sr_chat::social::profile::{Connection, Profile};
@@ -273,6 +273,86 @@ impl RelationshipRepository for PgSocialRepo {
         .map_err(db)?;
         Ok(())
     }
+
+    async fn is_ignoring(&self, user: UserId, target: UserId) -> RepoResult<bool> {
+        sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM user_ignores WHERE user_id = $1 AND target_id = $2)",
+        )
+        .bind(i(user.get()))
+        .bind(i(target.get()))
+        .fetch_one(&self.pool)
+        .await
+        .map_err(db)
+    }
+
+    async fn list_ignores(&self, user: UserId) -> RepoResult<Vec<UserId>> {
+        let ids: Vec<i64> = sqlx::query_scalar(
+            "SELECT target_id FROM user_ignores WHERE user_id = $1 ORDER BY created_at, target_id",
+        )
+        .bind(i(user.get()))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(ids.into_iter().map(uid).collect())
+    }
+
+    async fn put_ignore(&self, user: UserId, target: UserId) -> RepoResult<()> {
+        sqlx::query(
+            "INSERT INTO user_ignores (user_id, target_id) VALUES ($1, $2) \
+             ON CONFLICT (user_id, target_id) DO NOTHING",
+        )
+        .bind(i(user.get()))
+        .bind(i(target.get()))
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
+
+    async fn delete_ignore(&self, user: UserId, target: UserId) -> RepoResult<()> {
+        sqlx::query("DELETE FROM user_ignores WHERE user_id = $1 AND target_id = $2")
+            .bind(i(user.get()))
+            .bind(i(target.get()))
+            .execute(&self.pool)
+            .await
+            .map_err(db)?;
+        Ok(())
+    }
+
+    async fn get_note(&self, user: UserId, target: UserId) -> RepoResult<Option<String>> {
+        sqlx::query_scalar("SELECT note FROM user_notes WHERE user_id = $1 AND target_id = $2")
+            .bind(i(user.get()))
+            .bind(i(target.get()))
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db)
+    }
+
+    async fn set_note(&self, user: UserId, target: UserId, note: Option<&str>) -> RepoResult<()> {
+        match note {
+            Some(n) => {
+                sqlx::query(
+                    "INSERT INTO user_notes (user_id, target_id, note) VALUES ($1, $2, $3) \
+                     ON CONFLICT (user_id, target_id) DO UPDATE SET note = $3, updated_at = now()",
+                )
+                .bind(i(user.get()))
+                .bind(i(target.get()))
+                .bind(n)
+                .execute(&self.pool)
+                .await
+                .map_err(db)?;
+            }
+            None => {
+                sqlx::query("DELETE FROM user_notes WHERE user_id = $1 AND target_id = $2")
+                    .bind(i(user.get()))
+                    .bind(i(target.get()))
+                    .execute(&self.pool)
+                    .await
+                    .map_err(db)?;
+            }
+        }
+        Ok(())
+    }
 }
 
 fn rel_from_row(r: &PgRow) -> RepoResult<Relationship> {
@@ -507,6 +587,41 @@ impl DmRepository for PgSocialRepo {
         .await
         .map_err(db)?;
         Ok(usize::try_from(n).unwrap_or(0))
+    }
+
+    async fn get_request_state(
+        &self,
+        user: UserId,
+        id: ChannelId,
+    ) -> RepoResult<Option<RequestState>> {
+        let code: Option<String> = sqlx::query_scalar(
+            "SELECT request_state FROM channel_recipients WHERE channel_id = $1 AND user_id = $2",
+        )
+        .bind(i(id.get()))
+        .bind(i(user.get()))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        code.map(|c| RequestState::parse(&c).ok_or_else(|| bad("request_state")))
+            .transpose()
+    }
+
+    async fn set_request_state(
+        &self,
+        user: UserId,
+        id: ChannelId,
+        state: RequestState,
+    ) -> RepoResult<()> {
+        sqlx::query(
+            "UPDATE channel_recipients SET request_state = $3 WHERE channel_id = $1 AND user_id = $2",
+        )
+        .bind(i(id.get()))
+        .bind(i(user.get()))
+        .bind(state.as_str())
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
     }
 }
 
@@ -818,7 +933,8 @@ impl ProfileRepository for PgSocialRepo {
                verified, visible, created_at) \
              VALUES ($1, $2, $3, $4, $5, $6, to_timestamp($7::bigint / 1000.0)) \
              ON CONFLICT (user_id, provider, external_id) DO UPDATE SET \
-               display_name = $4, verified = $5, visible = $6, updated_at = now()",
+               display_name = $4, verified = user_connections.verified OR $5, visible = $6, \
+               updated_at = now()",
         )
         .bind(i(c.user.get()))
         .bind(&c.provider)
