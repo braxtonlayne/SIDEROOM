@@ -1739,3 +1739,31 @@ async fn onboarding_and_welcome_screen() {
     );
     assert_eq!(e.get(&ws, "carol").await.0, StatusCode::FORBIDDEN);
 }
+
+#[tokio::test]
+async fn community_changes_publish_a_full_guild_update() {
+    let e = env().await;
+    let (s, _) = e
+        .patch(
+            &e.g("/sr/community"),
+            "mod",
+            json!({"description": "Our club", "preferred_locale": "de"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    let events = e.events.0.lock().unwrap();
+    let Some(super::events::SettingsEvent::CommunityChanged { guild, payload }) = events
+        .iter()
+        .rev()
+        .find(|ev| ev.name() == "GUILD_UPDATE")
+        .cloned()
+    else {
+        panic!("no GUILD_UPDATE published");
+    };
+    assert_eq!(guild, e.guild);
+    assert_eq!(payload["id"], e.guild.to_string());
+    assert_eq!(payload["description"], "Our club");
+    assert_eq!(payload["preferred_locale"], "de");
+    assert!(payload["roles"].is_array());
+    assert_eq!(payload["features"], json!([]));
+}

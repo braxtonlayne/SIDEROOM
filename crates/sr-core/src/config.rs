@@ -158,6 +158,28 @@ impl Default for GatewayLimits {
         }
     }
 }
+/// `[search]`: the message search index (open questions 131-138).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SearchConfig {
+    /// Directory holding the Tantivy index. Relative paths resolve against the
+    /// working directory. The legacy `SR_SEARCH_DIR` variable still overrides the
+    /// default.
+    pub dir: String,
+}
+
+impl SearchConfig {
+    /// The built-in value of [`Self::dir`].
+    pub const DEFAULT_DIR: &'static str = "data/search";
+}
+
+impl Default for SearchConfig {
+    fn default() -> Self {
+        Self {
+            dir: Self::DEFAULT_DIR.into(),
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -208,6 +230,7 @@ pub struct Config {
     pub smtp: SmtpConfig,
     pub discord: DiscordConfig,
     pub gateway: GatewayLimits,
+    pub search: SearchConfig,
 }
 
 /// `[discord]`: OAuth sign-in and registration (open question 79). An empty
@@ -297,6 +320,9 @@ impl Config {
         if self.database.max_connections == 0 {
             return Err(bad("database.max_connections must be > 0"));
         }
+        if self.search.dir.trim().is_empty() {
+            return Err(bad("search.dir must not be empty"));
+        }
         if self.gateway.max_connections == 0 {
             return Err(bad("gateway.max_connections must be > 0"));
         }
@@ -324,6 +350,20 @@ mod tests {
         assert_eq!(c.server.worker_id, 4);
         assert_eq!(c.database.max_connections, 5);
         assert_eq!(c.log, LogConfig::default());
+    }
+
+    #[test]
+    fn search_dir_defaults_and_is_configurable() {
+        assert_eq!(Config::default().search.dir, "data/search");
+        let f = Figment::from(Serialized::defaults(Config::default()))
+            .merge(Toml::string("[search]\ndir = \"/var/lib/sr/search\"\n"));
+        assert_eq!(
+            Config::from_figment(&f).unwrap().search.dir,
+            "/var/lib/sr/search"
+        );
+        let f = Figment::from(Serialized::defaults(Config::default()))
+            .merge(Toml::string("[search]\ndir = \"\"\n"));
+        assert!(Config::from_figment(&f).is_err());
     }
 
     #[test]

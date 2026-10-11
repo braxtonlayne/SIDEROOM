@@ -8,25 +8,29 @@
 //! * `search.reindex`: drops the index and rebuilds it from every visible
 //!   message, channel by channel, in pages.
 //!
-//! TODO(events): nothing enqueues `search.index_message` yet. [`jobs_for_event`]
-//! and [`enqueue_for_event`] are the adapter: they need a bus subscription that
-//! sees every message event (a wildcard topic, or `MessageSent/Edited/Deleted`
-//! also routed to `Topic::Platform`), which is `sr-events` territory. Until then
-//! the message routes can call [`enqueue_for_event`] directly after their own
-//! `publish`.
+//! Producers publish each event to its own topics (channel, guild, or each DM
+//! recipient's user topic), so no single ordinary topic sees every message
+//! event. [`spawn_firehose_consumer`] subscribes to `Topic::Firehose`, which the
+//! bus feeds with everything: it enqueues the index jobs ([`jobs_for_event`]) and
+//! keeps the search access caches fresh ([`SearchDeps::apply_event`]). Events
+//! the bus drops for a lagging consumer are not indexed until the next
+//! `search.reindex`.
 
 use std::sync::Arc;
 
+use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use sr_api::routes::search::SearchDeps;
 use sr_chat::Message;
 use sr_chat::repo::{ChatRepository, MessageStore, Page};
 use sr_core::{ChannelId, MessageId};
 use sr_db::jobs::{self, Job, NewJob};
 use sr_db::runner::{HandlerError, JobRunner};
 use sr_db::{DbResult, PgPool};
-use sr_events::DomainEvent;
+use sr_events::{DomainEvent, EventBus, FirehoseDedup, Topic};
 use sr_search::{MessageEvent, MessageIndex};
+use tokio::task::JoinHandle;
 
 /// Job kind for a single message event.
 pub const INDEX_MESSAGE_KIND: &str = "search.index_message";
@@ -121,6 +125,46 @@ pub async fn enqueue_for_event(
 /// Queue a full rebuild (the `reindex` command and the admin button).
 pub async fn enqueue_reindex(pool: &PgPool, id: i64) -> DbResult<()> {
     jobs::enqueue(pool, &NewJob::new(id, REINDEX_KIND, json!({}))).await
+}
+
+/// Mints job ids (snowflakes).
+pub type JobIds = Arc<dyn Fn() -> i64 + Send + Sync>;
+
+/// Sees one event on the firehose: refreshes the search access caches and
+/// enqueues its index jobs. `dedup` collapses the copies a multi-topic publish
+/// produces; the cache refresh is idempotent so it runs on every copy.
+async fn consume_event(
+    pool: &PgPool,
+    next_id: &JobIds,
+    search: &SearchDeps,
+    dedup: &mut FirehoseDedup,
+    ev: &DomainEvent,
+) {
+    search.apply_event(ev);
+    if jobs_for_event(ev).is_empty() || !dedup.is_new(ev) {
+        return;
+    }
+    if let Err(e) = enqueue_for_event(pool, || next_id(), ev).await {
+        tracing::error!(error = %e, "enqueueing search index jobs failed");
+    }
+}
+
+/// Subscribe to every event on the bus and feed the search subsystem: index jobs
+/// for message events and cache invalidation for permission-relevant ones.
+/// Subscribes before returning, so events published afterwards are seen.
+pub fn spawn_firehose_consumer(
+    bus: &dyn EventBus,
+    pool: PgPool,
+    next_id: JobIds,
+    search: Arc<SearchDeps>,
+) -> JoinHandle<()> {
+    let mut stream = bus.subscribe(Topic::Firehose);
+    tokio::spawn(async move {
+        let mut dedup = FirehoseDedup::new();
+        while let Some(ev) = stream.next().await {
+            consume_event(&pool, &next_id, &search, &mut dedup, &ev).await;
+        }
+    })
 }
 
 /// What the index jobs read from: messages, attachments and the channel list.

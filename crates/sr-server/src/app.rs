@@ -74,6 +74,15 @@ pub fn secret_key(hex: &str) -> anyhow::Result<[u8; 32]> {
     Ok(out)
 }
 
+/// The search index directory: `[search] dir`, except that the legacy
+/// `SR_SEARCH_DIR` variable wins while `dir` is still the built-in default.
+pub fn search_dir(configured: &str, legacy_env: Option<String>) -> String {
+    match legacy_env {
+        Some(v) if !v.is_empty() && configured == sr_core::config::SearchConfig::DEFAULT_DIR => v,
+        _ => configured.to_owned(),
+    }
+}
+
 /// Resolve on SIGINT or SIGTERM.
 pub async fn os_shutdown_signal() {
     #[cfg(unix)]
@@ -294,7 +303,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                 .map(u64::from_le_bytes)
                 .unwrap_or_default()
         }),
-    );
+    )
+    // Every stored entry also reaches the gateway as GUILD_AUDIT_LOG_ENTRY_CREATE.
+    .with_audit_observer(routes::settings::audit::bus_audit_observer(bus.clone()));
     let guilds = GuildApi(routes::guilds::backend::backend_with_audit(
         chat,
         bus.clone(),
@@ -339,9 +350,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
 
     // Server settings and message search (open questions 131-138). The settings
     // service runs over Postgres on its own snowflake worker (process id + 3) and
-    // gets invite/webhook entropy from the OS. Events go through the TODO bus
-    // adapter until sr-events has the settings variants. The search index lives in
-    // `SR_SEARCH_DIR` (default `data/search`); TODO(config): move to `[search]`.
+    // gets invite/webhook entropy from the OS. Its events go to the bus, and the
+    // audit entries it stores are announced on the gateway. The search index lives
+    // in `[search] dir` (default `data/search`).
     let settings_deps = Arc::new(
         SettingsDeps::new(
             Arc::new(PgSettingsRepo::new(pool.clone())),
@@ -353,17 +364,29 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             (cfg.server.process_id + 3) % 32,
         )
         .context("settings snowflake generator")?
-        .with_events(Arc::new(BusSettingsEvents::new(bus.clone()))),
+        .with_events(Arc::new(BusSettingsEvents::new(bus.clone())))
+        .with_audit_observer(routes::settings::audit::bus_audit_observer(bus.clone())),
     );
-    let search_dir = std::env::var("SR_SEARCH_DIR").unwrap_or_else(|_| "data/search".to_owned());
+    let search_dir = search_dir(&cfg.search.dir, std::env::var("SR_SEARCH_DIR").ok());
     let message_index = Arc::new(
         MessageIndex::open_in_dir(std::path::Path::new(&search_dir))
-            .context("opening the search index (SR_SEARCH_DIR)")?,
+            .context("opening the search index ([search] dir)")?,
     );
     let search_deps = Arc::new(
         SearchDeps::new(message_index.clone())
             .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone()))),
     );
+    // Index jobs for every message event, DMs included, and search cache
+    // invalidation, from one firehose subscription (see `search_jobs`).
+    let search_consumer = {
+        let ids = ids.clone();
+        crate::search_jobs::spawn_firehose_consumer(
+            bus.as_ref(),
+            pool.clone(),
+            Arc::new(move || ids.generate().get() as i64),
+            search_deps.clone(),
+        )
+    };
     let indexer = Arc::new(crate::search_jobs::Indexer {
         index: message_index,
         repo: Arc::new(PgChatRepo::new(pool.clone())),
@@ -505,6 +528,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     gateway.shutdown();
     gauge_task.abort();
     metrics_task.abort();
+    search_consumer.abort();
     if let Some(h) = features_listener {
         h.abort();
     }
@@ -521,6 +545,17 @@ mod tests {
     use super::*;
     use axum::routing::get;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    #[test]
+    fn search_dir_prefers_config_over_the_legacy_variable() {
+        assert_eq!(search_dir("data/search", None), "data/search");
+        assert_eq!(
+            search_dir("data/search", Some(String::new())),
+            "data/search"
+        );
+        assert_eq!(search_dir("data/search", Some("/old".into())), "/old");
+        assert_eq!(search_dir("/new", Some("/old".into())), "/new");
+    }
 
     #[test]
     fn secret_key_parsing() {
