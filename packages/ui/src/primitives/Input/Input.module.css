@@ -1,0 +1,46 @@
+.field { display: flex; flex-direction: column; gap: 6px; }
+.label { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ui-text-muted); }
+.control {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 40px;
+  padding: 8px 12px;
+  background: var(--ui-bg-raised);
+  color: var(--ui-text);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  font: inherit;
+}
+.control::placeholder { color: var(--ui-text-faint); }
+.control:hover:not(:disabled) { border-color: var(--ui-text-faint); }
+.control:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 1px; }
+.control:disabled { opacity: 0.55; cursor: not-allowed; }
+.control[aria-invalid="true"] { border-color: var(--ui-danger); }
+.textarea { resize: vertical; line-height: 1.4; }
+.hint { margin: 0; font-size: 0.75rem; color: var(--ui-text-muted); }
+.error { margin: 0; font-size: 0.75rem; color: var(--ui-danger); }
+:global([data-theme^="lounge-dark"]) .error,
+:global([data-theme="lounge-ash"]) .error,
+:global([data-theme="lounge-onyx"]) .error { color: #fa777c; }
+:global([data-theme^="sideroom"]) .error { color: #d98270; }
+
+.passwordWrap { position: relative; display: flex; }
+.hasToggle { padding-right: 64px; }
+.toggle {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  bottom: 4px;
+  padding: 0 10px;
+  background: transparent;
+  color: var(--ui-text-muted);
+  border: 0;
+  border-radius: var(--ui-radius);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.toggle:hover { color: var(--ui-text); }
+.toggle:focus-visible { outline: 2px solid var(--ui-focus); }
+.strength { display: flex; align-items: center; gap: 8px; }
+.meter { flex: 1; height: 6px; }

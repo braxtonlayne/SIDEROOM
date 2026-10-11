@@ -1,0 +1,27 @@
+.anchor { position: relative; display: inline-flex; }
+
+.tooltip,
+.popover {
+  position: absolute;
+  z-index: 900;
+  background: var(--ui-bg-overlay);
+  color: var(--ui-text);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  box-shadow: var(--ui-shadow-overlay);
+  font-family: var(--ui-font-body);
+}
+.tooltip {
+  padding: 6px 10px;
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.popover { padding: 12px; min-width: 200px; }
+.popover:focus { outline: none; }
+
+.top { bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); }
+.bottom { top: calc(100% + 8px); left: 50%; transform: translateX(-50%); }
+.left { right: calc(100% + 8px); top: 50%; transform: translateY(-50%); }
+.right { left: calc(100% + 8px); top: 50%; transform: translateY(-50%); }
