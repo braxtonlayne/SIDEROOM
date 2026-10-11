@@ -1,21 +1,138 @@
 //! Feature route modules. `sr-server` mounts everything through [`all`] and
 //! documents it through [`openapi`], so adding a module is one `.merge(...)`
-//! line in each. Each module exposes `pub fn router() -> Router<AppState>`
-//! (plus a `router_with(...)` that attaches its collaborators).
+//! line in each. Each module exposes `pub fn router() -> Router<AppState>`.
+//!
+//! Services a handler needs are registered on the composition root with
+//! [`crate::AppStateBuilder::extension`] and read with the [`Ext`] extractor.
+//!
+//! Route ownership (open question 156). A path+method may be registered by one
+//! module only; `Router::merge` panics at startup on a clash, and the
+//! `all_routes_build_without_overlap` test catches it in CI.
+//!
+//! * `guilds`: `GET/PATCH/DELETE /channels/{id}` for every channel type (the DM
+//!   branch delegates to the DM service) and `/users/@me/guilds*`.
+//! * `messages`: `/channels/{id}/{messages,pins,typing,attachments}*`.
+//! * `auth`: `/sr/*` entrance routes.
+//! * future `users` module: `/users/*` except `/users/@me/guilds`.
+//! * future DM module: `POST /users/@me/channels`.
 
-use crate::state::AppState;
-use axum::Router;
+use crate::{error::HttpError, openapi, state::AppState};
+use axum::{Router, extract::FromRequestParts, http::request::Parts};
+use sr_core::ErrorCode;
+use std::{any::type_name, sync::Arc};
 
 pub mod auth;
 pub mod guilds;
 pub mod messages;
 
-/// Every feature router, relative to the `/api/v1` prefix.
+/// Extractor for a service registered on [`AppState`]. A missing service is a
+/// server misconfiguration: it logs once per request and answers 500
+/// `SrInternal`, never a client error.
+pub struct Ext<T: Send + Sync + 'static>(pub Arc<T>);
+
+impl<T: Send + Sync + 'static> FromRequestParts<AppState> for Ext<T> {
+    type Rejection = HttpError;
+
+    async fn from_request_parts(
+        _parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        match state.extension::<T>() {
+            Some(v) => Ok(Self(v)),
+            None => {
+                tracing::error!(
+                    service = type_name::<T>(),
+                    "route needs a service that was not registered on AppState"
+                );
+                Err(ErrorCode::SrInternal.into())
+            }
+        }
+    }
+}
+
+/// Every feature router, relative to the `/api/v1` prefix. Merging panics on
+/// an overlapping method and path, so this doubles as the startup check.
 pub fn all() -> Router<AppState> {
     Router::new()
+        .merge(auth::router())
+        .merge(messages::router())
+        .merge(guilds::router())
+}
+
+/// Feature-owned routers (`Feature::routes()`), nested under
+/// `/sr/features/{id}` relative to `/api/v1`.
+pub fn features<I>(list: I) -> Router<AppState>
+where
+    I: IntoIterator<Item = (&'static str, Router)>,
+{
+    list.into_iter().fold(Router::new(), |r, (id, feature)| {
+        r.nest_service(&format!("/sr/features/{id}"), feature)
+    })
 }
 
 /// The full OpenAPI document: [`crate::openapi::base`] plus each module's paths.
 pub fn openapi() -> utoipa::openapi::OpenApi {
-    crate::openapi::base()
+    let mut doc = openapi::base();
+    doc.merge(messages::openapi());
+    doc.merge(guilds::openapi());
+    doc
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::router::build_router;
+
+    /// Building the full router panics on any duplicate method+path, so a
+    /// clash between the guilds, messages and auth routers fails here.
+    #[test]
+    fn all_routes_build_without_overlap() {
+        let state = AppState::builder().build();
+        let _app = build_router(state, all());
+    }
+
+    #[test]
+    fn openapi_lists_guild_and_message_paths() {
+        let doc = serde_json::to_value(openapi()).unwrap();
+        let paths = doc["paths"].as_object().unwrap();
+        assert!(paths.contains_key("/channels/{channel_id}/messages"));
+        assert!(paths.keys().any(|p| p.starts_with("/guilds")));
+        assert!(paths.contains_key("/users/@me"));
+    }
+
+    #[tokio::test]
+    async fn ext_reads_registered_service_and_500s_when_missing() {
+        use axum::{
+            body::Body,
+            http::{Request, StatusCode},
+            routing::get,
+        };
+        use tower::ServiceExt;
+
+        async fn read(Ext(v): Ext<String>) -> String {
+            (*v).clone()
+        }
+
+        let state = AppState::builder()
+            .extension(Arc::new("svc".to_owned()))
+            .build();
+        let app = Router::new()
+            .route("/", get(read))
+            .with_state(state.clone());
+        let resp = app
+            .clone()
+            .oneshot(Request::get("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let bare = Router::new()
+            .route("/", get(read))
+            .with_state(AppState::builder().build());
+        let resp = bare
+            .oneshot(Request::get("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
 }

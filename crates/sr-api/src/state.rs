@@ -12,7 +12,7 @@ use crate::{
 };
 use sr_auth::session::SessionPolicy;
 use sr_core::{Clock, SystemClock};
-use std::{sync::Arc, time::Duration};
+use std::{any::Any, any::TypeId, collections::HashMap, sync::Arc, time::Duration};
 use utoipa::openapi::OpenApi;
 
 /// HTTP-layer settings.
@@ -28,6 +28,9 @@ pub struct ApiSettings {
     pub secure_cookies: bool,
     /// Rate limit configuration.
     pub rate_limit: RateLimitConfig,
+    /// Trust the proxy's `X-Forwarded-For` (last entry) for the client IP.
+    /// Only enable behind a reverse proxy that appends to the header (Caddy).
+    pub trust_forwarded_for: bool,
 }
 
 impl Default for ApiSettings {
@@ -46,6 +49,7 @@ impl ApiSettings {
             readiness_timeout: Duration::from_secs(2),
             secure_cookies: public_url.starts_with("https://"),
             rate_limit: RateLimitConfig::default(),
+            trust_forwarded_for: false,
         }
     }
 }
@@ -61,6 +65,7 @@ struct Inner {
     openapi: OpenApi,
     settings: ApiSettings,
     rate_limiter: RateLimiter,
+    extensions: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
 }
 
 /// Cheaply cloneable application state.
@@ -113,6 +118,16 @@ impl AppState {
     pub fn rate_limiter(&self) -> &RateLimiter {
         &self.0.rate_limiter
     }
+    /// A service registered with [`AppStateBuilder::extension`], by type.
+    /// Handlers reach it through the [`crate::routes::Ext`] extractor.
+    pub fn extension<T: Send + Sync + 'static>(&self) -> Option<Arc<T>> {
+        self.0
+            .extensions
+            .get(&TypeId::of::<T>())?
+            .clone()
+            .downcast::<T>()
+            .ok()
+    }
 }
 
 /// Builder for [`AppState`].
@@ -126,6 +141,7 @@ pub struct AppStateBuilder {
     readiness: Vec<Arc<dyn ReadinessCheck>>,
     openapi: Option<OpenApi>,
     settings: Option<ApiSettings>,
+    extensions: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
 }
 
 impl AppStateBuilder {
@@ -171,6 +187,13 @@ impl AppStateBuilder {
         self
     }
 
+    /// Register a typed service (one value per type; registering the same
+    /// type again replaces it). Retrieved with [`AppState::extension`].
+    pub fn extension<T: Send + Sync + 'static>(mut self, v: Arc<T>) -> Self {
+        self.extensions.insert(TypeId::of::<T>(), v);
+        self
+    }
+
     /// Finish.
     pub fn build(self) -> AppState {
         let settings = self.settings.unwrap_or_default();
@@ -189,6 +212,7 @@ impl AppStateBuilder {
             openapi: self.openapi.unwrap_or_else(openapi::base),
             rate_limiter: RateLimiter::new(settings.rate_limit.clone()),
             settings,
+            extensions: self.extensions,
         }))
     }
 }
