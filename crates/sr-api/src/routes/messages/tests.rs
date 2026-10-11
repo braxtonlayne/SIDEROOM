@@ -499,6 +499,7 @@ async fn slowmode_returns_retry_after() {
         )
         .await;
     assert_eq!(s, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(v["code"], 20016);
     assert_eq!(v["retry_after"], 6.0);
     assert_eq!(v["global"], false);
     assert_eq!(h["retry-after"], "6");
@@ -1132,4 +1133,71 @@ async fn openapi_fragment_documents_every_route() {
     }
     assert!(paths["/channels/{channel_id}/messages"]["post"].is_object());
     assert!(doc["components"]["schemas"]["MessageObject"].is_object());
+}
+
+#[tokio::test]
+async fn allowed_mentions_gate_pings_and_tts_is_a_flag() {
+    let e = env().await;
+    // parse: [] pings nobody, though the text stays.
+    let (s, m) = e
+        .post(
+            "/messages",
+            "bob",
+            json!({"content": "@everyone <@1>", "allowed_mentions": {"parse": []}}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(m["mention_everyone"], false);
+    assert_eq!(m["mentions"], json!([]));
+    // A listed user id may ping even when users are not parsed.
+    let (_, m) = e
+        .post(
+            "/messages",
+            "bob",
+            json!({"content": "<@1> <@3>", "allowed_mentions": {"users": ["1"]}}),
+        )
+        .await;
+    assert_eq!(m["mentions"][0]["id"], "1");
+    assert_eq!(m["mentions"].as_array().unwrap().len(), 1);
+    // Malformed allowed_mentions is a form error.
+    let r = e
+        .post(
+            "/messages",
+            "bob",
+            json!({"content": "x", "allowed_mentions": {"parse": ["nope"]}}),
+        )
+        .await;
+    assert_eq!(code(&r), (StatusCode::BAD_REQUEST, Some(50035)));
+    // tts needs SEND_TTS_MESSAGES: members lack it by default, the owner is an admin.
+    let r = e
+        .post(
+            "/messages",
+            "bob",
+            json!({"content": "hear me", "tts": true}),
+        )
+        .await;
+    assert_eq!(code(&r), (StatusCode::FORBIDDEN, Some(50013)));
+    let (_, m) = e
+        .post(
+            "/messages",
+            "owner",
+            json!({"content": "hear me", "tts": true}),
+        )
+        .await;
+    assert_eq!(m["tts"], true);
+}
+
+#[tokio::test]
+async fn embeds_are_stored_and_echoed() {
+    let e = env().await;
+    let body = json!({
+        "content": "",
+        "embeds": [{"title": "Hello", "type": "rich", "fields": [{"name": "a", "value": "b"}]}]
+    });
+    let (s, m) = e.post("/messages", "bob", body).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(m["embeds"][0]["title"], "Hello");
+    assert_eq!(m["embeds"][0]["fields"][0]["name"], "a");
+    let (_, list) = e.get("/messages", "bob").await;
+    assert_eq!(list[0]["embeds"][0]["title"], "Hello");
 }
