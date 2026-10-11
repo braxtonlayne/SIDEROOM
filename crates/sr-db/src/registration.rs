@@ -66,14 +66,14 @@ pub async fn register_with_invite(
 ) -> DbResult<Result<Registered, Rejection>> {
     let mut tx = pool.begin().await?;
 
-    let invite: Option<(i64, i64, String)> = sqlx::query_as(
-        "SELECT id, issuer_account_id, state::text FROM platform_invites \
+    let invite: Option<(i64, i64, String, bool)> = sqlx::query_as(
+        "SELECT id, issuer_account_id, state::text, emergency FROM platform_invites \
          WHERE code = $1 FOR UPDATE",
     )
     .bind(&r.code)
     .fetch_optional(&mut *tx)
     .await?;
-    let Some((invite_id, issuer_id, state)) = invite else {
+    let Some((invite_id, issuer_id, state, emergency)) = invite else {
         return Ok(Err(Rejection::InviteUnavailable));
     };
     if state != "open" {
@@ -99,7 +99,8 @@ pub async fn register_with_invite(
     .bind(issuer_id)
     .fetch_one(&mut *tx)
     .await?;
-    if balance < 1 {
+    // Emergency (operator) invites are outside the credit economy (open question 46).
+    if !emergency && balance < 1 {
         return Ok(Err(Rejection::IssuerOutOfCredits));
     }
 
@@ -204,15 +205,18 @@ pub async fn register_with_invite(
     .bind(r.account_id)
     .execute(&mut *tx)
     .await?;
-    sqlx::query(
-        "INSERT INTO invite_credits_ledger (id, account_id, delta, reason, ref_id) \
-         VALUES ($1, $2, -1, 'redemption', $3)",
-    )
-    .bind(r.ledger_ids[0])
-    .bind(issuer_id)
-    .bind(invite_id)
-    .execute(&mut *tx)
-    .await?;
+    // Operator emergency invites never touch the issuer's credit (open question 46).
+    if !emergency {
+        sqlx::query(
+            "INSERT INTO invite_credits_ledger (id, account_id, delta, reason, ref_id) \
+             VALUES ($1, $2, -1, 'redemption', $3)",
+        )
+        .bind(r.ledger_ids[0])
+        .bind(issuer_id)
+        .bind(invite_id)
+        .execute(&mut *tx)
+        .await?;
+    }
     if r.initial_credits > 0 {
         sqlx::query(
             "INSERT INTO invite_credits_ledger (id, account_id, delta, reason, ref_id) \

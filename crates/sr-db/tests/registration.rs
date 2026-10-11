@@ -113,6 +113,30 @@ async fn redeems_once_and_writes_the_ledger() {
     assert_eq!(balance(&pool, issuer).await, 4);
 }
 
+/// Operator emergency invites (open question 46) are outside the credit economy: they
+/// redeem even when the issuer has no credit, and spend none.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn emergency_invites_neither_need_nor_spend_issuer_credit() {
+    let pool = pool().await;
+    let broke = issuer(&pool, 0).await;
+    let code = invite(&pool, broke).await;
+    sqlx::query("UPDATE platform_invites SET emergency = true WHERE code = $1")
+        .bind(code.canonical())
+        .execute(&pool)
+        .await
+        .unwrap();
+    let r = reg(&code, i64::MAX, "e");
+    let ok = register_with_invite(&pool, &r).await.unwrap().unwrap();
+    assert_eq!(ok.issuer_id, broke);
+    assert_eq!(balance(&pool, broke).await, 0, "no debit for the issuer");
+    assert_eq!(
+        balance(&pool, r.account_id).await,
+        5,
+        "new account still gets its grant"
+    );
+}
+
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn rejections_write_nothing() {

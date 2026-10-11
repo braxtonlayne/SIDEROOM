@@ -83,6 +83,16 @@ pub async fn create_account(pool: &PgPool, a: &NewAccount<'_>, ledger_id: i64) -
     Ok(true)
 }
 
+/// Mark an invite as an operator emergency invite: redeeming it neither requires nor
+/// spends the issuer's credit (open question 46).
+pub async fn mark_invite_emergency(pool: &PgPool, code: &str) -> DbResult<bool> {
+    let done = sqlx::query("UPDATE platform_invites SET emergency = true WHERE code = $1")
+        .bind(code)
+        .execute(pool)
+        .await?;
+    Ok(done.rows_affected() == 1)
+}
+
 /// Find an account id by username or email (case-insensitive).
 pub async fn find_account_id(pool: &PgPool, username_or_email: &str) -> DbResult<Option<i64>> {
     Ok(

@@ -255,8 +255,10 @@ async fn invite_create(
         };
         match repo.create(rec).await {
             Ok(()) => {
-                // Operator action outside the per-user credit economy: no ledger
-                // row, but a platform audit row (open question 46).
+                // Operator action outside the per-user credit economy: the invite is
+                // flagged so redemption spends no credit, and a platform audit row is
+                // written (open question 46).
+                accounts::mark_invite_emergency(pool, code.canonical()).await?;
                 let store =
                     PgAuthStore::new(pool.clone(), self::repo(pool, ids.clone()), ids.clone());
                 store
