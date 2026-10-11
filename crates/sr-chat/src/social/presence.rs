@@ -154,21 +154,34 @@ pub fn plan_set_custom_status(
     Ok(prefs)
 }
 
-/// Merge a user's per-session statuses into one visible status
-/// (LNG-PRF-015): online beats do-not-disturb beats idle; invisible sessions
-/// contribute nothing; no sessions means offline.
-pub fn merge_sessions(statuses: &[Status]) -> Status {
-    let mut best = Status::Offline;
-    let rank = |s: Status| match s {
-        Status::Online => 3,
-        Status::Dnd => 2,
-        Status::Idle => 1,
-        Status::Invisible | Status::Offline => 0,
-    };
-    for s in statuses {
-        if rank(*s) > rank(best) {
-            best = *s;
+/// The status a user shows across all sessions (open question 119; LNG-PRF-015).
+///
+/// - No session that contributes (invisible and offline sessions do not) means offline.
+/// - A chosen `dnd`, `idle` or `invisible` status is a user setting and applies to all sessions.
+/// - Otherwise `online` if any session is active; `idle` only when every
+///   contributing session is idle.
+///
+/// Session statuses are the per-session reports; the chosen status is what the
+/// user picked (usually `online`, meaning "no override").
+pub fn merge_sessions(chosen: Status, sessions: &[Status]) -> Status {
+    let live: Vec<Status> = sessions
+        .iter()
+        .copied()
+        .filter(|s| !matches!(s, Status::Invisible | Status::Offline))
+        .collect();
+    if live.is_empty() {
+        return Status::Offline;
+    }
+    match chosen {
+        Status::Dnd | Status::Idle | Status::Invisible => chosen,
+        Status::Online | Status::Offline => {
+            if live.contains(&Status::Online) {
+                Status::Online
+            } else if live.contains(&Status::Dnd) {
+                Status::Dnd
+            } else {
+                Status::Idle
+            }
         }
     }
-    best
 }
