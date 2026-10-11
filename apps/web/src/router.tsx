@@ -6,24 +6,55 @@ import {
   type RouterHistory,
 } from '@tanstack/react-router';
 import * as P from './routes/pages';
+import { Landing } from './routes/entrance/Landing';
+import { Login } from './routes/entrance/Login';
+import { Forgot, Reset } from './routes/entrance/PasswordReset';
+import { Register } from './routes/entrance/Register';
+import { ServerInvite } from './routes/entrance/ServerInvite';
+import { HouseNotes, NoInvitation } from './routes/entrance/Static';
+import { TwoFactor } from './routes/entrance/TwoFactor';
 
 const root = createRootRoute({ component: Outlet });
-const r = (path: string, component: () => React.JSX.Element) =>
+const r = <P extends string>(path: P, component: () => React.JSX.Element | null) =>
   createRoute({ getParentRoute: () => root, path, component });
+
+const validateLoginSearch = (s: Record<string, unknown>): { next?: string; error?: string } => ({
+  ...(typeof s.next === 'string' ? { next: s.next } : {}),
+  ...(typeof s.error === 'string' ? { error: s.error } : {}),
+});
 
 const loginRoute = createRoute({
   getParentRoute: () => root,
   path: '/login',
-  component: P.Login,
-  validateSearch: (s: Record<string, unknown>): { next?: string } =>
-    typeof s.next === 'string' ? { next: s.next } : {},
+  component: Login,
+  validateSearch: validateLoginSearch,
+});
+const twoFactorRoute = createRoute({
+  getParentRoute: () => root,
+  path: '/login/2fa',
+  component: TwoFactor,
+  validateSearch: validateLoginSearch,
+});
+const joinRoute = createRoute({
+  getParentRoute: () => root,
+  path: '/join/$code',
+  component: function Join() {
+    const { code } = joinRoute.useParams();
+    return <Landing initialCode={code} />;
+  },
 });
 
 const routeTree = root.addChildren([
-  r('/', P.Landing),
+  r('/', () => <Landing />),
   loginRoute,
-  r('/join/$code', P.Join),
-  r('/invite/$code', P.Invite),
+  twoFactorRoute,
+  joinRoute,
+  r('/register', Register),
+  r('/forgot', Forgot),
+  r('/reset/$token', Reset),
+  r('/no-invitation', NoInvitation),
+  r('/house-notes', HouseNotes),
+  r('/invite/$code', ServerInvite),
   r('/channels', P.Channels),
   r('/cinema', P.Cinema),
   r('/library', P.Library),
