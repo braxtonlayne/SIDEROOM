@@ -22,6 +22,14 @@ use super::repo::SettingsRepository;
 /// Source of invite-code entropy.
 pub type Entropy = Arc<dyn Fn() -> u64 + Send + Sync>;
 
+mod community_ops;
+mod expression_ops;
+mod template_ops;
+mod webhook_ops;
+
+pub use expression_ops::StickerPatch;
+pub use webhook_ops::WebhookPatch;
+
 pub struct SettingsService<R> {
     repo: R,
     clock: Arc<dyn Clock>,
@@ -36,7 +44,7 @@ pub struct SettingsService<R> {
     spam: SpamWindow,
 }
 
-fn require(perms: Permissions, needed: Permissions) -> SettingsResult<()> {
+pub(super) fn require(perms: Permissions, needed: Permissions) -> SettingsResult<()> {
     if perms.has(needed) {
         Ok(())
     } else {
