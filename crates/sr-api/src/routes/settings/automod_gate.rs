@@ -1,0 +1,189 @@
+//! The seam between message create and AutoMod (LNG-SSET-059/060/062).
+//!
+//! `routes/messages` is not edited by this module. When it is ready to enforce
+//! AutoMod it takes an [`AutoModGateHandle`] from the state (`Ext`) and calls
+//! [`AutoModGate::evaluate`] before storing the message:
+//!
+//! ```ignore
+//! let verdict = gate.0.evaluate(&MessageCheck { guild, channel, author, content, .. }).await?;
+//! if let Some(block) = &verdict.block {
+//!     // reject with `ErrorCode::AutoModBlocked`-style 400, show block.custom_message
+//! }
+//! // after storing: post `verdict.alerts` and apply `verdict.timeout_secs`.
+//! ```
+//!
+//! [`SettingsDeps`] implements the trait: it resolves the author's roles and
+//! bypass, runs the cached rules and the per-member spam window, writes the audit
+//! entries for blocked messages and returns what the caller must execute.
+
+use super::deps::{SettingsDeps, re, se};
+use super::events::SettingsEvent;
+use crate::HttpError;
+use async_trait::async_trait;
+use serde_json::json;
+use sr_chat::settings::audit::{AuditAction, AuditEntry};
+use sr_chat::settings::automod::{Action, MessageContext, RuleMatch};
+use sr_chat::settings::repo::AuditRepository;
+use sr_core::permissions::Permissions;
+use sr_core::{ChannelId, GuildId, UserId};
+use std::sync::Arc;
+
+/// One message about to be created.
+#[derive(Debug, Clone, Default)]
+pub struct MessageCheck {
+    pub guild: GuildId,
+    pub channel: ChannelId,
+    pub author: UserId,
+    pub content: String,
+    pub mentioned_user_ids: Vec<UserId>,
+    pub mentioned_role_ids: Vec<sr_core::RoleId>,
+}
+
+/// The block action to apply.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Block {
+    pub rule_id: u64,
+    pub rule_name: String,
+    /// Shown to the author instead of the default text.
+    pub custom_message: Option<String>,
+}
+
+/// An alert to post into `channel_id` (LNG-SSET-062).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Alert {
+    pub channel_id: ChannelId,
+    pub rule_id: u64,
+    pub rule_name: String,
+    pub matched: String,
+    pub user_id: UserId,
+    pub source_channel_id: ChannelId,
+    pub content: String,
+}
+
+/// What the caller must do about a message.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AutoModVerdict {
+    pub block: Option<Block>,
+    pub alerts: Vec<Alert>,
+    /// Longest timeout any matching rule asks for.
+    pub timeout_secs: Option<u32>,
+    pub matches: Vec<RuleMatch>,
+}
+
+impl AutoModVerdict {
+    pub fn is_clean(&self) -> bool {
+        self.matches.is_empty()
+    }
+}
+
+#[async_trait]
+pub trait AutoModGate: Send + Sync {
+    async fn evaluate(&self, msg: &MessageCheck) -> Result<AutoModVerdict, HttpError>;
+}
+
+/// Registered on the state so `routes/messages` can take it with `Ext` later.
+#[derive(Clone)]
+pub struct AutoModGateHandle(pub Arc<dyn AutoModGate>);
+
+/// Fold rule matches into the actions to execute.
+pub fn verdict_of(msg: &MessageCheck, matches: Vec<RuleMatch>) -> AutoModVerdict {
+    let mut v = AutoModVerdict::default();
+    for m in &matches {
+        for a in &m.actions {
+            match a {
+                Action::Block { custom_message } => {
+                    if v.block.is_none() {
+                        v.block = Some(Block {
+                            rule_id: m.rule_id,
+                            rule_name: m.rule_name.clone(),
+                            custom_message: custom_message.clone(),
+                        });
+                    }
+                }
+                Action::SendAlert { channel_id } => v.alerts.push(Alert {
+                    channel_id: *channel_id,
+                    rule_id: m.rule_id,
+                    rule_name: m.rule_name.clone(),
+                    matched: m.matched.clone(),
+                    user_id: msg.author,
+                    source_channel_id: msg.channel,
+                    content: msg.content.clone(),
+                }),
+                Action::Timeout { duration_secs } => {
+                    v.timeout_secs = Some(
+                        v.timeout_secs
+                            .map_or(*duration_secs, |t| t.max(*duration_secs)),
+                    );
+                }
+            }
+        }
+    }
+    v.matches = matches;
+    v
+}
+
+#[async_trait]
+impl AutoModGate for SettingsDeps {
+    async fn evaluate(&self, msg: &MessageCheck) -> Result<AutoModVerdict, HttpError> {
+        let channel = self.chat.get_channel(msg.channel).await.map_err(re)?;
+        let acc = self.guild_access(msg.author, msg.guild).await?;
+        let ctx = MessageContext {
+            author_id: msg.author,
+            channel_id: msg.channel,
+            parent_channel_id: channel.and_then(|c| c.parent_id),
+            author_role_ids: acc.member.role_ids.clone(),
+            // Administrators and server managers are never filtered (Discord).
+            bypass: acc.perms.has(Permissions::ADMINISTRATOR)
+                || acc.perms.has(Permissions::MANAGE_GUILD),
+            content: msg.content.clone(),
+            mentioned_user_ids: msg.mentioned_user_ids.clone(),
+            mentioned_role_ids: msg.mentioned_role_ids.clone(),
+        };
+        let matches = self
+            .service
+            .check_message(msg.guild, &ctx)
+            .await
+            .map_err(se)?;
+        let verdict = verdict_of(msg, matches);
+        for m in &verdict.matches {
+            if !m.actions.iter().any(|a| matches!(a, Action::Block { .. })) {
+                continue;
+            }
+            // Audit and gateway notification are best effort: the verdict stands.
+            let entry = AuditEntry::new(
+                self.service.new_id(),
+                msg.guild,
+                msg.author,
+                AuditAction::AutoModerationBlockMessage,
+                Some(m.rule_id),
+                None,
+                self.now_ms(),
+            )
+            .map(|e| {
+                e.with_options(json!({
+                    "auto_moderation_rule_name": m.rule_name,
+                    "channel_id": msg.channel.to_string(),
+                }))
+            });
+            if let Ok(entry) = entry
+                && let Err(e) = self.service.repo().append_audit(&entry).await
+            {
+                tracing::warn!(error = %e, "could not record an AutoMod block");
+            }
+            self.publish(SettingsEvent::AutoModActionExecuted {
+                guild: msg.guild,
+                payload: json!({
+                    "guild_id": msg.guild.to_string(),
+                    "rule_id": m.rule_id.to_string(),
+                    "user_id": msg.author.to_string(),
+                    "channel_id": msg.channel.to_string(),
+                    "matched_keyword": m.matched,
+                    "content": msg.content,
+                    "action": { "type": 1 },
+                }),
+            })
+            .await;
+        }
+        Ok(verdict)
+    }
+}
