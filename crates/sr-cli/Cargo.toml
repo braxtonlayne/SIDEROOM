@@ -6,3 +6,17 @@ publish.workspace = true
 
 [lints]
 workspace = true
+
+[[bin]]
+name = "sr-cli"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive", "env"] }
+rpassword = "7"
+sr-auth = { path = "../sr-auth" }
+sr-core = { path = "../sr-core" }
+sr-db = { path = "../sr-db" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+tracing = "0.1"

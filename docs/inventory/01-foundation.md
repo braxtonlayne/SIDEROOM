@@ -42,7 +42,7 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 - [x] **FND-DB-004** [DB] Migration 0003: platform settings (key/value with schema version), feature enablements
 - [x] **FND-DB-005** [DB] Job queue table + `claim/complete/fail/retry` with `SKIP LOCKED`, backoff, dead-letter
 - [x] **FND-DB-006** [BE] Job runner (tokio tasks, concurrency per kind, graceful shutdown)
-- [ ] **FND-DB-007** [DB] Monthly partition manager for `messages` (create-ahead job)
+- [x] **FND-DB-007** [DB] Monthly partition manager for `messages` (create-ahead job)
 - [x] **FND-DB-008** [BE] Repository pattern + transaction helper (`with_tx`) + advisory lock helper
 - [ ] **FND-DB-009** [OPS] Seed command (dev data: users, servers, messages, library samples with CC0 media)
 

@@ -5,6 +5,8 @@ pub enum DbError {
     Sqlx(#[from] sqlx::Error),
     #[error("migration error: {0}")]
     Migrate(#[from] sqlx::migrate::MigrateError),
+    #[error("invalid table identifier: {0}")]
+    InvalidIdentifier(String),
     #[error("database health check timed out")]
     Timeout,
 }

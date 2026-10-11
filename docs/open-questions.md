@@ -66,3 +66,16 @@ Questions raised by implementation work that need an owner decision. Each links 
 37. **Saturation setting uses a CSS `filter` on the provider root**, which makes `position: fixed` overlays position relative to that root while active. — [packages/ui/src/theme](../packages/ui/src/theme)
 38. **Partial primitives left unticked:** Slider, Segmented, ContextMenu, Dropdown, Drawer, Accordion, AvatarStack, Pill/Tag, ProgressBar, EmptyState, error page; DS-PRIM-004, 012–016 (Select, ScrollArea, icons, Ladle stories) not started. — [01-foundation.md](inventory/01-foundation.md)
 39. **Verified with npm/npx and no lockfile** (pnpm not installed); the package's lockfile and workspace linking are untested. — [packages/ui/package.json](../packages/ui/package.json)
+
+## CLI and auth repositories (`feat/FND-CLI`)
+
+40. **No Postgres available here, so no SQL was executed.** The `sr-db` auth repositories, account helpers and partition manager are covered by `#[ignore]` tests (`crates/sr-db/tests/auth_repo.rs`) that need `SR_TEST_DATABASE_URL`; they have never run. Run them before merging. — [auth_repo.rs](../crates/sr-db/src/auth_repo.rs)
+41. **Migration 0005 recreates `recovery_codes`.** The `sr-auth` trait stores argon2id PHC strings, but 0001 had `code_hash BYTEA CHECK (octet_length = 32)`. Confirm that argon2 per-code hashing (not SHA-256 with an index lookup) is the intended design. — [0005](../crates/sr-db/migrations/0005_recovery_code_phc.sql)
+42. **TOTP secret encryption key.** `PgAuthRepo` takes a 32-byte AES-256-GCM key (AAD = account id). Where does it come from (config `secrets.*`)? There is no key rotation story yet. — [auth_repo.rs](../crates/sr-db/src/auth_repo.rs)
+43. **FND-DB-007 is generic.** `messages` is not in the migrations, so `sr-db::partitions` takes a table name and assumes `PARTITION BY RANGE (id)` with Snowflake bounds per UTC month. Nothing schedules the `db.partitions.ensure` job yet. — [partitions.rs](../crates/sr-db/src/partitions.rs)
+44. **Staff Server not created by `bootstrap`** (no guilds/roles tables), so FND-CLI-001 is left unticked; `staff transfer-owner` (FND-CLI-002) and FND-CLI-003 are not started.
+45. **One-time Owner login link reuses the `reset_password` email-token purpose** (24h TTL) and points at `/sr/login/link?token=...`, a route that does not exist yet. Add a dedicated `login_link` purpose in `sr-auth` and the enum? — [commands.rs](../crates/sr-cli/src/commands.rs)
+46. **System user (id 1) is stored as a `deactivated` account** with an unusable password and `system@sideroom.invalid`, so it cannot log in and is outside the 20,000 cap. Acceptable, or add a dedicated flag/state?
+47. **`seed` only creates accounts and invites** (alice, bob, carol, dave with a shared dev password and 5 credits each); servers, messages and CC0 library samples wait on those schemas, so FND-DB-009 is left unticked.
+48. **`invite create` bypasses credit, verification and account-age rules** (operator emergency, doc 06 section 5.1) and does not write to the credit ledger or an audit log. Should emergency invites consume credits or be logged?
+49. **`user reset-2fa` also removes passkeys and revokes all sessions**; the docs only say "reset 2FA". No audit-log entry is written (no table yet).
