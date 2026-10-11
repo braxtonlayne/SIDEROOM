@@ -56,10 +56,11 @@ export const SHORTCUTS: readonly ShortcutDef[] = [
   { id: 'nextGuild', group: 'Navigation', description: 'Next server', keys: ['Mod', 'Alt', '↓'] },
   { id: 'markRead', group: 'Messages', description: 'Mark channel as read', keys: ['Esc'] },
   {
+    // Discord behaviour: any printable key outside a field moves focus to the message box (Q169).
     id: 'focusComposer',
     group: 'Messages',
-    description: 'Focus the message box',
-    keys: ['Mod', 'Shift', 'M'],
+    description: 'Start typing a message (focuses the message box)',
+    keys: ['Any key'],
   },
 ];
 
@@ -70,7 +71,6 @@ export function matchShortcut(
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   if (mod && !e.altKey && !e.shiftKey && k === 'k') return 'quickSwitcher';
   if (mod && !e.altKey && !e.shiftKey && k === '/') return 'shortcutSheet';
-  if (mod && e.shiftKey && !e.altKey && k === 'm') return 'focusComposer';
   if (k === 'ArrowUp' || k === 'ArrowDown') {
     const up = k === 'ArrowUp';
     if (mod && e.altKey && !e.shiftKey) return up ? 'prevGuild' : 'nextGuild';
@@ -78,6 +78,8 @@ export function matchShortcut(
     if (!mod && e.altKey && !e.shiftKey) return up ? 'prevChannel' : 'nextChannel';
   }
   if (k === 'Escape' && !mod && !e.altKey && !e.shiftKey) return 'markRead';
+  // A printable character with no Ctrl/Meta/Alt (Shift allowed) starts a message.
+  if (!mod && !e.altKey && e.key.length === 1) return 'focusComposer';
   return null;
 }
 

@@ -275,6 +275,9 @@ describe('matchShortcut', () => {
       'nextGuild',
     );
     expect(matchShortcut({ ...base, key: 'Escape' })).toBe('markRead');
-    expect(matchShortcut({ ...base, key: 'a' })).toBeNull();
+    // Any printable key focuses the message box (Q169); Ctrl+Shift+M is Discord's mute and is not ours.
+    expect(matchShortcut({ ...base, key: 'a' })).toBe('focusComposer');
+    expect(matchShortcut({ ...base, key: 'M', ctrlKey: true, shiftKey: true })).toBeNull();
+    expect(matchShortcut({ ...base, key: 'Shift', shiftKey: true })).toBeNull();
   });
 });

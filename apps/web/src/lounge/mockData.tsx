@@ -1,8 +1,9 @@
 /**
- * Deterministic mock backend for the Lounge shell. Replaced by the real gateway-backed store (see data.ts).
- * Never imported by components, only by routes/lounge.tsx and tests.
+ * Deterministic mock backend for the Lounge shell (tests, Ladle, `VITE_SR_MOCK=1`). The app itself reads the
+ * gateway-backed store (see data.ts). Never imported by components, only by routes/lounge.tsx and tests.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { LiveDataConnection } from './live';
 import {
   LoungeDataContext,
   type Channel,
@@ -234,11 +235,19 @@ export interface MockDataProviderProps {
   historySize?: number;
 }
 
-export function MockDataProvider({
-  children,
-  now,
-  historySize = HISTORY_TOTAL,
-}: MockDataProviderProps) {
+/** Mock data is opt-in: tests stub `VITE_SR_MOCK=1`; Ladle and visual work set it in the environment. */
+export const mockDataEnabled = () => import.meta.env.VITE_SR_MOCK === '1';
+
+/**
+ * Lounge data provider. With mock data enabled it supplies the deterministic seed; otherwise it only opens
+ * the gateway and the hooks in data.ts read the store.
+ */
+export function MockDataProvider(props: MockDataProviderProps) {
+  if (!mockDataEnabled()) return <LiveDataConnection>{props.children}</LiveDataConnection>;
+  return <MockDataSource {...props} />;
+}
+
+function MockDataSource({ children, now, historySize = HISTORY_TOTAL }: MockDataProviderProps) {
   const nowRef = useRef(now ?? Date.now());
   const seeds = useMemo(buildGuilds, []);
   const history = useRef<Record<string, Message[]>>({});

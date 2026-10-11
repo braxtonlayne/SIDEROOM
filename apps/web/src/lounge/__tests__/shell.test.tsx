@@ -1,9 +1,14 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
+import { afterAll, beforeAll, vi } from 'vitest';
 import { createAppRouter } from '../../router';
 import { resetComposerDrafts } from '../Composer';
 import { useLoungeUi } from '../store';
+
+// These tests drive the Lounge against the deterministic mock seed (opt-in via VITE_SR_MOCK=1).
+beforeAll(() => vi.stubEnv('VITE_SR_MOCK', '1'));
+afterAll(() => vi.unstubAllEnvs());
 
 function at(path: string) {
   const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }));

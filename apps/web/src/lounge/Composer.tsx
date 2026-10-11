@@ -19,10 +19,9 @@ import {
   type Message,
   type Snowflake,
 } from './data';
+import { drafts } from './drafts';
 
-/** Unsent text survives channel switches for the session. */
-const drafts = new Map<string, string>();
-/** Test hook. */
+/** Test hook: forgets every unsent draft (memory and localStorage). */
 export const resetComposerDrafts = () => drafts.clear();
 
 export interface ComposerProps {

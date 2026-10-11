@@ -53,11 +53,16 @@ function useLoungeShortcuts(h: { openSwitcher: () => void; toggleSheet: () => vo
       const id = matchShortcut(e);
       if (!id) return;
       const c = latest.current;
-      if (id === 'markRead') {
-        // Escape belongs to open dialogs, menus and text fields first.
+      if (id === 'markRead' || id === 'focusComposer') {
+        // Esc and typing belong to open dialogs, menus and text fields first.
         if (isEditable(e.target) || document.querySelector('[role="dialog"], [role="menu"]'))
           return;
-        if (c.channelId) c.actions.markRead(c.channelId);
+        if (id === 'markRead') {
+          if (c.channelId) c.actions.markRead(c.channelId);
+        } else {
+          // Not prevented: the key is typed into the message box that now has focus.
+          document.querySelector<HTMLTextAreaElement>('[data-composer]')?.focus();
+        }
         return;
       }
       e.preventDefault();
@@ -67,9 +72,6 @@ function useLoungeShortcuts(h: { openSwitcher: () => void; toggleSheet: () => vo
           return;
         case 'shortcutSheet':
           c.h.toggleSheet();
-          return;
-        case 'focusComposer':
-          document.querySelector<HTMLTextAreaElement>('[data-composer]')?.focus();
           return;
         case 'prevChannel':
         case 'nextChannel':

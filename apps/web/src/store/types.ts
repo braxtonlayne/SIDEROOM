@@ -64,8 +64,17 @@ export interface Message {
   nonce?: string | number | null;
   mentions?: User[];
   mention_everyone?: boolean;
+  message_reference?: { message_id: string; channel_id?: string; guild_id?: string } | null;
+  reactions?: MessageReaction[];
   /** Client-only: set while the message is optimistic. Absent on server messages. */
   local?: LocalState;
+}
+
+export interface MessageReaction {
+  emoji: { id?: string | null; name?: string | null };
+  count: number;
+  /** The signed-in user reacted with this emoji. */
+  me: boolean;
 }
 
 /** Optimistic-send state. `sending` -> replaced by the server message; `failed` stays until retry/discard. */
