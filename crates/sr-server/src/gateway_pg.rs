@@ -178,20 +178,19 @@ impl PgGuildDirectory {
             .list_relationships(user)
             .await?
             .iter()
-            .filter_map(|r| {
+            .map(|r| {
                 let kind = match r.kind {
                     RelationshipKind::Friend => 1,
                     RelationshipKind::Blocked => 2,
                     RelationshipKind::PendingIncoming => 3,
                     RelationshipKind::PendingOutgoing => 4,
-                    RelationshipKind::Ignored => return None,
                 };
-                Some(json!({
+                json!({
                     "id": r.target,
                     "type": kind,
                     "nickname": r.nickname,
                     "since": iso8601(r.since_ms),
-                }))
+                })
             })
             .collect();
         let entries: Vec<Value> = self
