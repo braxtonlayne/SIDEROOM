@@ -3,7 +3,7 @@
 Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 
 ## LNG-GLD — Guilds
-- [ ] **LNG-GLD-001** [DB] guilds, guild_members, roles, member_roles migrations
+- [x] **LNG-GLD-001** [DB] guilds, guild_members, roles, member_roles migrations
 - [ ] **LNG-GLD-002** [BE] Create guild (default @everyone, #general, General voice, categories) → `POST /guilds`
 - [ ] **LNG-GLD-003** [BE] Create from template (built-in + Discord-compatible template JSON)
 - [ ] **LNG-GLD-004** [BE] Get/modify/delete guild; owner transfer
@@ -39,7 +39,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 - [ ] **LNG-GLD-034** [FE] Security Actions: pause invites, pause DMs (raid mode)
 
 ## LNG-CHN — Channels
-- [ ] **LNG-CHN-001** [DB] channels, permission_overwrites, channel_recipients migrations
+- [x] **LNG-CHN-001** [DB] channels, permission_overwrites, channel_recipients migrations
 - [ ] **LNG-CHN-002** [BE] Create/modify/delete channel (all types), position updates (bulk), sync permissions with category
 - [ ] **LNG-CHN-003** [BE] Permission overwrite CRUD + effective-permission computation per member
 - [ ] **LNG-CHN-004** [BE] Announcement channels: follow (creates webhook in target), crosspost/publish, auto-publish feature hook

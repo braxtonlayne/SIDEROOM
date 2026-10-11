@@ -7,6 +7,7 @@
 
 pub mod accounts;
 pub mod auth_repo;
+pub mod chat_repo;
 mod error;
 pub mod jobs;
 pub mod lock;
