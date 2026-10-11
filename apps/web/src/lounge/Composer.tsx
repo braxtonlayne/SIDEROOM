@@ -20,6 +20,21 @@ import {
   type Snowflake,
 } from './data';
 import { drafts } from './drafts';
+import { currentMarkdownEngine, loadMarkdownEngine, type MarkdownEngine } from './markdown';
+
+/** Shortcodes become emoji at send time (Q89): the parser leaves `:name:` literal. */
+function expandForSend(text: string, then: (content: string) => void) {
+  const engine: MarkdownEngine | null = currentMarkdownEngine();
+  if (engine) {
+    then(engine.expandShortcodes(text));
+    return;
+  }
+  // The engine is still loading: wait for it rather than sending literal shortcodes.
+  loadMarkdownEngine().then(
+    (loaded) => then(loaded.expandShortcodes(text)),
+    () => then(text),
+  );
+}
 
 /** Test hook: forgets every unsent draft (memory and localStorage). */
 export const resetComposerDrafts = () => drafts.clear();
@@ -102,9 +117,7 @@ export function Composer({
     return { s: el?.selectionStart ?? text.length, e: el?.selectionEnd ?? text.length };
   };
 
-  const send = () => {
-    const content = text.trim();
-    if (!content || content.length > MAX_MESSAGE_LENGTH) return;
+  const submit = (content: string) => {
     if (editing) {
       actions.editMessage(channelId, editing.id, content);
       onCancelEdit();
@@ -114,6 +127,12 @@ export function Composer({
       setText('');
       onCancelReply();
     }
+  };
+
+  const send = () => {
+    const content = text.trim();
+    if (!content || content.length > MAX_MESSAGE_LENGTH) return;
+    expandForSend(content, submit);
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
