@@ -709,9 +709,8 @@
           "items": [
             [
               {
-                "emoji": "😄",
-                "name": "smile",
-                "type": "emoji"
+                "text": ":smile:",
+                "type": "text"
               }
             ]
           ],
@@ -720,7 +719,7 @@
           "type": "list"
         }
       ],
-      "plain": "😄\n",
+      "plain": ":smile:\n",
       "jumbo": false
     },
     {

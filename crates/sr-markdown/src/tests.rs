@@ -54,7 +54,6 @@ fn show1(n: &Node) -> String {
         Node::CustomEmoji { name, id, animated } => {
             format!("emoji({}{name},{id})", if *animated { "a:" } else { "" })
         }
-        Node::Emoji { name, emoji } => format!("emo({name},{emoji})"),
         Node::Timestamp { unix, style } => format!("ts({unix},{style:?})"),
         Node::SlashCommand { name, id } => format!("cmd({name},{id})"),
         Node::GuildNav { kind, id } => format!("nav({kind},{id:?})"),
@@ -221,7 +220,7 @@ fn corpus() {
         ("`@everyone`", r#"code("@everyone")"#),
         ("<:smile:123>", "emoji(smile,123)"),
         ("<a:dance:456>", "emoji(a:dance,456)"),
-        ("<:x:1>", r#""<" emo(x,❌) "1>""#),
+        ("<:x:1>", r#""<:x:1>""#),
         ("<:bad name:1>", r#""<:bad name:1>""#),
         ("<t:1618953630>", "ts(1618953630,None)"),
         ("<t:1618953630:R>", "ts(1618953630,Some(Relative))"),
@@ -430,18 +429,27 @@ proptest! {
 }
 
 #[test]
-fn shortcodes() {
-    assert_eq!(p(":smile:"), "emo(smile,😄)");
-    assert_eq!(p(":SMILE:"), "emo(smile,😄)");
-    assert_eq!(p(":+1:"), "emo(+1,👍)");
-    assert_eq!(p("a :fire: b"), r#""a " emo(fire,🔥) " b""#);
-    assert_eq!(p(":fire::fire:"), "emo(fire,🔥) emo(fire,🔥)");
-    assert_eq!(p(":nope:"), r#"":nope:""#);
-    assert_eq!(p("12:30:45"), r#""12:30:45""#);
-    assert_eq!(p("::"), r#""::""#);
-    assert_eq!(p("`:fire:`"), r#"code(":fire:")"#);
+fn shortcodes_stay_literal_in_parser() {
+    // Q89: the parser never converts `:name:`; only custom emoji are recognised.
+    assert_eq!(p(":smile:"), r#"":smile:""#);
+    assert_eq!(p("a :fire: b"), r#""a :fire: b""#);
     assert_eq!(p("<:fire:123>"), "emoji(fire,123)");
-    assert_eq!(p(r"\:fire:"), r#"":fire:""#);
+    assert_eq!(p("`:fire:`"), r#"code(":fire:")"#);
+}
+
+#[test]
+fn expand_shortcodes_at_send_time() {
+    use crate::expand_shortcodes as x;
+    assert_eq!(x(":smile:"), "😄");
+    assert_eq!(x(":SMILE:"), "😄");
+    assert_eq!(x(":+1:"), "👍");
+    assert_eq!(x("a :fire: b"), "a 🔥 b");
+    assert_eq!(x(":fire::fire:"), "🔥🔥");
+    assert_eq!(x(":nope:"), ":nope:");
+    assert_eq!(x("12:30:45"), "12:30:45");
+    assert_eq!(x("::"), "::");
+    assert_eq!(x("<:fire:123>"), "<:fire:123>");
+    assert_eq!(x("é :fire: ü"), "é 🔥 ü");
 }
 
 #[test]
@@ -460,8 +468,10 @@ fn shortcode_table_is_sane() {
 fn jumbo() {
     let j = |s: &str| is_jumbo(&parse(s));
     assert!(j("😄"));
-    assert!(j(":smile:"));
-    assert!(j("😄 :fire: <:xx:1> <a:yy:2>"));
+    // Q89: `:name:` is literal in the parser, so it only counts once the composer expands it.
+    assert!(!j(":smile:"));
+    assert!(j(&expand_shortcodes(":smile:")));
+    assert!(j(&expand_shortcodes("😄 :fire: <:xx:1> <a:yy:2>")));
     assert!(j("😄😄
 😄"));
     assert!(j("👍🏽"));
@@ -484,7 +494,35 @@ fn jumbo() {
 
 #[test]
 fn emoji_plain_text() {
-    assert_eq!(to_plain_text(&parse("hi :fire:")), "hi 🔥");
+    assert_eq!(to_plain_text(&parse("hi :fire:")), "hi :fire:");
+    assert_eq!(
+        to_plain_text(&parse(&expand_shortcodes("hi :fire:"))),
+        "hi 🔥"
+    );
+}
+
+#[test]
+fn quote_swallows_fences_and_autolinks_trim() {
+    // Q31b: `>>>` runs to the end of the message; a fence inside does not end it.
+    let ast = parse(">>> a\n```\nx\n```\nb");
+    assert!(matches!(ast.as_slice(), [Node::Quote { .. }]), "{ast:?}");
+    // Q31a: a fence mid-line still opens a code block.
+    assert!(
+        parse("hi ```x```")
+            .iter()
+            .any(|n| matches!(n, Node::CodeBlock { .. }))
+    );
+    // Q90: trailing `>`, `)` and `]` are not part of an autolink.
+    assert_eq!(
+        show(&parse(r"\<https://e.com>")),
+        r#""<" auto<https://e.com>["https://e.com"] ">""#
+    );
+    assert_eq!(
+        show(&parse("(https://e.com/a_(b))")),
+        r#""(" auto<https://e.com/a_(b>["https://e.com/a_(b"] "))""#
+    );
+    assert_eq!(show(&parse("***a** b*")), r#"i[b["a"] " b"]"#);
+    assert_eq!(show(&parse("**a*")), r#""*" i["a"]"#);
 }
 
 #[test]

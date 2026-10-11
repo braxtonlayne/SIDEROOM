@@ -325,16 +325,15 @@
         {
           "children": [
             {
-              "emoji": "😄",
-              "name": "smile",
-              "type": "emoji"
+              "text": ":smile:",
+              "type": "text"
             }
           ],
           "level": 1,
           "type": "heading"
         }
       ],
-      "plain": "😄\n",
+      "plain": ":smile:\n",
       "jumbo": false
     },
     {
@@ -655,15 +654,14 @@
         {
           "children": [
             {
-              "emoji": "🔥",
-              "name": "fire",
-              "type": "emoji"
+              "text": ":fire:",
+              "type": "text"
             }
           ],
           "type": "subtext"
         }
       ],
-      "plain": "🔥\n",
+      "plain": ":fire:\n",
       "jumbo": false
     },
     {

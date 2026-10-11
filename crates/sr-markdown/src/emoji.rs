@@ -753,14 +753,44 @@ pub fn count_emoji_only(s: &str) -> Option<usize> {
     Some(n)
 }
 
-/// If the message consists solely of emoji (unicode, `:shortcode:`, custom) and
-/// whitespace, return the emoji count (no cap). Otherwise `None`.
+/// Replace `:shortcode:` names with their unicode emoji (Q89). The composer calls this at
+/// send time; the renderer parser leaves `:name:` literal. Unknown names stay as written.
+pub fn expand_shortcodes(input: &str) -> String {
+    let b = input.as_bytes();
+    let mut out = String::with_capacity(input.len());
+    let mut i = 0;
+    while i < b.len() {
+        // Custom emoji syntax (`<:name:id>`, `<a:name:id>`) is left alone.
+        let custom = (i >= 1 && b[i - 1] == b'<') || (i >= 2 && &b[i - 2..i] == b"<a");
+        if b[i] == b':'
+            && !custom
+            && let Some(n) = b[i + 1..]
+                .iter()
+                .take(41)
+                .position(|&c| !is_shortcode_char(c))
+            && n > 0
+            && b.get(i + 1 + n) == Some(&b':')
+            && let Some(emoji) = shortcode_to_emoji(&input[i + 1..i + 1 + n])
+        {
+            out.push_str(emoji);
+            i += n + 2;
+            continue;
+        }
+        let ch = input[i..].chars().next().unwrap_or('\u{fffd}');
+        out.push(ch);
+        i += ch.len_utf8().max(1);
+    }
+    out
+}
+
+/// If the message consists solely of emoji (unicode, custom) and whitespace, return the
+/// emoji count (no cap). Otherwise `None`.
 pub fn emoji_only_count(nodes: &[Node]) -> Option<usize> {
     let mut total = 0;
     for n in nodes {
         match n {
             Node::Text { text } => total += count_emoji_only(text)?,
-            Node::Emoji { .. } | Node::CustomEmoji { .. } => total += 1,
+            Node::CustomEmoji { .. } => total += 1,
             Node::LineBreak => {}
             _ => return None,
         }

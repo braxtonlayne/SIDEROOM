@@ -27,3 +27,7 @@ jobs:
           for c in crates/*-wasm; do
             if [ -d "$c" ]; then wasm-pack test --headless --chrome "$c"; fi
           done
+      - name: WASM vs Rust corpus (AST, plain text, jumbo)
+        env:
+          SR_WASM_REQUIRED: "1"
+        run: pnpm --filter @sideroom/wasm test

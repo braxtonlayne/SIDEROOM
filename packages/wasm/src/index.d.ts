@@ -45,6 +45,10 @@ export interface MarkdownNode {
 export interface MarkdownApi {
   parse(input: string): MarkdownNode[];
   toPlainText(input: string): string;
+  /** Same rule as the server: 1 to 27 emoji and nothing else. */
+  isJumbo(input: string): boolean;
+  /** Replace `:shortcode:` names with unicode emoji (composer send-time step). */
+  expandShortcodes(input: string): string;
   extractMentions(content: string): Mentions;
   /** Returns the mentions, or throws if over `maxChars` / `maxMentions`. */
   checkLimits(content: string, maxChars?: number, maxMentions?: number): Mentions;

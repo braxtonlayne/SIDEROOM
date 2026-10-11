@@ -25,6 +25,8 @@ export const loadMarkdown = once(async (wasmUrl) => {
   return {
     parse: (input) => JSON.parse(m.parseMarkdown(input)),
     toPlainText: (input) => m.toPlainText(input),
+    isJumbo: (input) => m.isJumbo(input),
+    expandShortcodes: (input) => m.expandShortcodes(input),
     extractMentions: (content) => JSON.parse(m.extractMentions(content)),
     checkLimits: (content, chars = maxChars, mentions = maxMentions) =>
       JSON.parse(m.checkLimits(content, chars, mentions)),

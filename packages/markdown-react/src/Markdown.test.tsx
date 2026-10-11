@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { Markdown } from "./Markdown";
@@ -232,6 +232,22 @@ describe("timestamps", () => {
     expect(formatRelative(1_700_000_000 + 86400 * 2, opts)).toBe("in 2 days");
     expect(formatRelative(1_700_000_000, opts)).toBe("now");
     expect(formatRelative(1_700_000_000 - 86400 * 800, opts)).toBe("2 years ago");
+  });
+
+  it("re-renders relative times once a minute (shared ticker)", () => {
+    vi.useFakeTimers({ now: 1_700_000_000_000 });
+    try {
+      const { container } = render(
+        <Markdown nodes={[{ type: "timestamp", unix: 1_700_000_000 - 3600, style: "relative" }]} />,
+      );
+      expect(container.querySelector("time")).toHaveTextContent("1 hour ago");
+      act(() => {
+        vi.advanceTimersByTime(3_600_000);
+      });
+      expect(container.querySelector("time")).toHaveTextContent("2 hours ago");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("renders a <time> element with a title", () => {

@@ -82,7 +82,6 @@ impl<'a> Parser<'a> {
                 b'[' if !self.in_link => handled = self.masked(i),
                 b'h' if !self.in_link => handled = self.bare_url(i),
                 b'@' => handled = self.at(i),
-                b':' => handled = self.shortcode(i),
                 b'*' | b'_' | b'~' | b'|' => handled = self.emphasis(i),
                 _ => {}
             }
@@ -155,26 +154,6 @@ impl<'a> Parser<'a> {
         } else {
             None
         }
-    }
-
-    fn shortcode(&self, i: usize) -> Option<(Node, usize)> {
-        let rest = &self.b[i + 1..];
-        let n = rest
-            .iter()
-            .take(41)
-            .position(|&c| !crate::emoji::is_shortcode_char(c))?;
-        if n == 0 || rest[n] != b':' {
-            return None;
-        }
-        let name = &self.s[i + 1..i + 1 + n];
-        let emoji = crate::emoji::shortcode_to_emoji(name)?;
-        Some((
-            Node::Emoji {
-                name: name.to_ascii_lowercase(),
-                emoji: emoji.to_string(),
-            },
-            n + 2,
-        ))
     }
 
     fn angle(&self, i: usize) -> Option<(Node, usize)> {
@@ -318,11 +297,11 @@ impl<'a> Parser<'a> {
             let Some(last) = u.chars().next_back() else {
                 break;
             };
-            let trim = match last {
-                '.' | ',' | ';' | ':' | '!' | '?' | '\'' | '"' | '*' | '_' | '~' => true,
-                ')' => u.matches('(').count() < u.matches(')').count(),
-                _ => false,
-            };
+            // Q90: an autolink never ends in `>` or `.,:;"')]` (simple-markdown parity).
+            let trim = matches!(
+                last,
+                '.' | ',' | ';' | ':' | '!' | '?' | '\'' | '"' | '*' | '_' | '~' | ')' | ']' | '>'
+            );
             if trim {
                 end -= last.len_utf8();
             } else {
@@ -350,7 +329,14 @@ impl<'a> Parser<'a> {
         let c = self.b[i];
         let r = self.b[i..].iter().take(3).take_while(|&&x| x == c).count();
         let cands: &[usize] = match c {
-            b'*' | b'_' => match r {
+            // Q90: for `*`, a triple run tries the single-star italic before the double-star
+            // bold, so `***a** b*` is italic(bold(a), " b") (simple-markdown order).
+            b'*' => match r {
+                1 => &[1],
+                2 => &[2, 1],
+                _ => &[3, 1, 2],
+            },
+            b'_' => match r {
                 1 => &[1],
                 2 => &[2, 1],
                 _ => &[3, 2, 1],
@@ -377,6 +363,15 @@ impl<'a> Parser<'a> {
                 _ => 7,
             };
             let start = i + len;
+            // Q90: a single `*` opener cannot be followed by a lone `*` (`**a*` is a literal
+            // `*` then italic `a`); only a `**` pair may start the italic content.
+            if c == b'*'
+                && len == 1
+                && self.b.get(start) == Some(&b'*')
+                && run_len(self.b, start, b'*') < 2
+            {
+                continue;
+            }
             if start >= self.fail[kind] {
                 continue;
             }

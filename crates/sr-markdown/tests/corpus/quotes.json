@@ -573,15 +573,14 @@
         {
           "children": [
             {
-              "emoji": "😄",
-              "name": "smile",
-              "type": "emoji"
+              "text": ":smile:",
+              "type": "text"
             }
           ],
           "type": "quote"
         }
       ],
-      "plain": "😄\n",
+      "plain": ":smile:\n",
       "jumbo": false
     },
     {

@@ -4,23 +4,56 @@ use crate::ast::{Node, merge_text};
 use crate::inline::{MAX_DEPTH, parse_inline};
 
 pub(crate) fn parse_document(input: &str) -> Vec<Node> {
+    parse_segments(input, true)
+}
+
+/// Parse a region. Fenced code blocks are split out wherever they start, even mid-line
+/// (Q31a). A line-start `>>> ` quotes everything after it to the end of the region, with
+/// code fences nested inside the quote rather than terminating it (Q31b).
+fn parse_segments(input: &str, allow_quote: bool) -> Vec<Node> {
     let mut out = Vec::new();
     let mut rest = input;
+    // Whether `rest` starts at a line start (false directly after a closing fence).
+    let mut line_start = true;
     loop {
-        match find_fence(rest) {
+        let fence = find_fence(rest);
+        let quote = if allow_quote {
+            find_quote(rest, line_start)
+        } else {
+            None
+        };
+        if let Some(q) = quote.filter(|&q| fence.is_none_or(|(open, _, _)| q < open)) {
+            let before = &rest[..q];
+            let before = before.strip_suffix('\n').unwrap_or(before);
+            out.extend(parse_blocks(before, 0, allow_quote));
+            out.push(Node::Quote {
+                children: parse_segments(&rest[q + 4..], false),
+            });
+            break;
+        }
+        match fence {
             Some((open, body_start, close)) => {
-                out.extend(parse_blocks(&rest[..open], 0, true));
+                out.extend(parse_blocks(&rest[..open], 0, allow_quote));
                 let (lang, code) = split_lang(&rest[body_start..close]);
                 out.push(Node::CodeBlock { lang, code });
                 rest = &rest[close + 3..];
+                line_start = false;
             }
             None => {
-                out.extend(parse_blocks(rest, 0, true));
+                out.extend(parse_blocks(rest, 0, allow_quote));
                 break;
             }
         }
     }
     merge_text(out)
+}
+
+/// Byte index of a `>>> ` quote marker at a line start.
+fn find_quote(s: &str, line_start: bool) -> Option<usize> {
+    if line_start && s.starts_with(">>> ") {
+        return Some(0);
+    }
+    s.match_indices("\n>>> ").next().map(|(i, _)| i + 1)
 }
 
 /// Locate the first complete fenced block: (open index, body start, close index).
@@ -164,31 +197,17 @@ fn parse_blocks(text: &str, depth: u8, allow_quote: bool) -> Vec<Node> {
         let line = lines[i];
         let last = i + 1 == lines.len();
         // Quotes
-        if allow_quote {
-            if let Some(body) = line.strip_prefix(">>> ") {
-                flush(&mut para, &mut out, depth);
-                let mut rest = String::from(body);
-                for l in &lines[i + 1..] {
-                    rest.push('\n');
-                    rest.push_str(l);
-                }
-                out.push(Node::Quote {
-                    children: parse_blocks(&rest, depth + 1, false),
-                });
-                return merge_text(out);
+        if allow_quote && line.starts_with("> ") {
+            flush(&mut para, &mut out, depth);
+            let mut body: Vec<&str> = Vec::new();
+            while i < lines.len() && lines[i].starts_with("> ") {
+                body.push(&lines[i][2..]);
+                i += 1;
             }
-            if line.starts_with("> ") {
-                flush(&mut para, &mut out, depth);
-                let mut body: Vec<&str> = Vec::new();
-                while i < lines.len() && lines[i].starts_with("> ") {
-                    body.push(&lines[i][2..]);
-                    i += 1;
-                }
-                out.push(Node::Quote {
-                    children: parse_blocks(&body.join("\n"), depth + 1, false),
-                });
-                continue;
-            }
+            out.push(Node::Quote {
+                children: parse_blocks(&body.join("\n"), depth + 1, false),
+            });
+            continue;
         }
         // Headings and subtext
         let hashes = line.bytes().take_while(|&c| c == b'#').count();

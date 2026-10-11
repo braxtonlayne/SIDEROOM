@@ -117,8 +117,6 @@ pub enum Node {
         id: u64,
         animated: bool,
     },
-    /// `:shortcode:` resolved to a unicode emoji. `name` is the lowercase shortcode.
-    Emoji { name: String, emoji: String },
     /// `<t:unix[:style]>`
     Timestamp {
         unix: i64,

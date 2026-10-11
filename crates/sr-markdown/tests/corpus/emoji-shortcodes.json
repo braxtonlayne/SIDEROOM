@@ -6,429 +6,396 @@
       "input": ":smile:",
       "ast": [
         {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
+          "text": ":smile:",
+          "type": "text"
         }
       ],
-      "plain": "😄",
-      "jumbo": true
+      "plain": ":smile:",
+      "jumbo": false
     },
     {
       "name": "emoji-002",
       "input": ":fire:",
       "ast": [
         {
-          "emoji": "🔥",
-          "name": "fire",
-          "type": "emoji"
+          "text": ":fire:",
+          "type": "text"
         }
       ],
-      "plain": "🔥",
-      "jumbo": true
+      "plain": ":fire:",
+      "jumbo": false
     },
     {
       "name": "emoji-003",
       "input": ":heart:",
       "ast": [
         {
-          "emoji": "❤️",
-          "name": "heart",
-          "type": "emoji"
+          "text": ":heart:",
+          "type": "text"
         }
       ],
-      "plain": "❤️",
-      "jumbo": true
+      "plain": ":heart:",
+      "jumbo": false
     },
     {
       "name": "emoji-004",
       "input": ":+1:",
       "ast": [
         {
-          "emoji": "👍",
-          "name": "+1",
-          "type": "emoji"
+          "text": ":+1:",
+          "type": "text"
         }
       ],
-      "plain": "👍",
-      "jumbo": true
+      "plain": ":+1:",
+      "jumbo": false
     },
     {
       "name": "emoji-005",
       "input": ":-1:",
       "ast": [
         {
-          "emoji": "👎",
-          "name": "-1",
-          "type": "emoji"
+          "text": ":-1:",
+          "type": "text"
         }
       ],
-      "plain": "👎",
-      "jumbo": true
+      "plain": ":-1:",
+      "jumbo": false
     },
     {
       "name": "emoji-006",
       "input": ":100:",
       "ast": [
         {
-          "emoji": "💯",
-          "name": "100",
-          "type": "emoji"
+          "text": ":100:",
+          "type": "text"
         }
       ],
-      "plain": "💯",
-      "jumbo": true
+      "plain": ":100:",
+      "jumbo": false
     },
     {
       "name": "emoji-007",
       "input": ":thumbsup:",
       "ast": [
         {
-          "emoji": "👍",
-          "name": "thumbsup",
-          "type": "emoji"
+          "text": ":thumbsup:",
+          "type": "text"
         }
       ],
-      "plain": "👍",
-      "jumbo": true
+      "plain": ":thumbsup:",
+      "jumbo": false
     },
     {
       "name": "emoji-008",
       "input": ":tada:",
       "ast": [
         {
-          "emoji": "🎉",
-          "name": "tada",
-          "type": "emoji"
+          "text": ":tada:",
+          "type": "text"
         }
       ],
-      "plain": "🎉",
-      "jumbo": true
+      "plain": ":tada:",
+      "jumbo": false
     },
     {
       "name": "emoji-009",
       "input": ":eyes:",
       "ast": [
         {
-          "emoji": "👀",
-          "name": "eyes",
-          "type": "emoji"
+          "text": ":eyes:",
+          "type": "text"
         }
       ],
-      "plain": "👀",
-      "jumbo": true
+      "plain": ":eyes:",
+      "jumbo": false
     },
     {
       "name": "emoji-010",
       "input": ":rocket:",
       "ast": [
         {
-          "emoji": "🚀",
-          "name": "rocket",
-          "type": "emoji"
+          "text": ":rocket:",
+          "type": "text"
         }
       ],
-      "plain": "🚀",
-      "jumbo": true
+      "plain": ":rocket:",
+      "jumbo": false
     },
     {
       "name": "emoji-011",
       "input": ":skull:",
       "ast": [
         {
-          "emoji": "💀",
-          "name": "skull",
-          "type": "emoji"
+          "text": ":skull:",
+          "type": "text"
         }
       ],
-      "plain": "💀",
-      "jumbo": true
+      "plain": ":skull:",
+      "jumbo": false
     },
     {
       "name": "emoji-012",
       "input": ":sob:",
       "ast": [
         {
-          "emoji": "😭",
-          "name": "sob",
-          "type": "emoji"
+          "text": ":sob:",
+          "type": "text"
         }
       ],
-      "plain": "😭",
-      "jumbo": true
+      "plain": ":sob:",
+      "jumbo": false
     },
     {
       "name": "emoji-013",
       "input": ":joy:",
       "ast": [
         {
-          "emoji": "😂",
-          "name": "joy",
-          "type": "emoji"
+          "text": ":joy:",
+          "type": "text"
         }
       ],
-      "plain": "😂",
-      "jumbo": true
+      "plain": ":joy:",
+      "jumbo": false
     },
     {
       "name": "emoji-014",
       "input": ":thinking:",
       "ast": [
         {
-          "emoji": "🤔",
-          "name": "thinking",
-          "type": "emoji"
+          "text": ":thinking:",
+          "type": "text"
         }
       ],
-      "plain": "🤔",
-      "jumbo": true
+      "plain": ":thinking:",
+      "jumbo": false
     },
     {
       "name": "emoji-015",
       "input": ":wave:",
       "ast": [
         {
-          "emoji": "👋",
-          "name": "wave",
-          "type": "emoji"
+          "text": ":wave:",
+          "type": "text"
         }
       ],
-      "plain": "👋",
-      "jumbo": true
+      "plain": ":wave:",
+      "jumbo": false
     },
     {
       "name": "emoji-016",
       "input": ":pray:",
       "ast": [
         {
-          "emoji": "🙏",
-          "name": "pray",
-          "type": "emoji"
+          "text": ":pray:",
+          "type": "text"
         }
       ],
-      "plain": "🙏",
-      "jumbo": true
+      "plain": ":pray:",
+      "jumbo": false
     },
     {
       "name": "emoji-017",
       "input": ":one:",
       "ast": [
         {
-          "emoji": "1️⃣",
-          "name": "one",
-          "type": "emoji"
+          "text": ":one:",
+          "type": "text"
         }
       ],
-      "plain": "1️⃣",
-      "jumbo": true
+      "plain": ":one:",
+      "jumbo": false
     },
     {
       "name": "emoji-018",
       "input": ":hash:",
       "ast": [
         {
-          "emoji": "#️⃣",
-          "name": "hash",
-          "type": "emoji"
+          "text": ":hash:",
+          "type": "text"
         }
       ],
-      "plain": "#️⃣",
-      "jumbo": true
+      "plain": ":hash:",
+      "jumbo": false
     },
     {
       "name": "emoji-019",
       "input": ":flag_us:",
       "ast": [
         {
-          "emoji": "🇺🇸",
-          "name": "flag_us",
-          "type": "emoji"
+          "text": ":flag_us:",
+          "type": "text"
         }
       ],
-      "plain": "🇺🇸",
-      "jumbo": true
+      "plain": ":flag_us:",
+      "jumbo": false
     },
     {
       "name": "emoji-020",
       "input": ":rainbow_flag:",
       "ast": [
         {
-          "emoji": "🏳️‍🌈",
-          "name": "rainbow_flag",
-          "type": "emoji"
+          "text": ":rainbow_flag:",
+          "type": "text"
         }
       ],
-      "plain": "🏳️‍🌈",
-      "jumbo": true
+      "plain": ":rainbow_flag:",
+      "jumbo": false
     },
     {
       "name": "emoji-021",
       "input": ":pirate_flag:",
       "ast": [
         {
-          "emoji": "🏴‍☠️",
-          "name": "pirate_flag",
-          "type": "emoji"
+          "text": ":pirate_flag:",
+          "type": "text"
         }
       ],
-      "plain": "🏴‍☠️",
-      "jumbo": true
+      "plain": ":pirate_flag:",
+      "jumbo": false
     },
     {
       "name": "emoji-022",
       "input": ":warning:",
       "ast": [
         {
-          "emoji": "⚠️",
-          "name": "warning",
-          "type": "emoji"
+          "text": ":warning:",
+          "type": "text"
         }
       ],
-      "plain": "⚠️",
-      "jumbo": true
+      "plain": ":warning:",
+      "jumbo": false
     },
     {
       "name": "emoji-023",
       "input": ":x:",
       "ast": [
         {
-          "emoji": "❌",
-          "name": "x",
-          "type": "emoji"
+          "text": ":x:",
+          "type": "text"
         }
       ],
-      "plain": "❌",
-      "jumbo": true
+      "plain": ":x:",
+      "jumbo": false
     },
     {
       "name": "emoji-024",
       "input": ":white_check_mark:",
       "ast": [
         {
-          "emoji": "✅",
-          "name": "white_check_mark",
-          "type": "emoji"
+          "text": ":white_check_mark:",
+          "type": "text"
         }
       ],
-      "plain": "✅",
-      "jumbo": true
+      "plain": ":white_check_mark:",
+      "jumbo": false
     },
     {
       "name": "emoji-025",
       "input": ":ok:",
       "ast": [
         {
-          "emoji": "🆗",
-          "name": "ok",
-          "type": "emoji"
+          "text": ":ok:",
+          "type": "text"
         }
       ],
-      "plain": "🆗",
-      "jumbo": true
+      "plain": ":ok:",
+      "jumbo": false
     },
     {
       "name": "emoji-026",
       "input": ":cool:",
       "ast": [
         {
-          "emoji": "🆒",
-          "name": "cool",
-          "type": "emoji"
+          "text": ":cool:",
+          "type": "text"
         }
       ],
-      "plain": "🆒",
-      "jumbo": true
+      "plain": ":cool:",
+      "jumbo": false
     },
     {
       "name": "emoji-027",
       "input": ":new:",
       "ast": [
         {
-          "emoji": "🆕",
-          "name": "new",
-          "type": "emoji"
+          "text": ":new:",
+          "type": "text"
         }
       ],
-      "plain": "🆕",
-      "jumbo": true
+      "plain": ":new:",
+      "jumbo": false
     },
     {
       "name": "emoji-028",
       "input": ":id:",
       "ast": [
         {
-          "emoji": "🆔",
-          "name": "id",
-          "type": "emoji"
+          "text": ":id:",
+          "type": "text"
         }
       ],
-      "plain": "🆔",
-      "jumbo": true
+      "plain": ":id:",
+      "jumbo": false
     },
     {
       "name": "emoji-029",
       "input": ":vs:",
       "ast": [
         {
-          "emoji": "🆚",
-          "name": "vs",
-          "type": "emoji"
+          "text": ":vs:",
+          "type": "text"
         }
       ],
-      "plain": "🆚",
-      "jumbo": true
+      "plain": ":vs:",
+      "jumbo": false
     },
     {
       "name": "emoji-030",
       "input": ":tm:",
       "ast": [
         {
-          "emoji": "™️",
-          "name": "tm",
-          "type": "emoji"
+          "text": ":tm:",
+          "type": "text"
         }
       ],
-      "plain": "™️",
-      "jumbo": true
+      "plain": ":tm:",
+      "jumbo": false
     },
     {
       "name": "emoji-031",
       "input": ":copyright:",
       "ast": [
         {
-          "emoji": "©️",
-          "name": "copyright",
-          "type": "emoji"
+          "text": ":copyright:",
+          "type": "text"
         }
       ],
-      "plain": "©️",
-      "jumbo": true
+      "plain": ":copyright:",
+      "jumbo": false
     },
     {
       "name": "emoji-032",
       "input": ":SMILE:",
       "ast": [
         {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
+          "text": ":SMILE:",
+          "type": "text"
         }
       ],
-      "plain": "😄",
-      "jumbo": true
+      "plain": ":SMILE:",
+      "jumbo": false
     },
     {
       "name": "emoji-033",
       "input": ":Smile:",
       "ast": [
         {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
+          "text": ":Smile:",
+          "type": "text"
         }
       ],
-      "plain": "😄",
-      "jumbo": true
+      "plain": ":Smile:",
+      "jumbo": false
     },
     {
       "name": "emoji-034",
@@ -495,20 +462,11 @@
       "input": ":::smile:::",
       "ast": [
         {
-          "text": "::",
-          "type": "text"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "text": "::",
+          "text": ":::smile:::",
           "type": "text"
         }
       ],
-      "plain": "::😄::",
+      "plain": ":::smile:::",
       "jumbo": false
     },
     {
@@ -516,81 +474,54 @@
       "input": ":smile::fire:",
       "ast": [
         {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "emoji": "🔥",
-          "name": "fire",
-          "type": "emoji"
+          "text": ":smile::fire:",
+          "type": "text"
         }
       ],
-      "plain": "😄🔥",
-      "jumbo": true
+      "plain": ":smile::fire:",
+      "jumbo": false
     },
     {
       "name": "emoji-041",
       "input": ":smile: :fire:",
       "ast": [
         {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "text": " ",
+          "text": ":smile: :fire:",
           "type": "text"
-        },
-        {
-          "emoji": "🔥",
-          "name": "fire",
-          "type": "emoji"
         }
       ],
-      "plain": "😄 🔥",
-      "jumbo": true
+      "plain": ":smile: :fire:",
+      "jumbo": false
     },
     {
       "name": "emoji-042",
       "input": ":smile:\n:fire:",
       "ast": [
         {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
+          "text": ":smile:",
+          "type": "text"
         },
         {
           "type": "line_break"
         },
         {
-          "emoji": "🔥",
-          "name": "fire",
-          "type": "emoji"
+          "text": ":fire:",
+          "type": "text"
         }
       ],
-      "plain": "😄\n🔥",
-      "jumbo": true
+      "plain": ":smile:\n:fire:",
+      "jumbo": false
     },
     {
       "name": "emoji-043",
       "input": "a:smile:b",
       "ast": [
         {
-          "text": "a",
-          "type": "text"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "text": "b",
+          "text": "a:smile:b",
           "type": "text"
         }
       ],
-      "plain": "a😄b",
+      "plain": "a:smile:b",
       "jumbo": false
     },
     {
@@ -598,20 +529,11 @@
       "input": "a :smile: b",
       "ast": [
         {
-          "text": "a ",
-          "type": "text"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "text": " b",
+          "text": "a :smile: b",
           "type": "text"
         }
       ],
-      "plain": "a 😄 b",
+      "plain": "a :smile: b",
       "jumbo": false
     },
     {
@@ -619,16 +541,11 @@
       "input": "x:smile:",
       "ast": [
         {
-          "text": "x",
+          "text": "x:smile:",
           "type": "text"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
         }
       ],
-      "plain": "x😄",
+      "plain": "x:smile:",
       "jumbo": false
     },
     {
@@ -636,16 +553,11 @@
       "input": ":smile:x",
       "ast": [
         {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "text": "x",
+          "text": ":smile:x",
           "type": "text"
         }
       ],
-      "plain": "😄x",
+      "plain": ":smile:x",
       "jumbo": false
     },
     {
@@ -863,20 +775,11 @@
       "input": "::smile::",
       "ast": [
         {
-          "text": ":",
-          "type": "text"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "text": ":",
+          "text": "::smile::",
           "type": "text"
         }
       ],
-      "plain": ":😄:",
+      "plain": "::smile::",
       "jumbo": false
     },
     {
@@ -923,15 +826,14 @@
         {
           "children": [
             {
-              "emoji": "😄",
-              "name": "smile",
-              "type": "emoji"
+              "text": ":smile:",
+              "type": "text"
             }
           ],
           "type": "bold"
         }
       ],
-      "plain": "😄",
+      "plain": ":smile:",
       "jumbo": false
     },
     {
@@ -941,15 +843,14 @@
         {
           "children": [
             {
-              "emoji": "😄",
-              "name": "smile",
-              "type": "emoji"
+              "text": ":smile:",
+              "type": "text"
             }
           ],
           "type": "italic"
         }
       ],
-      "plain": "😄",
+      "plain": ":smile:",
       "jumbo": false
     },
     {
@@ -959,15 +860,14 @@
         {
           "children": [
             {
-              "emoji": "😄",
-              "name": "smile",
-              "type": "emoji"
+              "text": ":smile:",
+              "type": "text"
             }
           ],
           "type": "underline"
         }
       ],
-      "plain": "😄",
+      "plain": ":smile:",
       "jumbo": false
     },
     {
@@ -977,15 +877,14 @@
         {
           "children": [
             {
-              "emoji": "😄",
-              "name": "smile",
-              "type": "emoji"
+              "text": ":smile:",
+              "type": "text"
             }
           ],
           "type": "strike"
         }
       ],
-      "plain": "😄",
+      "plain": ":smile:",
       "jumbo": false
     },
     {
@@ -995,9 +894,8 @@
         {
           "children": [
             {
-              "emoji": "😄",
-              "name": "smile",
-              "type": "emoji"
+              "text": ":smile:",
+              "type": "text"
             }
           ],
           "type": "spoiler"
@@ -1013,15 +911,14 @@
         {
           "children": [
             {
-              "emoji": "😄",
-              "name": "smile",
-              "type": "emoji"
+              "text": ":smile:",
+              "type": "text"
             }
           ],
           "type": "quote"
         }
       ],
-      "plain": "😄\n",
+      "plain": ":smile:\n",
       "jumbo": false
     },
     {
@@ -1032,9 +929,8 @@
           "items": [
             [
               {
-                "emoji": "😄",
-                "name": "smile",
-                "type": "emoji"
+                "text": ":smile:",
+                "type": "text"
               }
             ]
           ],
@@ -1043,7 +939,7 @@
           "type": "list"
         }
       ],
-      "plain": "😄\n",
+      "plain": ":smile:\n",
       "jumbo": false
     },
     {
@@ -1053,16 +949,15 @@
         {
           "children": [
             {
-              "emoji": "😄",
-              "name": "smile",
-              "type": "emoji"
+              "text": ":smile:",
+              "type": "text"
             }
           ],
           "level": 1,
           "type": "heading"
         }
       ],
-      "plain": "😄\n",
+      "plain": ":smile:\n",
       "jumbo": false
     },
     {
@@ -1072,15 +967,14 @@
         {
           "children": [
             {
-              "emoji": "😄",
-              "name": "smile",
-              "type": "emoji"
+              "text": ":smile:",
+              "type": "text"
             }
           ],
           "type": "subtext"
         }
       ],
-      "plain": "😄\n",
+      "plain": ":smile:\n",
       "jumbo": false
     },
     {
@@ -1090,9 +984,8 @@
         {
           "children": [
             {
-              "emoji": "😄",
-              "name": "smile",
-              "type": "emoji"
+              "text": ":smile:",
+              "type": "text"
             }
           ],
           "kind": "masked",
@@ -1100,7 +993,7 @@
           "url": "https://e.com"
         }
       ],
-      "plain": "😄",
+      "plain": ":smile:",
       "jumbo": false
     },
     {
@@ -1110,16 +1003,7 @@
         {
           "children": [
             {
-              "text": "a ",
-              "type": "text"
-            },
-            {
-              "emoji": "😄",
-              "name": "smile",
-              "type": "emoji"
-            },
-            {
-              "text": " b",
+              "text": "a :smile: b",
               "type": "text"
             }
           ],
@@ -1128,7 +1012,7 @@
           "url": "https://e.com"
         }
       ],
-      "plain": "a 😄 b",
+      "plain": "a :smile: b",
       "jumbo": false
     },
     {
@@ -1186,20 +1070,11 @@
       "input": "<:smile:>",
       "ast": [
         {
-          "text": "<",
-          "type": "text"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "text": ">",
+          "text": "<:smile:>",
           "type": "text"
         }
       ],
-      "plain": "<😄>",
+      "plain": "<:smile:>",
       "jumbo": false
     },
     {
@@ -1207,20 +1082,11 @@
       "input": "<:smile:1",
       "ast": [
         {
-          "text": "<",
-          "type": "text"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "text": "1",
+          "text": "<:smile:1",
           "type": "text"
         }
       ],
-      "plain": "<😄1",
+      "plain": "<:smile:1",
       "jumbo": false
     },
     {
@@ -1242,20 +1108,11 @@
       "input": "<:smile:fire:>",
       "ast": [
         {
-          "text": "<",
-          "type": "text"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "text": "fire:>",
+          "text": "<:smile:fire:>",
           "type": "text"
         }
       ],
-      "plain": "<😄fire:>",
+      "plain": "<:smile:fire:>",
       "jumbo": false
     },
     {
@@ -1263,9 +1120,8 @@
       "input": ":smile:<:xx:1>",
       "ast": [
         {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
+          "text": ":smile:",
+          "type": "text"
         },
         {
           "animated": false,
@@ -1274,24 +1130,15 @@
           "type": "custom_emoji"
         }
       ],
-      "plain": "😄:xx:",
-      "jumbo": true
+      "plain": ":smile::xx:",
+      "jumbo": false
     },
     {
       "name": "emoji-087",
       "input": "text :smile: and <:xx:1> and <a:yy:2>",
       "ast": [
         {
-          "text": "text ",
-          "type": "text"
-        },
-        {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
-        },
-        {
-          "text": " and ",
+          "text": "text :smile: and ",
           "type": "text"
         },
         {
@@ -1311,7 +1158,7 @@
           "type": "custom_emoji"
         }
       ],
-      "plain": "text 😄 and :xx: and :yy:",
+      "plain": "text :smile: and :xx: and :yy:",
       "jumbo": false
     },
     {
@@ -1319,598 +1166,552 @@
       "input": ":smile:",
       "ast": [
         {
-          "emoji": "😄",
-          "name": "smile",
-          "type": "emoji"
+          "text": ":smile:",
+          "type": "text"
         }
       ],
-      "plain": "😄",
-      "jumbo": true
+      "plain": ":smile:",
+      "jumbo": false
     },
     {
       "name": "emoji-089",
       "input": ":grinning:",
       "ast": [
         {
-          "emoji": "😀",
-          "name": "grinning",
-          "type": "emoji"
+          "text": ":grinning:",
+          "type": "text"
         }
       ],
-      "plain": "😀",
-      "jumbo": true
+      "plain": ":grinning:",
+      "jumbo": false
     },
     {
       "name": "emoji-090",
       "input": ":smiley:",
       "ast": [
         {
-          "emoji": "😃",
-          "name": "smiley",
-          "type": "emoji"
+          "text": ":smiley:",
+          "type": "text"
         }
       ],
-      "plain": "😃",
-      "jumbo": true
+      "plain": ":smiley:",
+      "jumbo": false
     },
     {
       "name": "emoji-091",
       "input": ":laughing:",
       "ast": [
         {
-          "emoji": "😆",
-          "name": "laughing",
-          "type": "emoji"
+          "text": ":laughing:",
+          "type": "text"
         }
       ],
-      "plain": "😆",
-      "jumbo": true
+      "plain": ":laughing:",
+      "jumbo": false
     },
     {
       "name": "emoji-092",
       "input": ":satisfied:",
       "ast": [
         {
-          "emoji": "😆",
-          "name": "satisfied",
-          "type": "emoji"
+          "text": ":satisfied:",
+          "type": "text"
         }
       ],
-      "plain": "😆",
-      "jumbo": true
+      "plain": ":satisfied:",
+      "jumbo": false
     },
     {
       "name": "emoji-093",
       "input": ":sunglasses:",
       "ast": [
         {
-          "emoji": "😎",
-          "name": "sunglasses",
-          "type": "emoji"
+          "text": ":sunglasses:",
+          "type": "text"
         }
       ],
-      "plain": "😎",
-      "jumbo": true
+      "plain": ":sunglasses:",
+      "jumbo": false
     },
     {
       "name": "emoji-094",
       "input": ":nerd:",
       "ast": [
         {
-          "emoji": "🤓",
-          "name": "nerd",
-          "type": "emoji"
+          "text": ":nerd:",
+          "type": "text"
         }
       ],
-      "plain": "🤓",
-      "jumbo": true
+      "plain": ":nerd:",
+      "jumbo": false
     },
     {
       "name": "emoji-095",
       "input": ":clown:",
       "ast": [
         {
-          "emoji": "🤡",
-          "name": "clown",
-          "type": "emoji"
+          "text": ":clown:",
+          "type": "text"
         }
       ],
-      "plain": "🤡",
-      "jumbo": true
+      "plain": ":clown:",
+      "jumbo": false
     },
     {
       "name": "emoji-096",
       "input": ":ghost:",
       "ast": [
         {
-          "emoji": "👻",
-          "name": "ghost",
-          "type": "emoji"
+          "text": ":ghost:",
+          "type": "text"
         }
       ],
-      "plain": "👻",
-      "jumbo": true
+      "plain": ":ghost:",
+      "jumbo": false
     },
     {
       "name": "emoji-097",
       "input": ":alien:",
       "ast": [
         {
-          "emoji": "👽",
-          "name": "alien",
-          "type": "emoji"
+          "text": ":alien:",
+          "type": "text"
         }
       ],
-      "plain": "👽",
-      "jumbo": true
+      "plain": ":alien:",
+      "jumbo": false
     },
     {
       "name": "emoji-098",
       "input": ":robot:",
       "ast": [
         {
-          "emoji": "🤖",
-          "name": "robot",
-          "type": "emoji"
+          "text": ":robot:",
+          "type": "text"
         }
       ],
-      "plain": "🤖",
-      "jumbo": true
+      "plain": ":robot:",
+      "jumbo": false
     },
     {
       "name": "emoji-099",
       "input": ":see_no_evil:",
       "ast": [
         {
-          "emoji": "🙈",
-          "name": "see_no_evil",
-          "type": "emoji"
+          "text": ":see_no_evil:",
+          "type": "text"
         }
       ],
-      "plain": "🙈",
-      "jumbo": true
+      "plain": ":see_no_evil:",
+      "jumbo": false
     },
     {
       "name": "emoji-100",
       "input": ":muscle:",
       "ast": [
         {
-          "emoji": "💪",
-          "name": "muscle",
-          "type": "emoji"
+          "text": ":muscle:",
+          "type": "text"
         }
       ],
-      "plain": "💪",
-      "jumbo": true
+      "plain": ":muscle:",
+      "jumbo": false
     },
     {
       "name": "emoji-101",
       "input": ":point_up:",
       "ast": [
         {
-          "emoji": "☝️",
-          "name": "point_up",
-          "type": "emoji"
+          "text": ":point_up:",
+          "type": "text"
         }
       ],
-      "plain": "☝️",
-      "jumbo": true
+      "plain": ":point_up:",
+      "jumbo": false
     },
     {
       "name": "emoji-102",
       "input": ":v:",
       "ast": [
         {
-          "emoji": "✌️",
-          "name": "v",
-          "type": "emoji"
+          "text": ":v:",
+          "type": "text"
         }
       ],
-      "plain": "✌️",
-      "jumbo": true
+      "plain": ":v:",
+      "jumbo": false
     },
     {
       "name": "emoji-103",
       "input": ":ok_hand:",
       "ast": [
         {
-          "emoji": "👌",
-          "name": "ok_hand",
-          "type": "emoji"
+          "text": ":ok_hand:",
+          "type": "text"
         }
       ],
-      "plain": "👌",
-      "jumbo": true
+      "plain": ":ok_hand:",
+      "jumbo": false
     },
     {
       "name": "emoji-104",
       "input": ":clap:",
       "ast": [
         {
-          "emoji": "👏",
-          "name": "clap",
-          "type": "emoji"
+          "text": ":clap:",
+          "type": "text"
         }
       ],
-      "plain": "👏",
-      "jumbo": true
+      "plain": ":clap:",
+      "jumbo": false
     },
     {
       "name": "emoji-105",
       "input": ":handshake:",
       "ast": [
         {
-          "emoji": "🤝",
-          "name": "handshake",
-          "type": "emoji"
+          "text": ":handshake:",
+          "type": "text"
         }
       ],
-      "plain": "🤝",
-      "jumbo": true
+      "plain": ":handshake:",
+      "jumbo": false
     },
     {
       "name": "emoji-106",
       "input": ":brain:",
       "ast": [
         {
-          "emoji": "🧠",
-          "name": "brain",
-          "type": "emoji"
+          "text": ":brain:",
+          "type": "text"
         }
       ],
-      "plain": "🧠",
-      "jumbo": true
+      "plain": ":brain:",
+      "jumbo": false
     },
     {
       "name": "emoji-107",
       "input": ":dog:",
       "ast": [
         {
-          "emoji": "🐶",
-          "name": "dog",
-          "type": "emoji"
+          "text": ":dog:",
+          "type": "text"
         }
       ],
-      "plain": "🐶",
-      "jumbo": true
+      "plain": ":dog:",
+      "jumbo": false
     },
     {
       "name": "emoji-108",
       "input": ":cat:",
       "ast": [
         {
-          "emoji": "🐱",
-          "name": "cat",
-          "type": "emoji"
+          "text": ":cat:",
+          "type": "text"
         }
       ],
-      "plain": "🐱",
-      "jumbo": true
+      "plain": ":cat:",
+      "jumbo": false
     },
     {
       "name": "emoji-109",
       "input": ":unicorn:",
       "ast": [
         {
-          "emoji": "🦄",
-          "name": "unicorn",
-          "type": "emoji"
+          "text": ":unicorn:",
+          "type": "text"
         }
       ],
-      "plain": "🦄",
-      "jumbo": true
+      "plain": ":unicorn:",
+      "jumbo": false
     },
     {
       "name": "emoji-110",
       "input": ":butterfly:",
       "ast": [
         {
-          "emoji": "🦋",
-          "name": "butterfly",
-          "type": "emoji"
+          "text": ":butterfly:",
+          "type": "text"
         }
       ],
-      "plain": "🦋",
-      "jumbo": true
+      "plain": ":butterfly:",
+      "jumbo": false
     },
     {
       "name": "emoji-111",
       "input": ":apple:",
       "ast": [
         {
-          "emoji": "🍎",
-          "name": "apple",
-          "type": "emoji"
+          "text": ":apple:",
+          "type": "text"
         }
       ],
-      "plain": "🍎",
-      "jumbo": true
+      "plain": ":apple:",
+      "jumbo": false
     },
     {
       "name": "emoji-112",
       "input": ":pizza:",
       "ast": [
         {
-          "emoji": "🍕",
-          "name": "pizza",
-          "type": "emoji"
+          "text": ":pizza:",
+          "type": "text"
         }
       ],
-      "plain": "🍕",
-      "jumbo": true
+      "plain": ":pizza:",
+      "jumbo": false
     },
     {
       "name": "emoji-113",
       "input": ":coffee:",
       "ast": [
         {
-          "emoji": "☕",
-          "name": "coffee",
-          "type": "emoji"
+          "text": ":coffee:",
+          "type": "text"
         }
       ],
-      "plain": "☕",
-      "jumbo": true
+      "plain": ":coffee:",
+      "jumbo": false
     },
     {
       "name": "emoji-114",
       "input": ":beer:",
       "ast": [
         {
-          "emoji": "🍺",
-          "name": "beer",
-          "type": "emoji"
+          "text": ":beer:",
+          "type": "text"
         }
       ],
-      "plain": "🍺",
-      "jumbo": true
+      "plain": ":beer:",
+      "jumbo": false
     },
     {
       "name": "emoji-115",
       "input": ":soccer:",
       "ast": [
         {
-          "emoji": "⚽",
-          "name": "soccer",
-          "type": "emoji"
+          "text": ":soccer:",
+          "type": "text"
         }
       ],
-      "plain": "⚽",
-      "jumbo": true
+      "plain": ":soccer:",
+      "jumbo": false
     },
     {
       "name": "emoji-116",
       "input": ":trophy:",
       "ast": [
         {
-          "emoji": "🏆",
-          "name": "trophy",
-          "type": "emoji"
+          "text": ":trophy:",
+          "type": "text"
         }
       ],
-      "plain": "🏆",
-      "jumbo": true
+      "plain": ":trophy:",
+      "jumbo": false
     },
     {
       "name": "emoji-117",
       "input": ":video_game:",
       "ast": [
         {
-          "emoji": "🎮",
-          "name": "video_game",
-          "type": "emoji"
+          "text": ":video_game:",
+          "type": "text"
         }
       ],
-      "plain": "🎮",
-      "jumbo": true
+      "plain": ":video_game:",
+      "jumbo": false
     },
     {
       "name": "emoji-118",
       "input": ":guitar:",
       "ast": [
         {
-          "emoji": "🎸",
-          "name": "guitar",
-          "type": "emoji"
+          "text": ":guitar:",
+          "type": "text"
         }
       ],
-      "plain": "🎸",
-      "jumbo": true
+      "plain": ":guitar:",
+      "jumbo": false
     },
     {
       "name": "emoji-119",
       "input": ":car:",
       "ast": [
         {
-          "emoji": "🚗",
-          "name": "car",
-          "type": "emoji"
+          "text": ":car:",
+          "type": "text"
         }
       ],
-      "plain": "🚗",
-      "jumbo": true
+      "plain": ":car:",
+      "jumbo": false
     },
     {
       "name": "emoji-120",
       "input": ":airplane:",
       "ast": [
         {
-          "emoji": "✈️",
-          "name": "airplane",
-          "type": "emoji"
+          "text": ":airplane:",
+          "type": "text"
         }
       ],
-      "plain": "✈️",
-      "jumbo": true
+      "plain": ":airplane:",
+      "jumbo": false
     },
     {
       "name": "emoji-121",
       "input": ":house:",
       "ast": [
         {
-          "emoji": "🏠",
-          "name": "house",
-          "type": "emoji"
+          "text": ":house:",
+          "type": "text"
         }
       ],
-      "plain": "🏠",
-      "jumbo": true
+      "plain": ":house:",
+      "jumbo": false
     },
     {
       "name": "emoji-122",
       "input": ":computer:",
       "ast": [
         {
-          "emoji": "💻",
-          "name": "computer",
-          "type": "emoji"
+          "text": ":computer:",
+          "type": "text"
         }
       ],
-      "plain": "💻",
-      "jumbo": true
+      "plain": ":computer:",
+      "jumbo": false
     },
     {
       "name": "emoji-123",
       "input": ":bulb:",
       "ast": [
         {
-          "emoji": "💡",
-          "name": "bulb",
-          "type": "emoji"
+          "text": ":bulb:",
+          "type": "text"
         }
       ],
-      "plain": "💡",
-      "jumbo": true
+      "plain": ":bulb:",
+      "jumbo": false
     },
     {
       "name": "emoji-124",
       "input": ":moneybag:",
       "ast": [
         {
-          "emoji": "💰",
-          "name": "moneybag",
-          "type": "emoji"
+          "text": ":moneybag:",
+          "type": "text"
         }
       ],
-      "plain": "💰",
-      "jumbo": true
+      "plain": ":moneybag:",
+      "jumbo": false
     },
     {
       "name": "emoji-125",
       "input": ":lock:",
       "ast": [
         {
-          "emoji": "🔒",
-          "name": "lock",
-          "type": "emoji"
+          "text": ":lock:",
+          "type": "text"
         }
       ],
-      "plain": "🔒",
-      "jumbo": true
+      "plain": ":lock:",
+      "jumbo": false
     },
     {
       "name": "emoji-126",
       "input": ":key:",
       "ast": [
         {
-          "emoji": "🔑",
-          "name": "key",
-          "type": "emoji"
+          "text": ":key:",
+          "type": "text"
         }
       ],
-      "plain": "🔑",
-      "jumbo": true
+      "plain": ":key:",
+      "jumbo": false
     },
     {
       "name": "emoji-127",
       "input": ":hammer:",
       "ast": [
         {
-          "emoji": "🔨",
-          "name": "hammer",
-          "type": "emoji"
+          "text": ":hammer:",
+          "type": "text"
         }
       ],
-      "plain": "🔨",
-      "jumbo": true
+      "plain": ":hammer:",
+      "jumbo": false
     },
     {
       "name": "emoji-128",
       "input": ":bell:",
       "ast": [
         {
-          "emoji": "🔔",
-          "name": "bell",
-          "type": "emoji"
+          "text": ":bell:",
+          "type": "text"
         }
       ],
-      "plain": "🔔",
-      "jumbo": true
+      "plain": ":bell:",
+      "jumbo": false
     },
     {
       "name": "emoji-129",
       "input": ":hourglass:",
       "ast": [
         {
-          "emoji": "⌛",
-          "name": "hourglass",
-          "type": "emoji"
+          "text": ":hourglass:",
+          "type": "text"
         }
       ],
-      "plain": "⌛",
-      "jumbo": true
+      "plain": ":hourglass:",
+      "jumbo": false
     },
     {
       "name": "emoji-130",
       "input": ":recycle:",
       "ast": [
         {
-          "emoji": "♻️",
-          "name": "recycle",
-          "type": "emoji"
+          "text": ":recycle:",
+          "type": "text"
         }
       ],
-      "plain": "♻️",
-      "jumbo": true
+      "plain": ":recycle:",
+      "jumbo": false
     },
     {
       "name": "emoji-131",
       "input": ":arrow_right:",
       "ast": [
         {
-          "emoji": "➡️",
-          "name": "arrow_right",
-          "type": "emoji"
+          "text": ":arrow_right:",
+          "type": "text"
         }
       ],
-      "plain": "➡️",
-      "jumbo": true
+      "plain": ":arrow_right:",
+      "jumbo": false
     },
     {
       "name": "emoji-132",
       "input": ":red_circle:",
       "ast": [
         {
-          "emoji": "🔴",
-          "name": "red_circle",
-          "type": "emoji"
+          "text": ":red_circle:",
+          "type": "text"
         }
       ],
-      "plain": "🔴",
-      "jumbo": true
+      "plain": ":red_circle:",
+      "jumbo": false
     },
     {
       "name": "emoji-133",
       "input": ":crown:",
       "ast": [
         {
-          "emoji": "👑",
-          "name": "crown",
-          "type": "emoji"
+          "text": ":crown:",
+          "type": "text"
         }
       ],
-      "plain": "👑",
-      "jumbo": true
+      "plain": ":crown:",
+      "jumbo": false
     }
   ]
 }

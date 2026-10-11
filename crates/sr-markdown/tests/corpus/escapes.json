@@ -376,13 +376,17 @@
         {
           "children": [
             {
-              "text": "https://e.com>",
+              "text": "https://e.com",
               "type": "text"
             }
           ],
           "kind": "auto",
           "type": "link",
-          "url": "https://e.com>"
+          "url": "https://e.com"
+        },
+        {
+          "text": ">",
+          "type": "text"
         }
       ],
       "plain": "<https://e.com>",

@@ -3,8 +3,10 @@ import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
 import { nodesToText } from "./ast";
 import type { LinkKind, MdNode } from "./ast";
 import type { MarkdownHooks, Resolvers } from "./resolvers";
+import { CodeBlock } from "./highlight";
 import { formatTimestamp, formatTimestampTitle } from "./timestamp";
 import type { TimestampFormatOptions } from "./timestamp";
+import { useRelativeNow } from "./ticker";
 
 export interface MarkdownProps extends MarkdownHooks, TimestampFormatOptions {
   /** The AST from `sr-markdown` (`JSON.parse(parse_to_json(text))`). */
@@ -68,9 +70,7 @@ function renderNode(n: MdNode, ctx: Ctx): ReactNode {
       return ctx.renderCodeBlock ? (
         <Fragment>{ctx.renderCodeBlock({ lang: n.lang, code: n.code })}</Fragment>
       ) : (
-        <pre className="sr-md-codeblock" data-lang={n.lang ?? undefined}>
-          <code className={n.lang ? `language-${n.lang}` : undefined}>{n.code}</code>
-        </pre>
+        <CodeBlock lang={n.lang} code={n.code} />
       );
     case "quote":
       return <blockquote className="sr-md-quote">{renderNodes(n.children, ctx)}</blockquote>;
@@ -124,6 +124,8 @@ function renderNode(n: MdNode, ctx: Ctx): ReactNode {
         />
       );
     }
+    // Legacy: the parser no longer emits unicode shortcode nodes (Q89); kept so older
+    // ASTs and the web app's type guards still render.
     case "emoji":
       return (
         <span
@@ -297,7 +299,8 @@ function Timestamp({
   style: TimestampNode["style"];
   ctx: Ctx;
 }) {
-  const opts = { locale: ctx.locale, timeZone: ctx.timeZone, now: ctx.now };
+  const now = useRelativeNow(style === "relative", ctx.now);
+  const opts = { locale: ctx.locale, timeZone: ctx.timeZone, now };
   let text: string;
   let title: string;
   let iso: string | undefined;
