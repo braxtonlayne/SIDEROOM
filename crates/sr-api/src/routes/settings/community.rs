@@ -83,6 +83,20 @@ async fn publish_guild_update(deps: &SettingsDeps, acc: &GuildAccess) {
             return;
         }
     };
+    // The welcome screen and onboarding carry their own enabled flags, set by their
+    // own endpoints, besides the switches in the community settings.
+    let welcome_on = settings.welcome_screen_enabled
+        || deps
+            .service
+            .welcome_screen(gid)
+            .await
+            .is_ok_and(|w| w.enabled);
+    let onboarding_on = settings.onboarding_enabled
+        || deps
+            .service
+            .onboarding(acc.perms, gid)
+            .await
+            .is_ok_and(|o| o.enabled);
     let mut payload = serde_json::to_value(GuildObject::new(&acc.guild, Some(&acc.roles), None))
         .unwrap_or_default();
     if let Some(o) = payload.as_object_mut() {
@@ -91,10 +105,10 @@ async fn publish_guild_update(deps: &SettingsDeps, acc: &GuildAccess) {
         if settings.community_enabled {
             features.push("COMMUNITY");
         }
-        if settings.welcome_screen_enabled {
+        if welcome_on {
             features.push("WELCOME_SCREEN_ENABLED");
         }
-        if settings.onboarding_enabled {
+        if onboarding_on {
             features.push("GUILD_ONBOARDING");
         }
         o.insert("features".into(), serde_json::json!(features));

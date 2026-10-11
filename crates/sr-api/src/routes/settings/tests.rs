@@ -1767,3 +1767,26 @@ async fn community_changes_publish_a_full_guild_update() {
     assert!(payload["roles"].is_array());
     assert_eq!(payload["features"], json!([]));
 }
+
+#[tokio::test]
+async fn welcome_screen_change_publishes_a_guild_update_with_its_feature_flag() {
+    let e = env().await;
+    let (s, _) = e
+        .patch(
+            &e.g("/welcome-screen"),
+            "mod",
+            json!({"enabled": true, "description": "Welcome!"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    let events = e.events.0.lock().unwrap();
+    let Some(super::events::SettingsEvent::CommunityChanged { payload, .. }) = events
+        .iter()
+        .rev()
+        .find(|ev| ev.name() == "GUILD_UPDATE")
+        .cloned()
+    else {
+        panic!("no GUILD_UPDATE published");
+    };
+    assert_eq!(payload["features"], json!(["WELCOME_SCREEN_ENABLED"]));
+}
