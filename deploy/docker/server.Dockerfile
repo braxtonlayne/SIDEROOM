@@ -1,17 +1,25 @@
 # sr-server: static musl binary on a distroless base (FND-CI-007).
 # Build from the repository root:
-#   docker build -f deploy/docker/server.Dockerfile -t sideroom-server .
-# Builds for the platform buildx targets (amd64 or arm64); no cross toolchain needed.
-FROM rust:1-bookworm AS build
-RUN apt-get update && apt-get install -y --no-install-recommends musl-tools \
+#   docker buildx build -f deploy/docker/server.Dockerfile --platform linux/amd64,linux/arm64 -t sideroom-server .
+# The build stage runs on the build host's native architecture and cross-compiles
+# to the target architecture with cargo-zigbuild (zig as the C cross compiler), so
+# arm64 images are not built under QEMU emulation (Q109).
+FROM --platform=$BUILDPLATFORM rust:1-bookworm AS build
+ARG TARGETARCH
+RUN apt-get update && apt-get install -y --no-install-recommends python3-pip \
+    && pip3 install --break-system-packages --no-cache-dir ziglang==0.13.0 \
+    && cargo install cargo-zigbuild --locked \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY . .
 RUN set -eux; \
-    target="$(uname -m)-unknown-linux-musl"; \
-    export "CC_$(echo "$target" | tr - _)=musl-gcc"; \
+    case "$TARGETARCH" in \
+        amd64) target=x86_64-unknown-linux-musl ;; \
+        arm64) target=aarch64-unknown-linux-musl ;; \
+        *) echo "unsupported TARGETARCH: $TARGETARCH" >&2; exit 1 ;; \
+    esac; \
     rustup target add "$target"; \
-    cargo build --release --locked --target "$target" -p sr-server; \
+    cargo zigbuild --release --locked --target "$target" -p sr-server; \
     install -D "target/$target/release/sr-server" /out/sr-server
 
 FROM gcr.io/distroless/static-debian12:nonroot
