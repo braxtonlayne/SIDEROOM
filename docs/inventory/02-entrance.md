@@ -24,7 +24,7 @@ Phase 0. Spec: [entry-landing-and-login](../specs/entry-landing-and-login.md), d
 - [x] **ENT-INV-002** [BE] `GET /sr/invites/{code}` validity check (valid/invalid/closed), per-IP rate limits, no issuer leak
 - [ ] **ENT-INV-003** [BE] Create invite (eligibility: active, verified, age ≥ N days, open < credits, cap not reached, not frozen)
 - [ ] **ENT-INV-004** [BE] Revoke invite (race-safe vs redemption)
-- [ ] **ENT-INV-005** [BE] Credits ledger + balance query + initial grant on registration
+- [x] **ENT-INV-005** [BE] Credits ledger + balance query + initial grant on registration
 - [ ] **ENT-INV-006** [BE] Account cap service: counted accounts query, advisory lock, `is_closed()`
 - [x] **ENT-INV-007** [BE] `POST /sr/register` transactional redemption (invite lock, cap check, issuer credit −1, Person matching, banned-Person rejection)
 - [ ] **ENT-INV-008** [BE] Person matching rules (Discord id, verified email) + staff alert on banned Person attempt

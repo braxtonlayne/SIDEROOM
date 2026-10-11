@@ -5,7 +5,7 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 ## FND-REPO — Repository & tooling
 - [ ] **FND-REPO-001** [OPS] Cargo workspace root (`Cargo.toml`, `rust-toolchain.toml` pinned stable, edition 2024, workspace lints: `unsafe_code = "forbid"` except FFI crates)
 - [ ] **FND-REPO-002** [OPS] Crate skeletons per doc 02 §3 (`sr-core`, `sr-db`, `sr-auth`, `sr-features`, `sr-events`, `sr-gateway`, `sr-api`, `sr-chat`, `sr-markdown`, `sr-search`, `sr-storage`, `sr-media`, `sr-reader`, `sr-tv`, `sr-review`, `sr-payments`, `sr-voice-proto`, `sr-e2ee`, `sr-theme`, `sr-server`, `sr-voice`, `sr-transcoder`, `sr-cli`, `sr-sdk`)
-- [ ] **FND-REPO-003** [OPS] pnpm workspace (`apps/web`, `packages/ui`, `packages/api-client`, `packages/wasm`)
+- [x] **FND-REPO-003** [OPS] pnpm workspace (`apps/web`, `packages/ui`, `packages/api-client`, `packages/wasm`)
 - [x] **FND-REPO-004** [OPS] Vite + React 19 + TS strict app scaffold with TanStack Router, Query, Zustand
 - [x] **FND-REPO-005** [OPS] wasm-pack build pipeline producing `packages/wasm` (ESM, typed bindings) for each `*-wasm` target
 - [x] **FND-REPO-006** [OPS] `cargo-deny` config (licences allowlist, advisories, bans)
@@ -104,7 +104,7 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 - [x] **DS-PRIM-006** [FE] Modal (sizes, stacked modals, focus trap), ConfirmDialog (typed confirmation variant), Drawer
 - [x] **DS-PRIM-007** [FE] Toast/notice system, inline Notice banners (info/warn/danger/success)
 - [x] **DS-PRIM-008** [FE] Tabs (underline + pill variants), Accordion, Collapsible category
-- [ ] **DS-PRIM-009** [FE] Avatar (status dot, speaking ring, decoration slot, animated on hover), AvatarStack
+- [x] **DS-PRIM-009** [FE] Avatar (status dot, speaking ring, decoration slot, animated on hover), AvatarStack
 - [x] **DS-PRIM-010** [FE] Badge, Pill, Tag/chip (server tag chip, genre chip), Counter badge (mentions)
 - [x] **DS-PRIM-011** [FE] Skeleton loaders, Spinner, ProgressBar (linear/circular), Empty state, Error boundary page
 - [x] **DS-PRIM-012** [FE] ScrollArea (thin/auto scrollbars) + VirtualList + VirtualGrid wrappers
@@ -121,4 +121,4 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 - [x] **DS-SR-005** [FE] PosterCard (2:3, hover actions, progress, corner tag), PosterRow (horizontal scroller with arrows, "Explore all ↗")
 - [ ] **DS-SR-006** [FE] Spotlight/Hero (backdrop, gradient, carousel index, auto-advance)
 - [x] **DS-SR-007** [FE] FilterChips row (single/multi), Dropdown chip ("Room selection ▾")
-- [ ] **DS-SR-008** [FE] Door logo mark (SVG) + favicon/PWA icon set
+- [x] **DS-SR-008** [FE] Door logo mark (SVG) + favicon/PWA icon set

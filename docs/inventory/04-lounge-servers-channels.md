@@ -84,7 +84,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 - [ ] **LNG-FRM-006** [FE] Forum settings section (tags editor, default reaction, layout, sort, guidelines)
 
 ## LNG-INV — Server invites
-- [ ] **LNG-INV-001** [DB] invites table
+- [x] **LNG-INV-001** [DB] invites table
 - [ ] **LNG-INV-002** [BE] Create invite (max_age, max_uses, temporary, unique), list per guild/channel, delete, accept (`POST /invites/{code}`), get with counts
 - [ ] **LNG-INV-003** [BE] External-share default single-use (D-022) via `target=external` flag
 - [ ] **LNG-INV-004** [BE] Vanity URL (free) + invite splash
