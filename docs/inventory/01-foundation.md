@@ -99,15 +99,15 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 - [x] **DS-PRIM-001** [FE] Button (primary/secondary/danger/link/ghost; sizes; loading; icon-only)
 - [x] **DS-PRIM-002** [FE] TextInput, TextArea (auto-grow), PasswordInput (eye toggle, strength meter)
 - [ ] **DS-PRIM-003** [FE] Checkbox, Radio group, Switch, Slider (with marks), Segmented control
-- [ ] **DS-PRIM-004** [FE] Select / Combobox / MultiSelect (searchable, virtualized)
-- [ ] **DS-PRIM-005** [FE] Tooltip, Popover, ContextMenu (nested submenus, checkbox/radio items, keyboard nav), Dropdown menu
+- [x] **DS-PRIM-004** [FE] Select / Combobox / MultiSelect (searchable, virtualized)
+- [x] **DS-PRIM-005** [FE] Tooltip, Popover, ContextMenu (nested submenus, checkbox/radio items, keyboard nav), Dropdown menu
 - [ ] **DS-PRIM-006** [FE] Modal (sizes, stacked modals, focus trap), ConfirmDialog (typed confirmation variant), Drawer
 - [x] **DS-PRIM-007** [FE] Toast/notice system, inline Notice banners (info/warn/danger/success)
 - [ ] **DS-PRIM-008** [FE] Tabs (underline + pill variants), Accordion, Collapsible category
 - [ ] **DS-PRIM-009** [FE] Avatar (status dot, speaking ring, decoration slot, animated on hover), AvatarStack
 - [ ] **DS-PRIM-010** [FE] Badge, Pill, Tag/chip (server tag chip, genre chip), Counter badge (mentions)
 - [ ] **DS-PRIM-011** [FE] Skeleton loaders, Spinner, ProgressBar (linear/circular), Empty state, Error boundary page
-- [ ] **DS-PRIM-012** [FE] ScrollArea (thin/auto scrollbars) + VirtualList + VirtualGrid wrappers
+- [x] **DS-PRIM-012** [FE] ScrollArea (thin/auto scrollbars) + VirtualList + VirtualGrid wrappers
 - [ ] **DS-PRIM-013** [FE] Kbd, ColorPicker (swatches + hex + eyedropper), DatePicker/TimePicker, FileDrop zone
 - [ ] **DS-PRIM-014** [FE] Icon set (original SVGs, 24/20/16 grid) + Icon component
 - [ ] **DS-PRIM-015** [FE] Full-screen settings layout (sidebar sections, ESC close, unsaved-changes bar)

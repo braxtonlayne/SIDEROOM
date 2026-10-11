@@ -21,3 +21,12 @@ export * from "./primitives/Loading/Spinner";
 export * from "./sideroom/Editorial";
 // Utilities
 export { contrastRatio, isHexColor, readableInk } from "./util/contrast";
+// --- overlays, menus, select, scrolling (DS-PRIM-004, 005, 012) ---
+export * from "./primitives/Menu/Menu";
+export * from "./primitives/Select/Select";
+export * from "./primitives/Scroll/ScrollArea";
+export { useFloating } from "./primitives/Overlay/useFloating";
+export type { FloatingAnchor, UseFloatingOptions, UseFloatingResult } from "./primitives/Overlay/useFloating";
+export { computePosition } from "./util/position";
+export type { FloatingPlacement, PositionOptions, PositionResult } from "./util/position";
+// --- end overlays block ---
