@@ -52,6 +52,12 @@ error_codes! {
     MaxChannels = 30013, 400, "Maximum number of guild channels reached";
     MaxPins = 30003, 400, "Maximum number of pins reached for the channel";
     MaxInvites = 30016, 400, "Maximum number of invites reached";
+    MaxFriends = 30002, 400, "Maximum number of friends reached (1000)";
+    MaxGroupDms = 30011, 400, "Maximum number of group DMs reached (10)";
+    MaxEmojis = 30008, 400, "Maximum number of emojis reached";
+    MaxStickers = 30039, 400, "Maximum number of stickers reached";
+    SlowmodeRateLimit = 20016, 429, "This action cannot be performed due to slowmode rate limit";
+    NoUsersWithDiscordTag = 80004, 400, "No users with DiscordTag exist";
     Unauthorized = 40001, 401, "Unauthorized";
     VerifyAccount = 40002, 403, "You need to verify your account";
     RequestEntityTooLarge = 40005, 413, "Request entity too large";
@@ -82,6 +88,7 @@ error_codes! {
     SrInviteExhausted = 900006, 403, "This invite can no longer be used";
     SrAccountDeactivated = 900007, 403, "This account has been deactivated";
     SrPlatformBanned = 900008, 403, "This account is banned from the platform";
+    SrIgnoreListFull = 900101, 400, "Your ignore list is full";
     SrInternal = 900500, 500, "Internal server error";
 }
 
@@ -212,6 +219,22 @@ mod tests {
         }
         assert_eq!(ErrorCode::MissingPermissions.code(), 50013);
         assert_eq!(ErrorCode::UnknownChannel.code(), 10003);
+    }
+
+    #[test]
+    fn discord_codes_verbatim() {
+        assert_eq!(ErrorCode::SlowmodeRateLimit.code(), 20016);
+        assert_eq!(ErrorCode::SlowmodeRateLimit.http_status(), 429);
+        assert_eq!(ErrorCode::MaxEmojis.code(), 30008);
+        assert_eq!(ErrorCode::MaxStickers.code(), 30039);
+        assert_eq!(ErrorCode::MaxFriends.code(), 30002);
+        assert_eq!(ErrorCode::MaxGroupDms.code(), 30011);
+        assert_eq!(ErrorCode::NoUsersWithDiscordTag.code(), 80004);
+        assert_eq!(ErrorCode::SrIgnoreListFull.code(), 900101);
+        assert_eq!(
+            ErrorCode::SlowmodeRateLimit.message(),
+            "This action cannot be performed due to slowmode rate limit"
+        );
     }
 
     #[test]
