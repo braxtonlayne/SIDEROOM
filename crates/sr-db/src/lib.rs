@@ -15,6 +15,7 @@ pub mod partitions;
 mod pool;
 pub mod runner;
 pub mod social_repo;
+pub mod settings_repo;
 mod tx;
 
 pub use error::{DbError, DbResult};
