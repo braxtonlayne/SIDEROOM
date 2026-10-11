@@ -12,9 +12,11 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@sideroom/markdown-react": "workspace:*",
     "@sideroom/ui": "workspace:*",
     "@tanstack/react-query": "^5.59.0",
     "@tanstack/react-router": "^1.78.0",
+    "@tanstack/react-virtual": "^3.10.9",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "zustand": "^5.0.0"
