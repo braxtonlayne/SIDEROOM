@@ -9,6 +9,7 @@ import { createLoungeRoutes } from './routes/lounge';
 import * as P from './routes/pages';
 import { Landing } from './routes/entrance/Landing';
 import { Login } from './routes/entrance/Login';
+import { LoginLink } from './routes/entrance/LoginLink';
 import { Forgot, Reset } from './routes/entrance/PasswordReset';
 import { Register } from './routes/entrance/Register';
 import { ServerInvite } from './routes/entrance/ServerInvite';
@@ -38,6 +39,13 @@ const twoFactorRoute = createRoute({
   component: TwoFactor,
   validateSearch: validateLoginSearch,
 });
+const loginLinkRoute = createRoute({
+  getParentRoute: () => root,
+  path: '/login/link',
+  component: LoginLink,
+  validateSearch: (s: Record<string, unknown>): { token?: string } =>
+    typeof s.token === 'string' ? { token: s.token } : {},
+});
 const joinRoute = createRoute({
   getParentRoute: () => root,
   path: '/join/$code',
@@ -51,6 +59,7 @@ const routeTree = root.addChildren([
   r('/', () => <Landing />),
   loginRoute,
   twoFactorRoute,
+  loginLinkRoute,
   joinRoute,
   r('/register', Register),
   r('/forgot', Forgot),
