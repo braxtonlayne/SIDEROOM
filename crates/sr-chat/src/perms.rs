@@ -12,6 +12,7 @@ pub fn default_everyone_permissions() -> Permissions {
         | P::STREAM
         | P::VIEW_CHANNEL
         | P::SEND_MESSAGES
+        | P::SEND_TTS_MESSAGES
         | P::EMBED_LINKS
         | P::ATTACH_FILES
         | P::READ_MESSAGE_HISTORY

@@ -1168,15 +1168,16 @@ async fn allowed_mentions_gate_pings_and_tts_is_a_flag() {
         )
         .await;
     assert_eq!(code(&r), (StatusCode::BAD_REQUEST, Some(50035)));
-    // tts needs SEND_TTS_MESSAGES: members lack it by default, the owner is an admin.
-    let r = e
+    // tts needs SEND_TTS_MESSAGES, which @everyone has by default (Discord).
+    let (s, m) = e
         .post(
             "/messages",
             "bob",
             json!({"content": "hear me", "tts": true}),
         )
         .await;
-    assert_eq!(code(&r), (StatusCode::FORBIDDEN, Some(50013)));
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(m["tts"], true);
     let (_, m) = e
         .post(
             "/messages",
