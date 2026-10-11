@@ -4,10 +4,7 @@
 //! compiled to `wasm32-unknown-unknown`, in the browser. It is pure `std` with no I/O;
 //! its only dependencies are `serde`/`serde_json` (AST JSON for the React renderer).
 //!
-//! WASM bindings: a `wasm` feature with `wasm-bindgen` is intentionally not included yet.
-//! The `wasm32-unknown-unknown` target is not installed in the build environment, so a
-//! binding layer could not be verified. It belongs behind a feature (or in a thin
-//! `sr-markdown-wasm` crate) once the target is available; this API is already wasm-clean.
+//! WASM bindings live in the thin `sr-markdown-wasm` crate (built by `packages/wasm`).
 
 mod ast;
 mod block;
