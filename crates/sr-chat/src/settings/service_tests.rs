@@ -323,3 +323,49 @@ async fn automod_rules_are_enforced_and_checked() {
         .unwrap();
     assert!(svc.check_message(G, &ctx).await.unwrap().is_empty());
 }
+
+#[tokio::test]
+async fn spam_rule_uses_the_member_window_and_the_rule_cache() {
+    let (svc, _clock) = setup();
+    let m = Permissions::MANAGE_GUILD;
+    let rule = AutoModRule {
+        id: 0,
+        guild_id: G,
+        name: "spam".into(),
+        creator_id: UserId::default(),
+        event_type: EventType::MessageSend,
+        trigger: Trigger::Spam,
+        actions: vec![Action::Block {
+            custom_message: None,
+        }],
+        enabled: true,
+        exempt_role_ids: vec![],
+        exempt_channel_ids: vec![],
+    };
+    let saved = svc.put_automod_rule(m, ADMIN, rule).await.unwrap();
+    let ctx = MessageContext {
+        author_id: UserId::new(5),
+        channel_id: CH,
+        content: "buy now".into(),
+        ..Default::default()
+    };
+    // Defaults: the fourth identical message inside the window is a repeat.
+    for _ in 0..3 {
+        assert!(svc.check_message(G, &ctx).await.unwrap().is_empty());
+    }
+    let hits = svc.check_message(G, &ctx).await.unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].rule_id, saved.id);
+    assert_eq!(hits[0].matched, "duplicate messages");
+    // Another author is unaffected; a bypass author is never tracked.
+    let other = MessageContext {
+        author_id: UserId::new(6),
+        ..ctx.clone()
+    };
+    assert!(svc.check_message(G, &other).await.unwrap().is_empty());
+    let exempt = MessageContext {
+        bypass: true,
+        ..ctx
+    };
+    assert!(svc.check_message(G, &exempt).await.unwrap().is_empty());
+}

@@ -9,7 +9,8 @@ use sr_core::{ChannelId, Clock, EmojiId, GuildId, RoleId, SnowflakeGenerator, St
 
 use super::audit::{AuditAction, AuditChange, AuditEntry, AuditQuery, AuditRetention};
 use super::automod::{
-    self, AutoModRule, CompiledRule, MessageContext, PresetLists, ProfileContext, RuleMatch,
+    self, AutoModRule, CompiledRule, MessageContext, PresetLists, ProfileContext, RuleCache,
+    RuleMatch, SpamWindow, Trigger,
 };
 use super::error::{SettingsError, SettingsResult};
 use super::expressions::{
@@ -29,6 +30,10 @@ pub struct SettingsService<R> {
     limits: ExpressionLimits,
     retention: AuditRetention,
     presets: PresetLists,
+    /// Compiled rules per guild (open question 136).
+    rule_cache: RuleCache,
+    /// Per-member message history for the rate and duplicate checks.
+    spam: SpamWindow,
 }
 
 fn require(perms: Permissions, needed: Permissions) -> SettingsResult<()> {
@@ -74,7 +79,40 @@ impl<R: SettingsRepository> SettingsService<R> {
             limits: ExpressionLimits::default(),
             retention: AuditRetention::default(),
             presets: PresetLists::new(),
+            rule_cache: RuleCache::default(),
+            spam: SpamWindow::default(),
         }
+    }
+
+    pub fn with_spam_window(mut self, spam: SpamWindow) -> Self {
+        self.spam = spam;
+        self
+    }
+
+    pub fn with_rule_cache(mut self, cache: RuleCache) -> Self {
+        self.rule_cache = cache;
+        self
+    }
+
+    /// A fresh snowflake from the service's generator.
+    pub fn new_id(&self) -> u64 {
+        self.ids.generate().get()
+    }
+
+    /// A random word from the injected entropy source (tokens, codes).
+    pub fn random_u64(&self) -> u64 {
+        (self.entropy)()
+    }
+
+    /// Current time from the injected clock.
+    pub fn now_ms(&self) -> i64 {
+        self.now()
+    }
+
+    /// Drop the guild's compiled AutoMod rules (call after any rule change made
+    /// outside this service, e.g. by another node's invalidation event).
+    pub fn invalidate_rules(&self, guild: GuildId) {
+        self.rule_cache.invalidate(guild);
     }
 
     pub fn with_limits(mut self, limits: ExpressionLimits) -> Self {
@@ -478,6 +516,7 @@ impl<R: SettingsRepository> SettingsService<R> {
             return Err(SettingsError::UnknownRule);
         }
         self.repo.put_rule(&rule).await?;
+        self.rule_cache.invalidate(rule.guild_id);
         self.record_audit(
             rule.guild_id,
             actor,
@@ -506,6 +545,7 @@ impl<R: SettingsRepository> SettingsService<R> {
         id: u64,
     ) -> SettingsResult<()> {
         require(perms, Permissions::MANAGE_GUILD)?;
+        self.rule_cache.invalidate(guild);
         if !self.repo.delete_rule(guild, id).await? {
             return Err(SettingsError::UnknownRule);
         }
@@ -521,15 +561,19 @@ impl<R: SettingsRepository> SettingsService<R> {
         Ok(())
     }
 
-    async fn compiled_rules(&self, guild: GuildId) -> SettingsResult<Vec<CompiledRule>> {
+    async fn compiled_rules(&self, guild: GuildId) -> SettingsResult<Arc<Vec<CompiledRule>>> {
+        if let Some(hit) = self.rule_cache.get(guild) {
+            return Ok(hit);
+        }
         let rules = self.repo.list_rules(guild).await?;
         // A rule that no longer compiles (e.g. a preset list was removed) is skipped,
         // never allowed to break message delivery.
-        Ok(rules
+        let compiled = rules
             .into_iter()
             .filter(|r| r.enabled)
             .filter_map(|r| CompiledRule::compile(r, &self.presets).ok())
-            .collect())
+            .collect();
+        Ok(self.rule_cache.insert(guild, compiled))
     }
 
     /// Run message AutoMod. The caller executes the returned actions.
@@ -539,7 +583,14 @@ impl<R: SettingsRepository> SettingsService<R> {
         ctx: &MessageContext,
     ) -> SettingsResult<Vec<RuleMatch>> {
         let rules = self.compiled_rules(guild).await?;
-        Ok(automod::evaluate_message(&rules, ctx))
+        // The sliding window only feeds spam rules, so skip it when none apply.
+        let burst = if !ctx.bypass && rules.iter().any(|r| r.rule.trigger == Trigger::Spam) {
+            self.spam
+                .observe(guild, ctx.author_id, &ctx.content, self.now())
+        } else {
+            None
+        };
+        Ok(automod::evaluate_message_with(&rules, ctx, burst))
     }
 
     pub async fn check_profile(
