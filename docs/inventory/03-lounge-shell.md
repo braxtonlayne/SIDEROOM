@@ -51,7 +51,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [ ] **LNG-HOME-015** [FE] Copy username on name click (toast "Copied!")
 
 ## LNG-FRD — Friends
-- [ ] **LNG-FRD-001** [DB] relationships table + migrations
+- [x] **LNG-FRD-001** [DB] relationships table + migrations
 - [ ] **LNG-FRD-002** [BE] Relationship API (send by username, accept, ignore, cancel, remove, block, unblock, ignore user) → `/users/@me/relationships`
 - [ ] **LNG-FRD-003** [GW] `RELATIONSHIP_ADD/UPDATE/REMOVE` dispatches
 - [ ] **LNG-FRD-004** [BE] Friend request privacy enforcement (everyone / friends of friends / server members)
