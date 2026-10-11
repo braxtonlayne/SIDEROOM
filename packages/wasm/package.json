@@ -1,0 +1,7 @@
+{
+  "name": "@sideroom/wasm",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "wasm-pack output for sr-markdown, sr-e2ee, sr-theme, sr-permissions, image tools. Built by `just wasm`; not committed."
+}
