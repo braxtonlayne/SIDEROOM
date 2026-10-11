@@ -1,0 +1,1129 @@
+//! Endpoint tests over the in-memory backend with one-shot requests.
+
+use super::{FixedEntitlements, MemoryBackend, MessagesDeps, UploadEntitlements, router_with};
+use crate::{
+    ApiSettings, AppState,
+    auth::{BotIdentity, memory::MemoryBots},
+    build_router,
+};
+use async_trait::async_trait;
+use axum::{
+    Router,
+    body::Body,
+    http::{HeaderMap, Method, Request, StatusCode},
+};
+use bytes::Bytes;
+use futures::{StreamExt, stream::BoxStream};
+use http_body_util::BodyExt;
+use serde_json::{Value, json};
+use sr_chat::guild_rules::plan_new_guild;
+use sr_chat::repo::GuildRepository;
+use sr_chat::{Member, MessageType};
+use sr_core::{ChannelId, Clock, GuildId, ManualClock, Permissions, SnowflakeGenerator, UserId};
+use sr_events::{DomainEvent, EventBus, InProcessBus, Topic};
+use sr_storage::{ObjectStorage, ObjectStoreStorage};
+use std::sync::Arc;
+use std::time::Duration;
+use tower::ServiceExt;
+
+const T0: i64 = 1_800_000_000_000;
+const MIB: u64 = 1024 * 1024;
+const OWNER: u64 = 1;
+const BOB: u64 = 2;
+const CAROL: u64 = 3; // not a guild member
+const THUMBS_UP: &str = "%F0%9F%91%8D";
+
+/// The owner is a patron (500 MiB); everyone else gets the standard limit.
+struct Perks;
+
+#[async_trait]
+impl UploadEntitlements for Perks {
+    async fn max_upload_bytes(&self, user: UserId) -> u64 {
+        if user.get() == OWNER {
+            500 * MIB
+        } else {
+            30 * MIB
+        }
+    }
+}
+
+struct Env {
+    app: Router,
+    backend: MemoryBackend,
+    clock: Arc<ManualClock>,
+    bus: Arc<InProcessBus>,
+    storage: Arc<ObjectStoreStorage>,
+    guild: GuildId,
+    ch: ChannelId,
+}
+
+async fn env_with(entitlements: Arc<dyn UploadEntitlements>) -> Env {
+    let clock = Arc::new(ManualClock::new(T0));
+    let dyn_clock: Arc<dyn Clock> = clock.clone();
+    let backend = MemoryBackend::new();
+    let bus = Arc::new(InProcessBus::new());
+    let storage = Arc::new(ObjectStoreStorage::in_memory());
+
+    let gen_ids = SnowflakeGenerator::new(dyn_clock.clone(), 9, 9).unwrap();
+    let bp = plan_new_guild(UserId::new(OWNER), "Club", T0, || gen_ids.generate()).unwrap();
+    let (guild, ch) = (bp.guild.id, bp.channels[2].id);
+    backend.insert_guild(&bp).await.unwrap();
+    backend.data().members.push(Member {
+        guild_id: guild,
+        user_id: UserId::new(BOB),
+        nick: None,
+        role_ids: vec![],
+        joined_at_ms: T0,
+        communication_disabled_until_ms: None,
+        pending: false,
+    });
+
+    let bots = Arc::new(MemoryBots::new());
+    for (tok, uid) in [("owner", OWNER), ("bob", BOB), ("carol", CAROL)] {
+        bots.insert(
+            tok,
+            BotIdentity {
+                user_id: i64::try_from(uid).unwrap(),
+                application_id: 1,
+            },
+        );
+    }
+    // Rate limiting has its own tests; here it would only throttle the test client.
+    let mut settings = ApiSettings::default();
+    settings.rate_limit.enabled = false;
+    let state = AppState::builder()
+        .bots(bots)
+        .clock(dyn_clock.clone())
+        .settings(settings)
+        .build();
+    let deps = MessagesDeps::new(
+        backend.clone(),
+        Arc::new(backend.clone()),
+        storage.clone(),
+        bus.clone(),
+        entitlements,
+        dyn_clock,
+        1,
+        1,
+    )
+    .unwrap();
+    let app = build_router(state, router_with(Arc::new(deps)));
+    Env {
+        app,
+        backend,
+        clock,
+        bus,
+        storage,
+        guild,
+        ch,
+    }
+}
+
+async fn env() -> Env {
+    env_with(Arc::new(FixedEntitlements(30 * MIB))).await
+}
+
+impl Env {
+    async fn call(
+        &self,
+        method: Method,
+        path: &str,
+        who: &str,
+        body: Option<Value>,
+    ) -> (StatusCode, HeaderMap, Value) {
+        let uri = format!("/api/v1/channels/{}{path}", self.ch);
+        let mut req = Request::builder()
+            .method(method)
+            .uri(uri)
+            .header("authorization", format!("Bot {who}"));
+        let body = match body {
+            Some(v) => {
+                req = req.header("content-type", "application/json");
+                Body::from(v.to_string())
+            }
+            None => Body::empty(),
+        };
+        let resp = self
+            .app
+            .clone()
+            .oneshot(req.body(body).unwrap())
+            .await
+            .unwrap();
+        let (parts, body) = resp.into_parts();
+        let bytes = body.collect().await.unwrap().to_bytes();
+        let json = if bytes.is_empty() {
+            Value::Null
+        } else {
+            serde_json::from_slice(&bytes).unwrap_or(Value::Null)
+        };
+        (parts.status, parts.headers, json)
+    }
+
+    async fn get(&self, path: &str, who: &str) -> (StatusCode, Value) {
+        let (s, _, v) = self.call(Method::GET, path, who, None).await;
+        (s, v)
+    }
+
+    async fn post(&self, path: &str, who: &str, body: Value) -> (StatusCode, Value) {
+        let (s, _, v) = self.call(Method::POST, path, who, Some(body)).await;
+        (s, v)
+    }
+
+    async fn patch(&self, path: &str, who: &str, body: Value) -> (StatusCode, Value) {
+        let (s, _, v) = self.call(Method::PATCH, path, who, Some(body)).await;
+        (s, v)
+    }
+
+    async fn say(&self, who: &str, content: &str) -> Value {
+        let (s, v) = self
+            .post("/messages", who, json!({ "content": content }))
+            .await;
+        assert_eq!(s, StatusCode::OK, "{v}");
+        v
+    }
+
+    async fn status(&self, method: Method, path: &str, who: &str) -> StatusCode {
+        self.call(method, path, who, None).await.0
+    }
+
+    fn events(&self) -> BoxStream<'static, DomainEvent> {
+        self.bus.subscribe(Topic::Channel(self.ch))
+    }
+
+    /// Remove a permission from `@everyone`.
+    fn revoke_everyone(&self, p: Permissions) {
+        let mut d = self.backend.data();
+        let role = d.roles.iter_mut().find(|r| r.is_everyone()).unwrap();
+        role.permissions.remove(p);
+    }
+}
+
+async fn next_event(s: &mut BoxStream<'static, DomainEvent>) -> DomainEvent {
+    tokio::time::timeout(Duration::from_secs(1), s.next())
+        .await
+        .expect("no event")
+        .expect("stream ended")
+}
+
+async fn no_event(s: &mut BoxStream<'static, DomainEvent>) {
+    assert!(
+        tokio::time::timeout(Duration::from_millis(80), s.next())
+            .await
+            .is_err(),
+        "unexpected event"
+    );
+}
+
+fn ids(list: &Value) -> Vec<String> {
+    list.as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["id"].as_str().unwrap().to_owned())
+        .collect()
+}
+
+fn id_of(v: &Value) -> String {
+    v["id"].as_str().unwrap().to_owned()
+}
+
+fn code(r: &(StatusCode, Value)) -> (StatusCode, Option<u64>) {
+    (r.0, r.1["code"].as_u64())
+}
+
+fn chunk(kind: &[u8; 4], payload: &[u8]) -> Vec<u8> {
+    let mut v = u32::try_from(payload.len()).unwrap().to_be_bytes().to_vec();
+    v.extend_from_slice(kind);
+    v.extend_from_slice(payload);
+    v.extend_from_slice(&[0; 4]); // CRC is not checked by the stripper
+    v
+}
+
+/// A structurally valid PNG carrying a text chunk with a location secret.
+fn png_with_secret() -> Vec<u8> {
+    let mut v = b"\x89PNG\r\n\x1a\n".to_vec();
+    v.extend(chunk(b"IHDR", &[0; 13]));
+    v.extend(chunk(b"tEXt", b"GPS\0lat=51.5,lon=-0.12"));
+    v.extend(chunk(b"IDAT", b"pixels"));
+    v.extend(chunk(b"IEND", b""));
+    v
+}
+
+#[tokio::test]
+async fn create_get_and_list_have_discord_shape() {
+    let e = env().await;
+    let mut ev = e.events();
+    let m = e.say("bob", "hello <@1> and <#2>").await;
+    assert_eq!(m["content"], "hello <@1> and <#2>");
+    assert_eq!(m["author"]["id"], "2");
+    assert_eq!(m["channel_id"], e.ch.to_string());
+    assert_eq!(m["guild_id"], e.guild.to_string());
+    assert_eq!(m["type"], 0);
+    assert_eq!(m["mentions"][0]["id"], "1");
+    assert!(
+        m["timestamp"]
+            .as_str()
+            .unwrap()
+            .starts_with("2027-01-15T08:00:00")
+    );
+    assert!(m["edited_timestamp"].is_null());
+
+    let id = id_of(&m);
+    let (s, one) = e.get(&format!("/messages/{id}"), "owner").await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(one["id"], id.as_str());
+    let (_, list) = e.get("/messages", "owner").await;
+    assert_eq!(ids(&list), vec![id.clone()]);
+
+    match next_event(&mut ev).await {
+        DomainEvent::MessageSent { data, author, .. } => {
+            assert_eq!(author.get(), BOB);
+            assert_eq!(data["id"], id.as_str());
+            assert_eq!(data["content"], "hello <@1> and <#2>");
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn empty_and_invalid_bodies_are_rejected_in_discord_shape() {
+    let e = env().await;
+    let r = e.post("/messages", "bob", json!({})).await;
+    assert_eq!(code(&r), (StatusCode::BAD_REQUEST, Some(50006)));
+    let r = e
+        .post("/messages", "bob", json!({"content": "x".repeat(2001)}))
+        .await;
+    assert_eq!(code(&r), (StatusCode::BAD_REQUEST, Some(50035)));
+    assert!(r.1["errors"]["content"].is_object());
+    let r = e.post("/messages", "bob", json!({"content": 5})).await;
+    assert_eq!(code(&r), (StatusCode::BAD_REQUEST, Some(50035)));
+    let r = e
+        .post("/messages", "bob", json!({"content": "x", "poll": {}}))
+        .await;
+    assert_eq!(code(&r), (StatusCode::BAD_REQUEST, Some(50035)));
+    let r = e.get("/messages?limit=0", "bob").await;
+    assert_eq!(code(&r), (StatusCode::BAD_REQUEST, Some(50035)));
+    let r = e.get("/messages?before=1&after=2", "bob").await;
+    assert_eq!(code(&r), (StatusCode::BAD_REQUEST, Some(50035)));
+}
+
+#[tokio::test]
+async fn unauthenticated_and_outsiders_are_refused() {
+    let e = env().await;
+    let req = Request::get(format!("/api/v1/channels/{}/messages", e.ch))
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(
+        e.app.clone().oneshot(req).await.unwrap().status(),
+        StatusCode::UNAUTHORIZED
+    );
+    let r = e.get("/messages", "carol").await;
+    assert_eq!(code(&r), (StatusCode::FORBIDDEN, Some(50001)));
+    let r = e.post("/messages", "carol", json!({"content": "hi"})).await;
+    assert_eq!(code(&r), (StatusCode::FORBIDDEN, Some(50001)));
+    let req = Request::get("/api/v1/channels/not-an-id/messages")
+        .header("authorization", "Bot bob")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(
+        e.app.clone().oneshot(req).await.unwrap().status(),
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
+async fn pagination_before_after_around() {
+    let e = env().await;
+    let mut all = Vec::new();
+    for i in 0..7 {
+        all.push(id_of(&e.say("bob", &format!("m{i}")).await));
+    }
+    let a = |i: usize| all[i].clone();
+    let (_, v) = e.get("/messages?limit=3", "bob").await;
+    assert_eq!(ids(&v), vec![a(6), a(5), a(4)]);
+    let (_, v) = e
+        .get(&format!("/messages?limit=2&before={}", a(4)), "bob")
+        .await;
+    assert_eq!(ids(&v), vec![a(3), a(2)]);
+    // `after` returns the messages right after the cursor, still newest first.
+    let (_, v) = e
+        .get(&format!("/messages?limit=2&after={}", a(1)), "bob")
+        .await;
+    assert_eq!(ids(&v), vec![a(3), a(2)]);
+    let (_, v) = e
+        .get(&format!("/messages?limit=5&around={}", a(3)), "bob")
+        .await;
+    assert_eq!(ids(&v), vec![a(5), a(4), a(3), a(2), a(1)]);
+    // Near the start the window keeps the target and fills from the newer side.
+    let (_, v) = e
+        .get(&format!("/messages?limit=4&around={}", a(0)), "bob")
+        .await;
+    assert_eq!(ids(&v), vec![a(2), a(1), a(0)]);
+    let (_, v) = e.get("/messages", "bob").await;
+    assert_eq!(v.as_array().unwrap().len(), 7);
+}
+
+#[tokio::test]
+async fn history_requires_read_message_history() {
+    let e = env().await;
+    e.say("bob", "visible").await;
+    e.revoke_everyone(Permissions::READ_MESSAGE_HISTORY);
+    let (s, v) = e.get("/messages", "bob").await;
+    assert_eq!((s, v), (StatusCode::OK, json!([])));
+    let (_, v) = e.get("/messages", "owner").await;
+    assert_eq!(v.as_array().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn nonce_dedupes_within_the_window() {
+    let e = env().await;
+    let mut ev = e.events();
+    let body = json!({"content": "once", "nonce": 12345});
+    let (s, a) = e.post("/messages", "bob", body.clone()).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(a["nonce"], "12345");
+    let (s, b) = e.post("/messages", "bob", body.clone()).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(a["id"], b["id"]);
+    let (_, list) = e.get("/messages", "bob").await;
+    assert_eq!(list.as_array().unwrap().len(), 1);
+    next_event(&mut ev).await;
+    no_event(&mut ev).await;
+
+    // A different author may reuse the nonce; so may the same author later.
+    let (_, c) = e.post("/messages", "owner", body.clone()).await;
+    assert_ne!(c["id"], a["id"]);
+    e.clock.advance_ms(6 * 60 * 1000);
+    let (_, d) = e.post("/messages", "bob", body).await;
+    assert_ne!(d["id"], a["id"]);
+
+    // Strict mode refuses the collision.
+    let strict = json!({"content": "x", "nonce": "n2", "enforce_nonce": true});
+    assert_eq!(
+        e.post("/messages", "bob", strict.clone()).await.0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        e.post("/messages", "bob", strict).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    let r = e
+        .post(
+            "/messages",
+            "bob",
+            json!({"content": "x", "nonce": "x".repeat(26)}),
+        )
+        .await;
+    assert_eq!(code(&r), (StatusCode::BAD_REQUEST, Some(50035)));
+}
+
+#[tokio::test]
+async fn replies_reference_visible_messages_only() {
+    let e = env().await;
+    let first = e.say("owner", "question").await;
+    let fid = id_of(&first);
+    let (s, r) = e
+        .post(
+            "/messages",
+            "bob",
+            json!({"content": "answer", "message_reference": {"message_id": fid}}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(r["type"], MessageType::Reply.code());
+    assert_eq!(r["message_reference"]["message_id"], fid.as_str());
+
+    let missing = json!({"message_id": "999999999999"});
+    let r = e
+        .post(
+            "/messages",
+            "bob",
+            json!({"content": "x", "message_reference": missing}),
+        )
+        .await;
+    assert_eq!(code(&r), (StatusCode::NOT_FOUND, Some(10008)));
+    let lenient = json!({"message_id": "999999999999", "fail_if_not_exists": false});
+    let (s, v) = e
+        .post(
+            "/messages",
+            "bob",
+            json!({"content": "x", "message_reference": lenient}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(v["type"], 0);
+    assert!(v.get("message_reference").is_none());
+}
+
+#[tokio::test]
+async fn mentions_are_permission_gated() {
+    let e = env().await;
+    let m = e.say("bob", "@everyone <@1> <@&5>").await;
+    assert_eq!(m["mention_everyone"], false);
+    assert_eq!(m["mentions"][0]["id"], "1");
+    assert_eq!(m["mention_roles"], json!([]));
+    let m = e.say("owner", "@everyone hi").await;
+    assert_eq!(m["mention_everyone"], true);
+    let r = e
+        .post(
+            "/messages",
+            "bob",
+            json!({"content": (1..=120).map(|i| format!("<@{i}>")).collect::<String>()}),
+        )
+        .await;
+    assert_eq!(code(&r), (StatusCode::BAD_REQUEST, Some(50035)));
+}
+
+#[tokio::test]
+async fn slowmode_returns_retry_after() {
+    let e = env().await;
+    e.backend
+        .data()
+        .channels
+        .get_mut(&e.ch)
+        .unwrap()
+        .rate_limit_per_user = 10;
+    e.say("bob", "first").await;
+    e.clock.advance_ms(4000);
+    let (s, h, v) = e
+        .call(
+            Method::POST,
+            "/messages",
+            "bob",
+            Some(json!({"content": "again"})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(v["retry_after"], 6.0);
+    assert_eq!(v["global"], false);
+    assert_eq!(h["retry-after"], "6");
+    // Moderators bypass.
+    e.say("owner", "a").await;
+    e.say("owner", "b").await;
+    e.clock.advance_ms(6000);
+    e.say("bob", "now ok").await;
+}
+
+#[tokio::test]
+async fn edit_rules_and_event() {
+    let e = env().await;
+    let m = e.say("bob", "typo").await;
+    let path = format!("/messages/{}", id_of(&m));
+    let mut ev = e.events();
+    e.clock.advance_ms(1000);
+    let (s, v) = e.patch(&path, "bob", json!({"content": "fixed"})).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["content"], "fixed");
+    assert!(v["edited_timestamp"].is_string());
+    match next_event(&mut ev).await {
+        DomainEvent::MessageEdited { data, .. } => assert_eq!(data["content"], "fixed"),
+        other => panic!("{other:?}"),
+    }
+    // Others cannot edit content (50005), even moderators.
+    let r = e
+        .patch(&path, "owner", json!({"content": "mine now"}))
+        .await;
+    assert_eq!(code(&r), (StatusCode::FORBIDDEN, Some(50005)));
+    // Emptying the message is refused.
+    let r = e.patch(&path, "bob", json!({"content": "  "})).await;
+    assert_eq!(code(&r), (StatusCode::BAD_REQUEST, Some(50006)));
+    let r = e
+        .patch("/messages/42", "bob", json!({"content": "x"}))
+        .await;
+    assert_eq!(r.0, StatusCode::NOT_FOUND);
+    assert_eq!(e.backend.data().edits.len(), 1);
+}
+
+#[tokio::test]
+async fn delete_hides_message_and_publishes() {
+    let e = env().await;
+    let id = id_of(&e.say("bob", "oops").await);
+    let oid = id_of(&e.say("owner", "mod's").await);
+    let mut ev = e.events();
+
+    assert_eq!(
+        e.status(Method::DELETE, &format!("/messages/{oid}"), "bob")
+            .await,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        e.status(Method::DELETE, &format!("/messages/{id}"), "bob")
+            .await,
+        StatusCode::NO_CONTENT
+    );
+    match next_event(&mut ev).await {
+        DomainEvent::MessageDeleted { message_id, .. } => assert_eq!(message_id.to_string(), id),
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(
+        e.get(&format!("/messages/{id}"), "bob").await.0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        e.status(Method::DELETE, &format!("/messages/{id}"), "bob")
+            .await,
+        StatusCode::NOT_FOUND
+    );
+    let (_, list) = e.get("/messages", "bob").await;
+    assert_eq!(ids(&list), vec![oid.clone()]);
+    // Moderators delete anything; the message is purge-scheduled, not removed.
+    assert_eq!(
+        e.status(Method::DELETE, &format!("/messages/{oid}"), "owner")
+            .await,
+        StatusCode::NO_CONTENT
+    );
+    let d = e.backend.data();
+    assert!(
+        d.messages
+            .iter()
+            .all(|m| m.purge_after_ms == Some(T0 + 30 * 86_400_000))
+    );
+}
+
+#[tokio::test]
+async fn bulk_delete_rules() {
+    let e = env().await;
+    let mut made = Vec::new();
+    for i in 0..4 {
+        made.push(id_of(&e.say("bob", &format!("{i}")).await));
+    }
+    let mut ev = e.events();
+    let body = json!({"messages": [made[0], made[1], made[2]]});
+    let r = e.post("/messages/bulk-delete", "bob", body.clone()).await;
+    assert_eq!(code(&r), (StatusCode::FORBIDDEN, Some(50013)));
+    let r = e
+        .post(
+            "/messages/bulk-delete",
+            "owner",
+            json!({"messages": [made[0]]}),
+        )
+        .await;
+    assert_eq!(code(&r), (StatusCode::BAD_REQUEST, Some(50035)));
+    let (s, _) = e.post("/messages/bulk-delete", "owner", body).await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    match next_event(&mut ev).await {
+        DomainEvent::MessagesBulkDeleted { message_ids, .. } => assert_eq!(message_ids.len(), 3),
+        other => panic!("{other:?}"),
+    }
+    let (_, list) = e.get("/messages", "bob").await;
+    assert_eq!(ids(&list), vec![made[3].clone()]);
+
+    // Older than 14 days is refused.
+    e.clock.advance_ms(15 * 86_400_000);
+    let fresh = id_of(&e.say("bob", "fresh").await);
+    let r = e
+        .post(
+            "/messages/bulk-delete",
+            "owner",
+            json!({"messages": [made[3], fresh]}),
+        )
+        .await;
+    assert_eq!(code(&r), (StatusCode::BAD_REQUEST, Some(50035)));
+}
+
+#[tokio::test]
+async fn reactions_lifecycle() {
+    let e = env().await;
+    let id = id_of(&e.say("owner", "react to me").await);
+    let base = format!("/messages/{id}/reactions");
+    let mine = format!("{base}/{THUMBS_UP}/@me");
+    let mut ev = e.events();
+
+    assert_eq!(
+        e.status(Method::PUT, &mine, "bob").await,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        e.status(Method::PUT, &mine, "bob").await,
+        StatusCode::NO_CONTENT
+    ); // idempotent
+    assert_eq!(
+        e.status(Method::PUT, &mine, "owner").await,
+        StatusCode::NO_CONTENT
+    );
+    match next_event(&mut ev).await {
+        DomainEvent::ReactionAdded { user, emoji, .. } => {
+            assert_eq!(user.get(), BOB);
+            assert_eq!(emoji["name"], "\u{1F44D}");
+            assert!(emoji["id"].is_null());
+        }
+        other => panic!("{other:?}"),
+    }
+    next_event(&mut ev).await; // owner's
+    no_event(&mut ev).await; // the repeat published nothing
+
+    let (_, one) = e.get(&format!("/messages/{id}"), "bob").await;
+    assert_eq!(one["reactions"][0]["count"], 2);
+    assert_eq!(one["reactions"][0]["me"], true);
+    assert_eq!(one["reactions"][0]["emoji"]["name"], "\u{1F44D}");
+
+    let (s, users) = e.get(&format!("{base}/{THUMBS_UP}"), "bob").await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(users, json!([{"id": "1"}, {"id": "2"}]));
+    let (_, users) = e
+        .get(&format!("{base}/{THUMBS_UP}?limit=1&after=1"), "bob")
+        .await;
+    assert_eq!(users, json!([{"id": "2"}]));
+
+    // Custom emoji work; bare words are not emoji.
+    assert_eq!(
+        e.status(Method::PUT, &format!("{base}/party:77/@me"), "bob")
+            .await,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        e.status(Method::PUT, &format!("{base}/smile/@me"), "bob")
+            .await,
+        StatusCode::NOT_FOUND
+    );
+
+    // Removing: own is free, someone else's needs MANAGE_MESSAGES.
+    assert_eq!(
+        e.status(Method::DELETE, &format!("{base}/{THUMBS_UP}/1"), "bob")
+            .await,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        e.status(Method::DELETE, &mine, "bob").await,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        e.status(Method::DELETE, &mine, "bob").await,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        e.status(Method::DELETE, &format!("{base}/{THUMBS_UP}/1"), "owner")
+            .await,
+        StatusCode::NO_CONTENT
+    );
+
+    // Clearing needs MANAGE_MESSAGES.
+    assert_eq!(
+        e.status(Method::DELETE, &base, "bob").await,
+        StatusCode::FORBIDDEN
+    );
+    let party = format!("{base}/party:77");
+    assert_eq!(
+        e.status(Method::DELETE, &party, "bob").await,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        e.status(Method::DELETE, &party, "owner").await,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        e.status(Method::DELETE, &party, "owner").await,
+        StatusCode::NOT_FOUND
+    );
+    e.status(Method::PUT, &mine, "bob").await;
+    assert_eq!(
+        e.status(Method::DELETE, &base, "owner").await,
+        StatusCode::NO_CONTENT
+    );
+    let (_, one) = e.get(&format!("/messages/{id}"), "bob").await;
+    assert!(one.get("reactions").is_none());
+    // Outsiders see nothing.
+    assert_eq!(
+        e.status(Method::PUT, &mine, "carol").await,
+        StatusCode::FORBIDDEN
+    );
+}
+
+#[tokio::test]
+async fn reaction_limits_and_permissions() {
+    let e = env().await;
+    let id = id_of(&e.say("owner", "popular").await);
+    for i in 0..20 {
+        let em = format!("e{i:02}:{}", 1000 + i);
+        assert_eq!(
+            e.status(
+                Method::PUT,
+                &format!("/messages/{id}/reactions/{em}/@me"),
+                "bob"
+            )
+            .await,
+            StatusCode::NO_CONTENT
+        );
+    }
+    let r = e
+        .call(
+            Method::PUT,
+            &format!("/messages/{id}/reactions/e99:9999/@me"),
+            "bob",
+            None,
+        )
+        .await;
+    assert_eq!(
+        (r.0, r.2["code"].as_u64()),
+        (StatusCode::BAD_REQUEST, Some(30010))
+    );
+    // Joining an existing emoji is still allowed at the cap.
+    assert_eq!(
+        e.status(
+            Method::PUT,
+            &format!("/messages/{id}/reactions/e00:1000/@me"),
+            "owner"
+        )
+        .await,
+        StatusCode::NO_CONTENT
+    );
+    // Without ADD_REACTIONS a new emoji is refused.
+    e.revoke_everyone(Permissions::ADD_REACTIONS);
+    let m2 = id_of(&e.say("owner", "another").await);
+    assert_eq!(
+        e.status(
+            Method::PUT,
+            &format!("/messages/{m2}/reactions/{THUMBS_UP}/@me"),
+            "bob"
+        )
+        .await,
+        StatusCode::FORBIDDEN
+    );
+}
+
+#[tokio::test]
+async fn pins_flow() {
+    let e = env().await;
+    let id = id_of(&e.say("bob", "pin me").await);
+    let mut ev = e.events();
+    let pin = format!("/pins/{id}");
+
+    assert_eq!(
+        e.status(Method::PUT, &pin, "bob").await,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        e.status(Method::PUT, &pin, "owner").await,
+        StatusCode::NO_CONTENT
+    );
+    match next_event(&mut ev).await {
+        DomainEvent::MessageSent { data, .. } => {
+            assert_eq!(data["type"], 6);
+            assert_eq!(data["message_reference"]["message_id"], id.as_str());
+        }
+        other => panic!("{other:?}"),
+    }
+    match next_event(&mut ev).await {
+        DomainEvent::ChannelPinsUpdated { last_pin_ms, .. } => assert_eq!(last_pin_ms, Some(T0)),
+        other => panic!("{other:?}"),
+    }
+    // Already pinned.
+    assert_eq!(
+        e.status(Method::PUT, &pin, "owner").await,
+        StatusCode::BAD_REQUEST
+    );
+
+    let (s, legacy) = e.get("/pins", "bob").await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(ids(&legacy), vec![id.clone()]);
+    assert_eq!(legacy[0]["pinned"], true);
+    let (_, page) = e.get("/messages/pins", "bob").await;
+    assert_eq!(page["has_more"], false);
+    assert_eq!(page["items"][0]["message"]["id"], id.as_str());
+    assert!(
+        page["items"][0]["pinned_at"]
+            .as_str()
+            .unwrap()
+            .starts_with("2027-")
+    );
+
+    // The system message is in history.
+    let (_, list) = e.get("/messages", "bob").await;
+    assert_eq!(list[0]["type"], 6);
+
+    assert_eq!(
+        e.status(Method::DELETE, &pin, "bob").await,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        e.status(Method::DELETE, &pin, "owner").await,
+        StatusCode::NO_CONTENT
+    );
+    match next_event(&mut ev).await {
+        DomainEvent::ChannelPinsUpdated { last_pin_ms, .. } => assert_eq!(last_pin_ms, None),
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(
+        e.status(Method::DELETE, &pin, "owner").await,
+        StatusCode::NOT_FOUND
+    );
+    let (_, legacy) = e.get("/pins", "bob").await;
+    assert_eq!(legacy, json!([]));
+}
+
+#[tokio::test]
+async fn typing_publishes_for_members_only() {
+    let e = env().await;
+    let mut ev = e.events();
+    assert_eq!(
+        e.status(Method::POST, "/typing", "bob").await,
+        StatusCode::NO_CONTENT
+    );
+    match next_event(&mut ev).await {
+        DomainEvent::TypingStarted {
+            user,
+            timestamp,
+            guild,
+            ..
+        } => {
+            assert_eq!(user.get(), BOB);
+            assert_eq!(timestamp, u64::try_from(T0 / 1000).unwrap());
+            assert_eq!(guild, Some(e.guild));
+        }
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(
+        e.status(Method::POST, "/typing", "carol").await,
+        StatusCode::FORBIDDEN
+    );
+    no_event(&mut ev).await;
+}
+
+fn slot_key(ch: ChannelId, slot: &Value, filename: &str) -> String {
+    format!(
+        "chat/{ch}/{}/{filename}",
+        slot["upload_id"].as_str().unwrap()
+    )
+}
+
+#[tokio::test]
+async fn upload_slot_enforces_entitlement_limits() {
+    let e = env_with(Arc::new(Perks)).await;
+    let big = json!({"files": [{"filename": "movie.mkv", "file_size": 31 * MIB}]});
+    let r = e.post("/attachments", "bob", big.clone()).await;
+    assert_eq!(code(&r), (StatusCode::PAYLOAD_TOO_LARGE, Some(40005)));
+    // Patrons may send up to 500 MiB; large files expire after 7 days.
+    let (s, v) = e.post("/attachments", "owner", big).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let slot = &v["attachments"][0];
+    assert_eq!(slot["max_size"], 500 * MIB);
+    assert_eq!(slot["expires_after"], 7 * 24 * 3600);
+    assert!(slot["upload_url"].as_str().unwrap().contains("movie.mkv"));
+
+    let r = e
+        .post(
+            "/attachments",
+            "owner",
+            json!({"files": [{"filename": "x", "file_size": 501 * MIB}]}),
+        )
+        .await;
+    assert_eq!(code(&r), (StatusCode::PAYLOAD_TOO_LARGE, Some(40005)));
+    let r = e
+        .post(
+            "/attachments",
+            "bob",
+            json!({"files": [{"filename": "x", "file_size": 0}]}),
+        )
+        .await;
+    assert_eq!(r.0, StatusCode::BAD_REQUEST);
+    let r = e.post("/attachments", "bob", json!({"files": []})).await;
+    assert_eq!(r.0, StatusCode::BAD_REQUEST);
+    let r = e
+        .post(
+            "/attachments",
+            "carol",
+            json!({"files": [{"filename": "x", "file_size": 5}]}),
+        )
+        .await;
+    assert_eq!(r.0, StatusCode::FORBIDDEN);
+    // Slots are all-or-nothing: one oversized file rejects the batch.
+    let r = e
+        .post(
+            "/attachments",
+            "bob",
+            json!({"files": [
+                {"filename": "a", "file_size": 5},
+                {"filename": "b", "file_size": 31 * MIB},
+            ]}),
+        )
+        .await;
+    assert_eq!(r.0, StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+#[tokio::test]
+async fn upload_then_message_sniffs_content_type() {
+    let e = env().await;
+    let png = png_with_secret();
+    let mut ev = e.events();
+    let (s, v) = e
+        .post(
+            "/attachments",
+            "bob",
+            json!({"files": [{
+                "id": "0", "filename": "../cat.png", "file_size": png.len(),
+                "content_type": "image/png"
+            }]}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let slot = v["attachments"][0].clone();
+    assert_eq!(slot["id"], "0");
+    assert!(
+        slot["upload_filename"]
+            .as_str()
+            .unwrap()
+            .ends_with("/cat.png")
+    );
+
+    // Referencing before the PUT happened fails.
+    let msg = json!({
+        "content": "look",
+        "attachments": [{"id": "0", "uploaded_filename": slot["upload_filename"]}],
+    });
+    let r = e.post("/messages", "bob", msg.clone()).await;
+    assert_eq!(code(&r), (StatusCode::BAD_REQUEST, Some(50035)));
+
+    e.storage
+        .put(&slot_key(e.ch, &slot, "cat.png"), Bytes::from(png.clone()))
+        .await
+        .unwrap();
+    // Another user cannot use the slot.
+    let r = e.post("/messages", "owner", msg.clone()).await;
+    assert_eq!(r.0, StatusCode::BAD_REQUEST);
+
+    let (s, v) = e.post("/messages", "bob", msg.clone()).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let a = &v["attachments"][0];
+    assert_eq!(a["filename"], "cat.png");
+    assert_eq!(a["content_type"], "image/png");
+    // Metadata was stripped from the stored object and the size updated.
+    let stored = e
+        .storage
+        .get(&slot_key(e.ch, &slot, "cat.png"))
+        .await
+        .unwrap();
+    assert!(!stored.windows(3).any(|w| w == b"GPS"));
+    assert!(stored.len() < png.len());
+    assert_eq!(a["size"], stored.len());
+    assert!(a["url"].as_str().unwrap().starts_with("/cdn/attachments/"));
+    match next_event(&mut ev).await {
+        DomainEvent::MessageSent { data, .. } => {
+            assert_eq!(data["attachments"][0]["content_type"], "image/png");
+        }
+        other => panic!("{other:?}"),
+    }
+    // History shows it too, and an upload cannot be attached twice.
+    let (_, list) = e.get("/messages", "bob").await;
+    assert_eq!(list[0]["attachments"][0]["id"], a["id"]);
+    let r = e.post("/messages", "bob", msg).await;
+    assert_eq!(r.0, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn completion_rejects_mismatched_content_and_sizes() {
+    let e = env().await;
+    // Declared as an image but the bytes are HTML: refused and deleted.
+    let html = b"<html><script>alert(1)</script></html>";
+    let (_, v) = e
+        .post(
+            "/attachments",
+            "bob",
+            json!({"files": [{
+                "filename": "x.png", "file_size": html.len(), "content_type": "image/png"
+            }]}),
+        )
+        .await;
+    let slot = v["attachments"][0].clone();
+    let key = slot_key(e.ch, &slot, "x.png");
+    e.storage.put(&key, Bytes::from_static(html)).await.unwrap();
+    let path = format!(
+        "/attachments/{}/complete",
+        slot["upload_id"].as_str().unwrap()
+    );
+    assert_eq!(
+        e.post(&path, "bob", json!({})).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    assert!(e.storage.head(&key).await.is_err());
+
+    // Size differing from the declaration is refused.
+    let (_, v) = e
+        .post(
+            "/attachments",
+            "bob",
+            json!({"files": [{"filename": "a.bin", "file_size": 100}]}),
+        )
+        .await;
+    let slot = v["attachments"][0].clone();
+    e.storage
+        .put(
+            &slot_key(e.ch, &slot, "a.bin"),
+            Bytes::from(png_with_secret()),
+        )
+        .await
+        .unwrap();
+    let path = format!(
+        "/attachments/{}/complete",
+        slot["upload_id"].as_str().unwrap()
+    );
+    assert_eq!(
+        e.post(&path, "bob", json!({})).await.0,
+        StatusCode::BAD_REQUEST
+    );
+
+    // Unknown bytes are served as opaque downloads whatever the client claimed.
+    let (_, v) = e
+        .post(
+            "/attachments",
+            "bob",
+            json!({"files": [{"filename": "pic.svg", "file_size": html.len(),
+                              "content_type": "text/html"}]}),
+        )
+        .await;
+    let slot = v["attachments"][0].clone();
+    e.storage
+        .put(&slot_key(e.ch, &slot, "pic.svg"), Bytes::from_static(html))
+        .await
+        .unwrap();
+    let path = format!(
+        "/attachments/{}/complete",
+        slot["upload_id"].as_str().unwrap()
+    );
+    let (s, v) = e.post(&path, "bob", json!({})).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["content_type"], "application/octet-stream");
+    // Completion is idempotent; only the uploader may complete.
+    assert_eq!(e.post(&path, "bob", json!({})).await.0, StatusCode::OK);
+    assert_eq!(
+        e.post(&path, "owner", json!({})).await.0,
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
+async fn attachments_need_attach_files() {
+    let e = env().await;
+    e.revoke_everyone(Permissions::ATTACH_FILES);
+    let r = e
+        .post(
+            "/attachments",
+            "bob",
+            json!({"files": [{"filename": "a", "file_size": 3}]}),
+        )
+        .await;
+    assert_eq!(code(&r), (StatusCode::FORBIDDEN, Some(50013)));
+}
+
+#[tokio::test]
+async fn openapi_fragment_documents_every_route() {
+    let doc = serde_json::to_value(super::openapi()).unwrap();
+    let paths = doc["paths"].as_object().unwrap();
+    for p in [
+        "/channels/{channel_id}/messages",
+        "/channels/{channel_id}/messages/{message_id}",
+        "/channels/{channel_id}/messages/bulk-delete",
+        "/channels/{channel_id}/messages/pins",
+        "/channels/{channel_id}/messages/{message_id}/reactions",
+        "/channels/{channel_id}/messages/{message_id}/reactions/{emoji}",
+        "/channels/{channel_id}/messages/{message_id}/reactions/{emoji}/@me",
+        "/channels/{channel_id}/messages/{message_id}/reactions/{emoji}/{user_id}",
+        "/channels/{channel_id}/pins",
+        "/channels/{channel_id}/pins/{message_id}",
+        "/channels/{channel_id}/typing",
+        "/channels/{channel_id}/attachments",
+        "/channels/{channel_id}/attachments/{upload_id}/complete",
+    ] {
+        assert!(paths.contains_key(p), "missing {p}");
+    }
+    assert!(paths["/channels/{channel_id}/messages"]["post"].is_object());
+    assert!(doc["components"]["schemas"]["MessageObject"].is_object());
+}

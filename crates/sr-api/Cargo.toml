@@ -19,7 +19,10 @@ serde.workspace = true
 serde_json.workspace = true
 sha2 = "0.11"
 sr-auth = { path = "../sr-auth" }
+sr-chat = { path = "../sr-chat" }
 sr-core = { path = "../sr-core" }
+sr-events = { path = "../sr-events" }
+sr-storage = { path = "../sr-storage" }
 subtle = "2"
 thiserror.workspace = true
 tokio = { workspace = true, features = ["time", "sync"] }
@@ -30,5 +33,6 @@ tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 utoipa = "5"
 
 [dev-dependencies]
+bytes = "1"
 http-body-util = "0.1"
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "sync"] }

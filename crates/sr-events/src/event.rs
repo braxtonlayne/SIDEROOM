@@ -46,6 +46,80 @@ pub enum DomainEvent {
         feature_id: String,
         scope: Topic,
     },
+    /// A message was created; `data` is the full Discord-shaped message object
+    /// (dispatched as `MESSAGE_CREATE`). Supersedes the skeletal
+    /// [`DomainEvent::MessageCreated`] for REST-originated messages.
+    MessageSent {
+        guild: Option<GuildId>,
+        channel: ChannelId,
+        message_id: u64,
+        author: UserId,
+        data: serde_json::Value,
+    },
+    /// A message was edited or its flags changed (`MESSAGE_UPDATE`); `data` is the
+    /// full updated message object.
+    MessageEdited {
+        guild: Option<GuildId>,
+        channel: ChannelId,
+        message_id: u64,
+        data: serde_json::Value,
+    },
+    /// `MESSAGE_DELETE`.
+    MessageDeleted {
+        guild: Option<GuildId>,
+        channel: ChannelId,
+        message_id: u64,
+    },
+    /// `MESSAGE_DELETE_BULK`.
+    MessagesBulkDeleted {
+        guild: Option<GuildId>,
+        channel: ChannelId,
+        message_ids: Vec<u64>,
+    },
+    /// `MESSAGE_REACTION_ADD`; `emoji` is `{id, name}`.
+    ReactionAdded {
+        guild: Option<GuildId>,
+        channel: ChannelId,
+        message_id: u64,
+        user: UserId,
+        emoji: serde_json::Value,
+    },
+    /// `MESSAGE_REACTION_REMOVE`.
+    ReactionRemoved {
+        guild: Option<GuildId>,
+        channel: ChannelId,
+        message_id: u64,
+        user: UserId,
+        emoji: serde_json::Value,
+    },
+    /// `MESSAGE_REACTION_REMOVE_ALL`.
+    ReactionsCleared {
+        guild: Option<GuildId>,
+        channel: ChannelId,
+        message_id: u64,
+    },
+    /// `MESSAGE_REACTION_REMOVE_EMOJI`.
+    ReactionEmojiCleared {
+        guild: Option<GuildId>,
+        channel: ChannelId,
+        message_id: u64,
+        emoji: serde_json::Value,
+    },
+    /// `CHANNEL_PINS_UPDATE`.
+    ChannelPinsUpdated {
+        guild: Option<GuildId>,
+        channel: ChannelId,
+        /// Unix ms of the most recent pin, if any remain.
+        last_pin_ms: Option<i64>,
+    },
+    /// `TYPING_START` triggered by `POST /channels/{id}/typing`.
+    TypingStarted {
+        guild: Option<GuildId>,
+        channel: ChannelId,
+        user: UserId,
+        /// Unix seconds.
+        timestamp: u64,
+    },
 }
 
 impl DomainEvent {
@@ -56,7 +130,17 @@ impl DomainEvent {
             | Self::GuildDeleted { guild }
             | Self::MemberJoined { guild, .. }
             | Self::MemberLeft { guild, .. } => vec![Topic::Guild(*guild), Topic::Platform],
-            Self::MessageCreated { guild, channel, .. } => {
+            Self::MessageCreated { guild, channel, .. }
+            | Self::MessageSent { guild, channel, .. }
+            | Self::MessageEdited { guild, channel, .. }
+            | Self::MessageDeleted { guild, channel, .. }
+            | Self::MessagesBulkDeleted { guild, channel, .. }
+            | Self::ReactionAdded { guild, channel, .. }
+            | Self::ReactionRemoved { guild, channel, .. }
+            | Self::ReactionsCleared { guild, channel, .. }
+            | Self::ReactionEmojiCleared { guild, channel, .. }
+            | Self::ChannelPinsUpdated { guild, channel, .. }
+            | Self::TypingStarted { guild, channel, .. } => {
                 let mut t = vec![Topic::Channel(*channel)];
                 if let Some(g) = guild {
                     t.push(Topic::Guild(*g));
@@ -97,6 +181,26 @@ mod tests {
             author: UserId::new(4),
         };
         assert_eq!(dm.topics(), vec![Topic::Channel(ChannelId::new(2))]);
+    }
+
+    #[test]
+    fn message_family_routes_to_channel_and_guild() {
+        let e = DomainEvent::ReactionAdded {
+            guild: Some(GuildId::new(1)),
+            channel: ChannelId::new(2),
+            message_id: 3,
+            user: UserId::new(4),
+            emoji: serde_json::json!({"id": null, "name": "x"}),
+        };
+        assert_eq!(
+            e.topics(),
+            vec![
+                Topic::Channel(ChannelId::new(2)),
+                Topic::Guild(GuildId::new(1))
+            ]
+        );
+        let s = serde_json::to_string(&e).unwrap();
+        assert_eq!(serde_json::from_str::<DomainEvent>(&s).unwrap(), e);
     }
 
     #[test]

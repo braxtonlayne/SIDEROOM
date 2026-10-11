@@ -555,3 +555,82 @@ async fn typing_is_filtered_and_expires() {
     tokio::time::sleep(Duration::from_millis(250)).await;
     assert!(e.gw.typing_users(SECRET).is_empty());
 }
+
+#[tokio::test]
+async fn rest_message_family_is_dispatched_with_payloads() {
+    let e = env();
+    let all = GUILDS_MSGS | intents::GUILD_MESSAGE_REACTIONS | intents::GUILD_MESSAGE_TYPING;
+    let mut a = connect(&e);
+    a.identify("bot:1", all, 1).await;
+    let mut only_guilds = connect(&e);
+    only_guilds.identify("bot:2", intents::GUILDS, 1).await;
+
+    emit(
+        &e.bus,
+        DomainEvent::MessageSent {
+            guild: Some(G1),
+            channel: OPEN,
+            message_id: 5,
+            author: u(1),
+            data: json!({"id": "5", "content": "hi", "channel_id": "10"}),
+        },
+    )
+    .await;
+    assert_eq!(a.expect_event("MESSAGE_CREATE").await["d"]["content"], "hi");
+
+    emit(
+        &e.bus,
+        DomainEvent::MessageDeleted {
+            guild: Some(G1),
+            channel: OPEN,
+            message_id: 5,
+        },
+    )
+    .await;
+    assert_eq!(a.expect_event("MESSAGE_DELETE").await["d"]["id"], "5");
+
+    emit(
+        &e.bus,
+        DomainEvent::ReactionAdded {
+            guild: Some(G1),
+            channel: OPEN,
+            message_id: 5,
+            user: u(2),
+            emoji: json!({"id": null, "name": "x"}),
+        },
+    )
+    .await;
+    let r = a.expect_event("MESSAGE_REACTION_ADD").await;
+    assert_eq!(r["d"]["user_id"], "2");
+    assert_eq!(r["d"]["message_id"], "5");
+
+    emit(
+        &e.bus,
+        DomainEvent::ChannelPinsUpdated {
+            guild: Some(G1),
+            channel: OPEN,
+            last_pin_ms: Some(1_800_000_000_000),
+        },
+    )
+    .await;
+    let p = a.expect_event("CHANNEL_PINS_UPDATE").await;
+    assert_eq!(
+        p["d"]["last_pin_timestamp"],
+        "2027-01-15T08:00:00.000000+00:00"
+    );
+
+    emit(
+        &e.bus,
+        DomainEvent::TypingStarted {
+            guild: Some(G1),
+            channel: OPEN,
+            user: u(2),
+            timestamp: 99,
+        },
+    )
+    .await;
+    assert_eq!(a.expect_event("TYPING_START").await["d"]["timestamp"], 99);
+    // The GUILDS intent only covers pins updates from this family.
+    only_guilds.expect_event("CHANNEL_PINS_UPDATE").await;
+    only_guilds.silent().await;
+}
