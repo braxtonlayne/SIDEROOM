@@ -28,7 +28,7 @@ export function CounterBadge({ count, max = 99, noun = "notifications", hideZero
   if (count <= 0 && hideZero) return null;
   const text = count > max ? `${max}+` : String(Math.max(0, count));
   return (
-    <span {...rest} aria-label={`${count} ${noun}`} className={cx(styles.counter, className)}>
+    <span {...rest} role="img" aria-label={`${count} ${noun}`} className={cx(styles.counter, className)}>
       <span aria-hidden="true">{text}</span>
     </span>
   );
