@@ -4,7 +4,7 @@ import { buildThemesCss, getThemeTokens, THEMES } from "../tokens/themes";
 import { THEME_IDS, UI_TOKEN_NAMES } from "../tokens/types";
 import { contrastRatio } from "../util/contrast";
 import { fontFaceCss, fontPreloadLinks } from "./fonts";
-import { appearanceVars, DEFAULT_APPEARANCE, resolveTheme, serverAccentTokens } from "./runtime";
+import { appearanceVars, DEFAULT_APPEARANCE, resolveTheme, saturatedTokens, serverAccentTokens } from "./runtime";
 import { ThemeProvider, useTheme } from "./ThemeProvider";
 
 describe("tokens", () => {
@@ -130,5 +130,28 @@ describe("fonts", () => {
   });
   it("lists preload links", () => {
     expect(fontPreloadLinks().every((l) => l.as === "font" && l.crossOrigin === "anonymous")).toBe(true);
+  });
+});
+
+describe("saturation (Q35, Q61)", () => {
+  it("passes tokens through at 100 and re-derives simple colours below 100", () => {
+    const tokens = { "--ui-accent": "#5865f2", "--ui-radius": "8px", "--ui-accent-hover": "color-mix(in srgb, #5865f2 85%, black)" };
+    expect(saturatedTokens(tokens, 100)).toBe(tokens);
+    const out = saturatedTokens(tokens, 50);
+    expect(out["--sat-base-ui-accent"]).toBe("#5865f2");
+    expect(out["--ui-accent"]).toBe("oklch(from var(--sat-base-ui-accent) l calc(c * var(--ui-saturation)) h / alpha)");
+    expect(out["--ui-radius"]).toBe("8px");
+    expect(out["--ui-accent-hover"]).toBe(tokens["--ui-accent-hover"]);
+  });
+
+  it("never sets a CSS filter on the provider root", () => {
+    const { container } = render(
+      <ThemeProvider section="lounge" appearance={{ saturation: 40 }}>
+        <span>x</span>
+      </ThemeProvider>,
+    );
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.style.filter).toBe("");
+    expect(root.style.getPropertyValue("--ui-accent")).toContain("oklch(from var(--sat-base-ui-accent)");
   });
 });

@@ -6,6 +6,7 @@ import {
   appearanceVars,
   prefersReducedMotion,
   resolveTheme,
+  saturatedTokens,
   serverAccentTokens,
   type AppearanceSettings,
 } from "./runtime";
@@ -78,8 +79,13 @@ export function ThemeProvider({
 
   const vars = useMemo(
     () => ({
-      ...THEMES[theme].tokens,
-      ...(allowServerTheming ? serverAccentTokens(serverAccent) : {}),
+      ...saturatedTokens(
+        {
+          ...THEMES[theme].tokens,
+          ...(allowServerTheming ? serverAccentTokens(serverAccent) : {}),
+        },
+        merged.saturation,
+      ),
       ...appearanceVars(merged, systemReduced),
     }),
     [theme, serverAccent, allowServerTheming, merged, systemReduced],
@@ -97,7 +103,6 @@ export function ThemeProvider({
     color: "var(--ui-text)",
     fontFamily: "var(--ui-font-body)",
     fontSize: "var(--ui-font-size-base)",
-    filter: merged.saturation === 100 ? undefined : "saturate(var(--ui-saturation))",
     ...style,
   } as CSSProperties;
 

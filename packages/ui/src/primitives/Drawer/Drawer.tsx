@@ -1,11 +1,9 @@
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { usePortalTarget } from "../../theme/ThemeProvider";
 import { cx } from "../../util/cx";
+import { useFocusTrap, useOverlayStack } from "../Overlay/overlayStack";
 import styles from "./Drawer.module.css";
-
-const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export interface DrawerProps {
   open: boolean;
@@ -19,7 +17,7 @@ export interface DrawerProps {
   children?: ReactNode;
 }
 
-/** DS-PRIM-006: modal side/bottom sheet with focus trap, Escape and backdrop close. */
+/** DS-PRIM-006: modal side/bottom sheet with focus trap, Escape and backdrop close. Shares the overlay stack with Modal (Q77). */
 export function Drawer({
   open,
   onClose,
@@ -36,38 +34,8 @@ export function Drawer({
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.activeElement as HTMLElement | null;
-    const el = ref.current;
-    (el?.querySelector<HTMLElement>(`[data-autofocus], ${FOCUSABLE}`) ?? el)?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        onCloseRef.current();
-      } else if (e.key === "Tab" && el) {
-        const items = Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE));
-        if (items.length === 0) {
-          e.preventDefault();
-          return;
-        }
-        const first = items[0]!;
-        const last = items[items.length - 1]!;
-        if (e.shiftKey && (document.activeElement === first || document.activeElement === el)) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      prev?.focus?.();
-    };
-  }, [open]);
+  const { isTopmost } = useOverlayStack({ open, lockScroll: true, onEscape: () => onCloseRef.current() });
+  useFocusTrap({ open, containerRef: ref, isTopmost });
 
   if (!open || !target) return null;
   return createPortal(
