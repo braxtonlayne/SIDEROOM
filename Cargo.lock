@@ -3346,6 +3346,7 @@ version = "0.0.0"
 dependencies = [
  "async-trait",
  "axum",
+ "bytes",
  "data-encoding",
  "futures",
  "governor",
@@ -3356,7 +3357,10 @@ dependencies = [
  "serde_json",
  "sha2 0.11.0",
  "sr-auth",
+ "sr-chat",
  "sr-core",
+ "sr-events",
+ "sr-storage",
  "subtle",
  "thiserror 2.0.21",
  "tokio",

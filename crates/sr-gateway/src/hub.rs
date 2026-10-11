@@ -81,6 +81,30 @@ struct Dispatch {
     channel: Option<ChannelId>,
 }
 
+/// Unix milliseconds as an ISO 8601 UTC timestamp (`2026-01-02T03:04:05.678000+00:00`).
+fn iso_utc(ms: i64) -> String {
+    let secs = ms.div_euclid(1000);
+    let millis = ms.rem_euclid(1000);
+    let days = secs.div_euclid(86_400);
+    let rem = secs.rem_euclid(86_400);
+    // Howard Hinnant's civil-from-days algorithm.
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = yoe + era * 400 + i64::from(m <= 2);
+    format!(
+        "{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}.{millis:03}000+00:00",
+        rem / 3600,
+        rem % 3600 / 60,
+        rem % 60
+    )
+}
+
 fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
     Some(match ev {
         DomainEvent::MessageCreated {
@@ -93,6 +117,116 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
             data: json!({
                 "id": message_id.to_string(), "channel_id": channel, "guild_id": guild,
                 "author": { "id": author },
+            }),
+            channel: Some(*channel),
+        },
+        // Full-payload message family (REST originated).
+        DomainEvent::MessageSent { channel, data, .. } => Dispatch {
+            name: "MESSAGE_CREATE",
+            data: data.clone(),
+            channel: Some(*channel),
+        },
+        DomainEvent::MessageEdited { channel, data, .. } => Dispatch {
+            name: "MESSAGE_UPDATE",
+            data: data.clone(),
+            channel: Some(*channel),
+        },
+        DomainEvent::MessageDeleted {
+            guild,
+            channel,
+            message_id,
+        } => Dispatch {
+            name: "MESSAGE_DELETE",
+            data: json!({
+                "id": message_id.to_string(), "channel_id": channel, "guild_id": guild,
+            }),
+            channel: Some(*channel),
+        },
+        DomainEvent::MessagesBulkDeleted {
+            guild,
+            channel,
+            message_ids,
+        } => Dispatch {
+            name: "MESSAGE_DELETE_BULK",
+            data: json!({
+                "ids": message_ids.iter().map(u64::to_string).collect::<Vec<_>>(),
+                "channel_id": channel, "guild_id": guild,
+            }),
+            channel: Some(*channel),
+        },
+        DomainEvent::ReactionAdded {
+            guild,
+            channel,
+            message_id,
+            user,
+            emoji,
+        } => Dispatch {
+            name: "MESSAGE_REACTION_ADD",
+            data: json!({
+                "user_id": user, "channel_id": channel, "message_id": message_id.to_string(),
+                "guild_id": guild, "emoji": emoji, "burst": false,
+            }),
+            channel: Some(*channel),
+        },
+        DomainEvent::ReactionRemoved {
+            guild,
+            channel,
+            message_id,
+            user,
+            emoji,
+        } => Dispatch {
+            name: "MESSAGE_REACTION_REMOVE",
+            data: json!({
+                "user_id": user, "channel_id": channel, "message_id": message_id.to_string(),
+                "guild_id": guild, "emoji": emoji, "burst": false,
+            }),
+            channel: Some(*channel),
+        },
+        DomainEvent::ReactionsCleared {
+            guild,
+            channel,
+            message_id,
+        } => Dispatch {
+            name: "MESSAGE_REACTION_REMOVE_ALL",
+            data: json!({
+                "channel_id": channel, "message_id": message_id.to_string(), "guild_id": guild,
+            }),
+            channel: Some(*channel),
+        },
+        DomainEvent::ReactionEmojiCleared {
+            guild,
+            channel,
+            message_id,
+            emoji,
+        } => Dispatch {
+            name: "MESSAGE_REACTION_REMOVE_EMOJI",
+            data: json!({
+                "channel_id": channel, "message_id": message_id.to_string(),
+                "guild_id": guild, "emoji": emoji,
+            }),
+            channel: Some(*channel),
+        },
+        DomainEvent::ChannelPinsUpdated {
+            guild,
+            channel,
+            last_pin_ms,
+        } => Dispatch {
+            name: "CHANNEL_PINS_UPDATE",
+            data: json!({
+                "channel_id": channel, "guild_id": guild,
+                "last_pin_timestamp": last_pin_ms.map(iso_utc),
+            }),
+            channel: Some(*channel),
+        },
+        DomainEvent::TypingStarted {
+            guild,
+            channel,
+            user,
+            timestamp,
+        } => Dispatch {
+            name: "TYPING_START",
+            data: json!({
+                "channel_id": channel, "guild_id": guild, "user_id": user, "timestamp": timestamp,
             }),
             channel: Some(*channel),
         },

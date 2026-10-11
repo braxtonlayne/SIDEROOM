@@ -4,18 +4,18 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 
 ## LNG-MSG — Messages (backend)
 - [x] **LNG-MSG-001** [DB] messages (partitioned), message_edits, attachments, reactions, poll_votes, read_states migrations
-- [ ] **LNG-MSG-002** [BE] Create message (content, nonce dedupe, reply reference, attachments by upload id, sticker ids, poll, flags, enforce limits & permissions & slowmode)
-- [ ] **LNG-MSG-003** [BE] Get messages (before/after/around/limit), get single, permission filtering
-- [ ] **LNG-MSG-004** [BE] Edit message (author only, content/embeds/flags, store previous in message_edits)
-- [ ] **LNG-MSG-005** [BE] Delete message (author or MANAGE_MESSAGES) → visibility user_deleted, purge_after = +30d, hold check
-- [ ] **LNG-MSG-006** [BE] Bulk delete (2–100, ≤ 14 days old, Discord parity)
+- [x] **LNG-MSG-002** [BE] Create message (content, nonce dedupe, reply reference, attachments by upload id, sticker ids, poll, flags, enforce limits & permissions & slowmode)
+- [x] **LNG-MSG-003** [BE] Get messages (before/after/around/limit), get single, permission filtering
+- [x] **LNG-MSG-004** [BE] Edit message (author only, content/embeds/flags, store previous in message_edits)
+- [x] **LNG-MSG-005** [BE] Delete message (author or MANAGE_MESSAGES) → visibility user_deleted, purge_after = +30d, hold check
+- [x] **LNG-MSG-006** [BE] Bulk delete (2–100, ≤ 14 days old, Discord parity)
 - [ ] **LNG-MSG-007** [BE] Forward message (snapshot into target channel, permission checks)
-- [ ] **LNG-MSG-008** [BE] Pins (pin/unpin/list, 250 cap), system message on pin
+- [x] **LNG-MSG-008** [BE] Pins (pin/unpin/list, 250 cap), system message on pin
 - [ ] **LNG-MSG-009** [BE] Reactions add/remove (own, others with permission, all, per-emoji), list users, burst reactions
 - [ ] **LNG-MSG-010** [BE] Polls: create, vote/unvote, end, expiry job, results, `MESSAGE_POLL_VOTE_ADD/REMOVE`
-- [ ] **LNG-MSG-011** [BE] Mentions extraction via `sr-markdown`; @everyone/@here permission gate; role mentionable gate
+- [x] **LNG-MSG-011** [BE] Mentions extraction via `sr-markdown`; @everyone/@here permission gate; role mentionable gate
 - [x] **LNG-MSG-012** [BE] Read states: ack message, mention counts, mark guild read, mark unread (set ack to previous)
-- [ ] **LNG-MSG-013** [BE] Typing indicator endpoint + 10s TTL broadcast
+- [x] **LNG-MSG-013** [BE] Typing indicator endpoint + 10s TTL broadcast
 - [ ] **LNG-MSG-014** [BE] Link unfurler: SSRF-safe fetch (deny private IPs, size/time limits), OpenGraph/Twitter cards/oEmbed parse, image proxying, cache by URL, operator allow/deny lists
 - [ ] **LNG-MSG-015** [BE] Embed suppression (flag), spoiler handling in embeds
 - [ ] **LNG-MSG-016** [BE] System messages (member join with randomized lines, pin, thread created, call start/missed/ended, follow added, server support contribution)

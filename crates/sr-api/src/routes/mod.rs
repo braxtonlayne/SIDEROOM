@@ -15,3 +15,4 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     crate::openapi::base()
 }
 pub mod auth;
+pub mod messages;
