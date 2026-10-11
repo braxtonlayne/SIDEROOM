@@ -8,9 +8,12 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde_json::json;
+use sr_chat::settings::audit::{AUDIT_RETENTION_SETTING, AuditRetention};
+use sr_chat::settings::repo::AuditRepository;
 use sr_db::jobs::{self, Job};
 use sr_db::partitions;
 use sr_db::runner::{HandlerError, JobRunner};
+use sr_db::settings_repo::PgSettingsRepo;
 use sr_db::{DbResult, PgPool};
 use sr_storage::ObjectStorage;
 use std::sync::Arc;
@@ -194,9 +197,87 @@ pub async fn schedule_attachment_gc(pool: &PgPool) -> DbResult<()> {
     .await?;
     Ok(())
 }
+/// Reserved singleton id for `audit.purge`.
+pub const AUDIT_PURGE_JOB_ID: i64 = 4;
+/// Kind of the daily guild audit-log retention purge (open question 133).
+pub const AUDIT_PURGE_KIND: &str = "audit.purge";
+const AUDIT_PURGE_HOUR_UTC: u32 = 3;
+const AUDIT_PURGE_MINUTE_UTC: u32 = 30;
+
+/// Entries created before the returned instant are purged; `None` keeps everything.
+/// `setting` is the stored `moderation.audit_retention_days` value (default 45,
+/// `0` = forever).
+fn audit_cutoff(setting: Option<&serde_json::Value>, now_ms: i64) -> Option<i64> {
+    match AuditRetention::from_setting(setting) {
+        Ok(r) => r.cutoff_ms(now_ms),
+        Err(e) => {
+            // A bad operator value must never cause an unintended purge.
+            tracing::warn!(error = %e, "invalid moderation.audit_retention_days; skipping audit purge");
+            None
+        }
+    }
+}
+
+fn audit_purge_delay() -> Duration {
+    jobs::delay_until_daily_utc(now_unix_ms(), AUDIT_PURGE_HOUR_UTC, AUDIT_PURGE_MINUTE_UTC)
+}
+
+async fn audit_purge_handler(pool: PgPool, job: Job) -> Result<(), HandlerError> {
+    let setting: Option<serde_json::Value> =
+        sqlx::query_scalar("SELECT value FROM platform_settings WHERE key = $1")
+            .bind(AUDIT_RETENTION_SETTING)
+            .fetch_optional(&pool)
+            .await?;
+    if let Some(cutoff) = audit_cutoff(setting.as_ref(), now_unix_ms()) {
+        let purged = PgSettingsRepo::new(pool.clone())
+            .purge_audit_before(cutoff)
+            .await?;
+        if purged > 0 {
+            tracing::info!(purged, "purged expired audit log entries");
+        }
+    }
+    jobs::reschedule_running(&pool, job.id, audit_purge_delay()).await?;
+    Ok(())
+}
+
+/// Register the audit-log retention purge on `runner`. Pair with
+/// [`schedule_audit_purge`].
+pub fn register_audit_purge(runner: JobRunner, pool: &PgPool) -> JobRunner {
+    let pool = pool.clone();
+    runner.register(AUDIT_PURGE_KIND, 1, move |job| {
+        Box::pin(audit_purge_handler(pool.clone(), job))
+    })
+}
+
+/// Create or re-arm the audit purge singleton. Call only when
+/// [`register_audit_purge`] is on the runner.
+pub async fn schedule_audit_purge(pool: &PgPool) -> DbResult<()> {
+    jobs::schedule_singleton(
+        pool,
+        AUDIT_PURGE_JOB_ID,
+        AUDIT_PURGE_KIND,
+        &json!({}),
+        audit_purge_delay(),
+    )
+    .await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn audit_retention_setting_drives_the_cutoff() {
+        let now = 100 * 86_400_000_i64;
+        // Missing setting: the 45-day default.
+        assert_eq!(audit_cutoff(None, now), Some(55 * 86_400_000));
+        assert_eq!(audit_cutoff(Some(&json!(7)), now), Some(93 * 86_400_000));
+        // 0 keeps entries forever.
+        assert_eq!(audit_cutoff(Some(&json!(0)), now), None);
+        // Garbage never purges.
+        assert_eq!(audit_cutoff(Some(&json!("soon")), now), None);
+    }
 
     #[test]
     fn partitions_run_at_0010_utc() {
