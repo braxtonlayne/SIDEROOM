@@ -123,13 +123,13 @@ pub trait RecoveryCodeRepository: Send + Sync {
     fn replace_all(
         &self,
         user_id: i64,
-        hashes: &[String],
+        hashes: &[TokenHash],
     ) -> impl Future<Output = Result<(), Self::Error>> + Send;
-    /// Unused hashes as `(row_id, phc_hash)`.
+    /// Unused digests as `(row_id, digest)`.
     fn list_unused(
         &self,
         user_id: i64,
-    ) -> impl Future<Output = Result<Vec<(i64, String)>, Self::Error>> + Send;
+    ) -> impl Future<Output = Result<Vec<(i64, TokenHash)>, Self::Error>> + Send;
     /// Atomically mark one code used; false if it was already consumed.
     fn consume(
         &self,

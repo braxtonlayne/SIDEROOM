@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 use aes_gcm::aead::{Aead, KeyInit, Payload};
 use aes_gcm::{Aes256Gcm, Nonce};
+use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Row, postgres::PgRow};
 use sr_auth::{
     email_token::EmailTokenPurpose,
@@ -51,6 +52,31 @@ pub struct PgAuthRepo {
     pool: PgPool,
     ids: IdSource,
     key: [u8; 32],
+    /// Decrypt-only keys from before the last rotation (`server.secret_key_previous`).
+    previous: Vec<[u8; 32]>,
+}
+
+/// Key version byte stored in front of every ciphertext: the first byte of a
+/// domain-separated SHA-256 of the key. It is a fingerprint, not a secret, so
+/// the decryptor can try the keys that match before the others (open question 40).
+fn key_version(key: &[u8; 32]) -> u8 {
+    let mut h = Sha256::new();
+    h.update(b"sideroom/secret-key-version/v1");
+    h.update(key);
+    h.finalize()[0]
+}
+
+/// Parse `server.secret_key` (64 hex characters).
+pub fn parse_secret_key(hex: &str) -> Result<[u8; 32], String> {
+    if hex.len() != 64 || !hex.is_ascii() {
+        return Err("secret key must be 64 hex characters".into());
+    }
+    let mut out = [0u8; 32];
+    for (i, b) in out.iter_mut().enumerate() {
+        *b = u8::from_str_radix(&hex[2 * i..2 * i + 2], 16)
+            .map_err(|_| "secret key must be hex".to_owned())?;
+    }
+    Ok(out)
 }
 
 impl std::fmt::Debug for PgAuthRepo {
@@ -66,13 +92,21 @@ impl PgAuthRepo {
             pool,
             ids,
             key: secret_key,
+            previous: Vec::new(),
         }
+    }
+
+    /// Add the decrypt-only keys from `server.secret_key_previous`.
+    pub fn with_previous_keys(mut self, keys: Vec<[u8; 32]>) -> Self {
+        self.previous = keys;
+        self
     }
 
     fn next_id(&self) -> i64 {
         (self.ids)()
     }
 
+    /// Layout: `version(1) || nonce(12) || ciphertext+tag`, AAD = account id.
     fn seal(&self, user_id: i64, plain: &[u8]) -> Result<Vec<u8>, AuthRepoError> {
         let nonce = sr_auth::random::bytes::<NONCE_LEN>().map_err(|_| AuthRepoError::Corrupt)?;
         let cipher = Aes256Gcm::new((&self.key).into());
@@ -86,22 +120,58 @@ impl PgAuthRepo {
                 },
             )
             .map_err(|_| AuthRepoError::Corrupt)?;
-        let mut out = nonce.to_vec();
+        let mut out = Vec::with_capacity(1 + NONCE_LEN + ct.len());
+        out.push(key_version(&self.key));
+        out.extend_from_slice(&nonce);
         out.extend(ct);
         Ok(out)
     }
 
     fn open(&self, user_id: i64, blob: &[u8]) -> Result<Vec<u8>, AuthRepoError> {
-        if blob.len() <= NONCE_LEN {
+        let (&version, rest) = blob.split_first().ok_or(AuthRepoError::Corrupt)?;
+        if rest.len() <= NONCE_LEN {
             return Err(AuthRepoError::Corrupt);
         }
-        let (nonce, ct) = blob.split_at(NONCE_LEN);
+        let (nonce, ct) = rest.split_at(NONCE_LEN);
         let nonce: [u8; NONCE_LEN] = nonce.try_into().map_err(|_| AuthRepoError::Corrupt)?;
-        let cipher = Aes256Gcm::new((&self.key).into());
         let aad = user_id.to_be_bytes();
-        cipher
-            .decrypt(&Nonce::from(nonce), Payload { msg: ct, aad: &aad })
-            .map_err(|_| AuthRepoError::Corrupt)
+        // Keys whose fingerprint matches the stored version are tried first;
+        // the others follow in case of a fingerprint collision.
+        let keys = std::iter::once(&self.key).chain(self.previous.iter());
+        let (matching, others): (Vec<&[u8; 32]>, Vec<&[u8; 32]>) =
+            keys.partition(|k| key_version(k) == version);
+        for key in matching.into_iter().chain(others) {
+            let cipher = Aes256Gcm::new(key.into());
+            if let Ok(plain) = cipher.decrypt(&Nonce::from(nonce), Payload { msg: ct, aad: &aad }) {
+                return Ok(plain);
+            }
+        }
+        Err(AuthRepoError::Corrupt)
+    }
+
+    /// Re-encrypt every TOTP secret under the current key, in one transaction
+    /// (`sr-cli rotate-secret-key`, open question 40). Returns rows rewritten.
+    pub async fn rotate_secret_keys(&self) -> Result<u64, AuthRepoError> {
+        let rows = sqlx::query("SELECT id, account_id, secret_enc FROM mfa_totp")
+            .fetch_all(&self.pool)
+            .await?;
+        let mut tx = self.pool.begin().await?;
+        let mut n = 0;
+        for r in &rows {
+            let id: i64 = r.try_get("id")?;
+            let account: i64 = r.try_get("account_id")?;
+            let enc: Vec<u8> = r.try_get("secret_enc")?;
+            let plain = self.open(account, &enc)?;
+            let sealed = self.seal(account, &plain)?;
+            sqlx::query("UPDATE mfa_totp SET secret_enc = $2, updated_at = now() WHERE id = $1")
+                .bind(id)
+                .bind(sealed)
+                .execute(&mut *tx)
+                .await?;
+            n += 1;
+        }
+        tx.commit().await?;
+        Ok(n)
     }
 }
 
@@ -306,7 +376,7 @@ impl TotpRepository for PgAuthRepo {
 impl RecoveryCodeRepository for PgAuthRepo {
     type Error = AuthRepoError;
 
-    async fn replace_all(&self, user_id: i64, hashes: &[String]) -> Result<(), Self::Error> {
+    async fn replace_all(&self, user_id: i64, hashes: &[TokenHash]) -> Result<(), Self::Error> {
         let mut tx = self.pool.begin().await?;
         sqlx::query("DELETE FROM recovery_codes WHERE account_id = $1")
             .bind(user_id)
@@ -314,28 +384,35 @@ impl RecoveryCodeRepository for PgAuthRepo {
             .await?;
         for h in hashes {
             sqlx::query(
-                "INSERT INTO recovery_codes (id, account_id, code_phc) VALUES ($1, $2, $3)",
+                "INSERT INTO recovery_codes (id, account_id, code_hash) VALUES ($1, $2, $3)",
             )
             .bind(self.next_id())
             .bind(user_id)
-            .bind(h)
+            .bind(h.as_bytes().as_slice())
             .execute(&mut *tx)
-            .await?;
+            .await
+            .map_err(map_unique)?;
         }
         tx.commit().await?;
         Ok(())
     }
 
-    async fn list_unused(&self, user_id: i64) -> Result<Vec<(i64, String)>, Self::Error> {
+    async fn list_unused(&self, user_id: i64) -> Result<Vec<(i64, TokenHash)>, Self::Error> {
         let rows = sqlx::query(
-            "SELECT id, code_phc FROM recovery_codes \
+            "SELECT id, code_hash FROM recovery_codes \
              WHERE account_id = $1 AND used_at IS NULL ORDER BY id",
         )
         .bind(user_id)
         .fetch_all(&self.pool)
         .await?;
         rows.iter()
-            .map(|r| Ok((r.try_get("id")?, r.try_get("code_phc")?)))
+            .map(|r| -> Result<(i64, TokenHash), AuthRepoError> {
+                let hash: Vec<u8> = r.try_get("code_hash")?;
+                Ok((
+                    r.try_get("id")?,
+                    TokenHash::from_bytes(&hash).map_err(|_| AuthRepoError::Corrupt)?,
+                ))
+            })
             .collect()
     }
 
@@ -429,6 +506,7 @@ fn purpose_sql(p: EmailTokenPurpose) -> &'static str {
     match p {
         EmailTokenPurpose::VerifyEmail => "verify_email",
         EmailTokenPurpose::ResetPassword => "reset_password",
+        EmailTokenPurpose::LoginLink => "login_link",
     }
 }
 

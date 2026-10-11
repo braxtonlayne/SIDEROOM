@@ -5,7 +5,6 @@ use super::{
     AccountRecord, AccountState, AuthConfig, AuthService, AuthStore,
     mail::{MemoryMailer, OutgoingMail},
     memory::MemoryAuthStore,
-    router_with,
 };
 use crate::{ApiSettings, AppState, auth::csrf, auth::memory::MemorySessions, build_router};
 use axum::{
@@ -58,23 +57,26 @@ fn harness_with(cap: u64) -> H {
     let clock = Arc::new(ManualClock::new(NOW_MS));
     let mut settings = ApiSettings::default();
     settings.rate_limit.enabled = false;
-    let state = AppState::builder()
-        .sessions(sessions.clone())
-        .clock(clock.clone())
-        .settings(settings)
-        .build();
-    let store = Arc::new(MemoryAuthStore::new(sessions));
+    let store = Arc::new(MemoryAuthStore::new(sessions.clone()));
     let mailer = Arc::new(MemoryMailer::new());
     let next = Arc::new(AtomicI64::new(10_000));
     let ids: super::IdSource = Arc::new(move || next.fetch_add(1, Ordering::SeqCst));
-    let svc = AuthService::new(store.clone(), mailer.clone(), ids)
-        .with_hasher(cheap_hasher())
-        .with_config(AuthConfig {
-            account_cap: cap,
-            trust_forwarded_for: true,
-            ..AuthConfig::default()
-        });
-    let app = build_router(state.clone(), router_with(Arc::new(svc)));
+    let svc = Arc::new(
+        AuthService::new(store.clone(), mailer.clone(), ids)
+            .with_hasher(cheap_hasher())
+            .with_config(AuthConfig {
+                account_cap: cap,
+                trust_forwarded_for: true,
+                ..AuthConfig::default()
+            }),
+    );
+    let state = AppState::builder()
+        .sessions(sessions)
+        .clock(clock.clone())
+        .settings(settings)
+        .extension(svc)
+        .build();
+    let app = build_router(state.clone(), super::router());
     H {
         app,
         state,
@@ -146,6 +148,7 @@ impl H {
     fn add_account(&self, id: i64, username: &str, email: &str, state: AccountState) {
         self.store.add_account(AccountRecord {
             id,
+            person_id: id,
             username: username.to_owned(),
             display_name: None,
             email: email.to_owned(),
@@ -323,6 +326,8 @@ async fn invite_check_valid_invalid_and_no_oracle() {
     // Redeem `used` directly through the store.
     h.store
         .register(super::RegisterTx {
+            discord_id: None,
+            identity_id: 0,
             account_id: 3,
             new_person_id: 3,
             ledger_ids: [1, 2],
@@ -786,6 +791,7 @@ async fn login_rehashes_outdated_parameters() {
     .unwrap();
     h.store.add_account(AccountRecord {
         id: 1,
+        person_id: 1,
         username: "alice".into(),
         display_name: None,
         email: "a@x.test".into(),
@@ -1380,6 +1386,7 @@ async fn resend_verification_has_a_cooldown() {
     let h = harness();
     h.store.add_account(AccountRecord {
         id: 1,
+        person_id: 1,
         username: "alice".into(),
         display_name: None,
         email: "alice@x.test".into(),

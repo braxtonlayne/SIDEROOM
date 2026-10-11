@@ -119,6 +119,8 @@ pub async fn register(
             account_id: svc.next_id(),
             new_person_id: svc.next_id(),
             ledger_ids: [svc.next_id(), svc.next_id()],
+            discord_id: None,
+            identity_id: svc.next_id(),
             code,
             username,
             display_name,
@@ -186,7 +188,7 @@ pub(super) async fn send_verification(
             user_id,
             EmailTokenPurpose::VerifyEmail,
             &token.hash(),
-            token.expires_at(now),
+            token.expires_at_in(now, svc.cfg.verify_ttl_secs),
         )
         .await
         .map_err(|e| e.to_string())?;

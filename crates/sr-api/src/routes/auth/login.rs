@@ -1,7 +1,11 @@
-//! `POST /sr/auth/login` and `POST /sr/auth/2fa` (ENT-AUTH-007/008/009).
+//! `POST /sr/auth/login`, `POST /sr/auth/login-link` and `POST /sr/auth/2fa`
+//! (ENT-AUTH-007/008/009; open questions 43, 143 and 144).
 
 use super::{
-    common::{AuthRouteError, MFA_COOKIE, R, Svc, clear_mfa_cookie, mfa_cookie, user_agent},
+    common::{
+        AuthRouteError, AuthService, MFA_COOKIE, R, Svc, TRUSTED_COOKIE, clear_mfa_cookie,
+        mfa_cookie, trusted_cookie, user_agent,
+    },
     store::AccountState,
     throttle::Rule,
 };
@@ -15,8 +19,9 @@ use axum::{
 use serde::Deserialize;
 use serde_json::json;
 use sr_auth::{
+    email_token::{EmailToken, EmailTokenPurpose},
     recovery,
-    session::SessionToken,
+    session::{DeviceToken, SessionToken, TokenHash},
     totp::{self, TotpSecret},
 };
 use sr_core::{ApiError, ErrorCode};
@@ -28,6 +33,22 @@ fn no_match() -> AuthRouteError {
     ApiError::with_message(ErrorCode::Unauthorized, NO_MATCH).into()
 }
 
+fn invalid_link() -> AuthRouteError {
+    ApiError::invalid_form()
+        .field("token", "invalid", "This link is invalid or has expired.")
+        .into()
+}
+
+/// The `methods` a login that needs a second factor offers (open question 83).
+fn second_factor_methods(has_totp: bool) -> Vec<&'static str> {
+    let mut methods = Vec::new();
+    if has_totp {
+        methods.push("totp");
+    }
+    methods.push("recovery");
+    methods
+}
+
 /// Request body for login.
 #[derive(Debug, Deserialize)]
 pub struct LoginBody {
@@ -36,8 +57,8 @@ pub struct LoginBody {
 }
 
 /// Username-or-email plus password. On success sets the session cookie and
-/// answers `{status:"ok"}`; if a second factor is enrolled it sets the
-/// short-lived `sr_mfa` cookie and answers
+/// answers `{status:"ok"}`; if a second factor is enrolled and this browser
+/// is not trusted, it sets the short-lived `sr_mfa` cookie and answers
 /// `{status:"mfa_required", methods:[..]}`.
 pub async fn login(
     State(state): State<AppState>,
@@ -61,8 +82,21 @@ pub async fn login(
             }],
         )
         .map_err(|retry_after| AuthRouteError::Throttled { retry_after })?;
-    // Keyed by the submitted name, not the account, so existence is not an oracle.
-    let acct_key = format!("login:{login}");
+    // A ceiling per login name across all addresses (open question 143).
+    svc.ip_limits
+        .hit(
+            "login-name",
+            &login,
+            now,
+            &[Rule {
+                limit: 50,
+                secs: 3600,
+            }],
+        )
+        .map_err(|retry_after| AuthRouteError::Throttled { retry_after })?;
+    // Keyed by (name, address): a victim's name cannot be locked out from
+    // elsewhere, and unknown names lock the same way as known ones.
+    let acct_key = format!("login:{login}\n{ip}");
     svc.account_lock
         .check(&acct_key, now)
         .and_then(|()| svc.ip_lock.check(&ip, now))
@@ -108,16 +142,84 @@ pub async fn login(
         .totp_get(account.id)
         .await?
         .is_some_and(|t| t.confirmed);
-    if has_totp {
+    if has_totp && !is_trusted(&svc, &state, &headers, account.id).await? {
         let token = SessionToken::generate()?;
         svc.pending
             .insert(&token.hash(), account.id, now + svc.cfg.mfa_ttl_secs, now);
         let cookie = mfa_cookie(&token, secure, svc.cfg.mfa_ttl_secs);
         return Ok((
             AppendHeaders([(header::SET_COOKIE, cookie)]),
-            Json(json!({ "status": "mfa_required", "methods": ["totp", "recovery"] })),
+            Json(json!({
+                "status": "mfa_required",
+                "methods": second_factor_methods(true),
+            })),
         ));
     }
+    let (_, cookie) = svc
+        .start_session(&state, account.id, user_agent(&headers))
+        .await?;
+    Ok((
+        AppendHeaders([(header::SET_COOKIE, cookie)]),
+        Json(json!({ "status": "ok" })),
+    ))
+}
+
+/// Whether the request carries a live "trust this device" cookie for `user_id`.
+async fn is_trusted(
+    svc: &AuthService,
+    state: &AppState,
+    headers: &HeaderMap,
+    user_id: i64,
+) -> R<bool> {
+    let Some(token) = parse_cookie(headers, TRUSTED_COOKIE).and_then(DeviceToken::parse) else {
+        return Ok(false);
+    };
+    Ok(svc
+        .store
+        .trusted_device_matches(user_id, &token.hash(), state.now_secs())
+        .await?)
+}
+
+/// Request body for the one-time Owner login link (open question 43).
+#[derive(Debug, Deserialize)]
+pub struct LoginLinkBody {
+    token: String,
+}
+
+/// `POST /sr/auth/login-link {token}`: exchange the one-time link printed by
+/// `sr-cli bootstrap` for a session. Single use, 1 hour. Never resets a
+/// password.
+pub async fn login_link(
+    State(state): State<AppState>,
+    Svc { svc, ip }: Svc,
+    headers: HeaderMap,
+    Json(body): Json<LoginLinkBody>,
+) -> R<impl IntoResponse> {
+    let now = state.now_secs();
+    svc.ip_limits
+        .hit(
+            "login-link",
+            &ip,
+            now,
+            &[Rule {
+                limit: 10,
+                secs: 600,
+            }],
+        )
+        .map_err(|retry_after| AuthRouteError::Throttled { retry_after })?;
+    let token =
+        EmailToken::parse(EmailTokenPurpose::LoginLink, &body.token).ok_or_else(invalid_link)?;
+    let user_id = svc
+        .store
+        .email_token_consume(EmailTokenPurpose::LoginLink, &token.hash(), now)
+        .await?
+        .ok_or_else(invalid_link)?;
+    let account = svc
+        .store
+        .find_by_id(user_id)
+        .await?
+        .filter(|a| a.state == AccountState::Active)
+        .ok_or_else(invalid_link)?;
     let (_, cookie) = svc
         .start_session(&state, account.id, user_agent(&headers))
         .await?;
@@ -132,14 +234,14 @@ pub async fn login(
 pub struct SecondFactorBody {
     method: String,
     code: String,
+    /// Remember this browser for 30 days (open question 144).
     #[serde(default)]
-    #[allow(dead_code)]
     trust_device: bool,
 }
 
 /// Complete a login that answered `mfa_required`, with a TOTP code or a
-/// recovery code. `trust_device` is accepted and currently ignored (open
-/// question).
+/// recovery code. With `trust_device` the browser also gets the 30-day
+/// `sr_trusted` cookie.
 pub async fn second_factor(
     State(state): State<AppState>,
     Svc { svc, ip }: Svc,
@@ -153,7 +255,7 @@ pub async fn second_factor(
         .ok_or_else(no_match)?;
     let hash = token.hash();
     let pending = svc.pending.get(&hash, now).ok_or_else(no_match)?;
-    let lock_key = format!("mfa:{}", pending.user_id);
+    let lock_key = format!("mfa:{}\n{ip}", pending.user_id);
     svc.account_lock
         .check(&lock_key, now)
         .and_then(|()| svc.ip_lock.check(&ip, now))
@@ -197,13 +299,8 @@ pub async fn second_factor(
         }
         "recovery" => {
             let unused = svc.store.recovery_list_unused(account.id).await?;
-            let hashes: Vec<String> = unused.iter().map(|(_, h)| h.clone()).collect();
-            let (hasher, code) = (svc.hasher.clone(), body.code.clone());
-            let found =
-                tokio::task::spawn_blocking(move || recovery::find_match(&hasher, &code, &hashes))
-                    .await
-                    .map_err(|_| AuthRouteError::internal("recovery task"))??;
-            match found {
+            let hashes: Vec<TokenHash> = unused.iter().map(|(_, h)| *h).collect();
+            match recovery::find_match(&body.code, &hashes) {
                 Some(i) => {
                     let used = svc
                         .store
@@ -232,6 +329,22 @@ pub async fn second_factor(
     }
     svc.pending.remove(&hash);
     svc.account_lock.clear(&lock_key);
+
+    let trust_cookie = if body.trust_device {
+        let device = DeviceToken::generate()?;
+        let name = super::validate::device_name(user_agent(&headers));
+        svc.store
+            .trusted_device_put(
+                account.id,
+                &device.hash(),
+                name.as_deref(),
+                now + svc.cfg.trusted_device_secs,
+            )
+            .await?;
+        Some(trusted_cookie(&device, secure, svc.cfg.trusted_device_secs))
+    } else {
+        None
+    };
     let (_, cookie) = svc
         .start_session(&state, account.id, user_agent(&headers))
         .await?;
@@ -239,11 +352,12 @@ pub async fn second_factor(
     if let Some(n) = remaining_recovery {
         out["recovery_codes_remaining"] = json!(n);
     }
-    Ok((
-        AppendHeaders([
-            (header::SET_COOKIE, cookie),
-            (header::SET_COOKIE, clear_mfa_cookie(secure)),
-        ]),
-        Json(out),
-    ))
+    let mut cookies = vec![
+        (header::SET_COOKIE, cookie),
+        (header::SET_COOKIE, clear_mfa_cookie(secure)),
+    ];
+    if let Some(c) = trust_cookie {
+        cookies.push((header::SET_COOKIE, c));
+    }
+    Ok((AppendHeaders(cookies), Json(out)))
 }

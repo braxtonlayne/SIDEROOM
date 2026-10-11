@@ -17,6 +17,7 @@ pub mod random;
 pub mod recovery;
 pub mod repo;
 pub mod session;
+pub mod store;
 pub mod totp;
 
 pub use error::AuthError;

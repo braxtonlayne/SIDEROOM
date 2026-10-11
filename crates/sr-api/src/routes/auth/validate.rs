@@ -1,11 +1,6 @@
 //! Input rules (ENT-AUTH-002, ENT-AUTH-004) and small formatting helpers.
 
-use zxcvbn::Score;
-
-/// Minimum password length (doc 06 section 3).
-pub const MIN_PASSWORD_LEN: usize = 10;
-/// Upper bound to keep argon2 and zxcvbn bounded.
-pub const MAX_PASSWORD_LEN: usize = 256;
+use sr_auth::password::{Verdict, strength};
 
 const RESERVED: &[&str] = &[
     "admin",
@@ -85,20 +80,18 @@ pub fn display_name(raw: &str) -> Result<Option<String>, &'static str> {
     Ok(Some(d.to_owned()))
 }
 
-/// Password rules: length 10..=256 and zxcvbn score >= 3, scored against
-/// `context` (username, email parts) so those are penalised.
+/// Password rules (`sr_auth::password::strength`): length and zxcvbn score
+/// of at least 3, scored against `context` (username, email parts) so those
+/// are penalised. Returns the user-facing copy for a failure.
 pub fn password(pw: &str, context: &[&str]) -> Result<(), &'static str> {
-    let chars = pw.chars().count();
-    if chars < MIN_PASSWORD_LEN {
-        return Err("Use at least 10 characters.");
+    match strength(pw, context) {
+        Verdict::Ok => Ok(()),
+        Verdict::TooShort => Err("Use at least 10 characters."),
+        Verdict::TooLong => Err("That password is too long."),
+        Verdict::TooWeak => {
+            Err("That password is too easy to guess. Try a longer or less common one.")
+        }
     }
-    if pw.len() > MAX_PASSWORD_LEN {
-        return Err("That password is too long.");
-    }
-    if zxcvbn::zxcvbn(pw, context).score() < Score::Three {
-        return Err("That password is too easy to guess. Try a longer or less common one.");
-    }
-    Ok(())
 }
 
 /// Device label from a User-Agent (`"Firefox on Windows"`); best effort.

@@ -9,6 +9,7 @@ use super::{
 use crate::{
     HttpError,
     auth::{SESSION_COOKIE, session_cookie},
+    routes::Ext,
     state::AppState,
 };
 use axum::{
@@ -20,9 +21,9 @@ use axum::{
 use serde_json::json;
 use sr_auth::{
     AuthError,
-    password::PasswordHasher,
+    password::{PasswordHasher, PasswordParams},
     repo::SessionRecord,
-    session::{SessionPolicy, SessionToken},
+    session::{DeviceToken, SessionPolicy, SessionToken},
 };
 use sr_core::{ApiError, ErrorCode};
 use std::{net::SocketAddr, sync::Arc};
@@ -59,6 +60,20 @@ pub struct AuthConfig {
     pub mfa_max_attempts: u32,
     /// Minimum seconds between verification emails per account.
     pub verify_resend_cooldown_secs: i64,
+    /// argon2id cost parameters for new password hashes (doc 06 section 4).
+    pub argon2: PasswordParams,
+    /// Session idle timeout in seconds (rolls on use).
+    pub session_idle_secs: i64,
+    /// Session absolute lifetime in seconds (cookie `Max-Age`).
+    pub session_absolute_secs: i64,
+    /// Password-reset link lifetime in seconds.
+    pub reset_ttl_secs: i64,
+    /// Email verification link lifetime in seconds.
+    pub verify_ttl_secs: i64,
+    /// Owner login link lifetime in seconds (open question 43).
+    pub login_link_ttl_secs: i64,
+    /// "Trust this device" lifetime in seconds (open question 144).
+    pub trusted_device_secs: i64,
 }
 
 impl Default for AuthConfig {
@@ -75,6 +90,25 @@ impl Default for AuthConfig {
             mfa_ttl_secs: 5 * 60,
             mfa_max_attempts: 5,
             verify_resend_cooldown_secs: 60,
+            argon2: PasswordParams::default(),
+            session_idle_secs: 30 * 86_400,
+            session_absolute_secs: 180 * 86_400,
+            reset_ttl_secs: 30 * 60,
+            verify_ttl_secs: 24 * 3600,
+            login_link_ttl_secs: 3600,
+            trusted_device_secs: 30 * 86_400,
+        }
+    }
+}
+
+impl AuthConfig {
+    /// The session expiry policy these numbers describe. Install it on
+    /// `AppState` with `AppStateBuilder::session_policy` so the `Principal`
+    /// extractor and the login path agree.
+    pub fn session_policy(&self) -> SessionPolicy {
+        SessionPolicy {
+            idle_ttl_secs: self.session_idle_secs,
+            absolute_ttl_secs: self.session_absolute_secs,
         }
     }
 }
@@ -97,6 +131,7 @@ impl AuthService {
     pub fn new(store: Arc<dyn AuthStore>, mailer: Arc<dyn Mailer>, ids: IdSource) -> Self {
         let cfg = AuthConfig::default();
         Self {
+            hasher: PasswordHasher::new(cfg.argon2).unwrap_or_default(),
             account_lock: Lockout::new(
                 cfg.lockout_free_attempts,
                 cfg.lockout_base_secs,
@@ -106,7 +141,6 @@ impl AuthService {
             ip_lock: Lockout::new(30, cfg.lockout_base_secs, cfg.lockout_max_secs),
             store,
             mailer,
-            hasher: PasswordHasher::default(),
             ids,
             cfg,
             ip_limits: WindowLimiter::default(),
@@ -219,6 +253,18 @@ pub(super) fn mfa_cookie(token: &SessionToken, secure: bool, max_age: i64) -> St
     )
 }
 
+/// Name of the "trust this device" cookie (open question 144).
+pub const TRUSTED_COOKIE: &str = "sr_trusted";
+
+/// `Set-Cookie` value for a trusted device (scoped to the API).
+pub(super) fn trusted_cookie(token: &DeviceToken, secure: bool, max_age: i64) -> String {
+    format!(
+        "{TRUSTED_COOKIE}={}; Path=/api; HttpOnly; SameSite=Strict; Max-Age={max_age}{}",
+        token.expose(),
+        if secure { "; Secure" } else { "" }
+    )
+}
+
 /// `Set-Cookie` value that clears the pending-2FA cookie.
 pub(super) fn clear_mfa_cookie(secure: bool) -> String {
     format!(
@@ -314,11 +360,8 @@ impl FromRequestParts<AppState> for Svc {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let svc = parts
-            .extensions
-            .get::<Arc<AuthService>>()
-            .cloned()
-            .ok_or_else(|| AuthRouteError::internal("AuthService extension missing"))?;
+        // Registered on AppState by sr-server (AppStateBuilder::extension).
+        let Ext(svc) = Ext::<AuthService>::from_request_parts(parts, state).await?;
         if !matches!(
             parts.method,
             Method::GET | Method::HEAD | Method::OPTIONS | Method::TRACE

@@ -1954,9 +1954,12 @@ dependencies = [
  "nom 8.0.0",
  "percent-encoding",
  "quoted_printable",
+ "rustls",
  "socket2",
  "tokio",
+ "tokio-rustls",
  "url",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -2979,6 +2982,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0d41d731c7d2f962d1ccc364cec258de3c0e93b38c2fb3ba97ac74513048d634"
 dependencies = [
  "aws-lc-rs",
+ "log",
  "once_cell",
  "ring",
  "rustls-pki-types",
@@ -3604,7 +3608,6 @@ dependencies = [
  "tracing-subscriber",
  "utoipa",
  "utoipa-scalar",
- "zxcvbn",
 ]
 
 [[package]]
@@ -3612,12 +3615,14 @@ name = "sr-auth"
 version = "0.0.0"
 dependencies = [
  "argon2",
+ "async-trait",
  "data-encoding",
  "getrandom 0.4.3",
  "sha2 0.11.0",
  "subtle",
  "thiserror 2.0.21",
  "totp-rs",
+ "zxcvbn",
 ]
 
 [[package]]
@@ -3642,6 +3647,7 @@ dependencies = [
  "anyhow",
  "clap",
  "rpassword",
+ "sr-api",
  "sr-auth",
  "sr-core",
  "sr-db",
@@ -3668,6 +3674,7 @@ dependencies = [
  "aes-gcm",
  "async-trait",
  "serde_json",
+ "sha2 0.11.0",
  "sqlx",
  "sr-auth",
  "sr-chat",

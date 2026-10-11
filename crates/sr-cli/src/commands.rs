@@ -3,25 +3,28 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result, bail};
+use sr_api::routes::auth::mail::{LogMailer, Mailer, SmtpMailer, two_factor_reset};
 use sr_auth::{
     email_token::{EmailToken, EmailTokenPurpose},
     invite::InviteCode,
-    password::{PasswordHasher, PasswordParams},
+    password::{PasswordHasher, PasswordParams, Verdict, strength},
     repo::{EmailTokenRepository, InviteRecord, InviteRepository, InviteStatus},
+    store::AuthStore,
 };
 use sr_core::{Clock, SnowflakeGenerator, SystemClock, config::Config};
 use sr_db::{
     DbConfig, PgPool,
-    accounts::{self, NewAccount, SYSTEM_USER_ID},
-    auth_repo::{IdSource, PgAuthRepo},
+    accounts::{self, FLAG_SYSTEM, NewAccount, SYSTEM_USER_ID},
+    auth_repo::{IdSource, PgAuthRepo, parse_secret_key},
+    auth_store::PgAuthStore,
 };
 
 use crate::{Cli, Command, InviteCmd, UserCmd};
 
 /// Initial invite credits per account (config `invites.initial_credits`, doc 06 5.3).
 const INITIAL_CREDITS: i32 = 5;
-/// Lifetime of the Owner's one-time login link.
-const LOGIN_LINK_TTL_SECS: i64 = 24 * 3600;
+/// Lifetime of the Owner's one-time login link (open question 43).
+const LOGIN_LINK_TTL_SECS: i64 = 3600;
 /// Minimum password length (doc 06 section 3).
 const MIN_PASSWORD_LEN: usize = 10;
 
@@ -33,7 +36,7 @@ pub async fn run(cli: Cli) -> Result<()> {
     })
     .await
     .context("connecting to the database")?;
-    let ids = id_source(&cfg)?;
+    let ids = id_source(&cfg.server)?;
 
     match cli.command {
         Command::Migrate => {
@@ -58,14 +61,15 @@ pub async fn run(cli: Cli) -> Result<()> {
         Command::Invite(InviteCmd::Create { issuer, note }) => {
             invite_create(&pool, &cfg, ids, issuer, note).await?
         }
-        Command::User(UserCmd::Reset2fa { user }) => reset_2fa(&pool, &user).await?,
+        Command::User(UserCmd::Reset2fa { user }) => reset_2fa(&pool, &cfg, ids, &user).await?,
+        Command::RotateSecretKey => rotate_secret_key(&pool, &cfg, ids).await?,
         Command::Seed { password, force } => seed(&pool, &cfg, ids, &password, force).await?,
     }
     Ok(())
 }
 
-fn id_source(cfg: &Config) -> Result<IdSource> {
-    let gen_ = SnowflakeGenerator::new(SystemClock, cfg.server.worker_id, cfg.server.process_id)
+fn id_source(server: &sr_core::config::ServerConfig) -> Result<IdSource> {
+    let gen_ = SnowflakeGenerator::new(SystemClock, server.worker_id, server.process_id)
         .map_err(|e| anyhow::anyhow!("snowflake generator: {e}"))?;
     let gen_ = Arc::new(gen_);
     // Snowflakes are < 2^63 (42-bit timestamp + 22 bits), so the cast is lossless.
@@ -80,9 +84,34 @@ fn hasher() -> Result<PasswordHasher> {
     PasswordHasher::new(PasswordParams::default()).map_err(|e| anyhow::anyhow!("{e}"))
 }
 
+/// Repository for invite and email-token work. These paths never read TOTP
+/// secrets, so no key is needed.
 fn repo(pool: &PgPool, ids: IdSource) -> PgAuthRepo {
-    // The CLI never reads or writes TOTP secrets, so no encryption key is needed.
     PgAuthRepo::new(pool.clone(), ids, [0u8; 32])
+}
+
+/// Repository with the configured keys, for re-encrypting TOTP secrets.
+fn keyed_repo(pool: &PgPool, cfg: &Config, ids: IdSource) -> Result<PgAuthRepo> {
+    let current = parse_secret_key(cfg.server.secret_key.expose())
+        .map_err(|e| anyhow::anyhow!("server.secret_key: {e}"))?;
+    let previous = cfg
+        .server
+        .secret_key_previous
+        .iter()
+        .map(|k| parse_secret_key(k.expose()))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| anyhow::anyhow!("server.secret_key_previous: {e}"))?;
+    Ok(PgAuthRepo::new(pool.clone(), ids, current).with_previous_keys(previous))
+}
+
+/// The mailer the server would use: SMTP when `[smtp]` has a host, otherwise
+/// the log mailer (development only: it prints the message body).
+fn mailer(cfg: &Config) -> Result<Box<dyn Mailer>> {
+    Ok(if cfg.smtp.host.is_empty() {
+        Box::new(LogMailer)
+    } else {
+        Box::new(SmtpMailer::from_config(&cfg.smtp).context("configuring [smtp]")?)
+    })
 }
 
 fn read_password(given: Option<String>) -> Result<String> {
@@ -116,12 +145,18 @@ async fn bootstrap(
     }
     let username = username.to_lowercase();
     let password = read_password(password)?;
+    // Same rule as the sign-up and reset forms (sr_auth::password::strength).
+    let local_part = email.split('@').next().unwrap_or("");
+    if strength(&password, &[username.as_str(), local_part, "sideroom"]) != Verdict::Ok {
+        bail!("password is too easy to guess; use a longer or less common one");
+    }
     let hash = hasher()?
         .hash(&password)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     // System user "SIDE ROOM" (id = 1). Deactivated: cannot log in and does not
     // count toward the account cap; the password hash is an unusable marker.
+    // The SYSTEM flag marks it for user objects (open question 44).
     accounts::create_account(
         pool,
         &NewAccount {
@@ -134,6 +169,7 @@ async fn bootstrap(
             state: "deactivated",
             email_verified: true,
             initial_credits: 0,
+            flags: FLAG_SYSTEM,
         },
         ids(),
     )
@@ -152,6 +188,7 @@ async fn bootstrap(
             state: "active",
             email_verified: true,
             initial_credits: INITIAL_CREDITS,
+            flags: 0,
         },
         ids(),
     )
@@ -167,23 +204,23 @@ async fn bootstrap(
 
     let link = login_link(pool, cfg, ids, owner_id).await?;
     println!("Owner '{username}' created (id {owner_id}).");
-    println!("One-time login link (valid 24h, single use):\n{link}");
+    println!("One-time login link (valid 1h, single use):\n{link}");
     Ok(())
 }
 
 async fn login_link(pool: &PgPool, cfg: &Config, ids: IdSource, account_id: i64) -> Result<String> {
-    let token = EmailToken::generate(EmailTokenPurpose::ResetPassword)
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let token =
+        EmailToken::generate(EmailTokenPurpose::LoginLink).map_err(|e| anyhow::anyhow!("{e}"))?;
     repo(pool, ids)
         .put(
             account_id,
-            EmailTokenPurpose::ResetPassword,
+            EmailTokenPurpose::LoginLink,
             &token.hash(),
             now_secs() + LOGIN_LINK_TTL_SECS,
         )
         .await?;
     Ok(format!(
-        "{}/sr/login/link?token={}",
+        "{}/login/link?token={}",
         cfg.server.public_url.trim_end_matches('/'),
         token.expose()
     ))
@@ -236,15 +273,49 @@ async fn oldest_owner(pool: &PgPool) -> Result<i64> {
         .context("no accounts exist; run `sr-cli bootstrap` first")
 }
 
-async fn reset_2fa(pool: &PgPool, user: &str) -> Result<()> {
+/// Clears every second factor and signs the account out everywhere, then
+/// writes the platform audit row and tells the user by email (open question 47).
+async fn reset_2fa(pool: &PgPool, cfg: &Config, ids: IdSource, user: &str) -> Result<()> {
     let id = accounts::find_account_id(pool, &user.to_lowercase())
         .await?
         .with_context(|| format!("no account '{user}'"))?;
     let r = accounts::reset_2fa(pool, id).await?;
+    let store = PgAuthStore::new(pool.clone(), repo(pool, ids.clone()), ids);
+    store
+        .audit(
+            SYSTEM_USER_ID,
+            "user.reset_2fa",
+            Some(id),
+            &format!(
+                "{} totp, {} recovery codes, {} passkeys, {} trusted devices, {} sessions",
+                r.totp, r.recovery_codes, r.passkeys, r.trusted_devices, r.sessions_revoked
+            ),
+            now_secs(),
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    if let Some(account) = store
+        .find_by_id(id)
+        .await
+        .map_err(|e| anyhow::anyhow!("{e}"))?
+        && let Err(e) = mailer(cfg)?.send(two_factor_reset(&account.email)).await
+    {
+        eprintln!("warning: the notice email was not sent: {e}");
+    }
     println!(
-        "reset 2FA for account {id}: {} TOTP, {} recovery codes, {} passkeys removed; {} sessions revoked",
-        r.totp, r.recovery_codes, r.passkeys, r.sessions_revoked
+        "reset 2FA for account {id}: {} TOTP, {} recovery codes, {} passkeys removed; {} trusted devices and {} sessions revoked",
+        r.totp, r.recovery_codes, r.passkeys, r.trusted_devices, r.sessions_revoked
     );
+    Ok(())
+}
+
+/// Re-encrypt every TOTP secret under `server.secret_key` (open question 40).
+async fn rotate_secret_key(pool: &PgPool, cfg: &Config, ids: IdSource) -> Result<()> {
+    let repo = keyed_repo(pool, cfg, ids)?;
+    let n = repo.rotate_secret_keys().await.context(
+        "re-encrypting TOTP secrets (is the old key still listed in server.secret_key_previous?)",
+    )?;
+    println!("re-encrypted {n} TOTP secret(s) under the current key");
     Ok(())
 }
 
@@ -293,6 +364,7 @@ async fn seed(
                 state: "active",
                 email_verified: true,
                 initial_credits: INITIAL_CREDITS,
+                flags: 0,
             },
             ids(),
         )

@@ -10,7 +10,9 @@ use async_trait::async_trait;
 use lettre::{
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
     message::{Mailbox, MultiPart},
+    transport::smtp::{authentication::Credentials, client::Tls},
 };
+use sr_core::config::{SmtpConfig, SmtpTls};
 use std::sync::{Mutex, MutexGuard};
 
 /// A message to send.
@@ -84,23 +86,43 @@ impl Mailer for MemoryMailer {
     }
 }
 
-/// SMTP delivery through `lettre` (no TLS, see module docs).
+/// SMTP delivery through `lettre` with rustls (`tokio1-rustls-tls`, pure
+/// Rust TLS; open question 145). Built from the `[smtp]` config section.
 pub struct SmtpMailer {
     transport: AsyncSmtpTransport<Tokio1Executor>,
     from: Mailbox,
 }
 
 impl SmtpMailer {
-    /// Connect to `host:port` (e.g. `localhost:1025` for Mailpit) and send
-    /// as `from` (e.g. `SIDE ROOM <no-reply@side.room>`).
-    pub fn new(host: &str, port: u16, from: &str) -> Result<Self, MailError> {
-        let from = from
+    /// Build the transport from `[smtp]`: `tls = "starttls"` (default, port
+    /// 587), `"tls"` (implicit TLS, port 465) or `"none"` (plaintext, for a
+    /// local relay such as Mailpit only). Credentials are used when `username`
+    /// is set. Connects lazily, on the first send.
+    pub fn from_config(cfg: &SmtpConfig) -> Result<Self, MailError> {
+        let from = cfg
+            .from
             .parse::<Mailbox>()
             .map_err(|e| MailError(format!("invalid from address: {e}")))?;
-        let transport = AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(host)
-            .port(port)
-            .build();
-        Ok(Self { transport, from })
+        let mut builder = match cfg.tls {
+            SmtpTls::Starttls => AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&cfg.host)
+                .map_err(|e| MailError(e.to_string()))?,
+            SmtpTls::Tls => AsyncSmtpTransport::<Tokio1Executor>::relay(&cfg.host)
+                .map_err(|e| MailError(e.to_string()))?,
+            SmtpTls::None => {
+                AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&cfg.host).tls(Tls::None)
+            }
+        };
+        builder = builder.port(cfg.port);
+        if !cfg.username.is_empty() {
+            builder = builder.credentials(Credentials::new(
+                cfg.username.clone(),
+                cfg.password.expose().to_owned(),
+            ));
+        }
+        Ok(Self {
+            transport: builder.build(),
+            from,
+        })
     }
 }
 
@@ -187,6 +209,30 @@ pub fn reset_password(to: &str, link: &str) -> OutgoingMail {
     }
 }
 
+/// Notice that two-factor sign-in was reset by an operator (open question 47).
+/// No link: the message only says what happened and what to do next.
+pub fn two_factor_reset(to: &str) -> OutgoingMail {
+    let text = "Two-factor sign-in was reset on your SIDE ROOM account by an operator.\n\n\
+        Your authenticator app, recovery codes and passkeys were removed, and every \
+        signed-in browser was signed out. Sign in with your password and set up two-factor \
+        sign-in again. If you did not expect this, contact the operator.\n\nSIDE ROOM\n"
+        .to_owned();
+    let html = "<!doctype html><html><body style=\"margin:0;background:#14110f;color:#eee6d8;\
+        font-family:Georgia,serif\"><div style=\"max-width:480px;margin:0 auto;padding:32px\">\
+        <h1 style=\"font-weight:normal\">Two-factor sign-in was reset</h1>\
+        <p>An operator removed the second factors from your account and signed out every \
+        browser. Sign in with your password and set up two-factor sign-in again.</p>\
+        <p style=\"color:#9a9082;font-size:13px\">If you did not expect this, contact the \
+        operator.</p><p style=\"color:#9a9082;font-size:13px\">SIDE ROOM</p></div></body></html>"
+        .to_owned();
+    OutgoingMail {
+        to: to.to_owned(),
+        subject: "Two-factor sign-in was reset on SIDE ROOM".to_owned(),
+        text,
+        html,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -209,6 +255,26 @@ mod tests {
 
     #[test]
     fn smtp_rejects_bad_from() {
-        assert!(SmtpMailer::new("localhost", 1025, "not an address").is_err());
+        let cfg = SmtpConfig {
+            host: "localhost".into(),
+            port: 1025,
+            tls: SmtpTls::None,
+            from: "not an address".into(),
+            ..SmtpConfig::default()
+        };
+        assert!(SmtpMailer::from_config(&cfg).is_err());
+    }
+
+    #[test]
+    fn smtp_builds_for_each_tls_mode() {
+        for tls in [SmtpTls::Starttls, SmtpTls::Tls, SmtpTls::None] {
+            let cfg = SmtpConfig {
+                host: "mail.example.org".into(),
+                tls,
+                from: "SIDE ROOM <no-reply@example.org>".into(),
+                ..SmtpConfig::default()
+            };
+            assert!(SmtpMailer::from_config(&cfg).is_ok(), "{tls:?}");
+        }
     }
 }

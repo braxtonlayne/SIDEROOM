@@ -17,11 +17,24 @@ use axum::{
 use sr_api::{
     ApiSettings, AppState, build_router, internal_router,
     router::with_request_id,
-    routes::{self, guilds::GuildApi},
+    routes::{
+        self,
+        auth::{
+            AuthConfig, AuthService,
+            mail::{LogMailer, Mailer, SmtpMailer},
+        },
+        guilds::GuildApi,
+    },
 };
 use sr_chat::{ChatLimits, ChatService};
 use sr_core::{Clock, SnowflakeGenerator, SystemClock, config::Config};
-use sr_db::{DbConfig, auth_repo::PgAuthRepo, chat_repo::PgChatRepo, runner::JobRunner};
+use sr_db::{
+    DbConfig,
+    auth_repo::{PgAuthRepo, parse_secret_key},
+    auth_store::PgAuthStore,
+    chat_repo::PgChatRepo,
+    runner::JobRunner,
+};
 use sr_events::{EventBus, InProcessBus};
 use sr_features::{FeatureRegistry, FeatureService};
 use sr_gateway::{Gateway, GatewayConfig};
@@ -165,10 +178,44 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         let ids = ids.clone();
         Arc::new(move || ids.generate().get() as i64)
     };
+    let previous_keys = cfg
+        .server
+        .secret_key_previous
+        .iter()
+        .map(|k| parse_secret_key(k.expose()))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| anyhow::anyhow!("server.secret_key_previous: {e}"))?;
     let auth_repo = PgAuthRepo::new(
         pool.clone(),
-        id_src,
+        id_src.clone(),
         secret_key(cfg.server.secret_key.expose())?,
+    )
+    .with_previous_keys(previous_keys);
+
+    // Entrance/auth service (open question 140): Postgres store, SMTP when
+    // `[smtp]` has a host (the log mailer otherwise, for development), and the
+    // shared snowflake source. It is registered on AppState below.
+    let auth_cfg = AuthConfig {
+        public_url: cfg.server.public_url.clone(),
+        trust_forwarded_for: cfg.server.trust_forwarded_for,
+        ..AuthConfig::default()
+    };
+    let mailer: Arc<dyn Mailer> = if cfg.smtp.host.is_empty() {
+        Arc::new(LogMailer)
+    } else {
+        Arc::new(SmtpMailer::from_config(&cfg.smtp).context("configuring [smtp]")?)
+    };
+    let auth_service = Arc::new(
+        AuthService::new(
+            Arc::new(PgAuthStore::new(
+                pool.clone(),
+                auth_repo.clone(),
+                id_src.clone(),
+            )),
+            mailer,
+            id_src.clone(),
+        )
+        .with_config(auth_cfg.clone()),
     );
 
     let s = &cfg.storage;
@@ -230,6 +277,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let state = AppState::builder()
         .settings(settings)
         .clock(clock)
+        .session_policy(auth_cfg.session_policy())
+        .extension(auth_service)
         .sessions(Arc::new(auth_repo))
         .bots(Arc::new(NoBots))
         .bearers(Arc::new(NoBearers))

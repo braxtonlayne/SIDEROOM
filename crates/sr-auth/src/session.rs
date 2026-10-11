@@ -105,6 +105,40 @@ impl fmt::Debug for SessionToken {
     }
 }
 
+const TRUST_DOMAIN: &str = "sideroom/trusted-device/v1";
+
+/// The cookie value behind "Trust this device" (open question 144). Random
+/// 256 bits; only [`TokenHash`] is stored, under its own domain.
+pub struct DeviceToken(String);
+
+impl DeviceToken {
+    /// Generate a new trusted-device token.
+    pub fn generate() -> Result<Self, AuthError> {
+        Ok(Self(random_token()?))
+    }
+
+    /// Parse a cookie value. `None` if it cannot be one of ours.
+    pub fn parse(s: &str) -> Option<Self> {
+        token_shape_ok(s).then(|| Self(s.to_owned()))
+    }
+
+    /// The raw secret, for the cookie value.
+    pub fn expose(&self) -> &str {
+        &self.0
+    }
+
+    /// The at-rest representation to store or look up.
+    pub fn hash(&self) -> TokenHash {
+        TokenHash::digest(TRUST_DOMAIN, &self.0)
+    }
+}
+
+impl fmt::Debug for DeviceToken {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("DeviceToken(..)")
+    }
+}
+
 /// Rolling-expiry policy for sessions (ENT-AUTH-005).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SessionPolicy {

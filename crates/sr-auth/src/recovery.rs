@@ -1,16 +1,18 @@
 //! Recovery codes (ENT-AUTH-009): single-use, generated in a batch, shown once.
 //!
-//! Format `XXXX-XXXX-XXXX` (12 Crockford symbols, 60 bits). Because that is
-//! far less entropy than a session token, each code is stored as an argon2id
-//! PHC string rather than a bare digest.
+//! Format `XXXX-XXXX-XXXX-XXXX` (16 Crockford symbols, 80 bits). Each code is
+//! stored as a SHA-256 digest ([`TokenHash`], domain-separated), not an
+//! argon2 hash: 80 random bits need no slow hash, and a digest lets the
+//! database enforce uniqueness per account (open question 1 and 39).
 
-use crate::{crockford, error::AuthError, password::PasswordHasher};
+use crate::{crockford, error::AuthError, session::TokenHash};
 use std::fmt;
 
 /// Codes issued per batch.
 pub const BATCH_SIZE: usize = 10;
-const SYMBOLS: usize = 12;
+const SYMBOLS: usize = 16;
 const GROUP: usize = 4;
+const DOMAIN: &str = "sideroom/recovery-code/v1";
 
 /// A recovery code in canonical form.
 #[derive(Clone, PartialEq, Eq)]
@@ -31,19 +33,14 @@ impl RecoveryCode {
         Ok(Self(c))
     }
 
-    /// Display form `XXXX-XXXX-XXXX`.
+    /// Display form `XXXX-XXXX-XXXX-XXXX`.
     pub fn formatted(&self) -> String {
         crockford::group(&self.0, GROUP)
     }
 
-    /// Hash for storage.
-    pub fn hash(&self, hasher: &PasswordHasher) -> Result<String, AuthError> {
-        hasher.hash(&self.0)
-    }
-
-    /// Check against one stored hash.
-    pub fn matches(&self, hasher: &PasswordHasher, stored: &str) -> Result<bool, AuthError> {
-        hasher.verify(&self.0, stored)
+    /// SHA-256 digest for storage (the only persisted form).
+    pub fn hash(&self) -> TokenHash {
+        TokenHash::digest(DOMAIN, &self.0)
     }
 }
 
@@ -58,12 +55,12 @@ impl fmt::Debug for RecoveryCode {
 pub struct RecoveryBatch {
     /// Plaintext codes (display once).
     pub codes: Vec<RecoveryCode>,
-    /// PHC hashes in the same order, for storage.
-    pub hashes: Vec<String>,
+    /// Digests in the same order, for storage.
+    pub hashes: Vec<TokenHash>,
 }
 
-/// Generate [`BATCH_SIZE`] distinct codes and their hashes.
-pub fn generate_batch(hasher: &PasswordHasher) -> Result<RecoveryBatch, AuthError> {
+/// Generate [`BATCH_SIZE`] distinct codes and their digests.
+pub fn generate_batch() -> Result<RecoveryBatch, AuthError> {
     let mut codes: Vec<RecoveryCode> = Vec::with_capacity(BATCH_SIZE);
     while codes.len() < BATCH_SIZE {
         let c = RecoveryCode::generate()?;
@@ -71,53 +68,36 @@ pub fn generate_batch(hasher: &PasswordHasher) -> Result<RecoveryBatch, AuthErro
             codes.push(c);
         }
     }
-    let hashes = codes
-        .iter()
-        .map(|c| c.hash(hasher))
-        .collect::<Result<Vec<_>, _>>()?;
+    let hashes = codes.iter().map(RecoveryCode::hash).collect();
     Ok(RecoveryBatch { codes, hashes })
 }
 
-/// Find which unused stored hash `input` matches. Returns its index so the
-/// caller can mark exactly that one consumed. Every stored hash is checked
-/// (no early exit) to keep timing independent of position.
-pub fn find_match(
-    hasher: &PasswordHasher,
-    input: &str,
-    unused_hashes: &[String],
-) -> Result<Option<usize>, AuthError> {
-    let Ok(code) = RecoveryCode::parse(input) else {
-        return Ok(None);
-    };
+/// Find which unused stored digest `input` matches. Returns its index so the
+/// caller can mark exactly that one consumed. Every digest is compared in
+/// constant time and there is no early exit, so timing does not reveal the
+/// position of a match.
+pub fn find_match(input: &str, unused: &[TokenHash]) -> Option<usize> {
+    let code = RecoveryCode::parse(input).ok()?;
+    let digest = code.hash();
     let mut found = None;
-    for (i, h) in unused_hashes.iter().enumerate() {
-        if code.matches(hasher, h)? && found.is_none() {
+    for (i, h) in unused.iter().enumerate() {
+        if digest.ct_eq(h) && found.is_none() {
             found = Some(i);
         }
     }
-    Ok(found)
+    found
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::password::PasswordParams;
-
-    fn hasher() -> PasswordHasher {
-        PasswordHasher::new(PasswordParams {
-            m_cost_kib: 64,
-            t_cost: 1,
-            p_cost: 1,
-        })
-        .unwrap()
-    }
 
     #[test]
     fn format_and_parse() {
         let c = RecoveryCode::generate().unwrap();
         let f = c.formatted();
-        assert_eq!(f.len(), 14);
-        assert_eq!(f.matches('-').count(), 2);
+        assert_eq!(f.len(), 19);
+        assert_eq!(f.matches('-').count(), 3);
         assert_eq!(RecoveryCode::parse(&f).unwrap(), c);
         assert_eq!(RecoveryCode::parse(&f.to_lowercase()).unwrap(), c);
     }
@@ -127,9 +107,10 @@ mod tests {
         for bad in [
             "",
             "ABCD-EFGH",
-            "ABCD-EFGH-JKMN-PQRS",
-            "ABCD-EFGH-JKMU",
-            "!!!!-!!!!-!!!!",
+            "ABCD-EFGH-JKMN",
+            "ABCD-EFGH-JKMN-PQRS-TVWX",
+            "ABCD-EFGH-JKMN-PQRU",
+            "!!!!-!!!!-!!!!-!!!!",
         ] {
             assert!(RecoveryCode::parse(bad).is_err(), "{bad}");
         }
@@ -137,55 +118,40 @@ mod tests {
 
     #[test]
     fn batch_is_distinct_and_hashed() {
-        let h = hasher();
-        let b = generate_batch(&h).unwrap();
+        let b = generate_batch().unwrap();
         assert_eq!(b.codes.len(), BATCH_SIZE);
         assert_eq!(b.hashes.len(), BATCH_SIZE);
         for (c, hash) in b.codes.iter().zip(&b.hashes) {
-            assert!(hash.starts_with("$argon2id$"));
-            assert!(!hash.contains(&c.formatted()));
-            assert!(c.matches(&h, hash).unwrap());
+            assert_eq!(c.hash(), *hash);
+            assert!(!hash.to_hex().contains(&c.formatted()));
         }
         for i in 0..b.codes.len() {
             for j in i + 1..b.codes.len() {
                 assert_ne!(b.codes[i], b.codes[j]);
+                assert!(!b.hashes[i].ct_eq(&b.hashes[j]));
             }
         }
     }
 
     #[test]
     fn find_match_returns_index_and_consumption_works() {
-        let h = hasher();
-        let b = generate_batch(&h).unwrap();
+        let b = generate_batch().unwrap();
         let mut unused = b.hashes.clone();
-        let idx = find_match(&h, &b.codes[3].formatted(), &unused)
-            .unwrap()
-            .unwrap();
+        let idx = find_match(&b.codes[3].formatted(), &unused).unwrap();
         assert_eq!(idx, 3);
         unused.remove(idx);
-        assert_eq!(
-            find_match(&h, &b.codes[3].formatted(), &unused).unwrap(),
-            None
-        );
+        assert_eq!(find_match(&b.codes[3].formatted(), &unused), None);
         // Others still work.
-        assert!(
-            find_match(&h, &b.codes[4].formatted(), &unused)
-                .unwrap()
-                .is_some()
-        );
+        assert!(find_match(&b.codes[4].formatted(), &unused).is_some());
     }
 
     #[test]
     fn find_match_wrong_or_malformed() {
-        let h = hasher();
-        let b = generate_batch(&h).unwrap();
-        assert_eq!(find_match(&h, "garbage", &b.hashes).unwrap(), None);
+        let b = generate_batch().unwrap();
+        assert_eq!(find_match("garbage", &b.hashes), None);
         let stranger = RecoveryCode::generate().unwrap();
-        assert_eq!(
-            find_match(&h, &stranger.formatted(), &b.hashes).unwrap(),
-            None
-        );
-        assert_eq!(find_match(&h, &b.codes[0].formatted(), &[]).unwrap(), None);
+        assert_eq!(find_match(&stranger.formatted(), &b.hashes), None);
+        assert_eq!(find_match(&b.codes[0].formatted(), &[]), None);
     }
 
     #[test]

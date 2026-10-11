@@ -15,6 +15,7 @@ path = "src/main.rs"
 anyhow = "1"
 clap = { version = "4", features = ["derive", "env"] }
 rpassword = "7"
+sr-api = { path = "../sr-api" }
 sr-auth = { path = "../sr-auth" }
 sr-core = { path = "../sr-core" }
 sr-db = { path = "../sr-db" }

@@ -39,6 +39,47 @@ impl PasswordParams {
     }
 }
 
+/// Minimum password length in characters (doc 06 section 3).
+pub const MIN_LEN: usize = 10;
+/// Maximum password length in bytes, to keep argon2 and zxcvbn bounded.
+pub const MAX_LEN: usize = 256;
+
+/// Outcome of [`strength`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Verdict {
+    /// Acceptable.
+    Ok,
+    /// Fewer than [`MIN_LEN`] characters.
+    TooShort,
+    /// More than [`MAX_LEN`] bytes.
+    TooLong,
+    /// zxcvbn score below 3 (given the user's own words as context).
+    TooWeak,
+}
+
+impl Verdict {
+    /// True when the password may be used.
+    pub fn is_ok(self) -> bool {
+        self == Self::Ok
+    }
+}
+
+/// The one password rule shared by the HTTP API and the CLI: length
+/// [`MIN_LEN`]..=[`MAX_LEN`] and zxcvbn score >= 3. `user_inputs` (username,
+/// email parts, site name) are penalised so they cannot be the password.
+pub fn strength(password: &str, user_inputs: &[&str]) -> Verdict {
+    if password.chars().count() < MIN_LEN {
+        return Verdict::TooShort;
+    }
+    if password.len() > MAX_LEN {
+        return Verdict::TooLong;
+    }
+    if zxcvbn::zxcvbn(password, user_inputs).score() < zxcvbn::Score::Three {
+        return Verdict::TooWeak;
+    }
+    Verdict::Ok
+}
+
 /// Hashes and verifies passwords with a fixed target parameter set.
 #[derive(Debug, Clone, Default)]
 pub struct PasswordHasher {
@@ -195,6 +236,19 @@ mod tests {
     fn defaults_meet_owasp_floor() {
         let d = PasswordParams::default();
         assert!(d.m_cost_kib >= 19 * 1024 && d.t_cost >= 2 && d.p_cost >= 1);
+    }
+
+    #[test]
+    fn strength_rules() {
+        assert_eq!(strength("short", &[]), Verdict::TooShort);
+        assert_eq!(strength("password123", &[]), Verdict::TooWeak);
+        assert_eq!(strength("correct horse battery staple", &[]), Verdict::Ok);
+        assert_eq!(
+            strength("alice_wonderland", &["alice_wonderland"]),
+            Verdict::TooWeak
+        );
+        assert_eq!(strength(&"x".repeat(300), &[]), Verdict::TooLong);
+        assert!(Verdict::Ok.is_ok());
     }
 
     #[test]
