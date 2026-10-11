@@ -24,6 +24,9 @@ pub use service::SocialService;
 use crate::error::RepoError;
 use sr_core::{ApiError, ErrorCode};
 
+/// Private note length (Discord parity; the table CHECK matches). Open question 111.
+pub const MAX_NOTE_CHARS: usize = 256;
+
 /// Operator-configurable social limits (docs/specs/lounge-chat.md section 14).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SocialLimits {
@@ -51,7 +54,7 @@ impl Default for SocialLimits {
             max_group_dms_per_user: 100,
             max_nickname_chars: 32,
             max_group_name_chars: 100,
-            max_bio_chars: 400,
+            max_bio_chars: 190,
             max_pronouns_chars: 40,
             max_custom_status_chars: 128,
             max_connections: 50,
@@ -127,6 +130,8 @@ impl SocialError {
             }
             Self::NotParticipant => ApiError::new(ErrorCode::MissingAccess),
             Self::NotOwner => ApiError::new(ErrorCode::MissingPermissions),
+            Self::MaxFriends => ApiError::new(ErrorCode::MaxFriends),
+            Self::MaxGroupDms => ApiError::new(ErrorCode::MaxGroupDms),
             Self::Invalid {
                 field,
                 code,

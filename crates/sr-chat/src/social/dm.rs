@@ -47,6 +47,38 @@ impl Default for DmPrivacy {
     }
 }
 
+/// A recipient's Message Request state for a conversation (open question 112).
+/// `Pending` is set only by the server when a request lands; the recipient may
+/// then move it to `Accepted`, `Ignored` or `Spam`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RequestState {
+    Accepted,
+    Pending,
+    Ignored,
+    Spam,
+}
+
+impl RequestState {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Accepted => "accepted",
+            Self::Pending => "pending",
+            Self::Ignored => "ignored",
+            Self::Spam => "spam",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        Some(match s {
+            "accepted" => Self::Accepted,
+            "pending" => Self::Pending,
+            "ignored" => Self::Ignored,
+            "spam" => Self::Spam,
+            _ => return None,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DmAccess {
     Allowed,
@@ -69,7 +101,7 @@ pub fn dm_access(pair: PairState, recipient_privacy: &DmPrivacy, shares_guild: b
         return DmAccess::Denied;
     }
     // Recipient ignoring the sender hides the conversation in requests.
-    if recipient_privacy.message_requests || pair.theirs == Some(RelationshipKind::Ignored) {
+    if recipient_privacy.message_requests || pair.they_ignore_me {
         DmAccess::Request
     } else {
         DmAccess::Allowed

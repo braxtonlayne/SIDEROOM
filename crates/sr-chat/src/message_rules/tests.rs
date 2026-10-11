@@ -124,6 +124,11 @@ fn mod_perms() -> Permissions {
     member_perms() | Permissions::MANAGE_MESSAGES
 }
 
+/// Pinning needs PIN_MESSAGES (Q95), not MANAGE_MESSAGES.
+fn pin_perms() -> Permissions {
+    member_perms() | Permissions::PIN_MESSAGES
+}
+
 // ---- create
 
 #[test]
@@ -673,10 +678,15 @@ fn pin_rules() {
     let ch = text_channel();
     let l = limits();
     let m = msg(1, AUTHOR, "x");
-    assert!(validate_pin(&ch, &m, mod_perms(), 0, &l).is_ok());
-    assert!(validate_pin(&ch, &m, mod_perms(), 249, &l).is_ok());
+    assert!(validate_pin(&ch, &m, pin_perms(), 0, &l).is_ok());
+    // MANAGE_MESSAGES alone no longer grants pinning.
     assert!(matches!(
-        validate_pin(&ch, &m, mod_perms(), 250, &l),
+        validate_pin(&ch, &m, mod_perms(), 0, &l),
+        Err(ChatError::MissingPermissions)
+    ));
+    assert!(validate_pin(&ch, &m, pin_perms(), 249, &l).is_ok());
+    assert!(matches!(
+        validate_pin(&ch, &m, pin_perms(), 250, &l),
         Err(ChatError::MaxPins)
     ));
     assert!(matches!(
@@ -685,19 +695,19 @@ fn pin_rules() {
     ));
     let mut pinned = m.clone();
     pinned.pinned = true;
-    assert!(validate_pin(&ch, &pinned, mod_perms(), 0, &l).is_err());
+    assert!(validate_pin(&ch, &pinned, pin_perms(), 0, &l).is_err());
     let mut sys = m.clone();
     sys.kind = MessageType::UserJoin;
-    assert!(validate_pin(&ch, &sys, mod_perms(), 0, &l).is_err());
+    assert!(validate_pin(&ch, &sys, pin_perms(), 0, &l).is_err());
     let mut gone = m.clone();
     gone.visibility = Visibility::UserDeleted;
     assert!(matches!(
-        validate_pin(&ch, &gone, mod_perms(), 0, &l),
+        validate_pin(&ch, &gone, pin_perms(), 0, &l),
         Err(ChatError::UnknownMessage)
     ));
     let mut other = m.clone();
     other.channel_id = ChannelId::new(51);
-    assert!(validate_pin(&ch, &other, mod_perms(), 0, &l).is_err());
+    assert!(validate_pin(&ch, &other, pin_perms(), 0, &l).is_err());
 }
 
 #[test]
@@ -705,11 +715,11 @@ fn unpin_rules() {
     let ch = text_channel();
     let mut m = msg(1, AUTHOR, "x");
     assert!(matches!(
-        validate_unpin(&ch, &m, mod_perms()),
+        validate_unpin(&ch, &m, pin_perms()),
         Err(ChatError::UnknownMessage)
     ));
     m.pinned = true;
-    assert!(validate_unpin(&ch, &m, mod_perms()).is_ok());
+    assert!(validate_unpin(&ch, &m, pin_perms()).is_ok());
     assert!(validate_unpin(&ch, &m, member_perms()).is_err());
 }
 

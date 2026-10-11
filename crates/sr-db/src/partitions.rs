@@ -3,11 +3,13 @@
 //! Tables such as `messages` are range-partitioned by Snowflake `id`, which is
 //! time-ordered, so one partition covers one calendar month (UTC): the lower
 //! bound is the smallest id any worker could mint at the start of the month.
-//! The helper is generic over the table name because `messages` is not in the
-//! migrations yet; the parent must be declared `PARTITION BY RANGE (id)`.
+//! The helper is generic over the table name. `messages` (migration 0012) is
+//! range-partitioned by `id` with the same bounds as [`Month::lower_bound_id`]
+//! (its SQL helper `sr_ensure_message_partition` creates the same names), so the
+//! job and the migration agree. The parent must be `PARTITION BY RANGE (id)`.
 //!
-//! Intended to run as a job of kind [`JOB_KIND`] (create-ahead), and it is
-//! idempotent (`CREATE TABLE IF NOT EXISTS`).
+//! Runs as a daily job of kind [`JOB_KIND`] (create-ahead), scheduled by the
+//! `sr-server` jobs module. It is idempotent (`CREATE TABLE IF NOT EXISTS`).
 
 use sqlx::PgPool;
 use sr_core::snowflake::SIDEROOM_EPOCH_MS;

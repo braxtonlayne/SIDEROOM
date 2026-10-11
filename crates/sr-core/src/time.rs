@@ -7,11 +7,13 @@ pub trait Clock: Send + Sync {
     fn now_unix_ms(&self) -> i64;
 }
 
-/// Real clock. Not usable on `wasm32-unknown-unknown` (std time panics there);
-/// browser code should supply its own `Clock` backed by `Date.now()`.
+/// Real clock. Not available on `wasm32-unknown-unknown` (std time panics there);
+/// browser code uses `sr_permissions_wasm::JsClock`, backed by `Date.now()`.
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Debug, Default, Clone, Copy)]
 pub struct SystemClock;
 
+#[cfg(not(target_arch = "wasm32"))]
 impl Clock for SystemClock {
     fn now_unix_ms(&self) -> i64 {
         match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
@@ -62,6 +64,7 @@ mod tests {
         assert_eq!(c.now_unix_ms(), 7);
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn system_clock_is_after_2026() {
         assert!(SystemClock.now_unix_ms() > 1_767_225_600_000);

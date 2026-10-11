@@ -1,6 +1,6 @@
 //! Orchestration for the social domain: load state, run the pure rules, persist.
 
-use super::dm::{self, AddPlan, DmAccess, DmChannel, DmKind, GroupEdit, dm_access};
+use super::dm::{self, AddPlan, DmAccess, DmChannel, DmKind, GroupEdit, RequestState, dm_access};
 use super::notifications::{
     self, ChannelOverride, MentionKind, Mute, MuteDuration, NotificationLevel, ScopeSettings,
 };
@@ -80,6 +80,7 @@ impl<R: SocialRepository> SocialService<R> {
         Ok(PairState {
             mine: kind_of(&self.repo.get_relationship(me, them).await?),
             theirs: kind_of(&self.repo.get_relationship(them, me).await?),
+            they_ignore_me: self.repo.is_ignoring(them, me).await?,
         })
     }
 
@@ -159,17 +160,46 @@ impl<R: SocialRepository> SocialService<R> {
         self.commit(plan).await
     }
 
-    pub async fn ignore(&self, me: UserId, them: UserId) -> SocialResult<Plan> {
+    /// Ignore `them`. Independent of friendship: friend and request rows stay.
+    pub async fn ignore(&self, me: UserId, them: UserId) -> SocialResult<()> {
         self.require_user(them).await?;
         let st = self.pair_state(me, them).await?;
-        let plan = relationships::plan_ignore(me, them, st, self.now())?;
-        self.commit(plan).await
+        let already = self.repo.is_ignoring(me, them).await?;
+        if relationships::plan_ignore(me, them, st, already)? {
+            self.repo.put_ignore(me, them).await?;
+        }
+        Ok(())
     }
 
-    pub async fn unignore(&self, me: UserId, them: UserId) -> SocialResult<Plan> {
-        let st = self.pair_state(me, them).await?;
-        let plan = relationships::plan_clear(me, them, st, RelationshipKind::Ignored)?;
-        self.commit(plan).await
+    pub async fn unignore(&self, me: UserId, them: UserId) -> SocialResult<()> {
+        if me == them {
+            return Err(SocialError::SelfTarget);
+        }
+        Ok(self.repo.delete_ignore(me, them).await?)
+    }
+
+    /// Users `me` ignores.
+    pub async fn list_ignores(&self, me: UserId) -> SocialResult<Vec<UserId>> {
+        Ok(self.repo.list_ignores(me).await?)
+    }
+
+    /// Whether `viewer` has ignored `author` (message, activity and DM-notification filter).
+    pub async fn is_ignoring(&self, viewer: UserId, author: UserId) -> SocialResult<bool> {
+        Ok(self.repo.is_ignoring(viewer, author).await?)
+    }
+
+    /// Set (or with empty text, clear) `me`'s private note on `them` (open question 111).
+    pub async fn set_note(&self, me: UserId, them: UserId, note: Option<&str>) -> SocialResult<()> {
+        if me == them {
+            return Err(SocialError::SelfTarget);
+        }
+        self.require_user(them).await?;
+        let note = super::clean_text("note", note, super::MAX_NOTE_CHARS)?;
+        Ok(self.repo.set_note(me, them, note.as_deref()).await?)
+    }
+
+    pub async fn get_note(&self, me: UserId, them: UserId) -> SocialResult<Option<String>> {
+        Ok(self.repo.get_note(me, them).await?)
     }
 
     pub async fn set_friend_nickname(
@@ -229,6 +259,12 @@ impl<R: SocialRepository> SocialService<R> {
             None => {
                 let id = self.channel_id();
                 self.repo.insert_dm(id, me, target).await?;
+                // A first DM from a non-friend lands in the recipient's Message Requests.
+                if access == DmAccess::Request {
+                    self.repo
+                        .set_request_state(target, id, RequestState::Pending)
+                        .await?;
+                }
                 let channel = self
                     .repo
                     .get_dm(id)
@@ -350,6 +386,34 @@ impl<R: SocialRepository> SocialService<R> {
         Ok(self.repo.set_hidden(user, channel, true).await?)
     }
 
+    /// `user`'s Message Request state in a conversation (`None` if not a recipient).
+    pub async fn request_state(
+        &self,
+        user: UserId,
+        channel: ChannelId,
+    ) -> SocialResult<Option<RequestState>> {
+        Ok(self.repo.get_request_state(user, channel).await?)
+    }
+
+    /// Move a pending request to accepted, ignored or spam. `Pending` cannot be
+    /// chosen by a user; only a new non-friend DM sets it.
+    pub async fn respond_to_request(
+        &self,
+        user: UserId,
+        channel: ChannelId,
+        state: RequestState,
+    ) -> SocialResult<()> {
+        if state == RequestState::Pending {
+            return Err(SocialError::invalid(
+                "state",
+                "ENUM_TYPE_BASE_TYPE_BAD_VALUE",
+                "pending is not a choice",
+            ));
+        }
+        self.get_dm_for(user, channel).await?;
+        Ok(self.repo.set_request_state(user, channel, state).await?)
+    }
+
     /// Reopen for every recipient who closed it (called when a message arrives).
     pub async fn reopen_for_message(&self, channel: ChannelId) -> SocialResult<()> {
         if let Some(ch) = self.repo.get_dm(channel).await? {
@@ -426,6 +490,22 @@ impl<R: SocialRepository> SocialService<R> {
         let mut users: Vec<UserId> = mentioned.iter().copied().filter(|u| *u != author).collect();
         users.sort();
         users.dedup();
+        if !users.is_empty() {
+            self.repo.add_mentions(&users, channel, 1).await?;
+        }
+        Ok(())
+    }
+
+    /// Mention badges for a new message, counting only users `can_view` admits
+    /// (open question 117). The send path supplies the VIEW_CHANNEL check.
+    pub async fn record_eligible_mentions(
+        &self,
+        author: UserId,
+        mentioned: &[UserId],
+        channel: ChannelId,
+        can_view: impl Fn(UserId) -> bool,
+    ) -> SocialResult<()> {
+        let users = read_state::mention_recipients(author, mentioned, can_view);
         if !users.is_empty() {
             self.repo.add_mentions(&users, channel, 1).await?;
         }
@@ -593,8 +673,27 @@ impl<R: SocialRepository> SocialService<R> {
         Ok(updated)
     }
 
-    /// Add or refresh a connection. `verified` must only be true for OAuth-proven links.
-    pub async fn upsert_connection(&self, mut c: Connection) -> SocialResult<()> {
+    /// Add or refresh a plain (unverified) link. Never sets `verified`; a re-link
+    /// keeps an existing verified flag.
+    pub async fn upsert_connection(&self, c: Connection) -> SocialResult<()> {
+        self.store_connection(Connection {
+            verified: false,
+            ..c
+        })
+        .await
+    }
+
+    /// Store a connection proven by an OAuth flow (open question 118). Only OAuth
+    /// completion code calls this.
+    pub async fn upsert_verified_connection(&self, c: Connection) -> SocialResult<()> {
+        self.store_connection(Connection {
+            verified: true,
+            ..c
+        })
+        .await
+    }
+
+    async fn store_connection(&self, mut c: Connection) -> SocialResult<()> {
         profile::validate_connection(&c)?;
         c.created_ms = self.now();
         let existing = self.repo.count_connections(c.user).await?;
@@ -630,6 +729,17 @@ impl<R: SocialRepository> SocialService<R> {
             .await?
             .unwrap_or_else(|| PresencePrefs::new(user))
             .resolved(self.now()))
+    }
+
+    /// The status other users see for `user`, given the live per-session statuses
+    /// (open question 119). The chosen status comes from the stored prefs.
+    pub async fn effective_status(
+        &self,
+        user: UserId,
+        sessions: &[Status],
+    ) -> SocialResult<Status> {
+        let chosen = self.presence(user).await?.status;
+        Ok(presence::merge_sessions(chosen, sessions))
     }
 
     pub async fn set_status(

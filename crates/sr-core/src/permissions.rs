@@ -59,6 +59,8 @@ bitflags! {
         // Bits 47-48 are unassigned in Discord's current list.
         const SEND_POLLS = 1 << 49;
         const USE_EXTERNAL_APPS = 1 << 50;
+        const PIN_MESSAGES = 1 << 51;
+        const BYPASS_SLOWMODE = 1 << 52;
 
         // SIDE ROOM additions (doc 07 section 2).
         const START_WATCH_PARTY = 1 << 56;
@@ -167,9 +169,185 @@ pub fn compute_overwrites(
     perms
 }
 
+/// Whether a member is in a timeout at `now_ms`
+/// (`communication_disabled_until` is unix milliseconds, as in the time module).
+pub fn is_timed_out(communication_disabled_until_ms: Option<i64>, now_ms: i64) -> bool {
+    communication_disabled_until_ms.is_some_and(|until| until > now_ms)
+}
+
+/// Inputs to [`compute`]. Slices are borrowed to keep the call cheap in WASM.
+#[derive(Debug, Clone, Copy)]
+pub struct ComputeInput<'a> {
+    pub is_owner: bool,
+    /// The `@everyone` role permissions (role id == guild id).
+    pub everyone: Permissions,
+    pub role_perms: &'a [Permissions],
+    pub guild_id: Snowflake,
+    pub member_id: Snowflake,
+    /// Member roles, excluding `@everyone`.
+    pub member_role_ids: &'a [Snowflake],
+    pub overwrites: &'a [Overwrite],
+    /// Result of [`is_timed_out`] for the member.
+    pub timed_out: bool,
+}
+
+/// Full channel permission computation: Discord's base and overwrite algorithm
+/// ([`compute_base`], [`compute_overwrites`]) followed by Discord's implicit rules:
+/// 1. a timed-out member keeps only `VIEW_CHANNEL | READ_MESSAGE_HISTORY`;
+/// 2. without `VIEW_CHANNEL` the channel set is empty;
+/// 3. without `SEND_MESSAGES`, `SEND_TTS_MESSAGES`, `MENTION_EVERYONE`, `EMBED_LINKS`
+///    and `ATTACH_FILES` are removed;
+/// 4. without `CONNECT`, the voice bits (`SPEAK`, `STREAM`, `USE_VAD`,
+///    `PRIORITY_SPEAKER`) are removed.
+///
+/// Administrators (and owners) bypass every rule.
+pub fn compute(input: &ComputeInput<'_>) -> Permissions {
+    let base = compute_base(
+        input.is_owner,
+        input.everyone,
+        input.role_perms.iter().copied(),
+    );
+    let mut perms = compute_overwrites(
+        base,
+        input.guild_id,
+        input.member_id,
+        input.member_role_ids,
+        input.overwrites,
+    );
+    if perms.contains(Permissions::ADMINISTRATOR) {
+        return Permissions::ALL;
+    }
+    if input.timed_out {
+        perms &= Permissions::VIEW_CHANNEL | Permissions::READ_MESSAGE_HISTORY;
+    }
+    if !perms.contains(Permissions::VIEW_CHANNEL) {
+        return Permissions::empty();
+    }
+    if !perms.contains(Permissions::SEND_MESSAGES) {
+        perms &= !(Permissions::SEND_TTS_MESSAGES
+            | Permissions::MENTION_EVERYONE
+            | Permissions::EMBED_LINKS
+            | Permissions::ATTACH_FILES);
+    }
+    if !perms.contains(Permissions::CONNECT) {
+        perms &= !(Permissions::SPEAK
+            | Permissions::STREAM
+            | Permissions::USE_VAD
+            | Permissions::PRIORITY_SPEAKER);
+    }
+    perms
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn sf(n: u64) -> Snowflake {
+        Snowflake::new(n)
+    }
+
+    /// Guild 1, member 2, everyone role id 1 (== guild id).
+    fn input<'a>(
+        everyone: Permissions,
+        roles: &'a [Permissions],
+        ows: &'a [Overwrite],
+        timed_out: bool,
+    ) -> ComputeInput<'a> {
+        ComputeInput {
+            is_owner: false,
+            everyone,
+            role_perms: roles,
+            guild_id: sf(1),
+            member_id: sf(2),
+            member_role_ids: &[],
+            overwrites: ows,
+            timed_out,
+        }
+    }
+
+    #[test]
+    fn timeout_detection() {
+        assert!(is_timed_out(Some(2_000), 1_000));
+        assert!(!is_timed_out(Some(1_000), 1_000));
+        assert!(!is_timed_out(None, 1_000));
+    }
+
+    #[test]
+    fn timed_out_member_keeps_only_view_and_history() {
+        let all_text = Permissions::VIEW_CHANNEL
+            | Permissions::SEND_MESSAGES
+            | Permissions::READ_MESSAGE_HISTORY
+            | Permissions::ADD_REACTIONS;
+        let out = compute(&input(all_text, &[], &[], true));
+        assert_eq!(
+            out,
+            Permissions::VIEW_CHANNEL | Permissions::READ_MESSAGE_HISTORY
+        );
+    }
+
+    #[test]
+    fn timed_out_admin_bypasses() {
+        let out = compute(&input(
+            Permissions::empty(),
+            &[Permissions::ADMINISTRATOR],
+            &[],
+            true,
+        ));
+        assert_eq!(out, Permissions::ALL);
+    }
+
+    #[test]
+    fn no_view_channel_means_empty() {
+        let out = compute(&input(Permissions::SEND_MESSAGES, &[], &[], false));
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn no_send_strips_send_adjacent_bits() {
+        let perms = Permissions::VIEW_CHANNEL
+            | Permissions::SEND_TTS_MESSAGES
+            | Permissions::MENTION_EVERYONE
+            | Permissions::EMBED_LINKS
+            | Permissions::ATTACH_FILES
+            | Permissions::READ_MESSAGE_HISTORY;
+        let out = compute(&input(perms, &[], &[], false));
+        assert_eq!(
+            out,
+            Permissions::VIEW_CHANNEL | Permissions::READ_MESSAGE_HISTORY
+        );
+    }
+
+    #[test]
+    fn no_connect_strips_voice_bits() {
+        let perms = Permissions::VIEW_CHANNEL
+            | Permissions::SEND_MESSAGES
+            | Permissions::SPEAK
+            | Permissions::STREAM
+            | Permissions::USE_VAD
+            | Permissions::PRIORITY_SPEAKER;
+        let out = compute(&input(perms, &[], &[], false));
+        assert_eq!(out, Permissions::VIEW_CHANNEL | Permissions::SEND_MESSAGES);
+        let with_connect = compute(&input(perms | Permissions::CONNECT, &[], &[], false));
+        assert!(with_connect.contains(Permissions::SPEAK));
+    }
+
+    #[test]
+    fn overwrite_denying_view_empties_channel() {
+        let ows = [Overwrite {
+            id: sf(1),
+            kind: OverwriteKind::Role,
+            allow: Permissions::empty(),
+            deny: Permissions::VIEW_CHANNEL,
+        }];
+        let base = Permissions::VIEW_CHANNEL | Permissions::SEND_MESSAGES;
+        assert!(compute(&input(base, &[], &ows, false)).is_empty());
+    }
+
+    #[test]
+    fn new_bits_and_positions() {
+        assert_eq!(Permissions::PIN_MESSAGES.bits(), 1 << 51);
+        assert_eq!(Permissions::BYPASS_SLOWMODE.bits(), 1 << 52);
+    }
 
     #[test]
     fn discord_bit_positions() {

@@ -1,4 +1,6 @@
-//! Friend requests, friends, blocks, ignores and friend nicknames.
+//! Friend requests, friends, blocks and friend nicknames. Ignores are not a
+//! relationship kind: they are an independent set (`user_ignores`) that leaves
+//! friendships untouched (open question 110).
 //!
 //! Each user owns one row per target: `(user, target, kind)`. A friendship is two
 //! `Friend` rows; a pending request is `PendingOutgoing` on the sender and
@@ -13,18 +15,16 @@ pub enum RelationshipKind {
     Blocked,
     PendingIncoming,
     PendingOutgoing,
-    Ignored,
 }
 
 impl RelationshipKind {
-    /// Discord relationship type codes; `Ignored` is SIDE ROOM's own (6).
+    /// Discord relationship type codes.
     pub const fn code(self) -> i16 {
         match self {
             Self::Friend => 1,
             Self::Blocked => 2,
             Self::PendingIncoming => 3,
             Self::PendingOutgoing => 4,
-            Self::Ignored => 6,
         }
     }
 
@@ -34,7 +34,6 @@ impl RelationshipKind {
             2 => Self::Blocked,
             3 => Self::PendingIncoming,
             4 => Self::PendingOutgoing,
-            6 => Self::Ignored,
             _ => return None,
         })
     }
@@ -114,6 +113,8 @@ impl FriendRequestSources {
 pub struct PairState {
     pub mine: Option<RelationshipKind>,
     pub theirs: Option<RelationshipKind>,
+    /// Whether `them` has ignored `me` (their requests and DMs stay hidden from them).
+    pub they_ignore_me: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -199,7 +200,7 @@ pub fn plan_request(
             check_befriend_limits(&counts.mine, &counts.theirs, limits)?;
             return Ok(befriend(me, them, now));
         }
-        Some(RelationshipKind::Ignored) | None => {}
+        None => {}
     }
     if st.theirs == Some(RelationshipKind::Blocked) {
         return Err(SocialError::BlockedByThem);
@@ -212,7 +213,7 @@ pub fn plan_request(
     }
     let mut ops = vec![upsert(me, them, RelationshipKind::PendingOutgoing, now)];
     // A target who ignores us never sees the request (it simply stays pending).
-    if st.theirs != Some(RelationshipKind::Ignored) {
+    if !st.they_ignore_me {
         ops.push(upsert(them, me, RelationshipKind::PendingIncoming, now));
     }
     Ok(Plan {
@@ -290,31 +291,25 @@ pub fn plan_block(
     })
 }
 
-/// Ignore: hides the user from us. Replaces any friendship or request on our side
-/// and removes the other side's friend/pending row so state stays consistent.
-pub fn plan_ignore(me: UserId, them: UserId, st: PairState, now: i64) -> SocialResult<Plan> {
+/// Ignore is independent of friendship (open question 110): validate it and report
+/// whether the ignore row must be written (`already_ignored` is the stored state).
+/// Friend and request rows are left alone.
+pub fn plan_ignore(
+    me: UserId,
+    them: UserId,
+    st: PairState,
+    already_ignored: bool,
+) -> SocialResult<bool> {
     if me == them {
         return Err(SocialError::SelfTarget);
     }
-    match st.mine {
-        Some(RelationshipKind::Blocked) => return Err(SocialError::BlockedByYou),
-        Some(RelationshipKind::Ignored) => {
-            return Ok(Plan::noop(Some(RelationshipKind::Ignored)));
-        }
-        _ => {}
+    if st.mine == Some(RelationshipKind::Blocked) {
+        return Err(SocialError::BlockedByYou);
     }
-    let mut ops = vec![upsert(me, them, RelationshipKind::Ignored, now)];
-    if st.theirs.is_some_and(RelationshipKind::is_social_link) {
-        ops.push(del(them, me));
-    }
-    Ok(Plan {
-        ops,
-        result: Some(RelationshipKind::Ignored),
-        became_friends: false,
-    })
+    Ok(!already_ignored)
 }
 
-/// Unblock or unignore (drops our row if it is of `kind`).
+/// Unblock (drops our block row).
 pub fn plan_clear(
     me: UserId,
     them: UserId,

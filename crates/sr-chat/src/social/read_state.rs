@@ -65,6 +65,25 @@ pub fn mark_unread(
     s
 }
 
+/// Who receives a mention badge for a new message (open question 117): the
+/// author is excluded, duplicates collapse, and only users who can view the
+/// channel count. `can_view` is the caller's VIEW_CHANNEL check (computed in the
+/// send path, per user and for every `@everyone`/role fan-out member).
+pub fn mention_recipients(
+    author: UserId,
+    mentioned: &[UserId],
+    can_view: impl Fn(UserId) -> bool,
+) -> Vec<UserId> {
+    let mut users: Vec<UserId> = mentioned
+        .iter()
+        .copied()
+        .filter(|u| *u != author && can_view(*u))
+        .collect();
+    users.sort();
+    users.dedup();
+    users
+}
+
 /// Add `n` mentions (saturating at [`MAX_MENTION_COUNT`]).
 pub fn add_mentions(
     prev: Option<ReadState>,

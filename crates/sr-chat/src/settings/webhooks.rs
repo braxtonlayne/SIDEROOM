@@ -2,6 +2,7 @@
 //! `id` + secret token; only a hash of the token is stored.
 
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use sr_core::{ApplicationId, ChannelId, GuildId, UserId, WebhookId};
 
 use super::error::{SettingsError, SettingsResult};
@@ -95,6 +96,15 @@ pub fn generate_token(mut entropy: impl FnMut() -> u64) -> String {
     out
 }
 
+/// Storage form of an execution token: lowercase hex SHA-256 with no pepper
+/// (open question 137). The token itself is shown once and never stored.
+pub fn hash_token(token: &str) -> String {
+    Sha256::digest(token.as_bytes())
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
 impl Webhook {
     /// Reject a new webhook when the channel is already at its cap.
     pub fn check_channel_quota(existing_in_channel: usize) -> SettingsResult<()> {
@@ -183,6 +193,26 @@ mod tests {
         assert!(validate_name("").is_err());
         assert!(validate_name(&"x".repeat(81)).is_err());
         assert!(validate_name("hi @everyone").is_err());
+    }
+
+    #[test]
+    fn token_hash_is_sha256_hex() {
+        // SHA-256("abc") test vector.
+        assert_eq!(
+            hash_token("abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        let w = Webhook::new_incoming(
+            WebhookId::new(1),
+            GuildId::new(2),
+            ChannelId::new(3),
+            UserId::new(4),
+            "bot",
+            hash_token("tok"),
+            0,
+        )
+        .unwrap();
+        assert!(w.token_matches(&hash_token("tok")));
     }
 
     #[test]

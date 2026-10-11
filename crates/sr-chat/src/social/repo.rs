@@ -1,7 +1,7 @@
 //! Repository traits for the social domain. Postgres implementations live in
 //! `sr-db` (`social_repo`); [`super::memory::MemoryRepo`] backs the tests.
 
-use super::dm::{DmChannel, DmPrivacy};
+use super::dm::{DmChannel, DmPrivacy, RequestState};
 use super::notifications::{ChannelOverride, ScopeSettings};
 use super::presence::PresencePrefs;
 use super::profile::{Connection, Profile};
@@ -38,6 +38,15 @@ pub trait RelationshipRepository: Send + Sync {
     async fn has_mutual_friend(&self, a: UserId, b: UserId) -> RepoResult<bool>;
     async fn get_privacy(&self, user: UserId) -> RepoResult<Privacy>;
     async fn put_privacy(&self, user: UserId, privacy: &Privacy) -> RepoResult<()>;
+    /// Whether `user` has ignored `target` (independent of friendship).
+    async fn is_ignoring(&self, user: UserId, target: UserId) -> RepoResult<bool>;
+    /// Users `user` ignores.
+    async fn list_ignores(&self, user: UserId) -> RepoResult<Vec<UserId>>;
+    async fn put_ignore(&self, user: UserId, target: UserId) -> RepoResult<()>;
+    async fn delete_ignore(&self, user: UserId, target: UserId) -> RepoResult<()>;
+    /// `user`'s private note on `target`; `None` removes it.
+    async fn get_note(&self, user: UserId, target: UserId) -> RepoResult<Option<String>>;
+    async fn set_note(&self, user: UserId, target: UserId, note: Option<&str>) -> RepoResult<()>;
 }
 
 #[async_trait]
@@ -69,6 +78,18 @@ pub trait DmRepository: Send + Sync {
     /// Conversations of `user`, most recent message first; hidden ones only on request.
     async fn list_dms(&self, user: UserId, include_hidden: bool) -> RepoResult<Vec<DmChannel>>;
     async fn count_groups(&self, user: UserId) -> RepoResult<usize>;
+    /// `user`'s Message Request state in a conversation (`None` if not a recipient).
+    async fn get_request_state(
+        &self,
+        user: UserId,
+        id: ChannelId,
+    ) -> RepoResult<Option<RequestState>>;
+    async fn set_request_state(
+        &self,
+        user: UserId,
+        id: ChannelId,
+        state: RequestState,
+    ) -> RepoResult<()>;
 }
 
 #[async_trait]
