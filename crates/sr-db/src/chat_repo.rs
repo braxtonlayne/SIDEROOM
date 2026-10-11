@@ -600,6 +600,17 @@ impl ChannelRepository for PgChatRepo {
         .await
         .map_err(db)
     }
+
+    async fn list_recipients(&self, channel: ChannelId) -> RepoResult<Vec<UserId>> {
+        let rows: Vec<i64> = sqlx::query_scalar(
+            "SELECT user_id FROM channel_recipients WHERE channel_id = $1 ORDER BY user_id",
+        )
+        .bind(i(channel.get()))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(rows.into_iter().map(|v| UserId::new(u(v))).collect())
+    }
 }
 
 #[async_trait]

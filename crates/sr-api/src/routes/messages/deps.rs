@@ -17,7 +17,7 @@ use sr_core::snowflake::SnowflakeError;
 use sr_core::{
     AttachmentId, ChannelId, Clock, ErrorCode, MessageId, Snowflake, SnowflakeGenerator, UserId,
 };
-use sr_events::{DomainEvent, EventBus};
+use sr_events::{DomainEvent, EventBus, Topic};
 use sr_storage::ObjectStorage;
 use sr_storage::cdn::CdnSigner;
 use sr_storage::upload::SizePolicy;
@@ -278,6 +278,21 @@ impl MessagesDeps {
     /// Publish to every topic the event routes to. Delivery is best effort: the
     /// mutation already happened, so a bus failure is logged, not surfaced.
     pub async fn publish(&self, ev: DomainEvent) {
+        // DM and group-DM events go once to each recipient's user topic (open
+        // question 50); nothing subscribes to channel topics.
+        if let Some(channel) = ev.dm_channel() {
+            match self.repo.list_recipients(channel).await {
+                Ok(users) => {
+                    for user in users {
+                        if let Err(e) = self.bus.publish(Topic::User(user), ev.clone()).await {
+                            tracing::warn!(error = %e, "failed to publish domain event");
+                        }
+                    }
+                }
+                Err(e) => tracing::warn!(error = %e, "resolving DM recipients failed"),
+            }
+            return;
+        }
         for topic in ev.topics() {
             if let Err(e) = self.bus.publish(topic, ev.clone()).await {
                 tracing::warn!(error = %e, "failed to publish domain event");

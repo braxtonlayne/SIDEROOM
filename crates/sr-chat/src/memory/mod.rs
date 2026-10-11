@@ -177,6 +177,18 @@ impl ChannelRepository for MemoryRepo {
     async fn is_recipient(&self, channel: ChannelId, user: UserId) -> RepoResult<bool> {
         Ok(self.lock()?.recipients.contains(&(channel, user)))
     }
+
+    async fn list_recipients(&self, channel: ChannelId) -> RepoResult<Vec<UserId>> {
+        let mut v: Vec<UserId> = self
+            .lock()?
+            .recipients
+            .iter()
+            .filter(|(c, _)| *c == channel)
+            .map(|(_, u)| *u)
+            .collect();
+        v.sort();
+        Ok(v)
+    }
 }
 
 #[async_trait]

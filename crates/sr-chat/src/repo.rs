@@ -47,6 +47,8 @@ pub trait ChannelRepository: Send + Sync {
     async fn delete_channel(&self, id: ChannelId) -> RepoResult<()>;
     /// Whether `user` is a recipient of a DM or group DM.
     async fn is_recipient(&self, channel: ChannelId, user: UserId) -> RepoResult<bool>;
+    /// Every recipient of a DM or group DM, hidden or not (open question 50).
+    async fn list_recipients(&self, channel: ChannelId) -> RepoResult<Vec<UserId>>;
 }
 
 #[async_trait]
