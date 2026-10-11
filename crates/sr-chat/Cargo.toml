@@ -15,6 +15,7 @@ async-trait.workspace = true
 regex = { version = "1", default-features = false, features = ["std", "unicode-perl", "unicode-case", "unicode-gencat", "perf"] }
 serde.workspace = true
 serde_json.workspace = true
+sha2 = "0.11.0"
 thiserror.workspace = true
 
 [dev-dependencies]
