@@ -3845,6 +3845,7 @@ dependencies = [
  "sr-chat",
  "sr-core",
  "sr-events",
+ "sr-search",
  "sr-storage",
  "subtle",
  "thiserror 2.0.21",

@@ -49,7 +49,10 @@ pub fn attachment_kinds(content_type: &str) -> BTreeSet<HasKind> {
 impl IndexedMessage {
     /// Add the `has:` flags of the message's attachments (content types).
     #[must_use]
-    pub fn with_attachments<'a>(mut self, content_types: impl IntoIterator<Item = &'a str>) -> Self {
+    pub fn with_attachments<'a>(
+        mut self,
+        content_types: impl IntoIterator<Item = &'a str>,
+    ) -> Self {
         for ct in content_types {
             self.has.extend(attachment_kinds(ct));
         }
