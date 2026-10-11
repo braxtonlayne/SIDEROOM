@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ThemePackage",
+  "description": "A whole theme package as validated by the platform (manifest + `tokens.json` + file metadata).",
+  "type": "object",
+  "properties": {
+    "assets": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/AssetRef"
+      }
+    },
+    "fonts": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/FontRef"
+      }
+    },
+    "manifest": {
+      "$ref": "#/$defs/ThemeManifest"
+    },
+    "tokens": {
+      "description": "Token overrides: CSS custom property name (`--ui-accent`) to value.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {}
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "manifest"
+  ],
+  "$defs": {
+    "AssetRef": {
+      "description": "An image asset, referenced by package-relative path. Contents are checked at upload;\nthe validator checks the declared metadata.",
+      "type": "object",
+      "properties": {
+        "bytes": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "mime": {
+          "description": "MIME type: `image/png`, `image/webp` or `image/avif`.",
+          "type": "string"
+        },
+        "path": {
+          "description": "Package-relative path, e.g. `assets/pattern.webp`. No URLs, no `..`.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "mime",
+        "bytes"
+      ]
+    },
+    "FontRef": {
+      "description": "A bundled font file.",
+      "type": "object",
+      "properties": {
+        "bytes": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "family": {
+          "type": "string"
+        },
+        "license": {
+          "description": "Package-relative path to the licence file under `fonts/`. Required.",
+          "type": "string"
+        },
+        "path": {
+          "description": "Package-relative path to a `.woff2` file under `fonts/`.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "family",
+        "bytes",
+        "license"
+      ]
+    },
+    "ThemeManifest": {
+      "description": "`theme.json`.",
+      "type": "object",
+      "properties": {
+        "author": {
+          "description": "Author display name.",
+          "type": "string"
+        },
+        "extends": {
+          "description": "Built-in theme this one builds on; unspecified tokens fall through to it.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "Lowercase slug (`a-z`, `0-9`, `-`), 3 to 48 characters. Built-in theme ids are reserved.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Display name, 1 to 64 characters.",
+          "type": "string"
+        },
+        "scheme": {
+          "$ref": "#/$defs/ThemeScheme"
+        },
+        "targets": {
+          "description": "Sections the theme applies to (`lounge`, `cinema`, ...). At least one.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "version": {
+          "description": "Semantic version, `MAJOR.MINOR.PATCH`.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "version",
+        "author",
+        "targets",
+        "scheme"
+      ]
+    },
+    "ThemeScheme": {
+      "description": "Light or dark: drives the CSS `color-scheme` property.",
+      "type": "string",
+      "enum": [
+        "light",
+        "dark"
+      ]
+    }
+  }
+}

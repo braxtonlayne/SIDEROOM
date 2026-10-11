@@ -7,7 +7,7 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 - [ ] **FND-REPO-002** [OPS] Crate skeletons per doc 02 §3 (`sr-core`, `sr-db`, `sr-auth`, `sr-features`, `sr-events`, `sr-gateway`, `sr-api`, `sr-chat`, `sr-markdown`, `sr-search`, `sr-storage`, `sr-media`, `sr-reader`, `sr-tv`, `sr-review`, `sr-payments`, `sr-voice-proto`, `sr-e2ee`, `sr-theme`, `sr-server`, `sr-voice`, `sr-transcoder`, `sr-cli`, `sr-sdk`)
 - [ ] **FND-REPO-003** [OPS] pnpm workspace (`apps/web`, `packages/ui`, `packages/api-client`, `packages/wasm`)
 - [x] **FND-REPO-004** [OPS] Vite + React 19 + TS strict app scaffold with TanStack Router, Query, Zustand
-- [ ] **FND-REPO-005** [OPS] wasm-pack build pipeline producing `packages/wasm` (ESM, typed bindings) for each `*-wasm` target
+- [x] **FND-REPO-005** [OPS] wasm-pack build pipeline producing `packages/wasm` (ESM, typed bindings) for each `*-wasm` target
 - [x] **FND-REPO-006** [OPS] `cargo-deny` config (licences allowlist, advisories, bans)
 - [x] **FND-REPO-007** [OPS] ESLint/Prettier (or Biome) config, lint-staged + pre-commit hook
 - [x] **FND-REPO-008** [OPS] `.editorconfig`, `CODEOWNERS` (owner), Dependabot/Renovate config
