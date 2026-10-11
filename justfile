@@ -45,9 +45,17 @@ seed:
 
 # Regenerate OpenAPI spec and the TypeScript client
 gen-api:
-    cargo run -p sr-server -- openapi > packages/api-client/openapi.json
+    cargo run -q -p sr-server -- openapi > packages/api-client/openapi.json
     pnpm --filter @sideroom/api-client generate
 
 # Build WASM packages into packages/wasm
 wasm:
     pnpm --filter @sideroom/wasm build
+
+# Print the OpenAPI document (what CI diffs against packages/api-client/openapi.json)
+openapi:
+    cargo run -q -p sr-server -- openapi
+
+# Run the server against the dev stack (SR_* env overrides apply)
+serve:
+    SR_DATABASE__URL="$DATABASE_URL" cargo run -p sr-server

@@ -1,50 +1,40 @@
-//! sr-server: wires config, logging and the HTTP API together.
-//! See docs/02-architecture.md section 3.
+//! sr-server binary. `sr-server` serves; `sr-server openapi` prints the
+//! OpenAPI JSON to stdout (used by `just gen-api` and the CI drift check).
+//! See docs/02-architecture.md section 3 and docs/dev/server.md.
 
 use anyhow::Context;
-use sr_api::{ApiSettings, AppState, build_router, internal_router, observability};
+use sr_api::observability;
 use sr_core::config::Config;
-use std::net::SocketAddr;
+use std::path::PathBuf;
 
-/// Address of the loopback-only operations listener (`/internal/metrics`).
-const INTERNAL_BIND: &str = "127.0.0.1:9100";
-
-async fn shutdown_signal() {
-    let _ = tokio::signal::ctrl_c().await;
-    tracing::info!("shutdown signal received");
+fn main() -> anyhow::Result<()> {
+    let mut args = std::env::args().skip(1);
+    match args.next().as_deref() {
+        Some("openapi") => {
+            // No config, no tracing: stdout must carry only the document.
+            println!(
+                "{}",
+                sr_server::openapi_json().context("serializing OpenAPI")?
+            );
+            Ok(())
+        }
+        None | Some("serve") => serve(),
+        Some("-h" | "--help" | "help") => {
+            println!(
+                "usage: sr-server [serve|openapi]\n\n\
+                 serve    run the server (default); config from SR_CONFIG (TOML path) and SR_* env\n\
+                 openapi  print the OpenAPI document as JSON"
+            );
+            Ok(())
+        }
+        Some(other) => anyhow::bail!("unknown command {other:?} (try --help)"),
+    }
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    let cfg = Config::load(None).context("loading configuration")?;
+async fn serve() -> anyhow::Result<()> {
+    let path = std::env::var_os("SR_CONFIG").map(PathBuf::from);
+    let cfg = Config::load(path.as_deref()).context("loading configuration")?;
     observability::init_tracing(&cfg.log);
-
-    // Backends are in-memory stubs until sr-db implements the repositories.
-    let state = AppState::builder()
-        .settings(ApiSettings::for_public_url(&cfg.server.public_url))
-        .build();
-
-    let public = tokio::net::TcpListener::bind(&cfg.server.bind)
-        .await
-        .with_context(|| format!("binding {}", cfg.server.bind))?;
-    let internal = tokio::net::TcpListener::bind(INTERNAL_BIND)
-        .await
-        .with_context(|| format!("binding {INTERNAL_BIND}"))?;
-    tracing::info!(bind = %cfg.server.bind, internal = INTERNAL_BIND, "listening");
-
-    let internal_app = internal_router(state.clone());
-    tokio::spawn(async move {
-        if let Err(e) = axum::serve(internal, internal_app).await {
-            tracing::error!(error = %e, "internal listener failed");
-        }
-    });
-
-    axum::serve(
-        public,
-        build_router(state, axum::Router::new())
-            .into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .with_graceful_shutdown(shutdown_signal())
-    .await
-    .context("serving")
+    sr_server::app::run(cfg, sr_server::app::os_shutdown_signal()).await
 }

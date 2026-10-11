@@ -1,0 +1,162 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SIDE ROOM API",
+    "description": "Discord-shaped REST API. `/api/v10` is an alias of `/api/v1`.",
+    "license": {
+      "name": ""
+    },
+    "version": "1"
+  },
+  "servers": [
+    {
+      "url": "/api/v1",
+      "description": "Current"
+    }
+  ],
+  "paths": {
+    "/sr/csrf": {
+      "get": {
+        "tags": [],
+        "summary": "The CSRF token for the current session.",
+        "operationId": "csrf_token",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CsrfToken"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me": {
+      "get": {
+        "tags": [],
+        "summary": "The authenticated caller (placeholder until the users feature lands).",
+        "operationId": "current_user",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentUser"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CsrfToken": {
+        "type": "object",
+        "description": "Body of `GET /sr/csrf`.",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Value for the `X-SR-CSRF` header."
+          }
+        }
+      },
+      "CurrentUser": {
+        "type": "object",
+        "description": "Body of `GET /users/@me` (minimal until the users feature lands).",
+        "required": [
+          "id",
+          "auth"
+        ],
+        "properties": {
+          "auth": {
+            "type": "string",
+            "description": "`session`, `bot` or `bearer`."
+          },
+          "id": {
+            "type": "string",
+            "description": "Snowflake id as a string."
+          }
+        }
+      },
+      "ErrorBody": {
+        "type": "object",
+        "description": "Discord-style error body (doc 05 section 3).",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Numeric error code (Discord's where one exists, `>= 900000` for SIDE ROOM).",
+            "minimum": 0
+          },
+          "errors": {
+            "description": "Nested field error tree (`{field: {_errors: [{code, message}]}}`)."
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable message."
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "authorization": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization",
+        "description": "`Bot <token>` or `Bearer <token>`"
+      },
+      "session": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "sr_session",
+        "description": "Browser session; non-GET requests also need `X-SR-CSRF`"
+      }
+    }
+  }
+}

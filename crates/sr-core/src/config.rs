@@ -54,6 +54,13 @@ pub struct ServerConfig {
     pub worker_id: u8,
     /// Snowflake process id (0-31).
     pub process_id: u8,
+    /// Loopback listener for `/internal/metrics`.
+    pub metrics_bind: String,
+    /// 64 hex chars (32 bytes): encrypts TOTP secrets at rest. Empty means an
+    /// ephemeral random key is used (development only).
+    pub secret_key: Secret,
+    /// Seconds to wait for in-flight requests and jobs on shutdown.
+    pub shutdown_grace_secs: u64,
 }
 
 impl Default for ServerConfig {
@@ -63,6 +70,9 @@ impl Default for ServerConfig {
             public_url: "http://localhost:8080".into(),
             worker_id: 0,
             process_id: 0,
+            metrics_bind: "127.0.0.1:9100".into(),
+            secret_key: Secret::default(),
+            shutdown_grace_secs: 25,
         }
     }
 }
@@ -160,6 +170,10 @@ impl Config {
         if self.server.process_id >= 32 {
             return Err(bad("server.process_id must be < 32"));
         }
+        let key = self.server.secret_key.expose();
+        if !key.is_empty() && !(key.len() == 64 && key.bytes().all(|b| b.is_ascii_hexdigit())) {
+            return Err(bad("server.secret_key must be 64 hex characters"));
+        }
         if self.database.max_connections == 0 {
             return Err(bad("database.max_connections must be > 0"));
         }
@@ -187,6 +201,16 @@ mod tests {
         assert_eq!(c.server.worker_id, 4);
         assert_eq!(c.database.max_connections, 5);
         assert_eq!(c.log, LogConfig::default());
+    }
+
+    #[test]
+    fn rejects_bad_secret_key() {
+        let f = Figment::from(Serialized::defaults(Config::default())).merge(Toml::string(
+            "[server]
+secret_key = \"abc\"
+",
+        ));
+        assert!(Config::from_figment(&f).is_err());
     }
 
     #[test]

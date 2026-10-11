@@ -3206,9 +3206,19 @@ name = "sr-server"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axum",
+ "serde_json",
+ "sqlx",
  "sr-api",
+ "sr-auth",
+ "sr-chat",
  "sr-core",
+ "sr-db",
+ "sr-events",
+ "sr-features",
+ "sr-gateway",
+ "sr-storage",
  "tokio",
  "tracing",
 ]
