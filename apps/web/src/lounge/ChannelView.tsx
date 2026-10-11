@@ -1,5 +1,5 @@
 import { EmptyState, Icon, useToast } from '@sideroom/ui';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { DragEvent } from 'react';
 import { ChannelHeader } from './ChannelHeader';
 import { CHANNEL_ICON } from './ChannelSidebar';
@@ -9,7 +9,6 @@ import {
   useChannels,
   useCurrentUser,
   useDms,
-  useLoungeActions,
   useMessages,
   usePresence,
   useUsers,
@@ -31,7 +30,6 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
   const dms = useDms();
   const users = useUsers();
   const me = useCurrentUser();
-  const actions = useLoungeActions();
   const { messages } = useMessages(channelId);
   const membersOpen = useLoungeUi((s) => s.memberListOpen);
   const setMembersOpen = useLoungeUi((s) => s.setMemberListOpen);
@@ -47,13 +45,7 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
   const [dragging, setDragging] = useState(false);
   // The NEW divider is anchored to where the viewer left off when they opened the channel.
   const [openedLastRead] = useState(channel?.lastReadMessageId ?? null);
-  const unread = channel?.unread ?? dm?.unread ?? false;
-
-  useEffect(() => {
-    if (unread) actions.markRead(channelId);
-    // Only on open; later unread flags (new messages while viewing) are cleared by the next effect run.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channelId, unread]);
+  // Read state is acked by MessageList, once the newest message is actually on screen (Q128).
 
   if (!channel && !dm) {
     return (

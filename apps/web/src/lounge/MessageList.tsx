@@ -54,7 +54,7 @@ export function MessageList({
   onReply,
   onEdit,
 }: MessageListProps) {
-  const { messages, hasMore, loadingOlder } = useMessages(channelId);
+  const { messages, hasMore, loadingOlder, atLatest } = useMessages(channelId);
   const me = useCurrentUser();
   const users = useUsers();
   const members = useMembers(guildId);
@@ -145,20 +145,37 @@ export function MessageList({
     prevLast.current = lastKey;
   }, [lastKey, lastMsg, me.id, scrollToEnd]);
 
-  // History prepended: keep the previously first message in place.
+  // History prepended (Q170): keep the reader's place by the measured growth of the scroll height. The
+  // recorded height is taken at the end of every commit, so the next prepend sees the pre-prepend height.
+  // scrollToIndex on the previously first message is the fallback when no height was recorded.
   const firstId = messages[0]?.id;
   const prevFirst = useRef<{ channel: Snowflake; id: string | undefined }>({
     channel: channelId,
     id: firstId,
   });
+  const prevHeight = useRef(0);
   useLayoutEffect(() => {
+    const el = scroller.current;
     const p = prevFirst.current;
-    if (p.channel === channelId && p.id && firstId && p.id !== firstId) {
-      const idx = rows.findIndex((r) => r.kind === 'message' && r.message.id === p.id);
-      if (idx > 0) v.scrollToIndex(idx, { align: 'start' });
+    if (p.channel === channelId && p.id && firstId && p.id !== firstId && el) {
+      const growth = el.scrollHeight - prevHeight.current;
+      if (prevHeight.current > 0 && growth > 0) {
+        el.scrollTop += growth;
+      } else {
+        const idx = rows.findIndex((r) => r.kind === 'message' && r.message.id === p.id);
+        if (idx > 0) v.scrollToIndex(idx, { align: 'start' });
+      }
     }
     prevFirst.current = { channel: channelId, id: firstId };
+    prevHeight.current = el?.scrollHeight ?? 0;
   }, [firstId, channelId, rows, v]);
+
+  // Read state (Q128): the newest message is on screen when the viewer is at the bottom of the live window.
+  // Store-side, acks are throttled to one per second per channel.
+  const ackId = lastMsg && !lastMsg.pending && (atLatest ?? true) ? lastMsg.id : undefined;
+  useEffect(() => {
+    if (atBottom && ackId) actions.markRead(channelId);
+  }, [actions, atBottom, ackId, channelId]);
 
   const onScroll = useCallback(() => {
     const el = scroller.current;
