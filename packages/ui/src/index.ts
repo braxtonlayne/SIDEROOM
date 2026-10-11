@@ -30,3 +30,21 @@ export type { FloatingAnchor, UseFloatingOptions, UseFloatingResult } from "./pr
 export { computePosition } from "./util/position";
 export type { FloatingPlacement, PositionOptions, PositionResult } from "./util/position";
 // --- end overlays block ---
+// Misc primitives + SR chrome (feat/DS-prims-misc): DS-PRIM-003/006/008-011/013-015, DS-SR-002/003/005/007/008
+export * from "./primitives/Slider/Slider";
+export * from "./primitives/Drawer/Drawer";
+export * from "./primitives/Disclosure/Disclosure";
+export * from "./primitives/Avatar/AvatarStack";
+export * from "./primitives/Badge/Chip";
+export * from "./primitives/Progress/ProgressBar";
+export * from "./primitives/State/State";
+export * from "./primitives/Kbd/Kbd";
+export * from "./primitives/ColorPicker/ColorPicker";
+export * from "./primitives/DateTime/DateTime";
+export * from "./primitives/FileDrop/FileDrop";
+export * from "./primitives/Settings/SettingsLayout";
+export * from "./icons/Icon";
+export * from "./icons/paths";
+export * from "./sideroom/Chrome";
+export * from "./sideroom/Poster";
+export * from "./sideroom/FilterChips";

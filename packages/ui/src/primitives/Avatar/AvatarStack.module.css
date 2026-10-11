@@ -1,0 +1,14 @@
+.stack { display: inline-flex; align-items: center; }
+.item { display: inline-flex; border-radius: 50%; box-shadow: 0 0 0 2px var(--ui-bg); }
+.item + .item { margin-left: calc(var(--stack-size) * -0.3); }
+.more {
+  width: var(--stack-size);
+  height: var(--stack-size);
+  align-items: center;
+  justify-content: center;
+  background: var(--ui-bg-hover);
+  color: var(--ui-text);
+  font-family: var(--ui-font-body);
+  font-size: calc(var(--stack-size) * 0.36);
+  font-weight: 600;
+}

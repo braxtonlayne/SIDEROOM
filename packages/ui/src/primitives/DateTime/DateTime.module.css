@@ -1,0 +1,12 @@
+.field { display: flex; flex-direction: column; gap: 6px; font-family: var(--ui-font-body); color: var(--ui-text); }
+.label { font-size: 0.875rem; font-weight: 600; }
+.input {
+  min-height: 40px; padding: 0 12px; box-sizing: border-box;
+  border: 1px solid var(--ui-border); border-radius: var(--ui-radius);
+  background: var(--ui-bg); color: var(--ui-text); font: inherit; color-scheme: dark light;
+}
+.input:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 1px; }
+.input[aria-invalid="true"] { border-color: var(--ui-danger); }
+.hint, .error { margin: 0; font-size: 0.8125rem; }
+.hint { color: var(--ui-text-muted); }
+.error { color: var(--ui-danger); }

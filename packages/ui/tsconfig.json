@@ -15,5 +15,5 @@
     "esModuleInterop": true,
     "types": ["vitest/globals", "@testing-library/jest-dom"]
   },
-  "include": ["src", "vitest.config.ts"]
+  "include": ["src", ".ladle", "vitest.config.ts"]
 }

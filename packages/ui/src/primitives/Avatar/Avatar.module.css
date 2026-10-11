@@ -34,3 +34,5 @@
 .idle { background: var(--ui-status-idle); }
 .dnd { background: var(--ui-status-dnd); }
 .offline { background: var(--ui-status-offline); }
+.decoration { position: absolute; inset: -12%; display: grid; place-items: center; pointer-events: none; }
+.decoration > * { max-width: 100%; max-height: 100%; }
