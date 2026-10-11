@@ -5,7 +5,9 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+sr-chat = { path = "../sr-chat" }
 sr-core = { path = "../sr-core", default-features = false }
+sr-markdown = { path = "../sr-markdown" }
 tantivy = "0.26"
 moka = { workspace = true, features = ["sync"] }
 thiserror.workspace = true

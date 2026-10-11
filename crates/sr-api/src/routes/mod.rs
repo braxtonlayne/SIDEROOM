@@ -25,6 +25,8 @@ use std::{any::type_name, sync::Arc};
 pub mod auth;
 pub mod guilds;
 pub mod messages;
+pub mod search;
+pub mod settings;
 pub mod social;
 
 /// Extractor for a service registered on [`AppState`]. A missing service is a
@@ -60,6 +62,8 @@ pub fn all() -> Router<AppState> {
         .merge(messages::router())
         .merge(guilds::router())
         .merge(social::router())
+        .merge(settings::router())
+        .merge(search::router())
 }
 
 /// Feature-owned routers (`Feature::routes()`), nested under
@@ -79,6 +83,8 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(messages::openapi());
     doc.merge(guilds::openapi());
     doc.merge(social::openapi());
+    doc.merge(settings::openapi());
+    doc.merge(search::openapi());
     doc
 }
 

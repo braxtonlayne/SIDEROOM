@@ -16,7 +16,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 - [ ] **LNG-GLD-011** [BE] Server tag (short tag text + badge icon) shown next to members globally if they opt in
 - [ ] **LNG-GLD-012** [BE] Per-server profiles (nick, avatar, banner, bio)
 - [ ] **LNG-GLD-013** [BE] Server Directory: listing request, categories, staff approval state, search API
-- [ ] **LNG-GLD-014** [BE] Community enable checks (verification level, explicit filter, rules & updates channels)
+- [x] **LNG-GLD-014** [BE] Community enable checks (verification level, explicit filter, rules & updates channels)
 - [ ] **LNG-GLD-015** [FE] Create Server modal step 1: title, subtitle, "Create My Own", "START FROM A TEMPLATE" list (Gaming, Friends, Study Group, School Club, Local Community, Artists & Creators, Watch Club, Reading Club), "Have an invite already?" + Join a Server
 - [ ] **LNG-GLD-016** [FE] Create Server step 2: "Tell us more about your server" (club/community vs me & friends, skip)
 - [ ] **LNG-GLD-017** [FE] Create Server step 3: customize (icon upload with crop, server name prefilled "<user>'s server", guidelines note), Back / Create
@@ -85,7 +85,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 
 ## LNG-INV — Server invites
 - [x] **LNG-INV-001** [DB] invites table
-- [ ] **LNG-INV-002** [BE] Create invite (max_age, max_uses, temporary, unique), list per guild/channel, delete, accept (`POST /invites/{code}`), get with counts
+- [x] **LNG-INV-002** [BE] Create invite (max_age, max_uses, temporary, unique), list per guild/channel, delete, accept (`POST /invites/{code}`), get with counts
 - [ ] **LNG-INV-003** [BE] External-share default single-use (D-022) via `target=external` flag
 - [ ] **LNG-INV-004** [BE] Vanity URL (free) + invite splash
 - [ ] **LNG-INV-005** [BE] Temporary membership removal on disconnect without roles

@@ -4,7 +4,8 @@
 //!
 //! Everything here is pure: validation and rules take the current time as an
 //! argument, persistence goes through the traits in [`repo`], and the Postgres
-//! implementation lives in `sr-db::settings_repo`. There are no REST routes yet.
+//! implementation lives in `sr-db::settings_repo`. The REST routes are in
+//! `sr-api::routes::settings`.
 
 pub mod audit;
 pub mod automod;
@@ -17,8 +18,8 @@ pub mod service;
 pub mod templates;
 pub mod webhooks;
 
-#[cfg(test)]
-mod memory;
+#[cfg(any(test, feature = "memory"))]
+pub mod memory;
 #[cfg(test)]
 mod service_tests;
 

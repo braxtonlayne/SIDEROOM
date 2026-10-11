@@ -12,6 +12,8 @@ memory = []
 sr-core = { path = "../sr-core", default-features = false }
 sr-markdown = { path = "../sr-markdown" }
 async-trait.workspace = true
+moka = { workspace = true, features = ["sync"] }
+unicode-normalization = "0.1"
 regex = { version = "1", default-features = false, features = ["std", "unicode-perl", "unicode-case", "unicode-gencat", "perf"] }
 serde.workspace = true
 serde_json.workspace = true

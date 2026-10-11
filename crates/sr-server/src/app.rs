@@ -24,6 +24,8 @@ use sr_api::{
             mail::{LogMailer, Mailer, SmtpMailer},
         },
         guilds::GuildApi,
+        search::SearchDeps,
+        settings::{AutoModGateHandle, SettingsDeps, events::TodoBusAdapter},
     },
 };
 use sr_chat::settings::SettingsService;
@@ -40,6 +42,7 @@ use sr_db::{
 use sr_events::{EventBus, InProcessBus};
 use sr_features::{FeatureRegistry, FeatureService};
 use sr_gateway::{Gateway, GatewayConfig};
+use sr_search::MessageIndex;
 use sr_storage::{ObjectStorage, ObjectStoreStorage};
 use std::{future::Future, net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{net::TcpListener, sync::watch, task::JoinHandle};
@@ -334,6 +337,39 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         secret_key(cfg.server.secret_key.expose())?.to_vec(),
     ));
 
+    // Server settings and message search (open questions 131-138). The settings
+    // service runs over Postgres on its own snowflake worker (process id + 3) and
+    // gets invite/webhook entropy from the OS. Events go through the TODO bus
+    // adapter until sr-events has the settings variants. The search index lives in
+    // `SR_SEARCH_DIR` (default `data/search`); TODO(config): move to `[search]`.
+    let settings_deps = Arc::new(
+        SettingsDeps::new(
+            Arc::new(PgSettingsRepo::new(pool.clone())),
+            Arc::new(PgChatRepo::new(pool.clone())),
+            storage.clone(),
+            clock.clone(),
+            Arc::new(crate::settings_pg::secure_entropy),
+            cfg.server.worker_id,
+            (cfg.server.process_id + 3) % 32,
+        )
+        .context("settings snowflake generator")?
+        .with_events(Arc::new(TodoBusAdapter::new(bus.clone()))),
+    );
+    let search_dir = std::env::var("SR_SEARCH_DIR").unwrap_or_else(|_| "data/search".to_owned());
+    let message_index = Arc::new(
+        MessageIndex::open_in_dir(std::path::Path::new(&search_dir))
+            .context("opening the search index (SR_SEARCH_DIR)")?,
+    );
+    let search_deps = Arc::new(
+        SearchDeps::new(message_index.clone())
+            .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone()))),
+    );
+    let indexer = Arc::new(crate::search_jobs::Indexer {
+        index: message_index,
+        repo: Arc::new(PgChatRepo::new(pool.clone())),
+        store: Arc::new(sr_db::chat_repo::PgMessageStore::new(pool.clone())),
+    });
+
     let gateway = Gateway::new(
         GatewayConfig {
             // Cookie-authenticated web sessions may IDENTIFY from the public origin only.
@@ -380,6 +416,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(Arc::new(guilds.clone()))
         .extension(Arc::new(messages))
         .extension(Arc::new(social_api))
+        .extension(settings_deps.clone())
+        .extension(Arc::new(AutoModGateHandle(settings_deps)))
+        .extension(search_deps)
         .readiness(Arc::new(DbReady::new(pool.clone(), readiness_timeout)))
         .readiness(Arc::new(StorageReady::new(storage.clone())))
         .build();
@@ -423,6 +462,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     );
     let runner = crate::jobs::register_attachment_gc(runner, &pool, storage.clone());
     let runner = crate::jobs::register_audit_purge(runner, &pool);
+    let runner = crate::search_jobs::register(runner, &pool, indexer);
     crate::jobs::schedule_recurring(&pool).await?;
     crate::jobs::schedule_audit_purge(&pool).await?;
     crate::jobs::schedule_attachment_gc(&pool).await?;

@@ -6,11 +6,16 @@
 //! message, post the alert, time the member out, audit entry, gateway events) is the
 //! caller job.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::hash::{DefaultHasher, Hash, Hasher};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
+use moka::sync::Cache;
 use regex::{Regex, RegexBuilder, RegexSet, RegexSetBuilder};
 use serde::{Deserialize, Serialize};
 use sr_core::{ChannelId, GuildId, RoleId, UserId};
+use unicode_normalization::UnicodeNormalization;
 
 use super::error::{SettingsError, SettingsResult};
 
@@ -299,7 +304,8 @@ fn word_set(words: &[String]) -> Result<Option<RegexSet>, String> {
     if words.is_empty() {
         return Ok(None);
     }
-    RegexSetBuilder::new(words.iter().map(|w| keyword_pattern(w)))
+    // Keywords are folded like the text they are matched against (open question 136).
+    RegexSetBuilder::new(words.iter().map(|w| keyword_pattern(&fold(w))))
         .case_insensitive(true)
         .size_limit(REGEX_SIZE_LIMIT * 8)
         .build()
@@ -447,15 +453,26 @@ fn exempt(rule: &AutoModRule, roles: &[RoleId], channels: &[ChannelId], bypass: 
 
 /// Evaluate every compiled message rule; all matching rules are returned.
 pub fn evaluate_message(rules: &[CompiledRule], ctx: &MessageContext) -> Vec<RuleMatch> {
+    evaluate_message_with(rules, ctx, None)
+}
+
+/// [`evaluate_message`] plus the stateful verdict of a [`SpamWindow`]: when `burst`
+/// carries a reason, every enabled, non-exempt spam rule matches with it.
+pub fn evaluate_message_with(
+    rules: &[CompiledRule],
+    ctx: &MessageContext,
+    burst: Option<&str>,
+) -> Vec<RuleMatch> {
     let channels: Vec<ChannelId> = std::iter::once(ctx.channel_id)
         .chain(ctx.parent_channel_id)
         .collect();
+    let text = Text::new(&ctx.content);
     rules
         .iter()
         .filter(|c| c.rule.event_type == EventType::MessageSend)
         .filter(|c| !exempt(&c.rule, &ctx.author_role_ids, &channels, ctx.bypass))
         .filter_map(|c| {
-            let matched = match_text(&c.matcher, &ctx.content, Some(ctx))?;
+            let matched = match_text(&c.matcher, &text, Some(ctx), burst)?;
             Some(RuleMatch {
                 rule_id: c.rule.id,
                 rule_name: c.rule.name.clone(),
@@ -477,7 +494,7 @@ pub fn evaluate_profile(rules: &[CompiledRule], ctx: &ProfileContext) -> Vec<Rul
             let matched = ctx
                 .texts
                 .iter()
-                .find_map(|t| match_text(&c.matcher, t, None))?;
+                .find_map(|t| match_text(&c.matcher, &Text::new(t), None, None))?;
             Some(RuleMatch {
                 rule_id: c.rule.id,
                 rule_name: c.rule.name.clone(),
@@ -489,7 +506,36 @@ pub fn evaluate_profile(rules: &[CompiledRule], ctx: &ProfileContext) -> Vec<Rul
         .collect()
 }
 
-fn match_text(m: &Matcher, content: &str, ctx: Option<&MessageContext>) -> Option<String> {
+/// Text under evaluation: the original and its folded form (computed once per
+/// message, not once per rule).
+struct Text<'a> {
+    raw: &'a str,
+    folded: String,
+}
+
+impl<'a> Text<'a> {
+    fn new(raw: &'a str) -> Self {
+        Self {
+            raw,
+            folded: fold(raw),
+        }
+    }
+}
+
+fn burst_reason(burst: Option<&str>) -> Option<&'static str> {
+    match burst? {
+        BURST_DUPLICATE => Some(BURST_DUPLICATE),
+        BURST_RATE => Some(BURST_RATE),
+        _ => None,
+    }
+}
+
+fn match_text(
+    m: &Matcher,
+    text: &Text<'_>,
+    ctx: Option<&MessageContext>,
+    burst: Option<&str>,
+) -> Option<String> {
     match m {
         Matcher::Keywords {
             words,
@@ -497,18 +543,22 @@ fn match_text(m: &Matcher, content: &str, ctx: Option<&MessageContext>) -> Optio
             regexes,
             allow,
         } => {
-            let text = strip_allowed(content, allow.as_ref());
+            let folded = strip_allowed(&text.folded, allow.as_ref());
             if let Some(set) = set
-                && let Some(i) = set.matches(&text).iter().next()
+                && let Some(i) = set.matches(&folded).iter().next()
             {
                 return Some(words[i].clone());
             }
+            // Regexes are the admin's own: try them on the text as written and folded.
+            let raw = strip_allowed(text.raw, allow.as_ref());
             regexes
                 .iter()
-                .find(|(_, r)| r.is_match(&text))
+                .find(|(_, r)| r.is_match(&raw) || r.is_match(&folded))
                 .map(|(p, _)| p.clone())
         }
-        Matcher::Spam => spam_reason(content).map(str::to_owned),
+        Matcher::Spam => spam_reason(text.raw)
+            .or(burst_reason(burst))
+            .map(str::to_owned),
         Matcher::Mentions { limit } => {
             let ctx = ctx?;
             let users: HashSet<_> = ctx.mentioned_user_ids.iter().collect();
@@ -520,11 +570,214 @@ fn match_text(m: &Matcher, content: &str, ctx: Option<&MessageContext>) -> Optio
             block_all,
             block,
             allow,
-        } => extract_hosts(content).into_iter().find_map(|host| {
+        } => extract_hosts(text.raw).into_iter().find_map(|host| {
             let allowed = allow.iter().any(|d| domain_matches(&host, d));
             let blocked = *block_all || block.iter().any(|d| domain_matches(&host, d));
             (blocked && !allowed).then_some(host)
         }),
+    }
+}
+
+// ---- text folding (open question 136) -----------------------------------------
+
+/// Characters that render as nothing and only exist to split a word.
+fn is_invisible(c: char) -> bool {
+    matches!(
+        c,
+        '\u{00AD}' | '\u{034F}' | '\u{061C}' | '\u{180E}' | '\u{200B}'..='\u{200F}'
+            | '\u{202A}'..='\u{202E}' | '\u{2060}'..='\u{2064}' | '\u{2066}'..='\u{206F}'
+            | '\u{FE00}'..='\u{FE0F}' | '\u{FEFF}'
+    )
+}
+
+/// Combining diacritics (strike-through and accent obfuscation).
+fn is_combining(c: char) -> bool {
+    matches!(
+        c,
+        '\u{0300}'..='\u{036F}' | '\u{1AB0}'..='\u{1AFF}' | '\u{1DC0}'..='\u{1DFF}'
+            | '\u{20D0}'..='\u{20FF}'
+    )
+}
+
+/// Map a lowercase letter that looks like a Latin one (Cyrillic, Greek and a few
+/// others NFKC does not unify) to its Latin twin. Deliberately small: only
+/// glyphs that are visually identical in common fonts.
+fn confusable(c: char) -> char {
+    match c {
+        'а' | 'α' => 'a',
+        'в' | 'β' => 'b',
+        'с' | 'ϲ' => 'c',
+        'ԁ' => 'd',
+        'е' | 'ε' | 'ё' => 'e',
+        'ѕ' => 's',
+        'і' | 'ι' | 'ı' | 'ї' => 'i',
+        'ј' => 'j',
+        'к' | 'κ' => 'k',
+        'м' => 'm',
+        'о' | 'ο' => 'o',
+        'р' | 'ρ' => 'p',
+        'ԛ' => 'q',
+        'т' | 'τ' => 't',
+        'ν' => 'v',
+        'ԝ' => 'w',
+        'х' | 'χ' => 'x',
+        'у' | 'υ' => 'y',
+        'һ' => 'h',
+        other => other,
+    }
+}
+
+/// Canonical form AutoMod matches against: NFKC, lowercase, invisible characters and
+/// combining marks removed, look-alike letters mapped to Latin. Both keywords (at
+/// compile time) and message text go through it, so `Fuck`, a fullwidth spelling,
+/// a Cyrillic `с` and a zero-width space inside the word all meet. Open question 136.
+pub fn fold(text: &str) -> String {
+    text.nfkc()
+        .filter(|c| !is_invisible(*c) && !is_combining(*c))
+        .flat_map(char::to_lowercase)
+        .map(confusable)
+        .collect()
+}
+
+// ---- per-guild compiled-rule cache (open question 136) -------------------------
+
+/// How long compiled rules live before they are rebuilt from the repository. Rule
+/// writes invalidate sooner; the TTL only bounds staleness across nodes.
+pub const RULE_CACHE_TTL: Duration = Duration::from_secs(300);
+
+/// Compiled rules per guild. Compiling regex sets is the expensive part of
+/// AutoMod, so it happens once per guild, not once per message.
+#[derive(Clone)]
+pub struct RuleCache {
+    inner: Cache<GuildId, Arc<Vec<CompiledRule>>>,
+}
+
+impl Default for RuleCache {
+    fn default() -> Self {
+        Self::new(RULE_CACHE_TTL)
+    }
+}
+
+impl RuleCache {
+    pub fn new(ttl: Duration) -> Self {
+        Self {
+            inner: Cache::builder()
+                .time_to_live(ttl)
+                .max_capacity(10_000)
+                .build(),
+        }
+    }
+
+    pub fn get(&self, guild: GuildId) -> Option<Arc<Vec<CompiledRule>>> {
+        self.inner.get(&guild)
+    }
+
+    pub fn insert(&self, guild: GuildId, rules: Vec<CompiledRule>) -> Arc<Vec<CompiledRule>> {
+        let rules = Arc::new(rules);
+        self.inner.insert(guild, Arc::clone(&rules));
+        rules
+    }
+
+    /// Drop the guild entry after any rule change.
+    pub fn invalidate(&self, guild: GuildId) {
+        self.inner.invalidate(&guild);
+    }
+}
+
+// ---- per-member sliding window (open question 136) -----------------------------
+
+pub const BURST_DUPLICATE: &str = "duplicate messages";
+pub const BURST_RATE: &str = "message rate";
+
+/// Tunables of [`SpamWindow`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpamWindowConfig {
+    pub window_ms: i64,
+    /// This many messages inside the window is a flood.
+    pub max_messages: usize,
+    /// This many identical messages inside the window is a repeat.
+    pub max_duplicates: usize,
+}
+
+impl Default for SpamWindowConfig {
+    fn default() -> Self {
+        Self {
+            window_ms: 15_000,
+            max_messages: 8,
+            max_duplicates: 4,
+        }
+    }
+}
+
+type Samples = Arc<Mutex<VecDeque<(i64, Option<u64>)>>>;
+
+/// Sliding window of each member's recent messages, for the rate and duplicate
+/// checks that a stateless rule cannot make. Entries expire with the window.
+#[derive(Clone)]
+pub struct SpamWindow {
+    cfg: SpamWindowConfig,
+    inner: Cache<(GuildId, UserId), Samples>,
+}
+
+impl Default for SpamWindow {
+    fn default() -> Self {
+        Self::new(SpamWindowConfig::default())
+    }
+}
+
+fn content_key(content: &str) -> Option<u64> {
+    let folded = fold(content);
+    let t = folded.split_whitespace().collect::<Vec<_>>().join(" ");
+    if t.is_empty() {
+        return None;
+    }
+    let mut h = DefaultHasher::new();
+    t.hash(&mut h);
+    Some(h.finish())
+}
+
+impl SpamWindow {
+    pub fn new(cfg: SpamWindowConfig) -> Self {
+        let ttl = Duration::from_millis(u64::try_from(cfg.window_ms.max(1)).unwrap_or(1));
+        Self {
+            cfg,
+            inner: Cache::builder()
+                .time_to_idle(ttl)
+                .max_capacity(200_000)
+                .build(),
+        }
+    }
+
+    /// Record one message at `now_ms` and report why the member now looks like a
+    /// spammer, if they do. Duplicates are checked before the overall rate.
+    pub fn observe(
+        &self,
+        guild: GuildId,
+        user: UserId,
+        content: &str,
+        now_ms: i64,
+    ) -> Option<&'static str> {
+        let samples = self
+            .inner
+            .get_with((guild, user), || Arc::new(Mutex::new(VecDeque::new())));
+        // The deque only holds plain numbers, so a poisoned lock is still usable.
+        let mut q = samples
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        while q
+            .front()
+            .is_some_and(|(t, _)| now_ms - *t >= self.cfg.window_ms)
+        {
+            q.pop_front();
+        }
+        let key = content_key(content);
+        q.push_back((now_ms, key));
+        if let Some(k) = key
+            && q.iter().filter(|(_, c)| *c == Some(k)).count() >= self.cfg.max_duplicates
+        {
+            return Some(BURST_DUPLICATE);
+        }
+        (q.len() >= self.cfg.max_messages).then_some(BURST_RATE)
     }
 }
 
@@ -908,5 +1161,82 @@ mod tests {
         assert!(check_rule_quota(&existing, &existing[0]).is_ok());
         let spam = rule(8, Trigger::Spam, block());
         assert!(check_rule_quota(&existing, &spam).is_ok());
+    }
+
+    #[test]
+    fn folding_defeats_common_evasions() {
+        assert_eq!(fold("ＦＵＣＫ"), "fuck"); // fullwidth, NFKC
+        assert_eq!(fold("fuсk"), "fuck"); // Cyrillic es
+        assert_eq!(fold("f\u{200B}u\u{200D}ck"), "fuck"); // zero-width splits
+        assert_eq!(fold("f\u{0336}uck"), "fuck"); // combining strike
+        assert_eq!(fold("ΡΑΧ"), "pax"); // Greek capitals lowercase then map
+        assert_eq!(fold("plain"), "plain");
+
+        let rules = [compile(rule(1, kw(&["fuck"], &[], &[]), block()))];
+        for evasion in ["ＦＵＣＫ you", "fuсk you", "f\u{200B}uck you", "FUCK"] {
+            assert_eq!(hit(&rules, evasion).as_deref(), Some("fuck"), "{evasion}");
+        }
+        // Keywords are folded too, so a look-alike keyword matches plain text.
+        let rules = [compile(rule(2, kw(&["fuсk"], &[], &[]), block()))];
+        assert!(hit(&rules, "fuck").is_some());
+        // Whole-word semantics survive folding.
+        assert_eq!(hit(&rules, "fucked"), None);
+    }
+
+    #[test]
+    fn regexes_see_text_as_written_and_folded() {
+        let rules = [compile(rule(1, kw(&[], &[r"\bfuck\b"], &[]), block()))];
+        assert!(hit(&rules, "ＦＵＣＫ").is_some());
+        let rules = [compile(rule(1, kw(&[], &[r"ＦＵＣＫ"], &[]), block()))];
+        assert!(hit(&rules, "ＦＵＣＫ").is_some());
+    }
+
+    #[test]
+    fn rule_cache_returns_the_same_compiled_set_until_invalidated() {
+        let cache = RuleCache::new(Duration::from_secs(60));
+        let g = GuildId::new(1);
+        assert!(cache.get(g).is_none());
+        let first = cache.insert(g, vec![compile(rule(1, Trigger::Spam, block()))]);
+        let again = cache.get(g).unwrap();
+        assert!(Arc::ptr_eq(&first, &again));
+        cache.invalidate(g);
+        assert!(cache.get(g).is_none());
+    }
+
+    #[test]
+    fn spam_window_flags_duplicates_and_rate_per_member() {
+        let w = SpamWindow::new(SpamWindowConfig {
+            window_ms: 10_000,
+            max_messages: 5,
+            max_duplicates: 3,
+        });
+        let (g, a, b) = (GuildId::new(1), UserId::new(1), UserId::new(2));
+        assert_eq!(w.observe(g, a, "hello", 0), None);
+        assert_eq!(w.observe(g, a, "HELLO ", 100), None);
+        // Third copy (case and spacing folded away) trips the duplicate check.
+        assert_eq!(w.observe(g, a, "hello", 200), Some(BURST_DUPLICATE));
+        // Another member and another guild keep separate windows.
+        assert_eq!(w.observe(g, b, "hello", 300), None);
+        assert_eq!(w.observe(GuildId::new(2), a, "hello", 300), None);
+        // Distinct messages trip the rate check on the fifth within the window.
+        let c = UserId::new(3);
+        for (i, t) in ["a", "b", "c", "d"].iter().enumerate() {
+            assert_eq!(w.observe(g, c, t, i as i64 * 10), None);
+        }
+        assert_eq!(w.observe(g, c, "e", 50), Some(BURST_RATE));
+        // Old samples fall out of the window.
+        assert_eq!(w.observe(g, c, "f", 60_000), None);
+    }
+
+    #[test]
+    fn burst_makes_spam_rules_match_and_respects_exemptions() {
+        let rules = [compile(rule(1, Trigger::Spam, block()))];
+        let c = ctx("totally normal text");
+        assert!(evaluate_message(&rules, &c).is_empty());
+        let m = evaluate_message_with(&rules, &c, Some(BURST_RATE));
+        assert_eq!(m.len(), 1);
+        assert_eq!(m[0].matched, BURST_RATE);
+        let bypass = MessageContext { bypass: true, ..c };
+        assert!(evaluate_message_with(&rules, &bypass, Some(BURST_RATE)).is_empty());
     }
 }

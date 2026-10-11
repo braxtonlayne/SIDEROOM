@@ -110,7 +110,7 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 - [ ] **LNG-SSET-069** [FE] Directory listing request (category, tags, description, status: pending/approved/denied + staff note)
 
 ## Server Template
-- [ ] **LNG-SSET-070** [BE] Template snapshot (roles, channels, overwrites, settings), sync, delete, code + link
+- [x] **LNG-SSET-070** [BE] Template snapshot (roles, channels, overwrites, settings), sync, delete, code + link
 - [ ] **LNG-SSET-071** [FE] Template page (title, description, Generate, Sync, Preview, Copy link, Delete)
 
 ## Delete Server
