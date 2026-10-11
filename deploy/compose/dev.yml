@@ -1,0 +1,65 @@
+# SIDE ROOM local dev stack (FND-REPO-009). Dev-only credentials.
+# Usage: docker compose -f deploy/compose/dev.yml up -d   (or `just dev`)
+name: sideroom-dev
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: sideroom
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sideroom_dev}
+      POSTGRES_DB: sideroom
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sideroom -d sideroom"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  garage:
+    image: dxflrs/garage:v1.0.1
+    ports:
+      - "127.0.0.1:3900:3900" # S3 API
+      - "127.0.0.1:3903:3903" # admin API
+    volumes:
+      - ./garage/garage.toml:/etc/garage.toml:ro
+      - garage-meta:/var/lib/garage/meta
+      - garage-data:/var/lib/garage/data
+    # Layout, key, and bucket are created by garage/bootstrap.sh (run by `just dev`).
+
+  caddy:
+    image: caddy:2
+    ports:
+      - "127.0.0.1:8088:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+
+  mailpit:
+    image: axllent/mailpit:v1.21
+    ports:
+      - "127.0.0.1:1025:1025" # SMTP
+      - "127.0.0.1:8025:8025" # web UI
+
+  coturn:
+    image: coturn/coturn:4.6
+    # Host networking is the practical way to run TURN's relay range (Linux only).
+    # On Docker Desktop, use the port mappings below and rely on STUN/ICE-TCP for dev.
+    command: ["-c", "/etc/coturn/turnserver.conf"]
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      - "49152-49200:49152-49200/udp"
+    volumes:
+      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+
+volumes:
+  pgdata:
+  garage-meta:
+  garage-data:
+  caddy-data:

@@ -8,22 +8,22 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 - [ ] **FND-REPO-003** [OPS] pnpm workspace (`apps/web`, `packages/ui`, `packages/api-client`, `packages/wasm`)
 - [ ] **FND-REPO-004** [OPS] Vite + React 19 + TS strict app scaffold with TanStack Router, Query, Zustand
 - [ ] **FND-REPO-005** [OPS] wasm-pack build pipeline producing `packages/wasm` (ESM, typed bindings) for each `*-wasm` target
-- [ ] **FND-REPO-006** [OPS] `cargo-deny` config (licences allowlist, advisories, bans)
+- [x] **FND-REPO-006** [OPS] `cargo-deny` config (licences allowlist, advisories, bans)
 - [ ] **FND-REPO-007** [OPS] ESLint/Prettier (or Biome) config, lint-staged + pre-commit hook
-- [ ] **FND-REPO-008** [OPS] `.editorconfig`, `CODEOWNERS` (owner), Dependabot/Renovate config
-- [ ] **FND-REPO-009** [OPS] Dev stack: `deploy/compose/dev.yml` (Postgres 17, Garage single-node + bucket bootstrap, Caddy, Mailpit for SMTP, coturn)
-- [ ] **FND-REPO-010** [OPS] `justfile`/`xtask`: `dev`, `test`, `lint`, `migrate`, `seed`, `gen-api`, `wasm`
-- [ ] **FND-REPO-011** [DOC] `docs/dev/getting-started.md` (local setup in < 15 min)
+- [x] **FND-REPO-008** [OPS] `.editorconfig`, `CODEOWNERS` (owner), Dependabot/Renovate config
+- [x] **FND-REPO-009** [OPS] Dev stack: `deploy/compose/dev.yml` (Postgres 17, Garage single-node + bucket bootstrap, Caddy, Mailpit for SMTP, coturn)
+- [x] **FND-REPO-010** [OPS] `justfile`/`xtask`: `dev`, `test`, `lint`, `migrate`, `seed`, `gen-api`, `wasm`
+- [x] **FND-REPO-011** [DOC] `docs/dev/getting-started.md` (local setup in < 15 min)
 
 ## FND-CI — Continuous integration
-- [ ] **FND-CI-001** [OPS] GitHub Actions: Rust fmt + clippy (`-D warnings`) + nextest with Postgres service
+- [x] **FND-CI-001** [OPS] GitHub Actions: Rust fmt + clippy (`-D warnings`) + nextest with Postgres service
 - [ ] **FND-CI-002** [OPS] `sqlx prepare --check` (offline query metadata committed)
-- [ ] **FND-CI-003** [OPS] Web lint, typecheck, Vitest
+- [x] **FND-CI-003** [OPS] Web lint, typecheck, Vitest
 - [ ] **FND-CI-004** [OPS] Playwright e2e job against the compose stack (Chromium, Firefox, WebKit)
-- [ ] **FND-CI-005** [OPS] WASM build + wasm tests (`wasm-bindgen-test` headless)
-- [ ] **FND-CI-006** [OPS] OpenAPI drift check (generated client must match committed)
-- [ ] **FND-CI-007** [OPS] Release workflow: static musl binaries (x86_64, aarch64), container images (server, voice, transcoder-cuda), checksums, changelog
-- [ ] **FND-CI-008** [OPS] Cache strategy (sccache / rust-cache, pnpm store)
+- [x] **FND-CI-005** [OPS] WASM build + wasm tests (`wasm-bindgen-test` headless)
+- [x] **FND-CI-006** [OPS] OpenAPI drift check (generated client must match committed)
+- [x] **FND-CI-007** [OPS] Release workflow: static musl binaries (x86_64, aarch64), container images (server, voice, transcoder-cuda), checksums, changelog
+- [x] **FND-CI-008** [OPS] Cache strategy (sccache / rust-cache, pnpm store)
 
 ## FND-CORE — `sr-core`
 - [ ] **FND-CORE-001** [BE] Snowflake generator (SIDE ROOM epoch 2026-01-01, worker/process bits, monotonic), string serde
