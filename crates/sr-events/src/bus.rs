@@ -20,10 +20,12 @@ pub type Result<T> = std::result::Result<T, EventError>;
 
 #[async_trait]
 pub trait EventBus: Send + Sync {
-    /// Publish to `topic`. Succeeds even if nobody is subscribed.
+    /// Publish to `topic`. Succeeds even if nobody is subscribed. Every
+    /// implementation also delivers the event to [`Topic::Firehose`] subscribers.
     async fn publish(&self, topic: Topic, event: DomainEvent) -> Result<()>;
     /// Subscribe to `topic`. Only events published after this call are seen.
     /// Slow subscribers may miss events (lagged items are skipped).
+    /// [`Topic::Firehose`] sees everything published to any topic.
     fn subscribe(&self, topic: Topic) -> BoxStream<'static, DomainEvent>;
 }
 
@@ -50,8 +52,32 @@ impl InProcessBus {
         }
     }
 
+    /// Buffer of the firehose channel: it carries every event, so it gets more
+    /// headroom than a per-topic channel before slow consumers start to lag.
+    pub const FIREHOSE_CAPACITY: usize = 4096;
+
     fn lock(&self) -> std::sync::MutexGuard<'_, TopicMap> {
         self.topics.lock().unwrap_or_else(|p| p.into_inner())
+    }
+
+    fn capacity_of(&self, topic: Topic) -> usize {
+        if topic == Topic::Firehose {
+            self.capacity.max(Self::FIREHOSE_CAPACITY)
+        } else {
+            self.capacity
+        }
+    }
+}
+
+/// Send `event` to `topic`'s subscribers, pruning the topic when nobody listens.
+fn deliver(topics: &mut TopicMap, topic: Topic, event: DomainEvent) {
+    if let Some(tx) = topics.get(&topic) {
+        if tx.receiver_count() == 0 {
+            topics.remove(&topic); // prune dead topics
+        } else {
+            // Err only means no receivers, which is fine.
+            let _ = tx.send(event);
+        }
     }
 }
 
@@ -65,22 +91,19 @@ impl Default for InProcessBus {
 impl EventBus for InProcessBus {
     async fn publish(&self, topic: Topic, event: DomainEvent) -> Result<()> {
         let mut topics = self.lock();
-        if let Some(tx) = topics.get(&topic) {
-            if tx.receiver_count() == 0 {
-                topics.remove(&topic); // prune dead topics
-            } else {
-                // Err only means no receivers, which is fine.
-                let _ = tx.send(event);
-            }
+        if topic != Topic::Firehose && topics.contains_key(&Topic::Firehose) {
+            deliver(&mut topics, Topic::Firehose, event.clone());
         }
+        deliver(&mut topics, topic, event);
         Ok(())
     }
 
     fn subscribe(&self, topic: Topic) -> BoxStream<'static, DomainEvent> {
+        let capacity = self.capacity_of(topic);
         let rx = self
             .lock()
             .entry(topic)
-            .or_insert_with(|| broadcast::channel(self.capacity).0)
+            .or_insert_with(|| broadcast::channel(capacity).0)
             .subscribe();
         BroadcastStream::new(rx)
             .filter_map(|r| async move { r.ok() }) // skip Lagged

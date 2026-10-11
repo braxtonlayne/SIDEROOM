@@ -29,6 +29,7 @@ pub async fn run_all<B: EventBus>(make: impl Fn() -> B) {
     topics_are_isolated(&make()).await;
     late_subscriber_misses_earlier_events(&make()).await;
     dropped_subscriber_does_not_break_others(&make()).await;
+    firehose_sees_every_topic(&make()).await;
 }
 
 pub async fn publish_without_subscribers_ok<B: EventBus>(bus: &B) {
@@ -82,4 +83,22 @@ pub async fn dropped_subscriber_does_not_break_others<B: EventBus>(bus: &B) {
     drop(dropped);
     bus.publish(Topic::Platform, ev(3)).await.unwrap();
     assert_eq!(timeout(WAIT, kept.next()).await.unwrap(), Some(ev(3)));
+}
+
+pub async fn firehose_sees_every_topic<B: EventBus>(bus: &B) {
+    let mut all = bus.subscribe(Topic::Firehose);
+    let mut guild = bus.subscribe(Topic::Guild(GuildId::new(1)));
+    bus.publish(Topic::Guild(GuildId::new(1)), ev(1))
+        .await
+        .unwrap();
+    bus.publish(Topic::User(UserId::new(9)), ev(2))
+        .await
+        .unwrap();
+    bus.publish(Topic::Platform, ev(3)).await.unwrap();
+    for i in 1..=3 {
+        assert_eq!(timeout(WAIT, all.next()).await.unwrap(), Some(ev(i)));
+    }
+    // The firehose does not leak back into ordinary topics.
+    assert_eq!(timeout(WAIT, guild.next()).await.unwrap(), Some(ev(1)));
+    assert!(timeout(QUIET, guild.next()).await.is_err());
 }
