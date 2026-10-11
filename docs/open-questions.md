@@ -44,7 +44,7 @@ For each of these, the recommended answer was adopted as the default and is bein
 13. **Token values are not calibrated against the mockups.** Do a visual pass at 1440 and 1704 px against [docs/assets/mockups](assets/mockups/README.md) and under 900 px. Land adjustments as token-only PRs. (Q34) — [packages/ui/src/theme](../packages/ui/src/theme)
 14. **The door image is missing.** Supply `apps/web/public/entrance/door.jpg`. The Admin → Entrance upload comes later. (Q81) — [Door.tsx](../apps/web/src/components/Door.tsx)
 15. **Markdown corpus has not been reviewed against Discord.** Review a stratified sample of 100 cases against Discord, after the parser quirk decisions (Q31, Q89, Q90) are in. Mismatches become hand-written expectations. (Q85) — [tests/corpus](../crates/sr-markdown/tests/corpus)
-16. **The CI workflows have never run.** `release.yml` and `openapi.yml` need a first green run in CI. FND-CI-004 stays unticked until the Playwright config exists. (Q108) — [release.yml](../.github/workflows/release.yml), [openapi.yml](../.github/workflows/openapi.yml)
+16. **The CI workflows have not had a green run.** `release.yml` and `openapi.yml` are unrun, so they need a first green run in CI. The Playwright package (`e2e/`, `just e2e`) now exists, but FND-CI-004 stays unticked until `e2e.yml` passes in CI. (Q108) — [release.yml](../.github/workflows/release.yml), [openapi.yml](../.github/workflows/openapi.yml), [e2e.yml](../.github/workflows/e2e.yml)
 
 ## Informational (NO-CODE, accepted; revisit at the named trigger)
 
