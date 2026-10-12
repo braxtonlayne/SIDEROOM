@@ -11,6 +11,7 @@ pub mod auth_store;
 pub mod chat_repo;
 mod error;
 mod guild_admin_repo;
+pub mod invite_join;
 pub mod jobs;
 pub mod lock;
 pub mod partitions;

@@ -13,6 +13,7 @@ pub mod community;
 pub mod error;
 pub mod expressions;
 pub mod invites;
+pub mod join;
 pub mod repo;
 pub mod service;
 pub mod templates;
