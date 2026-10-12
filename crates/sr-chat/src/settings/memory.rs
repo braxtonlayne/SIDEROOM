@@ -400,3 +400,74 @@ impl CommunityRepository for MemorySettingsRepo {
         Ok(())
     }
 }
+
+/// In-memory [`InviteJoinRepository`] over a chat backend and a settings store.
+/// Each join runs inside one pair of locks with no await, so it is atomic.
+pub struct MemoryInviteJoin {
+    pub chat: crate::memory::MemoryBackend,
+    pub settings: std::sync::Arc<MemorySettingsRepo>,
+}
+
+#[async_trait]
+impl super::join::InviteJoinRepository for MemoryInviteJoin {
+    async fn join_via_invite(
+        &self,
+        code: &str,
+        user: UserId,
+        now_ms: i64,
+    ) -> super::SettingsResult<super::join::InviteJoin> {
+        use super::SettingsError;
+        use super::join::InviteJoin;
+        self.settings.with(|s| {
+            let inv = s
+                .invites
+                .iter()
+                .find(|i| i.code == code)
+                .cloned()
+                .ok_or(SettingsError::UnknownInvite)?;
+            match inv.status(now_ms) {
+                InviteStatus::Revoked => return Err(SettingsError::UnknownInvite),
+                InviteStatus::Expired => return Err(SettingsError::InviteExpired),
+                InviteStatus::Exhausted => return Err(SettingsError::InviteExhausted),
+                InviteStatus::Active => {}
+            }
+            let mut data = self.chat.data();
+            if data
+                .members
+                .iter()
+                .any(|m| m.guild_id == inv.guild_id && m.user_id == user)
+            {
+                return Ok(InviteJoin::AlreadyMember { invite: inv });
+            }
+            if s.community
+                .get(&inv.guild_id)
+                .is_some_and(|c| c.invites_paused)
+            {
+                return Err(SettingsError::InvitesPaused);
+            }
+            if s.bans.contains(&(inv.guild_id, user)) {
+                return Err(SettingsError::Banned);
+            }
+            let member = crate::domain::Member {
+                guild_id: inv.guild_id,
+                user_id: user,
+                nick: None,
+                role_ids: vec![],
+                joined_at_ms: now_ms,
+                communication_disabled_until_ms: None,
+                pending: false,
+            };
+            data.members.push(member.clone());
+            let stored = s
+                .invites
+                .iter_mut()
+                .find(|i| i.code == code)
+                .ok_or(SettingsError::UnknownInvite)?;
+            stored.consume(now_ms)?;
+            Ok(InviteJoin::Joined {
+                invite: stored.clone(),
+                member,
+            })
+        })
+    }
+}

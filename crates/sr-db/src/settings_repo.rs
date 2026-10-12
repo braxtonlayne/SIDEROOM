@@ -76,7 +76,7 @@ where
 
 // ---- invites ------------------------------------------------------------------
 
-fn invite_cols() -> String {
+pub(crate) fn invite_cols() -> String {
     format!(
         "code, guild_id, channel_id, inviter_id, max_age_secs, max_uses, uses, temporary, \
          {} AS created_ms, {} AS revoked_ms",
@@ -85,7 +85,7 @@ fn invite_cols() -> String {
     )
 }
 
-fn invite_from(r: &PgRow) -> RepoResult<GuildInvite> {
+pub(crate) fn invite_from(r: &PgRow) -> RepoResult<GuildInvite> {
     Ok(GuildInvite {
         code: get(r, "code")?,
         guild_id: GuildId::new(u(get(r, "guild_id")?)),
@@ -102,7 +102,7 @@ fn invite_from(r: &PgRow) -> RepoResult<GuildInvite> {
 }
 
 /// Usable at `$2` (ms): not revoked, not expired, uses left.
-const INVITE_USABLE: &str = "revoked_at IS NULL \
+pub(crate) const INVITE_USABLE: &str = "revoked_at IS NULL \
     AND (max_age_secs = 0 OR created_at + make_interval(secs => max_age_secs) \
          > to_timestamp($2::double precision / 1000.0)) \
     AND (max_uses = 0 OR uses < max_uses)";

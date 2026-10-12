@@ -18,8 +18,8 @@
 //! Permissions are decided in `sr-chat` (`SettingsService`); handlers resolve the
 //! acting member's guild or channel permissions with [`SettingsDeps`] and
 //! translate JSON. Gateway events leave through [`events::SettingsEvents`] and a
-//! joined member through [`join::MemberJoiner`]; both have clearly named TODO
-//! adapters until `sr-events` and the join path catch up.
+//! joined member through [`join::MemberJoiner`] (the composition root wires the
+//! bus-backed [`join::InviteMemberJoiner`]).
 
 pub mod audit;
 pub mod automod;
@@ -42,7 +42,7 @@ pub use automod_gate::{
 };
 pub use deps::{Entropy, SettingsDeps};
 pub use events::{SettingsEvent, SettingsEvents};
-pub use join::MemberJoiner;
+pub use join::{InviteMemberJoiner, MemberJoiner, UnwiredMemberJoiner};
 pub use repo::DynRepo;
 
 use crate::{openapi::ErrorBody, state::AppState};

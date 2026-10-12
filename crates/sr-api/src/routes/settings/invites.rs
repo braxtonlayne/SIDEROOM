@@ -5,7 +5,9 @@ use super::deps::{ChannelAccess, SettingsDeps, actor, id, re, se};
 use super::events::SettingsEvent;
 use crate::routes::Ext;
 use crate::routes::guilds::dto::{UserRef, iso8601};
-use crate::{HttpError, Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
+use crate::{
+    HttpError, Principal, auth::UserOnly, error::ApiResult, openapi::ErrorBody, state::AppState,
+};
 use axum::{Json, Router, extract::Path, routing::get};
 use serde::{Deserialize, Serialize};
 use sr_chat::Channel;
@@ -332,8 +334,10 @@ pub async fn delete_invite(
     Ok(Json(out))
 }
 
-/// Accept an invite and join the guild. Already being a member returns the invite
-/// without using it up. Banned users get 403 `User banned`.
+/// Accept an invite and join the guild. The member is added and exactly one use
+/// consumed atomically. Already being a member returns the invite without using
+/// it up. Banned users get 403 `User banned`; paused invites 403. Bots cannot
+/// join by invite.
 #[utoipa::path(
     post,
     path = "/invites/{code}",
@@ -343,37 +347,21 @@ pub async fn delete_invite(
         (status = 403, body = ErrorBody),
         (status = 404, body = ErrorBody),
     ),
-    security(("authorization" = []), ("session" = []))
+    security(("session" = []))
 )]
 pub async fn accept_invite(
-    p: Principal,
+    UserOnly(p): UserOnly,
     Ext(deps): Ext<SettingsDeps>,
     Path(code): Path<String>,
 ) -> ApiResult<Json<InviteObject>> {
     let user = actor(&p)?;
-    let inv = usable_invite(&deps, &code).await?;
-    if deps
-        .chat
-        .get_member(inv.guild_id, user)
-        .await
-        .map_err(re)?
-        .is_some()
-    {
-        return Ok(Json(render_one(&deps, &inv).await?));
+    if !sr_chat::settings::invites::is_valid_code(&code) {
+        return Err(ErrorCode::UnknownInvite.into());
     }
-    if !deps.joiner().is_wired() {
-        return Err(HttpError(
-            deps.joiner()
-                .join(inv.guild_id, user, inv.temporary)
-                .await
-                .err()
-                .unwrap_or_else(|| sr_core::ApiError::new(ErrorCode::SrInternal)),
-        ));
-    }
-    let used = deps.service.use_invite(&code, user).await.map_err(se)?;
-    deps.joiner()
-        .join(used.guild_id, user, used.temporary)
+    let outcome = deps
+        .joiner()
+        .join_with_invite(&code, user, deps.now_ms())
         .await
         .map_err(HttpError)?;
-    Ok(Json(render_one(&deps, &used).await?))
+    Ok(Json(render_one(&deps, outcome.invite()).await?))
 }
