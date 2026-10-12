@@ -28,3 +28,27 @@ jobs:
       - run: pnpm -r --if-present typecheck
       - run: pnpm -r --if-present test
       - run: pnpm --filter @sideroom/web build
+
+  # Advisory: verifies the same steps on Node 24 (current LTS) so the Node 22 pin in .nvmrc can be
+  # lifted once this is green. continue-on-error keeps it from blocking the PR until then.
+  web-node24:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown }
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with: { tool: "wasm-pack" }
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @sideroom/wasm build
+      - run: pnpm -r --if-present lint
+      - run: pnpm -r --if-present typecheck
+      - run: pnpm -r --if-present test
+      - run: pnpm --filter @sideroom/web build
