@@ -70,8 +70,9 @@ pub async fn patch_presence(
         prefs = deps.service.set_custom_status(me, c).await?;
     }
     let out = PresenceObject::from(&prefs);
-    // TODO(social-events): PRESENCE_UPDATE to friends and guild members is raised by
-    // the gateway's presence map once it reads these preferences.
+    // The gateway merges this with the live sessions and raises PRESENCE_UPDATE for
+    // friends and shared guilds (invisible shows as offline to them).
+    deps.announce_presence(&prefs).await;
     deps.emit(SocialEvent::new(
         "USER_SETTINGS_UPDATE",
         vec![me],

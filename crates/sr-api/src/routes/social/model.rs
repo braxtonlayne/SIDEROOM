@@ -85,6 +85,14 @@ pub struct PutRelationshipBody {
     pub kind: Option<i16>,
 }
 
+/// `POST /users/@me/relationships`: send a friend request by username.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct AddRelationshipBody {
+    /// The target's username, case-insensitive. The platform has no
+    /// discriminators; a `discriminator` field is accepted and ignored.
+    pub username: String,
+}
+
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct NicknameBody {
     /// Empty or null clears the nickname (max 32 characters).
@@ -410,6 +418,29 @@ pub struct ProfileObject {
     pub user: UserObject,
     pub user_profile: UserProfileFields,
     pub connected_accounts: Vec<ConnectionObject>,
+    /// Friends of both the viewer and the profile owner (omitted on the viewer's own
+    /// profile).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mutual_friends: Option<Vec<UserObject>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mutual_friends_count: Option<usize>,
+    /// Guilds both belong to, with the owner's nickname and join time there.
+    /// Present when `with_mutual_guilds` is true (the default) and the profile is
+    /// not the viewer's own.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mutual_guilds: Option<Vec<MutualGuildObject>>,
+    /// When the viewer and the owner became friends.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub friends_since: Option<String>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct MutualGuildObject {
+    pub id: String,
+    /// The profile owner's nickname in that guild.
+    pub nick: Option<String>,
+    /// When the profile owner joined that guild.
+    pub member_since: String,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

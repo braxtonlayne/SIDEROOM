@@ -252,12 +252,16 @@ pub async fn add_recipient(
     if dm.id == cid {
         let user = deps.user_object(target).await?;
         let payload = json!({ "channel_id": cid.to_string(), "user": user });
-        deps.emit(
-            SocialEvent::new("CHANNEL_RECIPIENT_ADD", dm.recipients.clone(), payload)
-                .for_channel(cid),
-        )
-        .await;
-        // The newcomer needs the channel itself.
+        // Existing members hear about the newcomer; the newcomer gets the channel
+        // itself (CHANNEL_CREATE) instead of an add for a channel they cannot see yet.
+        let existing: Vec<UserId> = dm
+            .recipients
+            .iter()
+            .copied()
+            .filter(|r| *r != target)
+            .collect();
+        deps.emit(SocialEvent::new("CHANNEL_RECIPIENT_ADD", existing, payload).for_channel(cid))
+            .await;
         announce(&deps, "CHANNEL_CREATE", &dm, &[target]).await?;
         return Ok(StatusCode::NO_CONTENT.into_response());
     }

@@ -19,8 +19,8 @@ use sr_chat::social::relationships::{
     FriendRequestSources, RelOp, Relationship, RelationshipCounts, RelationshipKind,
 };
 use sr_chat::social::repo::{
-    DmRepository, NotificationRepository, PresenceRepository, Privacy, ProfileRepository,
-    ReadStateRepository, RelationshipRepository, RepoResult,
+    DmRepository, GuildMembership, NotificationRepository, PresenceRepository, Privacy,
+    ProfileRepository, ReadStateRepository, RelationshipRepository, RepoResult,
 };
 use sr_core::{ChannelId, GuildId, MessageId, UserId};
 
@@ -225,6 +225,68 @@ impl RelationshipRepository for PgSocialRepo {
         .fetch_one(&self.pool)
         .await
         .map_err(db)
+    }
+
+    async fn mutual_friends(&self, a: UserId, b: UserId) -> RepoResult<Vec<UserId>> {
+        let rows: Vec<i64> = sqlx::query_scalar(
+            "SELECT x.target_id FROM relationships x JOIN relationships y \
+             ON x.target_id = y.target_id \
+             WHERE x.user_id = $1 AND y.user_id = $2 AND x.type = 1 AND y.type = 1 \
+             ORDER BY x.target_id",
+        )
+        .bind(i(a.get()))
+        .bind(i(b.get()))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(rows.into_iter().map(uid).collect())
+    }
+
+    async fn find_user_by_username(&self, username: &str) -> RepoResult<Option<UserId>> {
+        // `username` is CITEXT, so the comparison is case-insensitive.
+        let id: Option<i64> = sqlx::query_scalar(
+            "SELECT id FROM accounts WHERE username = $1::citext AND state = 'active'",
+        )
+        .bind(username)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(id.map(uid))
+    }
+
+    async fn list_guild_memberships(&self, user: UserId) -> RepoResult<Vec<GuildMembership>> {
+        let sql = format!(
+            "SELECT guild_id, nick, {} AS joined_ms FROM guild_members \
+             WHERE user_id = $1 ORDER BY guild_id",
+            ms("joined_at")
+        );
+        let rows = sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(i(user.get()))
+            .fetch_all(&self.pool)
+            .await
+            .map_err(db)?;
+        rows.iter()
+            .map(|r| {
+                Ok(GuildMembership {
+                    guild: GuildId::new(r.try_get::<i64, _>("guild_id").map_err(db)? as u64),
+                    nick: r.try_get("nick").map_err(db)?,
+                    joined_at_ms: r.try_get("joined_ms").map_err(db)?,
+                })
+            })
+            .collect()
+    }
+
+    async fn guild_peers(&self, user: UserId) -> RepoResult<Vec<UserId>> {
+        let rows: Vec<i64> = sqlx::query_scalar(
+            "SELECT DISTINCT y.user_id FROM guild_members x JOIN guild_members y \
+             ON x.guild_id = y.guild_id \
+             WHERE x.user_id = $1 AND y.user_id <> $1 ORDER BY y.user_id",
+        )
+        .bind(i(user.get()))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(rows.into_iter().map(uid).collect())
     }
 
     async fn get_privacy(&self, user: UserId) -> RepoResult<Privacy> {

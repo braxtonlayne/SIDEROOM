@@ -50,6 +50,18 @@ impl RelationshipRepository for DynRepo {
     async fn has_mutual_friend(&self, a: UserId, b: UserId) -> RepoResult<bool> {
         self.0.has_mutual_friend(a, b).await
     }
+    async fn mutual_friends(&self, a: UserId, b: UserId) -> RepoResult<Vec<UserId>> {
+        self.0.mutual_friends(a, b).await
+    }
+    async fn find_user_by_username(&self, username: &str) -> RepoResult<Option<UserId>> {
+        self.0.find_user_by_username(username).await
+    }
+    async fn list_guild_memberships(&self, user: UserId) -> RepoResult<Vec<GuildMembership>> {
+        self.0.list_guild_memberships(user).await
+    }
+    async fn guild_peers(&self, user: UserId) -> RepoResult<Vec<UserId>> {
+        self.0.guild_peers(user).await
+    }
     async fn get_privacy(&self, user: UserId) -> RepoResult<Privacy> {
         self.0.get_privacy(user).await
     }

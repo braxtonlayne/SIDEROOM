@@ -49,7 +49,10 @@ pub fn router() -> Router<AppState> {
             "/users/@me/presence",
             get(presence::get_presence).patch(presence::patch_presence),
         )
-        .route("/users/@me/relationships", get(relationships::list))
+        .route(
+            "/users/@me/relationships",
+            get(relationships::list).post(relationships::add),
+        )
         .route(
             "/users/@me/relationships/{user_id}",
             get(relationships::get_one)
@@ -88,6 +91,7 @@ pub fn router() -> Router<AppState> {
             post(read_state::ack_pins),
         )
         .route("/read-states/ack-bulk", post(read_state::ack_bulk))
+        .route("/guilds/{guild_id}/ack", post(read_state::ack_guild))
         .route("/users/@me/read-states", get(read_state::list))
         .route(
             "/users/@me/guilds/{guild_id}/settings",
@@ -105,6 +109,7 @@ pub fn router() -> Router<AppState> {
         presence::get_presence,
         presence::patch_presence,
         relationships::list,
+        relationships::add,
         relationships::get_one,
         relationships::put,
         relationships::set_nickname,
@@ -124,6 +129,7 @@ pub fn router() -> Router<AppState> {
         read_state::ack_message,
         read_state::ack_pins,
         read_state::ack_bulk,
+        read_state::ack_guild,
         read_state::list,
         notifications::get_settings,
         notifications::patch_settings,
@@ -133,6 +139,8 @@ pub fn router() -> Router<AppState> {
         model::UserObject,
         model::RelationshipObject,
         model::PutRelationshipBody,
+        model::AddRelationshipBody,
+        model::MutualGuildObject,
         model::NicknameBody,
         model::NoteObject,
         model::NoteBody,

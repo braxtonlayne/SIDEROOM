@@ -3,7 +3,9 @@
 use super::deps::SocialDeps;
 use super::error::{ApiJson, MsgResult, invalid};
 use super::events::SocialEvent;
-use super::model::{NicknameBody, PutRelationshipBody, RelationshipObject, UserObject};
+use super::model::{
+    AddRelationshipBody, NicknameBody, PutRelationshipBody, RelationshipObject, UserObject,
+};
 use super::util::{actor, optional_json, user_id};
 use crate::{Principal, openapi::ErrorBody, routes::Ext};
 use axum::{Json, body::Bytes, extract::Path, http::StatusCode};
@@ -34,6 +36,38 @@ pub async fn list(
             .map(|r| RelationshipObject::new(r, &users))
             .collect(),
     ))
+}
+
+/// Send a friend request by username (case-insensitive). An unknown user, a user
+/// who blocked the caller and a user who takes no requests all answer the same
+/// "unable to add" error, so usernames cannot be enumerated.
+#[utoipa::path(
+    post,
+    path = "/users/@me/relationships",
+    request_body = AddRelationshipBody,
+    responses(
+        (status = 204, description = "Request sent (or incoming request accepted)"),
+        (status = 400, body = ErrorBody)
+    ),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn add(
+    p: Principal,
+    Ext(deps): Ext<SocialDeps>,
+    ApiJson(body): ApiJson<AddRelationshipBody>,
+) -> MsgResult<StatusCode> {
+    let me = actor(&p)?;
+    let (them, plan) = deps
+        .service
+        .send_friend_request_by_username(me, &body.username)
+        .await?;
+    // A request creates new rows, so there is no earlier row to describe.
+    let before = Snapshot {
+        mine: None,
+        theirs: None,
+    };
+    announce(&deps, me, them, &before, &plan).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// One relationship of the caller; 404 when there is none.

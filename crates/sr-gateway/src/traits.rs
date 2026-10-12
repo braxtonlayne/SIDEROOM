@@ -84,6 +84,12 @@ pub trait GuildDirectory: Send + Sync {
         Vec::new()
     }
 
+    /// Accepted friends of `user`, who receive their `PRESENCE_UPDATE`s outside any
+    /// guild. Default: none.
+    async fn friends_of(&self, _user: UserId) -> Vec<UserId> {
+        Vec::new()
+    }
+
     /// Extra READY fields (`private_channels`, `relationships`, ...).
     async fn ready_extras(&self, _user: UserId) -> Value {
         json!({})

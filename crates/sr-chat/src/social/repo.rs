@@ -15,6 +15,15 @@ use sr_core::{ChannelId, GuildId, UserId};
 
 pub type RepoResult<T> = Result<T, RepoError>;
 
+/// One guild membership of a user, as the social layer needs it (mutual guilds,
+/// guild-wide acknowledgement, presence fan-out).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GuildMembership {
+    pub guild: GuildId,
+    pub nick: Option<String>,
+    pub joined_at_ms: i64,
+}
+
 /// Per-user privacy preferences relevant to relationships and DMs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Privacy {
@@ -36,6 +45,14 @@ pub trait RelationshipRepository: Send + Sync {
     async fn apply(&self, ops: &[RelOp]) -> RepoResult<()>;
     async fn shares_guild(&self, a: UserId, b: UserId) -> RepoResult<bool>;
     async fn has_mutual_friend(&self, a: UserId, b: UserId) -> RepoResult<bool>;
+    /// Users who are friends of both `a` and `b`, ascending by id.
+    async fn mutual_friends(&self, a: UserId, b: UserId) -> RepoResult<Vec<UserId>>;
+    /// Active account with this username (case-insensitive), if any.
+    async fn find_user_by_username(&self, username: &str) -> RepoResult<Option<UserId>>;
+    /// Every guild `user` belongs to, ascending by guild id.
+    async fn list_guild_memberships(&self, user: UserId) -> RepoResult<Vec<GuildMembership>>;
+    /// Users sharing at least one guild with `user` (excluding `user`), ascending.
+    async fn guild_peers(&self, user: UserId) -> RepoResult<Vec<UserId>>;
     async fn get_privacy(&self, user: UserId) -> RepoResult<Privacy>;
     async fn put_privacy(&self, user: UserId, privacy: &Privacy) -> RepoResult<()>;
     /// Whether `user` has ignored `target` (independent of friendship).

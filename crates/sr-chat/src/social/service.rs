@@ -41,6 +41,22 @@ pub struct OpenedDm {
     pub access: DmAccess,
 }
 
+/// Mutual context between a profile's viewer and its owner.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ProfileExtras {
+    pub mutual_friends: Vec<UserId>,
+    /// Guilds both belong to; `nick` and `joined_at_ms` are the profile owner's.
+    pub mutual_guilds: Vec<super::repo::GuildMembership>,
+    pub friends_since_ms: Option<i64>,
+}
+
+/// Recipients of a user-level broadcast (`USER_UPDATE`, `PRESENCE_UPDATE`).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Audience {
+    pub friends: Vec<UserId>,
+    pub guilds: Vec<GuildId>,
+}
+
 /// Resolved notification behaviour for a channel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResolvedNotifications {
@@ -131,6 +147,35 @@ impl<R: SocialRepository> SocialService<R> {
         let plan =
             relationships::plan_request(me, them, st, &counts, allow, &self.limits, self.now())?;
         self.commit(plan).await
+    }
+
+    /// Send a friend request to the user named `username` (case-insensitive).
+    ///
+    /// Discord answers identically whether the user is unknown, has blocked the
+    /// caller or takes no requests, so none of those can be told apart: all three
+    /// surface as [`SocialError::RequestsNotAccepted`]. Returns the resolved target
+    /// with the plan.
+    pub async fn send_friend_request_by_username(
+        &self,
+        me: UserId,
+        username: &str,
+    ) -> SocialResult<(UserId, Plan)> {
+        let name = username.trim();
+        let them = if name.is_empty() {
+            None
+        } else {
+            self.repo.find_user_by_username(name).await?
+        };
+        let Some(them) = them else {
+            return Err(SocialError::RequestsNotAccepted);
+        };
+        match self.send_friend_request(me, them).await {
+            Ok(plan) => Ok((them, plan)),
+            Err(SocialError::BlockedByThem | SocialError::UnknownUser) => {
+                Err(SocialError::RequestsNotAccepted)
+            }
+            Err(e) => Err(e),
+        }
     }
 
     pub async fn accept_friend_request(&self, me: UserId, them: UserId) -> SocialResult<Plan> {
@@ -700,6 +745,57 @@ impl<R: SocialRepository> SocialService<R> {
             .ok_or(SocialError::UnknownUser)?;
         p.connections = profile::visible_connections(&p, viewer);
         Ok(p)
+    }
+
+    /// What the viewer shares with `user`: mutual friends, mutual guilds (with the
+    /// user's nickname and join time there) and the friendship's start. Empty for
+    /// the viewer's own profile.
+    pub async fn profile_extras(
+        &self,
+        viewer: UserId,
+        user: UserId,
+    ) -> SocialResult<ProfileExtras> {
+        if viewer == user {
+            return Ok(ProfileExtras::default());
+        }
+        let mine = self.repo.list_guild_memberships(viewer).await?;
+        let theirs = self.repo.list_guild_memberships(user).await?;
+        let mutual_guilds = theirs
+            .into_iter()
+            .filter(|t| mine.iter().any(|m| m.guild == t.guild))
+            .collect();
+        let friends_since_ms = self
+            .repo
+            .get_relationship(viewer, user)
+            .await?
+            .filter(|r| r.kind == RelationshipKind::Friend)
+            .map(|r| r.since_ms);
+        Ok(ProfileExtras {
+            mutual_friends: self.repo.mutual_friends(viewer, user).await?,
+            mutual_guilds,
+            friends_since_ms,
+        })
+    }
+
+    /// Who should hear about a change to `user`'s profile or presence: friends and
+    /// the guilds they belong to.
+    pub async fn audience(&self, user: UserId) -> SocialResult<Audience> {
+        let friends = self
+            .repo
+            .list_relationships(user)
+            .await?
+            .into_iter()
+            .filter(|r| r.kind == RelationshipKind::Friend)
+            .map(|r| r.target)
+            .collect();
+        let guilds = self
+            .repo
+            .list_guild_memberships(user)
+            .await?
+            .into_iter()
+            .map(|m| m.guild)
+            .collect();
+        Ok(Audience { friends, guilds })
     }
 
     pub async fn edit_profile(&self, user: UserId, edit: &ProfileEdit) -> SocialResult<Profile> {

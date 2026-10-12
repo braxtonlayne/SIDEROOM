@@ -21,6 +21,10 @@ pub struct Store {
     pub privacy: HashMap<UserId, Privacy>,
     /// Pairs (ordered) that share a guild; set by tests.
     pub shared_guilds: HashSet<(UserId, UserId)>,
+    /// Guild memberships `(guild, user) -> (nick, joined_at_ms)`; set by tests.
+    pub members: HashMap<(GuildId, UserId), (Option<String>, i64)>,
+    /// Lower-cased username to user; set by tests.
+    pub usernames: HashMap<String, UserId>,
     pub dms: HashMap<ChannelId, DmChannel>,
     pub hidden: HashSet<(UserId, ChannelId)>,
     pub read_states: HashMap<(UserId, ChannelId), ReadState>,
@@ -56,6 +60,22 @@ impl MemoryRepo {
     pub fn add_user(&self, user: UserId) {
         if let Ok(mut s) = self.lock() {
             s.users.insert(user);
+        }
+    }
+
+    /// Test helper: register a user with a username (looked up case-insensitively).
+    pub fn add_named_user(&self, user: UserId, username: &str) {
+        if let Ok(mut s) = self.lock() {
+            s.users.insert(user);
+            s.usernames.insert(username.to_lowercase(), user);
+        }
+    }
+
+    /// Test helper: record a guild membership.
+    pub fn add_member(&self, guild: GuildId, user: UserId, nick: Option<&str>, joined_at_ms: i64) {
+        if let Ok(mut s) = self.lock() {
+            s.members
+                .insert((guild, user), (nick.map(str::to_owned), joined_at_ms));
         }
     }
 
@@ -146,7 +166,75 @@ impl RelationshipRepository for MemoryRepo {
     }
 
     async fn shares_guild(&self, a: UserId, b: UserId) -> RepoResult<bool> {
-        Ok(self.lock()?.shared_guilds.contains(&pair(a, b)))
+        let s = self.lock()?;
+        Ok(s.shared_guilds.contains(&pair(a, b))
+            || s.members
+                .keys()
+                .any(|(g, u)| *u == a && s.members.contains_key(&(*g, b))))
+    }
+
+    async fn mutual_friends(&self, a: UserId, b: UserId) -> RepoResult<Vec<UserId>> {
+        let s = self.lock()?;
+        let friends = |u: UserId| -> HashSet<UserId> {
+            s.rels
+                .values()
+                .filter(|r| r.user == u && r.kind == RelationshipKind::Friend)
+                .map(|r| r.target)
+                .collect()
+        };
+        let mut out: Vec<UserId> = friends(a).intersection(&friends(b)).copied().collect();
+        out.sort();
+        Ok(out)
+    }
+
+    async fn find_user_by_username(&self, username: &str) -> RepoResult<Option<UserId>> {
+        Ok(self
+            .lock()?
+            .usernames
+            .get(&username.to_lowercase())
+            .copied())
+    }
+
+    async fn list_guild_memberships(&self, user: UserId) -> RepoResult<Vec<GuildMembership>> {
+        let s = self.lock()?;
+        let mut out: Vec<GuildMembership> = s
+            .members
+            .iter()
+            .filter(|((_, u), _)| *u == user)
+            .map(|((g, _), (nick, at))| GuildMembership {
+                guild: *g,
+                nick: nick.clone(),
+                joined_at_ms: *at,
+            })
+            .collect();
+        out.sort_by_key(|m| m.guild);
+        Ok(out)
+    }
+
+    async fn guild_peers(&self, user: UserId) -> RepoResult<Vec<UserId>> {
+        let s = self.lock()?;
+        let mine: HashSet<GuildId> = s
+            .members
+            .keys()
+            .filter(|(_, u)| *u == user)
+            .map(|(g, _)| *g)
+            .collect();
+        let mut out: HashSet<UserId> = s
+            .members
+            .keys()
+            .filter(|(g, u)| *u != user && mine.contains(g))
+            .map(|(_, u)| *u)
+            .collect();
+        for (a, b) in &s.shared_guilds {
+            if *a == user {
+                out.insert(*b);
+            } else if *b == user {
+                out.insert(*a);
+            }
+        }
+        let mut out: Vec<UserId> = out.into_iter().collect();
+        out.sort();
+        Ok(out)
     }
 
     async fn has_mutual_friend(&self, a: UserId, b: UserId) -> RepoResult<bool> {

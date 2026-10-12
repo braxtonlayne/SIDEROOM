@@ -1,7 +1,7 @@
 //! Read markers and mention badges (LNG-MSG-021, Q117, Q128).
 
 use super::deps::SocialDeps;
-use super::error::{ApiJson, MsgResult, invalid};
+use super::error::{ApiJson, MsgResult, invalid, parse_id};
 use super::events::SocialEvent;
 use super::model::{AckBody, AckResponse, BulkAckBody, ReadStateObject, ReadStatesResponse};
 use super::util::{actor, channel_id, message_id, optional_json};
@@ -10,7 +10,7 @@ use crate::{Principal, openapi::ErrorBody, routes::Ext};
 use axum::{Json, body::Bytes, extract::Path, http::StatusCode};
 use serde_json::json;
 use sr_chat::social::read_state::ReadState;
-use sr_core::{ChannelId, MessageId, UserId};
+use sr_core::{ChannelId, ErrorCode, GuildId, MessageId, UserId};
 
 /// Most channels one bulk acknowledgement may name.
 const MAX_BULK: usize = 100;
@@ -105,6 +105,47 @@ pub async fn ack_bulk(
     for (cid, mid) in targets {
         let state = deps.service.ack(me, cid, mid).await?;
         announce(&deps, me, &state, mid).await;
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Mark a whole guild as read: every channel the caller can view that has a message
+/// is acknowledged up to its latest message (and its mention badge resets).
+#[utoipa::path(
+    post,
+    path = "/guilds/{guild_id}/ack",
+    params(("guild_id" = String, Path, description = "Guild snowflake")),
+    responses((status = 204, description = "Acknowledged"), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn ack_guild(
+    p: Principal,
+    Ext(deps): Ext<SocialDeps>,
+    Ext(messages): Ext<MessagesDeps>,
+    Path(guild): Path<String>,
+) -> MsgResult<StatusCode> {
+    let me = actor(&p)?;
+    let gid: GuildId = parse_id(&guild, ErrorCode::UnknownGuild)?;
+    messages
+        .repo
+        .get_guild(gid)
+        .await?
+        .ok_or(ErrorCode::UnknownGuild)?;
+    messages
+        .repo
+        .get_member(gid, me)
+        .await?
+        .ok_or(ErrorCode::MissingAccess)?;
+    let channels = messages.repo.list_guild_channels(gid).await?;
+    for ch in channels {
+        let Some(last) = ch.last_message_id else {
+            continue;
+        };
+        if messages.access(me, ch.id).await?.require_view().is_err() {
+            continue;
+        }
+        let state = deps.service.ack(me, ch.id, last).await?;
+        announce(&deps, me, &state, last).await;
     }
     Ok(StatusCode::NO_CONTENT)
 }

@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use serde_json::{Value, json};
+use sr_chat::social::presence::{Status, merge_sessions};
 use sr_core::{ChannelId, GuildId, Permissions, UserId};
 use sr_events::{DomainEvent, EventBus, Topic};
 use tokio::sync::mpsc;
@@ -399,11 +400,14 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
         DomainEvent::AuditLogEntryCreated { payload, .. } => {
             passthrough("GUILD_AUDIT_LOG_ENTRY_CREATE", payload, None)
         }
+        DomainEvent::UserUpdated { payload, .. } => passthrough("USER_UPDATE", payload, None),
         // Handled as subscription lifecycle by the platform pump.
         DomainEvent::GuildCreated { .. }
         | DomainEvent::GuildDeleted { .. }
         | DomainEvent::FeatureSettingsChanged { .. }
         | DomainEvent::StaffAlert { .. }
+        // Merged with the live sessions by `Gateway::on_user_event`.
+        | DomainEvent::PresenceChanged { .. }
         | DomainEvent::UserScoped { .. } => return None,
     })
 }
@@ -634,14 +638,45 @@ impl Gateway {
 
     async fn on_guild_event(&self, guild: GuildId, ev: DomainEvent) {
         self.note_typing(&ev);
-        if let Some(d) = to_dispatch(&ev) {
+        if let Some(mut d) = to_dispatch(&ev) {
+            // The changed user's own sessions hear about it as a self event.
+            if let DomainEvent::UserUpdated { user, .. } = &ev {
+                d.audience = Some(self.guild_users(guild, Some(*user)));
+            }
             self.dispatch_guild(guild, d.name, d.data, d.channel, d.audience.as_ref())
                 .await;
         }
     }
 
+    /// Users with a session in `guild`, optionally without `except`.
+    fn guild_users(&self, guild: GuildId, except: Option<UserId>) -> HashSet<UserId> {
+        let st = self.st();
+        st.by_guild
+            .get(&guild)
+            .into_iter()
+            .flatten()
+            .filter_map(|id| st.sessions.get(id))
+            .map(|s| s.user)
+            .filter(|u| Some(*u) != except)
+            .collect()
+    }
+
     async fn on_user_event(&self, user: UserId, ev: DomainEvent) {
         self.note_typing(&ev);
+        if let DomainEvent::PresenceChanged {
+            user: changed,
+            status,
+            custom_status,
+        } = &ev
+        {
+            let update = PresenceUpdate {
+                status: status.clone(),
+                activities: custom_status.iter().cloned().collect(),
+                ..PresenceUpdate::default()
+            };
+            self.set_presence(*changed, update).await;
+            return;
+        }
         if let DomainEvent::UserScoped { name, payload, .. } = &ev {
             self.dispatch_user(user, name, payload.clone()).await;
             return;
@@ -866,7 +901,19 @@ impl Gateway {
             return None;
         }
         Some(if st.online.contains(&user) {
-            st.presence.get(&user).cloned().unwrap_or_default()
+            let mut chosen = st.presence.get(&user).cloned().unwrap_or_default();
+            // Every attached socket reports the chosen status; the merge rule
+            // (open question 119) decides what the user shows across them.
+            let sockets = st
+                .sessions
+                .values()
+                .filter(|s| s.user == user && s.is_attached())
+                .count();
+            if let Some(status) = parse_status(&chosen.status) {
+                let live = vec![Status::Online; sockets];
+                chosen.status = merge_sessions(status, &live).as_str().to_owned();
+            }
+            chosen
         } else {
             PresenceUpdate::offline()
         })
@@ -898,6 +945,7 @@ impl Gateway {
         };
         let Some(update) = update else { return };
         if changed || force {
+            self.notify_friends(user, &update, &guilds).await;
             for g in guilds {
                 self.dispatch_guild(
                     g,
@@ -908,6 +956,40 @@ impl Gateway {
                 )
                 .await;
             }
+        }
+    }
+
+    /// `PRESENCE_UPDATE` to the user's friends. Friends who already hear about the
+    /// user through one of `guilds` are skipped so nobody gets it twice.
+    async fn notify_friends(
+        &self,
+        user: UserId,
+        update: &PresenceUpdate,
+        guilds: &HashSet<GuildId>,
+    ) {
+        let friends = self.inner.dir.friends_of(user).await;
+        if friends.is_empty() {
+            return;
+        }
+        let via_guild: HashSet<UserId> = guilds
+            .iter()
+            .flat_map(|g| self.guild_users(*g, Some(user)))
+            .collect();
+        let users: Vec<UserId> = friends
+            .into_iter()
+            .filter(|f| !via_guild.contains(f))
+            .collect();
+        if users.is_empty() {
+            return;
+        }
+        let ev = DomainEvent::UserScoped {
+            users: users.clone(),
+            name: "PRESENCE_UPDATE".into(),
+            payload: friend_presence_body(user, update),
+        };
+        for f in users {
+            // Best effort: a failed publish only delays a presence dot.
+            let _ = self.inner.bus.publish(Topic::User(f), ev.clone()).await;
         }
     }
 
@@ -937,6 +1019,24 @@ fn session_entry(s: &Session) -> Value {
         "session_id": s.id,
         "status": if active { "online" } else { "offline" },
         "active": active,
+    })
+}
+
+fn parse_status(s: &str) -> Option<Status> {
+    Some(match s {
+        "online" => Status::Online,
+        "idle" => Status::Idle,
+        "dnd" => Status::Dnd,
+        "invisible" => Status::Invisible,
+        _ => return None,
+    })
+}
+
+/// `PRESENCE_UPDATE` body for friends, who see it outside any guild.
+fn friend_presence_body(user: UserId, p: &PresenceUpdate) -> Value {
+    json!({
+        "user": { "id": user },
+        "status": p.visible_status(), "activities": p.activities,
     })
 }
 

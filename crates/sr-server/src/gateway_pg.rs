@@ -247,6 +247,20 @@ impl GuildDirectory for PgGuildDirectory {
         }
     }
 
+    async fn friends_of(&self, user: UserId) -> Vec<UserId> {
+        match self.social.list_relationships(user).await {
+            Ok(rels) => rels
+                .into_iter()
+                .filter(|r| r.kind == RelationshipKind::Friend)
+                .map(|r| r.target)
+                .collect(),
+            Err(e) => {
+                tracing::error!(error = %e, "friends_of failed");
+                Vec::new()
+            }
+        }
+    }
+
     async fn can_view_channel(&self, user: UserId, guild: GuildId, channel: ChannelId) -> bool {
         let res: Result<bool, sr_chat::error::RepoError> = async {
             let Some(ch) = self.chat.get_channel(channel).await? else {
