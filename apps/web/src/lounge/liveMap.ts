@@ -16,6 +16,7 @@ import type {
   Snowflake,
 } from './data';
 import { cmpId } from '../store/reducer';
+import { canOpenSettingsFromBits } from '../settings/server/permissions';
 import type * as S from '../store/types';
 
 const SNOWFLAKE_EPOCH_MS = 1420070400000n;
@@ -70,6 +71,7 @@ export function toGuildPermissions(base: bigint): GuildPermissions {
     manageChannels: has(PERM.MANAGE_CHANNELS),
     createInvite: has(PERM.CREATE_INSTANT_INVITE),
     moderate: has(PERM.MODERATE_MEMBERS),
+    serverSettings: canOpenSettingsFromBits(base),
   };
 }
 

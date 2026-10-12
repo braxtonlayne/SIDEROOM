@@ -11,13 +11,8 @@ import {
   reduceDispatch,
 } from './reducer';
 import * as rest from './rest';
-import type {
-  Channel,
-  ConnectionStatus,
-  Message,
-  MessageReaction,
-  MessageWindow,
-} from './types';
+import { emitDispatch } from './events';
+import type { Channel, ConnectionStatus, Message, MessageReaction, MessageWindow } from './types';
 
 /** Minimum gap between two read-state acks for one channel (Q128). */
 export const ACK_THROTTLE_MS = 1000;
@@ -154,7 +149,10 @@ export const useStore = create<StoreState>()((set, get) => {
     ...emptyData(),
     connection: 'idle',
     setConnection: (connection) => set({ connection }),
-    applyDispatch: (event, data) => set((s) => reduceDispatch(s, event, data)),
+    applyDispatch: (event, data) => {
+      set((s) => reduceDispatch(s, event, data));
+      emitDispatch(event, data);
+    },
     pruneTyping: (now = Date.now()) =>
       set((s) => {
         let changed = false;
@@ -350,7 +348,9 @@ export const useStore = create<StoreState>()((set, get) => {
     acceptInvite: async (code) => {
       const invite = await rest.acceptInvite(code);
       // The gateway also delivers GUILD_CREATE; loading here makes the guild usable immediately.
-      await get().loadGuild(invite.guild.id).catch(() => undefined);
+      await get()
+        .loadGuild(invite.guild.id)
+        .catch(() => undefined);
       return invite;
     },
 
