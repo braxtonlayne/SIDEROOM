@@ -245,13 +245,29 @@ async fn presigned_urls_expire() {
         .unwrap();
     assert_eq!(http("GET", &get, &[], &[]).await.status, 200);
     tokio::time::sleep(Duration::from_secs(4)).await;
-    assert_eq!(http("GET", &get, &[], &[]).await.status, 403);
+    // An expired URL must be refused. AWS S3 answers 403 (AccessDenied); Garage answers 400
+    // (the request is malformed once expired). Both mean "rejected", so accept either, and
+    // never the object body.
+    let expired = http("GET", &get, &[], &[]).await;
+    assert!(
+        matches!(expired.status, 400 | 403),
+        "expired GET should be refused with 400 or 403, got {}",
+        expired.status
+    );
+    assert!(
+        !String::from_utf8_lossy(&expired.body).contains("hello"),
+        "an expired URL must not return the object"
+    );
     let put = s
         .presign(PresignMethod::Put, &key, Duration::from_secs(1))
         .await
         .unwrap();
     tokio::time::sleep(Duration::from_secs(3)).await;
-    assert_eq!(http("PUT", &put, &[], b"late").await.status, 403);
+    let late = http("PUT", &put, &[], b"late").await.status;
+    assert!(
+        matches!(late, 400 | 403),
+        "expired PUT should be refused with 400 or 403, got {late}"
+    );
     assert_eq!(s.get(&key).await.unwrap(), Bytes::from_static(b"hello"));
     s.delete(&key).await.unwrap();
 }
