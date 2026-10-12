@@ -3983,6 +3983,7 @@ dependencies = [
  "ruzstd",
  "serde",
  "serde_json",
+ "sr-chat",
  "sr-core",
  "sr-events",
  "thiserror 2.0.21",

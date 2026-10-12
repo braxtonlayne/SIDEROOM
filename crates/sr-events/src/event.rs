@@ -211,6 +211,26 @@ pub enum DomainEvent {
         name: String,
         payload: serde_json::Value,
     },
+    /// A user's chosen presence changed (status via `PATCH /users/@me/presence`,
+    /// custom status). Published on the user's own `Topic::User`; the gateway, which
+    /// knows the live sessions, merges it with them (open question 119) and raises
+    /// `PRESENCE_UPDATE` for the user's friends, their own sessions and the guilds
+    /// their sessions are in (honouring `GUILD_PRESENCES`). Not sent anywhere else.
+    PresenceChanged {
+        user: UserId,
+        /// The chosen status: `online`, `idle`, `dnd` or `invisible`.
+        status: String,
+        /// Custom status as a Discord activity (`type` 4), when one is set.
+        custom_status: Option<Value>,
+    },
+    /// `USER_UPDATE` for the members of one guild that share it with the changed
+    /// user; `payload` is the public user object. Producers publish one per
+    /// guild of the user, in addition to a [`Self::UserScoped`] to friends.
+    UserUpdated {
+        guild: GuildId,
+        user: UserId,
+        payload: Value,
+    },
     /// `INVITE_CREATE`; `payload` is the Discord invite object.
     InviteCreated {
         guild: GuildId,
@@ -359,7 +379,8 @@ impl DomainEvent {
             | Self::AutoModRuleUpdated { guild, .. }
             | Self::AutoModRuleDeleted { guild, .. }
             | Self::AutoModActionExecuted { guild, .. }
-            | Self::AuditLogEntryCreated { guild, .. } => vec![Topic::Guild(*guild)],
+            | Self::AuditLogEntryCreated { guild, .. }
+            | Self::UserUpdated { guild, .. } => vec![Topic::Guild(*guild)],
             Self::ChannelCreated { guild, channel, .. }
             | Self::ChannelUpdated { guild, channel, .. }
             | Self::ChannelDeleted { guild, channel, .. } => {
@@ -382,6 +403,7 @@ impl DomainEvent {
                 t
             }
             Self::UserScoped { users, .. } => users.iter().map(|u| Topic::User(*u)).collect(),
+            Self::PresenceChanged { user, .. } => vec![Topic::User(*user)],
             Self::FeatureSettingsChanged { .. } | Self::StaffAlert { .. } => vec![Topic::Platform],
         }
     }
@@ -495,6 +517,30 @@ mod tests {
             e.topics(),
             vec![Topic::User(UserId::new(1)), Topic::User(UserId::new(2))]
         );
+        let s = serde_json::to_string(&e).unwrap();
+        assert_eq!(serde_json::from_str::<DomainEvent>(&s).unwrap(), e);
+    }
+
+    #[test]
+    fn presence_changed_routes_to_the_users_own_topic() {
+        let e = DomainEvent::PresenceChanged {
+            user: UserId::new(7),
+            status: "dnd".into(),
+            custom_status: Some(serde_json::json!({ "type": 4, "state": "busy" })),
+        };
+        assert_eq!(e.topics(), vec![Topic::User(UserId::new(7))]);
+        let s = serde_json::to_string(&e).unwrap();
+        assert_eq!(serde_json::from_str::<DomainEvent>(&s).unwrap(), e);
+    }
+
+    #[test]
+    fn user_updated_routes_to_its_guild_topic() {
+        let e = DomainEvent::UserUpdated {
+            guild: GuildId::new(3),
+            user: UserId::new(7),
+            payload: serde_json::json!({ "id": "7" }),
+        };
+        assert_eq!(e.topics(), vec![Topic::Guild(GuildId::new(3))]);
         let s = serde_json::to_string(&e).unwrap();
         assert_eq!(serde_json::from_str::<DomainEvent>(&s).unwrap(), e);
     }

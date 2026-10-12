@@ -7,7 +7,8 @@
 //! Every social dispatch is a [`DomainEvent::UserScoped`] published to each addressed
 //! user's topic.
 
-use serde_json::Value;
+use serde_json::{Value, json};
+use sr_chat::social::presence::PresencePrefs;
 use sr_core::{ChannelId, UserId};
 use sr_events::{DomainEvent, EventBus, Topic};
 
@@ -47,6 +48,29 @@ pub fn to_domain(ev: &SocialEvent) -> Option<DomainEvent> {
         name: ev.name.to_owned(),
         payload: ev.payload.clone(),
     })
+}
+
+/// The chosen presence as a [`DomainEvent::PresenceChanged`]; the custom status
+/// travels as a Discord custom-status activity (`type` 4).
+pub fn presence_changed(prefs: &PresencePrefs) -> DomainEvent {
+    let custom = &prefs.custom;
+    let custom_status = (!custom.is_empty()).then(|| {
+        let emoji = custom
+            .emoji_name
+            .as_ref()
+            .map(|name| json!({ "name": name, "id": custom.emoji_id.map(|i| i.to_string()) }));
+        json!({
+            "type": 4,
+            "name": "Custom Status",
+            "state": custom.text,
+            "emoji": emoji,
+        })
+    });
+    DomainEvent::PresenceChanged {
+        user: prefs.user,
+        status: prefs.status.as_str().to_owned(),
+        custom_status,
+    }
 }
 
 /// Publish to every addressed user's topic. Best effort: the mutation already

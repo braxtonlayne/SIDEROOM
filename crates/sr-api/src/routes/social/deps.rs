@@ -6,10 +6,11 @@ use super::events::{SocialEvent, publish_social};
 use super::model::UserObject;
 use crate::routes::messages::error::MsgResult;
 use sr_chat::repo::{UserLookup, UserSummary};
+use sr_chat::social::presence::PresencePrefs;
 use sr_chat::social::{SocialLimits, SocialService};
 use sr_core::snowflake::SnowflakeError;
 use sr_core::{Clock, SnowflakeGenerator, UserId};
-use sr_events::EventBus;
+use sr_events::{DomainEvent, EventBus};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -63,6 +64,51 @@ impl SocialDeps {
     pub async fn user_object(&self, id: UserId) -> MsgResult<UserObject> {
         let map = self.summaries([id]).await?;
         Ok(UserObject::new(id, &map))
+    }
+
+    /// Publish a ready-made domain event to each of its default topics. Best effort.
+    pub async fn emit_domain(&self, ev: DomainEvent) {
+        for topic in ev.topics() {
+            if let Err(e) = self.bus.publish(topic, ev.clone()).await {
+                tracing::warn!(error = %e, "failed to publish domain event");
+            }
+        }
+    }
+
+    /// Tell the user's own gateway sessions that their chosen presence changed; the
+    /// gateway merges it with the live sessions and fans `PRESENCE_UPDATE` out to
+    /// friends and shared guilds.
+    pub async fn announce_presence(&self, prefs: &PresencePrefs) {
+        self.emit_domain(super::events::presence_changed(prefs))
+            .await;
+    }
+
+    /// `USER_UPDATE` to the user's friends and to every guild they belong to. The
+    /// user's own sessions get theirs from the caller.
+    pub async fn fan_out_user_update(&self, user: UserId, payload: serde_json::Value) {
+        let audience = match self.service.audience(user).await {
+            Ok(a) => a,
+            Err(e) => {
+                tracing::warn!(error = %e, "resolving USER_UPDATE audience failed");
+                return;
+            }
+        };
+        if !audience.friends.is_empty() {
+            self.emit(SocialEvent::new(
+                "USER_UPDATE",
+                audience.friends,
+                payload.clone(),
+            ))
+            .await;
+        }
+        for guild in audience.guilds {
+            self.emit_domain(DomainEvent::UserUpdated {
+                guild,
+                user,
+                payload: payload.clone(),
+            })
+            .await;
+        }
     }
 
     /// Best-effort delivery; see [`publish_social`].
