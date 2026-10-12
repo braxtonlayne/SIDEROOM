@@ -228,9 +228,11 @@ export function useEnsureMembers(guildId: string | undefined, active: boolean) {
 export function useLiveMessages(channelId: string | undefined, active: boolean): MessagesState {
   const win = useStore((s) => (channelId ? s.windows[channelId] : undefined));
   const byId = useStore((s) => s.messages);
+  // READY (fresh page load or reconnect) drops cached history, which removes the window: load again.
+  const hasWindow = win !== undefined;
   useEffect(() => {
     if (active && channelId) void useStore.getState().loadInitialMessages(channelId);
-  }, [active, channelId]);
+  }, [active, channelId, hasWindow]);
   return useMemo(() => {
     if (!win) return EMPTY_MESSAGES;
     const messages = [...win.ids, ...win.pending]

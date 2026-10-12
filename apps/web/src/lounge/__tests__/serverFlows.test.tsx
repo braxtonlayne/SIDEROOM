@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import { createAppRouter } from '../../router';
@@ -571,5 +571,31 @@ describe('message search', () => {
     expect(await screen.findByText('far away target')).toBeInTheDocument();
     expect(around).toBe('50');
     expect(useStore.getState().windows.c1?.atLatest).toBe(false);
+  });
+});
+
+describe('history after READY', () => {
+  it('reloads the open channel when READY wipes the cached history', async () => {
+    seed('1');
+    quiet();
+    useStore.setState({ windows: {}, messages: {} });
+    let fetches = 0;
+    server.use(
+      http.get('*/api/v1/channels/c1/messages', () => {
+        fetches += 1;
+        return HttpResponse.json([
+          { id: '100', channel_id: 'c1', author: { id: '2', username: 'bob' }, content: 'kept history', timestamp: '2026-01-01T00:00:00Z' },
+        ]);
+      }),
+    );
+    at('/channels/g1/c1');
+    expect(await screen.findByText('kept history')).toBeInTheDocument();
+    act(() =>
+      useStore
+        .getState()
+        .applyDispatch('READY', { user: me, guilds: [{ id: 'g1' }], private_channels: [] }),
+    );
+    await waitFor(() => expect(fetches).toBe(2));
+    expect(await screen.findByText('kept history')).toBeInTheDocument();
   });
 });
