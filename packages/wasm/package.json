@@ -3,5 +3,26 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "wasm-pack output for sr-markdown, sr-e2ee, sr-theme, sr-permissions, image tools. Built by `just wasm`; not committed."
+  "description": "Rust compiled to WebAssembly (sr-theme, sr-markdown, sr-permissions) with a typed ESM facade. Built by wasm-pack from crates/*-wasm.",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./theme.schema.json": "./theme.schema.json"
+  },
+  "files": [
+    "src",
+    "dist",
+    "theme.schema.json"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.8"
+  }
 }

@@ -1,0 +1,111 @@
+name: Storage (live S3)
+
+# Runs the opt-in live object-storage suites (docs/dev/storage-live-test.md) against a real
+# Garage from the dev compose stack: the Rust `ObjectStoreStorage::s3` tests, then an
+# end-to-end driver through sr-server (upload slots, presigned PUT, the /cdn route with Range,
+# EXIF stripping, size and content-type limits, emoji upload, the abandoned-upload sweep).
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "crates/sr-storage/**"
+      - "crates/sr-api/src/routes/messages/**"
+      - "crates/sr-api/src/routes/cdn/**"
+      - "crates/sr-api/src/routes/settings/**"
+      - "crates/sr-server/**"
+      - "crates/sr-core/**"
+      - "crates/sr-db/**"
+      - "deploy/compose/**"
+      - "e2e/support/**"
+      - ".github/workflows/storage.yml"
+      - "Cargo.lock"
+  workflow_dispatch:
+
+concurrency:
+  group: storage-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # Dev-only credentials from deploy/compose/.env.example (the compose database and the Garage
+  # key pair that garage/bootstrap.sh imports). Nothing here is a real secret.
+  DATABASE_URL: postgres://sideroom:sideroom_dev@127.0.0.1:5432/sideroom
+  SR_TEST_S3_ENDPOINT: http://127.0.0.1:3900
+  SR_TEST_S3_REGION: garage
+
+jobs:
+  live-s3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Start Postgres and Garage
+        run: |
+          docker compose -f deploy/compose/dev.yml up -d --wait postgres
+          docker compose -f deploy/compose/dev.yml up -d garage
+          ./deploy/compose/garage/bootstrap.sh
+
+      - name: Export the dev Garage credentials to later steps
+        run: |
+          set -a; . deploy/compose/.env.example; set +a
+          {
+            echo "SR_TEST_S3_BUCKET=$GARAGE_BUCKET"
+            echo "SR_TEST_S3_ACCESS_KEY=$GARAGE_ACCESS_KEY"
+            echo "SR_TEST_S3_SECRET_KEY=$GARAGE_SECRET_KEY"
+          } >> "$GITHUB_ENV"
+
+      - name: Rust live tests (ObjectStoreStorage over S3)
+        run: cargo test -p sr-storage --test s3_live -- --ignored --test-threads=1
+
+      - name: Build sr-server and sr-cli
+        run: cargo build -p sr-server -p sr-cli
+
+      - name: Create the driver's database
+        run: |
+          PGPASSWORD=sideroom_dev psql -h 127.0.0.1 -U sideroom -d postgres \
+            -c 'CREATE DATABASE sr_s3'
+          echo "SR_TEST_DATABASE_URL=postgres://sideroom:sideroom_dev@127.0.0.1:5432/sr_s3" >> "$GITHUB_ENV"
+
+      - name: Start sr-server and bootstrap the Owner
+        env:
+          SR_OWNER_PASSWORD: ci-owner-Passw0rd-not-a-secret
+        run: |
+          export SR_DATABASE__URL="$SR_TEST_DATABASE_URL"
+          export SR_SERVER__PUBLIC_URL=http://localhost:8092
+          ./target/debug/sr-cli migrate
+          ./target/debug/sr-cli bootstrap --owner-username owner --owner-email owner@example.test
+
+          export SR_SERVER__BIND=127.0.0.1:8092
+          export SR_SERVER__METRICS_BIND=127.0.0.1:9192
+          export SR_SERVER__SECRET_KEY="$(openssl rand -hex 32)"
+          export SR_SEARCH__DIR="$RUNNER_TEMP/search"
+          export SR_STORAGE__ENDPOINT="$SR_TEST_S3_ENDPOINT"
+          export SR_STORAGE__REGION="$SR_TEST_S3_REGION"
+          export SR_STORAGE__BUCKET="$SR_TEST_S3_BUCKET"
+          export SR_STORAGE__ACCESS_KEY="$SR_TEST_S3_ACCESS_KEY"
+          export SR_STORAGE__SECRET_KEY="$SR_TEST_S3_SECRET_KEY"
+          nohup ./target/debug/sr-server > "$RUNNER_TEMP/server.log" 2>&1 &
+
+          timeout 60 bash -c 'until curl -fs http://127.0.0.1:8092/readyz >/dev/null; do sleep 1; done' || {
+            echo "sr-server did not become ready; server.log:" >&2
+            cat "$RUNNER_TEMP/server.log" >&2
+            exit 1
+          }
+
+      - name: End-to-end storage driver
+        env:
+          SR_CLI_BIN: ${{ github.workspace }}/target/debug/sr-cli
+          SR_TEST_BASE: http://127.0.0.1:8092
+          SR_TEST_ORIGIN: http://localhost:8092
+        run: node e2e/support/storage-live.mjs
+
+      - name: Server log
+        if: always()
+        run: cat "$RUNNER_TEMP/server.log" || true

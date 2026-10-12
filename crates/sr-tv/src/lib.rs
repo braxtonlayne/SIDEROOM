@@ -1,1 +1,1 @@
-//! `sr-tv` — see docs/02-architecture.md §3.
+//! sr-tv — see docs/02-architecture.md §3.

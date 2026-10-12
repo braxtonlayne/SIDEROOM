@@ -3,52 +3,35 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.1.0"
 edition = "2024"
-rust-version = "1.97"
-license = "UNLICENSED"
+license = "LicenseRef-Proprietary"
+publish = false
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
 
 [workspace.lints.clippy]
-unwrap_used = "warn"
-expect_used = "warn"
+all = { level = "warn", priority = -1 }
 
-# Shared dependency versions. Crates opt in with `foo = { workspace = true }`.
-# Add new shared deps here (keep alphabetical) rather than pinning in a crate.
 [workspace.dependencies]
-# internal
-sr-core = { path = "crates/sr-core" }
-sr-db = { path = "crates/sr-db" }
-sr-auth = { path = "crates/sr-auth" }
-sr-features = { path = "crates/sr-features" }
-sr-events = { path = "crates/sr-events" }
-sr-gateway = { path = "crates/sr-gateway" }
-sr-api = { path = "crates/sr-api" }
-sr-markdown = { path = "crates/sr-markdown" }
-sr-permissions = { path = "crates/sr-permissions" }
-sr-storage = { path = "crates/sr-storage" }
-
-# external
-anyhow = "1"
 async-trait = "0.1"
-axum = { version = "0.8", features = ["ws", "macros"] }
-bitflags = { version = "2", features = ["serde"] }
-chrono = { version = "0.4", features = ["serde"] }
+bitflags = "2"
 figment = { version = "0.10", features = ["toml", "env"] }
 futures = "0.3"
-rand = "0.9"
+moka = { version = "0.12", features = ["future"] }
+proptest = "1"
+schemars = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sha2 = "0.10"
 thiserror = "2"
-tokio = { version = "1", features = ["full"] }
-tower = "0.5"
-tower-http = { version = "0.6", features = ["trace", "compression-full", "timeout", "cors", "request-id", "util"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
-utoipa = { version = "5", features = ["axum_extras", "chrono"] }
+tokio = "1"
+tokio-stream = { version = "0.1", features = ["sync"] }
+wasm-bindgen = "0.2"
 
-[profile.dev.package."*"]
-debug = false
+# Password hashing is deliberately expensive (argon2id, 64 MiB). An unoptimised build makes
+# every login take 1.5 s or more, and several times that under load, which makes local runs
+# and the e2e suite flaky. Optimise just the hashing crates in dev/test profiles.
+[profile.dev.package.argon2]
+opt-level = 3
+[profile.dev.package.blake2]
+opt-level = 3

@@ -3,19 +3,19 @@
 Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 09.
 
 ## LNG-MSG — Messages (backend)
-- [ ] **LNG-MSG-001** [DB] messages (partitioned), message_edits, attachments, reactions, poll_votes, read_states migrations
-- [ ] **LNG-MSG-002** [BE] Create message (content, nonce dedupe, reply reference, attachments by upload id, sticker ids, poll, flags, enforce limits & permissions & slowmode)
-- [ ] **LNG-MSG-003** [BE] Get messages (before/after/around/limit), get single, permission filtering
-- [ ] **LNG-MSG-004** [BE] Edit message (author only, content/embeds/flags, store previous in message_edits)
-- [ ] **LNG-MSG-005** [BE] Delete message (author or MANAGE_MESSAGES) → visibility user_deleted, purge_after = +30d, hold check
-- [ ] **LNG-MSG-006** [BE] Bulk delete (2–100, ≤ 14 days old, Discord parity)
+- [x] **LNG-MSG-001** [DB] messages (partitioned), message_edits, attachments, reactions, poll_votes, read_states migrations
+- [x] **LNG-MSG-002** [BE] Create message (content, nonce dedupe, reply reference, attachments by upload id, sticker ids, poll, flags, enforce limits & permissions & slowmode)
+- [x] **LNG-MSG-003** [BE] Get messages (before/after/around/limit), get single, permission filtering
+- [x] **LNG-MSG-004** [BE] Edit message (author only, content/embeds/flags, store previous in message_edits)
+- [x] **LNG-MSG-005** [BE] Delete message (author or MANAGE_MESSAGES) → visibility user_deleted, purge_after = +30d, hold check
+- [x] **LNG-MSG-006** [BE] Bulk delete (2–100, ≤ 14 days old, Discord parity)
 - [ ] **LNG-MSG-007** [BE] Forward message (snapshot into target channel, permission checks)
-- [ ] **LNG-MSG-008** [BE] Pins (pin/unpin/list, 250 cap), system message on pin
+- [x] **LNG-MSG-008** [BE] Pins (pin/unpin/list, 250 cap), system message on pin
 - [ ] **LNG-MSG-009** [BE] Reactions add/remove (own, others with permission, all, per-emoji), list users, burst reactions
 - [ ] **LNG-MSG-010** [BE] Polls: create, vote/unvote, end, expiry job, results, `MESSAGE_POLL_VOTE_ADD/REMOVE`
-- [ ] **LNG-MSG-011** [BE] Mentions extraction via `sr-markdown`; @everyone/@here permission gate; role mentionable gate
-- [ ] **LNG-MSG-012** [BE] Read states: ack message, mention counts, mark guild read, mark unread (set ack to previous)
-- [ ] **LNG-MSG-013** [BE] Typing indicator endpoint + 10s TTL broadcast
+- [x] **LNG-MSG-011** [BE] Mentions extraction via `sr-markdown`; @everyone/@here permission gate; role mentionable gate
+- [x] **LNG-MSG-012** [BE] Read states: ack message, mention counts, mark guild read, mark unread (set ack to previous)
+- [x] **LNG-MSG-013** [BE] Typing indicator endpoint + 10s TTL broadcast
 - [ ] **LNG-MSG-014** [BE] Link unfurler: SSRF-safe fetch (deny private IPs, size/time limits), OpenGraph/Twitter cards/oEmbed parse, image proxying, cache by URL, operator allow/deny lists
 - [ ] **LNG-MSG-015** [BE] Embed suppression (flag), spoiler handling in embeds
 - [ ] **LNG-MSG-016** [BE] System messages (member join with randomized lines, pin, thread created, call start/missed/ended, follow added, server support contribution)
@@ -28,11 +28,11 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [ ] **LNG-MSG-023** [TEST] Clock-override tests for 30-day purge and 7-day expiry incl. holds
 
 ## LNG-MD — `sr-markdown`
-- [ ] **LNG-MD-001** [BE][WASM] Parser: bold, italic, underline, strike, spoiler, inline code, code block with lang, block quote (single/multi), headers 1–3, subtext, ordered/unordered lists, masked links, autolinks, escapes
-- [ ] **LNG-MD-002** [BE][WASM] Mentions & tokens: user, role, channel, everyone/here, custom emoji (static/animated), timestamp styles (t,T,d,D,f,F,R), slash-command mention, guild nav, `<cinema:id>`, `<library:id>`
-- [ ] **LNG-MD-003** [BE][WASM] Unicode emoji shortcode table (`:smile:` → 😄) + emoji-only "jumbo" detection
-- [ ] **LNG-MD-004** [BE][WASM] AST → plain text (search/notifications), AST JSON for the React renderer
-- [ ] **LNG-MD-005** [TEST] Shared fixture corpus (≥ 500 cases) run in Rust and WASM
+- [x] **LNG-MD-001** [BE][WASM] Parser: bold, italic, underline, strike, spoiler, inline code, code block with lang, block quote (single/multi), headers 1–3, subtext, ordered/unordered lists, masked links, autolinks, escapes
+- [x] **LNG-MD-002** [BE][WASM] Mentions & tokens: user, role, channel, everyone/here, custom emoji (static/animated), timestamp styles (t,T,d,D,f,F,R), slash-command mention, guild nav, `<cinema:id>`, `<library:id>`
+- [x] **LNG-MD-003** [BE][WASM] Unicode emoji shortcode table (`:smile:` → 😄) + emoji-only "jumbo" detection
+- [x] **LNG-MD-004** [BE][WASM] AST → plain text (search/notifications), AST JSON for the React renderer
+- [x] **LNG-MD-005** [TEST] Shared fixture corpus (≥ 500 cases) run in Rust and WASM
 - [ ] **LNG-MD-006** [FE] React AST renderer + syntax highlighting (lazy-loaded grammar set)
 
 ## LNG-MSGUI — Message list UI
@@ -42,7 +42,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [ ] **LNG-MSGUI-004** [FE] Date dividers, "NEW" unread divider, unread banner with "Mark As Read"
 - [ ] **LNG-MSGUI-005** [FE] Reply preview line (avatar, name, snippet, click to jump, "Original message was deleted")
 - [ ] **LNG-MSGUI-006** [FE] Forwarded message frame ("Forwarded" + source)
-- [ ] **LNG-MSGUI-007** [FE] "(edited)" tag with tooltip timestamp
+- [x] **LNG-MSGUI-007** [FE] "(edited)" tag with tooltip timestamp
 - [ ] **LNG-MSGUI-008** [FE] Mention highlight (row tint + left bar) for messages mentioning me
 - [ ] **LNG-MSGUI-009** [FE] Image/video attachment grid & mosaic (1–10), aspect handling, blurhash placeholders, spoiler blur w/ click reveal, alt text "ALT" chip
 - [ ] **LNG-MSGUI-010** [FE] Lightbox/media viewer (zoom, pan, prev/next in message, download, open original, copy)
@@ -84,8 +84,8 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [ ] **LNG-CMP-010** [FE] Slowmode countdown, "You do not have permission to send messages in this channel", timeout state
 - [ ] **LNG-CMP-011** [FE] Character counter near limit + over-limit block (offer "upload as file")
 - [ ] **LNG-CMP-012** [FE] Voice message recorder (hold to record on mobile, click on desktop, preview, send)
-- [ ] **LNG-CMP-013** [FE] Draft persistence per channel (local)
-- [ ] **LNG-CMP-014** [FE] Up-arrow to edit last message
+- [x] **LNG-CMP-013** [FE] Draft persistence per channel (local)
+- [x] **LNG-CMP-014** [FE] Up-arrow to edit last message
 - [ ] **LNG-CMP-015** [FE] Built-in slash commands: /shrug, /tableflip, /unflip, /me, /spoiler, /nick, /tts, /thread, /msg, /giphy-equivalent (GIF provider), /remind (feature), /poll
 - [ ] **LNG-CMP-016** [FE] Composer icons row: GIF, sticker, emoji (gift icon **removed**)
 
@@ -104,15 +104,15 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [ ] **LNG-EXP-012** [FE] Super/burst reaction picker variant + animations
 
 ## LNG-SRC — Search
-- [ ] **LNG-SRC-001** [BE] Tantivy message index schema (content, author, channel, guild, has-flags, timestamps, pinned, author type, mentions)
+- [x] **LNG-SRC-001** [BE] Tantivy message index schema (content, author, channel, guild, has-flags, timestamps, pinned, author type, mentions)
 - [ ] **LNG-SRC-002** [JOB] Index on create/edit, remove on delete; full reindex command
-- [ ] **LNG-SRC-003** [BE] Search API (guild & DM/channel scopes) with filters from:, mentions:, has:, before:, during:, after:, in:, pinned:, authorType:; permission filtering; sort; pagination; total count
+- [x] **LNG-SRC-003** [BE] Search API (guild & DM/channel scopes) with filters from:, mentions:, has:, before:, during:, after:, in:, pinned:, authorType:; permission filtering; sort; pagination; total count
 - [ ] **LNG-SRC-004** [FE] Search box with filter autocomplete popover (options list, user/channel pickers, date picker)
 - [ ] **LNG-SRC-005** [FE] Results pane (grouped by channel, context lines, Jump, sort New/Old/Relevant, pagination)
 - [ ] **LNG-SRC-006** [FE] Search history (recent queries, clear)
 
 ## LNG-NTF — Notifications & inbox
-- [ ] **LNG-NTF-001** [BE] Notification settings model (guild/category/channel overrides, mute with expiry, suppress everyone/roles/highlights, mobile push)
+- [x] **LNG-NTF-001** [BE] Notification settings model (guild/category/channel overrides, mute with expiry, suppress everyone/roles/highlights, mobile push)
 - [ ] **LNG-NTF-002** [BE] Notification decision engine (mentions, replies, DMs, keyword highlights, thread follows)
 - [ ] **LNG-NTF-003** [BE] Web Push (VAPID) subscription management + delivery (`web-push` crate) with collapse keys
 - [ ] **LNG-NTF-004** [FE] Notification Settings modal (server: All / Only @mentions / Nothing; suppress toggles; mobile push; channel overrides list)

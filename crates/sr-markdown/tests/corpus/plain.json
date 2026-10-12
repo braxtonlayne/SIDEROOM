@@ -1,0 +1,962 @@
+{
+  "description": "Plain text, whitespace, unicode and line breaks",
+  "cases": [
+    {
+      "name": "plain-001",
+      "input": "",
+      "ast": [],
+      "plain": "",
+      "jumbo": false
+    },
+    {
+      "name": "plain-002",
+      "input": " ",
+      "ast": [
+        {
+          "text": " ",
+          "type": "text"
+        }
+      ],
+      "plain": " ",
+      "jumbo": false
+    },
+    {
+      "name": "plain-003",
+      "input": "  ",
+      "ast": [
+        {
+          "text": "  ",
+          "type": "text"
+        }
+      ],
+      "plain": "  ",
+      "jumbo": false
+    },
+    {
+      "name": "plain-004",
+      "input": "hello",
+      "ast": [
+        {
+          "text": "hello",
+          "type": "text"
+        }
+      ],
+      "plain": "hello",
+      "jumbo": false
+    },
+    {
+      "name": "plain-005",
+      "input": "hello world",
+      "ast": [
+        {
+          "text": "hello world",
+          "type": "text"
+        }
+      ],
+      "plain": "hello world",
+      "jumbo": false
+    },
+    {
+      "name": "plain-006",
+      "input": "a",
+      "ast": [
+        {
+          "text": "a",
+          "type": "text"
+        }
+      ],
+      "plain": "a",
+      "jumbo": false
+    },
+    {
+      "name": "plain-007",
+      "input": "0",
+      "ast": [
+        {
+          "text": "0",
+          "type": "text"
+        }
+      ],
+      "plain": "0",
+      "jumbo": false
+    },
+    {
+      "name": "plain-008",
+      "input": "12345",
+      "ast": [
+        {
+          "text": "12345",
+          "type": "text"
+        }
+      ],
+      "plain": "12345",
+      "jumbo": false
+    },
+    {
+      "name": "plain-009",
+      "input": "  leading",
+      "ast": [
+        {
+          "text": "  leading",
+          "type": "text"
+        }
+      ],
+      "plain": "  leading",
+      "jumbo": false
+    },
+    {
+      "name": "plain-010",
+      "input": "trailing  ",
+      "ast": [
+        {
+          "text": "trailing  ",
+          "type": "text"
+        }
+      ],
+      "plain": "trailing  ",
+      "jumbo": false
+    },
+    {
+      "name": "plain-011",
+      "input": "a  b",
+      "ast": [
+        {
+          "text": "a  b",
+          "type": "text"
+        }
+      ],
+      "plain": "a  b",
+      "jumbo": false
+    },
+    {
+      "name": "plain-012",
+      "input": "a\nb",
+      "ast": [
+        {
+          "text": "a",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": "b",
+          "type": "text"
+        }
+      ],
+      "plain": "a\nb",
+      "jumbo": false
+    },
+    {
+      "name": "plain-013",
+      "input": "a\n\nb",
+      "ast": [
+        {
+          "text": "a",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": "b",
+          "type": "text"
+        }
+      ],
+      "plain": "a\n\nb",
+      "jumbo": false
+    },
+    {
+      "name": "plain-014",
+      "input": "a\n\n\nb",
+      "ast": [
+        {
+          "text": "a",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": "b",
+          "type": "text"
+        }
+      ],
+      "plain": "a\n\n\nb",
+      "jumbo": false
+    },
+    {
+      "name": "plain-015",
+      "input": "\n",
+      "ast": [
+        {
+          "type": "line_break"
+        }
+      ],
+      "plain": "\n",
+      "jumbo": false
+    },
+    {
+      "name": "plain-016",
+      "input": "\n\n",
+      "ast": [
+        {
+          "type": "line_break"
+        },
+        {
+          "type": "line_break"
+        }
+      ],
+      "plain": "\n\n",
+      "jumbo": false
+    },
+    {
+      "name": "plain-017",
+      "input": "\na",
+      "ast": [
+        {
+          "type": "line_break"
+        },
+        {
+          "text": "a",
+          "type": "text"
+        }
+      ],
+      "plain": "\na",
+      "jumbo": false
+    },
+    {
+      "name": "plain-018",
+      "input": "a\n",
+      "ast": [
+        {
+          "text": "a",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        }
+      ],
+      "plain": "a\n",
+      "jumbo": false
+    },
+    {
+      "name": "plain-019",
+      "input": "\r\n",
+      "ast": [
+        {
+          "text": "\r",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        }
+      ],
+      "plain": "\r\n",
+      "jumbo": false
+    },
+    {
+      "name": "plain-020",
+      "input": "a\r\nb",
+      "ast": [
+        {
+          "text": "a\r",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": "b",
+          "type": "text"
+        }
+      ],
+      "plain": "a\r\nb",
+      "jumbo": false
+    },
+    {
+      "name": "plain-021",
+      "input": "a\tb",
+      "ast": [
+        {
+          "text": "a\tb",
+          "type": "text"
+        }
+      ],
+      "plain": "a\tb",
+      "jumbo": false
+    },
+    {
+      "name": "plain-022",
+      "input": "\ttab",
+      "ast": [
+        {
+          "text": "\ttab",
+          "type": "text"
+        }
+      ],
+      "plain": "\ttab",
+      "jumbo": false
+    },
+    {
+      "name": "plain-023",
+      "input": "héllo wörld",
+      "ast": [
+        {
+          "text": "héllo wörld",
+          "type": "text"
+        }
+      ],
+      "plain": "héllo wörld",
+      "jumbo": false
+    },
+    {
+      "name": "plain-024",
+      "input": "ключ значение",
+      "ast": [
+        {
+          "text": "ключ значение",
+          "type": "text"
+        }
+      ],
+      "plain": "ключ значение",
+      "jumbo": false
+    },
+    {
+      "name": "plain-025",
+      "input": "日本語のテキスト",
+      "ast": [
+        {
+          "text": "日本語のテキスト",
+          "type": "text"
+        }
+      ],
+      "plain": "日本語のテキスト",
+      "jumbo": false
+    },
+    {
+      "name": "plain-026",
+      "input": "한국어 텍스트",
+      "ast": [
+        {
+          "text": "한국어 텍스트",
+          "type": "text"
+        }
+      ],
+      "plain": "한국어 텍스트",
+      "jumbo": false
+    },
+    {
+      "name": "plain-027",
+      "input": "مرحبا بالعالم",
+      "ast": [
+        {
+          "text": "مرحبا بالعالم",
+          "type": "text"
+        }
+      ],
+      "plain": "مرحبا بالعالم",
+      "jumbo": false
+    },
+    {
+      "name": "plain-028",
+      "input": "עברית",
+      "ast": [
+        {
+          "text": "עברית",
+          "type": "text"
+        }
+      ],
+      "plain": "עברית",
+      "jumbo": false
+    },
+    {
+      "name": "plain-029",
+      "input": "emoji 😄 inline",
+      "ast": [
+        {
+          "text": "emoji 😄 inline",
+          "type": "text"
+        }
+      ],
+      "plain": "emoji 😄 inline",
+      "jumbo": false
+    },
+    {
+      "name": "plain-030",
+      "input": "😄",
+      "ast": [
+        {
+          "text": "😄",
+          "type": "text"
+        }
+      ],
+      "plain": "😄",
+      "jumbo": true
+    },
+    {
+      "name": "plain-031",
+      "input": "😄😄",
+      "ast": [
+        {
+          "text": "😄😄",
+          "type": "text"
+        }
+      ],
+      "plain": "😄😄",
+      "jumbo": true
+    },
+    {
+      "name": "plain-032",
+      "input": "zero​width",
+      "ast": [
+        {
+          "text": "zero​width",
+          "type": "text"
+        }
+      ],
+      "plain": "zero​width",
+      "jumbo": false
+    },
+    {
+      "name": "plain-033",
+      "input": "nbsp here",
+      "ast": [
+        {
+          "text": "nbsp here",
+          "type": "text"
+        }
+      ],
+      "plain": "nbsp here",
+      "jumbo": false
+    },
+    {
+      "name": "plain-034",
+      "input": "combining é",
+      "ast": [
+        {
+          "text": "combining é",
+          "type": "text"
+        }
+      ],
+      "plain": "combining é",
+      "jumbo": false
+    },
+    {
+      "name": "plain-035",
+      "input": "Ünïcödé",
+      "ast": [
+        {
+          "text": "Ünïcödé",
+          "type": "text"
+        }
+      ],
+      "plain": "Ünïcödé",
+      "jumbo": false
+    },
+    {
+      "name": "plain-036",
+      "input": "ß",
+      "ast": [
+        {
+          "text": "ß",
+          "type": "text"
+        }
+      ],
+      "plain": "ß",
+      "jumbo": false
+    },
+    {
+      "name": "plain-037",
+      "input": "a.b,c;d",
+      "ast": [
+        {
+          "text": "a.b,c;d",
+          "type": "text"
+        }
+      ],
+      "plain": "a.b,c;d",
+      "jumbo": false
+    },
+    {
+      "name": "plain-038",
+      "input": "question? yes!",
+      "ast": [
+        {
+          "text": "question? yes!",
+          "type": "text"
+        }
+      ],
+      "plain": "question? yes!",
+      "jumbo": false
+    },
+    {
+      "name": "plain-039",
+      "input": "quote \"double\" and 'single'",
+      "ast": [
+        {
+          "text": "quote \"double\" and 'single'",
+          "type": "text"
+        }
+      ],
+      "plain": "quote \"double\" and 'single'",
+      "jumbo": false
+    },
+    {
+      "name": "plain-040",
+      "input": "(parens) [brackets] {braces}",
+      "ast": [
+        {
+          "text": "(parens) [brackets] {braces}",
+          "type": "text"
+        }
+      ],
+      "plain": "(parens) [brackets] {braces}",
+      "jumbo": false
+    },
+    {
+      "name": "plain-041",
+      "input": "a < b > c",
+      "ast": [
+        {
+          "text": "a < b > c",
+          "type": "text"
+        }
+      ],
+      "plain": "a < b > c",
+      "jumbo": false
+    },
+    {
+      "name": "plain-042",
+      "input": "a & b",
+      "ast": [
+        {
+          "text": "a & b",
+          "type": "text"
+        }
+      ],
+      "plain": "a & b",
+      "jumbo": false
+    },
+    {
+      "name": "plain-043",
+      "input": "100%",
+      "ast": [
+        {
+          "text": "100%",
+          "type": "text"
+        }
+      ],
+      "plain": "100%",
+      "jumbo": false
+    },
+    {
+      "name": "plain-044",
+      "input": "$5 or $10",
+      "ast": [
+        {
+          "text": "$5 or $10",
+          "type": "text"
+        }
+      ],
+      "plain": "$5 or $10",
+      "jumbo": false
+    },
+    {
+      "name": "plain-045",
+      "input": "#hashtag",
+      "ast": [
+        {
+          "text": "#hashtag",
+          "type": "text"
+        }
+      ],
+      "plain": "#hashtag",
+      "jumbo": false
+    },
+    {
+      "name": "plain-046",
+      "input": "no#space",
+      "ast": [
+        {
+          "text": "no#space",
+          "type": "text"
+        }
+      ],
+      "plain": "no#space",
+      "jumbo": false
+    },
+    {
+      "name": "plain-047",
+      "input": "a - b",
+      "ast": [
+        {
+          "text": "a - b",
+          "type": "text"
+        }
+      ],
+      "plain": "a - b",
+      "jumbo": false
+    },
+    {
+      "name": "plain-048",
+      "input": "a -- b",
+      "ast": [
+        {
+          "text": "a -- b",
+          "type": "text"
+        }
+      ],
+      "plain": "a -- b",
+      "jumbo": false
+    },
+    {
+      "name": "plain-049",
+      "input": "1. not list",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "not list",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": true,
+          "start": 1,
+          "type": "list"
+        }
+      ],
+      "plain": "not list\n",
+      "jumbo": false
+    },
+    {
+      "name": "plain-050",
+      "input": "email@example.com",
+      "ast": [
+        {
+          "text": "email@example.com",
+          "type": "text"
+        }
+      ],
+      "plain": "email@example.com",
+      "jumbo": false
+    },
+    {
+      "name": "plain-051",
+      "input": "path/to/file.txt",
+      "ast": [
+        {
+          "text": "path/to/file.txt",
+          "type": "text"
+        }
+      ],
+      "plain": "path/to/file.txt",
+      "jumbo": false
+    },
+    {
+      "name": "plain-052",
+      "input": "C:\\Windows\\path",
+      "ast": [
+        {
+          "text": "C:\\Windows\\path",
+          "type": "text"
+        }
+      ],
+      "plain": "C:\\Windows\\path",
+      "jumbo": false
+    },
+    {
+      "name": "plain-053",
+      "input": "a = b + c",
+      "ast": [
+        {
+          "text": "a = b + c",
+          "type": "text"
+        }
+      ],
+      "plain": "a = b + c",
+      "jumbo": false
+    },
+    {
+      "name": "plain-054",
+      "input": "~",
+      "ast": [
+        {
+          "text": "~",
+          "type": "text"
+        }
+      ],
+      "plain": "~",
+      "jumbo": false
+    },
+    {
+      "name": "plain-055",
+      "input": "`",
+      "ast": [
+        {
+          "text": "`",
+          "type": "text"
+        }
+      ],
+      "plain": "`",
+      "jumbo": false
+    },
+    {
+      "name": "plain-056",
+      "input": "*",
+      "ast": [
+        {
+          "text": "*",
+          "type": "text"
+        }
+      ],
+      "plain": "*",
+      "jumbo": false
+    },
+    {
+      "name": "plain-057",
+      "input": "_",
+      "ast": [
+        {
+          "text": "_",
+          "type": "text"
+        }
+      ],
+      "plain": "_",
+      "jumbo": false
+    },
+    {
+      "name": "plain-058",
+      "input": "|",
+      "ast": [
+        {
+          "text": "|",
+          "type": "text"
+        }
+      ],
+      "plain": "|",
+      "jumbo": false
+    },
+    {
+      "name": "plain-059",
+      "input": ">",
+      "ast": [
+        {
+          "text": ">",
+          "type": "text"
+        }
+      ],
+      "plain": ">",
+      "jumbo": false
+    },
+    {
+      "name": "plain-060",
+      "input": "<",
+      "ast": [
+        {
+          "text": "<",
+          "type": "text"
+        }
+      ],
+      "plain": "<",
+      "jumbo": false
+    },
+    {
+      "name": "plain-061",
+      "input": "[",
+      "ast": [
+        {
+          "text": "[",
+          "type": "text"
+        }
+      ],
+      "plain": "[",
+      "jumbo": false
+    },
+    {
+      "name": "plain-062",
+      "input": "]",
+      "ast": [
+        {
+          "text": "]",
+          "type": "text"
+        }
+      ],
+      "plain": "]",
+      "jumbo": false
+    },
+    {
+      "name": "plain-063",
+      "input": "(",
+      "ast": [
+        {
+          "text": "(",
+          "type": "text"
+        }
+      ],
+      "plain": "(",
+      "jumbo": false
+    },
+    {
+      "name": "plain-064",
+      "input": ")",
+      "ast": [
+        {
+          "text": ")",
+          "type": "text"
+        }
+      ],
+      "plain": ")",
+      "jumbo": false
+    },
+    {
+      "name": "plain-065",
+      "input": ":",
+      "ast": [
+        {
+          "text": ":",
+          "type": "text"
+        }
+      ],
+      "plain": ":",
+      "jumbo": false
+    },
+    {
+      "name": "plain-066",
+      "input": "::",
+      "ast": [
+        {
+          "text": "::",
+          "type": "text"
+        }
+      ],
+      "plain": "::",
+      "jumbo": false
+    },
+    {
+      "name": "plain-067",
+      "input": ":::",
+      "ast": [
+        {
+          "text": ":::",
+          "type": "text"
+        }
+      ],
+      "plain": ":::",
+      "jumbo": false
+    },
+    {
+      "name": "plain-068",
+      "input": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "ast": [
+        {
+          "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "type": "text"
+        }
+      ],
+      "plain": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "jumbo": false
+    },
+    {
+      "name": "plain-069",
+      "input": "word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word ",
+      "ast": [
+        {
+          "text": "word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word ",
+          "type": "text"
+        }
+      ],
+      "plain": "word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word ",
+      "jumbo": false
+    },
+    {
+      "name": "plain-070",
+      "input": "line\nline\nline\nline\nline\nline\nline\nline\nline\nline\n",
+      "ast": [
+        {
+          "text": "line",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": "line",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": "line",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": "line",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": "line",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": "line",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": "line",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": "line",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": "line",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": "line",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        }
+      ],
+      "plain": "line\nline\nline\nline\nline\nline\nline\nline\nline\nline\n",
+      "jumbo": false
+    }
+  ]
+}

@@ -1,0 +1,1036 @@
+{
+  "description": "User, role, channel, everyone and here mentions",
+  "cases": [
+    {
+      "name": "mention-001",
+      "input": "<@1>",
+      "ast": [
+        {
+          "id": "1",
+          "type": "user_mention"
+        }
+      ],
+      "plain": "@user",
+      "jumbo": false
+    },
+    {
+      "name": "mention-002",
+      "input": "<@!1>",
+      "ast": [
+        {
+          "id": "1",
+          "type": "user_mention"
+        }
+      ],
+      "plain": "@user",
+      "jumbo": false
+    },
+    {
+      "name": "mention-003",
+      "input": "<@&1>",
+      "ast": [
+        {
+          "id": "1",
+          "type": "role_mention"
+        }
+      ],
+      "plain": "@role",
+      "jumbo": false
+    },
+    {
+      "name": "mention-004",
+      "input": "<#1>",
+      "ast": [
+        {
+          "id": "1",
+          "type": "channel_mention"
+        }
+      ],
+      "plain": "#channel",
+      "jumbo": false
+    },
+    {
+      "name": "mention-005",
+      "input": "<@0>",
+      "ast": [
+        {
+          "id": "0",
+          "type": "user_mention"
+        }
+      ],
+      "plain": "@user",
+      "jumbo": false
+    },
+    {
+      "name": "mention-006",
+      "input": "<@!0>",
+      "ast": [
+        {
+          "id": "0",
+          "type": "user_mention"
+        }
+      ],
+      "plain": "@user",
+      "jumbo": false
+    },
+    {
+      "name": "mention-007",
+      "input": "<@&0>",
+      "ast": [
+        {
+          "id": "0",
+          "type": "role_mention"
+        }
+      ],
+      "plain": "@role",
+      "jumbo": false
+    },
+    {
+      "name": "mention-008",
+      "input": "<#0>",
+      "ast": [
+        {
+          "id": "0",
+          "type": "channel_mention"
+        }
+      ],
+      "plain": "#channel",
+      "jumbo": false
+    },
+    {
+      "name": "mention-009",
+      "input": "<@123456789012345678>",
+      "ast": [
+        {
+          "id": "123456789012345678",
+          "type": "user_mention"
+        }
+      ],
+      "plain": "@user",
+      "jumbo": false
+    },
+    {
+      "name": "mention-010",
+      "input": "<@!123456789012345678>",
+      "ast": [
+        {
+          "id": "123456789012345678",
+          "type": "user_mention"
+        }
+      ],
+      "plain": "@user",
+      "jumbo": false
+    },
+    {
+      "name": "mention-011",
+      "input": "<@&123456789012345678>",
+      "ast": [
+        {
+          "id": "123456789012345678",
+          "type": "role_mention"
+        }
+      ],
+      "plain": "@role",
+      "jumbo": false
+    },
+    {
+      "name": "mention-012",
+      "input": "<#123456789012345678>",
+      "ast": [
+        {
+          "id": "123456789012345678",
+          "type": "channel_mention"
+        }
+      ],
+      "plain": "#channel",
+      "jumbo": false
+    },
+    {
+      "name": "mention-013",
+      "input": "<@18446744073709551615>",
+      "ast": [
+        {
+          "id": "18446744073709551615",
+          "type": "user_mention"
+        }
+      ],
+      "plain": "@user",
+      "jumbo": false
+    },
+    {
+      "name": "mention-014",
+      "input": "<@!18446744073709551615>",
+      "ast": [
+        {
+          "id": "18446744073709551615",
+          "type": "user_mention"
+        }
+      ],
+      "plain": "@user",
+      "jumbo": false
+    },
+    {
+      "name": "mention-015",
+      "input": "<@&18446744073709551615>",
+      "ast": [
+        {
+          "id": "18446744073709551615",
+          "type": "role_mention"
+        }
+      ],
+      "plain": "@role",
+      "jumbo": false
+    },
+    {
+      "name": "mention-016",
+      "input": "<#18446744073709551615>",
+      "ast": [
+        {
+          "id": "18446744073709551615",
+          "type": "channel_mention"
+        }
+      ],
+      "plain": "#channel",
+      "jumbo": false
+    },
+    {
+      "name": "mention-017",
+      "input": "<@18446744073709551616>",
+      "ast": [
+        {
+          "text": "<@18446744073709551616>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@18446744073709551616>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-018",
+      "input": "<@!18446744073709551616>",
+      "ast": [
+        {
+          "text": "<@!18446744073709551616>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@!18446744073709551616>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-019",
+      "input": "<@&18446744073709551616>",
+      "ast": [
+        {
+          "text": "<@&18446744073709551616>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@&18446744073709551616>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-020",
+      "input": "<#18446744073709551616>",
+      "ast": [
+        {
+          "text": "<#18446744073709551616>",
+          "type": "text"
+        }
+      ],
+      "plain": "<#18446744073709551616>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-021",
+      "input": "<@99999999999999999999>",
+      "ast": [
+        {
+          "text": "<@99999999999999999999>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@99999999999999999999>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-022",
+      "input": "<@!99999999999999999999>",
+      "ast": [
+        {
+          "text": "<@!99999999999999999999>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@!99999999999999999999>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-023",
+      "input": "<@&99999999999999999999>",
+      "ast": [
+        {
+          "text": "<@&99999999999999999999>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@&99999999999999999999>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-024",
+      "input": "<#99999999999999999999>",
+      "ast": [
+        {
+          "text": "<#99999999999999999999>",
+          "type": "text"
+        }
+      ],
+      "plain": "<#99999999999999999999>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-025",
+      "input": "<@-1>",
+      "ast": [
+        {
+          "text": "<@-1>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@-1>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-026",
+      "input": "<@!-1>",
+      "ast": [
+        {
+          "text": "<@!-1>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@!-1>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-027",
+      "input": "<@&-1>",
+      "ast": [
+        {
+          "text": "<@&-1>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@&-1>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-028",
+      "input": "<#-1>",
+      "ast": [
+        {
+          "text": "<#-1>",
+          "type": "text"
+        }
+      ],
+      "plain": "<#-1>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-029",
+      "input": "<@abc>",
+      "ast": [
+        {
+          "text": "<@abc>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@abc>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-030",
+      "input": "<@!abc>",
+      "ast": [
+        {
+          "text": "<@!abc>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@!abc>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-031",
+      "input": "<@&abc>",
+      "ast": [
+        {
+          "text": "<@&abc>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@&abc>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-032",
+      "input": "<#abc>",
+      "ast": [
+        {
+          "text": "<#abc>",
+          "type": "text"
+        }
+      ],
+      "plain": "<#abc>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-033",
+      "input": "<@1a>",
+      "ast": [
+        {
+          "text": "<@1a>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@1a>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-034",
+      "input": "<@!1a>",
+      "ast": [
+        {
+          "text": "<@!1a>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@!1a>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-035",
+      "input": "<@&1a>",
+      "ast": [
+        {
+          "text": "<@&1a>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@&1a>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-036",
+      "input": "<#1a>",
+      "ast": [
+        {
+          "text": "<#1a>",
+          "type": "text"
+        }
+      ],
+      "plain": "<#1a>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-037",
+      "input": "<@>",
+      "ast": [
+        {
+          "text": "<@>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-038",
+      "input": "<@!>",
+      "ast": [
+        {
+          "text": "<@!>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@!>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-039",
+      "input": "<@&>",
+      "ast": [
+        {
+          "text": "<@&>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@&>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-040",
+      "input": "<#>",
+      "ast": [
+        {
+          "text": "<#>",
+          "type": "text"
+        }
+      ],
+      "plain": "<#>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-041",
+      "input": "<@ 1>",
+      "ast": [
+        {
+          "text": "<@ 1>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@ 1>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-042",
+      "input": "<@! 1>",
+      "ast": [
+        {
+          "text": "<@! 1>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@! 1>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-043",
+      "input": "<@& 1>",
+      "ast": [
+        {
+          "text": "<@& 1>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@& 1>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-044",
+      "input": "<# 1>",
+      "ast": [
+        {
+          "text": "<# 1>",
+          "type": "text"
+        }
+      ],
+      "plain": "<# 1>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-045",
+      "input": "<@1 >",
+      "ast": [
+        {
+          "text": "<@1 >",
+          "type": "text"
+        }
+      ],
+      "plain": "<@1 >",
+      "jumbo": false
+    },
+    {
+      "name": "mention-046",
+      "input": "<@!1 >",
+      "ast": [
+        {
+          "text": "<@!1 >",
+          "type": "text"
+        }
+      ],
+      "plain": "<@!1 >",
+      "jumbo": false
+    },
+    {
+      "name": "mention-047",
+      "input": "<@&1 >",
+      "ast": [
+        {
+          "text": "<@&1 >",
+          "type": "text"
+        }
+      ],
+      "plain": "<@&1 >",
+      "jumbo": false
+    },
+    {
+      "name": "mention-048",
+      "input": "<#1 >",
+      "ast": [
+        {
+          "text": "<#1 >",
+          "type": "text"
+        }
+      ],
+      "plain": "<#1 >",
+      "jumbo": false
+    },
+    {
+      "name": "mention-049",
+      "input": "@everyone",
+      "ast": [
+        {
+          "type": "everyone"
+        }
+      ],
+      "plain": "@everyone",
+      "jumbo": false
+    },
+    {
+      "name": "mention-050",
+      "input": "@here",
+      "ast": [
+        {
+          "type": "here"
+        }
+      ],
+      "plain": "@here",
+      "jumbo": false
+    },
+    {
+      "name": "mention-051",
+      "input": "a @everyone b",
+      "ast": [
+        {
+          "text": "a ",
+          "type": "text"
+        },
+        {
+          "type": "everyone"
+        },
+        {
+          "text": " b",
+          "type": "text"
+        }
+      ],
+      "plain": "a @everyone b",
+      "jumbo": false
+    },
+    {
+      "name": "mention-052",
+      "input": "@everyone@here",
+      "ast": [
+        {
+          "type": "everyone"
+        },
+        {
+          "type": "here"
+        }
+      ],
+      "plain": "@everyone@here",
+      "jumbo": false
+    },
+    {
+      "name": "mention-053",
+      "input": "@everyones",
+      "ast": [
+        {
+          "type": "everyone"
+        },
+        {
+          "text": "s",
+          "type": "text"
+        }
+      ],
+      "plain": "@everyones",
+      "jumbo": false
+    },
+    {
+      "name": "mention-054",
+      "input": "@heres",
+      "ast": [
+        {
+          "type": "here"
+        },
+        {
+          "text": "s",
+          "type": "text"
+        }
+      ],
+      "plain": "@heres",
+      "jumbo": false
+    },
+    {
+      "name": "mention-055",
+      "input": "@Everyone",
+      "ast": [
+        {
+          "text": "@Everyone",
+          "type": "text"
+        }
+      ],
+      "plain": "@Everyone",
+      "jumbo": false
+    },
+    {
+      "name": "mention-056",
+      "input": "x@everyone",
+      "ast": [
+        {
+          "text": "x",
+          "type": "text"
+        },
+        {
+          "type": "everyone"
+        }
+      ],
+      "plain": "x@everyone",
+      "jumbo": false
+    },
+    {
+      "name": "mention-057",
+      "input": "**@everyone**",
+      "ast": [
+        {
+          "children": [
+            {
+              "type": "everyone"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "@everyone",
+      "jumbo": false
+    },
+    {
+      "name": "mention-058",
+      "input": "`@everyone`",
+      "ast": [
+        {
+          "code": "@everyone",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "@everyone",
+      "jumbo": false
+    },
+    {
+      "name": "mention-059",
+      "input": "||@here||",
+      "ast": [
+        {
+          "children": [
+            {
+              "type": "here"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "mention-060",
+      "input": "<@1> <@2>",
+      "ast": [
+        {
+          "id": "1",
+          "type": "user_mention"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "id": "2",
+          "type": "user_mention"
+        }
+      ],
+      "plain": "@user @user",
+      "jumbo": false
+    },
+    {
+      "name": "mention-061",
+      "input": "<@1><@2>",
+      "ast": [
+        {
+          "id": "1",
+          "type": "user_mention"
+        },
+        {
+          "id": "2",
+          "type": "user_mention"
+        }
+      ],
+      "plain": "@user@user",
+      "jumbo": false
+    },
+    {
+      "name": "mention-062",
+      "input": "hi <@1>!",
+      "ast": [
+        {
+          "text": "hi ",
+          "type": "text"
+        },
+        {
+          "id": "1",
+          "type": "user_mention"
+        },
+        {
+          "text": "!",
+          "type": "text"
+        }
+      ],
+      "plain": "hi @user!",
+      "jumbo": false
+    },
+    {
+      "name": "mention-063",
+      "input": "<@1",
+      "ast": [
+        {
+          "text": "<@1",
+          "type": "text"
+        }
+      ],
+      "plain": "<@1",
+      "jumbo": false
+    },
+    {
+      "name": "mention-064",
+      "input": "@1>",
+      "ast": [
+        {
+          "text": "@1>",
+          "type": "text"
+        }
+      ],
+      "plain": "@1>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-065",
+      "input": "< @1>",
+      "ast": [
+        {
+          "text": "< @1>",
+          "type": "text"
+        }
+      ],
+      "plain": "< @1>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-066",
+      "input": "<@ 1>",
+      "ast": [
+        {
+          "text": "<@ 1>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@ 1>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-067",
+      "input": "<@>",
+      "ast": [
+        {
+          "text": "<@>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-068",
+      "input": "<@!>",
+      "ast": [
+        {
+          "text": "<@!>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@!>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-069",
+      "input": "<@&>",
+      "ast": [
+        {
+          "text": "<@&>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@&>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-070",
+      "input": "<#>",
+      "ast": [
+        {
+          "text": "<#>",
+          "type": "text"
+        }
+      ],
+      "plain": "<#>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-071",
+      "input": "<@!!1>",
+      "ast": [
+        {
+          "text": "<@!!1>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@!!1>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-072",
+      "input": "<@&!1>",
+      "ast": [
+        {
+          "text": "<@&!1>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@&!1>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-073",
+      "input": "<@@1>",
+      "ast": [
+        {
+          "text": "<@@1>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@@1>",
+      "jumbo": false
+    },
+    {
+      "name": "mention-074",
+      "input": "**<@1>**",
+      "ast": [
+        {
+          "children": [
+            {
+              "id": "1",
+              "type": "user_mention"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "@user",
+      "jumbo": false
+    },
+    {
+      "name": "mention-075",
+      "input": "> <@1>",
+      "ast": [
+        {
+          "children": [
+            {
+              "id": "1",
+              "type": "user_mention"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "@user\n",
+      "jumbo": false
+    },
+    {
+      "name": "mention-076",
+      "input": "- <@1>",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "id": "1",
+                "type": "user_mention"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "@user\n",
+      "jumbo": false
+    },
+    {
+      "name": "mention-077",
+      "input": "# <@1>",
+      "ast": [
+        {
+          "children": [
+            {
+              "id": "1",
+              "type": "user_mention"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        }
+      ],
+      "plain": "@user\n",
+      "jumbo": false
+    },
+    {
+      "name": "mention-078",
+      "input": "[<@1>](https://e.com)",
+      "ast": [
+        {
+          "children": [
+            {
+              "id": "1",
+              "type": "user_mention"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com"
+        }
+      ],
+      "plain": "@user",
+      "jumbo": false
+    },
+    {
+      "name": "mention-079",
+      "input": "<@1>\n<@2>",
+      "ast": [
+        {
+          "id": "1",
+          "type": "user_mention"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "id": "2",
+          "type": "user_mention"
+        }
+      ],
+      "plain": "@user\n@user",
+      "jumbo": false
+    }
+  ]
+}

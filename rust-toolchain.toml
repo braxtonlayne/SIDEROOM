@@ -1,4 +1,3 @@
 [toolchain]
-# Pinned to stable (1.97 at time of writing). CI installs wasm32-unknown-unknown separately.
 channel = "stable"
 components = ["rustfmt", "clippy"]

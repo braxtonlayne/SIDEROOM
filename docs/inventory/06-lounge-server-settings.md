@@ -95,7 +95,7 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 - [ ] **LNG-SSET-058** [FE] Ban list (search, reason, Revoke Ban modal)
 
 ## AutoMod
-- [ ] **LNG-SSET-059** [BE] AutoMod engine (keyword lists w/ wildcards, regex (Rust `regex`), allow list, preset lists, mention spam, spam heuristic, member profile names) with actions block/custom message/alert channel/timeout
+- [x] **LNG-SSET-059** [BE] AutoMod engine (keyword lists w/ wildcards, regex (Rust `regex`), allow list, preset lists, mention spam, spam heuristic, member profile names) with actions block/custom message/alert channel/timeout
 - [ ] **LNG-SSET-060** [GW] AUTO_MODERATION_RULE_*, AUTO_MODERATION_ACTION_EXECUTION
 - [ ] **LNG-SSET-061** [FE] AutoMod page: rule cards (Block Custom Words ×N, Block Mention Spam, Block Spam Content, Flag words in profiles), rule editor (keywords, regex tester, exemptions roles/channels, actions)
 - [ ] **LNG-SSET-062** [FE] AutoMod alert message renderer in alert channel (actions: delete, timeout, kick, ban)
@@ -110,7 +110,7 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 - [ ] **LNG-SSET-069** [FE] Directory listing request (category, tags, description, status: pending/approved/denied + staff note)
 
 ## Server Template
-- [ ] **LNG-SSET-070** [BE] Template snapshot (roles, channels, overwrites, settings), sync, delete, code + link
+- [x] **LNG-SSET-070** [BE] Template snapshot (roles, channels, overwrites, settings), sync, delete, code + link
 - [ ] **LNG-SSET-071** [FE] Template page (title, description, Generate, Sync, Preview, Copy link, Delete)
 
 ## Delete Server

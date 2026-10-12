@@ -1,12 +1,19 @@
 [package]
 name = "sr-search"
-version.workspace = true
+version = "0.0.0"
 edition.workspace = true
-rust-version.workspace = true
-license.workspace = true
-publish = false
+publish.workspace = true
 
 [dependencies]
+sr-chat = { path = "../sr-chat" }
+sr-core = { path = "../sr-core", default-features = false }
+sr-markdown = { path = "../sr-markdown" }
+tantivy = "0.26"
+moka = { workspace = true, features = ["sync"] }
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
 
 [lints]
 workspace = true

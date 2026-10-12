@@ -1,33 +1,20 @@
-//! Snowflake IDs (docs/02-architecture.md §7).
-//!
-//! Discord layout: 42-bit milliseconds since the SIDE ROOM epoch
-//! (2026-01-01T00:00:00Z), 5-bit worker, 5-bit process, 12-bit increment.
-//! Serialized as strings in JSON, accepted as strings or integers.
+//! Snowflake IDs (FND-CORE-001). Discord layout: 42-bit ms timestamp since the
+//! SIDE ROOM epoch, 5-bit worker, 5-bit process, 12-bit increment.
 
+use crate::time::Clock;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
 use std::str::FromStr;
 use std::sync::Mutex;
 
-use chrono::{DateTime, TimeZone, Utc};
-use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
-
-use crate::clock::Clock;
-
 /// 2026-01-01T00:00:00Z in Unix milliseconds.
-pub const SIDE_ROOM_EPOCH_MS: i64 = 1_767_225_600_000;
+pub const SIDEROOM_EPOCH_MS: i64 = 1_767_225_600_000;
 
-const WORKER_BITS: u64 = 5;
-const PROCESS_BITS: u64 = 5;
-const INCREMENT_BITS: u64 = 12;
-const MAX_WORKER: u8 = (1 << WORKER_BITS) - 1;
-const MAX_PROCESS: u8 = (1 << PROCESS_BITS) - 1;
-const MAX_INCREMENT: u16 = (1 << INCREMENT_BITS) - 1;
-const TIMESTAMP_SHIFT: u64 = WORKER_BITS + PROCESS_BITS + INCREMENT_BITS;
+const SEQ_BITS: u32 = 12;
+const PROCESS_BITS: u32 = 5;
+const WORKER_BITS: u32 = 5;
+const TS_MASK: u64 = (1 << 42) - 1;
 
-/// A 64-bit Snowflake identifier.
-///
-/// Stored in Postgres as `BIGINT` (the top bit is never set before year
-/// 2165, so the `i64` conversion is lossless in practice).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Snowflake(pub u64);
 
@@ -35,48 +22,25 @@ impl Snowflake {
     pub const fn new(raw: u64) -> Self {
         Self(raw)
     }
-
     pub const fn get(self) -> u64 {
         self.0
     }
-
-    /// Value for a Postgres `BIGINT` column.
-    pub const fn as_i64(self) -> i64 {
-        self.0 as i64
+    /// Milliseconds since the SIDE ROOM epoch.
+    pub const fn timestamp_since_epoch_ms(self) -> u64 {
+        self.0 >> (SEQ_BITS + PROCESS_BITS + WORKER_BITS)
     }
-
-    pub const fn from_i64(v: i64) -> Self {
-        Self(v as u64)
+    /// Creation time as Unix milliseconds.
+    pub const fn unix_ms(self) -> i64 {
+        self.timestamp_since_epoch_ms() as i64 + SIDEROOM_EPOCH_MS
     }
-
-    /// Milliseconds since the Unix epoch encoded in this ID.
-    pub const fn timestamp_ms(self) -> i64 {
-        (self.0 >> TIMESTAMP_SHIFT) as i64 + SIDE_ROOM_EPOCH_MS
-    }
-
-    pub fn created_at(self) -> DateTime<Utc> {
-        Utc.timestamp_millis_opt(self.timestamp_ms())
-            .single()
-            .unwrap_or(DateTime::<Utc>::MIN_UTC)
-    }
-
     pub const fn worker(self) -> u8 {
-        ((self.0 >> (PROCESS_BITS + INCREMENT_BITS)) & MAX_WORKER as u64) as u8
+        ((self.0 >> (SEQ_BITS + PROCESS_BITS)) & 0x1f) as u8
     }
-
     pub const fn process(self) -> u8 {
-        ((self.0 >> INCREMENT_BITS) & MAX_PROCESS as u64) as u8
+        ((self.0 >> SEQ_BITS) & 0x1f) as u8
     }
-
-    pub const fn increment(self) -> u16 {
-        (self.0 & MAX_INCREMENT as u64) as u16
-    }
-
-    /// Smallest Snowflake that could have been created at `at`. Used for
-    /// `before`/`after` pagination by time and for partition bounds.
-    pub fn from_timestamp(at: DateTime<Utc>) -> Self {
-        let ms = (at.timestamp_millis() - SIDE_ROOM_EPOCH_MS).max(0) as u64;
-        Self(ms << TIMESTAMP_SHIFT)
+    pub const fn sequence(self) -> u16 {
+        (self.0 & 0xfff) as u16
     }
 }
 
@@ -86,14 +50,10 @@ impl fmt::Display for Snowflake {
     }
 }
 
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
-#[error("invalid snowflake")]
-pub struct ParseSnowflakeError;
-
 impl FromStr for Snowflake {
-    type Err = ParseSnowflakeError;
+    type Err = std::num::ParseIntError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        s.parse::<u64>().map(Self).map_err(|_| ParseSnowflakeError)
+        s.parse::<u64>().map(Self)
     }
 }
 
@@ -110,23 +70,22 @@ impl Serialize for Snowflake {
 }
 
 impl<'de> Deserialize<'de> for Snowflake {
+    /// Accepts a decimal string (canonical) or an unsigned integer.
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         struct V;
-        impl de::Visitor<'_> for V {
+        impl serde::de::Visitor<'_> for V {
             type Value = Snowflake;
             fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str("a snowflake as a string or integer")
+                f.write_str("a snowflake as a string or unsigned integer")
             }
-            fn visit_str<E: de::Error>(self, v: &str) -> Result<Snowflake, E> {
-                v.parse().map_err(|_| E::custom("invalid snowflake"))
-            }
-            fn visit_u64<E: de::Error>(self, v: u64) -> Result<Snowflake, E> {
+            fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<Snowflake, E> {
                 Ok(Snowflake(v))
             }
-            fn visit_i64<E: de::Error>(self, v: i64) -> Result<Snowflake, E> {
-                u64::try_from(v)
-                    .map(Snowflake)
-                    .map_err(|_| E::custom("negative snowflake"))
+            fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<Snowflake, E> {
+                u64::try_from(v).map(Snowflake).map_err(E::custom)
+            }
+            fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Snowflake, E> {
+                v.parse().map_err(E::custom)
             }
         }
         d.deserialize_any(V)
@@ -134,127 +93,127 @@ impl<'de> Deserialize<'de> for Snowflake {
 }
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
-pub enum GeneratorError {
-    #[error("worker id {0} exceeds {MAX_WORKER}")]
-    Worker(u8),
-    #[error("process id {0} exceeds {MAX_PROCESS}")]
-    Process(u8),
+pub enum SnowflakeError {
+    #[error("worker id must be < 32")]
+    WorkerOutOfRange,
+    #[error("process id must be < 32")]
+    ProcessOutOfRange,
 }
 
+#[derive(Debug)]
 struct State {
-    last_ms: u64,
-    increment: u16,
+    last_ts: u64,
+    seq: u64,
 }
 
-/// Thread-safe, monotonic Snowflake generator.
-///
-/// If the clock goes backwards, IDs keep using the last seen timestamp so
-/// they never decrease. If 4096 IDs are issued within one millisecond the
-/// generator borrows from the next millisecond.
+/// Monotonic, thread-safe generator. Never emits a duplicate or a smaller ID,
+/// even if the clock steps backwards or the per-ms sequence overflows (the
+/// logical timestamp is advanced instead of sleeping).
 pub struct SnowflakeGenerator<C: Clock> {
     clock: C,
-    prefix: u64,
+    worker: u64,
+    process: u64,
     state: Mutex<State>,
 }
 
 impl<C: Clock> SnowflakeGenerator<C> {
-    pub fn new(clock: C, worker: u8, process: u8) -> Result<Self, GeneratorError> {
-        if worker > MAX_WORKER {
-            return Err(GeneratorError::Worker(worker));
+    pub fn new(clock: C, worker: u8, process: u8) -> Result<Self, SnowflakeError> {
+        if worker >= 32 {
+            return Err(SnowflakeError::WorkerOutOfRange);
         }
-        if process > MAX_PROCESS {
-            return Err(GeneratorError::Process(process));
+        if process >= 32 {
+            return Err(SnowflakeError::ProcessOutOfRange);
         }
         Ok(Self {
             clock,
-            prefix: (u64::from(worker) << (PROCESS_BITS + INCREMENT_BITS))
-                | (u64::from(process) << INCREMENT_BITS),
-            state: Mutex::new(State {
-                last_ms: 0,
-                increment: 0,
-            }),
+            worker: u64::from(worker),
+            process: u64::from(process),
+            state: Mutex::new(State { last_ts: 0, seq: 0 }),
         })
     }
 
-    pub fn next_id(&self) -> Snowflake {
-        let now = (self.clock.now().timestamp_millis() - SIDE_ROOM_EPOCH_MS).max(0) as u64;
-        let mut st = self.state.lock().unwrap_or_else(|p| p.into_inner());
-        if now > st.last_ms {
-            st.last_ms = now;
-            st.increment = 0;
-        } else if st.increment == MAX_INCREMENT {
-            st.last_ms += 1;
-            st.increment = 0;
+    pub fn generate(&self) -> Snowflake {
+        let now = (self.clock.now_unix_ms() - SIDEROOM_EPOCH_MS).max(0) as u64;
+        // State is plain integers, so a poisoned lock is still consistent.
+        let mut st = self.state.lock().unwrap_or_else(|e| e.into_inner());
+        if now > st.last_ts {
+            st.last_ts = now;
+            st.seq = 0;
         } else {
-            st.increment += 1;
+            st.seq += 1;
+            if st.seq >= (1 << SEQ_BITS) {
+                st.last_ts += 1;
+                st.seq = 0;
+            }
         }
-        Snowflake((st.last_ms << TIMESTAMP_SHIFT) | self.prefix | u64::from(st.increment))
+        let ts = st.last_ts & TS_MASK;
+        Snowflake(
+            (ts << (SEQ_BITS + PROCESS_BITS + WORKER_BITS))
+                | (self.worker << (SEQ_BITS + PROCESS_BITS))
+                | (self.process << SEQ_BITS)
+                | st.seq,
+        )
     }
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use crate::clock::FixedClock;
+    use crate::time::ManualClock;
+    use std::collections::HashSet;
 
-    #[test]
-    fn epoch_constant_matches_date() {
-        let epoch = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
-        assert_eq!(epoch.timestamp_millis(), SIDE_ROOM_EPOCH_MS);
+    fn gen_at(ms: i64) -> SnowflakeGenerator<ManualClock> {
+        SnowflakeGenerator::new(ManualClock::new(ms), 3, 7).unwrap()
     }
 
     #[test]
     fn layout_roundtrip() {
-        let at = Utc.with_ymd_and_hms(2026, 10, 11, 12, 0, 0).unwrap();
-        let g = SnowflakeGenerator::new(FixedClock::new(at), 3, 7).unwrap();
-        let a = g.next_id();
-        let b = g.next_id();
-        assert_eq!(a.created_at(), at);
-        assert_eq!((a.worker(), a.process(), a.increment()), (3, 7, 0));
-        assert_eq!(b.increment(), 1);
-        assert!(b > a);
+        let g = gen_at(SIDEROOM_EPOCH_MS + 12_345);
+        let id = g.generate();
+        assert_eq!(id.timestamp_since_epoch_ms(), 12_345);
+        assert_eq!(id.unix_ms(), SIDEROOM_EPOCH_MS + 12_345);
+        assert_eq!((id.worker(), id.process(), id.sequence()), (3, 7, 0));
+        assert_eq!(g.generate().sequence(), 1);
     }
 
     #[test]
-    fn monotonic_when_increment_overflows_or_clock_regresses() {
-        let at = Utc.with_ymd_and_hms(2026, 3, 1, 0, 0, 0).unwrap();
-        let clock = FixedClock::new(at);
-        let g = SnowflakeGenerator::new(clock.clone(), 0, 0).unwrap();
-        let mut prev = g.next_id();
-        for _ in 0..10_000 {
-            let id = g.next_id();
+    fn rejects_out_of_range() {
+        assert!(SnowflakeGenerator::new(ManualClock::new(0), 32, 0).is_err());
+        assert!(SnowflakeGenerator::new(ManualClock::new(0), 0, 32).is_err());
+    }
+
+    #[test]
+    fn monotonic_across_overflow_and_clock_regression() {
+        let g = gen_at(SIDEROOM_EPOCH_MS + 1000);
+        let mut prev = g.generate();
+        let mut seen = HashSet::from([prev]);
+        for i in 0..10_000 {
+            if i == 5000 {
+                g.clock.set(SIDEROOM_EPOCH_MS + 10); // clock goes backwards
+            }
+            let id = g.generate();
             assert!(id > prev);
+            assert!(seen.insert(id));
             prev = id;
         }
-        clock.set(at - chrono::Duration::seconds(5));
-        assert!(g.next_id() > prev);
     }
 
     #[test]
-    fn serde_string_and_int() {
+    fn serde_string() {
         let id = Snowflake(175_928_847_299_117_063);
         assert_eq!(
             serde_json::to_string(&id).unwrap(),
             "\"175928847299117063\""
         );
-        let a: Snowflake = serde_json::from_str("\"175928847299117063\"").unwrap();
-        let b: Snowflake = serde_json::from_str("175928847299117063").unwrap();
-        assert_eq!(a, id);
-        assert_eq!(b, id);
-        assert!(serde_json::from_str::<Snowflake>("\"x\"").is_err());
-    }
-
-    #[test]
-    fn rejects_out_of_range_bits() {
-        assert!(SnowflakeGenerator::new(SystemClockForTest, 32, 0).is_err());
-        assert!(SnowflakeGenerator::new(SystemClockForTest, 0, 32).is_err());
-    }
-
-    struct SystemClockForTest;
-    impl Clock for SystemClockForTest {
-        fn now(&self) -> DateTime<Utc> {
-            Utc::now()
-        }
+        assert_eq!(
+            serde_json::from_str::<Snowflake>("\"175928847299117063\"").unwrap(),
+            id
+        );
+        assert_eq!(
+            serde_json::from_str::<Snowflake>("42").unwrap(),
+            Snowflake(42)
+        );
+        assert!(serde_json::from_str::<Snowflake>("\"abc\"").is_err());
+        assert!(serde_json::from_str::<Snowflake>("-1").is_err());
     }
 }

@@ -1,0 +1,33 @@
+name: WASM
+on:
+  push: { branches: [main] }
+  pull_request:
+concurrency:
+  group: wasm-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown }
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with: { tool: "wasm-pack" }
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @sideroom/wasm build
+      - name: wasm-bindgen tests (headless Chrome)
+        run: |
+          for c in crates/*-wasm; do
+            if [ -d "$c" ]; then wasm-pack test --headless --chrome "$c"; fi
+          done
+      - name: WASM vs Rust corpus (AST, plain text, jumbo)
+        env:
+          SR_WASM_REQUIRED: "1"
+        run: pnpm --filter @sideroom/wasm test

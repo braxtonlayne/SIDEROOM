@@ -1,1 +1,1 @@
-//! `sr-payments` — see docs/02-architecture.md §3.
+//! sr-payments — see docs/02-architecture.md §3.

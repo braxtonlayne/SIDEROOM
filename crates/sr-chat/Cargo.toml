@@ -1,12 +1,28 @@
 [package]
 name = "sr-chat"
-version.workspace = true
+version = "0.0.0"
 edition.workspace = true
-rust-version.workspace = true
-license.workspace = true
-publish = false
+publish.workspace = true
+
+[features]
+# Public in-memory repository for tests of dependent crates.
+memory = []
 
 [dependencies]
+sr-core = { path = "../sr-core", default-features = false }
+sr-markdown = { path = "../sr-markdown" }
+async-trait.workspace = true
+moka = { workspace = true, features = ["sync"] }
+unicode-normalization = "0.1"
+regex = { version = "1", default-features = false, features = ["std", "unicode-perl", "unicode-case", "unicode-gencat", "perf"] }
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "0.11.0"
+tracing = "0.1"
+thiserror.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }
 
 [lints]
 workspace = true

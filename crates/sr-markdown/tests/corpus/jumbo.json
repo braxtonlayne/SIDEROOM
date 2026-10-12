@@ -1,0 +1,1464 @@
+{
+  "description": "Emoji-only (jumbo) detection",
+  "cases": [
+    {
+      "name": "jumbo-001",
+      "input": "😄",
+      "ast": [
+        {
+          "text": "😄",
+          "type": "text"
+        }
+      ],
+      "plain": "😄",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-002",
+      "input": "😄😄",
+      "ast": [
+        {
+          "text": "😄😄",
+          "type": "text"
+        }
+      ],
+      "plain": "😄😄",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-003",
+      "input": "😄 😄",
+      "ast": [
+        {
+          "text": "😄 😄",
+          "type": "text"
+        }
+      ],
+      "plain": "😄 😄",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-004",
+      "input": "😄\n😄",
+      "ast": [
+        {
+          "text": "😄",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": "😄",
+          "type": "text"
+        }
+      ],
+      "plain": "😄\n😄",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-005",
+      "input": "😄\n\n😄",
+      "ast": [
+        {
+          "text": "😄",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": "😄",
+          "type": "text"
+        }
+      ],
+      "plain": "😄\n\n😄",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-006",
+      "input": "  😄  ",
+      "ast": [
+        {
+          "text": "  😄  ",
+          "type": "text"
+        }
+      ],
+      "plain": "  😄  ",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-007",
+      "input": "😄a",
+      "ast": [
+        {
+          "text": "😄a",
+          "type": "text"
+        }
+      ],
+      "plain": "😄a",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-008",
+      "input": "a😄",
+      "ast": [
+        {
+          "text": "a😄",
+          "type": "text"
+        }
+      ],
+      "plain": "a😄",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-009",
+      "input": "😄 a",
+      "ast": [
+        {
+          "text": "😄 a",
+          "type": "text"
+        }
+      ],
+      "plain": "😄 a",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-010",
+      "input": "👍🏽",
+      "ast": [
+        {
+          "text": "👍🏽",
+          "type": "text"
+        }
+      ],
+      "plain": "👍🏽",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-011",
+      "input": "👍🏿👍🏻",
+      "ast": [
+        {
+          "text": "👍🏿👍🏻",
+          "type": "text"
+        }
+      ],
+      "plain": "👍🏿👍🏻",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-012",
+      "input": "👨‍👩‍👧‍👦",
+      "ast": [
+        {
+          "text": "👨‍👩‍👧‍👦",
+          "type": "text"
+        }
+      ],
+      "plain": "👨‍👩‍👧‍👦",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-013",
+      "input": "👩‍💻",
+      "ast": [
+        {
+          "text": "👩‍💻",
+          "type": "text"
+        }
+      ],
+      "plain": "👩‍💻",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-014",
+      "input": "🏳️‍🌈",
+      "ast": [
+        {
+          "text": "🏳️‍🌈",
+          "type": "text"
+        }
+      ],
+      "plain": "🏳️‍🌈",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-015",
+      "input": "🏴‍☠️",
+      "ast": [
+        {
+          "text": "🏴‍☠️",
+          "type": "text"
+        }
+      ],
+      "plain": "🏴‍☠️",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-016",
+      "input": "🇺🇸",
+      "ast": [
+        {
+          "text": "🇺🇸",
+          "type": "text"
+        }
+      ],
+      "plain": "🇺🇸",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-017",
+      "input": "🇺🇸🇬🇧",
+      "ast": [
+        {
+          "text": "🇺🇸🇬🇧",
+          "type": "text"
+        }
+      ],
+      "plain": "🇺🇸🇬🇧",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-018",
+      "input": "🇺",
+      "ast": [
+        {
+          "text": "🇺",
+          "type": "text"
+        }
+      ],
+      "plain": "🇺",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-019",
+      "input": "1️⃣",
+      "ast": [
+        {
+          "text": "1️⃣",
+          "type": "text"
+        }
+      ],
+      "plain": "1️⃣",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-020",
+      "input": "#️⃣",
+      "ast": [
+        {
+          "text": "#️⃣",
+          "type": "text"
+        }
+      ],
+      "plain": "#️⃣",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-021",
+      "input": "*️⃣",
+      "ast": [
+        {
+          "text": "*️⃣",
+          "type": "text"
+        }
+      ],
+      "plain": "*️⃣",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-022",
+      "input": "0️⃣9️⃣",
+      "ast": [
+        {
+          "text": "0️⃣9️⃣",
+          "type": "text"
+        }
+      ],
+      "plain": "0️⃣9️⃣",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-023",
+      "input": "1",
+      "ast": [
+        {
+          "text": "1",
+          "type": "text"
+        }
+      ],
+      "plain": "1",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-024",
+      "input": "#",
+      "ast": [
+        {
+          "text": "#",
+          "type": "text"
+        }
+      ],
+      "plain": "#",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-025",
+      "input": "*",
+      "ast": [
+        {
+          "text": "*",
+          "type": "text"
+        }
+      ],
+      "plain": "*",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-026",
+      "input": "©️",
+      "ast": [
+        {
+          "text": "©️",
+          "type": "text"
+        }
+      ],
+      "plain": "©️",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-027",
+      "input": "®️",
+      "ast": [
+        {
+          "text": "®️",
+          "type": "text"
+        }
+      ],
+      "plain": "®️",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-028",
+      "input": "™️",
+      "ast": [
+        {
+          "text": "™️",
+          "type": "text"
+        }
+      ],
+      "plain": "™️",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-029",
+      "input": "❤️",
+      "ast": [
+        {
+          "text": "❤️",
+          "type": "text"
+        }
+      ],
+      "plain": "❤️",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-030",
+      "input": "❤",
+      "ast": [
+        {
+          "text": "❤",
+          "type": "text"
+        }
+      ],
+      "plain": "❤",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-031",
+      "input": "☀️",
+      "ast": [
+        {
+          "text": "☀️",
+          "type": "text"
+        }
+      ],
+      "plain": "☀️",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-032",
+      "input": "⭐",
+      "ast": [
+        {
+          "text": "⭐",
+          "type": "text"
+        }
+      ],
+      "plain": "⭐",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-033",
+      "input": "✨",
+      "ast": [
+        {
+          "text": "✨",
+          "type": "text"
+        }
+      ],
+      "plain": "✨",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-034",
+      "input": "✅",
+      "ast": [
+        {
+          "text": "✅",
+          "type": "text"
+        }
+      ],
+      "plain": "✅",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-035",
+      "input": "❌",
+      "ast": [
+        {
+          "text": "❌",
+          "type": "text"
+        }
+      ],
+      "plain": "❌",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-036",
+      "input": "⚠️",
+      "ast": [
+        {
+          "text": "⚠️",
+          "type": "text"
+        }
+      ],
+      "plain": "⚠️",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-037",
+      "input": "⬆️",
+      "ast": [
+        {
+          "text": "⬆️",
+          "type": "text"
+        }
+      ],
+      "plain": "⬆️",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-038",
+      "input": "▶️",
+      "ast": [
+        {
+          "text": "▶️",
+          "type": "text"
+        }
+      ],
+      "plain": "▶️",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-039",
+      "input": "😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄",
+      "ast": [
+        {
+          "text": "😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄",
+          "type": "text"
+        }
+      ],
+      "plain": "😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-040",
+      "input": "😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄",
+      "ast": [
+        {
+          "text": "😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄",
+          "type": "text"
+        }
+      ],
+      "plain": "😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-041",
+      "input": "😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 ",
+      "ast": [
+        {
+          "text": "😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 ",
+          "type": "text"
+        }
+      ],
+      "plain": "😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 ",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-042",
+      "input": "😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 ",
+      "ast": [
+        {
+          "text": "😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 ",
+          "type": "text"
+        }
+      ],
+      "plain": "😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 😄 ",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-043",
+      "input": "😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄",
+      "ast": [
+        {
+          "text": "😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄",
+          "type": "text"
+        }
+      ],
+      "plain": "😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄😄",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-044",
+      "input": ":smile:",
+      "ast": [
+        {
+          "text": ":smile:",
+          "type": "text"
+        }
+      ],
+      "plain": ":smile:",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-045",
+      "input": ":smile::smile:",
+      "ast": [
+        {
+          "text": ":smile::smile:",
+          "type": "text"
+        }
+      ],
+      "plain": ":smile::smile:",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-046",
+      "input": ":smile: :fire:",
+      "ast": [
+        {
+          "text": ":smile: :fire:",
+          "type": "text"
+        }
+      ],
+      "plain": ":smile: :fire:",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-047",
+      "input": ":smile: a",
+      "ast": [
+        {
+          "text": ":smile: a",
+          "type": "text"
+        }
+      ],
+      "plain": ":smile: a",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-048",
+      "input": ":nope:",
+      "ast": [
+        {
+          "text": ":nope:",
+          "type": "text"
+        }
+      ],
+      "plain": ":nope:",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-049",
+      "input": ":smile: 😄",
+      "ast": [
+        {
+          "text": ":smile: 😄",
+          "type": "text"
+        }
+      ],
+      "plain": ":smile: 😄",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-050",
+      "input": "😄 :smile:",
+      "ast": [
+        {
+          "text": "😄 :smile:",
+          "type": "text"
+        }
+      ],
+      "plain": "😄 :smile:",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-051",
+      "input": "😄 <:xx:1>",
+      "ast": [
+        {
+          "text": "😄 ",
+          "type": "text"
+        },
+        {
+          "animated": false,
+          "id": "1",
+          "name": "xx",
+          "type": "custom_emoji"
+        }
+      ],
+      "plain": "😄 :xx:",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-052",
+      "input": "<:xx:1>",
+      "ast": [
+        {
+          "animated": false,
+          "id": "1",
+          "name": "xx",
+          "type": "custom_emoji"
+        }
+      ],
+      "plain": ":xx:",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-053",
+      "input": "<a:xx:1>",
+      "ast": [
+        {
+          "animated": true,
+          "id": "1",
+          "name": "xx",
+          "type": "custom_emoji"
+        }
+      ],
+      "plain": ":xx:",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-054",
+      "input": "<:xx:1><:yy:2>",
+      "ast": [
+        {
+          "animated": false,
+          "id": "1",
+          "name": "xx",
+          "type": "custom_emoji"
+        },
+        {
+          "animated": false,
+          "id": "2",
+          "name": "yy",
+          "type": "custom_emoji"
+        }
+      ],
+      "plain": ":xx::yy:",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-055",
+      "input": "<:xx:1> <a:yy:2> 😄 :fire:",
+      "ast": [
+        {
+          "animated": false,
+          "id": "1",
+          "name": "xx",
+          "type": "custom_emoji"
+        },
+        {
+          "text": " ",
+          "type": "text"
+        },
+        {
+          "animated": true,
+          "id": "2",
+          "name": "yy",
+          "type": "custom_emoji"
+        },
+        {
+          "text": " 😄 :fire:",
+          "type": "text"
+        }
+      ],
+      "plain": ":xx: :yy: 😄 :fire:",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-056",
+      "input": "<:xx:1> text",
+      "ast": [
+        {
+          "animated": false,
+          "id": "1",
+          "name": "xx",
+          "type": "custom_emoji"
+        },
+        {
+          "text": " text",
+          "type": "text"
+        }
+      ],
+      "plain": ":xx: text",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-057",
+      "input": ":smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile:",
+      "ast": [
+        {
+          "text": ":smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile:",
+          "type": "text"
+        }
+      ],
+      "plain": ":smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile:",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-058",
+      "input": ":smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile:",
+      "ast": [
+        {
+          "text": ":smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile:",
+          "type": "text"
+        }
+      ],
+      "plain": ":smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile::smile:",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-059",
+      "input": "**😄**",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "😄",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": "😄",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-060",
+      "input": "*😄*",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "😄",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "😄",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-061",
+      "input": "||😄||",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "😄",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-062",
+      "input": "`😄`",
+      "ast": [
+        {
+          "code": "😄",
+          "type": "inline_code"
+        }
+      ],
+      "plain": "😄",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-063",
+      "input": "> 😄",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "😄",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": "😄\n",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-064",
+      "input": "- 😄",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": "😄",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": "😄\n",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-065",
+      "input": "# 😄",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "😄",
+              "type": "text"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        }
+      ],
+      "plain": "😄\n",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-066",
+      "input": "-# 😄",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "😄",
+              "type": "text"
+            }
+          ],
+          "type": "subtext"
+        }
+      ],
+      "plain": "😄\n",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-067",
+      "input": "[😄](https://e.com)",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "😄",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com"
+        }
+      ],
+      "plain": "😄",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-068",
+      "input": "😄 https://e.com",
+      "ast": [
+        {
+          "text": "😄 ",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "https://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com"
+        }
+      ],
+      "plain": "😄 https://e.com",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-069",
+      "input": "😄 <@1>",
+      "ast": [
+        {
+          "text": "😄 ",
+          "type": "text"
+        },
+        {
+          "id": "1",
+          "type": "user_mention"
+        }
+      ],
+      "plain": "😄 @user",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-070",
+      "input": "😄 @everyone",
+      "ast": [
+        {
+          "text": "😄 ",
+          "type": "text"
+        },
+        {
+          "type": "everyone"
+        }
+      ],
+      "plain": "😄 @everyone",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-071",
+      "input": "😄 <t:1>",
+      "ast": [
+        {
+          "text": "😄 ",
+          "type": "text"
+        },
+        {
+          "style": null,
+          "type": "timestamp",
+          "unix": 1
+        }
+      ],
+      "plain": "😄 1",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-072",
+      "input": "\\😄",
+      "ast": [
+        {
+          "text": "\\😄",
+          "type": "text"
+        }
+      ],
+      "plain": "\\😄",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-073",
+      "input": "😄\\",
+      "ast": [
+        {
+          "text": "😄\\",
+          "type": "text"
+        }
+      ],
+      "plain": "😄\\",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-074",
+      "input": "😄 \\ 😄",
+      "ast": [
+        {
+          "text": "😄 \\ 😄",
+          "type": "text"
+        }
+      ],
+      "plain": "😄 \\ 😄",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-075",
+      "input": "🙂‍↔️",
+      "ast": [
+        {
+          "text": "🙂‍↔️",
+          "type": "text"
+        }
+      ],
+      "plain": "🙂‍↔️",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-076",
+      "input": "🧑‍🤝‍🧑",
+      "ast": [
+        {
+          "text": "🧑‍🤝‍🧑",
+          "type": "text"
+        }
+      ],
+      "plain": "🧑‍🤝‍🧑",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-077",
+      "input": "🫠",
+      "ast": [
+        {
+          "text": "🫠",
+          "type": "text"
+        }
+      ],
+      "plain": "🫠",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-078",
+      "input": "🥹",
+      "ast": [
+        {
+          "text": "🥹",
+          "type": "text"
+        }
+      ],
+      "plain": "🥹",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-079",
+      "input": "🫶",
+      "ast": [
+        {
+          "text": "🫶",
+          "type": "text"
+        }
+      ],
+      "plain": "🫶",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-080",
+      "input": "🧿",
+      "ast": [
+        {
+          "text": "🧿",
+          "type": "text"
+        }
+      ],
+      "plain": "🧿",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-081",
+      "input": "🪩",
+      "ast": [
+        {
+          "text": "🪩",
+          "type": "text"
+        }
+      ],
+      "plain": "🪩",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-082",
+      "input": "🛝",
+      "ast": [
+        {
+          "text": "🛝",
+          "type": "text"
+        }
+      ],
+      "plain": "🛝",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-083",
+      "input": "🅰️",
+      "ast": [
+        {
+          "text": "🅰️",
+          "type": "text"
+        }
+      ],
+      "plain": "🅰️",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-084",
+      "input": "🅾️",
+      "ast": [
+        {
+          "text": "🅾️",
+          "type": "text"
+        }
+      ],
+      "plain": "🅾️",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-085",
+      "input": "ℹ️",
+      "ast": [
+        {
+          "text": "ℹ️",
+          "type": "text"
+        }
+      ],
+      "plain": "ℹ️",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-086",
+      "input": "Ⓜ️",
+      "ast": [
+        {
+          "text": "Ⓜ️",
+          "type": "text"
+        }
+      ],
+      "plain": "Ⓜ️",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-087",
+      "input": "〰️",
+      "ast": [
+        {
+          "text": "〰️",
+          "type": "text"
+        }
+      ],
+      "plain": "〰️",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-088",
+      "input": "〽️",
+      "ast": [
+        {
+          "text": "〽️",
+          "type": "text"
+        }
+      ],
+      "plain": "〽️",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-089",
+      "input": "㊗️",
+      "ast": [
+        {
+          "text": "㊗️",
+          "type": "text"
+        }
+      ],
+      "plain": "㊗️",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-090",
+      "input": "㊙️",
+      "ast": [
+        {
+          "text": "㊙️",
+          "type": "text"
+        }
+      ],
+      "plain": "㊙️",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-091",
+      "input": "🈁",
+      "ast": [
+        {
+          "text": "🈁",
+          "type": "text"
+        }
+      ],
+      "plain": "🈁",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-092",
+      "input": "🈚",
+      "ast": [
+        {
+          "text": "🈚",
+          "type": "text"
+        }
+      ],
+      "plain": "🈚",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-093",
+      "input": "🔟",
+      "ast": [
+        {
+          "text": "🔟",
+          "type": "text"
+        }
+      ],
+      "plain": "🔟",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-094",
+      "input": "🆎",
+      "ast": [
+        {
+          "text": "🆎",
+          "type": "text"
+        }
+      ],
+      "plain": "🆎",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-095",
+      "input": "🆑",
+      "ast": [
+        {
+          "text": "🆑",
+          "type": "text"
+        }
+      ],
+      "plain": "🆑",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-096",
+      "input": "↩️",
+      "ast": [
+        {
+          "text": "↩️",
+          "type": "text"
+        }
+      ],
+      "plain": "↩️",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-097",
+      "input": "↪️",
+      "ast": [
+        {
+          "text": "↪️",
+          "type": "text"
+        }
+      ],
+      "plain": "↪️",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-098",
+      "input": "⤴️",
+      "ast": [
+        {
+          "text": "⤴️",
+          "type": "text"
+        }
+      ],
+      "plain": "⤴️",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-099",
+      "input": "⤵️",
+      "ast": [
+        {
+          "text": "⤵️",
+          "type": "text"
+        }
+      ],
+      "plain": "⤵️",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-100",
+      "input": "⏩",
+      "ast": [
+        {
+          "text": "⏩",
+          "type": "text"
+        }
+      ],
+      "plain": "⏩",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-101",
+      "input": "⌚",
+      "ast": [
+        {
+          "text": "⌚",
+          "type": "text"
+        }
+      ],
+      "plain": "⌚",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-102",
+      "input": "⌨️",
+      "ast": [
+        {
+          "text": "⌨️",
+          "type": "text"
+        }
+      ],
+      "plain": "⌨️",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-103",
+      "input": "ａ",
+      "ast": [
+        {
+          "text": "ａ",
+          "type": "text"
+        }
+      ],
+      "plain": "ａ",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-104",
+      "input": "٣",
+      "ast": [
+        {
+          "text": "٣",
+          "type": "text"
+        }
+      ],
+      "plain": "٣",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-105",
+      "input": "①",
+      "ast": [
+        {
+          "text": "①",
+          "type": "text"
+        }
+      ],
+      "plain": "①",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-106",
+      "input": "℗",
+      "ast": [
+        {
+          "text": "℗",
+          "type": "text"
+        }
+      ],
+      "plain": "℗",
+      "jumbo": false
+    },
+    {
+      "name": "jumbo-107",
+      "input": "☺",
+      "ast": [
+        {
+          "text": "☺",
+          "type": "text"
+        }
+      ],
+      "plain": "☺",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-108",
+      "input": "♻",
+      "ast": [
+        {
+          "text": "♻",
+          "type": "text"
+        }
+      ],
+      "plain": "♻",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-109",
+      "input": "‼",
+      "ast": [
+        {
+          "text": "‼",
+          "type": "text"
+        }
+      ],
+      "plain": "‼",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-110",
+      "input": "⁉",
+      "ast": [
+        {
+          "text": "⁉",
+          "type": "text"
+        }
+      ],
+      "plain": "⁉",
+      "jumbo": true
+    },
+    {
+      "name": "jumbo-111",
+      "input": "‼️",
+      "ast": [
+        {
+          "text": "‼️",
+          "type": "text"
+        }
+      ],
+      "plain": "‼️",
+      "jumbo": true
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+.logo { flex: none; color: var(--sr-gold, var(--ui-accent)); }
+
+.header {
+  display: flex; align-items: center; gap: 20px; padding: 20px 32px;
+  background: var(--sr-bg-0, var(--ui-bg)); color: var(--sr-text, var(--ui-text));
+  font-family: var(--sr-font-body, var(--ui-font-body));
+}
+.brand { display: inline-flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; }
+.brand:focus-visible, .topBrand:focus-visible, .topLink:focus-visible, .footerLinks a:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 3px; }
+.wordmark { font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.28em; }
+.tagline { margin: 0; font-size: 0.75rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--sr-text-2, var(--ui-text-muted)); }
+.action { margin-left: auto; }
+
+.footer {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 40px 32px;
+  background: var(--sr-bg-1, var(--ui-bg-raised)); color: var(--sr-text, var(--ui-text));
+  border-top: 1px solid var(--sr-line, var(--ui-border)); font-family: var(--sr-font-body, var(--ui-font-body));
+}
+.signoff { margin: 0; font-family: var(--sr-font-display, var(--ui-font-display)); font-size: clamp(1.5rem, 3vw, 2.25rem); }
+.accent { font-style: italic; color: var(--sr-gold, var(--ui-accent)); }
+.footerLinks { display: flex; gap: 24px; font-size: 0.75rem; }
+.footerLinks a { color: var(--sr-text-2, var(--ui-text-muted)); text-decoration: none; }
+.footerLinks a:hover { color: var(--sr-text, var(--ui-text)); }
+
+.topBar {
+  display: flex; align-items: center; gap: 14px; min-height: 40px; padding: 0 32px;
+  background: var(--sr-bg-0, var(--ui-bg)); border-bottom: 1px solid var(--sr-line, var(--ui-border));
+  font-family: var(--sr-font-body, var(--ui-font-body)); font-size: 0.75rem;
+}
+.topBrand { color: var(--sr-text, var(--ui-text)); font-weight: 600; letter-spacing: 0.28em; text-decoration: none; }
+.slash { color: var(--sr-text-3, var(--ui-text-faint)); }
+.topNav { display: flex; align-self: stretch; gap: 28px; }
+.topLink {
+  display: inline-flex; align-items: center; border-bottom: 1px solid transparent; margin-bottom: -1px;
+  color: var(--sr-text-2, var(--ui-text-muted)); text-decoration: none;
+}
+.topLink:hover { color: var(--sr-text, var(--ui-text)); }
+.topLink[aria-current="page"] { color: var(--sr-gold, var(--ui-accent)); border-bottom-color: var(--sr-gold, var(--ui-accent)); }
+.voice { margin-left: auto; display: flex; align-items: center; }

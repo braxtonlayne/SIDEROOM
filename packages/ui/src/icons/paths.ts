@@ -1,0 +1,73 @@
+/**
+ * Original SIDE ROOM icon set (DS-PRIM-014). Drawn on a 24x24 grid as round-capped strokes;
+ * the Icon component scales stroke weight for the 20 and 16 optical sizes. Not derived from any
+ * third-party icon set.
+ */
+export const ICON_PATHS = {
+  close: "M6 6l12 12M18 6L6 18",
+  check: "M5 12.5l4.5 4.5L19 7.5",
+  plus: "M12 5v14M5 12h14",
+  minus: "M5 12h14",
+  "chevron-down": "M6 9l6 6 6-6",
+  "chevron-up": "M6 15l6-6 6 6",
+  "chevron-left": "M15 6l-6 6 6 6",
+  "chevron-right": "M9 6l6 6-6 6",
+  "arrow-up-right": "M7 17L17 7M8 7h9v9",
+  "arrow-left": "M19 12H5M11 6l-6 6 6 6",
+  "arrow-right": "M5 12h14M13 6l6 6-6 6",
+  search: "M11 5a6 6 0 1 0 0 12 6 6 0 0 0 0-12zM20 20l-4.2-4.2",
+  menu: "M4 7h16M4 12h16M4 17h16",
+  "more-horizontal": "M6 12h.01M12 12h.01M18 12h.01",
+  home: "M4 11l8-7 8 7M6 10v9h12v-9",
+  hash: "M9 4L7 20M17 4l-2 16M4 9h16M3 15h16",
+  user: "M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM5 20c0-3.5 3-6 7-6s7 2.5 7 6",
+  users: "M9 5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zM3 19c0-3 2.5-5 6-5s6 2 6 5M16 5.2a3.5 3.5 0 0 1 0 6.6M18 14.3c1.8.7 3 2.3 3 4.7",
+  bell: "M6 17v-6a6 6 0 0 1 12 0v6l1.5 2h-15zM10 21h4",
+  /** Q75: gear (Discord parity), generated from an 8-tooth outline plus a centre ring. */
+  settings: "M9.13 5.07 L10.02 2.71 L13.98 2.71 L14.87 5.07 L14.87 5.07 L17.17 4.03 L19.97 6.83 L18.93 9.13 L18.93 9.13 L21.29 10.02 L21.29 13.98 L18.93 14.87 L18.93 14.87 L19.97 17.17 L17.17 19.97 L14.87 18.93 L14.87 18.93 L13.98 21.29 L10.02 21.29 L9.13 18.93 L9.13 18.93 L6.83 19.97 L4.03 17.17 L5.07 14.87 L5.07 14.87 L2.71 13.98 L2.71 10.02 L5.07 9.13 L5.07 9.13 L4.03 6.83 L6.83 4.03 L9.13 5.07 Z M15 12a3 3 0 1 0-6 0a3 3 0 1 0 6 0Z",
+  volume: "M4 10v4h4l5 4V6l-5 4zM16.5 9a4 4 0 0 1 0 6M19 6.5a8 8 0 0 1 0 11",
+  "volume-off": "M4 10v4h4l5 4V6l-5 4zM17 9l4 6M21 9l-4 6",
+  mic: "M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM6 11a6 6 0 0 0 12 0M12 17v4",
+  "mic-off": "M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM6 11a6 6 0 0 0 12 0M12 17v4M4 4l16 16",
+  video: "M3 7h12v10H3zM15 11l6-3v8l-6-3",
+  headphones: "M4 14v-2a8 8 0 0 1 16 0v2M4 14h3.5v5H4zM16.5 14H20v5h-3.5z",
+  play: "M8 5l11 7-11 7z",
+  pause: "M8 5v14M16 5v14",
+  bookmark: "M7 4h10v16l-5-4-5 4z",
+  book: "M4 5.5C6.5 4.5 9.5 4.5 12 6c2.5-1.5 5.5-1.5 8-.5V19c-2.5-1-5.5-1-8 .5-2.5-1.5-5.5-1.5-8-.5zM12 6v13.5",
+  tv: "M4 7h16v11H4zM9 3l3 4 3-4",
+  film: "M4 4h16v16H4zM8 4v16M16 4v16M4 9h4M4 15h4M16 9h4M16 15h4",
+  compass: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM15.5 8.5l-2 5-5 2 2-5z",
+  clock: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2",
+  list: "M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01",
+  grid: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z",
+  star: "M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.1 5.9-.8z",
+  heart: "M12 20s-8-5-8-10.5A4.5 4.5 0 0 1 12 7a4.5 4.5 0 0 1 8 2.5C20 15 12 20 12 20z",
+  trash: "M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13",
+  edit: "M4 20h4L19 9l-4-4L4 16zM13 7l4 4",
+  copy: "M9 9h11v11H9zM5 15V4h11",
+  link: "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1",
+  lock: "M6 11h12v9H6zM8 11V8a4 4 0 0 1 8 0v3",
+  eye: "M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12zM12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z",
+  "eye-off":
+    "M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12zM12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4 4l16 16",
+  info: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 11v5M12 8h.01",
+  alert: "M12 4l9 16H3zM12 10v4M12 17h.01",
+  door: "M6 20V4h12v16M4 20h16M14 12h.01",
+  upload: "M12 16V4M7 9l5-5 5 5M4 20h16",
+  download: "M12 4v12M7 11l5 5 5-5M4 20h16",
+  sparkle: "M12 3l2 6 6 3-6 3-2 6-2-6-6-3 6-3z",
+  pin: "M9 4h6l-1 6 3 3H7l3-3zM12 13v7",
+  reply: "M10 7l-6 5 6 5M4 12h10a6 6 0 0 1 6 6",
+  smile: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8.5 14a4 4 0 0 0 7 0M9 9.5h.01M15 9.5h.01",
+  image: "M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M9 9h.01",
+  calendar: "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4",
+  palette:
+    "M12 3a9 9 0 0 0 0 18c1.5 0 2-1 1.5-2s0-2.5 1.5-2.5H18a3 3 0 0 0 3-3C21 7 17 3 12 3zM7.5 11h.01M10 7.5h.01M14.5 7.5h.01",
+  shield: "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z",
+  logout: "M10 4H5v16h5M15 8l4 4-4 4M19 12H9",
+  filter: "M4 5h16l-6 8v6l-4-2v-4z",
+} as const;
+
+export type IconName = keyof typeof ICON_PATHS;
+export const ICON_NAMES = Object.keys(ICON_PATHS) as IconName[];

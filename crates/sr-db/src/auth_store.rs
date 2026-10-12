@@ -1,0 +1,449 @@
+//! Postgres implementation of the Entrance [`AuthStore`] (open question 141).
+//!
+//! Sessions, TOTP, recovery codes and email tokens delegate to
+//! [`PgAuthRepo`]. Accounts, invites, registration, trusted devices and the
+//! platform audit log are SQL here. Times cross the boundary as Unix seconds.
+
+use std::fmt::Display;
+
+use async_trait::async_trait;
+use sqlx::{PgPool, Row};
+use sr_auth::{
+    email_token::EmailTokenPurpose,
+    invite::InviteCode,
+    repo::{
+        EmailTokenRepository, RecoveryCodeRepository, SessionRecord, SessionRepository, TotpRecord,
+        TotpRepository,
+    },
+    session::TokenHash,
+    store::{
+        AccountRecord, AccountState, AuthStore, InviteState, RegisterRejection, RegisterTx,
+        Registered, StoreError, StoreResult, TrustedDeviceRecord,
+    },
+};
+
+use crate::{
+    auth_repo::{IdSource, PgAuthRepo},
+    registration::{self, NewRegistration, Rejection},
+};
+
+fn store_err(e: impl Display) -> StoreError {
+    StoreError(e.to_string())
+}
+
+/// Postgres-backed [`AuthStore`].
+#[derive(Clone)]
+pub struct PgAuthStore {
+    pool: PgPool,
+    repo: PgAuthRepo,
+    ids: IdSource,
+}
+
+impl std::fmt::Debug for PgAuthStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PgAuthStore").finish_non_exhaustive()
+    }
+}
+
+impl PgAuthStore {
+    /// `repo` must share `pool` (it does the session, TOTP and token work).
+    pub fn new(pool: PgPool, repo: PgAuthRepo, ids: IdSource) -> Self {
+        Self { pool, repo, ids }
+    }
+
+    fn next_id(&self) -> i64 {
+        (self.ids)()
+    }
+}
+
+const ACCOUNT_COLS: &str = "id, person_id, username::text AS username, display_name, \
+    email::text AS email, email_verified_at IS NOT NULL AS email_verified, password_hash, \
+    state::text AS state, age_confirmed, locale, flags";
+
+fn account_from_row(r: &sqlx::postgres::PgRow) -> StoreResult<AccountRecord> {
+    let state: String = r.try_get("state").map_err(store_err)?;
+    Ok(AccountRecord {
+        id: r.try_get("id").map_err(store_err)?,
+        person_id: r.try_get("person_id").map_err(store_err)?,
+        username: r.try_get("username").map_err(store_err)?,
+        display_name: r.try_get("display_name").map_err(store_err)?,
+        email: r.try_get("email").map_err(store_err)?,
+        email_verified: r.try_get("email_verified").map_err(store_err)?,
+        password_hash: r.try_get("password_hash").map_err(store_err)?,
+        state: match state.as_str() {
+            "active" => AccountState::Active,
+            "deactivated" => AccountState::Deactivated,
+            "deleted" => AccountState::Deleted,
+            "platform_banned" => AccountState::PlatformBanned,
+            other => return Err(StoreError(format!("unknown account state {other}"))),
+        },
+        age_confirmed: r.try_get("age_confirmed").map_err(store_err)?,
+        locale: r.try_get("locale").map_err(store_err)?,
+        flags: r.try_get("flags").map_err(store_err)?,
+    })
+}
+
+#[async_trait]
+impl AuthStore for PgAuthStore {
+    async fn invite_state(&self, code: &InviteCode) -> StoreResult<Option<InviteState>> {
+        let state: Option<String> =
+            sqlx::query_scalar("SELECT state::text FROM platform_invites WHERE code = $1")
+                .bind(code.canonical())
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(store_err)?;
+        Ok(match state.as_deref() {
+            None => None,
+            Some("open") => Some(InviteState::Open),
+            Some("redeemed") => Some(InviteState::Redeemed),
+            Some("revoked") => Some(InviteState::Revoked),
+            Some(other) => return Err(StoreError(format!("unknown invite state {other}"))),
+        })
+    }
+
+    async fn counted_accounts(&self) -> StoreResult<u64> {
+        let n: i64 = sqlx::query_scalar("SELECT count(*) FROM accounts WHERE state = 'active'")
+            .fetch_one(&self.pool)
+            .await
+            .map_err(store_err)?;
+        Ok(u64::try_from(n).unwrap_or(0))
+    }
+
+    async fn register(&self, tx: RegisterTx) -> StoreResult<Result<Registered, RegisterRejection>> {
+        let outcome = registration::register_with_invite(
+            &self.pool,
+            &NewRegistration {
+                account_id: tx.account_id,
+                person_id: tx.new_person_id,
+                ledger_ids: tx.ledger_ids,
+                code: tx.code.canonical().to_owned(),
+                username: tx.username,
+                display_name: tx.display_name,
+                email: tx.email,
+                password_hash: tx.password_hash,
+                discord_id: tx.discord_id,
+                identity_id: tx.identity_id,
+                account_cap: i64::try_from(tx.account_cap).unwrap_or(i64::MAX),
+                initial_credits: tx.initial_credits,
+            },
+        )
+        .await
+        .map_err(store_err)?;
+        Ok(match outcome {
+            Ok(r) => Ok(Registered {
+                account_id: r.account_id,
+                issuer_id: r.issuer_id,
+            }),
+            Err(rej) => Err(match rej {
+                Rejection::InviteUnavailable => RegisterRejection::InviteUnavailable,
+                Rejection::AtCap => RegisterRejection::AtCap,
+                Rejection::IssuerOutOfCredits => RegisterRejection::IssuerOutOfCredits,
+                Rejection::PersonBanned => RegisterRejection::PersonBanned,
+                Rejection::UsernameTaken => RegisterRejection::UsernameTaken,
+                Rejection::EmailTaken => RegisterRejection::EmailTaken,
+            }),
+        })
+    }
+
+    async fn username_exists(&self, username: &str) -> StoreResult<bool> {
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM accounts WHERE username = $1)")
+            .bind(username)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(store_err)
+    }
+
+    async fn find_by_login(&self, login: &str) -> StoreResult<Option<AccountRecord>> {
+        let sql = format!(
+            "SELECT {ACCOUNT_COLS} FROM accounts WHERE username = $1 OR email = $1 LIMIT 1"
+        );
+        let row = sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(login)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(store_err)?;
+        row.as_ref().map(account_from_row).transpose()
+    }
+
+    async fn find_by_email(&self, email: &str) -> StoreResult<Option<AccountRecord>> {
+        let sql = format!("SELECT {ACCOUNT_COLS} FROM accounts WHERE email = $1 LIMIT 1");
+        let row = sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(email)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(store_err)?;
+        row.as_ref().map(account_from_row).transpose()
+    }
+
+    async fn find_by_id(&self, id: i64) -> StoreResult<Option<AccountRecord>> {
+        let sql = format!("SELECT {ACCOUNT_COLS} FROM accounts WHERE id = $1");
+        let row = sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(store_err)?;
+        row.as_ref().map(account_from_row).transpose()
+    }
+
+    async fn find_by_discord(&self, provider_user_id: &str) -> StoreResult<Option<AccountRecord>> {
+        let sql = format!(
+            "SELECT {ACCOUNT_COLS} FROM accounts WHERE id = (SELECT account_id FROM \
+             external_identities WHERE provider = 'discord' AND provider_user_id = $1)"
+        );
+        let row = sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(provider_user_id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(store_err)?;
+        row.as_ref().map(account_from_row).transpose()
+    }
+
+    async fn set_password_hash(&self, id: i64, hash: &str) -> StoreResult<()> {
+        sqlx::query("UPDATE accounts SET password_hash = $2, updated_at = now() WHERE id = $1")
+            .bind(id)
+            .bind(hash)
+            .execute(&self.pool)
+            .await
+            .map_err(store_err)?;
+        Ok(())
+    }
+
+    async fn mark_email_verified(&self, id: i64) -> StoreResult<()> {
+        sqlx::query(
+            "UPDATE accounts SET email_verified_at = COALESCE(email_verified_at, now()), \
+             updated_at = now() WHERE id = $1",
+        )
+        .bind(id)
+        .execute(&self.pool)
+        .await
+        .map_err(store_err)?;
+        Ok(())
+    }
+
+    async fn set_age_confirmed(&self, id: i64, confirmed: bool, now: i64) -> StoreResult<()> {
+        sqlx::query(
+            "UPDATE accounts SET age_confirmed = $2, \
+             age_confirmed_at = CASE WHEN $2 THEN COALESCE(age_confirmed_at, to_timestamp($3::float8)) \
+             ELSE NULL END, updated_at = now() WHERE id = $1",
+        )
+        .bind(id)
+        .bind(confirmed)
+        .bind(now as f64)
+        .execute(&self.pool)
+        .await
+        .map_err(store_err)?;
+        Ok(())
+    }
+
+    async fn create_session(&self, rec: SessionRecord) -> StoreResult<()> {
+        SessionRepository::create(&self.repo, rec)
+            .await
+            .map_err(store_err)
+    }
+
+    async fn list_sessions(&self, user_id: i64, now: i64) -> StoreResult<Vec<SessionRecord>> {
+        SessionRepository::list_for_user(&self.repo, user_id, now)
+            .await
+            .map_err(store_err)
+    }
+
+    async fn revoke_session(&self, user_id: i64, session_id: i64) -> StoreResult<bool> {
+        SessionRepository::revoke(&self.repo, user_id, session_id)
+            .await
+            .map_err(store_err)
+    }
+
+    async fn revoke_sessions_except(&self, user_id: i64, keep: Option<i64>) -> StoreResult<u64> {
+        SessionRepository::revoke_all_except(&self.repo, user_id, keep)
+            .await
+            .map_err(store_err)
+    }
+
+    async fn trusted_device_put(
+        &self,
+        user_id: i64,
+        hash: &TokenHash,
+        device_name: Option<&str>,
+        expires_at: i64,
+    ) -> StoreResult<()> {
+        sqlx::query(
+            "INSERT INTO trusted_devices (id, account_id, token_hash, device_name, expires_at) \
+             VALUES ($1, $2, $3, $4, to_timestamp($5::float8))",
+        )
+        .bind(self.next_id())
+        .bind(user_id)
+        .bind(hash.as_bytes().as_slice())
+        .bind(device_name)
+        .bind(expires_at as f64)
+        .execute(&self.pool)
+        .await
+        .map_err(store_err)?;
+        Ok(())
+    }
+
+    async fn trusted_device_matches(
+        &self,
+        user_id: i64,
+        hash: &TokenHash,
+        now: i64,
+    ) -> StoreResult<bool> {
+        sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM trusted_devices WHERE account_id = $1 \
+             AND token_hash = $2 AND revoked_at IS NULL AND expires_at > to_timestamp($3::float8))",
+        )
+        .bind(user_id)
+        .bind(hash.as_bytes().as_slice())
+        .bind(now as f64)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(store_err)
+    }
+
+    async fn trusted_devices_list(
+        &self,
+        user_id: i64,
+        now: i64,
+    ) -> StoreResult<Vec<TrustedDeviceRecord>> {
+        let rows = sqlx::query(
+            "SELECT id, device_name, EXTRACT(EPOCH FROM created_at)::BIGINT AS created_at, \
+             EXTRACT(EPOCH FROM expires_at)::BIGINT AS expires_at FROM trusted_devices \
+             WHERE account_id = $1 AND revoked_at IS NULL AND expires_at > to_timestamp($2::float8) \
+             ORDER BY created_at DESC",
+        )
+        .bind(user_id)
+        .bind(now as f64)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(store_err)?;
+        rows.iter()
+            .map(|r| {
+                Ok(TrustedDeviceRecord {
+                    id: r.try_get("id").map_err(store_err)?,
+                    device_name: r.try_get("device_name").map_err(store_err)?,
+                    created_at: r.try_get("created_at").map_err(store_err)?,
+                    expires_at: r.try_get("expires_at").map_err(store_err)?,
+                })
+            })
+            .collect()
+    }
+
+    async fn trusted_device_revoke(&self, user_id: i64, id: i64) -> StoreResult<bool> {
+        let r = sqlx::query(
+            "UPDATE trusted_devices SET revoked_at = now(), updated_at = now() \
+             WHERE id = $1 AND account_id = $2 AND revoked_at IS NULL",
+        )
+        .bind(id)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await
+        .map_err(store_err)?;
+        Ok(r.rows_affected() > 0)
+    }
+
+    async fn trusted_devices_revoke_all(&self, user_id: i64) -> StoreResult<u64> {
+        let r = sqlx::query(
+            "UPDATE trusted_devices SET revoked_at = now(), updated_at = now() \
+             WHERE account_id = $1 AND revoked_at IS NULL",
+        )
+        .bind(user_id)
+        .execute(&self.pool)
+        .await
+        .map_err(store_err)?;
+        Ok(r.rows_affected())
+    }
+
+    async fn totp_get(&self, user_id: i64) -> StoreResult<Option<TotpRecord>> {
+        TotpRepository::get(&self.repo, user_id)
+            .await
+            .map_err(store_err)
+    }
+
+    async fn totp_put_pending(&self, user_id: i64, secret: &[u8]) -> StoreResult<()> {
+        TotpRepository::put_pending(&self.repo, user_id, secret)
+            .await
+            .map_err(store_err)
+    }
+
+    async fn totp_confirm(&self, user_id: i64, step: u64) -> StoreResult<()> {
+        TotpRepository::confirm(&self.repo, user_id, step)
+            .await
+            .map_err(store_err)
+    }
+
+    async fn totp_consume_step(&self, user_id: i64, step: u64) -> StoreResult<bool> {
+        TotpRepository::consume_step(&self.repo, user_id, step)
+            .await
+            .map_err(store_err)
+    }
+
+    async fn totp_delete(&self, user_id: i64) -> StoreResult<()> {
+        TotpRepository::delete(&self.repo, user_id)
+            .await
+            .map_err(store_err)
+    }
+
+    async fn recovery_replace_all(&self, user_id: i64, hashes: &[TokenHash]) -> StoreResult<()> {
+        RecoveryCodeRepository::replace_all(&self.repo, user_id, hashes)
+            .await
+            .map_err(store_err)
+    }
+
+    async fn recovery_list_unused(&self, user_id: i64) -> StoreResult<Vec<(i64, TokenHash)>> {
+        RecoveryCodeRepository::list_unused(&self.repo, user_id)
+            .await
+            .map_err(store_err)
+    }
+
+    async fn recovery_consume(&self, user_id: i64, row_id: i64, now: i64) -> StoreResult<bool> {
+        RecoveryCodeRepository::consume(&self.repo, user_id, row_id, now)
+            .await
+            .map_err(store_err)
+    }
+
+    async fn email_token_put(
+        &self,
+        user_id: i64,
+        purpose: EmailTokenPurpose,
+        hash: &TokenHash,
+        expires_at: i64,
+    ) -> StoreResult<()> {
+        EmailTokenRepository::put(&self.repo, user_id, purpose, hash, expires_at)
+            .await
+            .map_err(store_err)
+    }
+
+    async fn email_token_consume(
+        &self,
+        purpose: EmailTokenPurpose,
+        hash: &TokenHash,
+        now: i64,
+    ) -> StoreResult<Option<i64>> {
+        EmailTokenRepository::consume(&self.repo, purpose, hash, now)
+            .await
+            .map_err(store_err)
+    }
+
+    async fn audit(
+        &self,
+        actor_id: i64,
+        action: &str,
+        target_id: Option<i64>,
+        note: &str,
+        now: i64,
+    ) -> StoreResult<()> {
+        sqlx::query(
+            "INSERT INTO platform_audit_log (id, actor_id, action, target_id, note, created_at) \
+             VALUES ($1, $2, $3, $4, $5, to_timestamp($6::float8))",
+        )
+        .bind(self.next_id())
+        .bind(actor_id)
+        .bind(action)
+        .bind(target_id)
+        .bind(note)
+        .bind(now as f64)
+        .execute(&self.pool)
+        .await
+        .map_err(store_err)?;
+        Ok(())
+    }
+}

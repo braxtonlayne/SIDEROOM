@@ -1,11 +1,22 @@
-//! `sr-core` — domain types shared by every SIDE ROOM crate.
+//! sr-core: domain types, Snowflake IDs, permission bitfields, errors, time, config types.
+//! See docs/02-architecture.md section 3.
 //!
-//! See docs/02-architecture.md §3 and §7. This crate must stay free of I/O
-//! so it can also be compiled to WASM for the client.
+//! Everything except [`config`] is wasm-compatible (no I/O, no threads required).
 
-pub mod clock;
-pub mod id;
+#[cfg(feature = "config")]
+pub mod config;
+pub mod error;
+pub mod ids;
+pub mod permissions;
+pub mod platform_permissions;
 pub mod snowflake;
+pub mod time;
 
-pub use clock::{Clock, FixedClock, SystemClock};
+pub use error::{ApiError, ErrorCode};
+pub use ids::*;
+pub use permissions::Permissions;
+pub use platform_permissions::PlatformPermissions;
 pub use snowflake::{Snowflake, SnowflakeGenerator};
+#[cfg(not(target_arch = "wasm32"))]
+pub use time::SystemClock;
+pub use time::{Clock, ManualClock};

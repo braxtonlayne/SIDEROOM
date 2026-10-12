@@ -1,0 +1,6 @@
+#!/bin/sh
+# Pre-commit checks (docs/03 section 5). Enable with: git config core.hooksPath .githooks
+set -eu
+
+cargo fmt --all --check
+pnpm exec lint-staged

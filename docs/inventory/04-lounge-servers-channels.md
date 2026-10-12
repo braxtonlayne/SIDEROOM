@@ -3,28 +3,28 @@
 Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 
 ## LNG-GLD — Guilds
-- [ ] **LNG-GLD-001** [DB] guilds, guild_members, roles, member_roles migrations
-- [ ] **LNG-GLD-002** [BE] Create guild (default @everyone, #general, General voice, categories) → `POST /guilds`
+- [x] **LNG-GLD-001** [DB] guilds, guild_members, roles, member_roles migrations
+- [x] **LNG-GLD-002** [BE] Create guild (default @everyone, #general, General voice, categories) → `POST /guilds`
 - [ ] **LNG-GLD-003** [BE] Create from template (built-in + Discord-compatible template JSON)
-- [ ] **LNG-GLD-004** [BE] Get/modify/delete guild; owner transfer
+- [x] **LNG-GLD-004** [BE] Get/modify/delete guild; owner transfer
 - [ ] **LNG-GLD-005** [BE] Member list/search/get/modify (nick, roles, timeout, voice mute/deaf/move), kick, prune (dry-run count)
 - [ ] **LNG-GLD-006** [BE] Bans (create with delete-message-seconds, list, remove), bulk ban
-- [ ] **LNG-GLD-007** [BE] Roles CRUD, positions, hierarchy enforcement (can't manage roles ≥ own top role)
+- [x] **LNG-GLD-007** [BE] Roles CRUD, positions, hierarchy enforcement (can't manage roles ≥ own top role)
 - [ ] **LNG-GLD-008** [BE] Guild member join/leave pipeline (system message, welcome screen, onboarding, membership screening `pending`)
 - [ ] **LNG-GLD-009** [GW] GUILD_CREATE (lazy), GUILD_UPDATE, GUILD_DELETE, GUILD_MEMBER_ADD/UPDATE/REMOVE, GUILD_ROLE_*, GUILD_BAN_*
 - [ ] **LNG-GLD-010** [GW] Lazy member list (op 102 ranges → GUILD_MEMBER_LIST_UPDATE ops SYNC/INSERT/UPDATE/DELETE)
 - [ ] **LNG-GLD-011** [BE] Server tag (short tag text + badge icon) shown next to members globally if they opt in
 - [ ] **LNG-GLD-012** [BE] Per-server profiles (nick, avatar, banner, bio)
 - [ ] **LNG-GLD-013** [BE] Server Directory: listing request, categories, staff approval state, search API
-- [ ] **LNG-GLD-014** [BE] Community enable checks (verification level, explicit filter, rules & updates channels)
+- [x] **LNG-GLD-014** [BE] Community enable checks (verification level, explicit filter, rules & updates channels)
 - [ ] **LNG-GLD-015** [FE] Create Server modal step 1: title, subtitle, "Create My Own", "START FROM A TEMPLATE" list (Gaming, Friends, Study Group, School Club, Local Community, Artists & Creators, Watch Club, Reading Club), "Have an invite already?" + Join a Server
 - [ ] **LNG-GLD-016** [FE] Create Server step 2: "Tell us more about your server" (club/community vs me & friends, skip)
 - [ ] **LNG-GLD-017** [FE] Create Server step 3: customize (icon upload with crop, server name prefilled "<user>'s server", guidelines note), Back / Create
 - [ ] **LNG-GLD-018** [FE] Join a Server modal (invite link/code input, examples, "Don't have an invite? Check out the Directory")
 - [ ] **LNG-GLD-019** [FE] Server header button with name + chevron, banner area (if banner), boost/level indicator
-- [ ] **LNG-GLD-020** [FE] Server dropdown menu: Server Support, Invite to Server, Server Settings, Create Channel, Create Category, Create Event, App Directory, Notification Settings, Privacy Settings, Edit Per-server Profile, Hide Muted Channels (checkbox), Copy Server Info ▸ (ID, link), Security Actions (mods), Leave Server
+- [x] **LNG-GLD-020** [FE] Server dropdown menu: Server Support, Invite to Server, Server Settings, Create Channel, Create Category, Create Event, App Directory, Notification Settings, Privacy Settings, Edit Per-server Profile, Hide Muted Channels (checkbox), Copy Server Info ▸ (ID, link), Security Actions (mods), Leave Server
 - [ ] **LNG-GLD-021** [FE] Welcome/empty-server screen: "Welcome to <server>", intro line + Getting Started guide link, checklist cards (Invite your friends, Personalize your server with an icon, Send your first message, Add your first app, Support this server) with completion state
-- [ ] **LNG-GLD-022** [FE] Member list panel: role groups with counts, online/offline groups, owner crown, bot tag, activity line, virtualized lazy ranges
+- [x] **LNG-GLD-022** [FE] Member list panel: role groups with counts, online/offline groups, owner crown, bot tag, activity line, virtualized lazy ranges
 - [ ] **LNG-GLD-023** [FE] Member context menu: Profile, Mention, Message, Call, Add Note, Change Nickname, Invite to Server ▸, Remove Friend, Ignore, Block, Apps ▸, Roles ▸ (checkbox list), Timeout ▸, Kick, Ban, Transfer Ownership, Copy User ID
 - [ ] **LNG-GLD-024** [FE] Timeout modal (durations, reason), Kick modal (reason), Ban modal (delete history window, reason)
 - [ ] **LNG-GLD-025** [FE] Privacy Settings modal per server (allow DMs, message requests, activity status, joined-server visibility)
@@ -39,9 +39,9 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 - [ ] **LNG-GLD-034** [FE] Security Actions: pause invites, pause DMs (raid mode)
 
 ## LNG-CHN — Channels
-- [ ] **LNG-CHN-001** [DB] channels, permission_overwrites, channel_recipients migrations
-- [ ] **LNG-CHN-002** [BE] Create/modify/delete channel (all types), position updates (bulk), sync permissions with category
-- [ ] **LNG-CHN-003** [BE] Permission overwrite CRUD + effective-permission computation per member
+- [x] **LNG-CHN-001** [DB] channels, permission_overwrites, channel_recipients migrations
+- [x] **LNG-CHN-002** [BE] Create/modify/delete channel (all types), position updates (bulk), sync permissions with category
+- [x] **LNG-CHN-003** [BE] Permission overwrite CRUD + effective-permission computation per member
 - [ ] **LNG-CHN-004** [BE] Announcement channels: follow (creates webhook in target), crosspost/publish, auto-publish feature hook
 - [ ] **LNG-CHN-005** [BE] Slowmode (rate_limit_per_user) enforcement with bypass permissions
 - [ ] **LNG-CHN-006** [BE] NSFW / age-restricted channel gate (D-032)
@@ -61,7 +61,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 - [ ] **LNG-CHN-020** [FE] Pins popout (list, jump, unpin)
 - [ ] **LNG-CHN-021** [FE] Read-only/announcement composer state + "Follow" button
 - [ ] **LNG-CHN-022** [FE] Age-gate interstitial for restricted channels
-- [ ] **LNG-CHN-023** [FE] Hide Muted Channels behavior
+- [x] **LNG-CHN-023** [FE] Hide Muted Channels behavior
 - [ ] **LNG-CHN-024** [FE] Rules channel + Updates channel badges (Community)
 
 ## LNG-THR — Threads
@@ -84,8 +84,8 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 - [ ] **LNG-FRM-006** [FE] Forum settings section (tags editor, default reaction, layout, sort, guidelines)
 
 ## LNG-INV — Server invites
-- [ ] **LNG-INV-001** [DB] invites table
-- [ ] **LNG-INV-002** [BE] Create invite (max_age, max_uses, temporary, unique), list per guild/channel, delete, accept (`POST /invites/{code}`), get with counts
+- [x] **LNG-INV-001** [DB] invites table
+- [x] **LNG-INV-002** [BE] Create invite (max_age, max_uses, temporary, unique), list per guild/channel, delete, accept (`POST /invites/{code}`), get with counts
 - [ ] **LNG-INV-003** [BE] External-share default single-use (D-022) via `target=external` flag
 - [ ] **LNG-INV-004** [BE] Vanity URL (free) + invite splash
 - [ ] **LNG-INV-005** [BE] Temporary membership removal on disconnect without roles

@@ -1,12 +1,44 @@
 [package]
 name = "sr-api"
-version.workspace = true
+version = "0.0.0"
 edition.workspace = true
-rust-version.workspace = true
-license.workspace = true
-publish = false
-
-[dependencies]
+publish.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+async-trait.workspace = true
+bytes = "1"
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio", "matched-path", "original-uri", "tracing"] }
+data-encoding = "2"
+futures.workspace = true
+governor = "0.8"
+lettre = { version = "0.11", default-features = false, features = ["builder", "hostname", "smtp-transport", "tokio1", "tokio1-rustls-tls"] }
+metrics = "0.24"
+metrics-exporter-prometheus = { version = "0.16", default-features = false }
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "0.11"
+sr-auth = { path = "../sr-auth" }
+sr-chat = { path = "../sr-chat" }
+sr-core = { path = "../sr-core" }
+sr-events = { path = "../sr-events" }
+sr-search = { path = "../sr-search" }
+sr-storage = { path = "../sr-storage" }
+subtle = "2"
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt", "time", "sync"] }
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["trace", "compression-gzip", "compression-br", "timeout", "cors", "request-id", "propagate-header"] }
+tracing = "0.1"
+oauth2 = "5"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+utoipa = "5"
+utoipa-scalar = { version = "0.3", features = ["axum"] }
+moka.workspace = true
+
+[dev-dependencies]
+sr-chat = { path = "../sr-chat", features = ["memory"] }
+http-body-util = "0.1"
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "sync"] }

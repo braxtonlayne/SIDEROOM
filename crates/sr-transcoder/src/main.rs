@@ -1,5 +1,2 @@
-//! `sr-transcoder` — see docs/02-architecture.md §2.
-
-fn main() {
-    println!("sr-transcoder: not yet implemented");
-}
+//! sr-transcoder — see docs/02-architecture.md §3.
+fn main() {}

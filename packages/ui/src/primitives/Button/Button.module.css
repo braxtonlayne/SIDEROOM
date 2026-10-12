@@ -1,0 +1,69 @@
+.button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius);
+  font: inherit;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color var(--ui-motion-duration, 160ms),
+    border-color var(--ui-motion-duration, 160ms),
+    color var(--ui-motion-duration, 160ms);
+}
+.button:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.button[aria-busy="true"] {
+  cursor: progress;
+}
+
+.sm { min-height: 28px; padding: 0 12px; font-size: 0.8125rem; }
+.md { min-height: 36px; padding: 0 16px; font-size: 0.875rem; }
+.lg { min-height: 44px; padding: 0 24px; font-size: 1rem; }
+
+.iconOnly.sm { width: 28px; padding: 0; }
+.iconOnly.md { width: 36px; padding: 0; }
+.iconOnly.lg { width: 44px; padding: 0; }
+
+.full { width: 100%; }
+
+.primary { background: var(--ui-accent); color: var(--ui-accent-ink); }
+.primary:hover:not(:disabled):not([aria-busy="true"]) { background: var(--ui-accent-hover); }
+
+.secondary { background: var(--ui-bg-hover); color: var(--ui-text); border-color: var(--ui-border); }
+.secondary:hover:not(:disabled):not([aria-busy="true"]) { border-color: var(--ui-text-muted); }
+
+.danger { background: var(--ui-danger); color: var(--ui-danger-ink); }
+.danger:hover:not(:disabled):not([aria-busy="true"]) { filter: brightness(0.92); }
+
+.ghost { background: transparent; color: var(--ui-text); }
+.ghost:hover:not(:disabled):not([aria-busy="true"]) { background: var(--ui-bg-hover); }
+
+.link {
+  background: transparent;
+  color: var(--ui-accent);
+  min-height: 0;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.link:hover:not(:disabled) { color: var(--ui-accent-hover); }
+
+.label { display: inline-flex; align-items: center; gap: 8px; }
+.hidden { visibility: hidden; }
+.spinner {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+}

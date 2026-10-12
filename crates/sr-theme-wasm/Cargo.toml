@@ -1,0 +1,17 @@
+[package]
+name = "sr-theme-wasm"
+version = "0.0.0"
+edition.workspace = true
+publish.workspace = true
+description = "wasm-bindgen wrapper over sr-theme (validate and compile theme packages in the browser)."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+sr-theme = { path = "../sr-theme" }
+serde_json.workspace = true
+wasm-bindgen.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,1717 @@
+{
+  "description": "Emoji shortcodes: valid, invalid, in context",
+  "cases": [
+    {
+      "name": "emoji-001",
+      "input": ":smile:",
+      "ast": [
+        {
+          "text": ":smile:",
+          "type": "text"
+        }
+      ],
+      "plain": ":smile:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-002",
+      "input": ":fire:",
+      "ast": [
+        {
+          "text": ":fire:",
+          "type": "text"
+        }
+      ],
+      "plain": ":fire:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-003",
+      "input": ":heart:",
+      "ast": [
+        {
+          "text": ":heart:",
+          "type": "text"
+        }
+      ],
+      "plain": ":heart:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-004",
+      "input": ":+1:",
+      "ast": [
+        {
+          "text": ":+1:",
+          "type": "text"
+        }
+      ],
+      "plain": ":+1:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-005",
+      "input": ":-1:",
+      "ast": [
+        {
+          "text": ":-1:",
+          "type": "text"
+        }
+      ],
+      "plain": ":-1:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-006",
+      "input": ":100:",
+      "ast": [
+        {
+          "text": ":100:",
+          "type": "text"
+        }
+      ],
+      "plain": ":100:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-007",
+      "input": ":thumbsup:",
+      "ast": [
+        {
+          "text": ":thumbsup:",
+          "type": "text"
+        }
+      ],
+      "plain": ":thumbsup:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-008",
+      "input": ":tada:",
+      "ast": [
+        {
+          "text": ":tada:",
+          "type": "text"
+        }
+      ],
+      "plain": ":tada:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-009",
+      "input": ":eyes:",
+      "ast": [
+        {
+          "text": ":eyes:",
+          "type": "text"
+        }
+      ],
+      "plain": ":eyes:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-010",
+      "input": ":rocket:",
+      "ast": [
+        {
+          "text": ":rocket:",
+          "type": "text"
+        }
+      ],
+      "plain": ":rocket:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-011",
+      "input": ":skull:",
+      "ast": [
+        {
+          "text": ":skull:",
+          "type": "text"
+        }
+      ],
+      "plain": ":skull:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-012",
+      "input": ":sob:",
+      "ast": [
+        {
+          "text": ":sob:",
+          "type": "text"
+        }
+      ],
+      "plain": ":sob:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-013",
+      "input": ":joy:",
+      "ast": [
+        {
+          "text": ":joy:",
+          "type": "text"
+        }
+      ],
+      "plain": ":joy:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-014",
+      "input": ":thinking:",
+      "ast": [
+        {
+          "text": ":thinking:",
+          "type": "text"
+        }
+      ],
+      "plain": ":thinking:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-015",
+      "input": ":wave:",
+      "ast": [
+        {
+          "text": ":wave:",
+          "type": "text"
+        }
+      ],
+      "plain": ":wave:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-016",
+      "input": ":pray:",
+      "ast": [
+        {
+          "text": ":pray:",
+          "type": "text"
+        }
+      ],
+      "plain": ":pray:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-017",
+      "input": ":one:",
+      "ast": [
+        {
+          "text": ":one:",
+          "type": "text"
+        }
+      ],
+      "plain": ":one:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-018",
+      "input": ":hash:",
+      "ast": [
+        {
+          "text": ":hash:",
+          "type": "text"
+        }
+      ],
+      "plain": ":hash:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-019",
+      "input": ":flag_us:",
+      "ast": [
+        {
+          "text": ":flag_us:",
+          "type": "text"
+        }
+      ],
+      "plain": ":flag_us:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-020",
+      "input": ":rainbow_flag:",
+      "ast": [
+        {
+          "text": ":rainbow_flag:",
+          "type": "text"
+        }
+      ],
+      "plain": ":rainbow_flag:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-021",
+      "input": ":pirate_flag:",
+      "ast": [
+        {
+          "text": ":pirate_flag:",
+          "type": "text"
+        }
+      ],
+      "plain": ":pirate_flag:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-022",
+      "input": ":warning:",
+      "ast": [
+        {
+          "text": ":warning:",
+          "type": "text"
+        }
+      ],
+      "plain": ":warning:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-023",
+      "input": ":x:",
+      "ast": [
+        {
+          "text": ":x:",
+          "type": "text"
+        }
+      ],
+      "plain": ":x:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-024",
+      "input": ":white_check_mark:",
+      "ast": [
+        {
+          "text": ":white_check_mark:",
+          "type": "text"
+        }
+      ],
+      "plain": ":white_check_mark:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-025",
+      "input": ":ok:",
+      "ast": [
+        {
+          "text": ":ok:",
+          "type": "text"
+        }
+      ],
+      "plain": ":ok:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-026",
+      "input": ":cool:",
+      "ast": [
+        {
+          "text": ":cool:",
+          "type": "text"
+        }
+      ],
+      "plain": ":cool:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-027",
+      "input": ":new:",
+      "ast": [
+        {
+          "text": ":new:",
+          "type": "text"
+        }
+      ],
+      "plain": ":new:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-028",
+      "input": ":id:",
+      "ast": [
+        {
+          "text": ":id:",
+          "type": "text"
+        }
+      ],
+      "plain": ":id:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-029",
+      "input": ":vs:",
+      "ast": [
+        {
+          "text": ":vs:",
+          "type": "text"
+        }
+      ],
+      "plain": ":vs:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-030",
+      "input": ":tm:",
+      "ast": [
+        {
+          "text": ":tm:",
+          "type": "text"
+        }
+      ],
+      "plain": ":tm:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-031",
+      "input": ":copyright:",
+      "ast": [
+        {
+          "text": ":copyright:",
+          "type": "text"
+        }
+      ],
+      "plain": ":copyright:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-032",
+      "input": ":SMILE:",
+      "ast": [
+        {
+          "text": ":SMILE:",
+          "type": "text"
+        }
+      ],
+      "plain": ":SMILE:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-033",
+      "input": ":Smile:",
+      "ast": [
+        {
+          "text": ":Smile:",
+          "type": "text"
+        }
+      ],
+      "plain": ":Smile:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-034",
+      "input": ":nope:",
+      "ast": [
+        {
+          "text": ":nope:",
+          "type": "text"
+        }
+      ],
+      "plain": ":nope:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-035",
+      "input": ":smile",
+      "ast": [
+        {
+          "text": ":smile",
+          "type": "text"
+        }
+      ],
+      "plain": ":smile",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-036",
+      "input": "smile:",
+      "ast": [
+        {
+          "text": "smile:",
+          "type": "text"
+        }
+      ],
+      "plain": "smile:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-037",
+      "input": "::",
+      "ast": [
+        {
+          "text": "::",
+          "type": "text"
+        }
+      ],
+      "plain": "::",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-038",
+      "input": ":::",
+      "ast": [
+        {
+          "text": ":::",
+          "type": "text"
+        }
+      ],
+      "plain": ":::",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-039",
+      "input": ":::smile:::",
+      "ast": [
+        {
+          "text": ":::smile:::",
+          "type": "text"
+        }
+      ],
+      "plain": ":::smile:::",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-040",
+      "input": ":smile::fire:",
+      "ast": [
+        {
+          "text": ":smile::fire:",
+          "type": "text"
+        }
+      ],
+      "plain": ":smile::fire:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-041",
+      "input": ":smile: :fire:",
+      "ast": [
+        {
+          "text": ":smile: :fire:",
+          "type": "text"
+        }
+      ],
+      "plain": ":smile: :fire:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-042",
+      "input": ":smile:\n:fire:",
+      "ast": [
+        {
+          "text": ":smile:",
+          "type": "text"
+        },
+        {
+          "type": "line_break"
+        },
+        {
+          "text": ":fire:",
+          "type": "text"
+        }
+      ],
+      "plain": ":smile:\n:fire:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-043",
+      "input": "a:smile:b",
+      "ast": [
+        {
+          "text": "a:smile:b",
+          "type": "text"
+        }
+      ],
+      "plain": "a:smile:b",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-044",
+      "input": "a :smile: b",
+      "ast": [
+        {
+          "text": "a :smile: b",
+          "type": "text"
+        }
+      ],
+      "plain": "a :smile: b",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-045",
+      "input": "x:smile:",
+      "ast": [
+        {
+          "text": "x:smile:",
+          "type": "text"
+        }
+      ],
+      "plain": "x:smile:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-046",
+      "input": ":smile:x",
+      "ast": [
+        {
+          "text": ":smile:x",
+          "type": "text"
+        }
+      ],
+      "plain": ":smile:x",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-047",
+      "input": ": smile :",
+      "ast": [
+        {
+          "text": ": smile :",
+          "type": "text"
+        }
+      ],
+      "plain": ": smile :",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-048",
+      "input": ":sm ile:",
+      "ast": [
+        {
+          "text": ":sm ile:",
+          "type": "text"
+        }
+      ],
+      "plain": ":sm ile:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-049",
+      "input": ":smile :",
+      "ast": [
+        {
+          "text": ":smile :",
+          "type": "text"
+        }
+      ],
+      "plain": ":smile :",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-050",
+      "input": ": smile:",
+      "ast": [
+        {
+          "text": ": smile:",
+          "type": "text"
+        }
+      ],
+      "plain": ": smile:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-051",
+      "input": ":smi-le:",
+      "ast": [
+        {
+          "text": ":smi-le:",
+          "type": "text"
+        }
+      ],
+      "plain": ":smi-le:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-052",
+      "input": ":a_b:",
+      "ast": [
+        {
+          "text": ":a_b:",
+          "type": "text"
+        }
+      ],
+      "plain": ":a_b:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-053",
+      "input": ":aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:",
+      "ast": [
+        {
+          "text": ":aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:",
+          "type": "text"
+        }
+      ],
+      "plain": ":aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-054",
+      "input": ":aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:",
+      "ast": [
+        {
+          "text": ":aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:",
+          "type": "text"
+        }
+      ],
+      "plain": ":aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-055",
+      "input": ":é:",
+      "ast": [
+        {
+          "text": ":é:",
+          "type": "text"
+        }
+      ],
+      "plain": ":é:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-056",
+      "input": ":😄:",
+      "ast": [
+        {
+          "text": ":😄:",
+          "type": "text"
+        }
+      ],
+      "plain": ":😄:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-057",
+      "input": "12:30:45",
+      "ast": [
+        {
+          "text": "12:30:45",
+          "type": "text"
+        }
+      ],
+      "plain": "12:30:45",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-058",
+      "input": "time 10:30 pm",
+      "ast": [
+        {
+          "text": "time 10:30 pm",
+          "type": "text"
+        }
+      ],
+      "plain": "time 10:30 pm",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-059",
+      "input": "http://a.b:80/x",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "http://a.b:80/x",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "http://a.b:80/x"
+        }
+      ],
+      "plain": "http://a.b:80/x",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-060",
+      "input": "https://e.com/:fire:",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "https://e.com/:fire",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com/:fire"
+        },
+        {
+          "text": ":",
+          "type": "text"
+        }
+      ],
+      "plain": "https://e.com/:fire:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-061",
+      "input": "key:value:other",
+      "ast": [
+        {
+          "text": "key:value:other",
+          "type": "text"
+        }
+      ],
+      "plain": "key:value:other",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-062",
+      "input": "a::b",
+      "ast": [
+        {
+          "text": "a::b",
+          "type": "text"
+        }
+      ],
+      "plain": "a::b",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-063",
+      "input": "::smile::",
+      "ast": [
+        {
+          "text": "::smile::",
+          "type": "text"
+        }
+      ],
+      "plain": "::smile::",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-064",
+      "input": "ratio 3:2:1",
+      "ast": [
+        {
+          "text": "ratio 3:2:1",
+          "type": "text"
+        }
+      ],
+      "plain": "ratio 3:2:1",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-065",
+      "input": "`:smile:`",
+      "ast": [
+        {
+          "code": ":smile:",
+          "type": "inline_code"
+        }
+      ],
+      "plain": ":smile:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-066",
+      "input": "```\n:smile:\n```",
+      "ast": [
+        {
+          "code": ":smile:",
+          "lang": null,
+          "type": "code_block"
+        }
+      ],
+      "plain": ":smile:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-067",
+      "input": "**:smile:**",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": ":smile:",
+              "type": "text"
+            }
+          ],
+          "type": "bold"
+        }
+      ],
+      "plain": ":smile:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-068",
+      "input": "*:smile:*",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": ":smile:",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": ":smile:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-069",
+      "input": "__:smile:__",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": ":smile:",
+              "type": "text"
+            }
+          ],
+          "type": "underline"
+        }
+      ],
+      "plain": ":smile:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-070",
+      "input": "~~:smile:~~",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": ":smile:",
+              "type": "text"
+            }
+          ],
+          "type": "strike"
+        }
+      ],
+      "plain": ":smile:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-071",
+      "input": "||:smile:||",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": ":smile:",
+              "type": "text"
+            }
+          ],
+          "type": "spoiler"
+        }
+      ],
+      "plain": "[spoiler]",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-072",
+      "input": "> :smile:",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": ":smile:",
+              "type": "text"
+            }
+          ],
+          "type": "quote"
+        }
+      ],
+      "plain": ":smile:\n",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-073",
+      "input": "- :smile:",
+      "ast": [
+        {
+          "items": [
+            [
+              {
+                "text": ":smile:",
+                "type": "text"
+              }
+            ]
+          ],
+          "ordered": false,
+          "start": null,
+          "type": "list"
+        }
+      ],
+      "plain": ":smile:\n",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-074",
+      "input": "# :smile:",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": ":smile:",
+              "type": "text"
+            }
+          ],
+          "level": 1,
+          "type": "heading"
+        }
+      ],
+      "plain": ":smile:\n",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-075",
+      "input": "-# :smile:",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": ":smile:",
+              "type": "text"
+            }
+          ],
+          "type": "subtext"
+        }
+      ],
+      "plain": ":smile:\n",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-076",
+      "input": "[:smile:](https://e.com)",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": ":smile:",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com"
+        }
+      ],
+      "plain": ":smile:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-077",
+      "input": "[a :smile: b](https://e.com)",
+      "ast": [
+        {
+          "children": [
+            {
+              "text": "a :smile: b",
+              "type": "text"
+            }
+          ],
+          "kind": "masked",
+          "type": "link",
+          "url": "https://e.com"
+        }
+      ],
+      "plain": "a :smile: b",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-078",
+      "input": "\\:smile:",
+      "ast": [
+        {
+          "text": ":smile:",
+          "type": "text"
+        }
+      ],
+      "plain": ":smile:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-079",
+      "input": "\\:smile\\:",
+      "ast": [
+        {
+          "text": ":smile:",
+          "type": "text"
+        }
+      ],
+      "plain": ":smile:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-080",
+      "input": ":smile\\:",
+      "ast": [
+        {
+          "text": ":smile:",
+          "type": "text"
+        }
+      ],
+      "plain": ":smile:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-081",
+      "input": "<:smile:1>",
+      "ast": [
+        {
+          "animated": false,
+          "id": "1",
+          "name": "smile",
+          "type": "custom_emoji"
+        }
+      ],
+      "plain": ":smile:",
+      "jumbo": true
+    },
+    {
+      "name": "emoji-082",
+      "input": "<:smile:>",
+      "ast": [
+        {
+          "text": "<:smile:>",
+          "type": "text"
+        }
+      ],
+      "plain": "<:smile:>",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-083",
+      "input": "<:smile:1",
+      "ast": [
+        {
+          "text": "<:smile:1",
+          "type": "text"
+        }
+      ],
+      "plain": "<:smile:1",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-084",
+      "input": "<:xx:1>",
+      "ast": [
+        {
+          "animated": false,
+          "id": "1",
+          "name": "xx",
+          "type": "custom_emoji"
+        }
+      ],
+      "plain": ":xx:",
+      "jumbo": true
+    },
+    {
+      "name": "emoji-085",
+      "input": "<:smile:fire:>",
+      "ast": [
+        {
+          "text": "<:smile:fire:>",
+          "type": "text"
+        }
+      ],
+      "plain": "<:smile:fire:>",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-086",
+      "input": ":smile:<:xx:1>",
+      "ast": [
+        {
+          "text": ":smile:",
+          "type": "text"
+        },
+        {
+          "animated": false,
+          "id": "1",
+          "name": "xx",
+          "type": "custom_emoji"
+        }
+      ],
+      "plain": ":smile::xx:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-087",
+      "input": "text :smile: and <:xx:1> and <a:yy:2>",
+      "ast": [
+        {
+          "text": "text :smile: and ",
+          "type": "text"
+        },
+        {
+          "animated": false,
+          "id": "1",
+          "name": "xx",
+          "type": "custom_emoji"
+        },
+        {
+          "text": " and ",
+          "type": "text"
+        },
+        {
+          "animated": true,
+          "id": "2",
+          "name": "yy",
+          "type": "custom_emoji"
+        }
+      ],
+      "plain": "text :smile: and :xx: and :yy:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-088",
+      "input": ":smile:",
+      "ast": [
+        {
+          "text": ":smile:",
+          "type": "text"
+        }
+      ],
+      "plain": ":smile:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-089",
+      "input": ":grinning:",
+      "ast": [
+        {
+          "text": ":grinning:",
+          "type": "text"
+        }
+      ],
+      "plain": ":grinning:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-090",
+      "input": ":smiley:",
+      "ast": [
+        {
+          "text": ":smiley:",
+          "type": "text"
+        }
+      ],
+      "plain": ":smiley:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-091",
+      "input": ":laughing:",
+      "ast": [
+        {
+          "text": ":laughing:",
+          "type": "text"
+        }
+      ],
+      "plain": ":laughing:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-092",
+      "input": ":satisfied:",
+      "ast": [
+        {
+          "text": ":satisfied:",
+          "type": "text"
+        }
+      ],
+      "plain": ":satisfied:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-093",
+      "input": ":sunglasses:",
+      "ast": [
+        {
+          "text": ":sunglasses:",
+          "type": "text"
+        }
+      ],
+      "plain": ":sunglasses:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-094",
+      "input": ":nerd:",
+      "ast": [
+        {
+          "text": ":nerd:",
+          "type": "text"
+        }
+      ],
+      "plain": ":nerd:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-095",
+      "input": ":clown:",
+      "ast": [
+        {
+          "text": ":clown:",
+          "type": "text"
+        }
+      ],
+      "plain": ":clown:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-096",
+      "input": ":ghost:",
+      "ast": [
+        {
+          "text": ":ghost:",
+          "type": "text"
+        }
+      ],
+      "plain": ":ghost:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-097",
+      "input": ":alien:",
+      "ast": [
+        {
+          "text": ":alien:",
+          "type": "text"
+        }
+      ],
+      "plain": ":alien:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-098",
+      "input": ":robot:",
+      "ast": [
+        {
+          "text": ":robot:",
+          "type": "text"
+        }
+      ],
+      "plain": ":robot:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-099",
+      "input": ":see_no_evil:",
+      "ast": [
+        {
+          "text": ":see_no_evil:",
+          "type": "text"
+        }
+      ],
+      "plain": ":see_no_evil:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-100",
+      "input": ":muscle:",
+      "ast": [
+        {
+          "text": ":muscle:",
+          "type": "text"
+        }
+      ],
+      "plain": ":muscle:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-101",
+      "input": ":point_up:",
+      "ast": [
+        {
+          "text": ":point_up:",
+          "type": "text"
+        }
+      ],
+      "plain": ":point_up:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-102",
+      "input": ":v:",
+      "ast": [
+        {
+          "text": ":v:",
+          "type": "text"
+        }
+      ],
+      "plain": ":v:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-103",
+      "input": ":ok_hand:",
+      "ast": [
+        {
+          "text": ":ok_hand:",
+          "type": "text"
+        }
+      ],
+      "plain": ":ok_hand:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-104",
+      "input": ":clap:",
+      "ast": [
+        {
+          "text": ":clap:",
+          "type": "text"
+        }
+      ],
+      "plain": ":clap:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-105",
+      "input": ":handshake:",
+      "ast": [
+        {
+          "text": ":handshake:",
+          "type": "text"
+        }
+      ],
+      "plain": ":handshake:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-106",
+      "input": ":brain:",
+      "ast": [
+        {
+          "text": ":brain:",
+          "type": "text"
+        }
+      ],
+      "plain": ":brain:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-107",
+      "input": ":dog:",
+      "ast": [
+        {
+          "text": ":dog:",
+          "type": "text"
+        }
+      ],
+      "plain": ":dog:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-108",
+      "input": ":cat:",
+      "ast": [
+        {
+          "text": ":cat:",
+          "type": "text"
+        }
+      ],
+      "plain": ":cat:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-109",
+      "input": ":unicorn:",
+      "ast": [
+        {
+          "text": ":unicorn:",
+          "type": "text"
+        }
+      ],
+      "plain": ":unicorn:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-110",
+      "input": ":butterfly:",
+      "ast": [
+        {
+          "text": ":butterfly:",
+          "type": "text"
+        }
+      ],
+      "plain": ":butterfly:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-111",
+      "input": ":apple:",
+      "ast": [
+        {
+          "text": ":apple:",
+          "type": "text"
+        }
+      ],
+      "plain": ":apple:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-112",
+      "input": ":pizza:",
+      "ast": [
+        {
+          "text": ":pizza:",
+          "type": "text"
+        }
+      ],
+      "plain": ":pizza:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-113",
+      "input": ":coffee:",
+      "ast": [
+        {
+          "text": ":coffee:",
+          "type": "text"
+        }
+      ],
+      "plain": ":coffee:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-114",
+      "input": ":beer:",
+      "ast": [
+        {
+          "text": ":beer:",
+          "type": "text"
+        }
+      ],
+      "plain": ":beer:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-115",
+      "input": ":soccer:",
+      "ast": [
+        {
+          "text": ":soccer:",
+          "type": "text"
+        }
+      ],
+      "plain": ":soccer:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-116",
+      "input": ":trophy:",
+      "ast": [
+        {
+          "text": ":trophy:",
+          "type": "text"
+        }
+      ],
+      "plain": ":trophy:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-117",
+      "input": ":video_game:",
+      "ast": [
+        {
+          "text": ":video_game:",
+          "type": "text"
+        }
+      ],
+      "plain": ":video_game:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-118",
+      "input": ":guitar:",
+      "ast": [
+        {
+          "text": ":guitar:",
+          "type": "text"
+        }
+      ],
+      "plain": ":guitar:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-119",
+      "input": ":car:",
+      "ast": [
+        {
+          "text": ":car:",
+          "type": "text"
+        }
+      ],
+      "plain": ":car:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-120",
+      "input": ":airplane:",
+      "ast": [
+        {
+          "text": ":airplane:",
+          "type": "text"
+        }
+      ],
+      "plain": ":airplane:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-121",
+      "input": ":house:",
+      "ast": [
+        {
+          "text": ":house:",
+          "type": "text"
+        }
+      ],
+      "plain": ":house:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-122",
+      "input": ":computer:",
+      "ast": [
+        {
+          "text": ":computer:",
+          "type": "text"
+        }
+      ],
+      "plain": ":computer:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-123",
+      "input": ":bulb:",
+      "ast": [
+        {
+          "text": ":bulb:",
+          "type": "text"
+        }
+      ],
+      "plain": ":bulb:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-124",
+      "input": ":moneybag:",
+      "ast": [
+        {
+          "text": ":moneybag:",
+          "type": "text"
+        }
+      ],
+      "plain": ":moneybag:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-125",
+      "input": ":lock:",
+      "ast": [
+        {
+          "text": ":lock:",
+          "type": "text"
+        }
+      ],
+      "plain": ":lock:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-126",
+      "input": ":key:",
+      "ast": [
+        {
+          "text": ":key:",
+          "type": "text"
+        }
+      ],
+      "plain": ":key:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-127",
+      "input": ":hammer:",
+      "ast": [
+        {
+          "text": ":hammer:",
+          "type": "text"
+        }
+      ],
+      "plain": ":hammer:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-128",
+      "input": ":bell:",
+      "ast": [
+        {
+          "text": ":bell:",
+          "type": "text"
+        }
+      ],
+      "plain": ":bell:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-129",
+      "input": ":hourglass:",
+      "ast": [
+        {
+          "text": ":hourglass:",
+          "type": "text"
+        }
+      ],
+      "plain": ":hourglass:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-130",
+      "input": ":recycle:",
+      "ast": [
+        {
+          "text": ":recycle:",
+          "type": "text"
+        }
+      ],
+      "plain": ":recycle:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-131",
+      "input": ":arrow_right:",
+      "ast": [
+        {
+          "text": ":arrow_right:",
+          "type": "text"
+        }
+      ],
+      "plain": ":arrow_right:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-132",
+      "input": ":red_circle:",
+      "ast": [
+        {
+          "text": ":red_circle:",
+          "type": "text"
+        }
+      ],
+      "plain": ":red_circle:",
+      "jumbo": false
+    },
+    {
+      "name": "emoji-133",
+      "input": ":crown:",
+      "ast": [
+        {
+          "text": ":crown:",
+          "type": "text"
+        }
+      ],
+      "plain": ":crown:",
+      "jumbo": false
+    }
+  ]
+}

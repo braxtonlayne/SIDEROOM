@@ -1,0 +1,43 @@
+.scroll {
+  box-sizing: border-box;
+  position: relative;
+  min-height: 0;
+  overscroll-behavior: contain;
+  scrollbar-gutter: auto;
+}
+.scroll:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: -2px; }
+
+.y { overflow-y: auto; overflow-x: hidden; }
+.x { overflow-x: auto; overflow-y: hidden; }
+.both { overflow: auto; }
+
+/* thin: slim, themed, shows on hover/focus; auto: platform default */
+.thin {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.thin:hover,
+.thin:focus-within,
+.thin:focus {
+  scrollbar-color: var(--ui-text-faint) transparent;
+}
+.thin::-webkit-scrollbar { width: 8px; height: 8px; }
+.thin::-webkit-scrollbar-track { background: transparent; }
+.thin::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.thin:hover::-webkit-scrollbar-thumb,
+.thin:focus-within::-webkit-scrollbar-thumb {
+  background-color: var(--ui-text-faint);
+}
+.thin::-webkit-scrollbar-thumb:hover { background-color: var(--ui-text-muted); }
+
+.hidden { scrollbar-width: none; }
+.hidden::-webkit-scrollbar { display: none; }
+
+.sizer { position: relative; width: 100%; }
+.row { position: absolute; top: 0; left: 0; width: 100%; }
+.gridRow { display: grid; box-sizing: border-box; }

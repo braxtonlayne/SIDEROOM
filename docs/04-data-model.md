@@ -45,6 +45,12 @@ Unique (provider, provider_user_id) applies **across all accounts, including del
 ### `sessions`, `mfa_totp`, `webauthn_credentials`, `recovery_codes`, `email_tokens`
 Standard. Tokens are stored as SHA-256 hashes.
 
+### `login_events` (migration 0001)
+Login IP history, kept 180 days (doc 09 §1). Visible to staff with `MANAGE_ACCOUNTS`.
+
+### `accounts.age_confirmed` (migration 0001)
+Nullable boolean beside `age_confirmed_at`. `true`/`false` records the age-gate answer (doc 06 §7); `age_confirmed_at` records the yes.
+
 ### `platform_invites`
 | col | type | notes |
 |---|---|---|
@@ -68,7 +74,9 @@ Append-only. `(account_id, delta, reason enum{initial_grant, redemption, purchas
 id, name, icon_key, banner_key, splash_key, owner_id, description, `features text[]` (e.g. `COMMUNITY`, `DISCOVERABLE`, `STAFF`), verification_level, default_message_notifications, explicit_content_filter, mfa_level, system_channel_id, rules_channel_id, public_updates_channel_id, afk_channel_id, afk_timeout, preferred_locale, vanity_code, nsfw_level, `is_staff_guild bool` (exactly one row true, enforced by a partial unique index), boost_level (derived), traits jsonb, settings jsonb.
 
 ### `guild_members`
-(guild_id, user_id) pk, nick, avatar_key (per-server), banner_key, bio, joined_at, premium_since, communication_disabled_until, flags, pending (membership screening), `roles bigint[]`.
+(guild_id, user_id) pk, nick, avatar_key (per-server), banner_key, bio, joined_at, premium_since, communication_disabled_until, flags, pending (membership screening).
+
+Roles are a join table, `member_roles (guild_id, user_id, role_id)`, not an array column. Foreign keys cascade on role or member delete. The API still exposes `roles: [role ids]` on the member object.
 
 ### `roles`
 id, guild_id, name, color, secondary_color, icon_key, unicode_emoji, hoist, position, permissions (bigint, Discord bit layout), mentionable, managed, tags jsonb.
@@ -83,7 +91,9 @@ id, guild_id null (null = DM/group DM), type (Discord enum: 0 text, 1 DM, 2 voic
 As in Discord.
 
 ### `channel_recipients`
-For DMs and group DMs.
+For DMs and group DMs. Per-recipient columns:
+- `request_state` (`accepted`, `pending`, `ignored`, `spam`; default `accepted`). A non-friend's first DM lands as `pending` on the recipient's row when their message-requests setting allows it (migration 0072).
+- `hidden_at` (the recipient closed the DM; a new message reopens it) and `seq` (join order, used for ownership hand-over). Migration 0021.
 
 ## 3. Messages
 
@@ -124,7 +134,15 @@ id, message_id, uploader_id, filename, content_type, size_bytes, width, height, 
 
 ## 4. Social
 
-`relationships` (user_id, target_id, type: friend / blocked / pending_incoming / pending_outgoing / ignored, nickname), `user_notes`, `user_settings` (jsonb blob, versioned like Discord's proto settings), `guild_member_settings` (notification overrides), `presences` (memory only).
+`relationships` (user_id, target_id, type: friend / blocked / pending_incoming / pending_outgoing, nickname). Codes follow Discord (1 to 4). Nicknames exist only on `friend` rows, up to 32 characters (migration 0020).
+
+`user_ignores` (user_id, target_id, created_at; primary key on the pair). Ignore is its own table, not a relationship type, so ignoring a friend keeps the friendship. Ignoring hides messages, activity and DM notifications. Relationship type 6 ("ignored") is retired and its rows moved here (migration 0070).
+
+`user_notes` (user_id, target_id, note up to 256 characters, created_at, updated_at; primary key on the pair). Private notes on any user (migration 0071).
+
+`user_privacy` (user_id primary key; booleans `fr_everyone`, `fr_friends_of_friends`, `fr_server_members`, `dm_server_members`, `dm_message_requests`). The server enforces these rules, so they keep typed columns (migration 0020). When the Discord-shaped `user_settings` blob lands, these fields are projected into it on read and written back to this table.
+
+`user_settings` (jsonb blob, versioned like Discord's proto settings), `guild_member_settings` (notification overrides), `presences` (memory only).
 
 ## 5. Expression
 
@@ -173,6 +191,7 @@ id, message_id, uploader_id, filename, content_type, size_bytes, width, height, 
 
 ## 13. Indexing notes
 
+- Migration-level additions beyond the tables above: `login_events` and `accounts.age_confirmed` (section 1), the `jobs` queue (migration 0004; recurring singleton jobs use reserved ids below 1024), and `feature_enablements` with channel scope and nullable `enabled` for inherit (migration 0050).
 - `messages`: (channel_id, id DESC), partial index `WHERE visibility='visible'`, and (purge_after) WHERE purge_after IS NOT NULL.
 - `attachments`: (expires_at) WHERE is_large AND state='ready'.
 - `guild_members`: (user_id) for "my guilds".

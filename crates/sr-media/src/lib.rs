@@ -1,1 +1,1 @@
-//! `sr-media` — see docs/02-architecture.md §3.
+//! sr-media — see docs/02-architecture.md §3.

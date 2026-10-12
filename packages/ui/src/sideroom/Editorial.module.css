@@ -1,0 +1,71 @@
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin: 0;
+  font-family: var(--sr-font-body, var(--ui-font-body));
+  font-size: var(--sr-eyebrow-size, 12px);
+  letter-spacing: var(--sr-eyebrow-tracking, 0.28em);
+  text-transform: uppercase;
+  color: var(--sr-gold, var(--ui-accent));
+}
+.rule {
+  flex: none;
+  width: var(--sr-eyebrow-rule, 40px);
+  height: 1px;
+  background: currentColor;
+}
+
+.heading {
+  margin: 0;
+  font-family: var(--sr-font-display, var(--ui-font-display));
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--sr-text, var(--ui-text));
+}
+.size-md { font-size: clamp(1.75rem, 3vw, 2.5rem); }
+.size-lg { font-size: clamp(2.25rem, 5vw, 3.75rem); }
+.size-xl { font-size: clamp(3rem, 8vw, 6rem); }
+.accent { font-style: italic; color: var(--sr-gold, var(--ui-accent)); }
+
+.arrowLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--sr-text, var(--ui-text));
+  font-family: var(--sr-font-body, var(--ui-font-body));
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+.arrowLink:hover { border-bottom-color: var(--sr-gold, var(--ui-accent)); }
+.arrowLink:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 3px; }
+.arrow { color: var(--sr-gold, var(--ui-accent)); transition: transform var(--ui-motion-duration, 160ms); }
+.arrowLink:hover .arrow,
+.srButton:hover .arrow { transform: translate(2px, -2px); }
+:global([data-reduced-motion="true"]) .arrow { transition: none; }
+:global([data-reduced-motion="true"]) .arrowLink:hover .arrow,
+:global([data-reduced-motion="true"]) .srButton:hover .arrow { transform: none; }
+
+.srButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  min-height: 44px;
+  padding: 0 20px;
+  border: 1px solid transparent;
+  border-radius: var(--sr-radius, var(--ui-radius));
+  font-family: var(--sr-font-body, var(--ui-font-body));
+  font-size: 0.9375rem;
+  cursor: pointer;
+  transition: background-color var(--ui-motion-duration, 160ms), border-color var(--ui-motion-duration, 160ms);
+}
+.srButton:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 2px; }
+.srButton:disabled { opacity: 0.5; cursor: not-allowed; }
+.gold { background: var(--sr-gold, var(--ui-accent)); color: var(--sr-gold-ink, var(--ui-accent-ink)); }
+.gold:hover:not(:disabled) { background: var(--ui-accent-hover); }
+.outline { background: transparent; color: var(--sr-text, var(--ui-text)); border-color: var(--sr-line, var(--ui-border)); }
+.outline:hover:not(:disabled) { border-color: var(--sr-gold, var(--ui-accent)); }
+.plain { background: transparent; color: var(--sr-text, var(--ui-text)); padding: 0 8px; }
+.plain:hover:not(:disabled) { color: var(--sr-gold, var(--ui-accent)); }

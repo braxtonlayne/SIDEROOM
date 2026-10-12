@@ -69,6 +69,69 @@ Prefix `/api/v1/sr/...`. These are first-party-only unless an OAuth scope is gra
 | Features/settings | `/sr/features` (registry + effective settings for a scope) |
 | Packages | `/sr/packages` (themes/extensions/layouts/activities) |
 
+### 5.1 Entrance and account auth endpoints
+
+Implemented in `crates/sr-api/src/routes/auth/` (`routes::auth::router_with(service)`). Paths are relative to `/api/v1`. Errors use the standard body; field errors are the Discord `errors` tree (`errors.<field>._errors[0].message`). "Session" means a logged-in cookie session with the `X-SR-CSRF` header on non-GET requests. Pre-login POSTs carry no CSRF token: they require `Content-Type: application/json` and, when the browser sends an `Origin`, it must be one of the allowed origins (else 403).
+
+| Method and path | Auth | Request | Response |
+|---|---|---|---|
+| `GET /sr/invites/{code}` | none | n/a | `{valid:true}`, `{valid:false}` (unknown, malformed, used and revoked are identical), or `{valid:false,reason:"closed"}` (cap reached; returned for every code). Per IP: 10/min and 50/day, then 429 |
+| `GET /sr/usernames/check?username=` | none | n/a | `{available:bool}` (invalid and reserved names are unavailable). 30/min per IP |
+| `POST /sr/register` | none | `{code,email,username,display_name?,password,accepted_house_notes:true}` | 201 `{id}` and the `sr_session` cookie. 400 with field errors (`email`, `username`, `display_name`, `password`, `rules`); 403 `900006` for any unusable invite; 403 `900005` when closed. Consumes the invite, checks the cap and issuer credit, writes ledger rows (issuer -1 `redemption`, new account +5 `initial_grant`) in one transaction, and emails a verification link. 5/min and 20/day per IP |
+| `POST /sr/age-gate` | session | `{over_18:bool}` | 204. Stores the "Are you 18 or older?" answer (D-032) |
+| `POST /sr/auth/login` | none | `{login,password}` (username or email) | `{status:"ok"}` and the session cookie, or `{status:"mfa_required",methods:["totp","recovery"]}` and a 5-minute `sr_mfa` cookie. 401 `"That doesn't match our list."` for unknown account or wrong password alike; 429 with `retry_after` after 5 failures per login name and client address (30 s doubling to 15 min), 50 attempts per login name per hour, or 30 per IP; 403 `900007`/`900008` for deactivated or banned accounts, only after the correct password |
+| `POST /sr/auth/2fa` | `sr_mfa` cookie | `{method:"totp" or "recovery",code,trust_device}` | `{status:"ok"}` (+ `recovery_codes_remaining` for recovery) and the session cookie. 401 on a wrong, replayed or expired code; the pending login is dropped after 5 wrong codes. `trust_device: true` also sets a 30-day `sr_trusted` cookie (API-scoped); a login from that browser skips the second factor until the device is revoked (`GET`/`DELETE /sr/auth/trusted-devices[/{id}]`) |
+| `POST /sr/auth/logout`, `POST /sr/auth/logout-all` | session | n/a | 204 and the cookie is cleared |
+| `GET /sr/auth/sessions` | session | n/a | `[{id,device_name,created_at,last_seen_at,expires_at,current}]`, newest first |
+| `DELETE /sr/auth/sessions/{id}` | session | n/a | 204, or 404 `10020` |
+| `POST /sr/auth/totp/enroll` | session | n/a | `{otpauth_uri,manual_entry_key}` (pending secret) |
+| `POST /sr/auth/totp/verify` | session | `{code}` | `{recovery_codes:[10 codes]}` (shown once). 400 `errors.code` on a wrong code |
+| `DELETE /sr/auth/totp` | session | `{password}` | 204 (removes TOTP and recovery codes). 403 `900004` on a wrong password |
+| `POST /sr/auth/recovery-codes` | session | `{password}` | `{recovery_codes:[10 codes]}`, replacing the old set |
+| `POST /sr/auth/forgot` | none | `{email}` | Always 204 (no account enumeration; the email is sent in the background). 5 per 10 min per IP, one mail per address per minute |
+| `POST /sr/auth/reset` | none | `{token,password}` | 204 and all sessions are revoked; 2FA is still required at the next login. 400 `errors.token` for an invalid, used or expired (30 min) link; 400 `errors.password` for a weak password (the link stays valid) |
+| `POST /sr/auth/verify-email` | none | `{token}` | 204, or 400 `errors.token` (24 h, single use) |
+| `POST /sr/auth/verify-email/resend` | session | n/a | 204. One mail per account per minute (429 otherwise); no-op once verified |
+| `POST /sr/auth/login-link` | none | `{token}` | `{status:"ok"}` and the session cookie for the one-time Owner link printed by `sr-cli bootstrap` (1 hour, single use). 400 `errors.token` otherwise; a reset link never logs in |
+| `GET /sr/auth/trusted-devices` | session | n/a | `[{id,device_name,created_at,expires_at}]` |
+| `DELETE /sr/auth/trusted-devices/{id}` | session | n/a | 204, or 404 `10020` |
+| `GET /sr/auth/discord/start?intent=login` or `register`, optional `next` | none | n/a | 302 to Discord with a 10-minute `sr_oauth_state` cookie. 404 when `[discord]` has no client id |
+| `GET /sr/auth/discord/callback` | cookies | n/a | 302 back to the app: `/login` (signed in, or `?error=discord_unlinked`), `/login/2fa` when a second factor applies, or `/register` with a 10-minute `sr_oauth` cookie holding a pending Discord link (consumed by `POST /sr/register`). The server-side state is checked, so a forged callback is refused |
+| `GET /sr/auth/discord/pending` | cookie | n/a | `{pending:true,username}` or `{pending:false}` |
+| `DELETE /sr/auth/discord/pending` | cookie | n/a | 204 and the pending link is dropped |
+
+Not implemented yet: passkeys (`/sr/auth/passkey/*`). The `webauthn-rs` crate depends on the C `openssl` library, which needs an ADR (doc 03 section 4) before it can be used. Discord OAuth is implemented (`oauth2` with rustls) as listed above. The CSRF token is issued by `GET /sr/csrf` (section 2).
+
+### 5.2 CDN delivery: `/cdn/...`
+
+`GET|HEAD /cdn/<kind>/<segment>/...?ex=<unix-seconds>&sig=<base64url>` serves stored media. It lives on the public listener **outside** `/api/v1`: no cookie, no CSRF, no `Authorization`. The signature (`HMAC-SHA256(secret, "{canonical path}\n{ex}")`, constant-time compare) is the credential, so a signed URL is a bearer link. Buckets are never public; the server streams objects from storage.
+
+| `<kind>` | Object key | Source |
+|---|---|---|
+| `attachments` | `chat/{channel}/{attachment}/{filename}` | message attachments (`url` / `proxy_url` are returned signed, valid 24 h) |
+| `emoji` | `emoji/{guild}/{emoji}.{ext}` | custom emoji (`/cdn/emoji/{guild}/{emoji}.{png,jpg,gif,webp}`) |
+| `stickers` | `sticker/{guild}/{sticker}.{ext}` | guild stickers |
+| `avatars`, `icons` | `avatars/...`, `icons/...` | reserved |
+
+Any other kind is 404. Emoji objects carry no URL in the Discord shape; clients build the path from the guild and emoji ids and obtain a signature from the server. Rust code builds paths with `routes::cdn::cdn_path(kind, &[segments])`, which percent-encodes each segment (everything but `A-Za-z0-9-._~`) and yields the canonical path that is signed. The server decodes the request path and re-canonicalises it before verifying, so `%20` vs a literal space, or hex case, do not matter. (`?size=` resizing is not implemented; FND-STOR-003.)
+
+Responses:
+
+| Status | When |
+|---|---|
+| 200 / 206 | Object (or one range). Always `Content-Length`, `Accept-Ranges: bytes`, `ETag`, `Cache-Control: private, max-age=<remaining signed lifetime, at most 86400>`, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; sandbox`, `Referrer-Policy: no-referrer` |
+| 304 | `If-None-Match` matches the ETag (strong tag derived from key and storage etag) |
+| 400 | Malformed path: `..`, `.`, empty segment, trailing slash, backslash, bad or non-UTF-8 percent escape, control character, over-long |
+| 403 | `ex` or `sig` missing, malformed, or not matching the path |
+| 404 | Unknown kind (before any signature check), or object missing (only after a valid signature) |
+| 410 | Signature valid but `ex` is in the past (the client should refetch the message for a fresh URL) |
+| 416 | Unsatisfiable range, with `Content-Range: bytes */<len>` |
+| 429 | Per-client-IP limit (bucket `GET /cdn/{*path}`, default 300 per 10 s, shared process-wide limiter) |
+
+`Range`: a single `bytes=a-b`, `a-` or `-n` range gives 206 with `Content-Range`. A multi-range or syntactically invalid header is ignored and the whole object is sent with 200 (RFC 9110 permits ignoring Range). `If-Range` with a stale ETag also gives 200. HEAD returns the same headers without a body.
+
+Content type: images, video and audio from an allow-list (png, jpeg, gif, webp, avif, mp4, webm, mov, mp3, ogg, flac, wav, m4a, aac) are served with their real type and `Content-Disposition: inline`, chosen by file extension, or by sniffing the first 512 bytes when the extension is unknown. Everything else (HTML, SVG, PDF, scripts, unknown) is forced to `Content-Type: application/octet-stream` with `Content-Disposition: attachment`, so an upload cannot run in the site origin. CORS allows only the configured public origin(s), without credentials. No compression layer is applied.
+
 ## 6. Gateway
 
 ### 6.1 Opcodes (Discord numbering)

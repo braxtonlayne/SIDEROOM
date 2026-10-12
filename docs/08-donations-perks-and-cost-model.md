@@ -35,6 +35,8 @@ Perks follow the user everywhere (D-072):
 
 Patron is a 30-day entitlement from confirmation, plus a 3-day grace period (D-073). Paying again extends it. Users can prepay up to 12 months at once.
 
+> **Units.** Size limits in this document are binary. "30 MB" means 30 MiB (31,457,280 bytes), and "500 MB" means 500 MiB. Discord's "10 MB" limit is also 10 MiB. Copy may say "MB" for familiarity; code and configuration use bytes or MiB (Q24).
+
 ### 2.2 Server support: "Server Levels" (pooled, monthly)
 Members contribute any amount (minimum $1) from **Server Settings → Server Support** (the replacement for Discord's "Boost Perks"). A server's **pool** is the sum of confirmed contributions in the last 30 days. Its **level** is the highest threshold the pool meets. If the pool drops below a threshold, the server keeps that level for the 3-day grace period, then downgrades.
 

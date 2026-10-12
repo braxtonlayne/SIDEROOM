@@ -1,0 +1,719 @@
+{
+  "description": "Backslash escapes",
+  "cases": [
+    {
+      "name": "esc-001",
+      "input": "\\*not\\*",
+      "ast": [
+        {
+          "text": "*not*",
+          "type": "text"
+        }
+      ],
+      "plain": "*not*",
+      "jumbo": false
+    },
+    {
+      "name": "esc-002",
+      "input": "\\_not\\_",
+      "ast": [
+        {
+          "text": "_not_",
+          "type": "text"
+        }
+      ],
+      "plain": "_not_",
+      "jumbo": false
+    },
+    {
+      "name": "esc-003",
+      "input": "\\~~not\\~~",
+      "ast": [
+        {
+          "text": "~~not~~",
+          "type": "text"
+        }
+      ],
+      "plain": "~~not~~",
+      "jumbo": false
+    },
+    {
+      "name": "esc-004",
+      "input": "\\|\\|x\\|\\|",
+      "ast": [
+        {
+          "text": "||x||",
+          "type": "text"
+        }
+      ],
+      "plain": "||x||",
+      "jumbo": false
+    },
+    {
+      "name": "esc-005",
+      "input": "\\||x\\||",
+      "ast": [
+        {
+          "text": "||x||",
+          "type": "text"
+        }
+      ],
+      "plain": "||x||",
+      "jumbo": false
+    },
+    {
+      "name": "esc-006",
+      "input": "\\**x*\\*",
+      "ast": [
+        {
+          "text": "*",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        },
+        {
+          "text": "*",
+          "type": "text"
+        }
+      ],
+      "plain": "*x*",
+      "jumbo": false
+    },
+    {
+      "name": "esc-007",
+      "input": "\\\\",
+      "ast": [
+        {
+          "text": "\\",
+          "type": "text"
+        }
+      ],
+      "plain": "\\",
+      "jumbo": false
+    },
+    {
+      "name": "esc-008",
+      "input": "\\\\\\\\",
+      "ast": [
+        {
+          "text": "\\\\",
+          "type": "text"
+        }
+      ],
+      "plain": "\\\\",
+      "jumbo": false
+    },
+    {
+      "name": "esc-009",
+      "input": "\\\\*x*",
+      "ast": [
+        {
+          "text": "\\",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "type": "italic"
+        }
+      ],
+      "plain": "\\x",
+      "jumbo": false
+    },
+    {
+      "name": "esc-010",
+      "input": "\\a",
+      "ast": [
+        {
+          "text": "\\a",
+          "type": "text"
+        }
+      ],
+      "plain": "\\a",
+      "jumbo": false
+    },
+    {
+      "name": "esc-011",
+      "input": "\\1",
+      "ast": [
+        {
+          "text": "\\1",
+          "type": "text"
+        }
+      ],
+      "plain": "\\1",
+      "jumbo": false
+    },
+    {
+      "name": "esc-012",
+      "input": "\\ ",
+      "ast": [
+        {
+          "text": "\\ ",
+          "type": "text"
+        }
+      ],
+      "plain": "\\ ",
+      "jumbo": false
+    },
+    {
+      "name": "esc-013",
+      "input": "trailing\\",
+      "ast": [
+        {
+          "text": "trailing\\",
+          "type": "text"
+        }
+      ],
+      "plain": "trailing\\",
+      "jumbo": false
+    },
+    {
+      "name": "esc-014",
+      "input": "\\`x\\`",
+      "ast": [
+        {
+          "text": "`x`",
+          "type": "text"
+        }
+      ],
+      "plain": "`x`",
+      "jumbo": false
+    },
+    {
+      "name": "esc-015",
+      "input": "\\<@1>",
+      "ast": [
+        {
+          "text": "<@1>",
+          "type": "text"
+        }
+      ],
+      "plain": "<@1>",
+      "jumbo": false
+    },
+    {
+      "name": "esc-016",
+      "input": "\\<:e:1>",
+      "ast": [
+        {
+          "text": "<:e:1>",
+          "type": "text"
+        }
+      ],
+      "plain": "<:e:1>",
+      "jumbo": false
+    },
+    {
+      "name": "esc-017",
+      "input": "\\#",
+      "ast": [
+        {
+          "text": "#",
+          "type": "text"
+        }
+      ],
+      "plain": "#",
+      "jumbo": false
+    },
+    {
+      "name": "esc-018",
+      "input": "\\> quote",
+      "ast": [
+        {
+          "text": "> quote",
+          "type": "text"
+        }
+      ],
+      "plain": "> quote",
+      "jumbo": false
+    },
+    {
+      "name": "esc-019",
+      "input": "\\>>> q",
+      "ast": [
+        {
+          "text": ">>> q",
+          "type": "text"
+        }
+      ],
+      "plain": ">>> q",
+      "jumbo": false
+    },
+    {
+      "name": "esc-020",
+      "input": "\\- item",
+      "ast": [
+        {
+          "text": "- item",
+          "type": "text"
+        }
+      ],
+      "plain": "- item",
+      "jumbo": false
+    },
+    {
+      "name": "esc-021",
+      "input": "\\# h",
+      "ast": [
+        {
+          "text": "# h",
+          "type": "text"
+        }
+      ],
+      "plain": "# h",
+      "jumbo": false
+    },
+    {
+      "name": "esc-022",
+      "input": "\\-# s",
+      "ast": [
+        {
+          "text": "-# s",
+          "type": "text"
+        }
+      ],
+      "plain": "-# s",
+      "jumbo": false
+    },
+    {
+      "name": "esc-023",
+      "input": "\\[a](https://e.com)",
+      "ast": [
+        {
+          "text": "[a](",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "https://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com"
+        },
+        {
+          "text": ")",
+          "type": "text"
+        }
+      ],
+      "plain": "[a](https://e.com)",
+      "jumbo": false
+    },
+    {
+      "name": "esc-024",
+      "input": "[a\\](https://e.com)",
+      "ast": [
+        {
+          "text": "[a](",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "https://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com"
+        },
+        {
+          "text": ")",
+          "type": "text"
+        }
+      ],
+      "plain": "[a](https://e.com)",
+      "jumbo": false
+    },
+    {
+      "name": "esc-025",
+      "input": "\\:smile:",
+      "ast": [
+        {
+          "text": ":smile:",
+          "type": "text"
+        }
+      ],
+      "plain": ":smile:",
+      "jumbo": false
+    },
+    {
+      "name": "esc-026",
+      "input": "\\@everyone",
+      "ast": [
+        {
+          "text": "@everyone",
+          "type": "text"
+        }
+      ],
+      "plain": "@everyone",
+      "jumbo": false
+    },
+    {
+      "name": "esc-027",
+      "input": "\\<https://e.com>",
+      "ast": [
+        {
+          "text": "<",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "https://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "https://e.com"
+        },
+        {
+          "text": ">",
+          "type": "text"
+        }
+      ],
+      "plain": "<https://e.com>",
+      "jumbo": false
+    },
+    {
+      "name": "esc-028",
+      "input": "\\http://e.com",
+      "ast": [
+        {
+          "text": "\\",
+          "type": "text"
+        },
+        {
+          "children": [
+            {
+              "text": "http://e.com",
+              "type": "text"
+            }
+          ],
+          "kind": "auto",
+          "type": "link",
+          "url": "http://e.com"
+        }
+      ],
+      "plain": "\\http://e.com",
+      "jumbo": false
+    },
+    {
+      "name": "esc-029",
+      "input": "\\*",
+      "ast": [
+        {
+          "text": "*",
+          "type": "text"
+        }
+      ],
+      "plain": "*",
+      "jumbo": false
+    },
+    {
+      "name": "esc-030",
+      "input": "\\_",
+      "ast": [
+        {
+          "text": "_",
+          "type": "text"
+        }
+      ],
+      "plain": "_",
+      "jumbo": false
+    },
+    {
+      "name": "esc-031",
+      "input": "\\~",
+      "ast": [
+        {
+          "text": "~",
+          "type": "text"
+        }
+      ],
+      "plain": "~",
+      "jumbo": false
+    },
+    {
+      "name": "esc-032",
+      "input": "\\|",
+      "ast": [
+        {
+          "text": "|",
+          "type": "text"
+        }
+      ],
+      "plain": "|",
+      "jumbo": false
+    },
+    {
+      "name": "esc-033",
+      "input": "\\`",
+      "ast": [
+        {
+          "text": "`",
+          "type": "text"
+        }
+      ],
+      "plain": "`",
+      "jumbo": false
+    },
+    {
+      "name": "esc-034",
+      "input": "\\(",
+      "ast": [
+        {
+          "text": "(",
+          "type": "text"
+        }
+      ],
+      "plain": "(",
+      "jumbo": false
+    },
+    {
+      "name": "esc-035",
+      "input": "\\)",
+      "ast": [
+        {
+          "text": ")",
+          "type": "text"
+        }
+      ],
+      "plain": ")",
+      "jumbo": false
+    },
+    {
+      "name": "esc-036",
+      "input": "\\!",
+      "ast": [
+        {
+          "text": "!",
+          "type": "text"
+        }
+      ],
+      "plain": "!",
+      "jumbo": false
+    },
+    {
+      "name": "esc-037",
+      "input": "\\.",
+      "ast": [
+        {
+          "text": ".",
+          "type": "text"
+        }
+      ],
+      "plain": ".",
+      "jumbo": false
+    },
+    {
+      "name": "esc-038",
+      "input": "\\,",
+      "ast": [
+        {
+          "text": ",",
+          "type": "text"
+        }
+      ],
+      "plain": ",",
+      "jumbo": false
+    },
+    {
+      "name": "esc-039",
+      "input": "\\$",
+      "ast": [
+        {
+          "text": "$",
+          "type": "text"
+        }
+      ],
+      "plain": "$",
+      "jumbo": false
+    },
+    {
+      "name": "esc-040",
+      "input": "\\%",
+      "ast": [
+        {
+          "text": "%",
+          "type": "text"
+        }
+      ],
+      "plain": "%",
+      "jumbo": false
+    },
+    {
+      "name": "esc-041",
+      "input": "\\&",
+      "ast": [
+        {
+          "text": "&",
+          "type": "text"
+        }
+      ],
+      "plain": "&",
+      "jumbo": false
+    },
+    {
+      "name": "esc-042",
+      "input": "\\+",
+      "ast": [
+        {
+          "text": "+",
+          "type": "text"
+        }
+      ],
+      "plain": "+",
+      "jumbo": false
+    },
+    {
+      "name": "esc-043",
+      "input": "\\=",
+      "ast": [
+        {
+          "text": "=",
+          "type": "text"
+        }
+      ],
+      "plain": "=",
+      "jumbo": false
+    },
+    {
+      "name": "esc-044",
+      "input": "\\?",
+      "ast": [
+        {
+          "text": "?",
+          "type": "text"
+        }
+      ],
+      "plain": "?",
+      "jumbo": false
+    },
+    {
+      "name": "esc-045",
+      "input": "\\@",
+      "ast": [
+        {
+          "text": "@",
+          "type": "text"
+        }
+      ],
+      "plain": "@",
+      "jumbo": false
+    },
+    {
+      "name": "esc-046",
+      "input": "\\^",
+      "ast": [
+        {
+          "text": "^",
+          "type": "text"
+        }
+      ],
+      "plain": "^",
+      "jumbo": false
+    },
+    {
+      "name": "esc-047",
+      "input": "\\{",
+      "ast": [
+        {
+          "text": "{",
+          "type": "text"
+        }
+      ],
+      "plain": "{",
+      "jumbo": false
+    },
+    {
+      "name": "esc-048",
+      "input": "\\}",
+      "ast": [
+        {
+          "text": "}",
+          "type": "text"
+        }
+      ],
+      "plain": "}",
+      "jumbo": false
+    },
+    {
+      "name": "esc-049",
+      "input": "\\/",
+      "ast": [
+        {
+          "text": "/",
+          "type": "text"
+        }
+      ],
+      "plain": "/",
+      "jumbo": false
+    },
+    {
+      "name": "esc-050",
+      "input": "\\\"",
+      "ast": [
+        {
+          "text": "\"",
+          "type": "text"
+        }
+      ],
+      "plain": "\"",
+      "jumbo": false
+    },
+    {
+      "name": "esc-051",
+      "input": "\\'",
+      "ast": [
+        {
+          "text": "'",
+          "type": "text"
+        }
+      ],
+      "plain": "'",
+      "jumbo": false
+    },
+    {
+      "name": "esc-052",
+      "input": "é\\*",
+      "ast": [
+        {
+          "text": "é*",
+          "type": "text"
+        }
+      ],
+      "plain": "é*",
+      "jumbo": false
+    },
+    {
+      "name": "esc-053",
+      "input": "\\é",
+      "ast": [
+        {
+          "text": "\\é",
+          "type": "text"
+        }
+      ],
+      "plain": "\\é",
+      "jumbo": false
+    }
+  ]
+}
