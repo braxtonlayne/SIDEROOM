@@ -22,6 +22,7 @@ pub mod role_rules;
 pub mod service;
 pub mod settings;
 pub mod social;
+pub mod threads;
 
 #[cfg(test)]
 mod admin_tests;

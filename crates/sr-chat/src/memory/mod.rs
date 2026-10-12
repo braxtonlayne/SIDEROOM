@@ -27,6 +27,7 @@ pub struct Store {
     pub pins: HashSet<(ChannelId, MessageId)>,
     pub sent_at: HashMap<(ChannelId, UserId), i64>,
     pub bans: Vec<Ban>,
+    pub thread_members: Vec<crate::threads::model::ThreadMember>,
 }
 
 /// Cloning shares the same store, so tests can keep a handle while the service owns a clone.
@@ -36,7 +37,7 @@ pub struct MemoryRepo {
 }
 
 impl MemoryRepo {
-    fn lock(&self) -> RepoResult<std::sync::MutexGuard<'_, Store>> {
+    pub(crate) fn lock(&self) -> RepoResult<std::sync::MutexGuard<'_, Store>> {
         self.store
             .lock()
             .map_err(|_| RepoError("store poisoned".into()))
@@ -139,7 +140,7 @@ impl ChannelRepository for MemoryRepo {
             .lock()?
             .channels
             .values()
-            .filter(|c| c.guild_id == Some(guild))
+            .filter(|c| c.guild_id == Some(guild) && !c.kind.is_thread())
             .cloned()
             .collect())
     }
@@ -167,6 +168,17 @@ impl ChannelRepository for MemoryRepo {
 
     async fn delete_channel(&self, id: ChannelId) -> RepoResult<()> {
         let mut s = self.lock()?;
+        let doomed: Vec<ChannelId> = s
+            .channels
+            .values()
+            .filter(|c| c.kind.is_thread() && c.parent_id == Some(id))
+            .map(|c| c.id)
+            .collect();
+        for t in doomed {
+            s.channels.remove(&t);
+            s.thread_members.retain(|m| m.thread_id != t);
+        }
+        s.thread_members.retain(|m| m.thread_id != id);
         s.channels.remove(&id);
         for c in s.channels.values_mut().filter(|c| c.parent_id == Some(id)) {
             c.parent_id = None;
@@ -176,6 +188,32 @@ impl ChannelRepository for MemoryRepo {
 
     async fn is_recipient(&self, channel: ChannelId, user: UserId) -> RepoResult<bool> {
         Ok(self.lock()?.recipients.contains(&(channel, user)))
+    }
+
+    async fn is_thread_member(&self, channel: ChannelId, user: UserId) -> RepoResult<bool> {
+        Ok(self
+            .lock()?
+            .thread_members
+            .iter()
+            .any(|m| m.thread_id == channel && m.user_id == user))
+    }
+
+    async fn list_thread_member_ids(
+        &self,
+        channel: ChannelId,
+        after: Option<UserId>,
+        limit: usize,
+    ) -> RepoResult<Vec<UserId>> {
+        let mut v: Vec<UserId> = self
+            .lock()?
+            .thread_members
+            .iter()
+            .filter(|m| m.thread_id == channel && after.is_none_or(|a| m.user_id > a))
+            .map(|m| m.user_id)
+            .collect();
+        v.sort();
+        v.truncate(limit);
+        Ok(v)
     }
 
     async fn list_recipients(&self, channel: ChannelId) -> RepoResult<Vec<UserId>> {
@@ -250,10 +288,20 @@ impl MessageRepository for MemoryRepo {
 
     async fn apply_delete(&self, plan: &DeletePlan) -> RepoResult<()> {
         let mut s = self.lock()?;
+        let mut was_visible_in = None;
         if let Some(m) = s.messages.iter_mut().find(|m| m.id == plan.message_id) {
+            if m.is_visible() {
+                was_visible_in = Some(m.channel_id);
+            }
             m.visibility = plan.visibility;
             m.deleted_at_ms = Some(plan.deleted_at_ms);
             m.purge_after_ms = plan.purge_after_ms;
+        }
+        // A deleted message no longer counts towards its thread's message_count.
+        if let Some(ch) = was_visible_in
+            && let Some(t) = s.channels.get_mut(&ch).and_then(|c| c.thread.as_mut())
+        {
+            t.message_count = t.message_count.saturating_sub(1);
         }
         Ok(())
     }

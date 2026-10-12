@@ -63,6 +63,21 @@ pub trait ChannelRepository: Send + Sync {
     async fn is_recipient(&self, channel: ChannelId, user: UserId) -> RepoResult<bool>;
     /// Every recipient of a DM or group DM, hidden or not (open question 50).
     async fn list_recipients(&self, channel: ChannelId) -> RepoResult<Vec<UserId>>;
+    /// Whether `user` joined the thread `channel` (private threads gate access on this).
+    /// Stores without thread support keep the default.
+    async fn is_thread_member(&self, _channel: ChannelId, _user: UserId) -> RepoResult<bool> {
+        Ok(false)
+    }
+    /// Member ids of a thread ordered by id, strictly after `after` (mention gating for
+    /// private threads). Stores without thread support keep the default.
+    async fn list_thread_member_ids(
+        &self,
+        _channel: ChannelId,
+        _after: Option<UserId>,
+        _limit: usize,
+    ) -> RepoResult<Vec<UserId>> {
+        Ok(Vec::new())
+    }
 }
 
 #[async_trait]
