@@ -327,3 +327,32 @@ impl GuildDirectory for PgGuildDirectory {
         })
     }
 }
+
+/// Presence for invite previews, read from the gateway's in-memory presence map.
+/// The gateway is built after the settings state, so it is attached late with
+/// [`GatewayPresence::attach`]; until then every user counts as offline.
+#[derive(Default)]
+pub struct GatewayPresence {
+    gateway: std::sync::OnceLock<sr_gateway::Gateway>,
+}
+
+impl GatewayPresence {
+    pub fn attach(&self, gateway: sr_gateway::Gateway) {
+        let _ = self.gateway.set(gateway);
+    }
+}
+
+impl sr_api::routes::settings::PresenceCounter for GatewayPresence {
+    fn count_online(&self, users: &[sr_core::UserId]) -> u64 {
+        let Some(gw) = self.gateway.get() else {
+            return 0;
+        };
+        users
+            .iter()
+            .filter(|u| {
+                gw.presence(**u)
+                    .is_some_and(|p| p.visible_status() != "offline")
+            })
+            .count() as u64
+    }
+}

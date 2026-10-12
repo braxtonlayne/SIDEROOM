@@ -357,6 +357,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // gets invite/webhook entropy from the OS. Its events go to the bus, and the
     // audit entries it stores are announced on the gateway. The search index lives
     // in `[search] dir` (default `data/search`).
+    let gateway_presence = Arc::new(crate::gateway_pg::GatewayPresence::default());
     let settings_deps = Arc::new(
         SettingsDeps::new(
             Arc::new(PgSettingsRepo::new(pool.clone())),
@@ -374,6 +375,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             Arc::new(PgChatRepo::new(pool.clone())),
             bus.clone(),
         )))
+        .with_presence(gateway_presence.clone())
         .with_timeouter(Arc::new(routes::settings::AdminMemberTimeouter::new(
             Arc::new(PgChatRepo::new(pool.clone())),
             bus.clone(),
@@ -421,6 +423,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         bus.clone(),
     );
     gateway.start();
+    gateway_presence.attach(gateway.clone());
 
     // Social endpoints (relationships, DMs, acks, notification settings, profiles):
     // their own service on its own snowflake worker (process id + 3).

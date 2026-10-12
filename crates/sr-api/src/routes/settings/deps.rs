@@ -3,6 +3,7 @@
 
 use super::events::{NoopSettingsEvents, SettingsEvent, SettingsEvents};
 use super::join::{MemberJoiner, UnwiredMemberJoiner};
+use super::presence::PresenceCounter;
 use super::repo::DynRepo;
 use super::timeout::{MemberTimeouter, UnwiredMemberTimeouter};
 use crate::{AuthKind, error::ApiResult};
@@ -32,6 +33,7 @@ pub struct SettingsDeps {
     events: Arc<dyn SettingsEvents>,
     joiner: Arc<dyn MemberJoiner>,
     timeouter: Arc<dyn MemberTimeouter>,
+    presence: Option<Arc<dyn PresenceCounter>>,
 }
 
 /// A guild resolved for one acting user.
@@ -72,6 +74,7 @@ impl SettingsDeps {
             events: Arc::new(NoopSettingsEvents),
             joiner: Arc::new(UnwiredMemberJoiner),
             timeouter: Arc::new(UnwiredMemberTimeouter),
+            presence: None,
         })
     }
 
@@ -98,6 +101,16 @@ impl SettingsDeps {
     pub fn with_timeouter(mut self, timeouter: Arc<dyn MemberTimeouter>) -> Self {
         self.timeouter = timeouter;
         self
+    }
+
+    /// Where invite previews get `approximate_presence_count` (see [`super::presence`]).
+    pub fn with_presence(mut self, presence: Arc<dyn PresenceCounter>) -> Self {
+        self.presence = Some(presence);
+        self
+    }
+
+    pub(super) fn presence(&self) -> Option<&dyn PresenceCounter> {
+        self.presence.as_deref()
     }
 
     /// Replace the service (limits, retention, presets, spam window).

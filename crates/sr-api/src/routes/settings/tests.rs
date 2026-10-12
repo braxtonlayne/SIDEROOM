@@ -63,6 +63,7 @@ struct Opts {
     limits: Option<ExpressionLimits>,
     wired_joiner: bool,
     timeouter: Option<Arc<dyn super::MemberTimeouter>>,
+    presence: Option<Arc<dyn super::PresenceCounter>>,
 }
 
 async fn env() -> Env {
@@ -165,6 +166,9 @@ async fn env_with(opts: Opts) -> Env {
             )
             .with_limits(limits),
         );
+    }
+    if let Some(p) = opts.presence {
+        deps = deps.with_presence(p);
     }
     if let Some(t) = opts.timeouter {
         deps = deps.with_timeouter(t);
@@ -2065,4 +2069,52 @@ async fn admin_timeouter_sets_the_deadline_and_announces_the_member() {
     );
     let stored = repo.get_member(guild, bob).await.unwrap().unwrap();
     assert_eq!(stored.communication_disabled_until_ms, Some(T0 + 5_000));
+}
+
+// ---- invite counts ----------------------------------------------------------------
+
+struct OnlineUsers(Vec<u64>);
+
+impl super::PresenceCounter for OnlineUsers {
+    fn count_online(&self, users: &[UserId]) -> u64 {
+        users.iter().filter(|u| self.0.contains(&u.get())).count() as u64
+    }
+}
+
+#[tokio::test]
+async fn invite_counts_only_with_with_counts() {
+    let e = env_with(Opts {
+        presence: Some(Arc::new(OnlineUsers(vec![BOB, CAROL]))),
+        ..Opts::default()
+    })
+    .await;
+    let (_, inv) = e.post(&e.invites_path(), "bob", json!({})).await;
+    let code = inv["code"].as_str().unwrap();
+
+    let (s, plain) = e.get(&format!("/invites/{code}"), "carol").await;
+    assert_eq!(s, StatusCode::OK, "{plain}");
+    assert!(plain.get("approximate_member_count").is_none());
+    assert!(plain.get("approximate_presence_count").is_none());
+    assert!(plain["expires_at"].is_string());
+
+    let (s, counted) = e
+        .get(&format!("/invites/{code}?with_counts=true"), "carol")
+        .await;
+    assert_eq!(s, StatusCode::OK, "{counted}");
+    // Owner, bob and mod are members; carol is not, and does not count.
+    assert_eq!(counted["approximate_member_count"], 3);
+    assert_eq!(counted["approximate_presence_count"], 1);
+}
+
+#[tokio::test]
+async fn invite_counts_omit_presence_without_a_presence_source() {
+    let e = env().await;
+    let (_, inv) = e.post(&e.invites_path(), "bob", json!({})).await;
+    let code = inv["code"].as_str().unwrap();
+    let (s, counted) = e
+        .get(&format!("/invites/{code}?with_counts=true"), "carol")
+        .await;
+    assert_eq!(s, StatusCode::OK, "{counted}");
+    assert_eq!(counted["approximate_member_count"], 3);
+    assert!(counted.get("approximate_presence_count").is_none());
 }

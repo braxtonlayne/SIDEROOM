@@ -30,6 +30,7 @@ pub mod events;
 pub mod expressions;
 pub mod invites;
 pub mod join;
+pub mod presence;
 pub mod repo;
 pub mod templates;
 pub mod timeout;
@@ -44,6 +45,7 @@ pub use automod_gate::{
 pub use deps::{Entropy, SettingsDeps};
 pub use events::{SettingsEvent, SettingsEvents};
 pub use join::{InviteMemberJoiner, MemberJoiner, UnwiredMemberJoiner};
+pub use presence::PresenceCounter;
 pub use repo::DynRepo;
 pub use timeout::{AdminMemberTimeouter, MemberTimeouter, UnwiredMemberTimeouter};
 
