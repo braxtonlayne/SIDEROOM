@@ -21,6 +21,19 @@ use sr_storage::{ObjectStorage, ObjectStoreStorage, PresignMethod, StorageError}
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
+/// These tests need a real S3 server. When none is configured they skip (and say so) instead of
+/// failing, so a blanket `cargo test -- --ignored` stays green on machines without one.
+macro_rules! require_s3 {
+    () => {
+        if std::env::var("SR_TEST_S3_ENDPOINT").is_err() {
+            eprintln!(
+                "skipping: SR_TEST_S3_ENDPOINT is not set (see docs/dev/storage-live-test.md)"
+            );
+            return;
+        }
+    };
+}
+
 fn env(name: &str) -> String {
     std::env::var(name).unwrap_or_else(|_| panic!("{name} must be set"))
 }
@@ -145,6 +158,7 @@ fn pattern(len: usize) -> Vec<u8> {
 #[tokio::test]
 #[ignore = "needs SR_TEST_S3_ENDPOINT"]
 async fn crud_range_head_list() {
+    require_s3!();
     let s = storage();
     let p = prefix("crud");
     let (a, b) = (format!("{p}/a/one.bin"), format!("{p}/b/two.bin"));
@@ -179,6 +193,7 @@ async fn crud_range_head_list() {
 #[tokio::test]
 #[ignore = "needs SR_TEST_S3_ENDPOINT"]
 async fn presigned_put_then_get_and_range() {
+    require_s3!();
     let s = storage();
     let key = format!("{}/up/file name.bin", prefix("presign"));
     let data = pattern(100_000);
@@ -220,6 +235,7 @@ async fn presigned_put_then_get_and_range() {
 #[tokio::test]
 #[ignore = "needs SR_TEST_S3_ENDPOINT"]
 async fn presigned_urls_expire() {
+    require_s3!();
     let s = storage();
     let key = format!("{}/expire.bin", prefix("expire"));
     s.put(&key, Bytes::from_static(b"hello")).await.unwrap();
@@ -243,6 +259,7 @@ async fn presigned_urls_expire() {
 #[tokio::test]
 #[ignore = "needs SR_TEST_S3_ENDPOINT"]
 async fn multipart_over_64_mib() {
+    require_s3!();
     let s = storage();
     let key = format!("{}/big.bin", prefix("multipart"));
     const PART: usize = 8 * 1024 * 1024;
@@ -303,6 +320,7 @@ fn jpeg_with_orientation(tag: u16) -> Vec<u8> {
 #[tokio::test]
 #[ignore = "needs SR_TEST_S3_ENDPOINT"]
 async fn exif_strip_roundtrip_on_real_jpeg() {
+    require_s3!();
     let s = storage();
     let key = format!("{}/photo.jpg", prefix("exif"));
     let original = jpeg_with_orientation(6);
@@ -335,6 +353,7 @@ async fn exif_strip_roundtrip_on_real_jpeg() {
 #[tokio::test]
 #[ignore = "needs SR_TEST_S3_ENDPOINT"]
 async fn bad_credentials_and_bucket_error_cleanly() {
+    require_s3!();
     let bad = ObjectStoreStorage::s3(
         &env("SR_TEST_S3_ENDPOINT"),
         &env("SR_TEST_S3_BUCKET"),
