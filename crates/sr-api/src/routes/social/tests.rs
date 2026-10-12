@@ -22,7 +22,7 @@ use sr_chat::repo::GuildRepository;
 use sr_chat::social::SocialLimits;
 use sr_chat::social::memory::MemoryRepo;
 use sr_chat::social::profile::Profile;
-use sr_chat::social::repo::{ReadStateRepository, SocialRepository};
+use sr_chat::social::repo::{ReadStateRepository, RelationshipRepository, SocialRepository};
 use sr_core::{ChannelId, Clock, GuildId, ManualClock, SnowflakeGenerator, UserId};
 use sr_events::{DomainEvent, EventBus, InProcessBus, Topic};
 use sr_storage::ObjectStoreStorage;
@@ -1225,4 +1225,324 @@ async fn accepting_a_message_request_announces_the_channel_to_the_recipient() {
     // Accepting again changes nothing, so announces nothing.
     assert_eq!(accept().await.0, StatusCode::NO_CONTENT);
     assert_quiet(&mut bob).await;
+}
+
+// ---- username add, guild ack, profile extras, live user events ----------------
+
+/// The next `UserScoped` dispatch called `name`, skipping unrelated events.
+async fn scoped(s: &mut BoxStream<'static, DomainEvent>, name: &str) -> Value {
+    for _ in 0..10 {
+        if let DomainEvent::UserScoped {
+            name: n, payload, ..
+        } = next_event(s).await
+            && n == name
+        {
+            return payload;
+        }
+    }
+    panic!("no {name} dispatch");
+}
+
+#[tokio::test]
+async fn friend_request_by_username_is_case_insensitive_and_does_not_enumerate() {
+    let e = env().await;
+    e.repo.add_named_user(UserId::new(ALICE), "alice");
+    e.repo.add_named_user(UserId::new(BOB), "Bob_B");
+    e.repo.add_named_user(UserId::new(CAROL), "carol");
+    e.repo.add_named_user(UserId::new(DAVE), "dave");
+    let mut bob = e.user_events(BOB);
+
+    let (s, v) = e
+        .post(
+            "/users/@me/relationships",
+            ALICE,
+            json!({"username": "bOb_b", "discriminator": "0"}),
+        )
+        .await;
+    assert_eq!((s, &v), (StatusCode::NO_CONTENT, &Value::Null));
+    assert_eq!(
+        kinds(&e.get("/users/@me/relationships", ALICE).await.1),
+        [("2".into(), 4)]
+    );
+    let added = scoped(&mut bob, "RELATIONSHIP_ADD").await;
+    assert_eq!(
+        (added["id"].as_str(), added["type"].as_i64()),
+        (Some("1"), Some(3))
+    );
+
+    // The target can accept by naming the requester.
+    let (s, _) = e
+        .post(
+            "/users/@me/relationships",
+            BOB,
+            json!({"username": "ALICE"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    assert_eq!(
+        kinds(&e.get("/users/@me/relationships", ALICE).await.1),
+        [("2".into(), 1)]
+    );
+
+    // Unknown, blocked-by-them, closed-to-requests and blank all answer identically.
+    e.put("/users/@me/relationships/1", DAVE, Some(json!({"type": 2})))
+        .await;
+    e.repo
+        .put_privacy(
+            UserId::new(CAROL),
+            &sr_chat::social::repo::Privacy {
+                friend_requests: sr_chat::social::relationships::FriendRequestSources {
+                    everyone: false,
+                    friends_of_friends: false,
+                    server_members: false,
+                },
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    let mut answers = Vec::new();
+    for name in ["nobody_here", "dave", "carol", "   "] {
+        answers.push(
+            e.post("/users/@me/relationships", ALICE, json!({"username": name}))
+                .await,
+        );
+    }
+    assert_eq!(answers[0].0, StatusCode::BAD_REQUEST, "{answers:?}");
+    assert!(answers.iter().all(|a| a == &answers[0]), "{answers:?}");
+
+    // Self and malformed bodies keep their by-id behaviour.
+    let (s, _) = e
+        .post(
+            "/users/@me/relationships",
+            ALICE,
+            json!({"username": "alice"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, _) = e.post("/users/@me/relationships", ALICE, json!({})).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn guild_ack_marks_every_viewable_channel_read() {
+    let e = env().await;
+    let hidden = ChannelId::new(7_001);
+    let empty = ChannelId::new(7_002);
+    {
+        let mut d = e.backend.data();
+        d.channels.get_mut(&e.ch).unwrap().last_message_id = Some(sr_core::MessageId::new(900));
+        for (id, last) in [(hidden, Some(901)), (empty, None)] {
+            let mut c = sr_chat::Channel::new(id, Some(e.guild), sr_chat::ChannelType::Text);
+            c.last_message_id = last.map(sr_core::MessageId::new);
+            d.channels.insert(id, c);
+        }
+        d.overwrites.insert(
+            hidden,
+            vec![sr_core::permissions::Overwrite {
+                id: sr_core::Snowflake::new(BOB),
+                kind: sr_core::permissions::OverwriteKind::Member,
+                allow: sr_core::Permissions::empty(),
+                deny: sr_core::Permissions::VIEW_CHANNEL,
+            }],
+        );
+    }
+    let mut bob = e.user_events(BOB);
+    e.repo
+        .add_mentions(&[UserId::new(BOB)], e.ch, 2)
+        .await
+        .unwrap();
+
+    let path = format!("/guilds/{}/ack", e.guild);
+    let (s, _) = e.call(Method::POST, &path, BOB, None).await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    let (_, v) = e.get("/users/@me/read-states", BOB).await;
+    let entries = v["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 1, "{v}");
+    assert_eq!(entries[0]["id"], e.ch.to_string().as_str());
+    assert_eq!(entries[0]["last_message_id"], "900");
+    assert_eq!(entries[0]["mention_count"], 0);
+    assert_eq!(scoped(&mut bob, "MESSAGE_ACK").await["message_id"], "900");
+
+    // The owner also sees the hidden channel; outsiders and unknown guilds are refused.
+    assert_eq!(
+        e.post(&path, ALICE, json!({})).await.0,
+        StatusCode::NO_CONTENT
+    );
+    let (_, v) = e.get("/users/@me/read-states", ALICE).await;
+    assert_eq!(v["entries"].as_array().unwrap().len(), 2);
+    assert_eq!(
+        e.post(&path, DAVE, json!({})).await.0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        e.post("/guilds/12345/ack", BOB, json!({})).await.0,
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
+async fn profile_shows_mutual_friends_guilds_and_friends_since() {
+    let e = env().await;
+    let g = e.guild;
+    e.repo
+        .add_member(g, UserId::new(ALICE), Some("Boss"), T0 - 5_000);
+    e.repo
+        .add_member(g, UserId::new(BOB), Some("Bobby"), T0 - 1_000);
+    e.repo
+        .add_member(GuildId::new(999), UserId::new(BOB), None, T0);
+    e.befriend(ALICE, CAROL).await;
+    e.clock.advance_ms(1_000);
+    e.befriend(BOB, CAROL).await;
+    e.befriend(ALICE, BOB).await;
+
+    let (s, v) = e.get("/users/2/profile", ALICE).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["mutual_friends_count"], 1);
+    assert_eq!(v["mutual_friends"][0]["id"], "3");
+    let guilds = v["mutual_guilds"].as_array().unwrap();
+    assert_eq!(guilds.len(), 1, "only guilds both belong to");
+    assert_eq!(guilds[0]["id"], g.to_string().as_str());
+    assert_eq!(guilds[0]["nick"], "Bobby");
+    assert_eq!(
+        guilds[0]["member_since"].as_str(),
+        Some(crate::routes::messages::model::iso(T0 - 1_000).as_str())
+    );
+    assert_eq!(
+        v["friends_since"].as_str(),
+        Some(crate::routes::messages::model::iso(T0 + 1_000).as_str())
+    );
+    assert!(v.get("premium_since").is_none() && v.get("premium_type").is_none());
+
+    let (_, v) = e
+        .get("/users/2/profile?with_mutual_guilds=false", ALICE)
+        .await;
+    assert!(v.get("mutual_guilds").is_none());
+    assert_eq!(v["mutual_friends_count"], 1);
+
+    // Strangers share nothing; your own profile carries no mutual data.
+    let (_, v) = e.get("/users/2/profile", DAVE).await;
+    assert_eq!(v["mutual_friends_count"], 0);
+    assert_eq!(v["mutual_guilds"].as_array().unwrap().len(), 0);
+    assert!(v.get("friends_since").is_none());
+    let (_, v) = e.get("/users/@me/profile", ALICE).await;
+    assert!(v.get("mutual_friends").is_none() && v.get("mutual_guilds").is_none());
+}
+
+#[tokio::test]
+async fn profile_edit_fans_user_update_out_to_friends_and_guilds() {
+    let e = env().await;
+    e.repo.add_member(e.guild, UserId::new(ALICE), None, T0);
+    e.repo.add_member(e.guild, UserId::new(BOB), None, T0);
+    e.befriend(ALICE, DAVE).await;
+    let mut dave = e.user_events(DAVE);
+    let mut guild = e.bus.subscribe(Topic::Guild(e.guild));
+    let mut alice = e.user_events(ALICE);
+    let mut carol = e.user_events(CAROL);
+
+    let (s, _) = e
+        .patch("/users/@me", ALICE, json!({"bio": "new bio"}))
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(scoped(&mut dave, "USER_UPDATE").await["bio"], "new bio");
+    match next_event(&mut guild).await {
+        DomainEvent::UserUpdated {
+            guild: g,
+            user,
+            payload,
+        } => {
+            assert_eq!((g, user), (e.guild, UserId::new(ALICE)));
+            assert_eq!(payload["user"]["id"], "1");
+        }
+        other => panic!("unexpected {other:?}"),
+    }
+    assert_eq!(scoped(&mut alice, "USER_UPDATE").await["bio"], "new bio");
+    // Strangers hear nothing.
+    assert_quiet(&mut carol).await;
+}
+
+#[tokio::test]
+async fn presence_changes_are_announced_to_the_gateway() {
+    let e = env().await;
+    let mut bob = e.user_events(BOB);
+    let (s, _) = e
+        .patch(
+            "/users/@me/presence",
+            BOB,
+            json!({"status": "invisible", "custom_status": {"text": "ghost", "emoji_name": "boo"}}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    let mut seen = None;
+    for _ in 0..5 {
+        if let DomainEvent::PresenceChanged {
+            user,
+            status,
+            custom_status,
+        } = next_event(&mut bob).await
+        {
+            seen = Some((user, status, custom_status));
+            break;
+        }
+    }
+    let (user, status, custom) = seen.expect("PresenceChanged");
+    assert_eq!((user, status.as_str()), (UserId::new(BOB), "invisible"));
+    let custom = custom.expect("custom status activity");
+    assert_eq!(
+        (custom["type"].as_i64(), custom["state"].as_str()),
+        (Some(4), Some("ghost"))
+    );
+    assert_eq!(custom["emoji"]["name"], "boo");
+
+    // Clearing the custom status announces an empty one.
+    e.patch("/users/@me/presence", BOB, json!({"custom_status": null}))
+        .await;
+    for _ in 0..5 {
+        if let DomainEvent::PresenceChanged { custom_status, .. } = next_event(&mut bob).await {
+            assert!(custom_status.is_none());
+            return;
+        }
+    }
+    panic!("no second PresenceChanged");
+}
+
+#[tokio::test]
+async fn group_member_changes_reach_the_right_users() {
+    let e = env().await;
+    e.befriend(ALICE, BOB).await;
+    e.befriend(ALICE, CAROL).await;
+    e.befriend(ALICE, DAVE).await;
+    let (_, v) = e
+        .post(
+            "/users/@me/channels",
+            ALICE,
+            json!({"recipients": ["2", "3"]}),
+        )
+        .await;
+    let id = v["id"].as_str().unwrap().to_owned();
+    let mut bob = e.user_events(BOB);
+    let mut dave = e.user_events(DAVE);
+
+    // Old members hear about the newcomer; the newcomer gets the channel itself.
+    e.put(&format!("/channels/{id}/recipients/4"), ALICE, None)
+        .await;
+    let add = scoped(&mut bob, "CHANNEL_RECIPIENT_ADD").await;
+    assert_eq!(
+        (add["channel_id"].as_str(), add["user"]["id"].as_str()),
+        (Some(id.as_str()), Some("4"))
+    );
+    assert_eq!(scoped(&mut dave, "CHANNEL_CREATE").await["id"], id.as_str());
+    assert_quiet(&mut dave).await;
+
+    // Kicking tells the removed user (CHANNEL_DELETE) and the rest (RECIPIENT_REMOVE).
+    e.delete(&format!("/channels/{id}/recipients/4"), ALICE)
+        .await;
+    assert_eq!(scoped(&mut dave, "CHANNEL_DELETE").await["id"], id.as_str());
+    assert_eq!(
+        scoped(&mut bob, "CHANNEL_RECIPIENT_REMOVE").await["user"]["id"],
+        "4"
+    );
+    // Leaving a group does the same for the leaver.
+    e.delete(&format!("/users/@me/channels/{id}"), BOB).await;
+    assert_eq!(scoped(&mut bob, "CHANNEL_DELETE").await["id"], id.as_str());
 }
