@@ -62,6 +62,7 @@ struct Env {
 struct Opts {
     limits: Option<ExpressionLimits>,
     wired_joiner: bool,
+    timeouter: Option<Arc<dyn super::MemberTimeouter>>,
 }
 
 async fn env() -> Env {
@@ -164,6 +165,9 @@ async fn env_with(opts: Opts) -> Env {
             )
             .with_limits(limits),
         );
+    }
+    if let Some(t) = opts.timeouter {
+        deps = deps.with_timeouter(t);
     }
     if opts.wired_joiner {
         deps = deps.with_joiner(Arc::new(InviteMemberJoiner::new(
@@ -1939,4 +1943,126 @@ async fn welcome_screen_change_publishes_a_guild_update_with_its_feature_flag() 
         panic!("no GUILD_UPDATE published");
     };
     assert_eq!(payload["features"], json!(["WELCOME_SCREEN_ENABLED"]));
+}
+
+// ---- AutoMod timeout action -------------------------------------------------------
+
+#[derive(Default)]
+struct RecordingTimeouter(std::sync::Mutex<Vec<(GuildId, UserId, i64)>>);
+
+#[async_trait::async_trait]
+impl super::MemberTimeouter for RecordingTimeouter {
+    async fn timeout_member(
+        &self,
+        guild: GuildId,
+        user: UserId,
+        until_ms: i64,
+    ) -> Result<Option<i64>, sr_core::ApiError> {
+        self.0.lock().unwrap().push((guild, user, until_ms));
+        Ok(Some(until_ms))
+    }
+}
+
+#[tokio::test]
+async fn blocked_message_still_times_the_author_out() {
+    let rec = Arc::new(RecordingTimeouter::default());
+    let e = env_with(Opts {
+        timeouter: Some(rec.clone()),
+        ..Opts::default()
+    })
+    .await;
+    let (s, rule) = e
+        .post(
+            &e.g("/auto-moderation/rules"),
+            "owner",
+            json!({"name": "slurs", "event_type": 1, "trigger_type": 1, "enabled": true,
+                   "trigger_metadata": {"keyword_filter": ["badword"]},
+                   "actions": [{"type": 1}, {"type": 3, "metadata": {"duration_seconds": 60}}]}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{rule}");
+
+    let r = e
+        .post(
+            &format!("/channels/{}/messages", e.ch),
+            "bob",
+            json!({"content": "a badword"}),
+        )
+        .await;
+    assert_eq!(
+        code_of(&r),
+        (StatusCode::BAD_REQUEST, Some(200_000)),
+        "{}",
+        r.1
+    );
+    assert_eq!(
+        *rec.0.lock().unwrap(),
+        vec![(e.guild, UserId::new(BOB), T0 + 60_000)]
+    );
+    // A clean message neither blocks nor times anyone out.
+    let (s, _) = e
+        .post(
+            &format!("/channels/{}/messages", e.ch),
+            "bob",
+            json!({"content": "hello"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(rec.0.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn admin_timeouter_sets_the_deadline_and_announces_the_member() {
+    use futures::StreamExt;
+    use sr_chat::memory::MemoryRepo;
+    use sr_chat::repo::GuildRepository;
+    use sr_events::{DomainEvent, EventBus, Topic};
+
+    let repo = Arc::new(MemoryRepo::default());
+    let ids = SnowflakeGenerator::new(Arc::new(ManualClock::new(T0)), 9, 8).unwrap();
+    let bp = plan_new_guild(UserId::new(OWNER), "Club", T0, || ids.generate()).unwrap();
+    let guild = bp.guild.id;
+    repo.insert_guild(&bp).await.unwrap();
+    repo.store.lock().unwrap().members.push(Member {
+        guild_id: guild,
+        user_id: UserId::new(BOB),
+        nick: None,
+        role_ids: vec![],
+        joined_at_ms: T0,
+        communication_disabled_until_ms: None,
+        pending: false,
+    });
+    let bus = Arc::new(InProcessBus::new());
+    let mut events = bus.subscribe(Topic::Guild(guild));
+    let t = super::AdminMemberTimeouter::new(repo.clone(), bus.clone());
+    use super::MemberTimeouter;
+
+    let bob = UserId::new(BOB);
+    assert_eq!(
+        t.timeout_member(guild, bob, T0 + 5_000).await.unwrap(),
+        Some(T0 + 5_000)
+    );
+    let ev = tokio::time::timeout(std::time::Duration::from_secs(2), events.next())
+        .await
+        .unwrap()
+        .unwrap();
+    let DomainEvent::MemberUpdated { user, payload, .. } = ev else {
+        panic!("expected MemberUpdated, got {ev:?}");
+    };
+    assert_eq!(user, bob);
+    assert_eq!(payload["guild_id"], guild.to_string());
+    assert!(payload["communication_disabled_until"].is_string());
+    // A shorter timeout never shortens a running one; non-members are ignored.
+    assert_eq!(
+        t.timeout_member(guild, bob, T0 + 1_000).await.unwrap(),
+        None
+    );
+    assert_eq!(
+        t.timeout_member(guild, UserId::new(CAROL), T0 + 1_000)
+            .await
+            .unwrap(),
+        None
+    );
+    let stored = repo.get_member(guild, bob).await.unwrap().unwrap();
+    assert_eq!(stored.communication_disabled_until_ms, Some(T0 + 5_000));
 }

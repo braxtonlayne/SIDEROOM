@@ -4,6 +4,7 @@
 use super::events::{NoopSettingsEvents, SettingsEvent, SettingsEvents};
 use super::join::{MemberJoiner, UnwiredMemberJoiner};
 use super::repo::DynRepo;
+use super::timeout::{MemberTimeouter, UnwiredMemberTimeouter};
 use crate::{AuthKind, error::ApiResult};
 use crate::{HttpError, Principal};
 use sr_chat::perms::{channel_permissions, guild_permissions};
@@ -30,6 +31,7 @@ pub struct SettingsDeps {
     clock: Arc<dyn Clock>,
     events: Arc<dyn SettingsEvents>,
     joiner: Arc<dyn MemberJoiner>,
+    timeouter: Arc<dyn MemberTimeouter>,
 }
 
 /// A guild resolved for one acting user.
@@ -69,6 +71,7 @@ impl SettingsDeps {
             clock,
             events: Arc::new(NoopSettingsEvents),
             joiner: Arc::new(UnwiredMemberJoiner),
+            timeouter: Arc::new(UnwiredMemberTimeouter),
         })
     }
 
@@ -91,6 +94,12 @@ impl SettingsDeps {
         self
     }
 
+    /// How AutoMod's `timeout` action reaches the member row (see [`super::timeout`]).
+    pub fn with_timeouter(mut self, timeouter: Arc<dyn MemberTimeouter>) -> Self {
+        self.timeouter = timeouter;
+        self
+    }
+
     /// Replace the service (limits, retention, presets, spam window).
     pub fn with_service(mut self, service: SettingsService<DynRepo>) -> Self {
         self.service = service;
@@ -99,6 +108,10 @@ impl SettingsDeps {
 
     pub fn now_ms(&self) -> i64 {
         self.clock.now_unix_ms()
+    }
+
+    pub(super) fn timeouter(&self) -> &dyn MemberTimeouter {
+        &*self.timeouter
     }
 
     pub(super) fn joiner(&self) -> &dyn MemberJoiner {

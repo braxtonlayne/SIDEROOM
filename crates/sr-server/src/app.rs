@@ -370,6 +370,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             Arc::new(PgChatRepo::new(pool.clone())),
             bus.clone(),
         )))
+        .with_timeouter(Arc::new(routes::settings::AdminMemberTimeouter::new(
+            Arc::new(PgChatRepo::new(pool.clone())),
+            bus.clone(),
+        )))
         .with_audit_observer(routes::settings::audit::bus_audit_observer(bus.clone())),
     );
     let search_dir = search_dir(&cfg.search.dir, std::env::var("SR_SEARCH_DIR").ok());

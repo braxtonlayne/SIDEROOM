@@ -32,6 +32,7 @@ pub mod invites;
 pub mod join;
 pub mod repo;
 pub mod templates;
+pub mod timeout;
 pub mod webhooks;
 
 #[cfg(test)]
@@ -44,6 +45,7 @@ pub use deps::{Entropy, SettingsDeps};
 pub use events::{SettingsEvent, SettingsEvents};
 pub use join::{InviteMemberJoiner, MemberJoiner, UnwiredMemberJoiner};
 pub use repo::DynRepo;
+pub use timeout::{AdminMemberTimeouter, MemberTimeouter, UnwiredMemberTimeouter};
 
 use crate::{openapi::ErrorBody, state::AppState};
 use axum::Router;
