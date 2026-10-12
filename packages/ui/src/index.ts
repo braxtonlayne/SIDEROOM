@@ -54,3 +54,4 @@ export * from "./util/useMediaQuery";
 export { observeRectWithFallback } from "./util/virtual";
 export * from "./sideroom/Poster";
 export * from "./sideroom/FilterChips";
+export * from "./primitives/Permissions/Permissions";
