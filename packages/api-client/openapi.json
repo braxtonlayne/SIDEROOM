@@ -6396,7 +6396,7 @@
         "tags": [
           "invites"
         ],
-        "summary": "Resolve an invite code (any signed-in user). Revoked, expired and used-up\ninvites are all `Unknown Invite`.",
+        "summary": "Resolve an invite code (any signed-in user). Revoked, expired and used-up\ninvites are all `Unknown Invite`. With `with_counts=true` the guild's\n`approximate_member_count` and `approximate_presence_count` are included;\n`expires_at` is always present (null for invites that never expire).",
         "operationId": "get_invite",
         "parameters": [
           {
@@ -6406,6 +6406,15 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "with_counts",
+            "in": "query",
+            "description": "Include approximate member and presence counts",
+            "required": false,
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -6444,7 +6453,7 @@
         "tags": [
           "invites"
         ],
-        "summary": "Accept an invite and join the guild. Already being a member returns the invite\nwithout using it up. Banned users get 403 `User banned`.",
+        "summary": "Accept an invite and join the guild. The member is added and exactly one use\nconsumed atomically. Already being a member returns the invite without using\nit up. Banned users get 403 `User banned`; paused invites 403. Bots cannot\njoin by invite.",
         "operationId": "accept_invite",
         "parameters": [
           {
@@ -6490,9 +6499,6 @@
           }
         },
         "security": [
-          {
-            "authorization": []
-          },
           {
             "session": []
           }
@@ -6658,7 +6664,7 @@
     "/users/@me": {
       "get": {
         "tags": [],
-        "summary": "The authenticated caller (placeholder until the users feature lands).",
+        "summary": "The authenticated caller (as a Discord-shaped user object).",
         "operationId": "current_user",
         "responses": {
           "200": {
@@ -9469,19 +9475,92 @@
       },
       "CurrentUser": {
         "type": "object",
-        "description": "Body of `GET /users/@me` (minimal until the users feature lands).",
+        "description": "Body of `GET /users/@me`: a Discord-shaped user object. Session callers get\nthe full object (including their own `email`); bot and bearer callers get the\nid, `bot` and the placeholder fields only, since no account row backs them.",
         "required": [
           "id",
-          "auth"
+          "auth",
+          "discriminator",
+          "bot"
         ],
         "properties": {
           "auth": {
             "type": "string",
-            "description": "`session`, `bot` or `bearer`."
+            "description": "`session`, `bot` or `bearer` (SIDE ROOM addition)."
+          },
+          "avatar": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Avatar hash; always null until avatars land."
+          },
+          "bot": {
+            "type": "boolean",
+            "description": "True for bot callers."
+          },
+          "discriminator": {
+            "type": "string",
+            "description": "Always `\"0\"` (no discriminators)."
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Same as `global_name` (SIDE ROOM name for the field)."
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The caller's own email (session callers only)."
+          },
+          "flags": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Public account flags (session callers)."
+          },
+          "global_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The display name, if the account set one."
           },
           "id": {
             "type": "string",
             "description": "Snowflake id as a string."
+          },
+          "locale": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "BCP 47 locale (session callers)."
+          },
+          "mfa_enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether TOTP is confirmed on the account (session callers)."
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verified": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether the email address was verified (session callers)."
           }
         }
       },
@@ -10098,6 +10177,24 @@
           "created_at"
         ],
         "properties": {
+          "approximate_member_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Members of the guild; only with `with_counts=true`.",
+            "minimum": 0
+          },
+          "approximate_presence_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Members visibly online; only with `with_counts=true`, and only when the\nserver has a live presence source (the gateway). Omitted otherwise.",
+            "minimum": 0
+          },
           "channel": {
             "$ref": "#/components/schemas/InviteChannel"
           },
