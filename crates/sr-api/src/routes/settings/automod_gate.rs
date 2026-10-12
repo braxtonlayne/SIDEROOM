@@ -9,7 +9,8 @@
 //! if let Some(block) = &verdict.block {
 //!     // reject with `ErrorCode::AutoModBlocked`-style 400, show block.custom_message
 //! }
-//! // after storing: post `verdict.alerts` and apply `verdict.timeout_secs`.
+//! // after storing: post `verdict.alerts`. `verdict.timeout_secs` is already applied
+//! // by `evaluate` through the wired `MemberTimeouter`, blocked or not.
 //! ```
 //!
 //! [`SettingsDeps`] implements the trait: it resolves the author's roles and
@@ -144,6 +145,18 @@ impl AutoModGate for SettingsDeps {
             .await
             .map_err(se)?;
         let verdict = verdict_of(msg, matches);
+        // The timeout applies whether or not the message is blocked (Discord).
+        // Best effort like the audit entry: the verdict stands if it fails.
+        if let Some(secs) = verdict.timeout_secs {
+            let until = self.now_ms().saturating_add(i64::from(secs) * 1000);
+            if let Err(e) = self
+                .timeouter()
+                .timeout_member(msg.guild, msg.author, until)
+                .await
+            {
+                tracing::warn!(error = ?e, "could not apply an AutoMod timeout");
+            }
+        }
         for m in &verdict.matches {
             if !m.actions.iter().any(|a| matches!(a, Action::Block { .. })) {
                 continue;

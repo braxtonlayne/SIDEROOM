@@ -8,7 +8,11 @@ use crate::routes::guilds::dto::{UserRef, iso8601};
 use crate::{
     HttpError, Principal, auth::UserOnly, error::ApiResult, openapi::ErrorBody, state::AppState,
 };
-use axum::{Json, Router, extract::Path, routing::get};
+use axum::{
+    Json, Router,
+    extract::{Path, Query},
+    routing::get,
+};
 use serde::{Deserialize, Serialize};
 use sr_chat::Channel;
 use sr_chat::settings::invites::{GuildInvite, InviteOptions, InviteStatus};
@@ -63,6 +67,13 @@ pub struct InviteObject {
     pub temporary: bool,
     pub created_at: String,
     pub expires_at: Option<String>,
+    /// Members of the guild; only with `with_counts=true`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approximate_member_count: Option<u64>,
+    /// Members visibly online; only with `with_counts=true`, and only when the
+    /// server has a live presence source (the gateway). Omitted otherwise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub approximate_presence_count: Option<u64>,
 }
 
 impl InviteObject {
@@ -92,6 +103,8 @@ impl InviteObject {
             temporary: inv.temporary,
             created_at: iso8601(inv.created_at_ms),
             expires_at: inv.expires_at_ms().map(iso8601),
+            approximate_member_count: None,
+            approximate_presence_count: None,
         }
     }
 }
@@ -257,6 +270,42 @@ pub async fn list_guild_invites(
     Ok(Json(render_all(&deps, &active).await?))
 }
 
+/// Query of `GET /invites/{code}`.
+#[derive(Debug, Default, Deserialize)]
+pub struct InviteQuery {
+    pub with_counts: Option<bool>,
+}
+
+/// Presence is counted over at most this many members; beyond that the member
+/// count is still exact but the presence count is left out.
+const PRESENCE_SCAN_LIMIT: u64 = 10_000;
+
+async fn add_counts(deps: &SettingsDeps, guild: GuildId, out: &mut InviteObject) -> ApiResult<()> {
+    let members = deps.chat.count_members(guild).await.map_err(re)?;
+    out.approximate_member_count = Some(members);
+    if let Some(presence) = deps.presence()
+        && members <= PRESENCE_SCAN_LIMIT
+    {
+        let mut online = 0;
+        let mut after = None;
+        loop {
+            let page = deps
+                .chat
+                .page_members(guild, after, 1000)
+                .await
+                .map_err(re)?;
+            let ids: Vec<_> = page.iter().map(|m| m.user_id).collect();
+            online += presence.count_online(&ids);
+            match ids.last() {
+                Some(last) if ids.len() == 1000 => after = Some(*last),
+                _ => break,
+            }
+        }
+        out.approximate_presence_count = Some(online);
+    }
+    Ok(())
+}
+
 async fn usable_invite(deps: &SettingsDeps, code: &str) -> ApiResult<GuildInvite> {
     if !sr_chat::settings::invites::is_valid_code(code) {
         return Err(ErrorCode::UnknownInvite.into());
@@ -273,11 +322,16 @@ async fn usable_invite(deps: &SettingsDeps, code: &str) -> ApiResult<GuildInvite
 }
 
 /// Resolve an invite code (any signed-in user). Revoked, expired and used-up
-/// invites are all `Unknown Invite`.
+/// invites are all `Unknown Invite`. With `with_counts=true` the guild's
+/// `approximate_member_count` and `approximate_presence_count` are included;
+/// `expires_at` is always present (null for invites that never expire).
 #[utoipa::path(
     get,
     path = "/invites/{code}",
-    params(("code" = String, Path, description = "Invite code")),
+    params(
+        ("code" = String, Path, description = "Invite code"),
+        ("with_counts" = Option<bool>, Query, description = "Include approximate member and presence counts"),
+    ),
     responses((status = 200, body = InviteObject), (status = 404, body = ErrorBody)),
     security(("authorization" = []), ("session" = []))
 )]
@@ -285,10 +339,15 @@ pub async fn get_invite(
     p: Principal,
     Ext(deps): Ext<SettingsDeps>,
     Path(code): Path<String>,
+    Query(q): Query<InviteQuery>,
 ) -> ApiResult<Json<InviteObject>> {
     actor(&p)?;
     let inv = usable_invite(&deps, &code).await?;
-    Ok(Json(render_one(&deps, &inv).await?))
+    let mut out = render_one(&deps, &inv).await?;
+    if q.with_counts.unwrap_or(false) {
+        add_counts(&deps, inv.guild_id, &mut out).await?;
+    }
+    Ok(Json(out))
 }
 
 /// Revoke an invite (`MANAGE_CHANNELS` on its channel or `MANAGE_GUILD`). Returns

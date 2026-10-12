@@ -10,27 +10,30 @@
 //!
 //! Producers publish each event to its own topics (channel, guild, or each DM
 //! recipient's user topic), so no single ordinary topic sees every message
-//! event. [`spawn_firehose_consumer`] subscribes to `Topic::Firehose`, which the
-//! bus feeds with everything: it enqueues the index jobs ([`jobs_for_event`]) and
-//! keeps the search access caches fresh ([`SearchDeps::apply_event`]). Events
-//! the bus drops for a lagging consumer are not indexed until the next
-//! `search.reindex`.
+//! event. [`spawn_firehose_consumer`] consumes a tap of everything published
+//! (see [`crate::lag_bus::LagTapBus`]): it enqueues the index jobs ([`jobs_for_event`]) and
+//! keeps the search access caches fresh ([`SearchDeps::apply_event`]). When the consumer lags and events are
+//! dropped, a rate-limited `search.reindex` repairs the index ([`LagRecovery`]).
 
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
+use crate::lag_bus::TapItem;
 use futures::StreamExt;
+use futures::stream::BoxStream;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sr_api::routes::search::SearchDeps;
 use sr_chat::Message;
 use sr_chat::repo::{ChatRepository, MessageStore, Page};
-use sr_core::{ChannelId, MessageId};
+use sr_core::{ChannelId, GuildId, MessageId};
 use sr_db::jobs::{self, Job, NewJob};
 use sr_db::runner::{HandlerError, JobRunner};
 use sr_db::{DbResult, PgPool};
-use sr_events::{DomainEvent, EventBus, FirehoseDedup, Topic};
+use sr_events::{DomainEvent, FirehoseDedup};
 use sr_search::{MessageEvent, MessageIndex};
 use tokio::task::JoinHandle;
+use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 
 /// Job kind for a single message event.
 pub const INDEX_MESSAGE_KIND: &str = "search.index_message";
@@ -49,12 +52,17 @@ pub enum IndexOp {
     Delete,
     /// The channel went away: remove every message in it.
     DeleteChannel,
+    /// The guild was deleted: remove every message indexed under it.
+    DeleteGuild,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IndexPayload {
     pub op: IndexOp,
     pub channel_id: u64,
+    /// Only used by `delete_guild`.
+    #[serde(default)]
+    pub guild_id: u64,
     /// Unused (0) for `delete_channel`.
     #[serde(default)]
     pub message_id: u64,
@@ -76,6 +84,7 @@ pub fn jobs_for_event(ev: &DomainEvent) -> Vec<IndexPayload> {
             op: IndexOp::Upsert,
             channel_id: channel.get(),
             message_id: *message_id,
+            guild_id: 0,
         }],
         DomainEvent::MessageDeleted {
             channel,
@@ -85,6 +94,7 @@ pub fn jobs_for_event(ev: &DomainEvent) -> Vec<IndexPayload> {
             op: IndexOp::Delete,
             channel_id: channel.get(),
             message_id: *message_id,
+            guild_id: 0,
         }],
         DomainEvent::MessagesBulkDeleted {
             channel,
@@ -96,12 +106,20 @@ pub fn jobs_for_event(ev: &DomainEvent) -> Vec<IndexPayload> {
                 op: IndexOp::Delete,
                 channel_id: channel.get(),
                 message_id: *id,
+                guild_id: 0,
             })
             .collect(),
         DomainEvent::ChannelDeleted { channel, .. } => vec![IndexPayload {
             op: IndexOp::DeleteChannel,
             channel_id: channel.get(),
             message_id: 0,
+            guild_id: 0,
+        }],
+        DomainEvent::GuildDeleted { guild } => vec![IndexPayload {
+            op: IndexOp::DeleteGuild,
+            channel_id: 0,
+            message_id: 0,
+            guild_id: guild.get(),
         }],
         _ => Vec::new(),
     }
@@ -149,20 +167,72 @@ async fn consume_event(
     }
 }
 
-/// Subscribe to every event on the bus and feed the search subsystem: index jobs
-/// for message events and cache invalidation for permission-relevant ones.
-/// Subscribes before returning, so events published afterwards are seen.
+/// Minimum time between two lag-triggered `search.reindex` jobs.
+pub const LAG_REINDEX_INTERVAL: Duration = Duration::from_secs(5 * 60);
+
+/// Decides whether a lagged firehose warrants a full reindex: at most one per
+/// [`LAG_REINDEX_INTERVAL`] (a reindex drops and rebuilds the whole index, so a
+/// burst of lag reports must not queue one each).
+#[derive(Debug, Default)]
+pub struct LagRecovery {
+    last: Option<Instant>,
+}
+
+impl LagRecovery {
+    /// Record that `now` saw lag; true when a reindex should be enqueued.
+    pub fn should_reindex(&mut self, now: Instant) -> bool {
+        if self
+            .last
+            .is_some_and(|t| now.saturating_duration_since(t) < LAG_REINDEX_INTERVAL)
+        {
+            return false;
+        }
+        self.last = Some(now);
+        true
+    }
+}
+
+/// React to `missed` lost events: log, and enqueue `search.reindex` unless one
+/// was queued within the last five minutes.
+async fn recover_from_lag(pool: &PgPool, next_id: &JobIds, limiter: &mut LagRecovery, missed: u64) {
+    if !limiter.should_reindex(Instant::now()) {
+        tracing::warn!(
+            missed,
+            "search firehose lagged; a reindex was queued recently, not queueing another"
+        );
+        return;
+    }
+    match enqueue_reindex(pool, next_id()).await {
+        Ok(()) => tracing::warn!(missed, "search firehose lagged; queued search.reindex"),
+        Err(e) => tracing::error!(
+            missed,
+            error = %e,
+            "search firehose lagged and queueing search.reindex failed"
+        ),
+    }
+}
+
+/// Consume the lag-aware event tap (see [`crate::lag_bus::LagTapBus::tap`]) and
+/// feed the search subsystem: index jobs for message events (and guild deletes),
+/// cache invalidation for permission-relevant ones, and a rate-limited
+/// `search.reindex` when events were dropped for this consumer.
+/// Subscribe to the tap before calling, so events published afterwards are seen.
 pub fn spawn_firehose_consumer(
-    bus: &dyn EventBus,
+    mut events: BoxStream<'static, TapItem>,
     pool: PgPool,
     next_id: JobIds,
     search: Arc<SearchDeps>,
 ) -> JoinHandle<()> {
-    let mut stream = bus.subscribe(Topic::Firehose);
     tokio::spawn(async move {
         let mut dedup = FirehoseDedup::new();
-        while let Some(ev) = stream.next().await {
-            consume_event(&pool, &next_id, &search, &mut dedup, &ev).await;
+        let mut limiter = LagRecovery::default();
+        while let Some(item) = events.next().await {
+            match item {
+                Ok(ev) => consume_event(&pool, &next_id, &search, &mut dedup, &ev).await,
+                Err(BroadcastStreamRecvError::Lagged(missed)) => {
+                    recover_from_lag(&pool, &next_id, &mut limiter, missed).await;
+                }
+            }
         }
     })
 }
@@ -220,6 +290,7 @@ impl Indexer {
         let channel = ChannelId::new(p.channel_id);
         let event = match p.op {
             IndexOp::DeleteChannel => MessageEvent::ChannelDeleted(channel),
+            IndexOp::DeleteGuild => MessageEvent::GuildDeleted(GuildId::new(p.guild_id)),
             IndexOp::Delete => MessageEvent::Deleted(MessageId::new(p.message_id)),
             IndexOp::Upsert => {
                 let id = MessageId::new(p.message_id);
@@ -360,7 +431,8 @@ mod tests {
             vec![IndexPayload {
                 op: IndexOp::Upsert,
                 channel_id: 5,
-                message_id: 9
+                message_id: 9,
+                guild_id: 0,
             }]
         );
         let bulk = DomainEvent::MessagesBulkDeleted {
@@ -391,11 +463,38 @@ mod tests {
     }
 
     #[test]
+    fn guild_delete_maps_to_a_delete_guild_job_and_purges_the_index() {
+        let jobs = jobs_for_event(&DomainEvent::GuildDeleted {
+            guild: GuildId::new(7),
+        });
+        assert_eq!(jobs.len(), 1);
+        assert_eq!(jobs[0].op, IndexOp::DeleteGuild);
+        assert_eq!(jobs[0].guild_id, 7);
+        // `guild_id` defaults for old queued payloads.
+        let q: IndexPayload =
+            serde_json::from_value(json!({"op": "delete", "channel_id": 1, "message_id": 2}))
+                .unwrap();
+        assert_eq!(q.guild_id, 0);
+    }
+
+    #[test]
+    fn lag_reindex_is_rate_limited_to_one_per_five_minutes() {
+        let mut l = LagRecovery::default();
+        let t0 = Instant::now();
+        assert!(l.should_reindex(t0));
+        assert!(!l.should_reindex(t0 + Duration::from_secs(1)));
+        assert!(!l.should_reindex(t0 + LAG_REINDEX_INTERVAL - Duration::from_secs(1)));
+        assert!(l.should_reindex(t0 + LAG_REINDEX_INTERVAL));
+        assert!(!l.should_reindex(t0 + LAG_REINDEX_INTERVAL + Duration::from_secs(1)));
+    }
+
+    #[test]
     fn payload_round_trips_as_json() {
         let p = IndexPayload {
             op: IndexOp::DeleteChannel,
             channel_id: 7,
             message_id: 0,
+            guild_id: 0,
         };
         let v = serde_json::to_value(p).unwrap();
         assert_eq!(v["op"], "delete_channel");
@@ -481,6 +580,7 @@ mod tests {
             op: IndexOp::Upsert,
             channel_id: w.channel.get(),
             message_id: id.get(),
+            guild_id: 0,
         };
         w.indexer.handle(upsert).await.unwrap();
         w.indexer.handle(upsert).await.unwrap(); // replay is idempotent
@@ -514,6 +614,7 @@ mod tests {
                 op: IndexOp::Upsert,
                 channel_id: w.channel.get(),
                 message_id: id2.get(),
+                guild_id: 0,
             })
             .await
             .unwrap();
@@ -523,6 +624,7 @@ mod tests {
                 op: IndexOp::DeleteChannel,
                 channel_id: w.channel.get(),
                 message_id: 0,
+                guild_id: 0,
             })
             .await
             .unwrap();
@@ -533,9 +635,45 @@ mod tests {
                 op: IndexOp::Upsert,
                 channel_id: w.channel.get(),
                 message_id: 12345,
+                guild_id: 0,
             })
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn delete_guild_job_purges_the_guilds_messages() {
+        let w = world().await;
+        let id = w.say("purge me please").await;
+        w.indexer
+            .handle(IndexPayload {
+                op: IndexOp::Upsert,
+                channel_id: w.channel.get(),
+                message_id: id.get(),
+                guild_id: 0,
+            })
+            .await
+            .unwrap();
+        let page = w
+            .indexer
+            .index
+            .search(&SearchRequest::new(
+                "purge",
+                Access::Channels(vec![w.channel]),
+            ))
+            .unwrap();
+        let guild = page.hits[0].guild_id.expect("a guild message");
+        let delete = |g: u64| IndexPayload {
+            op: IndexOp::DeleteGuild,
+            channel_id: 0,
+            message_id: 0,
+            guild_id: g,
+        };
+        // Another guild's purge leaves it alone.
+        w.indexer.handle(delete(guild.get() + 1)).await.unwrap();
+        assert_eq!(w.hits("purge"), 1);
+        w.indexer.handle(delete(guild.get())).await.unwrap();
+        assert_eq!(w.hits("purge"), 0);
     }
 
     #[tokio::test]

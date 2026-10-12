@@ -241,6 +241,8 @@ impl AuthStore for MemoryAuthStore {
                 password_hash: tx.password_hash,
                 state: AccountState::Active,
                 age_confirmed: None,
+                locale: "en-US".into(),
+                flags: 0,
             },
         );
         if let Some(i) = g.invites.get_mut(tx.code.canonical()) {

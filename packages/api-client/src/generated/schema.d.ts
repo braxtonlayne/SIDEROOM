@@ -887,13 +887,17 @@ export interface paths {
         };
         /**
          * Resolve an invite code (any signed-in user). Revoked, expired and used-up
-         *     invites are all `Unknown Invite`.
+         *     invites are all `Unknown Invite`. With `with_counts=true` the guild's
+         *     `approximate_member_count` and `approximate_presence_count` are included;
+         *     `expires_at` is always present (null for invites that never expire).
          */
         get: operations["get_invite"];
         put?: never;
         /**
-         * Accept an invite and join the guild. Already being a member returns the invite
-         *     without using it up. Banned users get 403 `User banned`.
+         * Accept an invite and join the guild. The member is added and exactly one use
+         *     consumed atomically. Already being a member returns the invite without using
+         *     it up. Banned users get 403 `User banned`; paused invites 403. Bots cannot
+         *     join by invite.
          */
         post: operations["accept_invite"];
         /**
@@ -947,7 +951,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The authenticated caller (placeholder until the users feature lands). */
+        /** The authenticated caller (as a Discord-shaped user object). */
         get: operations["current_user"];
         put?: never;
         post?: never;
@@ -1583,12 +1587,40 @@ export interface components {
             /** @description Value for the `X-SR-CSRF` header. */
             token: string;
         };
-        /** @description Body of `GET /users/@me` (minimal until the users feature lands). */
+        /**
+         * @description Body of `GET /users/@me`: a Discord-shaped user object. Session callers get
+         *     the full object (including their own `email`); bot and bearer callers get the
+         *     id, `bot` and the placeholder fields only, since no account row backs them.
+         */
         CurrentUser: {
-            /** @description `session`, `bot` or `bearer`. */
+            /** @description `session`, `bot` or `bearer` (SIDE ROOM addition). */
             auth: string;
+            /** @description Avatar hash; always null until avatars land. */
+            avatar?: string | null;
+            /** @description True for bot callers. */
+            bot: boolean;
+            /** @description Always `"0"` (no discriminators). */
+            discriminator: string;
+            /** @description Same as `global_name` (SIDE ROOM name for the field). */
+            display_name?: string | null;
+            /** @description The caller's own email (session callers only). */
+            email?: string | null;
+            /**
+             * Format: int64
+             * @description Public account flags (session callers).
+             */
+            flags?: number | null;
+            /** @description The display name, if the account set one. */
+            global_name?: string | null;
             /** @description Snowflake id as a string. */
             id: string;
+            /** @description BCP 47 locale (session callers). */
+            locale?: string | null;
+            /** @description Whether TOTP is confirmed on the account (session callers). */
+            mfa_enabled?: boolean | null;
+            username?: string | null;
+            /** @description Whether the email address was verified (session callers). */
+            verified?: boolean | null;
         };
         CustomStatusBody: {
             emoji_id?: string | null;
@@ -1740,6 +1772,17 @@ export interface components {
         };
         /** @description Discord-shaped invite object. */
         InviteObject: {
+            /**
+             * Format: int64
+             * @description Members of the guild; only with `with_counts=true`.
+             */
+            approximate_member_count?: number | null;
+            /**
+             * Format: int64
+             * @description Members visibly online; only with `with_counts=true`, and only when the
+             *     server has a live presence source (the gateway). Omitted otherwise.
+             */
+            approximate_presence_count?: number | null;
             channel: components["schemas"]["InviteChannel"];
             code: string;
             created_at: string;
@@ -6105,7 +6148,10 @@ export interface operations {
     };
     get_invite: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Include approximate member and presence counts */
+                with_counts?: boolean;
+            };
             header?: never;
             path: {
                 /** @description Invite code */

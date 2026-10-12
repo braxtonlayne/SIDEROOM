@@ -136,6 +136,18 @@ pub struct AuthService {
 }
 
 impl AuthService {
+    /// The account row of `id` and whether TOTP is confirmed on it (for `GET /users/@me`).
+    pub async fn account_overview(
+        &self,
+        id: i64,
+    ) -> Result<Option<(super::store::AccountRecord, bool)>, sr_auth::store::StoreError> {
+        let Some(account) = self.store.find_by_id(id).await? else {
+            return Ok(None);
+        };
+        let mfa = self.store.totp_get(id).await?.is_some_and(|t| t.confirmed);
+        Ok(Some((account, mfa)))
+    }
+
     /// Service with default config and password hashing parameters.
     pub fn new(store: Arc<dyn AuthStore>, mailer: Arc<dyn Mailer>, ids: IdSource) -> Self {
         let cfg = AuthConfig::default();

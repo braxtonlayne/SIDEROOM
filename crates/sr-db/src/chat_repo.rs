@@ -334,6 +334,15 @@ impl GuildRepository for PgChatRepo {
         row.as_ref().map(guild_from).transpose().map_err(db)
     }
 
+    async fn count_members(&self, guild: GuildId) -> RepoResult<u64> {
+        let n: i64 = sqlx::query_scalar("SELECT count(*) FROM guild_members WHERE guild_id = $1")
+            .bind(i(guild.get()))
+            .fetch_one(&self.pool)
+            .await
+            .map_err(db)?;
+        Ok(u64::try_from(n).unwrap_or(0))
+    }
+
     async fn page_members(
         &self,
         guild: GuildId,

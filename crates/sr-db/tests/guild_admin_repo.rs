@@ -182,3 +182,30 @@ async fn guild_admin_round_trip() {
         Err(ChatError::UnknownGuild)
     ));
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn member_count_and_automod_style_timeout_round_trip() {
+    use sr_chat::admin_repo::GuildAdminRepository;
+    use sr_chat::repo::GuildRepository;
+
+    let pool = pool().await;
+    let (svc, ids) = service(&pool);
+    let owner = account(&pool, &ids).await;
+    let bob = account(&pool, &ids).await;
+    let bp = svc.create_guild(owner, "Count Test").await.unwrap();
+    let gid = bp.guild.id;
+    let repo = PgChatRepo::new(pool.clone());
+    assert_eq!(repo.count_members(gid).await.unwrap(), 1);
+    join(&pool, gid, bob).await;
+    assert_eq!(repo.count_members(gid).await.unwrap(), 2);
+
+    // The write the AutoMod timeout performs: read, set the deadline, update.
+    let until = 4_000_000_000_000_i64;
+    let mut m = repo.get_member(gid, bob).await.unwrap().unwrap();
+    assert_eq!(m.communication_disabled_until_ms, None);
+    m.communication_disabled_until_ms = Some(until);
+    repo.update_member(&m).await.unwrap();
+    let m = repo.get_member(gid, bob).await.unwrap().unwrap();
+    assert_eq!(m.communication_disabled_until_ms, Some(until));
+}

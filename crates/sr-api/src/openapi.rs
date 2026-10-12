@@ -22,13 +22,44 @@ pub struct ErrorBody {
     pub errors: Option<serde_json::Value>,
 }
 
-/// Body of `GET /users/@me` (minimal until the users feature lands).
+/// Body of `GET /users/@me`: a Discord-shaped user object. Session callers get
+/// the full object (including their own `email`); bot and bearer callers get the
+/// id, `bot` and the placeholder fields only, since no account row backs them.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct CurrentUser {
     /// Snowflake id as a string.
     pub id: String,
-    /// `session`, `bot` or `bearer`.
+    /// `session`, `bot` or `bearer` (SIDE ROOM addition).
     pub auth: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
+    /// The display name, if the account set one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub global_name: Option<String>,
+    /// Same as `global_name` (SIDE ROOM name for the field).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    /// Avatar hash; always null until avatars land.
+    pub avatar: Option<String>,
+    /// Always `"0"` (no discriminators).
+    pub discriminator: String,
+    /// True for bot callers.
+    pub bot: bool,
+    /// Whether the email address was verified (session callers).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verified: Option<bool>,
+    /// The caller's own email (session callers only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
+    /// Whether TOTP is confirmed on the account (session callers).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mfa_enabled: Option<bool>,
+    /// Public account flags (session callers).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub flags: Option<i64>,
+    /// BCP 47 locale (session callers).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub locale: Option<String>,
 }
 
 /// Body of `GET /sr/csrf`.
@@ -85,7 +116,7 @@ pub async fn openapi_json(State(state): State<AppState>) -> Json<utoipa::openapi
     Json(state.openapi().clone())
 }
 
-/// The authenticated caller (placeholder until the users feature lands).
+/// The authenticated caller (as a Discord-shaped user object).
 #[utoipa::path(
     get,
     path = "/users/@me",
@@ -95,8 +126,11 @@ pub async fn openapi_json(State(state): State<AppState>) -> Json<utoipa::openapi
     ),
     security(("authorization" = []), ("session" = []))
 )]
-pub async fn current_user(p: crate::auth::Principal) -> Json<CurrentUser> {
-    Json(CurrentUser {
+pub async fn current_user(
+    p: crate::auth::Principal,
+    crate::routes::MaybeExt(auth): crate::routes::MaybeExt<crate::routes::auth::AuthService>,
+) -> Result<Json<CurrentUser>, crate::HttpError> {
+    let mut me = CurrentUser {
         id: p.user_id.to_string(),
         auth: match p.kind {
             crate::AuthKind::Session { .. } => "session",
@@ -104,7 +138,38 @@ pub async fn current_user(p: crate::auth::Principal) -> Json<CurrentUser> {
             crate::AuthKind::Bearer { .. } => "bearer",
         }
         .to_owned(),
-    })
+        username: None,
+        global_name: None,
+        display_name: None,
+        avatar: None,
+        discriminator: "0".to_owned(),
+        bot: matches!(p.kind, crate::AuthKind::Bot { .. }),
+        verified: None,
+        email: None,
+        mfa_enabled: None,
+        flags: None,
+        locale: None,
+    };
+    // Only a session is backed by an account row; the email is the caller's own.
+    if matches!(p.kind, crate::AuthKind::Session { .. })
+        && let Some(auth) = auth
+    {
+        let found = auth.account_overview(p.user_id).await.map_err(|e| {
+            tracing::error!(error = %e, "could not load the current account");
+            crate::HttpError(sr_core::ErrorCode::SrInternal.into())
+        })?;
+        if let Some((account, mfa)) = found {
+            me.username = Some(account.username);
+            me.global_name.clone_from(&account.display_name);
+            me.display_name = account.display_name;
+            me.verified = Some(account.email_verified);
+            me.email = Some(account.email);
+            me.mfa_enabled = Some(mfa);
+            me.flags = Some(account.flags);
+            me.locale = Some(account.locale);
+        }
+    }
+    Ok(Json(me))
 }
 
 /// The CSRF token for the current session.

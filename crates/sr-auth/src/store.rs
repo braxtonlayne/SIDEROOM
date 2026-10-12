@@ -55,6 +55,10 @@ pub struct AccountRecord {
     pub state: AccountState,
     /// Answer to the age gate, if asked (doc 06 section 7).
     pub age_confirmed: Option<bool>,
+    /// BCP 47 locale (`en-US` by default).
+    pub locale: String,
+    /// Public account flags (Discord `flags`; 0 for none).
+    pub flags: i64,
 }
 
 /// Lifecycle of an invite as seen by the public check.

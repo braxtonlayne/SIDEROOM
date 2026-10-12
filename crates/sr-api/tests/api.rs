@@ -253,6 +253,13 @@ async fn bot_and_bearer_tokens() {
     assert_eq!(s, StatusCode::OK);
     assert_eq!(json(&b)["id"], "7");
     assert_eq!(json(&b)["auth"], "bot");
+    assert_eq!(json(&b)["bot"], true);
+    assert_eq!(json(&b)["discriminator"], "0");
+    assert!(json(&b)["avatar"].is_null());
+    assert!(
+        json(&b).get("email").is_none(),
+        "bots have no account email"
+    );
     let (s, _, b) = send(&app(&f), req("Bearer oauthsecret")).await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(json(&b)["auth"], "bearer");

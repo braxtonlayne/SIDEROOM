@@ -206,7 +206,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     )
     .with_previous_keys(previous_keys);
 
-    let bus: Arc<dyn EventBus> = Arc::new(InProcessBus::new());
+    // The wrapper lets the search indexer notice when it lagged behind the bus.
+    let lag_bus = Arc::new(crate::lag_bus::LagTapBus::new(
+        Arc::new(InProcessBus::new()),
+    ));
+    let bus: Arc<dyn EventBus> = lag_bus.clone();
 
     // Entrance/auth service (open question 140): Postgres store, SMTP when
     // `[smtp]` has a host (the log mailer otherwise, for development), and the
@@ -353,6 +357,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // gets invite/webhook entropy from the OS. Its events go to the bus, and the
     // audit entries it stores are announced on the gateway. The search index lives
     // in `[search] dir` (default `data/search`).
+    let gateway_presence = Arc::new(crate::gateway_pg::GatewayPresence::default());
     let settings_deps = Arc::new(
         SettingsDeps::new(
             Arc::new(PgSettingsRepo::new(pool.clone())),
@@ -367,6 +372,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .with_events(Arc::new(BusSettingsEvents::new(bus.clone())))
         .with_joiner(Arc::new(routes::settings::InviteMemberJoiner::new(
             Arc::new(sr_db::invite_join::PgInviteJoinRepo::new(pool.clone())),
+            Arc::new(PgChatRepo::new(pool.clone())),
+            bus.clone(),
+        )))
+        .with_presence(gateway_presence.clone())
+        .with_timeouter(Arc::new(routes::settings::AdminMemberTimeouter::new(
             Arc::new(PgChatRepo::new(pool.clone())),
             bus.clone(),
         )))
@@ -386,7 +396,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let search_consumer = {
         let ids = ids.clone();
         crate::search_jobs::spawn_firehose_consumer(
-            bus.as_ref(),
+            lag_bus.tap(),
             pool.clone(),
             Arc::new(move || ids.generate().get() as i64),
             search_deps.clone(),
@@ -413,6 +423,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         bus.clone(),
     );
     gateway.start();
+    gateway_presence.attach(gateway.clone());
 
     // Social endpoints (relationships, DMs, acks, notification settings, profiles):
     // their own service on its own snowflake worker (process id + 3).

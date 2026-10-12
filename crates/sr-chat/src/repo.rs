@@ -27,6 +27,20 @@ pub trait GuildRepository: Send + Sync {
         after: Option<UserId>,
         limit: usize,
     ) -> RepoResult<Vec<Member>>;
+    /// Number of members of the guild (invite previews). The default pages through
+    /// the members; stores should override it with a cheap count.
+    async fn count_members(&self, guild: GuildId) -> RepoResult<u64> {
+        let mut total = 0u64;
+        let mut after = None;
+        loop {
+            let page = self.page_members(guild, after, 1000).await?;
+            total += page.len() as u64;
+            match page.last() {
+                Some(m) if page.len() == 1000 => after = Some(m.user_id),
+                _ => return Ok(total),
+            }
+        }
+    }
     /// All roles including `@everyone`.
     async fn list_roles(&self, guild: GuildId) -> RepoResult<Vec<Role>>;
     /// Insert a role, first shifting every role with `position >= role.position` up by one.

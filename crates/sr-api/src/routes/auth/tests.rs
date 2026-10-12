@@ -160,6 +160,8 @@ impl H {
             password_hash: self.hasher.hash(PW).unwrap(),
             state,
             age_confirmed: None,
+            locale: "en-US".into(),
+            flags: 0,
         });
     }
 
@@ -813,6 +815,8 @@ async fn login_rehashes_outdated_parameters() {
         password_hash: old.hash(PW).unwrap(),
         state: AccountState::Active,
         age_confirmed: None,
+        locale: "en-US".into(),
+        flags: 0,
     });
     h.login("alice").await;
     let stored = h.account(1).password_hash;
@@ -1408,6 +1412,8 @@ async fn resend_verification_has_a_cooldown() {
         password_hash: h.hasher.hash(PW).unwrap(),
         state: AccountState::Active,
         age_confirmed: None,
+        locale: "en-US".into(),
+        flags: 0,
     });
     let s = h.login("alice").await;
     let send = || {
@@ -1672,4 +1678,28 @@ async fn discord_routes_are_404_when_not_configured() {
         .send()
         .await;
     assert_eq!(r.status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn users_me_is_a_discord_shaped_user_for_sessions() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    let s = h.login("alice").await;
+    let me = h.get("/api/v1/users/@me").session(&s).send().await;
+    assert_eq!(me.status, StatusCode::OK);
+    let b = &me.body;
+    assert_eq!(b["id"], "1");
+    assert_eq!(b["auth"], "session");
+    assert_eq!(b["username"], "alice");
+    assert_eq!(b["discriminator"], "0");
+    assert!(b["avatar"].is_null());
+    assert_eq!(b["bot"], false);
+    assert_eq!(b["email"], "alice@x.test");
+    assert_eq!(b["verified"], true);
+    assert_eq!(b["mfa_enabled"], false);
+    assert_eq!(b["flags"], 0);
+    assert_eq!(b["locale"], "en-US");
+    // No display name set: the fields are omitted rather than null.
+    assert!(b.get("global_name").is_none());
+    assert!(b.get("display_name").is_none());
 }
