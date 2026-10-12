@@ -152,7 +152,9 @@ pub async fn register_with_invite(
         Some(p) => {
             let banned: bool = sqlx::query_scalar(
                 "SELECT EXISTS(SELECT 1 FROM accounts \
-                 WHERE person_id = $1 AND state = 'platform_banned')",
+                 WHERE person_id = $1 AND state = 'platform_banned') \
+                 OR EXISTS(SELECT 1 FROM person_bans \
+                 WHERE person_id = $1 AND lifted_at IS NULL)",
             )
             .bind(p)
             .fetch_one(&mut *tx)

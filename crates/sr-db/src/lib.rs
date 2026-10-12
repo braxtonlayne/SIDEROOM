@@ -6,6 +6,7 @@
 //! `SR_TEST_DATABASE_URL`.
 
 pub mod accounts;
+pub mod admin_repo;
 pub mod auth_repo;
 pub mod auth_store;
 pub mod chat_repo;
