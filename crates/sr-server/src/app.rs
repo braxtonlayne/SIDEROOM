@@ -329,6 +329,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             social_ids,
             sr_chat::social::SocialLimits::default(),
         ));
+    let cdn_signer =
+        sr_storage::cdn::CdnSigner::new(secret_key(cfg.server.secret_key.expose())?.to_vec());
     let messages = routes::messages::MessagesDeps::new(
         PgChatRepo::new(pool.clone()),
         Arc::new(sr_db::chat_repo::PgMessageStore::new(pool.clone())),
@@ -344,9 +346,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         cfg.server.process_id,
     )
     .context("message snowflake generator")?
-    .with_cdn_signer(sr_storage::cdn::CdnSigner::new(
-        secret_key(cfg.server.secret_key.expose())?.to_vec(),
-    ));
+    .with_cdn_signer(cdn_signer.clone());
 
     // Server settings and message search (open questions 131-138). The settings
     // service runs over Postgres on its own snowflake worker (process id + 3) and
@@ -451,6 +451,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(settings_deps.clone())
         .extension(Arc::new(AutoModGateHandle(settings_deps)))
         .extension(search_deps)
+        .extension(Arc::new(routes::cdn::CdnDeps::new(
+            storage.clone(),
+            cdn_signer,
+        )))
         .readiness(Arc::new(DbReady::new(pool.clone(), readiness_timeout)))
         .readiness(Arc::new(StorageReady::new(storage.clone())))
         .build();
@@ -522,7 +526,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             },
             connection_cap,
         ));
-    let app = build_router(state, api).merge(gateway_routes);
+    // Signed media delivery at `/cdn/*`, outside `/api/v1`: no cookie auth or CSRF,
+    // the URL signature is the credential.
+    let cdn_routes = routes::cdn::layered(state.clone());
+    let app = build_router(state, api)
+        .merge(gateway_routes)
+        .merge(cdn_routes);
 
     let gw = gateway.clone();
     let result = serve_until(public, app, shutdown, move || gw.request_reconnect(), grace).await;

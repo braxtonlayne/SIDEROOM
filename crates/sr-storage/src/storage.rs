@@ -6,9 +6,12 @@ use std::time::Duration;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::TryStreamExt;
+use futures::stream::BoxStream;
 use object_store::path::Path;
 use object_store::signer::{Method, Signer};
-use object_store::{MultipartUpload, ObjectStore, ObjectStoreExt, PutPayload};
+use object_store::{
+    GetOptions, GetRange, MultipartUpload, ObjectStore, ObjectStoreExt, PutPayload,
+};
 
 use crate::error::{Result, StorageError};
 
@@ -28,6 +31,19 @@ pub struct ObjectInfo {
     pub key: String,
     /// Size in bytes.
     pub size: u64,
+    /// Backend entity tag, when the backend provides one.
+    pub etag: Option<String>,
+}
+
+/// A streaming object body: `body` yields exactly the bytes of `range`
+/// (`start..end`, end exclusive) of an object whose metadata is `info`.
+pub struct ObjectStream {
+    /// Metadata of the whole object (size is the total length).
+    pub info: ObjectInfo,
+    /// The byte range the stream covers.
+    pub range: std::ops::Range<u64>,
+    /// The body, never fully buffered by the storage layer.
+    pub body: BoxStream<'static, Result<Bytes>>,
 }
 
 /// An in-progress server-side multipart upload.
@@ -52,6 +68,23 @@ pub trait ObjectStorage: Send + Sync {
     async fn get(&self, key: &str) -> Result<Bytes>;
     /// Fetch a byte range `[start, end)` of an object.
     async fn get_range(&self, key: &str, start: u64, end: u64) -> Result<Bytes>;
+    /// Stream the byte range `range` (`start..end`, end exclusive; `None` = whole
+    /// object) without buffering it. The default implementation falls back to
+    /// [`ObjectStorage::get_range`] as a single chunk; real backends override it.
+    async fn get_stream(
+        &self,
+        key: &str,
+        range: Option<std::ops::Range<u64>>,
+    ) -> Result<ObjectStream> {
+        let info = self.head(key).await?;
+        let range = range.unwrap_or(0..info.size);
+        let data = self.get_range(key, range.start, range.end).await?;
+        Ok(ObjectStream {
+            info,
+            range,
+            body: Box::pin(futures::stream::once(async move { Ok(data) })),
+        })
+    }
     /// Object size without fetching the body.
     async fn head(&self, key: &str) -> Result<ObjectInfo>;
     /// Delete an object.
@@ -197,6 +230,35 @@ impl ObjectStorage for ObjectStoreStorage {
         Ok(ObjectInfo {
             key: meta.location.to_string(),
             size: meta.size,
+            etag: meta.e_tag,
+        })
+    }
+
+    async fn get_stream(
+        &self,
+        key: &str,
+        range: Option<std::ops::Range<u64>>,
+    ) -> Result<ObjectStream> {
+        let path = Path::parse(key)?;
+        let opts = GetOptions {
+            range: range.clone().map(GetRange::Bounded),
+            ..GetOptions::default()
+        };
+        let res = self.store.get_opts(&path, opts).await?;
+        let info = ObjectInfo {
+            key: res.meta.location.to_string(),
+            size: res.meta.size,
+            etag: res.meta.e_tag.clone(),
+        };
+        let range = if range.is_some() {
+            res.range.clone()
+        } else {
+            0..info.size
+        };
+        Ok(ObjectStream {
+            info,
+            range,
+            body: Box::pin(res.into_stream().map_err(StorageError::from)),
         })
     }
 
@@ -214,6 +276,7 @@ impl ObjectStorage for ObjectStoreStorage {
             .map(|m| ObjectInfo {
                 key: m.location.to_string(),
                 size: m.size,
+                etag: m.e_tag,
             })
             .collect())
     }
@@ -276,6 +339,29 @@ mod tests {
         s.delete("a/one.bin").await.unwrap();
         assert!(matches!(
             s.get("a/one.bin").await,
+            Err(StorageError::NotFound(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn get_stream_whole_and_range() {
+        let s = ObjectStoreStorage::in_memory();
+        s.put("a/one.bin", Bytes::from_static(b"0123456789"))
+            .await
+            .unwrap();
+        let collect = |st: ObjectStream| async move {
+            let v: Vec<Bytes> = st.body.try_collect().await.unwrap();
+            v.concat()
+        };
+        let st = s.get_stream("a/one.bin", None).await.unwrap();
+        assert_eq!((st.info.size, st.range.clone()), (10, 0..10));
+        assert!(st.info.etag.is_some());
+        assert_eq!(collect(st).await, b"0123456789");
+        let st = s.get_stream("a/one.bin", Some(2..5)).await.unwrap();
+        assert_eq!((st.info.size, st.range.clone()), (10, 2..5));
+        assert_eq!(collect(st).await, b"234");
+        assert!(matches!(
+            s.get_stream("a/none", None).await,
             Err(StorageError::NotFound(_))
         ));
     }

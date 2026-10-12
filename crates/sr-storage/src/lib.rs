@@ -11,4 +11,6 @@ pub mod storage;
 pub mod upload;
 
 pub use error::{Result, StorageError};
-pub use storage::{MultipartSession, ObjectStorage, ObjectStoreStorage, PresignMethod};
+pub use storage::{
+    MultipartSession, ObjectInfo, ObjectStorage, ObjectStoreStorage, ObjectStream, PresignMethod,
+};
