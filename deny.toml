@@ -24,11 +24,21 @@ allow = [
     "CC0-1.0",
     "BSL-1.0",
     "OpenSSL",
+    # Permissive: BSD-style (quoted_printable via lettre) and the data licence for root certs
+    # (webpki-roots / webpki-root-certs).
+    "0BSD",
+    "CDLA-Permissive-2.0",
 ]
+
+# Our own workspace crates are private (publish = false) and carry no licence expression.
+[licenses.private]
+ignore = true
 
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
+# Path dependencies between workspace crates have no version requirement.
+allow-wildcard-paths = true
 highlight = "all"
 deny = [
     # TLS is rustls only; no system OpenSSL linkage.
