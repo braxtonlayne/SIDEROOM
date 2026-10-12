@@ -1,0 +1,202 @@
+//! URL path <-> object key mapping for `/cdn/...`.
+//!
+//! A CDN path is `/cdn/<kind>/<segment>/...`. Each segment is percent-encoded
+//! with a strict alphabet (see [`encode_segment`]); the *canonical* path built
+//! from the decoded segments is what the HMAC signs, so a client may send
+//! `%20` or a literal space and still verify.
+//!
+//! | kind          | object key prefix | written by                       |
+//! |---------------|-------------------|----------------------------------|
+//! | `attachments` | `chat/`           | message attachments              |
+//! | `emoji`       | `emoji/`          | custom emoji (`emoji/{guild}/{id}.{ext}`) |
+//! | `stickers`    | `sticker/`        | guild stickers                   |
+//! | `avatars`     | `avatars/`        | reserved                         |
+//! | `icons`       | `icons/`          | reserved (guild icons)           |
+
+use thiserror::Error;
+
+/// `(url kind, object key prefix)`.
+pub const KINDS: &[(&str, &str)] = &[
+    ("attachments", "chat"),
+    ("emoji", "emoji"),
+    ("stickers", "sticker"),
+    ("avatars", "avatars"),
+    ("icons", "icons"),
+];
+
+const MAX_PATH: usize = 1024;
+const MAX_SEGMENTS: usize = 8;
+const MAX_SEGMENT: usize = 255;
+
+/// Why a path was refused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+pub enum PathError {
+    /// Not under an allowed kind.
+    #[error("unknown cdn kind")]
+    UnknownKind,
+    /// Traversal, empty segment, backslash, bad escape, control character, too long.
+    #[error("invalid cdn path")]
+    Invalid,
+}
+
+/// A validated CDN path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CdnPath {
+    /// Canonical wire form that is signed.
+    pub canonical: String,
+    /// Object storage key.
+    pub key: String,
+    /// Last decoded segment (the file name).
+    pub filename: String,
+}
+
+/// Percent-encode one path segment, leaving only `A-Z a-z 0-9 - . _ ~`.
+pub fn encode_segment(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~') {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
+/// Build the canonical (to-be-signed) path `/cdn/<kind>/<seg>/...`. This is
+/// the helper to use when constructing CDN URLs; sign the result with
+/// `CdnSigner::signed_url`.
+pub fn cdn_path(kind: &str, segments: &[&str]) -> String {
+    let mut p = format!("/cdn/{kind}");
+    for s in segments {
+        p.push('/');
+        p.push_str(&encode_segment(s));
+    }
+    p
+}
+
+fn decode_segment(raw: &str) -> Result<String, PathError> {
+    let b = raw.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' {
+            let hex = raw.get(i + 1..i + 3).ok_or(PathError::Invalid)?;
+            if !hex.bytes().all(|c| c.is_ascii_hexdigit()) {
+                return Err(PathError::Invalid);
+            }
+            out.push(u8::from_str_radix(hex, 16).map_err(|_| PathError::Invalid)?);
+            i += 3;
+        } else {
+            out.push(b[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8(out).map_err(|_| PathError::Invalid)
+}
+
+/// Validate a raw request path (as received on the wire, no query) and map it
+/// to an object key.
+pub fn parse(raw: &str) -> Result<CdnPath, PathError> {
+    if raw.len() > MAX_PATH {
+        return Err(PathError::Invalid);
+    }
+    let rest = raw.strip_prefix("/cdn/").ok_or(PathError::Invalid)?;
+    if rest.contains('\\') {
+        return Err(PathError::Invalid);
+    }
+    let raw_segs: Vec<&str> = rest.split('/').collect();
+    if raw_segs.len() < 2 || raw_segs.len() > MAX_SEGMENTS {
+        // A kind alone (or nothing) never names an object.
+        return Err(PathError::Invalid);
+    }
+    let prefix = KINDS
+        .iter()
+        .find(|(k, _)| *k == raw_segs[0])
+        .map(|(_, p)| *p)
+        .ok_or(PathError::UnknownKind)?;
+    let mut decoded = Vec::with_capacity(raw_segs.len() - 1);
+    for seg in &raw_segs[1..] {
+        if seg.is_empty() {
+            return Err(PathError::Invalid);
+        }
+        let d = decode_segment(seg)?;
+        if d.is_empty()
+            || d == "."
+            || d == ".."
+            || d.len() > MAX_SEGMENT
+            || d.contains(['/', '\\'])
+            || d.chars().any(char::is_control)
+        {
+            return Err(PathError::Invalid);
+        }
+        decoded.push(d);
+    }
+    let refs: Vec<&str> = decoded.iter().map(String::as_str).collect();
+    Ok(CdnPath {
+        canonical: cdn_path(raw_segs[0], &refs),
+        key: format!("{prefix}/{}", decoded.join("/")),
+        filename: decoded.last().cloned().unwrap_or_default(),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn maps_kinds_to_keys() {
+        let p = parse("/cdn/attachments/1/2/a.png").unwrap();
+        assert_eq!(p.key, "chat/1/2/a.png");
+        assert_eq!(p.canonical, "/cdn/attachments/1/2/a.png");
+        assert_eq!(parse("/cdn/emoji/9/3.gif").unwrap().key, "emoji/9/3.gif");
+        assert_eq!(
+            parse("/cdn/stickers/9/3.png").unwrap().key,
+            "sticker/9/3.png"
+        );
+    }
+
+    #[test]
+    fn canonicalises_encoding() {
+        let a = parse("/cdn/attachments/1/2/my%20f%C3%A9.png").unwrap();
+        let b = parse("/cdn/attachments/1/2/my%20f%c3%a9.png").unwrap();
+        assert_eq!(a.canonical, b.canonical);
+        assert_eq!(a.filename, "my fé.png");
+        assert_eq!(a.key, "chat/1/2/my fé.png");
+        assert_eq!(
+            cdn_path("attachments", &["1", "2", "my fé.png"]),
+            a.canonical
+        );
+    }
+
+    #[test]
+    fn rejects_bad_paths() {
+        for p in [
+            "/cdn/attachments/../x",
+            "/cdn/attachments/1/./x",
+            "/cdn/attachments/%2e%2e/x",
+            "/cdn/attachments/%2E%2E/x",
+            "/cdn/attachments/1/..%2f..%2fetc",
+            "/cdn/attachments/1%5Cx/y",
+            "/cdn/attachments/1\\x/y",
+            "/cdn/attachments//x",
+            "/cdn/attachments/1/x/",
+            "/cdn/attachments",
+            "/cdn/attachments/",
+            "/cdn//attachments/x",
+            "/cdn/attachments/%zz/x",
+            "/cdn/attachments/%/x",
+            "/cdn/attachments/%00/x",
+            "/cdn/attachments/%ff/x",
+            "/cdn/attachments/%0a/x",
+            "//cdn/attachments/1/x",
+            "/cdnx/attachments/1/x",
+            "/cdn/emoji/%2F/x",
+        ] {
+            assert!(parse(p).is_err(), "{p} must be refused");
+        }
+        assert_eq!(parse("/cdn/secrets/1/x"), Err(PathError::UnknownKind));
+        assert_eq!(parse("/cdn/chat/1/x"), Err(PathError::UnknownKind));
+        assert_eq!(parse("/cdn/avatars%2F1/x"), Err(PathError::UnknownKind));
+    }
+}

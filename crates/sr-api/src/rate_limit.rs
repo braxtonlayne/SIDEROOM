@@ -97,6 +97,8 @@ impl Default for RateLimitConfig {
             ),
             ("POST /guilds", BucketSpec::new(2, 60)),
             ("POST /sr/register", BucketSpec::new(5, 60)),
+            // Signed media links: a page of messages fans out into many image fetches.
+            ("GET /cdn/{*path}", BucketSpec::new(300, 10)),
         ]
         .into_iter()
         .map(|(k, v)| (k.to_owned(), v))

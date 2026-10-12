@@ -183,7 +183,10 @@ pub fn attachment_object(a: &Attachment) -> AttachmentObject {
         id: a.id.to_string(),
         filename: a.filename.clone(),
         size: a.size,
-        url: format!("/cdn/attachments/{}/{}/{}", a.channel_id, a.id, a.filename),
+        url: crate::routes::cdn::cdn_path(
+            "attachments",
+            &[&a.channel_id.to_string(), &a.id.to_string(), &a.filename],
+        ),
         content_type: a.content_type.clone(),
         description: a.description.clone(),
         expires_at: a.expires_at_ms.map(iso),

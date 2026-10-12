@@ -85,11 +85,8 @@ The driver registers one user through an `sr-cli` invite (registration is rate l
 per IP, so run it once per few minutes), then prints `PASS`/`FAIL` per check and exits
 non-zero on any failure. It signs its own S3 requests to look at objects directly.
 
-Known gap the driver will report: sr-server signs attachment URLs
-(`/cdn/attachments/...?ex=&sig=`) but at the time of writing has no `/cdn/*` route
-that verifies and serves them, so the CDN fetch and `Range` checks are expected to
-fail until that route exists. The emoji image is checked straight from S3 for the
-same reason.
+Attachment URLs (`/cdn/attachments/...?ex=&sig=`) are served by the `/cdn/*` route (docs/05 section 5.2),
+so the CDN fetch and `Range` checks should now pass. The emoji image is still checked straight from S3.
 
 To stop: kill the server and the S3 process, `dropdb -U postgres sr_s3`, delete the
 throwaway data dirs.

@@ -13,6 +13,8 @@
 //!   branch delegates to the DM service) and `/users/@me/guilds*`.
 //! * `messages`: `/channels/{id}/{messages,pins,typing,attachments}*`.
 //! * `auth`: `/sr/*` entrance routes.
+//! * `cdn`: `GET|HEAD /cdn/{*path}` signed media delivery. Not part of [`all`]: it lives
+//!   outside `/api/v1`; the composition root merges [`cdn::layered`] at the top level.
 //! * `social`: relationships, ignores, notes, DMs (`/users/@me/channels*`, `/channels/{id}/recipients/*`),
 //!   acks and read states, notification settings, profiles (`PATCH /users/@me`, `/users/{id}/profile`)
 //!   and `/users/@me/presence`. Only `GET /users/@me` stays with the base router.
@@ -23,6 +25,7 @@ use sr_core::ErrorCode;
 use std::{any::type_name, sync::Arc};
 
 pub mod auth;
+pub mod cdn;
 pub mod guilds;
 pub mod messages;
 pub mod search;

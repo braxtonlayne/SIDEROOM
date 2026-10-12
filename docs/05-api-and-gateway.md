@@ -102,6 +102,36 @@ Implemented in `crates/sr-api/src/routes/auth/` (`routes::auth::router_with(serv
 
 Not implemented yet: passkeys (`/sr/auth/passkey/*`). The `webauthn-rs` crate depends on the C `openssl` library, which needs an ADR (doc 03 section 4) before it can be used. Discord OAuth is implemented (`oauth2` with rustls) as listed above. The CSRF token is issued by `GET /sr/csrf` (section 2).
 
+### 5.2 CDN delivery: `/cdn/...`
+
+`GET|HEAD /cdn/<kind>/<segment>/...?ex=<unix-seconds>&sig=<base64url>` serves stored media. It lives on the public listener **outside** `/api/v1`: no cookie, no CSRF, no `Authorization`. The signature (`HMAC-SHA256(secret, "{canonical path}\n{ex}")`, constant-time compare) is the credential, so a signed URL is a bearer link. Buckets are never public; the server streams objects from storage.
+
+| `<kind>` | Object key | Source |
+|---|---|---|
+| `attachments` | `chat/{channel}/{attachment}/{filename}` | message attachments (`url` / `proxy_url` are returned signed, valid 24 h) |
+| `emoji` | `emoji/{guild}/{emoji}.{ext}` | custom emoji (`/cdn/emoji/{guild}/{emoji}.{png,jpg,gif,webp}`) |
+| `stickers` | `sticker/{guild}/{sticker}.{ext}` | guild stickers |
+| `avatars`, `icons` | `avatars/...`, `icons/...` | reserved |
+
+Any other kind is 404. Emoji objects carry no URL in the Discord shape; clients build the path from the guild and emoji ids and obtain a signature from the server. Rust code builds paths with `routes::cdn::cdn_path(kind, &[segments])`, which percent-encodes each segment (everything but `A-Za-z0-9-._~`) and yields the canonical path that is signed. The server decodes the request path and re-canonicalises it before verifying, so `%20` vs a literal space, or hex case, do not matter. (`?size=` resizing is not implemented; FND-STOR-003.)
+
+Responses:
+
+| Status | When |
+|---|---|
+| 200 / 206 | Object (or one range). Always `Content-Length`, `Accept-Ranges: bytes`, `ETag`, `Cache-Control: private, max-age=<remaining signed lifetime, at most 86400>`, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; sandbox`, `Referrer-Policy: no-referrer` |
+| 304 | `If-None-Match` matches the ETag (strong tag derived from key and storage etag) |
+| 400 | Malformed path: `..`, `.`, empty segment, trailing slash, backslash, bad or non-UTF-8 percent escape, control character, over-long |
+| 403 | `ex` or `sig` missing, malformed, or not matching the path |
+| 404 | Unknown kind (before any signature check), or object missing (only after a valid signature) |
+| 410 | Signature valid but `ex` is in the past (the client should refetch the message for a fresh URL) |
+| 416 | Unsatisfiable range, with `Content-Range: bytes */<len>` |
+| 429 | Per-client-IP limit (bucket `GET /cdn/{*path}`, default 300 per 10 s, shared process-wide limiter) |
+
+`Range`: a single `bytes=a-b`, `a-` or `-n` range gives 206 with `Content-Range`. A multi-range or syntactically invalid header is ignored and the whole object is sent with 200 (RFC 9110 permits ignoring Range). `If-Range` with a stale ETag also gives 200. HEAD returns the same headers without a body.
+
+Content type: images, video and audio from an allow-list (png, jpeg, gif, webp, avif, mp4, webm, mov, mp3, ogg, flac, wav, m4a, aac) are served with their real type and `Content-Disposition: inline`, chosen by file extension, or by sniffing the first 512 bytes when the extension is unknown. Everything else (HTML, SVG, PDF, scripts, unknown) is forced to `Content-Type: application/octet-stream` with `Content-Disposition: attachment`, so an upload cannot run in the site origin. CORS allows only the configured public origin(s), without credentials. No compression layer is applied.
+
 ## 6. Gateway
 
 ### 6.1 Opcodes (Discord numbering)
