@@ -23,7 +23,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown }
       - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with: { tool: "wasm-pack" }
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -37,6 +40,10 @@ jobs:
       - name: Build sr-server and sr-cli
         run: cargo build -p sr-server -p sr-cli
       - run: pnpm install --frozen-lockfile
+      # The Lounge imports the WASM bundle from @sideroom/wasm (packages/wasm/dist); without it Vite
+      # fails with 'Failed to resolve import ../dist/...' and its error overlay blocks every click.
+      - name: Build the WASM bundle
+        run: pnpm --filter @sideroom/wasm build
       - name: Install the browser
         run: pnpm --filter @sideroom/e2e exec playwright install --with-deps ${{ matrix.browser }}
       - name: Migrate, start the server, run Playwright
