@@ -34,6 +34,10 @@ pub struct Data {
     attachments: HashMap<AttachmentId, Attachment>,
     /// Accounts for the user lookup (open question 157).
     pub users: HashMap<UserId, crate::repo::UserSummary>,
+    /// Poll votes `(message, answer, user)` for [`crate::rich_repo::RichStore`].
+    pub poll_votes: std::collections::BTreeSet<(MessageId, u32, UserId)>,
+    /// Sticker rows for [`crate::rich_repo::RichStore`].
+    pub sticker_rows: HashMap<u64, crate::rich_repo::StickerRecord>,
 }
 
 /// Cheap-to-clone handle over shared state.

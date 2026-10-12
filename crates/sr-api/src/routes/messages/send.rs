@@ -204,6 +204,7 @@ pub async fn create_message(
         poll: None,
         flags,
         allowed_mentions,
+        forward: None,
     };
     // Decided before the send: storing the message reopens closed DMs.
     let dm_announce = deps.plan_dm_announce(&acc.channel, author).await;

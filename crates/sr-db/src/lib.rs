@@ -17,6 +17,7 @@ pub mod lock;
 pub mod partitions;
 mod pool;
 pub mod registration;
+pub mod rich_repo;
 pub mod runner;
 pub mod settings_repo;
 pub mod social_repo;

@@ -43,6 +43,17 @@ pub struct SendMessage {
     pub flags: u32,
     /// `None` means Discord's default: every parsed mention may ping.
     pub allowed_mentions: Option<AllowedMentions>,
+    /// Set for a forward: the source message and the copy of it (LNG-MSG-007). The
+    /// caller has already checked the forwarder may read the source.
+    pub forward: Option<ForwardRequest>,
+}
+
+/// What a forward points at and carries.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ForwardRequest {
+    pub source_message: MessageId,
+    pub source_channel: ChannelId,
+    pub snapshot: crate::message::ForwardSnapshot,
 }
 
 /// Resolved view of a channel for one user.
@@ -331,6 +342,7 @@ impl<R: ChatRepository> ChatService<R> {
             embed_count: req.embeds.len(),
             sticker_ids: req.sticker_ids.clone(),
             has_poll: req.poll.is_some(),
+            has_forward: req.forward.is_some(),
             flags: req.flags,
         };
         let now = self.now();
@@ -379,7 +391,14 @@ impl<R: ChatRepository> ChatService<R> {
             content: v.content,
             flags: v.flags,
             edited_at_ms: None,
-            reference: v.reference,
+            reference: match req.forward {
+                Some(f) => Some(crate::domain::MessageReference {
+                    message_id: f.source_message,
+                    channel_id: f.source_channel,
+                    forward: Some(f.snapshot),
+                }),
+                None => v.reference,
+            },
             attachment_ids: req.attachment_ids,
             embeds: req.embeds,
             components: req.components,
