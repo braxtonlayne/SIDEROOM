@@ -1,5 +1,6 @@
 import { Avatar, Icon, Modal, Tooltip, type IconName } from '@sideroom/ui';
 import { useState } from 'react';
+import { SearchBox } from './SearchBox';
 
 export interface ChannelHeaderProps {
   icon: IconName;
@@ -13,6 +14,9 @@ export interface ChannelHeaderProps {
   onBack?: (() => void) | undefined;
   /** "Search #general" / "Search Mara". */
   searchLabel: string;
+  /** Guild (undefined or '@me' for a DM) and channel the search box queries. */
+  guildId?: string | undefined;
+  channelId?: string | undefined;
 }
 
 function Soon({ icon, label }: { icon: IconName; label: string }) {
@@ -41,6 +45,8 @@ export function ChannelHeader({
   onToggleMembers,
   onBack,
   searchLabel,
+  guildId,
+  channelId,
 }: ChannelHeaderProps) {
   const [topicOpen, setTopicOpen] = useState(false);
   return (
@@ -89,16 +95,14 @@ export function ChannelHeader({
             <Icon name="users" size={20} />
           </button>
         </Tooltip>
-        <label className="lng-search">
-          <Icon name="search" size={16} />
-          <input
-            type="search"
-            placeholder="Search"
-            aria-label={searchLabel}
-            readOnly
-            title="Search ships with the search inventory items"
-          />
-        </label>
+        {channelId ? (
+          <SearchBox guildId={guildId} channelId={channelId} label={searchLabel} />
+        ) : (
+          <label className="lng-search">
+            <Icon name="search" size={16} />
+            <input type="search" placeholder="Search" aria-label={searchLabel} readOnly />
+          </label>
+        )}
         <Soon icon="bookmark" label="Inbox" />
         <Soon icon="info" label="Help" />
       </div>

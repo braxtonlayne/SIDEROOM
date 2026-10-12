@@ -184,6 +184,10 @@ export interface LoungeActions {
   toggleReaction(channelId: Snowflake, messageId: Snowflake, emoji: string): void;
   /** Throttled "I am typing" signal. */
   startTyping(channelId: Snowflake): void;
+  /** Make sure a message is loaded (search "jump"); live data fetches the page around it. */
+  revealMessage?(channelId: Snowflake, messageId: Snowflake): void;
+  /** Leave a jumped-to history window and reload the newest messages. */
+  jumpToPresent?(channelId: Snowflake): void;
 }
 
 /** The whole readable surface. Real store: build the same shape from normalized selectors. */

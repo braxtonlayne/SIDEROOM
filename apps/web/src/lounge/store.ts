@@ -38,6 +38,12 @@ export interface VoiceConnection {
   name: string;
 }
 
+/** Modal dialogs opened from menus anywhere in the shell; rendered once by LoungeDialogs. */
+export type LoungeDialog =
+  | { kind: 'addServer' }
+  | { kind: 'createChannel'; guildId: string; parentId?: string | undefined; category?: boolean }
+  | { kind: 'invite'; guildId: string; channelId?: string | undefined };
+
 export interface LoungeUiState {
   /** Where to land on `/channels` after a reload (LNG-SHL-005). */
   lastLocation: { guildId: string; channelId?: string } | null;
@@ -53,7 +59,10 @@ export interface LoungeUiState {
   voice: VoiceConnection | null;
   micMuted: boolean;
   deafened: boolean;
+  dialog: LoungeDialog | null;
 
+  openDialog(d: LoungeDialog): void;
+  closeDialog(): void;
   setLocation(guildId: string, channelId?: string): void;
   toggleCategory(id: string): void;
   toggleFolder(id: string): void;
@@ -85,7 +94,10 @@ export const useLoungeUi = create<LoungeUiState>()(
       voice: null,
       micMuted: false,
       deafened: false,
+      dialog: null,
 
+      openDialog: (dialog) => set({ dialog }),
+      closeDialog: () => set({ dialog: null }),
       setLocation: (guildId, channelId) =>
         set((s) => ({
           lastLocation: channelId ? { guildId, channelId } : { guildId },

@@ -11,7 +11,13 @@ import {
   reduceDispatch,
 } from './reducer';
 import * as rest from './rest';
-import type { ConnectionStatus, Message, MessageReaction, MessageWindow } from './types';
+import type {
+  Channel,
+  ConnectionStatus,
+  Message,
+  MessageReaction,
+  MessageWindow,
+} from './types';
 
 /** Minimum gap between two read-state acks for one channel (Q128). */
 export const ACK_THROTTLE_MS = 1000;
@@ -69,6 +75,16 @@ export interface StoreActions {
   ackChannel: (channelId: string) => void;
   /** Add or remove the signed-in user's reaction (optimistic; rolled back on failure). */
   toggleReaction: (channelId: string, messageId: string, emoji: string) => Promise<void>;
+  /** POST /guilds, then hydrate the new guild (channels, roles) into the store. */
+  createGuild: (name: string) => Promise<rest.GuildWithChannels>;
+  /** POST /invites/{code}, then load the joined guild. Resolves with the accepted invite. */
+  acceptInvite: (code: string) => Promise<rest.Invite>;
+  /** POST /guilds/{id}/channels; the channel is added to the store without waiting for the gateway. */
+  createChannel: (guildId: string, body: rest.CreateChannelBody) => Promise<Channel>;
+  /** Make sure `messageId` is in the channel window, loading the page around it when it is not. */
+  loadAroundMessage: (channelId: string, messageId: string) => Promise<void>;
+  /** Drop the loaded window and reload the newest page (leaves a "jump to message" view). */
+  jumpToPresent: (channelId: string) => Promise<void>;
 }
 
 export interface StoreState extends StoreData, StoreActions {
@@ -323,6 +339,56 @@ export const useStore = create<StoreState>()((set, get) => {
       } catch {
         set((s) => ({ messages: { ...s.messages, [messageId]: before } }));
       }
+    },
+
+    createGuild: async (name) => {
+      const guild = await rest.createGuild(name);
+      get().applyDispatch('GUILD_CREATE', guild);
+      return guild;
+    },
+
+    acceptInvite: async (code) => {
+      const invite = await rest.acceptInvite(code);
+      // The gateway also delivers GUILD_CREATE; loading here makes the guild usable immediately.
+      await get().loadGuild(invite.guild.id).catch(() => undefined);
+      return invite;
+    },
+
+    createChannel: async (guildId, body) => {
+      const channel = await rest.createChannel(guildId, body);
+      get().applyDispatch('CHANNEL_CREATE', { ...channel, guild_id: channel.guild_id ?? guildId });
+      return channel;
+    },
+
+    loadAroundMessage: async (channelId, messageId) => {
+      const w = get().windows[channelId];
+      if (w?.ids.includes(messageId)) return;
+      patchWindow(channelId, { loading: true, error: null });
+      try {
+        const list = await rest.fetchMessagesAround(channelId, messageId);
+        set((s) => ({
+          ...ingest(s, list),
+          windows: {
+            ...s.windows,
+            [channelId]: {
+              ...emptyWindow(),
+              ids: list.map((m) => m.id),
+              hasMoreBefore: list.length > 0,
+              atLatest: false,
+            },
+          },
+        }));
+      } catch (e) {
+        patchWindow(channelId, {
+          loading: false,
+          error: e instanceof Error ? e.message : 'Failed to load messages',
+        });
+      }
+    },
+
+    jumpToPresent: async (channelId) => {
+      set((s) => ({ windows: { ...s.windows, [channelId]: emptyWindow() } }));
+      await get().loadInitialMessages(channelId);
     },
 
     discardMessage: (channelId, nonce) =>

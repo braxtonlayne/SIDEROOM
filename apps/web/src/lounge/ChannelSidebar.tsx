@@ -135,18 +135,29 @@ function GuildHeader({ guild }: { guild: Guild }) {
   const me = useCurrentUser();
   const [coming, setComing] = useState<string | null>(null);
   const soon = (title: string) => () => setComing(title);
+  const openDialog = useLoungeUi((s) => s.openDialog);
   const items: MenuEntry[] = [
     { label: 'Server Support', onSelect: soon('Server Support') },
     ...(p.createInvite
-      ? [{ label: 'Invite to Server', onSelect: soon('Invite to Server') } as MenuEntry]
+      ? [{
+            label: 'Invite to Server',
+            onSelect: () => openDialog({ kind: 'invite', guildId: guild.id }),
+          } as MenuEntry]
       : []),
     ...(p.manageGuild
       ? [{ label: 'Server Settings', onSelect: soon('Server Settings') } as MenuEntry]
       : []),
     ...(p.manageChannels
       ? ([
-          { label: 'Create Channel', onSelect: soon('Create Channel') },
-          { label: 'Create Category', onSelect: soon('Create Category') },
+          {
+            label: 'Create Channel',
+            onSelect: () => openDialog({ kind: 'createChannel', guildId: guild.id }),
+          },
+          {
+            label: 'Create Category',
+            onSelect: () =>
+              openDialog({ kind: 'createChannel', guildId: guild.id, category: true }),
+          },
           { label: 'Create Event', onSelect: soon('Create Event') },
         ] as MenuEntry[])
       : []),
@@ -208,7 +219,7 @@ export function ChannelSidebar({ guildId }: { guildId: string }) {
   const collapsed = useLoungeUi((s) => s.collapsedCategories);
   const toggle = useLoungeUi((s) => s.toggleCategory);
   const hideMuted = useLoungeUi((s) => !!s.hideMutedChannels[guildId]);
-  const [creating, setCreating] = useState(false);
+  const openDialog = useLoungeUi((s) => s.openDialog);
   if (!guild) return <div className="lng-sidebar" />;
   const groups = groupChannels(channels, { hideMuted, activeId: channelId });
   return (
@@ -242,7 +253,13 @@ export function ChannelSidebar({ guildId }: { guildId: string }) {
                       type="button"
                       className="lng-icon-btn"
                       aria-label={`Create Channel in ${g.category.name}`}
-                      onClick={() => setCreating(true)}
+                      onClick={() =>
+                        openDialog({
+                          kind: 'createChannel',
+                          guildId,
+                          parentId: g.category!.id,
+                        })
+                      }
                     >
                       <Icon name="plus" size={16} />
                     </button>
@@ -258,9 +275,6 @@ export function ChannelSidebar({ guildId }: { guildId: string }) {
           );
         })}
       </nav>
-      <ComingSoon open={creating} onClose={() => setCreating(false)} title="Create Channel">
-        <p>The Create Channel modal ships with LNG-CHN-015.</p>
-      </ComingSoon>
     </div>
   );
 }

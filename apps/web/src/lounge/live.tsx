@@ -301,6 +301,12 @@ export const LIVE_ACTIONS: LoungeActions = {
   startTyping(channelId) {
     rest.postTyping(channelId).catch(noop);
   },
+  revealMessage(channelId, messageId) {
+    void useStore.getState().loadAroundMessage(channelId, messageId);
+  },
+  jumpToPresent(channelId) {
+    void useStore.getState().jumpToPresent(channelId);
+  },
 };
 
 /** Opens the gateway for as long as the Lounge is mounted (one connection per page). */
