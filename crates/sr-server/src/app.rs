@@ -365,6 +365,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         )
         .context("settings snowflake generator")?
         .with_events(Arc::new(BusSettingsEvents::new(bus.clone())))
+        .with_joiner(Arc::new(routes::settings::InviteMemberJoiner::new(
+            Arc::new(sr_db::invite_join::PgInviteJoinRepo::new(pool.clone())),
+            Arc::new(PgChatRepo::new(pool.clone())),
+            bus.clone(),
+        )))
         .with_audit_observer(routes::settings::audit::bus_audit_observer(bus.clone())),
     );
     let search_dir = search_dir(&cfg.search.dir, std::env::var("SR_SEARCH_DIR").ok());

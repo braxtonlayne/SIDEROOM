@@ -2,15 +2,17 @@
 
 use super::automod_gate::{AutoModGate, MessageCheck};
 use super::events::RecordingEvents;
-use super::join::MemberJoiner;
+use super::join::InviteMemberJoiner;
 use super::{AutoModGateHandle, SettingsDeps, router};
 use crate::routes::messages::{self, FixedEntitlements, MessagesDeps};
 use crate::{
     ApiSettings, AppState,
-    auth::{BotIdentity, memory::MemoryBots},
+    auth::{
+        BotIdentity, csrf,
+        memory::{MemoryBots, MemorySessions},
+    },
     build_router,
 };
-use async_trait::async_trait;
 use axum::{
     Router,
     body::Body,
@@ -24,13 +26,11 @@ use sr_chat::memory::MemoryBackend;
 use sr_chat::repo::GuildRepository;
 use sr_chat::settings::expressions::ExpressionLimits;
 use sr_chat::settings::memory::MemorySettingsRepo;
-use sr_chat::settings::repo::{InviteRepository, WebhookRepository};
+use sr_chat::settings::repo::WebhookRepository;
 use sr_chat::settings::service::SettingsService;
 use sr_chat::{Member, Role};
 use sr_core::permissions::Permissions;
-use sr_core::{
-    ApiError, ChannelId, Clock, GuildId, ManualClock, RoleId, SnowflakeGenerator, UserId,
-};
+use sr_core::{ChannelId, Clock, GuildId, ManualClock, RoleId, SnowflakeGenerator, UserId};
 use sr_events::InProcessBus;
 use sr_storage::{ObjectStorage, ObjectStoreStorage};
 use std::sync::Arc;
@@ -43,28 +43,6 @@ const BOB: u64 = 2; // member without roles
 const CAROL: u64 = 3; // not a member
 const MOD: u64 = 4; // member with a management role
 
-/// Adds the member to the in-memory guild, standing in for the real join path.
-struct TestJoiner(MemoryBackend);
-
-#[async_trait]
-impl MemberJoiner for TestJoiner {
-    fn is_wired(&self) -> bool {
-        true
-    }
-    async fn join(&self, guild: GuildId, user: UserId, _temporary: bool) -> Result<(), ApiError> {
-        self.0.data().members.push(Member {
-            guild_id: guild,
-            user_id: user,
-            nick: None,
-            role_ids: vec![],
-            joined_at_ms: T0,
-            communication_disabled_until_ms: None,
-            pending: false,
-        });
-        Ok(())
-    }
-}
-
 struct Env {
     app: Router,
     backend: MemoryBackend,
@@ -72,6 +50,9 @@ struct Env {
     events: Arc<RecordingEvents>,
     storage: Arc<ObjectStoreStorage>,
     deps: Arc<SettingsDeps>,
+    sessions: Arc<MemorySessions>,
+    clock: Arc<ManualClock>,
+    bus: Arc<InProcessBus>,
     guild: GuildId,
     ch: ChannelId,
     voice: ChannelId,
@@ -134,6 +115,7 @@ async fn env_with(opts: Opts) -> Env {
         }
     }
 
+    let sessions = Arc::new(MemorySessions::new());
     let bots = Arc::new(MemoryBots::new());
     for (tok, uid) in [
         ("owner", OWNER),
@@ -184,7 +166,14 @@ async fn env_with(opts: Opts) -> Env {
         );
     }
     if opts.wired_joiner {
-        deps = deps.with_joiner(Arc::new(TestJoiner(backend.clone())));
+        deps = deps.with_joiner(Arc::new(InviteMemberJoiner::new(
+            Arc::new(sr_chat::settings::memory::MemoryInviteJoin {
+                chat: backend.clone(),
+                settings: repo.clone(),
+            }),
+            Arc::new(backend.clone()),
+            bus.clone(),
+        )));
     }
     let deps = Arc::new(deps);
 
@@ -192,7 +181,7 @@ async fn env_with(opts: Opts) -> Env {
         backend.clone(),
         Arc::new(backend.clone()),
         storage.clone(),
-        bus,
+        bus.clone(),
         Arc::new(FixedEntitlements(1 << 20)),
         Arc::new(backend.clone()),
         None,
@@ -203,6 +192,7 @@ async fn env_with(opts: Opts) -> Env {
     .unwrap();
     let state = AppState::builder()
         .bots(bots)
+        .sessions(sessions.clone())
         .clock(dyn_clock)
         .settings(settings)
         .extension(deps.clone())
@@ -217,6 +207,9 @@ async fn env_with(opts: Opts) -> Env {
         events,
         storage,
         deps,
+        sessions,
+        clock,
+        bus,
         guild,
         ch,
         voice,
@@ -274,6 +267,42 @@ impl Env {
     }
     async fn delete(&self, path: &str, who: &str) -> (StatusCode, Value) {
         self.call(Method::DELETE, path, Some(who), None).await
+    }
+
+    /// `POST /invites/{code}` as a signed-in browser session of `user` (bots may
+    /// not join by invite).
+    async fn accept(&self, user: u64, code: &str) -> (StatusCode, Value) {
+        use sr_auth::{
+            repo::{SessionRecord, SessionRepository},
+            session::SessionToken,
+        };
+        let t = SessionToken::generate().unwrap();
+        let now = self.clock.now_unix_ms() / 1000;
+        self.sessions
+            .create(SessionRecord {
+                id: i64::try_from(user).unwrap(),
+                user_id: i64::try_from(user).unwrap(),
+                token_hash: t.hash(),
+                created_at: now - 10,
+                last_seen_at: now,
+                expires_at: now + 100_000,
+                device_name: None,
+            })
+            .await
+            .unwrap();
+        let req = Request::builder()
+            .method(Method::POST)
+            .uri(format!("/api/v1/invites/{code}"))
+            .header("cookie", format!("sr_session={}", t.expose()))
+            .header("x-sr-csrf", csrf::token_for(t.expose()))
+            .header("content-type", "application/json")
+            .body(Body::from("{}"))
+            .unwrap();
+        let resp = self.app.clone().oneshot(req).await.unwrap();
+        let (parts, body) = resp.into_parts();
+        let bytes = body.collect().await.unwrap().to_bytes();
+        let json = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+        (parts.status, json)
     }
 
     fn g(&self, rest: &str) -> String {
@@ -534,51 +563,190 @@ async fn expired_invites_are_unknown_and_unlisted() {
     assert_eq!(codes, vec![forever["code"].as_str().unwrap().to_owned()]);
 }
 
-#[tokio::test]
-async fn accepting_invites() {
-    // Without a wired join path the endpoint refuses before using the invite.
-    let e = env().await;
-    let (_, inv) = e
-        .post(&e.invites_path(), "owner", json!({"max_uses": 1}))
-        .await;
-    let code = inv["code"].as_str().unwrap().to_owned();
-    let r = e
-        .post(&format!("/invites/{code}"), "carol", json!({}))
-        .await;
-    assert_eq!(code_of(&r), (StatusCode::FORBIDDEN, Some(40006)));
-    assert_eq!(
-        e.repo.get_invite(&code).await.unwrap().unwrap().uses,
-        0,
-        "a refused accept must not consume the invite"
-    );
-
-    let e = env_with(Opts {
+async fn wired() -> Env {
+    env_with(Opts {
         wired_joiner: true,
         ..Opts::default()
     })
-    .await;
-    let (_, inv) = e
-        .post(&e.invites_path(), "owner", json!({"max_uses": 1}))
+    .await
+}
+
+async fn new_invite(e: &Env, body: Value) -> String {
+    let (s, inv) = e.post(&e.invites_path(), "owner", body).await;
+    assert_eq!(s, StatusCode::OK, "{inv}");
+    inv["code"].as_str().unwrap().to_owned()
+}
+
+fn uses(e: &Env, code: &str) -> u32 {
+    e.repo.with(|s| {
+        s.invites
+            .iter()
+            .find(|i| i.code == code)
+            .map(|i| i.uses)
+            .unwrap()
+    })
+}
+
+fn is_member(e: &Env, user: u64) -> bool {
+    e.backend
+        .data()
+        .members
+        .iter()
+        .any(|m| m.guild_id == e.guild && m.user_id.get() == user)
+}
+
+#[tokio::test]
+async fn accepting_without_a_wired_joiner_is_unavailable_and_keeps_the_use() {
+    let e = env().await;
+    let code = new_invite(&e, json!({"max_uses": 1})).await;
+    let r = e.accept(CAROL, &code).await;
+    assert_eq!(code_of(&r), (StatusCode::FORBIDDEN, Some(40006)));
+    assert_eq!(uses(&e, &code), 0, "a refused accept must not consume");
+}
+
+#[tokio::test]
+async fn bots_cannot_join_by_invite() {
+    let e = wired().await;
+    let code = new_invite(&e, json!({})).await;
+    let r = e
+        .post(&format!("/invites/{code}"), "carol", json!({}))
         .await;
-    let code = inv["code"].as_str().unwrap().to_owned();
-    let accept = format!("/invites/{code}");
+    assert_eq!(r.0, StatusCode::FORBIDDEN, "{}", r.1);
+    assert_eq!(r.1["code"], 20001);
+    assert!(!is_member(&e, CAROL));
+    assert_eq!(uses(&e, &code), 0);
+}
 
-    // Members just get the invite back, unused.
-    let (s, _) = e.post(&accept, "bob", json!({})).await;
-    assert_eq!(s, StatusCode::OK);
-    assert_eq!(e.repo.get_invite(&code).await.unwrap().unwrap().uses, 0);
+#[tokio::test]
+async fn accepting_adds_the_member_consumes_one_use_and_emits_member_joined() {
+    use futures::StreamExt;
+    use sr_events::{DomainEvent, EventBus, Topic};
+    let e = wired().await;
+    let code = new_invite(&e, json!({"max_uses": 5})).await;
+    let mut guild_events = e.bus.subscribe(Topic::Guild(e.guild));
 
-    // A banned user is refused and the invite stays unused.
+    let (s, inv) = e.accept(CAROL, &code).await;
+    assert_eq!(s, StatusCode::OK, "{inv}");
+    assert_eq!(inv["uses"], 1);
+    assert_eq!(inv["guild"]["id"], e.guild.to_string());
+    assert_eq!(inv["channel"]["id"], e.ch.to_string());
+    assert!(is_member(&e, CAROL));
+    assert_eq!(uses(&e, &code), 1);
+    // `@everyone` is implicit: no explicit role assignments.
+    assert!(
+        e.backend
+            .data()
+            .members
+            .iter()
+            .find(|m| m.user_id.get() == CAROL)
+            .unwrap()
+            .role_ids
+            .is_empty()
+    );
+    // A normal join writes no audit entry (only INVITE_CREATE from the setup).
+    assert_eq!(e.audit_actions().await, vec![40]);
+
+    let ev = tokio::time::timeout(std::time::Duration::from_secs(1), guild_events.next())
+        .await
+        .unwrap()
+        .unwrap();
+    let DomainEvent::MemberJoined {
+        guild,
+        user,
+        payload,
+    } = ev
+    else {
+        panic!("expected MemberJoined, got {ev:?}");
+    };
+    assert_eq!((guild, user.get()), (e.guild, CAROL));
+    assert_eq!(payload["guild_id"], e.guild.to_string());
+    assert_eq!(payload["user"]["id"], CAROL.to_string());
+    assert_eq!(payload["roles"], json!([]));
+    assert_eq!(payload["pending"], false);
+    assert!(payload["joined_at"].is_string());
+}
+
+#[tokio::test]
+async fn accepting_when_already_a_member_is_idempotent() {
+    let e = wired().await;
+    let code = new_invite(&e, json!({"max_uses": 3})).await;
+    // Existing members get the invite back, unused.
+    let (s, inv) = e.accept(BOB, &code).await;
+    assert_eq!((s, inv["uses"].as_u64()), (StatusCode::OK, Some(0)));
+    assert_eq!(uses(&e, &code), 0);
+    // Joining twice consumes one use and adds one membership row.
+    assert_eq!(e.accept(CAROL, &code).await.0, StatusCode::OK);
+    let (s, inv) = e.accept(CAROL, &code).await;
+    assert_eq!((s, inv["uses"].as_u64()), (StatusCode::OK, Some(1)));
+    assert_eq!(uses(&e, &code), 1);
+    assert_eq!(
+        e.backend
+            .data()
+            .members
+            .iter()
+            .filter(|m| m.user_id.get() == CAROL)
+            .count(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn max_uses_are_enforced() {
+    let e = wired().await;
+    let code = new_invite(&e, json!({"max_uses": 1})).await;
+    assert_eq!(e.accept(CAROL, &code).await.0, StatusCode::OK);
+    // A used-up invite is unknown to the next user, and nobody is added.
+    let r = e.accept(5, &code).await;
+    assert_eq!(code_of(&r), (StatusCode::NOT_FOUND, Some(10006)));
+    assert!(!is_member(&e, 5));
+    assert_eq!(uses(&e, &code), 1);
+    assert_eq!(
+        code_of(&e.get(&format!("/invites/{code}"), "owner").await),
+        (StatusCode::NOT_FOUND, Some(10006)),
+        "used up"
+    );
+}
+
+#[tokio::test]
+async fn expired_and_revoked_invites_are_refused() {
+    let e = wired().await;
+    let timed = new_invite(&e, json!({"max_age": 60})).await;
+    let revoked = new_invite(&e, json!({})).await;
+    assert_eq!(
+        e.delete(&format!("/invites/{revoked}"), "owner").await.0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        code_of(&e.accept(CAROL, &revoked).await),
+        (StatusCode::NOT_FOUND, Some(10006))
+    );
+    e.clock.advance_ms(61_000);
+    assert_eq!(
+        code_of(&e.accept(CAROL, &timed).await),
+        (StatusCode::NOT_FOUND, Some(10006))
+    );
+    assert_eq!(
+        code_of(&e.accept(CAROL, "nope1234").await),
+        (StatusCode::NOT_FOUND, Some(10006))
+    );
+    assert!(!is_member(&e, CAROL));
+    assert_eq!(uses(&e, &timed), 0);
+}
+
+#[tokio::test]
+async fn paused_invites_and_bans_refuse_without_consuming() {
+    let e = wired().await;
+    let code = new_invite(&e, json!({"max_uses": 1})).await;
+
     e.repo.with(|s| {
         s.bans.insert((e.guild, UserId::new(CAROL)));
     });
     assert_eq!(
-        code_of(&e.post(&accept, "carol", json!({})).await),
+        code_of(&e.accept(CAROL, &code).await),
         (StatusCode::FORBIDDEN, Some(40007))
     );
     e.repo.with(|s| s.bans.clear());
 
-    // Paused invites are refused (Security Actions).
     let (s, _) = e
         .patch(
             &e.g("/sr/community"),
@@ -587,37 +755,19 @@ async fn accepting_invites() {
         )
         .await;
     assert_eq!(s, StatusCode::OK);
-    assert_eq!(
-        code_of(&e.post(&accept, "carol", json!({})).await).0,
-        StatusCode::FORBIDDEN
-    );
+    assert_eq!(e.accept(CAROL, &code).await.0, StatusCode::FORBIDDEN);
+    assert!(!is_member(&e, CAROL));
+    assert_eq!(uses(&e, &code), 0, "refusals keep the use");
+
     e.patch(
         &e.g("/sr/community"),
         "owner",
         json!({"invites_paused": false}),
     )
     .await;
-
-    // The use is consumed and the member is added; the next try finds it used up.
-    let (s, joined) = e.post(&accept, "carol", json!({})).await;
+    let (s, joined) = e.accept(CAROL, &code).await;
     assert_eq!((s, joined["uses"].as_u64()), (StatusCode::OK, Some(1)));
-    assert!(
-        e.backend
-            .data()
-            .members
-            .iter()
-            .any(|m| m.user_id.get() == CAROL)
-    );
-    // A used-up invite is unknown to everyone, members included.
-    assert_eq!(
-        code_of(&e.post(&accept, "bob", json!({})).await),
-        (StatusCode::NOT_FOUND, Some(10006))
-    );
-    assert_eq!(
-        code_of(&e.get(&accept, "owner").await),
-        (StatusCode::NOT_FOUND, Some(10006)),
-        "used up"
-    );
+    assert!(is_member(&e, CAROL));
 }
 
 // ---- audit log -------------------------------------------------------------------
