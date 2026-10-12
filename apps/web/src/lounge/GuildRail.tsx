@@ -73,18 +73,27 @@ function GuildIcon({ guild, selected }: { guild: Guild; selected: boolean }) {
   const voice = inVoice || guild.voiceConnected;
   const pill: RailPillState = selected ? 'selected' : guild.unread ? 'unread' : 'none';
   const actions = useLoungeActions();
+  const openDialog = useLoungeUi((s) => s.openDialog);
   const menu: MenuEntry[] = [
     {
       label: 'Mark As Read',
       disabled: !guild.unread,
       onSelect: () => actions.markGuildRead(guild.id),
     },
-    { label: 'Invite People', disabled: !guild.permissions.createInvite },
+    {
+      label: 'Invite People',
+      disabled: !guild.permissions.createInvite,
+      onSelect: () => openDialog({ kind: 'invite', guildId: guild.id }),
+    },
     { label: 'Mute Server', disabled: true },
     { label: 'Notification Settings', disabled: true },
     { type: 'separator' },
     { label: 'Server Settings', disabled: !guild.permissions.manageGuild },
-    { label: 'Create Channel', disabled: !guild.permissions.manageChannels },
+    {
+      label: 'Create Channel',
+      disabled: !guild.permissions.manageChannels,
+      onSelect: () => openDialog({ kind: 'createChannel', guildId: guild.id }),
+    },
     { type: 'separator' },
     { label: 'Leave Server', danger: true, disabled: guild.ownerId === me.id },
     { label: 'Copy Server ID', onSelect: () => void navigator.clipboard?.writeText(guild.id) },
@@ -182,7 +191,8 @@ export function GuildRail() {
   const dms = useDms();
   const users = useUsers();
   const { guildId } = useLoungeRoute();
-  const [modal, setModal] = useState<null | 'add' | 'discover'>(null);
+  const [modal, setModal] = useState<null | 'discover'>(null);
+  const openDialog = useLoungeUi((s) => s.openDialog);
   const dmMentions = dms.reduce((n, d) => n + d.mentionCount, 0);
   const unreadDms = dms.filter((d) => d.unread);
   const homeSelected = guildId === HOME || guildId === undefined;
@@ -250,7 +260,7 @@ export function GuildRail() {
                 type="button"
                 className="lng-guild lng-rail-action"
                 aria-label="Add a Server"
-                onClick={() => setModal('add')}
+                onClick={() => openDialog({ kind: 'addServer' })}
               >
                 <Icon name="plus" size={24} />
               </button>
@@ -272,9 +282,6 @@ export function GuildRail() {
           </div>
         </li>
       </ul>
-      <ComingSoon open={modal === 'add'} onClose={() => setModal(null)} title="Create Your Server">
-        <p>The Create Server and Join a Server flows ship with LNG-GLD-015..018.</p>
-      </ComingSoon>
       <ComingSoon
         open={modal === 'discover'}
         onClose={() => setModal(null)}

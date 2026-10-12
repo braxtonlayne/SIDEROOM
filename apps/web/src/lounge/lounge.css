@@ -1329,3 +1329,221 @@
     transition: none !important;
   }
 }
+
+/* ---------- server flows: dialogs, invites, search ---------- */
+.lng-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.lng-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.lng-form-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 13px;
+}
+.lng-form-h {
+  margin: 8px 0;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.lng-choice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.lng-field {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.lng-field select,
+.lng-invite-link input {
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: 4px;
+  background: var(--bg-base-lowest);
+  color: var(--text-normal);
+  font-size: 14px;
+  text-transform: none;
+  font-weight: 400;
+}
+.lng-field-row {
+  display: flex;
+  gap: 12px;
+}
+.lng-kind {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.lng-kind legend {
+  margin-bottom: 8px;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.lng-kind-opt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 4px;
+  background: var(--bg-base-lowest);
+  cursor: pointer;
+}
+.lng-kind-opt[data-selected] {
+  outline: 2px solid var(--brand);
+}
+.lng-kind-opt span {
+  display: flex;
+  flex-direction: column;
+}
+.lng-kind-opt small {
+  color: var(--text-muted);
+}
+.lng-invite-link {
+  display: flex;
+  gap: 8px;
+}
+.lng-invite-link input {
+  flex: 1;
+  min-width: 0;
+}
+.lng-invite-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lng-invite-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--bg-base-lowest);
+}
+.lng-invite-list li > div {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.lng-invite-list small {
+  color: var(--text-muted);
+}
+.lng-search-wrap {
+  position: relative;
+}
+.lng-search-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(420px, 90vw);
+  max-height: min(520px, 70vh);
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background: var(--bg-base-low);
+  box-shadow: var(--ui-shadow-overlay);
+}
+.lng-search-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.lng-chip {
+  padding: 2px 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.lng-chip:hover {
+  color: var(--text-normal);
+  background: var(--ui-bg-hover);
+}
+.lng-search-count {
+  margin: 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.lng-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lng-search-hit {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--bg-base-lowest);
+  color: var(--text-normal);
+  text-align: left;
+  cursor: pointer;
+}
+.lng-search-hit:hover {
+  background: var(--ui-bg-hover);
+}
+.lng-search-meta {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.lng-search-snippet {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+.lng-search-snippet mark {
+  background: color-mix(in srgb, var(--brand) 35%, transparent);
+  color: inherit;
+  border-radius: 2px;
+}
+.lng-search-jump {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.lng-msg[data-flash] {
+  background: color-mix(in srgb, var(--brand) 18%, transparent);
+  transition: background 0.4s;
+}

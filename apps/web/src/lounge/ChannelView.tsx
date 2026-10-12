@@ -101,6 +101,8 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
         onToggleMembers={() => setMembersOpen(!membersOpen)}
         onBack={onBack}
         searchLabel={`Search ${target}`}
+        guildId={guildId}
+        channelId={channelId}
       />
       <MessageList
         channelId={channelId}

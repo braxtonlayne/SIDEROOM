@@ -20,7 +20,7 @@ import {
 } from './data';
 import { MessageItem } from './MessageItem';
 import { buildRows, estimateRow } from './messageRows';
-import { useLoungeGoto } from './nav';
+import { useLoungeGoto, useLoungeRoute } from './nav';
 import { formatDividerDate } from './time';
 
 /** Reports `fallback` while the scroll element has no layout (jsdom, first paint) so rows still render. */
@@ -62,6 +62,7 @@ export function MessageList({
   const channels = useChannels(guildId);
   const actions = useLoungeActions();
   const goto = useLoungeGoto();
+  const { messageId: targetId } = useLoungeRoute();
 
   const rows = useMemo(
     () => buildRows(messages, { lastReadId, atStart: !hasMore, selfId: me.id }),
@@ -201,6 +202,31 @@ export function MessageList({
     [rows, v],
   );
 
+  // /channels/:guild/:channel/:message (search "jump"): load the page around it if needed, scroll to it
+  // once and flash it.
+  const jumped = useRef<string | null>(null);
+  const loadedCount = messages.length;
+  const hasTarget = !!targetId && byId.has(targetId);
+  const revealed = useRef<string | null>(null);
+  useEffect(() => {
+    if (!targetId || hasTarget || loadedCount === 0 || loadingOlder) return;
+    if (revealed.current === `${channelId}:${targetId}`) return; // once; a deleted message stays absent
+    revealed.current = `${channelId}:${targetId}`;
+    actions.revealMessage?.(channelId, targetId);
+  }, [actions, channelId, targetId, hasTarget, loadedCount, loadingOlder]);
+  useEffect(() => {
+    if (!targetId || !hasTarget || jumped.current === `${channelId}:${targetId}`) return;
+    jumped.current = `${channelId}:${targetId}`;
+    const idx = rows.findIndex((r) => r.kind === 'message' && r.message.id === targetId);
+    if (idx < 0) return;
+    v.scrollToIndex(idx, { align: 'center' });
+    setTimeout(() => {
+      const el = scroller.current?.querySelector(`[data-message-id="${targetId}"]`);
+      el?.setAttribute('data-flash', '');
+      setTimeout(() => el?.removeAttribute('data-flash'), 2000);
+    }, 120);
+  }, [channelId, targetId, hasTarget, rows, v]);
+
   const onMention = useCallback(
     (t: { kind: 'user' | 'role' | 'channel'; id: Snowflake }) => {
       if (t.kind === 'channel' && guildId) goto(guildId, t.id);
@@ -291,8 +317,18 @@ export function MessageList({
           </div>
         )}
       </div>
-      {!atBottom && (
-        <button type="button" className="lng-jump" onClick={scrollToEnd}>
+      {(!atBottom || atLatest === false) && (
+        <button
+          type="button"
+          className="lng-jump"
+          onClick={() => {
+            if (atLatest === false && actions.jumpToPresent) {
+              jumped.current = null;
+              actions.jumpToPresent(channelId);
+              goto(guildId ?? '@me', channelId);
+            } else scrollToEnd();
+          }}
+        >
           You&apos;re viewing older messages
           <span>
             Jump To Present <Icon name="chevron-down" size={16} />

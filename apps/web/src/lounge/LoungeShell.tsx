@@ -21,6 +21,7 @@ import {
 } from './data';
 import { GuildRail } from './GuildRail';
 import { HomeSidebar } from './HomeSidebar';
+import { LoungeDialogs } from './LoungeDialogs';
 import { MemberList } from './MemberList';
 import { useLoungeGoto, useLoungeRoute } from './nav';
 import { DmProfilePanel, HomeFriends, PickChannel } from './Panels';
@@ -305,6 +306,7 @@ function Shell() {
         <ComingSoon open={coming} onClose={() => setComing(false)} title="Notifications">
           <p>The inbox ships with the notifications inventory items.</p>
         </ComingSoon>
+        <LoungeDialogs />
         <QuickSwitcher open={switcher} onClose={() => setSwitcher(false)} />
         <ShortcutSheet open={sheet} onClose={() => setSheet(false)} />
       </ToastProvider>
