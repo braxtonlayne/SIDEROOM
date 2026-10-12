@@ -27,6 +27,7 @@ use std::{any::type_name, sync::Arc};
 pub mod auth;
 pub mod cdn;
 pub mod guilds;
+pub mod media;
 pub mod messages;
 pub mod search;
 pub mod settings;

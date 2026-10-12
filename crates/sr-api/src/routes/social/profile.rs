@@ -8,6 +8,9 @@ use super::model::{
     SelfObject, UserObject, UserProfileFields,
 };
 use super::util::{actor, custom_status, user_id};
+use crate::routes::MaybeExt;
+use crate::routes::media::MediaDeps;
+use crate::routes::messages::error::MsgError;
 use crate::routes::messages::model::iso;
 use crate::{Principal, openapi::ErrorBody, routes::Ext};
 use axum::{
@@ -17,7 +20,9 @@ use axum::{
 use serde::Deserialize;
 use serde_json::Value;
 use sr_chat::social::profile::ProfileEdit;
+use sr_core::ErrorCode;
 use sr_core::UserId;
+use sr_storage::media::MediaKind;
 
 /// A user's profile: bio, pronouns, banner, accent colour and the connections they
 /// made visible.
@@ -121,8 +126,10 @@ async fn render_profile(
     }))
 }
 
-/// Edit the caller's profile: `bio` (190), `pronouns` (40), `banner`, `accent_color`
-/// and `custom_status`. Absent fields stay, `null` clears.
+/// Edit the caller's profile: `avatar` and `banner` (image data URIs, stored by the
+/// media pipeline), `bio` (190), `pronouns` (40), `accent_color` and
+/// `custom_status`. Absent fields stay, `null` clears (and deletes the stored
+/// image). Publishes `USER_UPDATE`.
 #[utoipa::path(
     patch,
     path = "/users/@me",
@@ -133,6 +140,7 @@ async fn render_profile(
 pub async fn edit_self(
     p: Principal,
     Ext(deps): Ext<SocialDeps>,
+    MaybeExt(media): MaybeExt<MediaDeps>,
     ApiJson(body): ApiJson<EditSelfBody>,
 ) -> MsgResult<Json<SelfObject>> {
     let me = actor(&p)?;
@@ -142,13 +150,109 @@ pub async fn edit_self(
         Some(None) => Some(Default::default()),
         None => None,
     };
+
+    // Images first: a bad upload fails the whole edit before anything is written.
+    let wants_images = body.avatar.is_some() || body.banner.is_some();
+    let media = match (wants_images, media) {
+        (true, None) => {
+            tracing::error!("profile image edit needs MediaDeps registered on AppState");
+            return Err(ErrorCode::SrInternal.into());
+        }
+        (_, m) => m,
+    };
+    let before = if wants_images {
+        Some(deps.service.get_profile(me, me).await?)
+    } else {
+        None
+    };
+    let mut stored: Vec<(MediaKind, String)> = Vec::new();
+    let resolve = |kind: MediaKind, field: &'static str, v: Option<Option<String>>| {
+        let media = media.clone();
+        async move {
+            Ok::<_, MsgError>(match (v, media) {
+                (None, _) => None,
+                (Some(None), _) => Some((None, None)),
+                (Some(Some(uri)), Some(m)) => {
+                    let h = m.store(kind, me.get(), field, uri).await?;
+                    Some((Some(h.clone()), Some((kind, h))))
+                }
+                (Some(Some(_)), None) => None,
+            })
+        }
+    };
+    let avatar = resolve(MediaKind::UserAvatar, "avatar", body.avatar).await;
+    let banner = match avatar {
+        Ok(_) => resolve(MediaKind::UserBanner, "banner", body.banner).await,
+        Err(_) => Ok(None),
+    };
+    let (avatar_key, banner_key) = match (avatar, banner) {
+        (Ok(a), Ok(b)) => {
+            let mut keys = (None, None);
+            if let Some((k, s)) = a {
+                keys.0 = Some(k);
+                stored.extend(s);
+            }
+            if let Some((k, s)) = b {
+                keys.1 = Some(k);
+                stored.extend(s);
+            }
+            keys
+        }
+        (a, b) => {
+            // One of the two failed: drop whatever the other one stored.
+            if let (Some(m), Ok(Some((_, Some((kind, h)))))) = (&media, &a) {
+                m.remove(*kind, me.get(), h).await;
+            }
+            if let (Some(m), Ok(Some((_, Some((kind, h)))))) = (&media, &b) {
+                m.remove(*kind, me.get(), h).await;
+            }
+            return Err(a
+                .err()
+                .or(b.err())
+                .unwrap_or_else(|| ErrorCode::SrInternal.into()));
+        }
+    };
+
     let edit = ProfileEdit {
-        banner_key: body.banner,
+        avatar_key,
+        banner_key,
         accent_color: body.accent_color,
         bio: body.bio,
         pronouns: body.pronouns,
     };
-    let profile = deps.service.edit_profile(me, &edit).await?;
+    let profile = match deps.service.edit_profile(me, &edit).await {
+        Ok(p) => p,
+        Err(e) => {
+            if let Some(m) = &media {
+                for (kind, h) in &stored {
+                    m.remove(*kind, me.get(), h).await;
+                }
+            }
+            return Err(e.into());
+        }
+    };
+    // The edit is committed: delete the images it replaced or cleared.
+    if let (Some(m), Some(before)) = (&media, &before) {
+        for (kind, old, new) in [
+            (
+                MediaKind::UserAvatar,
+                &before.avatar_key,
+                &profile.avatar_key,
+            ),
+            (
+                MediaKind::UserBanner,
+                &before.banner_key,
+                &profile.banner_key,
+            ),
+        ] {
+            if let Some(old) = old
+                && Some(old) != new.as_ref()
+            {
+                m.remove(kind, me.get(), old).await;
+            }
+        }
+    }
+
     let prefs = match custom {
         Some(c) => deps.service.set_custom_status(me, c).await?,
         None => deps.service.presence(me).await?,

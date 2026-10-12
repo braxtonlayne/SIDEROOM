@@ -42,7 +42,10 @@ use utoipa::OpenApi;
 /// All social routes (relative to the API version prefix).
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/users/@me", axum::routing::patch(profile::edit_self))
+        .route(
+            "/users/@me",
+            axum::routing::patch(profile::edit_self).layer(crate::routes::media::body_limit()),
+        )
         .route("/users/@me/profile", get(profile::get_own_profile))
         .route("/users/{user_id}/profile", get(profile::get_profile))
         .route(
