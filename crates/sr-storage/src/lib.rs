@@ -8,6 +8,7 @@
 pub mod cdn;
 pub mod error;
 pub mod img;
+pub mod media;
 pub mod storage;
 pub mod upload;
 

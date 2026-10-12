@@ -396,11 +396,7 @@ pub fn encode(d: &Decoded, format: ImgFormat) -> Result<Vec<u8>, ImgError> {
         _ => {
             let rgba: RgbaImage = match d {
                 Decoded::Still(i) => i.to_rgba8(),
-                Decoded::Anim(f) => f
-                    .first()
-                    .ok_or(ImgError::Malformed)?
-                    .buffer()
-                    .clone(),
+                Decoded::Anim(f) => f.first().ok_or(ImgError::Malformed)?.buffer().clone(),
             };
             let (w, h) = rgba.dimensions();
             match format {
