@@ -229,6 +229,7 @@ pub async fn modify_channel(
         rate_limit_per_user: body.rate_limit_per_user,
         bitrate: body.bitrate,
         user_limit: body.user_limit,
+        ..ChannelPatch::default()
     };
     let mv = ChannelMove {
         position: body.position,
