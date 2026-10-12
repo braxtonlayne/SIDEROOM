@@ -8,6 +8,9 @@ concurrency:
   cancel-in-progress: true
 env:
   DATABASE_URL: postgres://sideroom:sideroom_dev@127.0.0.1:5432/sideroom
+  # sr-cli and sr-server read the SR_-prefixed form; without it they fall back to the built-in
+  # default (a different password than the compose database).
+  SR_DATABASE__URL: postgres://sideroom:sideroom_dev@127.0.0.1:5432/sideroom
   CARGO_TERM_COLOR: always
 jobs:
   playwright:
