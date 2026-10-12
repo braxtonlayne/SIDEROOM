@@ -116,6 +116,8 @@ pub enum MessageEvent {
     Deleted(MessageId),
     /// Bulk delete / channel delete.
     ChannelDeleted(ChannelId),
+    /// The guild was deleted: remove every message indexed under it.
+    GuildDeleted(GuildId),
 }
 
 /// The channels the searcher may read (VIEW_CHANNEL + READ_MESSAGE_HISTORY, or
@@ -323,6 +325,9 @@ impl MessageIndex {
                 }
                 MessageEvent::ChannelDeleted(c) => {
                     w.delete_term(Term::from_field_u64(self.f.channel, c.get()));
+                }
+                MessageEvent::GuildDeleted(g) => {
+                    w.delete_term(Term::from_field_u64(self.f.guild, g.get()));
                 }
             }
         }
@@ -699,6 +704,25 @@ mod tests {
             .unwrap();
         assert_eq!(run("quick"), Vec::<u64>::new());
         assert_eq!(idx.num_docs(), 1);
+    }
+
+    #[test]
+    fn deleting_a_guild_purges_its_messages_only() {
+        let idx = MessageIndex::in_ram().unwrap();
+        let mut other = msg(2, 300, 1, "kept words", 2000);
+        other.guild_id = Some(GuildId::new(2));
+        let mut dm = msg(3, 400, 1, "dm words", 3000);
+        dm.guild_id = None;
+        idx.apply_batch(&[
+            MessageEvent::Created(msg(1, 100, 1, "gone words", 1000)),
+            MessageEvent::Created(other),
+            MessageEvent::Created(dm),
+        ])
+        .unwrap();
+        assert_eq!(idx.num_docs(), 3);
+        idx.apply(&MessageEvent::GuildDeleted(GuildId::new(1)))
+            .unwrap();
+        assert_eq!(idx.num_docs(), 2);
     }
 
     #[test]

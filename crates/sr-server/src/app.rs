@@ -206,7 +206,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     )
     .with_previous_keys(previous_keys);
 
-    let bus: Arc<dyn EventBus> = Arc::new(InProcessBus::new());
+    // The wrapper lets the search indexer notice when it lagged behind the bus.
+    let lag_bus = Arc::new(crate::lag_bus::LagTapBus::new(
+        Arc::new(InProcessBus::new()),
+    ));
+    let bus: Arc<dyn EventBus> = lag_bus.clone();
 
     // Entrance/auth service (open question 140): Postgres store, SMTP when
     // `[smtp]` has a host (the log mailer otherwise, for development), and the
@@ -390,7 +394,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let search_consumer = {
         let ids = ids.clone();
         crate::search_jobs::spawn_firehose_consumer(
-            bus.as_ref(),
+            lag_bus.tap(),
             pool.clone(),
             Arc::new(move || ids.generate().get() as i64),
             search_deps.clone(),
