@@ -9,3 +9,5 @@ node_modules
 dist
 server.log
 /data/
+packages/wasm/pkg/
+coverage/
