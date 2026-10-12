@@ -323,3 +323,118 @@ async fn profile_and_presence() {
     assert_eq!(loaded.custom.text.as_deref(), Some("Glooping"));
     assert!(loaded.status_expires_ms.is_some());
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn username_lookup_and_friend_request_by_username() {
+    let pool = pool().await;
+    let (svc, ids) = service(&pool);
+    let (a, b) = (account(&pool, &ids).await, account(&pool, &ids).await);
+    let name: String = sqlx::query_scalar("SELECT username::text FROM accounts WHERE id = $1")
+        .bind(b.get() as i64)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let repo = svc.repo();
+    assert_eq!(
+        repo.find_user_by_username(&name.to_uppercase())
+            .await
+            .unwrap(),
+        Some(b)
+    );
+    assert_eq!(
+        repo.find_user_by_username("no_such_user_x").await.unwrap(),
+        None
+    );
+
+    let (them, plan) = svc
+        .send_friend_request_by_username(a, &name.to_uppercase())
+        .await
+        .unwrap();
+    assert_eq!(them, b);
+    assert!(!plan.ops.is_empty());
+    assert_eq!(
+        svc.list_relationships(b).await.unwrap()[0].kind,
+        RelationshipKind::PendingIncoming
+    );
+    // Unknown names look like a closed door.
+    assert!(matches!(
+        svc.send_friend_request_by_username(a, "no_such_user_x")
+            .await,
+        Err(SocialError::RequestsNotAccepted)
+    ));
+    // A block by the target is indistinguishable from an unknown name.
+    svc.block(b, a).await.unwrap();
+    assert!(matches!(
+        svc.send_friend_request_by_username(a, &name).await,
+        Err(SocialError::RequestsNotAccepted)
+    ));
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn guild_memberships_peers_and_mutual_friends() {
+    use sr_chat::repo::GuildRepository;
+    let pool = pool().await;
+    let (svc, ids) = service(&pool);
+    let (owner, member, stranger, friend) = (
+        account(&pool, &ids).await,
+        account(&pool, &ids).await,
+        account(&pool, &ids).await,
+        account(&pool, &ids).await,
+    );
+    let gen_ids = SnowflakeGenerator::new(Arc::new(SystemClock) as Arc<dyn Clock>, 7, 7).unwrap();
+    let bp = sr_chat::guild_rules::plan_new_guild(owner, "Peers", 1_800_000_000_000, || {
+        gen_ids.generate()
+    })
+    .unwrap();
+    sr_db::chat_repo::PgChatRepo::new(pool.clone())
+        .insert_guild(&bp)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO guild_members (guild_id, user_id, nick, joined_at) \
+         VALUES ($1, $2, 'Memby', to_timestamp(1800000100))",
+    )
+    .bind(bp.guild.id.get() as i64)
+    .bind(member.get() as i64)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let repo = svc.repo();
+    let m = repo.list_guild_memberships(member).await.unwrap();
+    assert_eq!(m.len(), 1);
+    assert_eq!(m[0].guild, bp.guild.id);
+    assert_eq!(m[0].nick.as_deref(), Some("Memby"));
+    assert_eq!(m[0].joined_at_ms, 1_800_000_100_000);
+    assert!(
+        repo.list_guild_memberships(stranger)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(repo.guild_peers(member).await.unwrap(), vec![owner]);
+    assert!(repo.guild_peers(stranger).await.unwrap().is_empty());
+
+    befriend(&svc, owner, friend).await;
+    befriend(&svc, member, friend).await;
+    assert_eq!(
+        repo.mutual_friends(owner, member).await.unwrap(),
+        vec![friend]
+    );
+    assert!(
+        repo.mutual_friends(owner, stranger)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
+    let extras = svc.profile_extras(owner, member).await.unwrap();
+    assert_eq!(extras.mutual_friends, vec![friend]);
+    assert_eq!(extras.mutual_guilds.len(), 1);
+    assert!(extras.friends_since_ms.is_none());
+    let audience = svc.audience(member).await.unwrap();
+    assert_eq!(audience.friends, vec![friend]);
+    assert_eq!(audience.guilds, vec![bp.guild.id]);
+}
