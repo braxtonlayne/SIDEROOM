@@ -445,6 +445,26 @@ export interface paths {
         patch: operations["modify_guild"];
         trace?: never;
     };
+    "/guilds/{guild_id}/ack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark a whole guild as read: every channel the caller can view that has a message
+         *     is acknowledged up to its latest message (and its mention badge resets).
+         */
+        post: operations["ack_guild"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/audit-logs": {
         parameters: {
             query?: never;
@@ -1198,7 +1218,12 @@ export interface paths {
         /** All relationships of the caller: friends, blocks and pending requests. */
         get: operations["list"];
         put?: never;
-        post?: never;
+        /**
+         * Send a friend request by username (case-insensitive). An unknown user, a user
+         *     who blocked the caller and a user who takes no requests all answer the same
+         *     "unable to add" error, so usernames cannot be enumerated.
+         */
+        post: operations["add"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1319,6 +1344,14 @@ export interface components {
              * @description 1 block message, 2 send alert message, 3 timeout.
              */
             type: number;
+        };
+        /** @description `POST /users/@me/relationships`: send a friend request by username. */
+        AddRelationshipBody: {
+            /**
+             * @description The target's username, case-insensitive. The platform has no
+             *     discriminators; a `discriminator` field is accepted and ignored.
+             */
+            username: string;
         };
         /**
          * @description Discord's `allowed_mentions` object. `parse` may hold `users`, `roles` and
@@ -1962,6 +1995,13 @@ export interface components {
              */
             selected_time_window?: number | null;
         };
+        MutualGuildObject: {
+            id: string;
+            /** @description When the profile owner joined that guild. */
+            member_since: string;
+            /** @description The profile owner's nickname in that guild. */
+            nick?: string | null;
+        };
         NicknameBody: {
             /** @description Empty or null clears the nickname (max 32 characters). */
             nickname?: string | null;
@@ -2046,6 +2086,20 @@ export interface components {
         };
         ProfileObject: {
             connected_accounts: components["schemas"]["ConnectionObject"][];
+            /** @description When the viewer and the owner became friends. */
+            friends_since?: string | null;
+            /**
+             * @description Friends of both the viewer and the profile owner (omitted on the viewer's own
+             *     profile).
+             */
+            mutual_friends?: components["schemas"]["UserObject"][] | null;
+            mutual_friends_count?: number | null;
+            /**
+             * @description Guilds both belong to, with the owner's nickname and join time there.
+             *     Present when `with_mutual_guilds` is true (the default) and the profile is
+             *     not the viewer's own.
+             */
+            mutual_guilds?: components["schemas"]["MutualGuildObject"][] | null;
             user: components["schemas"]["UserObject"];
             user_profile: components["schemas"]["UserProfileFields"];
         };
@@ -3976,6 +4030,43 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    ack_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Acknowledged */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             403: {
                 headers: {
@@ -7022,6 +7113,36 @@ export interface operations {
             };
         };
     };
+    add: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddRelationshipBody"];
+            };
+        };
+        responses: {
+            /** @description Request sent (or incoming request accepted) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_one: {
         parameters: {
             query?: never;
@@ -7182,7 +7303,10 @@ export interface operations {
     };
     get_profile: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Include mutual guilds (default true) */
+                with_mutual_guilds?: boolean;
+            };
             header?: never;
             path: {
                 /** @description User snowflake */
