@@ -28,6 +28,7 @@ struct FakeDir {
     hidden: Mutex<HashSet<(UserId, ChannelId)>>,
     staff: Mutex<Vec<UserId>>,
     perms: Mutex<HashMap<(UserId, GuildId), Permissions>>,
+    friends: Mutex<HashMap<UserId, Vec<UserId>>>,
 }
 
 #[async_trait]
@@ -42,6 +43,14 @@ impl GuildDirectory for FakeDir {
     }
     async fn staff_users(&self) -> Vec<UserId> {
         self.staff.lock().unwrap().clone()
+    }
+    async fn friends_of(&self, user: UserId) -> Vec<UserId> {
+        self.friends
+            .lock()
+            .unwrap()
+            .get(&user)
+            .cloned()
+            .unwrap_or_default()
     }
     async fn has_guild_permission(&self, user: UserId, g: GuildId, needed: Permissions) -> bool {
         self.perms
@@ -1244,4 +1253,201 @@ async fn settings_dispatches_use_discord_intent_bits() {
     let e = env();
     let mut c = connect(&e);
     c.identify("bot:1", ALL_SETTINGS_INTENTS, 1).await;
+}
+
+fn befriend(e: &Env, a: u64, b: u64) {
+    let mut f = e.dir.friends.lock().unwrap();
+    f.entry(u(a)).or_default().push(u(b));
+    f.entry(u(b)).or_default().push(u(a));
+}
+
+fn presence_changed(user: u64, status: &str, custom: Option<Value>) -> DomainEvent {
+    DomainEvent::PresenceChanged {
+        user: u(user),
+        status: status.into(),
+        custom_status: custom,
+    }
+}
+
+#[tokio::test]
+async fn rest_presence_change_reaches_guild_members_and_shows_invisible_as_offline() {
+    let e = env();
+    let mut a = connect(&e);
+    a.identify("user:1", 0, 1).await;
+    let mut b = connect(&e);
+    b.identify("user:2", 0, 1).await;
+    let mut other_guild = connect(&e);
+    other_guild.identify("user:3", 0, 1).await;
+    settle().await;
+    a.drain().await;
+    b.drain().await;
+    other_guild.drain().await;
+
+    emit(&e.bus, presence_changed(1, "dnd", None)).await;
+    let p = b.expect_event("PRESENCE_UPDATE").await;
+    assert_eq!(p["d"]["user"]["id"], "1");
+    assert_eq!(p["d"]["guild_id"], "1");
+    assert_eq!(p["d"]["status"], "dnd");
+    // The user's own session hears it too; a stranger in another guild does not.
+    assert_eq!(
+        a.expect_event("PRESENCE_UPDATE").await["d"]["status"],
+        "dnd"
+    );
+    other_guild.silent().await;
+
+    emit(&e.bus, presence_changed(1, "invisible", None)).await;
+    assert_eq!(
+        b.expect_event("PRESENCE_UPDATE").await["d"]["status"],
+        "offline"
+    );
+    assert_eq!(e.gw.presence(u(1)).unwrap().status, "invisible");
+}
+
+#[tokio::test]
+async fn custom_status_travels_as_an_activity() {
+    let e = env();
+    let mut a = connect(&e);
+    a.identify("user:1", 0, 1).await;
+    let mut b = connect(&e);
+    b.identify("user:2", 0, 1).await;
+    settle().await;
+    b.drain().await;
+
+    let custom = json!({ "type": 4, "name": "Custom Status", "state": "brb" });
+    emit(&e.bus, presence_changed(1, "online", Some(custom.clone()))).await;
+    let p = b.expect_event("PRESENCE_UPDATE").await;
+    assert_eq!(p["d"]["activities"][0], custom);
+}
+
+#[tokio::test]
+async fn presence_reaches_friends_outside_shared_guilds_exactly_once() {
+    let e = env();
+    // 5 is in no guild and friends with 1; 2 shares G1 with 1 and is a friend too.
+    befriend(&e, 1, 5);
+    befriend(&e, 1, 2);
+    let mut a = connect(&e);
+    a.identify("user:1", 0, 1).await;
+    let mut friend = connect(&e);
+    friend.identify("user:5", 0, 0).await;
+    let mut both = connect(&e);
+    both.identify("user:2", 0, 1).await;
+    settle().await;
+    a.drain().await;
+    friend.drain().await;
+    both.drain().await;
+
+    emit(&e.bus, presence_changed(1, "idle", None)).await;
+    let p = friend.expect_event("PRESENCE_UPDATE").await;
+    assert_eq!(p["d"]["user"]["id"], "1");
+    assert_eq!(p["d"]["status"], "idle");
+    assert!(
+        p["d"].get("guild_id").is_none(),
+        "friend dispatch is guildless"
+    );
+    friend.silent().await;
+    // The friend who also shares the guild gets the guild dispatch, once.
+    assert_eq!(
+        both.expect_event("PRESENCE_UPDATE").await["d"]["guild_id"],
+        "1"
+    );
+    both.silent().await;
+
+    // Invisible looks offline to friends too; going offline reaches them as well.
+    emit(&e.bus, presence_changed(1, "invisible", None)).await;
+    assert_eq!(
+        friend.expect_event("PRESENCE_UPDATE").await["d"]["status"],
+        "offline"
+    );
+    friend.drain().await;
+    drop(a);
+    assert_eq!(
+        friend.expect_event("PRESENCE_UPDATE").await["d"]["status"],
+        "offline"
+    );
+}
+
+#[tokio::test]
+async fn bots_need_guild_presences_for_presence_updates() {
+    let e = env();
+    e.dir.guilds.lock().unwrap().insert(u(7), vec![G1]);
+    e.dir.guilds.lock().unwrap().insert(u(8), vec![G1]);
+    let mut a = connect(&e);
+    a.identify("user:1", 0, 1).await;
+    let mut without = connect(&e);
+    without.identify("bot:7", GUILDS_MSGS, 1).await;
+    let mut with = connect(&e);
+    with.identify("bot:8:256", intents::GUILDS | intents::GUILD_PRESENCES, 1)
+        .await;
+    settle().await;
+    a.drain().await;
+    without.drain().await;
+    with.drain().await;
+
+    emit(&e.bus, presence_changed(1, "dnd", None)).await;
+    assert_eq!(
+        with.expect_event("PRESENCE_UPDATE").await["d"]["status"],
+        "dnd"
+    );
+    without.silent().await;
+}
+
+#[tokio::test]
+async fn presence_merges_all_sessions_of_a_user() {
+    let e = env();
+    let mut watcher = connect(&e);
+    watcher.identify("user:2", 0, 1).await;
+    let mut first = connect(&e);
+    first.identify("user:1", 0, 1).await;
+    let mut second = connect(&e);
+    second.identify("user:1", 0, 1).await;
+    settle().await;
+    watcher.drain().await;
+
+    // A chosen dnd applies to every session.
+    emit(&e.bus, presence_changed(1, "dnd", None)).await;
+    assert_eq!(
+        watcher.expect_event("PRESENCE_UPDATE").await["d"]["status"],
+        "dnd"
+    );
+    assert_eq!(e.gw.presence(u(1)).unwrap().status, "dnd");
+    // One session closing keeps the user present; the last one makes them offline.
+    drop(first);
+    settle().await;
+    assert_eq!(e.gw.presence(u(1)).unwrap().status, "dnd");
+    watcher.drain().await;
+    drop(second);
+    assert_eq!(
+        watcher.expect_event("PRESENCE_UPDATE").await["d"]["status"],
+        "offline"
+    );
+    assert_eq!(e.gw.presence(u(1)).unwrap().status, "offline");
+}
+
+#[tokio::test]
+async fn user_update_reaches_guild_members_but_not_the_changed_user_twice() {
+    let e = env();
+    let mut a = connect(&e);
+    a.identify("user:1", 0, 1).await;
+    let mut b = connect(&e);
+    b.identify("user:2", 0, 1).await;
+    let mut stranger = connect(&e);
+    stranger.identify("user:3", 0, 1).await;
+    settle().await;
+    a.drain().await;
+    b.drain().await;
+    stranger.drain().await;
+
+    emit(
+        &e.bus,
+        DomainEvent::UserUpdated {
+            guild: G1,
+            user: u(1),
+            payload: json!({ "user": { "id": "1" }, "bio": "hi" }),
+        },
+    )
+    .await;
+    assert_eq!(b.expect_event("USER_UPDATE").await["d"]["bio"], "hi");
+    // The changed user gets the self-scoped copy instead; strangers get nothing.
+    a.silent().await;
+    stranger.silent().await;
 }
