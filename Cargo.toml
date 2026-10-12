@@ -27,3 +27,11 @@ thiserror = "2"
 tokio = "1"
 tokio-stream = { version = "0.1", features = ["sync"] }
 wasm-bindgen = "0.2"
+
+# Password hashing is deliberately expensive (argon2id, 64 MiB). An unoptimised build makes
+# every login take 1.5 s or more, and several times that under load, which makes local runs
+# and the e2e suite flaky. Optimise just the hashing crates in dev/test profiles.
+[profile.dev.package.argon2]
+opt-level = 3
+[profile.dev.package.blake2]
+opt-level = 3
