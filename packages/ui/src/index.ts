@@ -54,3 +54,7 @@ export * from "./util/useMediaQuery";
 export { observeRectWithFallback } from "./util/virtual";
 export * from "./sideroom/Poster";
 export * from "./sideroom/FilterChips";
+export * from "./primitives/QRCode/QRCode";
+export { encodeQr } from "./util/qr";
+export type { QrEcc, QrMatrix } from "./util/qr";
+export * from "./primitives/Kbd/KeybindRow";
