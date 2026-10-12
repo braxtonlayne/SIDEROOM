@@ -10,8 +10,12 @@
 //! | `attachments` | `chat/`           | message attachments              |
 //! | `emoji`       | `emoji/`          | custom emoji (`emoji/{guild}/{id}.{ext}`) |
 //! | `stickers`    | `sticker/`        | guild stickers                   |
-//! | `avatars`     | `avatars/`        | reserved                         |
-//! | `icons`       | `icons/`          | reserved (guild icons)           |
+//! | `avatars`     | `avatars/`        | user avatars/banners (`avatars/{user}/{hash}`) |
+//! | `icons`       | `icons/`          | guild icon/banner/splash (`icons/{guild}/{hash}`) |
+//!
+//! `avatars` and `icons` are *public kinds*: the URL is `/cdn/avatars/{user}/{hash}.{ext}`
+//! where `ext` (png, jpg, webp, gif) selects the output format and is not part of the
+//! object key; the unguessable content hash is the credential, so no signature is needed.
 
 use thiserror::Error;
 
@@ -46,9 +50,17 @@ pub struct CdnPath {
     pub canonical: String,
     /// Object storage key.
     pub key: String,
-    /// Last decoded segment (the file name).
+    /// Last decoded segment (the file name). For public kinds this is the
+    /// hash without its extension.
     pub filename: String,
+    /// `avatars` / `icons`: content-hash addressed, servable without a signature.
+    pub public: bool,
+    /// Output format named by the extension of a public-kind URL.
+    pub format_hint: Option<sr_storage::img::ImgFormat>,
 }
+
+/// Kinds addressed by an unguessable content hash (see the module docs).
+pub const PUBLIC_KINDS: &[&str] = &["avatars", "icons"];
 
 /// Percent-encode one path segment, leaving only `A-Z a-z 0-9 - . _ ~`.
 pub fn encode_segment(s: &str) -> String {
@@ -133,10 +145,28 @@ pub fn parse(raw: &str) -> Result<CdnPath, PathError> {
         decoded.push(d);
     }
     let refs: Vec<&str> = decoded.iter().map(String::as_str).collect();
+    let canonical = cdn_path(raw_segs[0], &refs);
+    let public = PUBLIC_KINDS.contains(&raw_segs[0]);
+    let mut stored = decoded;
+    let mut format_hint = None;
+    if public && let Some(last) = stored.last_mut() {
+        let split = last
+            .rsplit_once('.')
+            .filter(|(stem, _)| !stem.is_empty())
+            .and_then(|(stem, ext)| {
+                sr_storage::img::ImgFormat::from_name(ext).map(|f| (stem.to_owned(), f))
+            });
+        if let Some((stem, f)) = split {
+            format_hint = Some(f);
+            *last = stem;
+        }
+    }
     Ok(CdnPath {
-        canonical: cdn_path(raw_segs[0], &refs),
-        key: format!("{prefix}/{}", decoded.join("/")),
-        filename: decoded.last().cloned().unwrap_or_default(),
+        canonical,
+        key: format!("{prefix}/{}", stored.join("/")),
+        filename: stored.last().cloned().unwrap_or_default(),
+        public,
+        format_hint,
     })
 }
 
@@ -154,6 +184,24 @@ mod tests {
             parse("/cdn/stickers/9/3.png").unwrap().key,
             "sticker/9/3.png"
         );
+    }
+
+    #[test]
+    fn public_kinds_strip_the_format_extension() {
+        let p = parse("/cdn/avatars/7/abc123.WebP").unwrap();
+        assert_eq!(p.key, "avatars/7/abc123");
+        assert_eq!(p.canonical, "/cdn/avatars/7/abc123.WebP");
+        assert!(p.public);
+        assert_eq!(p.format_hint, Some(sr_storage::img::ImgFormat::Webp));
+        let p = parse("/cdn/icons/9/a_ff.gif").unwrap();
+        assert_eq!(p.key, "icons/9/a_ff");
+        let p = parse("/cdn/avatars/7/abc123").unwrap();
+        assert_eq!((p.key.as_str(), p.format_hint), ("avatars/7/abc123", None));
+        // Other kinds keep the extension and are not public.
+        let p = parse("/cdn/attachments/1/2/a.png").unwrap();
+        assert!(!p.public);
+        assert_eq!(p.key, "chat/1/2/a.png");
+        assert_eq!(p.format_hint, None);
     }
 
     #[test]

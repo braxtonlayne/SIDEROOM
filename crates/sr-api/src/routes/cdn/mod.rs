@@ -30,6 +30,10 @@
 pub mod content;
 pub mod path;
 mod serve;
+mod variant;
+
+#[cfg(test)]
+mod variant_tests;
 
 #[cfg(test)]
 mod tests;
@@ -64,12 +68,30 @@ pub struct CdnDeps {
     pub storage: Arc<dyn ObjectStorage>,
     /// The same signer that minted the URLs (`MessagesDeps::with_cdn_signer`).
     pub signer: CdnSigner,
+    /// Budget for resizing (bytes, pixels, frames).
+    pub limits: sr_storage::img::Limits,
+    /// Caps concurrent resize jobs (CPU and memory).
+    pub render_permits: Arc<tokio::sync::Semaphore>,
 }
 
+/// Resize jobs allowed at once.
+pub const RENDER_CONCURRENCY: usize = 4;
+
 impl CdnDeps {
-    /// Bundle storage and signer.
+    /// Bundle storage and signer, with the default resize budget.
     pub fn new(storage: Arc<dyn ObjectStorage>, signer: CdnSigner) -> Self {
-        Self { storage, signer }
+        Self {
+            storage,
+            signer,
+            limits: sr_storage::img::Limits::default(),
+            render_permits: Arc::new(tokio::sync::Semaphore::new(RENDER_CONCURRENCY)),
+        }
+    }
+
+    /// Replace the resize budget.
+    pub fn with_limits(mut self, limits: sr_storage::img::Limits) -> Self {
+        self.limits = limits;
+        self
     }
 }
 

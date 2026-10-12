@@ -3851,6 +3851,7 @@ dependencies = [
  "futures",
  "governor",
  "http-body-util",
+ "image",
  "lettre",
  "metrics",
  "metrics-exporter-prometheus",
