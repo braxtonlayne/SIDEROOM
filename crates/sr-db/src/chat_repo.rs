@@ -1201,7 +1201,8 @@ impl MessageStore for PgMessageStore {
         sqlx::query(
             "UPDATE attachments SET message_id = $2, state = $3::attachment_state, \
              description = $4, content_type = $5, flags = $6, \
-             expires_at = to_timestamp($7::double precision), updated_at = now() \
+             expires_at = to_timestamp($7::double precision), size_bytes = $8, \
+             updated_at = now() \
              WHERE id = $1",
         )
         .bind(i(a.id.get()))
@@ -1215,6 +1216,8 @@ impl MessageStore for PgMessageStore {
             0
         })
         .bind(expires_secs)
+        // The EXIF/metadata strip rewrites the object, so the stored size must follow it.
+        .bind(i(a.size))
         .execute(&self.pool)
         .await
         .map_err(sdb)?;
