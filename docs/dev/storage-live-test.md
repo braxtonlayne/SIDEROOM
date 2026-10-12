@@ -2,7 +2,7 @@
 
 The storage code (`sr-storage`, attachment slots, emoji upload, the abandoned-upload
 sweep) is covered by unit tests on an in-memory backend. These two opt-in suites run
-the same paths against a real S3-compatible server. Neither runs in CI by default.
+the same paths against a real S3-compatible server. They are opt-in locally; in CI the `Storage (live S3)` workflow (`.github/workflows/storage.yml`) runs both against the compose Garage on changes to the storage, CDN, message, server and compose code.
 
 | Suite | Where | What it proves |
 |---|---|---|
