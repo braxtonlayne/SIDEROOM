@@ -24,6 +24,7 @@ import { DeleteMessageDialog, ForwardDialog, PinMessageDialog } from './msg/Mess
 import { ReactorsModal } from './msg/Reactors';
 import { cmpId } from '../store/reducer';
 import { buildRows, estimateRow } from './messageRows';
+import { openProfilePopout } from './profile/popoutStore';
 import { useHiddenAuthors } from './shell/hiddenAuthors';
 import { toSaved, useSaved } from './shell/savedMessages';
 import { useLoungeUi } from './store';
@@ -347,8 +348,18 @@ export function MessageList({
   const onMention = useCallback(
     (t: { kind: 'user' | 'role' | 'channel'; id: Snowflake }) => {
       if (t.kind === 'channel' && guildId) goto(guildId, t.id);
+      // The mention that was just clicked still has focus: the popout opens next to it.
+      else if (t.kind === 'user')
+        openProfilePopout(
+          { userId: t.id, guildId },
+          document.activeElement instanceof HTMLElement ? document.activeElement : null,
+        );
     },
     [goto, guildId],
+  );
+  const onOpenProfile = useCallback(
+    (userId: Snowflake, anchor: HTMLElement) => openProfilePopout({ userId, guildId }, anchor),
+    [guildId],
   );
   const onReact = useCallback(
     (m: Message, e: string) => actions.toggleReaction(m.channelId, m.id, e),
@@ -575,6 +586,7 @@ export function MessageList({
                     onEdit={onEdit}
                     onReact={onReact}
                     onMentionClick={onMention}
+                    onOpenProfile={onOpenProfile}
                     onJumpTo={jumpTo}
                   />
                 )}

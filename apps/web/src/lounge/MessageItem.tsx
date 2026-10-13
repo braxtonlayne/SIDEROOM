@@ -84,6 +84,8 @@ export interface MessageItemProps {
   /** Start a thread from this message (hidden when the viewer cannot, or in a thread). */
   onCreateThread?: (m: Message) => void;
   onOpenThread?: (m: Message, threadId: Snowflake) => void;
+  /** Open the author's profile popout next to `anchor`. */
+  onOpenProfile?: (userId: Snowflake, anchor: HTMLElement) => void;
   /** Jump to a message in another channel (the first row of a thread). */
   onJumpToChannelMessage?: (channelId: Snowflake, messageId: Snowflake) => void;
 }
@@ -203,6 +205,7 @@ function MessageItemImpl(props: MessageItemProps) {
     onCreateThread,
     onOpenThread,
     onJumpToChannelMessage,
+    onOpenProfile,
   } = props;
   const compact = useSavedPrefs().messageDisplay === 'compact';
   // Compact mode puts the name and time on every line (no avatar), so nothing is grouped.
@@ -465,7 +468,21 @@ function MessageItemImpl(props: MessageItemProps) {
                 {formatClock(new Date(m.createdAt))}
               </time>
             ) : (
-              <Avatar name={m.author.displayName} src={m.author.avatarUrl ?? null} size={40} />
+              <button
+                type="button"
+                className="lng-avatar-btn"
+                aria-label={`Open profile of ${m.author.displayName}`}
+                aria-haspopup="dialog"
+                disabled={!onOpenProfile}
+                onClick={(e) => onOpenProfile?.(m.author.id, e.currentTarget)}
+              >
+                <Avatar
+                  name={m.author.displayName}
+                  src={m.author.avatarUrl ?? null}
+                  size={40}
+                  aria-hidden="true"
+                />
+              </button>
             )}
           </div>
           <div className="lng-msg-body">
@@ -476,7 +493,18 @@ function MessageItemImpl(props: MessageItemProps) {
                   data-gradient={nameDecor?.secondary ? '' : undefined}
                   style={authorStyle(nameColor, nameDecor)}
                 >
-                  {m.author.displayName}
+                  {onOpenProfile ? (
+                    <button
+                      type="button"
+                      className="lng-name-btn"
+                      aria-haspopup="dialog"
+                      onClick={(e) => onOpenProfile(m.author.id, e.currentTarget)}
+                    >
+                      {m.author.displayName}
+                    </button>
+                  ) : (
+                    m.author.displayName
+                  )}
                 </span>
                 {nameDecor?.icon && (
                   <span

@@ -14,7 +14,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [ ] **LNG-SHL-009** [FE] App-level notices bar (verify email, update available, platform announcements)
 - [x] **LNG-SHL-010** [FE] Mobile layout: swipeable panes (list ↔ chat ↔ members), bottom tab bar (Home, Notifications, You)
 - [x] **LNG-SHL-011** [FE] Drag-and-drop file overlay on the chat column
-- [ ] **LNG-SHL-012** [FE] Global modals host + context-menu host + popout host (profile popouts)
+- [x] **LNG-SHL-012** [FE] Global modals host + context-menu host + popout host (profile popouts)
 
 ## LNG-RAIL — Server rail
 - [x] **LNG-RAIL-001** [FE] Home button (door mark), unread/mention badge for DMs, selected pill

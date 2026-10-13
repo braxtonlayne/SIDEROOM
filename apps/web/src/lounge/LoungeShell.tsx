@@ -30,6 +30,8 @@ import { useLoungeGoto, useLoungeRoute } from './nav';
 import { DmProfilePanel, HomeFriends, PickChannel } from './Panels';
 import { QuickSwitcher } from './QuickSwitcher';
 import { ConnectionBanner, NoticesBar } from './shell/Banners';
+import { useAgeCleared, useAgeGate } from './AgeGate';
+import { PopoutHost } from './profile/ProfilePopout';
 import { ReminderTicker } from './shell/ReminderTicker';
 import { ThreadPane } from './threads/ThreadPane';
 import { useShellBoot } from './shell/useShellBoot';
@@ -153,18 +155,24 @@ function Main({ isMobile, onBack }: { isMobile: boolean; onBack: () => void }) {
   const channels = useChannels(guildId && guildId !== HOME ? guildId : undefined);
   const navigate = useNavigate();
   const remembered = useLoungeUi((s) => (guildId ? s.lastChannelByGuild[guildId] : undefined));
+  // A thread of an age-restricted channel stays closed until the channel's question is answered.
+  const gate = useAgeGate(channels.find((c) => c.id === channelId)?.nsfw);
+  const restrictedParent = gate.state !== 'open';
+  const ageCleared = useAgeCleared();
 
   // /channels/:guild without a channel -> remembered or first text channel (desktop; mobile keeps the list visible).
   useEffect(() => {
     if (!guildId || guildId === HOME || channelId || isMobile) return;
-    const target = channels.find((c) => c.id === remembered) ?? firstTextChannel(channels);
+    // Landing never picks an age-restricted channel the viewer has not been cleared for.
+    const open = channels.filter((c) => !c.nsfw || ageCleared);
+    const target = open.find((c) => c.id === remembered) ?? firstTextChannel(open);
     if (target)
       void navigate({
         to: '/channels/$guildId/$channelId',
         params: { guildId, channelId: target.id },
         replace: true,
       });
-  }, [guildId, channelId, channels, remembered, navigate, isMobile]);
+  }, [guildId, channelId, channels, remembered, navigate, isMobile, ageCleared]);
 
   if (!guildId) return null;
   if (!channelId) return guildId === HOME ? <HomeFriends /> : <PickChannel guildId={guildId} />;
@@ -176,7 +184,7 @@ function Main({ isMobile, onBack }: { isMobile: boolean; onBack: () => void }) {
         channelId={channelId}
         onBack={isMobile ? onBack : undefined}
       />
-      {threadId && guildId !== HOME && (
+      {threadId && guildId !== HOME && !restrictedParent && (
         <ThreadPane key={threadId} guildId={guildId} parentId={channelId} threadId={threadId} />
       )}
     </>
@@ -343,6 +351,7 @@ function Shell() {
           <p>The inbox ships with the notifications inventory items.</p>
         </ComingSoon>
         <LoungeDialogs />
+        <PopoutHost />
         <ReminderTicker />
         <QuickSwitcher open={switcher} onClose={() => setSwitcher(false)} />
         <ShortcutSheet open={sheet} onClose={() => setSheet(false)} />

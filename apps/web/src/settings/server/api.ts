@@ -107,6 +107,9 @@ export interface ChannelObject {
   rate_limit_per_user: number;
   user_limit?: number;
   bitrate?: number;
+  /** Minutes of inactivity before new threads in this channel archive. */
+  default_auto_archive_duration?: number | null;
+  default_thread_rate_limit_per_user?: number | null;
   permission_overwrites: OverwriteObject[];
 }
 export interface ChannelBody {
@@ -118,6 +121,8 @@ export interface ChannelBody {
   position?: number;
   parent_id?: string | null;
   lock_permissions?: boolean;
+  default_auto_archive_duration?: number;
+  default_thread_rate_limit_per_user?: number;
 }
 export const listChannels = (g: string) =>
   apiFetch<ChannelObject[]>(`/guilds/${g}/channels`, { retries: 0 });
@@ -181,7 +186,7 @@ export const unban = (g: string, u: string) => send<void>(`/guilds/${g}/bans/${u
 
 // ---- invites ----
 
-export { listGuildInvites, revokeInvite, createInvite } from '../../store/rest';
+export { listGuildInvites, listChannelInvites, revokeInvite, createInvite } from '../../store/rest';
 export type { Invite, CreateInviteOptions } from '../../store/rest';
 
 // ---- emoji and stickers ----

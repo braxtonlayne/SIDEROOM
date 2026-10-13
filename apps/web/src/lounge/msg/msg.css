@@ -1075,3 +1075,32 @@
 .lng-search-context strong {
   color: var(--interactive-normal);
 }
+
+/* LNG-CHN-022: age-restricted channel interstitial */
+.lng-agegate-wrap {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.lng-agegate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 420px;
+  text-align: center;
+}
+.lng-agegate h2 {
+  margin: 0;
+}
+.lng-agegate p {
+  margin: 0;
+  color: var(--text-muted);
+}
+.lng-agegate-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+}
