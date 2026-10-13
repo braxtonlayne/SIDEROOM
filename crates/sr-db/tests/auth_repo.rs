@@ -483,3 +483,115 @@ async fn account_identity_edits_enforce_uniqueness_and_email_change_tokens() {
     assert!(after.email_verified);
     assert_ne!(after.email, a_rec.email);
 }
+
+fn passkey(account_id: i64, cred: u8, name: &str) -> sr_auth::store::PasskeyRecord {
+    sr_auth::store::PasskeyRecord {
+        id: uid(),
+        account_id,
+        credential_id: vec![cred; 20],
+        cose_key: vec![0xA5, 1, 2],
+        alg: -7,
+        sign_count: 0,
+        backup_eligible: true,
+        backup_state: false,
+        aaguid: vec![0; 16],
+        name: name.to_owned(),
+        created_at: now(),
+        last_used_at: None,
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn passkey_store_roundtrip_ownership_and_counter_cas() {
+    use sr_auth::store::AuthStore;
+    let pool = pool().await;
+    let store = sr_db::auth_store::PgAuthStore::new(pool.clone(), repo(&pool), Arc::new(uid));
+    let (a, b) = (account(&pool).await, account(&pool).await);
+
+    // The user handle is stable: the first candidate wins.
+    let h1 = store.passkey_user_handle(a, &[1u8; 32]).await.unwrap();
+    let h2 = store.passkey_user_handle(a, &[2u8; 32]).await.unwrap();
+    assert_eq!((h1.clone(), h2), (vec![1u8; 32], vec![1u8; 32]));
+    assert_ne!(store.passkey_user_handle(b, &[3u8; 32]).await.unwrap(), h1);
+
+    let tag = u8::try_from(uid() % 200).unwrap();
+    let rec = passkey(a, tag, "Laptop");
+    assert!(store.passkey_insert(rec.clone()).await.unwrap());
+    // Same credential id: refused, whoever asks.
+    assert!(
+        !store
+            .passkey_insert(passkey(b, tag, "Clone"))
+            .await
+            .unwrap()
+    );
+    let found = store
+        .passkey_find(&rec.credential_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(found.id, rec.id);
+    assert_eq!(found.name, "Laptop");
+    assert!(found.backup_eligible && !found.backup_state);
+    assert_eq!(found.aaguid, vec![0u8; 16]);
+    assert_eq!(store.passkey_list(a).await.unwrap().len(), 1);
+    assert!(store.passkey_list(b).await.unwrap().is_empty());
+
+    // Ownership on rename and delete.
+    assert!(!store.passkey_rename(b, rec.id, "mine").await.unwrap());
+    assert!(store.passkey_rename(a, rec.id, "Phone").await.unwrap());
+    assert!(!store.passkey_delete(b, rec.id).await.unwrap());
+    assert_eq!(store.passkey_list(a).await.unwrap()[0].name, "Phone");
+
+    // Counter compare-and-set: the second writer with the old value loses.
+    let t = now();
+    assert!(
+        store
+            .passkey_record_use(rec.id, 0, 5, true, t)
+            .await
+            .unwrap()
+    );
+    assert!(
+        !store
+            .passkey_record_use(rec.id, 0, 6, true, t)
+            .await
+            .unwrap()
+    );
+    let after = store
+        .passkey_find(&rec.credential_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!((after.sign_count, after.backup_state), (5, true));
+    assert_eq!(after.last_used_at, Some(t));
+
+    // Name constraint (1 to 64 characters) holds in the schema too.
+    assert!(
+        store
+            .passkey_insert(passkey(a, tag.wrapping_add(1), ""))
+            .await
+            .is_err()
+    );
+
+    assert!(store.passkey_delete(a, rec.id).await.unwrap());
+    assert!(
+        store
+            .passkey_find(&rec.credential_id)
+            .await
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn reset_2fa_removes_passkeys() {
+    use sr_auth::store::AuthStore;
+    let pool = pool().await;
+    let store = sr_db::auth_store::PgAuthStore::new(pool.clone(), repo(&pool), Arc::new(uid));
+    let user = account(&pool).await;
+    let tag = u8::try_from(uid() % 200).unwrap();
+    assert!(store.passkey_insert(passkey(user, tag, "k")).await.unwrap());
+    accounts::reset_2fa(&pool, user).await.unwrap();
+    assert!(store.passkey_list(user).await.unwrap().is_empty());
+}

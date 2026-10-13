@@ -217,7 +217,9 @@ pub async fn change_username(
 /// A second-factor proof (D-167).
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct MfaProof {
-    /// `totp` or `recovery`.
+    /// `totp`, `recovery` or `passkey` (then `code` is the JSON text of
+    /// `{ceremony_id, credential}` from `POST /sr/auth/passkeys/verify/begin` and
+    /// `navigator.credentials.get`).
     method: String,
     /// The authenticator code or an unused recovery code.
     code: String,
@@ -239,7 +241,7 @@ pub struct ChangeEmailBody {
 const MFA_FRESH_SECS: i64 = 15 * 60;
 
 /// Require a second factor for a sensitive change when the account has one
-/// (TOTP now; passkeys join with ENT-AUTH-010). A check on this session within
+/// (TOTP or passkeys). A check on this session within
 /// [`MFA_FRESH_SECS`] counts; otherwise `proof` must be valid, and then the session
 /// is marked verified.
 async fn require_second_factor(
@@ -254,7 +256,7 @@ async fn require_second_factor(
         .totp_get(account.id)
         .await?
         .is_some_and(|t| t.confirmed);
-    if !has_totp {
+    if !has_totp && !svc.has_passkeys(account.id).await? {
         return Ok(());
     }
     if let Some(at) = svc.store.session_mfa_verified_at(session).await?
@@ -268,7 +270,7 @@ async fn require_second_factor(
             .field(
                 "mfa",
                 "required",
-                "Enter a code from your authenticator app, or a recovery code.",
+                "Enter a code from your authenticator app, use a passkey, or enter a recovery code.",
             )
             .into());
     };
@@ -276,7 +278,12 @@ async fn require_second_factor(
     svc.account_lock
         .check(&key, now)
         .map_err(|retry_after| AuthRouteError::Throttled { retry_after })?;
-    if proof.code.len() > 64 {
+    let max_code = if proof.method == "passkey" {
+        super::passkeys::MAX_PROOF_LEN
+    } else {
+        64
+    };
+    if proof.code.len() > max_code {
         svc.account_lock.fail(&key, now);
         return Err(wrong_code());
     }

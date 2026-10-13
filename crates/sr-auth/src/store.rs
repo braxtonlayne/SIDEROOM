@@ -143,6 +143,35 @@ pub struct TrustedDeviceRecord {
     pub expires_at: i64,
 }
 
+/// A registered passkey (WebAuthn credential), ENT-AUTH-010.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PasskeyRecord {
+    /// Snowflake id of the row (what the settings UI addresses).
+    pub id: i64,
+    /// Owning account.
+    pub account_id: i64,
+    /// Authenticator-chosen credential id.
+    pub credential_id: Vec<u8>,
+    /// COSE_Key bytes as produced by the authenticator.
+    pub cose_key: Vec<u8>,
+    /// COSE algorithm id (-7, -8 or -257).
+    pub alg: i16,
+    /// Last accepted signature counter.
+    pub sign_count: i64,
+    /// Backup-eligible flag (synced passkey).
+    pub backup_eligible: bool,
+    /// Current backup state.
+    pub backup_state: bool,
+    /// Authenticator AAGUID (informational).
+    pub aaguid: Vec<u8>,
+    /// User-visible label (1 to 64 characters).
+    pub name: String,
+    /// Unix seconds.
+    pub created_at: i64,
+    /// Unix seconds of the last successful use.
+    pub last_used_at: Option<i64>,
+}
+
 /// Storage used by the auth routes. Implementations must honour the atomicity
 /// notes on each method.
 #[async_trait]
@@ -289,6 +318,32 @@ pub trait AuthStore: Send + Sync {
         hash: &TokenHash,
         now: i64,
     ) -> StoreResult<Option<i64>>;
+
+    // ---- passkeys (ENT-AUTH-010) -------------------------------------------
+    /// The account's WebAuthn user handle. Stores `candidate` (32 random bytes)
+    /// when the account has none yet; always returns the stored value.
+    async fn passkey_user_handle(&self, account_id: i64, candidate: &[u8]) -> StoreResult<Vec<u8>>;
+    /// Insert a credential. `false` when the credential id is already registered.
+    async fn passkey_insert(&self, rec: PasskeyRecord) -> StoreResult<bool>;
+    /// The account's passkeys, oldest first.
+    async fn passkey_list(&self, account_id: i64) -> StoreResult<Vec<PasskeyRecord>>;
+    /// Find by credential id (any account).
+    async fn passkey_find(&self, credential_id: &[u8]) -> StoreResult<Option<PasskeyRecord>>;
+    /// Rename; `false` when the passkey is not the account's.
+    async fn passkey_rename(&self, account_id: i64, id: i64, name: &str) -> StoreResult<bool>;
+    /// Delete; `false` when the passkey is not the account's.
+    async fn passkey_delete(&self, account_id: i64, id: i64) -> StoreResult<bool>;
+    /// After a verified assertion: compare-and-set the counter. Only applies while the
+    /// stored counter still equals `expected_sign_count`, so two concurrent uses of the
+    /// same assertion cannot both succeed. Returns whether it applied.
+    async fn passkey_record_use(
+        &self,
+        id: i64,
+        expected_sign_count: i64,
+        sign_count: i64,
+        backup_state: bool,
+        now: i64,
+    ) -> StoreResult<bool>;
 
     // ---- platform audit (doc 04 section 7) --------------------------------
     /// Append a platform-scoped audit row.

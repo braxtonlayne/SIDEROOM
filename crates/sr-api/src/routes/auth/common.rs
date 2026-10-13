@@ -75,6 +75,11 @@ pub struct AuthConfig {
     pub login_link_ttl_secs: i64,
     /// "Trust this device" lifetime in seconds (open question 144).
     pub trusted_device_secs: i64,
+    /// WebAuthn RP id; default: the host of `public_url`.
+    pub webauthn_rp_id: Option<String>,
+    /// Extra exact origins allowed for passkey ceremonies (besides `public_url`),
+    /// for example a dev server on another port.
+    pub webauthn_origins: Vec<String>,
 }
 
 impl Default for AuthConfig {
@@ -98,6 +103,8 @@ impl Default for AuthConfig {
             verify_ttl_secs: 24 * 3600,
             login_link_ttl_secs: 3600,
             trusted_device_secs: 30 * 86_400,
+            webauthn_rp_id: None,
+            webauthn_origins: Vec::new(),
         }
     }
 }
@@ -125,6 +132,8 @@ pub struct AuthService {
     pub(super) account_lock: Lockout,
     pub(super) ip_lock: Lockout,
     pub(super) pending: PendingMfaTable,
+    /// Pending passkey ceremonies (single node, like `pending`).
+    pub(super) ceremonies: super::passkeys::Ceremonies,
     /// Discord OAuth client; `None` when `[discord]` has no client id.
     pub(super) discord: Option<DiscordOAuth>,
     /// Started Discord flows, keyed by OAuth `state`.
@@ -166,6 +175,7 @@ impl AuthService {
             cfg,
             ip_limits: WindowLimiter::default(),
             pending: PendingMfaTable::default(),
+            ceremonies: super::passkeys::Ceremonies::default(),
             discord: None,
             discord_flows: Pending::default(),
             discord_links: Pending::default(),

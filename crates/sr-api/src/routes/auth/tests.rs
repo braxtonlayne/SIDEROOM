@@ -2188,3 +2188,5 @@ async fn this_wasnt_me_after_completion_revokes_every_session() {
             .any(|(_, action, _)| action == "account.email_change_revoked")
     );
 }
+
+mod passkeys;

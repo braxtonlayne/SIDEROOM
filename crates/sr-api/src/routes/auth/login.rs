@@ -29,7 +29,7 @@ use sr_core::{ApiError, ErrorCode};
 /// Copy shown for any failed credential check (no oracle).
 const NO_MATCH: &str = "That doesn't match our list.";
 
-fn no_match() -> AuthRouteError {
+pub(super) fn no_match() -> AuthRouteError {
     ApiError::with_message(ErrorCode::Unauthorized, NO_MATCH).into()
 }
 
@@ -40,8 +40,11 @@ fn invalid_link() -> AuthRouteError {
 }
 
 /// The `methods` a login that needs a second factor offers (open question 83).
-fn second_factor_methods(has_totp: bool) -> Vec<&'static str> {
+fn second_factor_methods(has_totp: bool, has_passkey: bool) -> Vec<&'static str> {
     let mut methods = Vec::new();
+    if has_passkey {
+        methods.push("passkey");
+    }
     if has_totp {
         methods.push("totp");
     }
@@ -142,7 +145,8 @@ pub async fn login(
         .totp_get(account.id)
         .await?
         .is_some_and(|t| t.confirmed);
-    if has_totp && !is_trusted(&svc, &state, &headers, account.id).await? {
+    let has_passkey = svc.has_passkeys(account.id).await?;
+    if (has_totp || has_passkey) && !is_trusted(&svc, &state, &headers, account.id).await? {
         let token = SessionToken::generate()?;
         svc.pending
             .insert(&token.hash(), account.id, now + svc.cfg.mfa_ttl_secs, now);
@@ -151,7 +155,7 @@ pub async fn login(
             AppendHeaders([(header::SET_COOKIE, cookie)]),
             Json(json!({
                 "status": "mfa_required",
-                "methods": second_factor_methods(true),
+                "methods": second_factor_methods(has_totp, has_passkey),
             })),
         ));
     }
@@ -247,9 +251,9 @@ pub(super) struct FactorCheck {
     pub remaining_recovery: Option<usize>,
 }
 
-/// Check a TOTP or recovery `code` for `account` and spend it. Used by the login
+/// Check a TOTP, recovery or passkey `code` for `account` and spend it. Used by the login
 /// second step and by sensitive changes that re-prompt (email change, F-03). The
-/// caller owns lockouts. Passkeys join here with ENT-AUTH-010.
+/// caller owns lockouts. For `passkey`, `code` is the JSON string `{ceremony_id, credential}`.
 pub(super) async fn check_second_factor(
     svc: &AuthService,
     account: &super::store::AccountRecord,
@@ -300,6 +304,7 @@ pub(super) async fn check_second_factor(
                 None => false,
             }
         }
+        "passkey" => super::passkeys::check_proof(svc, account.id, code, now).await?,
         _ => {
             return Err(ApiError::invalid_form()
                 .field("method", "invalid", "Unknown second-factor method.")
@@ -333,7 +338,12 @@ pub async fn second_factor(
         .check(&lock_key, now)
         .and_then(|()| svc.ip_lock.check(&ip, now))
         .map_err(|retry_after| AuthRouteError::Throttled { retry_after })?;
-    if body.code.len() > 64 {
+    let max_code = if body.method == "passkey" {
+        super::passkeys::MAX_PROOF_LEN
+    } else {
+        64
+    };
+    if body.code.len() > max_code {
         return Err(no_match());
     }
 

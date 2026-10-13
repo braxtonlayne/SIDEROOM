@@ -13765,6 +13765,427 @@
         ]
       }
     },
+    "/sr/auth/passkeys": {
+      "get": {
+        "tags": [],
+        "summary": "`GET /sr/auth/passkeys`: the account's passkeys, oldest first.",
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PasskeyView"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/sr/auth/passkeys/login/begin": {
+      "post": {
+        "tags": [],
+        "summary": "`POST /sr/auth/passkeys/login/begin {second_factor?}`: no login needed.",
+        "operationId": "login_begin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginBeginBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BeginResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sr/auth/passkeys/login/finish": {
+      "post": {
+        "tags": [],
+        "summary": "`POST /sr/auth/passkeys/login/finish`: complete a passkey-only login. Sets the\nsession cookie and answers `{status: \"ok\"}`. User verification was required, so no\nfurther factor is asked.",
+        "operationId": "login_finish",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginFinishBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "`{status: \"ok\"}` and a session cookie"
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sr/auth/passkeys/register/begin": {
+      "post": {
+        "tags": [],
+        "summary": "`POST /sr/auth/passkeys/register/begin {password}`: re-check the password and\nstart a registration ceremony for the signed-in account.",
+        "operationId": "register_begin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordBodyDoc"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BeginResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/sr/auth/passkeys/register/finish": {
+      "post": {
+        "tags": [],
+        "summary": "`POST /sr/auth/passkeys/register/finish`: verify the new credential and store it.",
+        "operationId": "register_finish",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterFinishBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterFinishResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/sr/auth/passkeys/verify/begin": {
+      "post": {
+        "tags": [],
+        "summary": "`POST /sr/auth/passkeys/verify/begin`: start a second-factor ceremony for the\nsigned-in account (the email-change re-prompt). The result goes into\n`mfa: {method: \"passkey\", code}` as a JSON string of\n`{ceremony_id, credential}`.",
+        "operationId": "verify_begin",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BeginResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/sr/auth/passkeys/{id}": {
+      "delete": {
+        "tags": [],
+        "summary": "`DELETE /sr/auth/passkeys/{id} {password}`: remove a passkey (password re-check).\nRemoving the last second factor also drops the recovery codes.",
+        "operationId": "remove",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Passkey id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordBodyDoc"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [],
+        "summary": "`PATCH /sr/auth/passkeys/{id} {name}`: rename.",
+        "operationId": "rename",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Passkey id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/sr/auth/password": {
       "post": {
         "tags": [],
@@ -16469,6 +16890,54 @@
           }
         }
       },
+      "AssertionCredential": {
+        "type": "object",
+        "description": "The assertion a browser produced for `navigator.credentials.get`.",
+        "required": [
+          "rawId",
+          "response"
+        ],
+        "properties": {
+          "rawId": {
+            "type": "string",
+            "description": "base64url credential id."
+          },
+          "response": {
+            "$ref": "#/components/schemas/AssertionFields",
+            "description": "The authenticator's response."
+          }
+        }
+      },
+      "AssertionFields": {
+        "type": "object",
+        "description": "Assertion response fields (all base64url, no padding).",
+        "required": [
+          "clientDataJSON",
+          "authenticatorData",
+          "signature"
+        ],
+        "properties": {
+          "authenticatorData": {
+            "type": "string",
+            "description": "`authenticatorData`."
+          },
+          "clientDataJSON": {
+            "type": "string",
+            "description": "`clientDataJSON`."
+          },
+          "signature": {
+            "type": "string",
+            "description": "`signature`."
+          },
+          "userHandle": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`userHandle` (present for discoverable credentials)."
+          }
+        }
+      },
       "AttachmentObject": {
         "type": "object",
         "required": [
@@ -16815,6 +17284,23 @@
           },
           "person_id": {
             "type": "string"
+          }
+        }
+      },
+      "BeginResponse": {
+        "type": "object",
+        "description": "Response of every `.../begin` route.",
+        "required": [
+          "ceremony_id",
+          "options"
+        ],
+        "properties": {
+          "ceremony_id": {
+            "type": "string",
+            "description": "Send back with the finish call."
+          },
+          "options": {
+            "description": "`PublicKeyCredentialCreationOptions` / `RequestOptions` JSON with base64url\nbinary fields; pass to `navigator.credentials.create/get({ publicKey })`\nafter decoding those fields."
           }
         }
       },
@@ -19451,6 +19937,16 @@
           }
         }
       },
+      "LoginBeginBody": {
+        "type": "object",
+        "description": "Body for `POST /sr/auth/passkeys/login/begin`.",
+        "properties": {
+          "second_factor": {
+            "type": "boolean",
+            "description": "Start the second-factor ceremony of the password login waiting on the\n`sr_mfa` cookie (finish through `POST /sr/auth/2fa`, method `passkey`)\ninstead of passkey-only login."
+          }
+        }
+      },
       "LoginEvent": {
         "type": "object",
         "required": [
@@ -19470,6 +19966,24 @@
           },
           "success": {
             "type": "boolean"
+          }
+        }
+      },
+      "LoginFinishBody": {
+        "type": "object",
+        "description": "Body for `POST /sr/auth/passkeys/login/finish`.",
+        "required": [
+          "ceremony_id",
+          "credential"
+        ],
+        "properties": {
+          "ceremony_id": {
+            "type": "string",
+            "description": "From `login/begin`."
+          },
+          "credential": {
+            "$ref": "#/components/schemas/AssertionCredential",
+            "description": "The result of `navigator.credentials.get`."
           }
         }
       },
@@ -19804,7 +20318,7 @@
           },
           "method": {
             "type": "string",
-            "description": "`totp` or `recovery`."
+            "description": "`totp`, `recovery` or `passkey` (then `code` is the JSON text of\n`{ceremony_id, credential}` from `POST /sr/auth/passkeys/verify/begin` and\n`navigator.credentials.get`)."
           }
         }
       },
@@ -20696,6 +21210,54 @@
           }
         }
       },
+      "PasskeyView": {
+        "type": "object",
+        "description": "A passkey as the settings page shows it.",
+        "required": [
+          "id",
+          "name",
+          "created_at",
+          "backup_eligible"
+        ],
+        "properties": {
+          "backup_eligible": {
+            "type": "boolean",
+            "description": "Synced (multi-device) passkey."
+          },
+          "created_at": {
+            "type": "string",
+            "description": "ISO 8601."
+          },
+          "id": {
+            "type": "string",
+            "description": "Row id (a snowflake as a string)."
+          },
+          "last_used_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO 8601, null until first used."
+          },
+          "name": {
+            "type": "string",
+            "description": "Label."
+          }
+        }
+      },
+      "PasswordBodyDoc": {
+        "type": "object",
+        "description": "Documentation stand-in for [`PasswordBody`].",
+        "required": [
+          "password"
+        ],
+        "properties": {
+          "password": {
+            "type": "string",
+            "description": "The current password."
+          }
+        }
+      },
       "PatchFeatureBody": {
         "type": "object",
         "properties": {
@@ -21252,6 +21814,90 @@
           }
         }
       },
+      "RegisterFinishBody": {
+        "type": "object",
+        "description": "Body for `POST /sr/auth/passkeys/register/finish`.",
+        "required": [
+          "ceremony_id",
+          "credential"
+        ],
+        "properties": {
+          "ceremony_id": {
+            "type": "string",
+            "description": "From `register/begin`."
+          },
+          "credential": {
+            "$ref": "#/components/schemas/RegistrationCredential",
+            "description": "The result of `navigator.credentials.create`."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Label for the new passkey (default `Passkey`)."
+          }
+        }
+      },
+      "RegisterFinishResponse": {
+        "type": "object",
+        "description": "Response of `POST /sr/auth/passkeys/register/finish`.",
+        "required": [
+          "passkey"
+        ],
+        "properties": {
+          "passkey": {
+            "$ref": "#/components/schemas/PasskeyView",
+            "description": "The stored passkey."
+          },
+          "recovery_codes": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Present when the account had no unused recovery codes: ten fresh codes, shown\nonce. A passkey makes password logins ask for a second factor, so there must\nbe a way back in without it."
+          }
+        }
+      },
+      "RegistrationCredential": {
+        "type": "object",
+        "description": "The base64url-encoded credential a browser produced (`PublicKeyCredential`\nserialised by the web app).",
+        "required": [
+          "rawId",
+          "response"
+        ],
+        "properties": {
+          "rawId": {
+            "type": "string",
+            "description": "base64url credential id."
+          },
+          "response": {
+            "$ref": "#/components/schemas/RegistrationResponse",
+            "description": "The authenticator's response."
+          }
+        }
+      },
+      "RegistrationResponse": {
+        "type": "object",
+        "description": "Registration response fields (all base64url, no padding).",
+        "required": [
+          "clientDataJSON",
+          "attestationObject"
+        ],
+        "properties": {
+          "attestationObject": {
+            "type": "string",
+            "description": "`attestationObject`."
+          },
+          "clientDataJSON": {
+            "type": "string",
+            "description": "`clientDataJSON`."
+          }
+        }
+      },
       "RelationshipObject": {
         "type": "object",
         "required": [
@@ -21281,6 +21927,19 @@
           },
           "user": {
             "$ref": "#/components/schemas/UserObject"
+          }
+        }
+      },
+      "RenameBody": {
+        "type": "object",
+        "description": "Body for `PATCH /sr/auth/passkeys/{id}`.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "New label, 1 to 64 characters."
           }
         }
       },
