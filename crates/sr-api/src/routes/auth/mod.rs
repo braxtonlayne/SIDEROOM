@@ -46,6 +46,12 @@ use axum::{
     routing::{delete, get, post, put},
 };
 
+/// OpenAPI fragment for the documented auth routes (the signed-in account edits).
+pub fn openapi() -> utoipa::openapi::OpenApi {
+    use utoipa::OpenApi;
+    identity::IdentityApiDoc::openapi()
+}
+
 /// The auth routes (relative to `/api/v1`). Handlers need an `AuthService`
 /// registered on `AppState`; without one they answer 500.
 pub fn router() -> Router<AppState> {

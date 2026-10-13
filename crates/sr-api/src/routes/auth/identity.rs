@@ -20,12 +20,14 @@ use super::{
     throttle::Rule,
     validate,
 };
+use crate::openapi::ErrorBody;
 use crate::{auth::UserOnly, state::AppState};
 use axum::{Json, extract::State, http::StatusCode};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sr_auth::email_token::{EmailToken, EmailTokenPurpose};
 use sr_core::ApiError;
+use utoipa::{OpenApi, ToSchema};
 
 /// Username changes allowed per account per day.
 const USERNAME_CHANGES_PER_DAY: usize = 2;
@@ -44,9 +46,11 @@ fn context(account: &AccountRecord) -> Vec<String> {
 }
 
 /// Body for `POST /sr/auth/password`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ChangePasswordBody {
+    /// The password in use now.
     current_password: String,
+    /// At least 10 characters and not easy to guess (zxcvbn score 3 or more).
     new_password: String,
     /// Sign out every other session and trusted device (default `true`). Pass
     /// `false` to keep the other browsers signed in.
@@ -63,6 +67,18 @@ fn yes() -> bool {
 /// first (and counts toward the login lockout). By default every other session and
 /// every trusted device is revoked; the current session always stays. A notice goes
 /// to the account's email.
+#[utoipa::path(
+    post,
+    path = "/sr/auth/password",
+    request_body = ChangePasswordBody,
+    responses(
+        (status = 204, description = "Password changed"),
+        (status = 400, body = ErrorBody),
+        (status = 403, body = ErrorBody),
+        (status = 429, body = ErrorBody),
+    ),
+    security(("session" = []))
+)]
 pub async fn change_password(
     State(state): State<AppState>,
     Svc { svc, .. }: Svc,
@@ -121,15 +137,29 @@ pub async fn change_password(
 }
 
 /// Body for `PUT /sr/auth/username`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ChangeUsernameBody {
+    /// 2 to 32 characters of `a-z 0-9 _ .` (case-insensitive), not reserved.
     username: String,
+    /// Current password.
     password: String,
 }
 
 /// `PUT /sr/auth/username {username, password}`: change the login name. Same rules as
 /// signup (`^[a-z0-9_.]{2,32}$`, not reserved), two changes per day. Returns the new
 /// username. Friends and shared servers receive `USER_UPDATE`.
+#[utoipa::path(
+    put,
+    path = "/sr/auth/username",
+    request_body = ChangeUsernameBody,
+    responses(
+        (status = 200, description = "`{username}`: the new login name"),
+        (status = 400, body = ErrorBody),
+        (status = 403, body = ErrorBody),
+        (status = 429, body = ErrorBody),
+    ),
+    security(("session" = []))
+)]
 pub async fn change_username(
     State(state): State<AppState>,
     Svc { svc, .. }: Svc,
@@ -184,9 +214,10 @@ pub async fn change_username(
 }
 
 /// Body for `POST /sr/auth/email/change`.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ChangeEmailBody {
     new_email: String,
+    /// Current password.
     password: String,
 }
 
@@ -195,6 +226,18 @@ pub struct ChangeEmailBody {
 /// One request per minute per account. `204` also when the address belongs to
 /// someone else, so the endpoint is not an account-existence oracle (the mail is
 /// simply not sent).
+#[utoipa::path(
+    post,
+    path = "/sr/auth/email/change",
+    request_body = ChangeEmailBody,
+    responses(
+        (status = 204, description = "Confirmation link sent, if the address is free"),
+        (status = 400, body = ErrorBody),
+        (status = 403, body = ErrorBody),
+        (status = 429, body = ErrorBody),
+    ),
+    security(("session" = []))
+)]
 pub async fn change_email(
     State(state): State<AppState>,
     Svc { svc, .. }: Svc,
@@ -274,3 +317,11 @@ pub(super) async fn apply_email_change(
     });
     Ok(true)
 }
+
+/// OpenAPI fragment for the signed-in account edits.
+#[derive(OpenApi)]
+#[openapi(
+    paths(change_password, change_username, change_email),
+    components(schemas(ChangePasswordBody, ChangeUsernameBody, ChangeEmailBody))
+)]
+pub struct IdentityApiDoc;

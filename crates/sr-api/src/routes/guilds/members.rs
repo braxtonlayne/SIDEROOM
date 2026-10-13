@@ -36,8 +36,9 @@ pub struct ListMembersQuery {
     pub role_id: Option<String>,
 }
 
-/// Page through the members of a guild, ordered by user id, optionally narrowed by a
-/// search text and/or a role.
+/// Page through the members of a guild, ordered by user id.
+///
+/// `query` and `role_id` narrow the page to members matching a search text and/or holding a role.
 #[utoipa::path(
     get,
     path = "/guilds/{guild_id}/members",

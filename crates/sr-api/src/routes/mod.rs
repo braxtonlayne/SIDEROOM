@@ -105,6 +105,7 @@ where
 pub fn openapi() -> utoipa::openapi::OpenApi {
     let mut doc = openapi::base();
     doc.merge(admin::openapi());
+    doc.merge(auth::openapi());
     doc.merge(messages::openapi());
     doc.merge(guilds::openapi());
     doc.merge(social::openapi());
@@ -134,6 +135,20 @@ mod tests {
         assert!(paths.contains_key("/channels/{channel_id}/messages"));
         assert!(paths.keys().any(|p| p.starts_with("/guilds")));
         assert!(paths.contains_key("/users/@me"));
+        for p in [
+            "/sr/auth/password",
+            "/sr/auth/username",
+            "/sr/auth/email/change",
+            "/users/@me/settings",
+            "/users/@me/notification-defaults",
+            "/users/@me/privacy",
+            "/guilds/{guild_id}/members/search",
+            "/guilds/{guild_id}/roles/{role_id}/members",
+            "/guilds/{guild_id}/prune",
+            "/webhooks/{webhook_id}/reset-token",
+        ] {
+            assert!(paths.contains_key(p), "missing {p}");
+        }
     }
 
     #[tokio::test]
