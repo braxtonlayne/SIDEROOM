@@ -89,6 +89,18 @@ export type RailEntry =
 export type ChannelType =
   'text' | 'announcement' | 'voice' | 'stage' | 'forum' | 'media' | 'category' | 'rules';
 
+/** What the viewer may do in one channel, computed with the shared Rust permission engine (D-178). */
+export interface ChannelPermissions {
+  view: boolean;
+  send: boolean;
+  manageMessages: boolean;
+  /** PIN_MESSAGES only (D-178). */
+  pinMessages: boolean;
+  mentionEveryone: boolean;
+  manageChannels: boolean;
+  createInvite: boolean;
+}
+
 export interface Channel {
   id: Snowflake;
   guildId: Snowflake;
@@ -106,6 +118,8 @@ export interface Channel {
   lastReadMessageId?: Snowflake | null;
   /** Viewer may post here. */
   canSend: boolean;
+  /** Viewer's permissions in this channel (overwrites applied); absent until the engine has loaded. */
+  permissions?: ChannelPermissions;
   userLimit?: number;
   slowmodeSeconds?: number;
 }

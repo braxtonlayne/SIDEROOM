@@ -148,7 +148,7 @@ function ChannelRow({
           </>
         )}
         <span className="lng-channel-actions">
-          {guild.permissions.createInvite && (
+          {(channel.permissions?.createInvite ?? guild.permissions.createInvite) && (
             <button
               type="button"
               className="lng-icon-btn"
@@ -161,7 +161,7 @@ function ChannelRow({
               <Icon name="users" size={16} />
             </button>
           )}
-          {guild.permissions.manageChannels && (
+          {(channel.permissions?.manageChannels ?? guild.permissions.manageChannels) && (
             <button
               type="button"
               className="lng-icon-btn"

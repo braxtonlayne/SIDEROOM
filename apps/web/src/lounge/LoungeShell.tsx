@@ -12,6 +12,7 @@ import { firstTextChannel, HOME, navigableChannels, step } from './channels';
 import { useOpenUserSettings } from '../settings/user/nav';
 import { useAppliedTheme } from '../settings/user/prefs';
 import { loadMarkdownEngine } from './markdown';
+import { loadPermEngine } from './permEngine';
 import {
   useAllChannels,
   useChannels,
@@ -209,6 +210,13 @@ function Shell() {
   useEffect(() => {
     loadMarkdownEngine().catch(() => {
       /* stays on plain text; the next mount retries */
+    });
+  }, []);
+
+  // Start the WASM permission engine; channel permissions use the guild level until it is ready (D-178).
+  useEffect(() => {
+    loadPermEngine().catch(() => {
+      /* stays on guild-level permissions; the next mount retries */
     });
   }, []);
 

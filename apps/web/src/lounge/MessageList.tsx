@@ -75,8 +75,10 @@ export function MessageList({
   const actions = useLoungeActions();
   const goto = useLoungeGoto();
   const guild = useGuild(guildId);
-  const canManage = !!guild?.permissions.manageMessages;
-  const canPin = guild ? !!guild.permissions.pinMessages : true;
+  // Channel-level bits (overwrites applied) win over the guild-level fallback (D-178).
+  const chanPerms = channels.find((c) => c.id === channelId)?.permissions;
+  const canManage = chanPerms ? chanPerms.manageMessages : !!guild?.permissions.manageMessages;
+  const canPin = chanPerms ? chanPerms.pinMessages : guild ? !!guild.permissions.pinMessages : true;
   const [deleting, setDeleting] = useState<Message | null>(null);
   const [pinning, setPinning] = useState<Message | null>(null);
   const [forwarding, setForwarding] = useState<Message | null>(null);
