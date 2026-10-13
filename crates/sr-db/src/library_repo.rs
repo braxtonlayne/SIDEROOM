@@ -1,6 +1,7 @@
 //! Postgres implementation of [`sr_library::LibraryRepository`] (tables in migrations
 //! 0200 and 0201). Visibility is part of every read query: a chapter is readable only
-//! when it and its series are published, and age-restricted series only for adults.
+//! when it and its series are published. Age-restricted series are visible to everyone;
+//! the service gates opening their pages on age confirmation (D-184).
 //! Multi-row changes (merge, page replacement, publish) run in one transaction.
 //! Tests: `tests/library_repo.rs` (needs `SR_TEST_DATABASE_URL`).
 
@@ -165,11 +166,8 @@ fn follow_from(r: &PgRow) -> LibraryResult<Follow> {
 
 /// Series visibility for `Scope`, appended to a query on alias `s`.
 fn push_scope(qb: &mut QueryBuilder<Postgres>, scope: Scope) {
-    if let Scope::Public { adult } = scope {
+    if scope == Scope::Public {
         qb.push(" AND s.published AND s.merged_into IS NULL");
-        if !adult {
-            qb.push(" AND NOT s.age_restricted");
-        }
     }
 }
 
@@ -267,18 +265,12 @@ impl LibraryRepository for PgLibraryRepo {
             series_cols("s")
         ));
         push_scope(&mut qb, scope);
-        // Only adults can ask for restricted series, in any scope.
-        let adult = matches!(scope, Scope::Staff | Scope::Public { adult: true });
-        match (q.age, adult) {
-            (AgeFilter::Only, true) => {
+        match q.age {
+            AgeFilter::Only => {
                 qb.push(" AND s.age_restricted");
             }
-            (AgeFilter::Include, true) => {}
-            // Asking for "only restricted" without being an adult yields nothing.
-            (AgeFilter::Only, false) => {
-                qb.push(" AND FALSE");
-            }
-            _ => {
+            AgeFilter::Include => {}
+            AgeFilter::Hide => {
                 qb.push(" AND NOT s.age_restricted");
             }
         }
@@ -306,7 +298,7 @@ impl LibraryRepository for PgLibraryRepo {
                  WHERE e.series_id = s.id AND e.language = ",
             )
             .push_bind(l.clone());
-            if matches!(scope, Scope::Public { .. }) {
+            if scope == Scope::Public {
                 qb.push(" AND c.published");
             }
             qb.push(")");
@@ -427,7 +419,7 @@ impl LibraryRepository for PgLibraryRepo {
         if let Some(e) = edition {
             qb.push(" AND c.edition_id = ").push_bind(e);
         }
-        if matches!(scope, Scope::Public { .. }) {
+        if scope == Scope::Public {
             qb.push(" AND c.published");
         }
         push_scope(&mut qb, scope);
@@ -503,7 +495,7 @@ impl LibraryRepository for PgLibraryRepo {
 
     async fn latest_updates(
         &self,
-        adult: bool,
+        include_restricted: bool,
         followed_by: Option<i64>,
         before: Option<(i64, i64)>,
         limit: u32,
@@ -516,7 +508,7 @@ impl LibraryRepository for PgLibraryRepo {
              WHERE c.published AND s.published AND s.merged_into IS NULL",
             ms("c.published_at", "published_at_ms"),
         ));
-        if !adult {
+        if !include_restricted {
             qb.push(" AND NOT s.age_restricted");
         }
         if let Some(u) = followed_by {
@@ -617,7 +609,7 @@ impl LibraryRepository for PgLibraryRepo {
         &self,
         user: i64,
         shelf: Option<Shelf>,
-        adult: bool,
+        include_restricted: bool,
         limit: u32,
         offset: u32,
     ) -> LibraryResult<Rows<(SeriesRecord, Follow)>> {
@@ -628,7 +620,10 @@ impl LibraryRepository for PgLibraryRepo {
             ms("f.created_at", "follow_created_ms"),
         ));
         qb.push_bind(user);
-        push_scope(&mut qb, Scope::Public { adult });
+        push_scope(&mut qb, Scope::Public);
+        if !include_restricted {
+            qb.push(" AND NOT s.age_restricted");
+        }
         if let Some(sh) = shelf {
             qb.push(" AND f.shelf = ").push_bind(sh.as_str());
         }

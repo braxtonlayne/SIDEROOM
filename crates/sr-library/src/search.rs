@@ -4,8 +4,8 @@
 //!
 //! The index only ranks. The service re-reads every hit from the database with
 //! the viewer's [`Scope`](crate::model::Scope), so a stale index can never show
-//! an unpublished or age-restricted series. The `adult` filter here is a second
-//! line of defence and keeps restricted hits from using up result slots.
+//! an unpublished series. The `include_restricted` flag leaves restricted hits out
+//! for viewers who hide them (`library.hide_age_restricted`, D-184).
 
 use std::path::Path;
 use std::sync::Mutex;
@@ -186,7 +186,12 @@ impl SeriesIndex {
     }
 
     /// Series whose titles or facets start with every word of `text`, best first.
-    pub fn search(&self, text: &str, adult: bool, limit: usize) -> LibraryResult<Vec<SeriesHit>> {
+    pub fn search(
+        &self,
+        text: &str,
+        include_restricted: bool,
+        limit: usize,
+    ) -> LibraryResult<Vec<SeriesHit>> {
         let mut an = analyzer()?;
         let mut clauses: Vec<(Occur, Box<dyn Query>)> = Vec::new();
         for word in words(text) {
@@ -221,7 +226,7 @@ impl SeriesIndex {
         if clauses.is_empty() || limit == 0 {
             return Ok(Vec::new());
         }
-        if !adult {
+        if !include_restricted {
             clauses.push((
                 Occur::MustNot,
                 Box::new(TermQuery::new(
@@ -321,7 +326,7 @@ mod tests {
     }
 
     #[test]
-    fn age_restricted_hits_need_adult() {
+    fn restricted_hits_only_when_included() {
         let ix = sample();
         assert_eq!(ids(ix.search("oda", false, 10).unwrap()), [1]);
         let mut both = ids(ix.search("oda", true, 10).unwrap());

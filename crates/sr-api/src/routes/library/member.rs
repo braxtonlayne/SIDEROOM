@@ -27,7 +27,7 @@ pub struct BrowseParams {
     pub language: Option<String>,
     pub year_from: Option<i16>,
     pub year_to: Option<i16>,
-    /// `hide` (default), `include` or `only`. Only accounts that confirmed they are 18+ get restricted series.
+    /// `include` (default), `hide` or `only`. Everyone may see restricted series; opening their pages needs age confirmation. A member who set `library.hide_age_restricted` gets `hide` as the default.
     pub age: Option<AgeFilter>,
     /// `updated` (default), `newest`, `title` or `followers`.
     pub sort: Option<SortKey>,
@@ -78,7 +78,12 @@ impl BrowseParams {
     security(("session" = []))
 )]
 pub async fn browse(ctx: MemberCtx, Query(p): Query<BrowseParams>) -> ApiResult<Json<SeriesPage>> {
-    let q = p.into_query(AgeFilter::Hide)?;
+    let default_age = if ctx.viewer.hide_restricted {
+        AgeFilter::Hide
+    } else {
+        AgeFilter::Include
+    };
+    let q = p.into_query(default_age)?;
     ctx.deps
         .service
         .browse(ctx.viewer, q)
@@ -135,10 +140,14 @@ pub async fn chapters(
 }
 
 /// The reader's page manifest: sized, signed image URLs plus neighbouring chapters.
+///
+/// For an age-restricted series the account must have confirmed it is 18 or older
+/// (D-032); otherwise the answer is 403 with code 900011 (`AGE_CONFIRMATION_REQUIRED`)
+/// and the client shows the same dialog as age-restricted Lounge channels.
 #[utoipa::path(
     get, path = "/library/chapters/{chapter_id}/pages", operation_id = "library_pages",
     params(("chapter_id" = String, Path, description = "Chapter snowflake")),
-    responses((status = 200, body = PageManifest), (status = 401, body = ErrorBody), (status = 404, body = ErrorBody)),
+    responses((status = 200, body = PageManifest), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody, description = "Age-restricted series and the account has not confirmed it is 18 or older: error code 900011 (AGE_CONFIRMATION_REQUIRED). Show the 'Are you 18 or older?' dialog, POST /sr/age-gate, then retry."), (status = 404, body = ErrorBody)),
     security(("session" = []))
 )]
 pub async fn pages(

@@ -1,8 +1,10 @@
 //! The Library service: catalog reads for members, catalog writes for publishers.
 //!
-//! * Members ([`Viewer`]) see published, non-merged series; age-restricted series
-//!   only when the account confirmed it is 18 or older, and only on request
-//!   ([`AgeFilter`]). A hidden object answers "not found", never "forbidden".
+//! * Members ([`Viewer`]) see published, non-merged series, age-restricted ones
+//!   included (D-184); [`AgeFilter`] and the viewer's own `hide_restricted`
+//!   preference can narrow a listing. Opening the pages of a restricted series
+//!   needs the account to have confirmed it is 18 or older, otherwise the answer
+//!   is [`LibraryError::AgeConfirmationRequired`].
 //! * Publishers ([`Actor`]) need the platform permissions of doc 07: `PUBLISH_READING`
 //!   to create, edit and publish, `DELETE_CONTENT` to unpublish, delete and merge.
 //! * Page and cover URLs are HMAC-signed `/cdn/library/...` links, rounded to the
@@ -33,11 +35,19 @@ pub struct Viewer {
     pub user_id: i64,
     /// The account confirmed it is 18 or older (`accounts.age_confirmed_at`).
     pub adult: bool,
+    /// The viewer's `library.hide_age_restricted` preference: restricted series are
+    /// left out of search, follows and updates (and of browse unless asked for).
+    pub hide_restricted: bool,
 }
 
 impl Viewer {
     fn scope(self) -> Scope {
-        Scope::Public { adult: self.adult }
+        Scope::Public
+    }
+
+    /// Whether search, follows and updates include restricted series.
+    fn include_restricted(self) -> bool {
+        !self.hide_restricted
     }
 }
 
@@ -173,10 +183,6 @@ impl LibraryService {
     /// Browse with filters, sort and pagination (LIB-DATA-003).
     pub async fn browse(&self, v: Viewer, q: BrowseQuery) -> LibraryResult<SeriesPage> {
         let mut q = rules::browse(q)?;
-        if !v.adult && q.age == AgeFilter::Include {
-            // Unconfirmed accounts never see restricted series, whatever they ask for.
-            q.age = AgeFilter::Hide;
-        }
         q.published = None;
         q.title_contains = None;
         let rows = self.repo.browse(&q, v.scope()).await?;
@@ -197,7 +203,7 @@ impl LibraryService {
         if let Some(r) = self.repo.get_series(id, scope).await? {
             return Ok(r);
         }
-        if matches!(scope, Scope::Public { .. }) {
+        if scope == Scope::Public {
             // A series merged into another redirects to it (the target is re-checked).
             let mut cur = id;
             for _ in 0..MAX_REDIRECTS {
@@ -248,12 +254,7 @@ impl LibraryService {
     fn can_see(c: &ChapterRecord, scope: Scope) -> bool {
         match scope {
             Scope::Staff => true,
-            Scope::Public { adult } => {
-                c.published
-                    && c.series_published
-                    && !c.series_merged
-                    && (adult || !c.series_age_restricted)
-            }
+            Scope::Public => c.published && c.series_published && !c.series_merged,
         }
     }
 
@@ -262,6 +263,7 @@ impl LibraryService {
         id: i64,
         viewer: Option<i64>,
         scope: Scope,
+        adult: bool,
     ) -> LibraryResult<PageManifest> {
         let c = self
             .repo
@@ -269,6 +271,10 @@ impl LibraryService {
             .await?
             .filter(|c| Self::can_see(c, scope))
             .ok_or(LibraryError::NotFound("chapter"))?;
+        if c.series_age_restricted && !adult {
+            // Visible but not yet openable: the client shows the age dialog (D-032).
+            return Err(LibraryError::AgeConfirmationRequired);
+        }
         let exp = self.expires_at();
         let pages = self.repo.list_pages(id).await?;
         let neighbours = self.repo.neighbours(id).await?;
@@ -302,7 +308,8 @@ impl LibraryService {
 
     /// The reader's page manifest with sized signed URLs.
     pub async fn page_manifest(&self, v: Viewer, chapter: i64) -> LibraryResult<PageManifest> {
-        self.manifest(chapter, Some(v.user_id), v.scope()).await
+        self.manifest(chapter, Some(v.user_id), v.scope(), v.adult)
+            .await
     }
 
     /// Instant search for the top-bar dropdown: series plus matching authors,
@@ -318,7 +325,7 @@ impl LibraryService {
             .as_ref()
             .ok_or_else(|| LibraryError::Search("search is not configured".into()))?;
         let limit = limit.clamp(1, 20);
-        let hits = index.search(text, v.adult, limit)?;
+        let hits = index.search(text, v.include_restricted(), limit)?;
         let ids: Vec<i64> = hits.iter().map(|h| h.id).collect();
         let rows = self.repo.series_by_ids(&ids, v.scope()).await?;
         let wanted: Vec<String> = text
@@ -369,7 +376,7 @@ impl LibraryService {
         let followed = followed_only.then_some(v.user_id);
         let mut rows = self
             .repo
-            .latest_updates(v.adult, followed, before, limit + 1)
+            .latest_updates(v.include_restricted(), followed, before, limit + 1)
             .await?;
         let more = rows.len() > limit as usize;
         rows.truncate(limit as usize);
@@ -412,7 +419,7 @@ impl LibraryService {
         let (limit, offset) = rules::paging(limit, offset);
         let rows = self
             .repo
-            .list_follows(v.user_id, shelf, v.adult, limit, offset)
+            .list_follows(v.user_id, shelf, v.include_restricted(), limit, offset)
             .await?;
         let exp = self.expires_at();
         Ok(FollowPage {
@@ -520,7 +527,7 @@ impl LibraryService {
 
     pub async fn admin_page_manifest(&self, a: Actor, chapter: i64) -> LibraryResult<PageManifest> {
         a.publish()?;
-        self.manifest(chapter, None, Scope::Staff).await
+        self.manifest(chapter, None, Scope::Staff, true).await
     }
 
     pub async fn create_series(&self, a: Actor, input: SeriesInput) -> LibraryResult<Series> {

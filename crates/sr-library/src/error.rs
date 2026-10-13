@@ -4,10 +4,14 @@ use thiserror::Error;
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum LibraryError {
-    /// Unknown, unpublished, merged-away or age-hidden object. The cases are not
-    /// distinguished so a hidden series cannot be probed.
+    /// Unknown, unpublished or merged-away object. The cases are not distinguished
+    /// so an unpublished series cannot be probed.
     #[error("unknown {0}")]
     NotFound(&'static str),
+    /// The series is age-restricted and the account has not confirmed it is 18 or
+    /// older (D-032, D-184). The object is visible; only opening its pages is gated.
+    #[error("age confirmation required")]
+    AgeConfirmationRequired,
     /// The caller lacks the named platform permission.
     #[error("missing platform permission {0}")]
     MissingPermission(&'static str),

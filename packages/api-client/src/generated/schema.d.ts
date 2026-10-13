@@ -2092,7 +2092,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The reader's page manifest: sized, signed image URLs plus neighbouring chapters. */
+        /**
+         * The reader's page manifest: sized, signed image URLs plus neighbouring chapters.
+         * @description For an age-restricted series the account must have confirmed it is 18 or older
+         *     (D-032); otherwise the answer is 403 with code 900011 (`AGE_CONFIRMATION_REQUIRED`)
+         *     and the client shows the same dialog as age-restricted Lounge channels.
+         */
         get: operations["library_pages"];
         put?: never;
         post?: never;
@@ -2902,7 +2907,8 @@ export interface components {
             balance: number;
         };
         /**
-         * @description How age-restricted series are treated by a listing.
+         * @description How age-restricted series are treated by a listing. Everyone sees them by
+         *     default (`include`); `hide` and `only` are optional filters (D-184).
          * @enum {string}
          */
         AgeFilter: "hide" | "include" | "only";
@@ -12837,6 +12843,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            /** @description Age-restricted series and the account has not confirmed it is 18 or older: error code 900011 (AGE_CONFIRMATION_REQUIRED). Show the 'Are you 18 or older?' dialog, POST /sr/age-gate, then retry. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -12926,7 +12941,7 @@ export interface operations {
                 language?: string;
                 year_from?: number;
                 year_to?: number;
-                /** @description `hide` (default), `include` or `only`. Only accounts that confirmed they are 18+ get restricted series. */
+                /** @description `include` (default), `hide` or `only`. Everyone may see restricted series; opening their pages needs age confirmation. A member who set `library.hide_age_restricted` gets `hide` as the default. */
                 age?: components["schemas"]["AgeFilter"];
                 /** @description `updated` (default), `newest`, `title` or `followers`. */
                 sort?: components["schemas"]["SortKey"];
