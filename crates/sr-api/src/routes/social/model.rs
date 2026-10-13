@@ -464,6 +464,11 @@ pub struct EditSelfBody {
     #[serde(default, deserialize_with = "nullable")]
     #[schema(value_type = Option<String>)]
     pub pronouns: Option<Option<String>>,
+    /// Display name (Discord `global_name`, 32 characters at most); `null` clears it so
+    /// the username shows. The username itself changes through `PUT /sr/auth/username`.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub global_name: Option<Option<String>>,
     /// New avatar as a `data:image/{png,jpeg,gif,webp};base64,...` URI (8 MiB at
     /// most; cropped to a centred square, EXIF stripped); `null` removes it.
     #[serde(default, deserialize_with = "nullable")]

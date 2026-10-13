@@ -701,9 +701,15 @@ impl<R: SocialRepository> SocialService<R> {
             None => None,
         };
         let now = self.now();
+        // The global default applies to servers only; DMs have their own scope setting.
+        let user_default = match guild {
+            Some(_) => self.repo.get_default_notification_level(user).await?,
+            None => None,
+        };
         Ok(ResolvedNotifications {
-            level: notifications::effective_level(
+            level: notifications::effective_level_with_user_default(
                 guild_default,
+                user_default,
                 scope.as_ref(),
                 cat.as_ref(),
                 ch.as_ref(),

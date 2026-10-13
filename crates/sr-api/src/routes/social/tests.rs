@@ -1672,3 +1672,191 @@ async fn bad_avatar_uploads_are_rejected_without_side_effects() {
         "BINARY_TYPE_MAX_SIZE"
     );
 }
+
+// ---- user settings, notification defaults, privacy, display name ------------
+
+#[tokio::test]
+async fn settings_blob_merges_versions_and_notifies_own_sessions() {
+    let e = env().await;
+    let mut alice = e.user_events(ALICE);
+    let (s, v) = e.get("/users/@me/settings", ALICE).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(
+        (v["version"].as_i64(), &v["settings"]),
+        (Some(0), &json!({}))
+    );
+
+    let (s, v) = e
+        .patch(
+            "/users/@me/settings",
+            ALICE,
+            json!({"settings": {"theme": "ash", "ui": {"compact": true}}}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["version"], 1);
+    let payload = scoped(&mut alice, "SR_USER_SETTINGS_UPDATE").await;
+    assert_eq!(payload["settings"]["theme"], "ash");
+
+    let (s, v) = e
+        .patch(
+            "/users/@me/settings",
+            ALICE,
+            json!({"settings": {"theme": null, "ui": {"zoom": 110}}}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(v["version"], 2);
+    assert_eq!(v["settings"], json!({"ui": {"compact": true, "zoom": 110}}));
+    assert_eq!(e.get("/users/@me/settings", ALICE).await.1, v);
+    // Per user.
+    assert_eq!(e.get("/users/@me/settings", BOB).await.1["version"], 0);
+
+    // Bad shapes and oversize blobs are 400 and change nothing.
+    for bad in [
+        json!({"settings": [1, 2]}),
+        json!({"settings": "x"}),
+        json!({"settings": {"blob": "y".repeat(70_000)}}),
+    ] {
+        let (s, _) = e.patch("/users/@me/settings", ALICE, bad).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST);
+    }
+    assert_eq!(e.get("/users/@me/settings", ALICE).await.1["version"], 2);
+}
+
+#[tokio::test]
+async fn global_notification_default_applies_below_explicit_choices() {
+    let e = env().await;
+    let (s, v) = e.get("/users/@me/notification-defaults", BOB).await;
+    assert_eq!(s, StatusCode::OK);
+    assert!(v["message_notifications"].is_null());
+
+    let (s, v) = e
+        .patch(
+            "/users/@me/notification-defaults",
+            BOB,
+            json!({"message_notifications": 1}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["message_notifications"], 1);
+    assert_eq!(
+        e.get("/users/@me/notification-defaults", BOB).await.1["message_notifications"],
+        1
+    );
+    // Per user, and an empty patch changes nothing.
+    assert!(
+        e.get("/users/@me/notification-defaults", CAROL).await.1["message_notifications"].is_null()
+    );
+    let (_, v) = e
+        .patch("/users/@me/notification-defaults", BOB, json!({}))
+        .await;
+    assert_eq!(v["message_notifications"], 1);
+    // The resolver sees it.
+    let svc = sr_chat::social::SocialService::new(
+        DynRepo(e.repo.clone() as Arc<dyn SocialRepository>),
+        e.clock.clone() as Arc<dyn Clock>,
+        SnowflakeGenerator::new(e.clock.clone() as Arc<dyn Clock>, 1, 5).unwrap(),
+        SocialLimits::default(),
+    );
+    let r = svc
+        .resolve_notifications(
+            UserId::new(BOB),
+            Some(e.guild),
+            e.ch,
+            None,
+            sr_chat::social::notifications::NotificationLevel::All,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        r.level,
+        sr_chat::social::notifications::NotificationLevel::OnlyMentions
+    );
+
+    for bad in [
+        json!({"message_notifications": 3}),
+        json!({"message_notifications": -1}),
+    ] {
+        let (s, _) = e.patch("/users/@me/notification-defaults", BOB, bad).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST);
+    }
+    let (s, v) = e
+        .patch(
+            "/users/@me/notification-defaults",
+            BOB,
+            json!({"message_notifications": null}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    assert!(v["message_notifications"].is_null());
+}
+
+#[tokio::test]
+async fn privacy_settings_round_trip_and_gate_friend_requests() {
+    let e = env().await;
+    let (s, v) = e.get("/users/@me/privacy", DAVE).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(v["friend_requests_everyone"], true);
+    assert_eq!(v["message_requests"], true);
+
+    let (s, v) = e
+        .patch(
+            "/users/@me/privacy",
+            DAVE,
+            json!({"friend_requests_everyone": false, "friend_requests_friends_of_friends": false,
+                   "friend_requests_server_members": false, "allow_server_member_dms": false}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["friend_requests_everyone"], false);
+    assert_eq!(v["allow_server_member_dms"], false);
+    assert_eq!(v["message_requests"], true, "untouched field stays");
+    assert_eq!(e.get("/users/@me/privacy", DAVE).await.1, v);
+    // Nobody may send Dave a friend request now.
+    let (s, _) = e
+        .put(&format!("/users/@me/relationships/{DAVE}"), ALICE, None)
+        .await;
+    assert_ne!(s, StatusCode::NO_CONTENT);
+    // Re-open to everyone.
+    let (s, _) = e
+        .patch(
+            "/users/@me/privacy",
+            DAVE,
+            json!({"friend_requests_everyone": true}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    let (s, _) = e
+        .put(&format!("/users/@me/relationships/{DAVE}"), ALICE, None)
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+}
+
+#[tokio::test]
+async fn display_name_edits_through_global_name() {
+    let e = env().await;
+    let (s, v) = e
+        .patch("/users/@me", ALICE, json!({"global_name": "  Alice A.  "}))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    // The in-memory chat backend does not read profile fields back into user summaries, so
+    // check the stored profile (Postgres reads `accounts.display_name` for `global_name`).
+    let stored = |uid: u64| {
+        e.repo.store.lock().unwrap().profiles[&UserId::new(uid)]
+            .display_name
+            .clone()
+    };
+    assert_eq!(stored(ALICE).as_deref(), Some("Alice A."));
+    for bad in ["x".repeat(33), "tab\there".to_owned()] {
+        let (s, _) = e
+            .patch("/users/@me", ALICE, json!({"global_name": bad}))
+            .await;
+        assert_eq!(s, StatusCode::BAD_REQUEST);
+    }
+    let (s, _) = e
+        .patch("/users/@me", ALICE, json!({"global_name": null}))
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(stored(ALICE), None);
+}
