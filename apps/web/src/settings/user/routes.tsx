@@ -2,7 +2,9 @@ import { createRoute, redirect, useRouter, type AnyRoute } from '@tanstack/react
 import { useCallback } from 'react';
 import { resetStore } from '../../store';
 import { isUserSettingsSection, takeSettingsReturn } from './nav';
-import { UserSettings } from './UserSettings';
+import { lazyNamed } from '../../lib/lazyRoute';
+
+const UserSettings = lazyNamed(() => import('./UserSettings'), 'UserSettings');
 
 /**
  * /settings/user            -> /settings/user/account

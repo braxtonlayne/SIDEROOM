@@ -1,5 +1,10 @@
 import { createRoute, type AnyRoute } from '@tanstack/react-router';
-import { ServerSettingsPage } from '../settings/server/ServerSettings';
+import { lazyNamed } from '../lib/lazyRoute';
+
+const ServerSettingsPage = lazyNamed(
+  () => import('../settings/server/ServerSettings'),
+  'ServerSettingsPage',
+);
 
 /**
  * Server settings routes (LNG-SSET-001):

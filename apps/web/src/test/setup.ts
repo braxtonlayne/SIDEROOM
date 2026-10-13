@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
 import { setMarkdownEngine, testFallbackEngine } from '../lounge/markdown';
 import { server } from './server';
 
@@ -47,6 +47,10 @@ function bridgeJsdomSignals() {
 
 // Unit tests use the TS stand-in so the WASM bundle is never loaded under vitest.
 setMarkdownEngine(testFallbackEngine);
+
+// Routes are code-split (XC-PERF-001): the first render of a lazy route waits for a cold module transform,
+// which can exceed the 1 s default under load. Real failures still fail, just after 5 s.
+configure({ asyncUtilTimeout: 5000 });
 
 window.scrollTo = () => {};
 Element.prototype.scrollIntoView = () => {};

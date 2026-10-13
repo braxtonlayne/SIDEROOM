@@ -1,5 +1,7 @@
 import { createRoute, type AnyRoute } from '@tanstack/react-router';
-import { AdminPage } from './AdminApp';
+import { lazyNamed } from '../lib/lazyRoute';
+
+const AdminPage = lazyNamed(() => import('./AdminApp'), 'AdminPage');
 
 /** Admin routes: /admin (first section the staff member may open) and /admin/:section. */
 export function createAdminRoutes(root: AnyRoute) {

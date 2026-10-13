@@ -1,0 +1,11 @@
+{
+  "$comment": "XC-PERF-002. Sizes are gzip bytes of the JavaScript a first visit must download. 'entrance' is everything index.html loads before first paint; 'lounge' adds the Lounge route chunk and its static imports.",
+  "budgets": {
+    "entrance": { "maxGzipKB": 300 },
+    "lounge": { "maxGzipKB": 600, "routeChunk": "LoungeRoot" },
+    "library": { "maxGzipKB": 600, "routeChunk": "LibraryRoot" },
+    "admin": { "maxGzipKB": 600, "routeChunk": "AdminApp" },
+    "settings": { "maxGzipKB": 600, "routeChunk": "UserSettings" }
+  },
+  "singleChunkMaxGzipKB": 250
+}
