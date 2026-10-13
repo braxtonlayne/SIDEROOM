@@ -158,7 +158,7 @@ pub async fn reset_2fa_in(tx: &mut sqlx::PgConnection, account_id: i64) -> DbRes
         .execute(&mut *tx)
         .await?
         .rows_affected();
-    let passkeys = sqlx::query("DELETE FROM webauthn_credentials WHERE account_id = $1")
+    let passkeys = sqlx::query("DELETE FROM passkey_credentials WHERE account_id = $1")
         .bind(account_id)
         .execute(&mut *tx)
         .await?

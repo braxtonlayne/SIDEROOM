@@ -46,6 +46,10 @@ Maintenance: p256, ed25519-dalek and crypto-bigint are RustCrypto/dalek projects
 - `ChallengeBook` is process-local; step 2 should persist pending ceremonies (Postgres, short TTL) if more than one node serves auth.
 - `rsa_fixture.txt` is a throwaway test key and protects nothing.
 
+## Follow-up (done)
+
+Step 2 landed on `feat/p4-passkeys`: migration 0180, store methods, routes, web UI and a Playwright run against the CDP virtual authenticator. See `docs/dev/handoff/feat-p4-passkeys.md`. The "Not verified or not done" items about the browser run and the REST wiring are resolved there.
+
 ## Recommendation
 
 1. Accept the pure-Rust verifier as the D-161 outcome: no ADR-0009, no OpenSSL, no `deny.toml` change. The doc 03 table is updated.

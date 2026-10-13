@@ -3,6 +3,6 @@
 //! re-exports it for the route modules.
 
 pub use sr_auth::store::{
-    AccountRecord, AccountState, AuthStore, InviteState, RegisterRejection, RegisterTx, Registered,
-    StoreError, StoreResult,
+    AccountRecord, AccountState, AuthStore, InviteState, PasskeyRecord, RegisterRejection,
+    RegisterTx, Registered, StoreError, StoreResult,
 };

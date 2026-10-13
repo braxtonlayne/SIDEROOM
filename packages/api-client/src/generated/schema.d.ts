@@ -2315,6 +2315,141 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sr/auth/passkeys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /sr/auth/passkeys`: the account's passkeys, oldest first. */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/auth/passkeys/login/begin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /sr/auth/passkeys/login/begin {second_factor?}`: no login needed. */
+        post: operations["login_begin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/auth/passkeys/login/finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /sr/auth/passkeys/login/finish`: complete a passkey-only login. Sets the
+         *     session cookie and answers `{status: "ok"}`. User verification was required, so no
+         *     further factor is asked.
+         */
+        post: operations["login_finish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/auth/passkeys/register/begin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /sr/auth/passkeys/register/begin {password}`: re-check the password and
+         *     start a registration ceremony for the signed-in account.
+         */
+        post: operations["register_begin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/auth/passkeys/register/finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /sr/auth/passkeys/register/finish`: verify the new credential and store it. */
+        post: operations["register_finish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/auth/passkeys/verify/begin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /sr/auth/passkeys/verify/begin`: start a second-factor ceremony for the
+         *     signed-in account (the email-change re-prompt). The result goes into
+         *     `mfa: {method: "passkey", code}` as a JSON string of
+         *     `{ceremony_id, credential}`.
+         */
+        post: operations["verify_begin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/auth/passkeys/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * `DELETE /sr/auth/passkeys/{id} {password}`: remove a passkey (password re-check).
+         *     Removing the last second factor also drops the recovery codes.
+         */
+        delete: operations["remove"];
+        options?: never;
+        head?: never;
+        /** `PATCH /sr/auth/passkeys/{id} {name}`: rename. */
+        patch: operations["rename"];
+        trace?: never;
+    };
     "/sr/auth/password": {
         parameters: {
             query?: never;
@@ -2977,6 +3112,24 @@ export interface components {
             /** @description Staff Server role ids to start with. */
             role_ids: string[];
         };
+        /** @description The assertion a browser produced for `navigator.credentials.get`. */
+        AssertionCredential: {
+            /** @description base64url credential id. */
+            rawId: string;
+            /** @description The authenticator's response. */
+            response: components["schemas"]["AssertionFields"];
+        };
+        /** @description Assertion response fields (all base64url, no padding). */
+        AssertionFields: {
+            /** @description `authenticatorData`. */
+            authenticatorData: string;
+            /** @description `clientDataJSON`. */
+            clientDataJSON: string;
+            /** @description `signature`. */
+            signature: string;
+            /** @description `userHandle` (present for discoverable credentials). */
+            userHandle?: string | null;
+        };
         AttachmentObject: {
             content_type?: string | null;
             description?: string | null;
@@ -3078,6 +3231,17 @@ export interface components {
             lifted_at_ms?: number | null;
             note: string;
             person_id: string;
+        };
+        /** @description Response of every `.../begin` route. */
+        BeginResponse: {
+            /** @description Send back with the finish call. */
+            ceremony_id: string;
+            /**
+             * @description `PublicKeyCredentialCreationOptions` / `RequestOptions` JSON with base64url
+             *     binary fields; pass to `navigator.credentials.create/get({ publicKey })`
+             *     after decoding those fields.
+             */
+            options: unknown;
         };
         /** @description A template shipped with the server. */
         BuiltinTemplateObject: {
@@ -3857,11 +4021,27 @@ export interface components {
             reason: string;
             ref_id?: string | null;
         };
+        /** @description Body for `POST /sr/auth/passkeys/login/begin`. */
+        LoginBeginBody: {
+            /**
+             * @description Start the second-factor ceremony of the password login waiting on the
+             *     `sr_mfa` cookie (finish through `POST /sr/auth/2fa`, method `passkey`)
+             *     instead of passkey-only login.
+             */
+            second_factor?: boolean;
+        };
         LoginEvent: {
             /** Format: int64 */
             at_ms: number;
             ip?: string | null;
             success: boolean;
+        };
+        /** @description Body for `POST /sr/auth/passkeys/login/finish`. */
+        LoginFinishBody: {
+            /** @description From `login/begin`. */
+            ceremony_id: string;
+            /** @description The result of `navigator.credentials.get`. */
+            credential: components["schemas"]["AssertionCredential"];
         };
         /** @description The caller's own platform standing. */
         Me: {
@@ -3953,7 +4133,11 @@ export interface components {
         MfaProof: {
             /** @description The authenticator code or an unused recovery code. */
             code: string;
-            /** @description `totp` or `recovery`. */
+            /**
+             * @description `totp`, `recovery` or `passkey` (then `code` is the JSON text of
+             *     `{ceremony_id, credential}` from `POST /sr/auth/passkeys/verify/begin` and
+             *     `navigator.credentials.get`).
+             */
             method: string;
         };
         ModifyChannelBody: components["schemas"]["ForumSettingsBody"] & {
@@ -4201,6 +4385,24 @@ export interface components {
             id?: string | null;
             name: string;
         };
+        /** @description A passkey as the settings page shows it. */
+        PasskeyView: {
+            /** @description Synced (multi-device) passkey. */
+            backup_eligible: boolean;
+            /** @description ISO 8601. */
+            created_at: string;
+            /** @description Row id (a snowflake as a string). */
+            id: string;
+            /** @description ISO 8601, null until first used. */
+            last_used_at?: string | null;
+            /** @description Label. */
+            name: string;
+        };
+        /** @description Documentation stand-in for [`PasswordBody`]. */
+        PasswordBodyDoc: {
+            /** @description The current password. */
+            password: string;
+        };
         PatchFeatureBody: {
             /** @description Turn the feature on or off at the platform scope. */
             enabled?: boolean | null;
@@ -4378,6 +4580,43 @@ export interface components {
              */
             reason?: string | null;
         };
+        /** @description Body for `POST /sr/auth/passkeys/register/finish`. */
+        RegisterFinishBody: {
+            /** @description From `register/begin`. */
+            ceremony_id: string;
+            /** @description The result of `navigator.credentials.create`. */
+            credential: components["schemas"]["RegistrationCredential"];
+            /** @description Label for the new passkey (default `Passkey`). */
+            name?: string | null;
+        };
+        /** @description Response of `POST /sr/auth/passkeys/register/finish`. */
+        RegisterFinishResponse: {
+            /** @description The stored passkey. */
+            passkey: components["schemas"]["PasskeyView"];
+            /**
+             * @description Present when the account had no unused recovery codes: ten fresh codes, shown
+             *     once. A passkey makes password logins ask for a second factor, so there must
+             *     be a way back in without it.
+             */
+            recovery_codes?: string[] | null;
+        };
+        /**
+         * @description The base64url-encoded credential a browser produced (`PublicKeyCredential`
+         *     serialised by the web app).
+         */
+        RegistrationCredential: {
+            /** @description base64url credential id. */
+            rawId: string;
+            /** @description The authenticator's response. */
+            response: components["schemas"]["RegistrationResponse"];
+        };
+        /** @description Registration response fields (all base64url, no padding). */
+        RegistrationResponse: {
+            /** @description `attestationObject`. */
+            attestationObject: string;
+            /** @description `clientDataJSON`. */
+            clientDataJSON: string;
+        };
         RelationshipObject: {
             /** @description The other user's id. */
             id: string;
@@ -4389,6 +4628,11 @@ export interface components {
              */
             type: number;
             user: components["schemas"]["UserObject"];
+        };
+        /** @description Body for `PATCH /sr/auth/passkeys/{id}`. */
+        RenameBody: {
+            /** @description New label, 1 to 64 characters. */
+            name: string;
         };
         ReorderChannelEntry: {
             id: string;
@@ -13450,6 +13694,322 @@ export interface operations {
                 };
             };
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyView"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    login_begin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginBeginBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BeginResponse"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    login_finish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginFinishBody"];
+            };
+        };
+        responses: {
+            /** @description `{status: "ok"}` and a session cookie */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    register_begin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordBodyDoc"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BeginResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    register_finish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterFinishBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegisterFinishResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    verify_begin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BeginResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Passkey id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordBodyDoc"];
+            };
+        };
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    rename: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Passkey id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenameBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

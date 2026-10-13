@@ -146,6 +146,9 @@ pub async fn disable(
     let account = current_account(&svc, p.user_id).await?;
     reauthenticate(&svc, state.now_secs(), &account, &body.password).await?;
     svc.store.totp_delete(account.id).await?;
-    svc.store.recovery_replace_all(account.id, &[]).await?;
+    // Passkeys still need the recovery codes.
+    if !svc.has_passkeys(account.id).await? {
+        svc.store.recovery_replace_all(account.id, &[]).await?;
+    }
     Ok(StatusCode::NO_CONTENT)
 }

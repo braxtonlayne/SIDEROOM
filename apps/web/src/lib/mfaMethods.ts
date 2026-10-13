@@ -5,7 +5,7 @@ import type { MfaMethod } from '../api/entrance';
  * Kept in sessionStorage between `/login` and `/login/2fa` so a refresh keeps the same choices.
  */
 const KEY = 'sr.mfaMethods';
-const KNOWN: readonly MfaMethod[] = ['totp', 'webauthn', 'recovery'];
+const KNOWN: readonly MfaMethod[] = ['totp', 'passkey', 'recovery'];
 
 /** Used only when nothing was stored (direct visit to `/login/2fa`): the documented doc 05 set. */
 export const DEFAULT_MFA_METHODS: MfaMethod[] = ['totp', 'recovery'];

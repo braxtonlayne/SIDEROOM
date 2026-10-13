@@ -1,4 +1,4 @@
-// Typed Entrance calls (docs 05/06). Endpoint paths and shapes are documented in docs/05-api-and-gateway.md section 5.1; passkey and Discord endpoints are not implemented yet.
+// Typed Entrance calls (docs 05/06). Endpoint paths and shapes are documented in docs/05-api-and-gateway.md section 5.1; passkey endpoints are in ./passkeys.ts.
 import { apiFetch, apiPost, refreshCsrf } from './client';
 
 export type InviteCheck = { valid: true } | { valid: false; reason?: 'closed' };
@@ -39,7 +39,7 @@ export const discordStartUrl = (intent: 'login' | 'register', next?: string) =>
   `/api/v1/sr/auth/discord/start?intent=${intent}${next ? `&next=${encodeURIComponent(next)}` : ''}`;
 
 /** Methods the server offers after a password check (doc 05 section 5.1). */
-export type MfaMethod = 'totp' | 'webauthn' | 'recovery';
+export type MfaMethod = 'totp' | 'passkey' | 'recovery';
 export type LoginResult = { status: 'ok' } | { status: 'mfa_required'; methods: MfaMethod[] };
 export const login = async (req: { login: string; password: string }) => {
   const res = await apiPost<LoginResult>('/sr/auth/login', req);
@@ -58,7 +58,8 @@ export const loginWithLink = async (token: string) => {
 };
 
 export interface TwoFactorRequest {
-  method: 'totp' | 'recovery';
+  method: 'totp' | 'recovery' | 'passkey';
+  /** For `passkey`: the JSON text of `{ceremony_id, credential}` (see PasskeyButton). */
   code: string;
   trust_device: boolean;
 }
@@ -79,14 +80,6 @@ export const verifyEmail = (token: string) => apiPost<void>('/sr/auth/verify-ema
 export const cancelEmailChange = (token: string) =>
   apiPost<void>('/sr/auth/email/cancel', { token });
 export const resendVerification = () => apiPost<void>('/sr/auth/verify-email/resend');
-
-/** Passkey ceremony: server issues options (JSON form), the browser signs, server verifies. */
-export const passkeyOptions = () => apiPost<unknown>('/sr/auth/passkey/options');
-export const passkeyVerify = async (credential: unknown) => {
-  const res = await apiPost<{ status: 'ok' }>('/sr/auth/passkey/verify', credential);
-  await refreshCsrf();
-  return res;
-};
 
 export const getMe = () => apiFetch<{ id: string }>('/users/@me', { retries: 0 });
 
