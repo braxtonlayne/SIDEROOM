@@ -1,11 +1,15 @@
-import { Avatar, Icon, Tooltip, useToast } from '@sideroom/ui';
+import { Icon, Tooltip, useToast } from '@sideroom/ui';
 import { useOpenUserSettings } from '../settings/user/nav';
 import { useCurrentUser, usePresence } from './data';
+import { useSelfPresence } from './shell/selfPresence';
+import { statusLabel, StatusMenu } from './shell/StatusMenu';
 import { useLoungeUi } from './store';
 
 export function UserPanel() {
   const me = useCurrentUser();
   const presence = usePresence(me.id);
+  const selfStatus = useSelfPresence((s) => s.status);
+  const selfCustom = useSelfPresence((s) => s.customText);
   const toast = useToast();
   const voice = useLoungeUi((s) => s.voice);
   const joinVoice = useLoungeUi((s) => s.joinVoice);
@@ -41,21 +45,20 @@ export function UserPanel() {
         </div>
       )}
       <div className="lng-user-panel">
+        <StatusMenu name={me.displayName} />
         <button
           type="button"
           className="lng-user-id"
           onClick={copy}
-          aria-label={`${me.displayName}, ${presence.status}. Click to copy username`}
+          aria-label={`${me.displayName}, ${statusLabel(selfStatus)}. Click to copy username`}
         >
-          <Avatar name={me.displayName} size={32} status={presence.status} />
           <span className="lng-user-text">
             <span className="lng-user-name">{me.displayName}</span>
             <span className="lng-user-sub">
-              {presence.activity?.kind === 'custom'
-                ? presence.activity.text
-                : presence.status === 'online'
-                  ? 'Online'
-                  : presence.status}
+              {selfCustom ??
+                (presence.activity?.kind === 'custom'
+                  ? presence.activity.text
+                  : statusLabel(selfStatus))}
             </span>
           </span>
         </button>

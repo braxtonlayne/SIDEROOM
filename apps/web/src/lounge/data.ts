@@ -19,6 +19,7 @@ import {
   type LiveSnapshot,
 } from './live';
 import { applyRailLayout } from './shell/railLayout';
+import { useSocial } from './shell/social';
 import { useLoungeUi } from './store';
 
 export type Snowflake = string;
@@ -323,7 +324,15 @@ export function useLoungeActions(): LoungeActions {
 }
 export function useRequestCounts() {
   const mock = useContext(LoungeDataContext);
-  return mock
-    ? { friends: mock.friendRequestCount, messages: mock.messageRequestCount }
-    : NO_REQUESTS;
+  const friends = useSocial((s) => s.relationships.filter((r) => r.type === 3).length);
+  const messages = useSocial((s) => s.messageRequests.length);
+  return useMemo(
+    () =>
+      mock
+        ? { friends: mock.friendRequestCount, messages: mock.messageRequestCount }
+        : friends || messages
+          ? { friends, messages }
+          : NO_REQUESTS,
+    [mock, friends, messages],
+  );
 }

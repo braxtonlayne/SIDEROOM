@@ -46,6 +46,8 @@ export type LoungeDialog =
   | { kind: 'invite'; guildId: string; channelId?: string | undefined }
   | { kind: 'leaveServer'; guildId: string }
   | { kind: 'folder'; folderId: string }
+  | { kind: 'createDm' }
+  | { kind: 'customStatus' }
   | { kind: 'editChannel'; guildId: string; channelId: string }
   | { kind: 'deleteChannel'; guildId: string; channelId: string }
   | { kind: 'notifications'; guildId: string; channelId?: string | undefined };
@@ -63,12 +65,18 @@ export interface LoungeUiState {
   hideMutedChannels: Record<string, boolean>;
   rightPanelWidth: number;
   recentSwitcher: string[];
+  /** Info banners the person dismissed, by id. */
+  dismissedBanners: Record<string, boolean>;
   // Not persisted:
+  /** What Home shows when no conversation is open. */
+  homeView: 'friends' | 'requests';
   voice: VoiceConnection | null;
   micMuted: boolean;
   deafened: boolean;
   dialog: LoungeDialog | null;
 
+  dismissBanner(id: string): void;
+  setHomeView(v: 'friends' | 'requests'): void;
   openDialog(d: LoungeDialog): void;
   closeDialog(): void;
   setLocation(guildId: string, channelId?: string): void;
@@ -101,11 +109,16 @@ export const useLoungeUi = create<LoungeUiState>()(
       hideMutedChannels: {},
       rightPanelWidth: 240,
       recentSwitcher: [],
+      dismissedBanners: {},
+      homeView: 'friends',
       voice: null,
       micMuted: false,
       deafened: false,
       dialog: null,
 
+      dismissBanner: (id) =>
+        set((s) => ({ dismissedBanners: { ...s.dismissedBanners, [id]: true } })),
+      setHomeView: (homeView) => set({ homeView }),
       openDialog: (dialog) => set({ dialog }),
       closeDialog: () => set({ dialog: null }),
       setLocation: (guildId, channelId) =>
@@ -152,6 +165,7 @@ export const useLoungeUi = create<LoungeUiState>()(
         hideMutedChannels: s.hideMutedChannels,
         rightPanelWidth: s.rightPanelWidth,
         recentSwitcher: s.recentSwitcher,
+        dismissedBanners: s.dismissedBanners,
       }),
     },
   ),

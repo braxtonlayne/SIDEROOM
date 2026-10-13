@@ -103,6 +103,10 @@ export interface NotifState {
   reset(): void;
 }
 
+/** `@me` is the DM scope and is written as is. */
+const settingsPath = (guildId: string) =>
+  `/users/@me/guilds/${guildId === '@me' ? guildId : encodeURIComponent(guildId)}/settings`;
+
 const inflight = new Set<string>();
 
 export const useNotifSettings = create<NotifState>()((set, get) => ({
@@ -111,10 +115,7 @@ export const useNotifSettings = create<NotifState>()((set, get) => ({
     if ((!force && get().byGuild[guildId]) || inflight.has(guildId)) return;
     inflight.add(guildId);
     try {
-      const w = await apiFetch<WireGuildSettings>(
-        `/users/@me/guilds/${encodeURIComponent(guildId)}/settings`,
-        { retries: 0 },
-      );
+      const w = await apiFetch<WireGuildSettings>(settingsPath(guildId), { retries: 0 });
       set((s) => ({ byGuild: { ...s.byGuild, [guildId]: fromWire(w) } }));
     } catch {
       /* stays un-muted; the dialog reloads on open */
@@ -131,10 +132,11 @@ export const useNotifSettings = create<NotifState>()((set, get) => ({
         : {}),
       ...(patch.suppressRoles !== undefined ? { suppress_roles: patch.suppressRoles } : {}),
     };
-    const w = await apiFetch<WireGuildSettings>(
-      `/users/@me/guilds/${encodeURIComponent(guildId)}/settings`,
-      { method: 'PATCH', json: body, retries: 0 },
-    );
+    const w = await apiFetch<WireGuildSettings>(settingsPath(guildId), {
+      method: 'PATCH',
+      json: body,
+      retries: 0,
+    });
     set((s) => ({ byGuild: { ...s.byGuild, [guildId]: fromWire(w) } }));
   },
   async patchChannel(guildId, channelId, patch) {
@@ -142,10 +144,11 @@ export const useNotifSettings = create<NotifState>()((set, get) => ({
       ...(patch.mute ? mutePatch(patch.mute) : {}),
       ...('level' in patch ? { message_notifications: patch.level } : {}),
     };
-    const w = await apiFetch<WireGuildSettings>(
-      `/users/@me/guilds/${encodeURIComponent(guildId)}/settings`,
-      { method: 'PATCH', json: { channel_overrides: { [channelId]: override } }, retries: 0 },
-    );
+    const w = await apiFetch<WireGuildSettings>(settingsPath(guildId), {
+      method: 'PATCH',
+      json: { channel_overrides: { [channelId]: override } },
+      retries: 0,
+    });
     set((s) => ({ byGuild: { ...s.byGuild, [guildId]: fromWire(w) } }));
   },
   reset: () => set({ byGuild: {} }),

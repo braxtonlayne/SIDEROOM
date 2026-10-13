@@ -7,6 +7,12 @@ export const server = setupServer(
     HttpResponse.json({ message: 'Unauthorized' }, { status: 401 }),
   ),
   http.get('*/api/v1/sr/auth/discord/pending', () => HttpResponse.json(null)),
+  // Home screen loads: nobody to befriend, no DMs, online with no custom status.
+  http.get('*/api/v1/users/@me/relationships', () => HttpResponse.json([])),
+  http.get('*/api/v1/users/@me/channels', () => HttpResponse.json([])),
+  http.get('*/api/v1/users/@me/presence', () =>
+    HttpResponse.json({ status: 'online', custom_status: null }),
+  ),
   // The Lounge loads notification settings for every server; default to "nothing muted".
   http.get('*/api/v1/users/@me/guilds/:id/settings', () =>
     HttpResponse.json({

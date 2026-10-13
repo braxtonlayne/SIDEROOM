@@ -28,6 +28,8 @@ import { MemberList } from './MemberList';
 import { useLoungeGoto, useLoungeRoute } from './nav';
 import { DmProfilePanel, HomeFriends, PickChannel } from './Panels';
 import { QuickSwitcher } from './QuickSwitcher';
+import { ConnectionBanner, NoticesBar } from './shell/Banners';
+import { useShellBoot } from './shell/useShellBoot';
 import { ShortcutSheet } from './ShortcutSheet';
 import { matchShortcut } from './shortcuts';
 import { RIGHT_PANEL_MAX, RIGHT_PANEL_MIN, useLoungeUi } from './store';
@@ -190,6 +192,7 @@ function Shell() {
   const [tab, setTab] = useState<'home' | 'notifications' | 'you'>('home');
   const [coming, setComing] = useState(false);
 
+  useShellBoot();
   const openSettings = useOpenUserSettings();
   const theme = useAppliedTheme();
   useLoungeShortcuts({
@@ -241,6 +244,8 @@ function Shell() {
       <ToastProvider>
         <SectionBar />
         {!isMobile && <TitleStrip title={title} />}
+        <ConnectionBanner />
+        <NoticesBar />
         <div className="lng-body" {...(isMobile ? swipe : {})}>
           <div className="lng-left" data-pane="list">
             <GuildRail />
