@@ -1176,3 +1176,9 @@ Status: `DEFAULT` (D-182)
 Decision: the backend already dispatches `RELATIONSHIP_ADD/UPDATE/REMOVE` as `DomainEvent::UserScoped` to each addressed user's topic (`crates/sr-api/src/routes/social/relationships.rs`, `events.rs`); the gap is the client. The reducer applies the three dispatches (and `CHANNEL_CREATE/DELETE` for DMs) to the social store; the Friends page stops re-fetching after each action and only loads on boot. Tick LNG-FRD-003 after the reducer test proves another session's request appears live.
 Rationale: parity (Discord updates friends live); the events exist, so polling is duplicate work.
 Status: `DEFAULT` (D-183)
+
+## Owner confirmations (2026-10-13, later)
+
+- **OQ-12 (Lounge sans font): confirmed.** Inter. The fonts (Newsreader, Hanken Grotesk, IBM Plex Mono, Inter; Latin subset WOFF2 from the Fontsource npm packages 5.3.0, OFL licences beside them) are installed under `apps/web/public/fonts/` and registered in `apps/web/src/styles/fonts.css`; the owner approved the download.
+- **OQ-14 (door image): supplied.** `apps/web/public/entrance/door.jpg` is the owner-provided photograph, converted to JPEG (1536x1024, 184 KB, no EXIF). It is below the recommended 1704 px width; replace it with a wider master when one exists. `entrance.css` now shows it and hides the CSS stand-in.
+- **OQ-13 (token calibration): agreed**, to be done now that the fonts have landed.
