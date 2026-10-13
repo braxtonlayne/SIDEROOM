@@ -1040,6 +1040,50 @@ async fn upload_then_message_sniffs_content_type() {
 }
 
 #[tokio::test]
+async fn spoiler_uploads_carry_the_spoiler_prefix() {
+    let e = env().await;
+    let png = png_with_secret();
+    // `spoiler: true` prefixes the name once; an already prefixed name is not doubled
+    // and counts as a spoiler without the flag (Discord's convention, D-177).
+    for (name, spoiler, expected) in [
+        ("cat.png", Some(true), "SPOILER_cat.png"),
+        ("SPOILER_cat.png", Some(true), "SPOILER_cat.png"),
+        ("SPOILER_cat.png", None, "SPOILER_cat.png"),
+        ("cat.png", Some(false), "cat.png"),
+    ] {
+        let mut file = json!({
+            "id": "0", "filename": name, "file_size": png.len(), "content_type": "image/png"
+        });
+        if let Some(s) = spoiler {
+            file["spoiler"] = json!(s);
+        }
+        let (s, v) = e
+            .post("/attachments", "bob", json!({"files": [file]}))
+            .await;
+        assert_eq!(s, StatusCode::OK, "{v}");
+        let slot = v["attachments"][0].clone();
+        assert!(
+            slot["upload_filename"]
+                .as_str()
+                .unwrap()
+                .ends_with(&format!("/{expected}")),
+            "{name}: {slot}"
+        );
+        e.storage
+            .put(&slot_key(e.ch, &slot, expected), Bytes::from(png.clone()))
+            .await
+            .unwrap();
+        let msg = json!({
+            "content": "x",
+            "attachments": [{"id": "0", "uploaded_filename": slot["upload_filename"]}],
+        });
+        let (s, v) = e.post("/messages", "bob", msg).await;
+        assert_eq!(s, StatusCode::OK, "{v}");
+        assert_eq!(v["attachments"][0]["filename"], expected, "{name}");
+    }
+}
+
+#[tokio::test]
 async fn completion_rejects_mismatched_content_and_sizes() {
     let e = env().await;
     // Declared as an image but the bytes are HTML: refused and deleted.
