@@ -81,6 +81,9 @@
 .lng-channel-item {
   position: relative;
 }
+.lng-channel-item .lng-pill {
+  left: -8px;
+}
 .lng-channel-actions {
   position: absolute;
   top: 2px;
@@ -88,8 +91,8 @@
   display: none;
   gap: 2px;
 }
-.lng-channel-item:hover > .lng-channel-actions,
-.lng-channel-item:focus-within > .lng-channel-actions {
+.lng-channel-item:hover .lng-channel-actions,
+.lng-channel-item:focus-within .lng-channel-actions {
   display: flex;
 }
 .lng-channel-item[data-dragging],

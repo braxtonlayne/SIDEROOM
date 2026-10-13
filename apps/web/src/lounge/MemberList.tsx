@@ -6,6 +6,7 @@ import { useStore } from '../store';
 import { useCurrentUser, useGuild, useMembers, usePresenceMap, useRoles } from './data';
 import { buildMemberRows, type MemberEntry } from './memberGroups';
 import { useOpenDm } from './shell/dm';
+import { useUserMenuEntries } from './shell/userMenu';
 import { useLoungeUi } from './store';
 
 const OFFLINE_HIDE_THRESHOLD = 1000;
@@ -29,6 +30,7 @@ function MemberRowView({
   const openDm = useOpenDm();
   const openDialog = useLoungeUi((s) => s.openDialog);
   const isSelf = u.id === me.id;
+  const userEntries = useUserMenuEntries(isSelf ? undefined : { id: u.id, name });
   const isOwner = ownerId === u.id;
   // The server enforces the hierarchy; these only hide what would certainly be refused.
   const targetTop = Math.max(
@@ -64,6 +66,13 @@ function MemberRowView({
       disabled: isSelf || !!u.bot,
       onSelect: () => void openDm([u.id]).catch(() => undefined),
     },
+    ...(userEntries.note ? [userEntries.note] : []),
+    {
+      label: 'Change Nickname',
+      onSelect: () => openDialog({ kind: 'nickname', guildId, userId: u.id }),
+    },
+    ...(userEntries.invite ? [userEntries.invite] : []),
+    ...userEntries.relationship,
     { type: 'separator' },
     ...(assignable.length > 0 && !isOwner
       ? [

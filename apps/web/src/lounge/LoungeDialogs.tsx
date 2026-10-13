@@ -11,6 +11,7 @@ import { DeleteChannelDialog } from './shell/DeleteChannelDialog';
 import { EditChannelDialog } from './shell/EditChannelDialog';
 import { FolderDialog } from './shell/FolderDialog';
 import { MemberActionDialog } from './shell/MemberDialogs';
+import { NicknameDialog, NoteDialog } from './shell/UserDialogs';
 import { LeaveServerDialog } from './shell/LeaveServerDialog';
 import { NotificationDialog } from './shell/NotificationDialog';
 import { useLoungeUi } from './store';
@@ -55,6 +56,10 @@ export function LoungeDialogs() {
           onClose={close}
         />
       );
+    case 'note':
+      return <NoteDialog userId={dialog.userId} name={dialog.name} onClose={close} />;
+    case 'nickname':
+      return <NicknameDialog guildId={dialog.guildId} userId={dialog.userId} onClose={close} />;
     case 'customStatus':
       return <CustomStatusDialog onClose={close} />;
     case 'createDm':

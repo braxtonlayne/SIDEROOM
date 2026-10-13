@@ -42,6 +42,7 @@ test.describe('Lounge server flows', () => {
 
     await a.getByRole('button', { name: 'Add a Server' }).click();
     await a.getByRole('button', { name: 'Create My Own' }).click();
+    await a.getByRole('button', { name: 'skip this question' }).click();
     await a.getByLabel('Server name').fill(serverName);
     await a.getByRole('button', { name: 'Create', exact: true }).click();
     await expect(a).toHaveURL(/\/channels\/\d+\/\d+/);

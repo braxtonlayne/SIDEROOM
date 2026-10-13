@@ -11,9 +11,9 @@ import {
   type DmChannel,
 } from './data';
 import { useLoungeRoute } from './nav';
-import { blockUser, closeDm, ignoreUser, removeRelationship } from './shell/api';
+import { closeDm } from './shell/api';
 import { isMuted, MUTE_DURATIONS, useNotifSettings } from './shell/notifSettings';
-import { friendsOf, useSocial } from './shell/social';
+import { useUserMenuEntries } from './shell/userMenu';
 import { useLoungeUi } from './store';
 
 function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
@@ -21,8 +21,6 @@ function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
   const presence = usePresenceMap();
   const actions = useLoungeActions();
   const navigate = useNavigate();
-  const relationships = useSocial((s) => s.relationships);
-  const loadRelationships = useSocial((s) => s.loadRelationships);
   const notif = useNotifSettings((s) => s.byGuild[HOME]?.channels[dm.id]);
   const patchChannel = useNotifSettings((s) => s.patchChannel);
   const first = users[dm.recipientIds[0] ?? ''];
@@ -31,7 +29,7 @@ function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
   const p = first ? presence[first.id] : undefined;
   const sub = group ? `${dm.recipientIds.length + 1} Members` : p?.activity?.text;
   const muted = isMuted(notif);
-  const isFriend = !!first && friendsOf(relationships).some((r) => r.id === first.id);
+  const userEntries = useUserMenuEntries(first ? { id: first.id, name: title } : undefined);
 
   const close = () => {
     closeDm(dm.id)
@@ -41,8 +39,6 @@ function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
       })
       .catch(() => undefined);
   };
-  const afterRelationship = (req: Promise<unknown>) =>
-    void req.then(() => loadRelationships()).catch(() => undefined);
 
   const menu: MenuEntry[] = [
     {
@@ -55,7 +51,9 @@ function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
         }),
     },
     { label: 'Call', disabled: true },
-    { label: 'Add Note', disabled: true },
+    ...(group || !userEntries.note
+      ? [{ label: 'Add Note', disabled: true } as MenuEntry]
+      : [userEntries.note]),
     { type: 'separator' },
     { label: group ? 'Leave Group' : 'Close DM', onSelect: close },
     { label: 'Mark as Read', disabled: !dm.unread, onSelect: () => actions.markRead(dm.id) },
@@ -79,21 +77,8 @@ function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
     ...(!group && first
       ? ([
           { type: 'separator' },
-          ...(isFriend
-            ? [
-                {
-                  label: 'Remove Friend',
-                  danger: true,
-                  onSelect: () => afterRelationship(removeRelationship(first.id)),
-                } as MenuEntry,
-              ]
-            : []),
-          { label: 'Ignore', onSelect: () => afterRelationship(ignoreUser(first.id)) },
-          {
-            label: 'Block',
-            danger: true,
-            onSelect: () => afterRelationship(blockUser(first.id)),
-          },
+          ...(userEntries.invite ? [userEntries.invite] : []),
+          ...userEntries.relationship,
           {
             label: 'Copy User ID',
             onSelect: () => void navigator.clipboard?.writeText(first.id),

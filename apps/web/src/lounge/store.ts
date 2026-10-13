@@ -48,6 +48,8 @@ export type LoungeDialog =
   | { kind: 'folder'; folderId: string }
   | { kind: 'createDm' }
   | { kind: 'customStatus' }
+  | { kind: 'note'; userId: string; name: string }
+  | { kind: 'nickname'; guildId: string; userId: string }
   | { kind: 'memberAction'; action: 'timeout' | 'kick' | 'ban'; guildId: string; userId: string }
   | { kind: 'editChannel'; guildId: string; channelId: string }
   | { kind: 'deleteChannel'; guildId: string; channelId: string }

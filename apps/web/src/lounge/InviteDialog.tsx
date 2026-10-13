@@ -32,7 +32,7 @@ export function InviteDialog({
       '',
   );
   const [maxAge, setMaxAge] = useState(86400);
-  const [maxUses, setMaxUses] = useState(0);
+  const [maxUses, setMaxUses] = useState(1);
   const [created, setCreated] = useState<rest.Invite | null>(null);
   const [invites, setInvites] = useState<rest.Invite[]>([]);
   const [listError, setListError] = useState<string | null>(null);

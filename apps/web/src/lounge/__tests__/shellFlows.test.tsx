@@ -864,3 +864,115 @@ describe('server welcome screen', () => {
     expect(await axeViolations(welcome)).toEqual([]);
   });
 });
+
+describe('person menu entries', () => {
+  beforeEach(() => {
+    quiet();
+    seed('1');
+    useSocial.getState().reset();
+  });
+
+  async function rightClickBob() {
+    const members = await screen.findByRole('list', { name: 'Members' });
+    await userEvent.pointer({
+      keys: '[MouseRight]',
+      target: await within(members).findByRole('button', { name: /^bob,/ }),
+    });
+  }
+
+  it('saves a private note', async () => {
+    let put: unknown;
+    server.use(
+      http.get('*/api/v1/users/@me/notes/2', () =>
+        HttpResponse.json({ message: 'none' }, { status: 404 }),
+      ),
+      http.put('*/api/v1/users/@me/notes/2', async ({ request }) => {
+        put = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    at('/channels/g1/c1');
+    await rightClickBob();
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Add Note' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Note for bob' });
+    await userEvent.type(await within(dialog).findByLabelText('Note'), 'met at the club');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(put).toEqual({ note: 'met at the club' }));
+  });
+
+  it('changes a nickname and shows it in the member list', async () => {
+    let patch: unknown;
+    server.use(
+      http.patch('*/api/v1/guilds/g1/members/2', async ({ request }) => {
+        patch = await request.json();
+        return HttpResponse.json({});
+      }),
+    );
+    at('/channels/g1/c1');
+    await rightClickBob();
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Change Nickname' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Change Nickname' });
+    await userEvent.type(within(dialog).getByLabelText('Nickname'), 'Bobby');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(patch).toEqual({ nick: 'Bobby' }));
+    const members = screen.getByRole('list', { name: 'Members' });
+    expect(await within(members).findByRole('button', { name: /^Bobby,/ })).toBeInTheDocument();
+  });
+
+  it('invites a member to another server by DM and blocks from the menu', async () => {
+    const calls: string[] = [];
+    server.use(
+      http.get('*/api/v1/users/@me/relationships', () =>
+        HttpResponse.json([
+          { id: '2', type: 1, since: '2026-01-01T00:00:00Z', user: { id: '2', username: 'bob' } },
+        ]),
+      ),
+      http.post('*/api/v1/channels/d1/invites', () => {
+        calls.push('invite');
+        return HttpResponse.json({
+          code: 'zzz999',
+          guild: { id: 'g2', name: 'Beta Guild' },
+          channel: { id: 'd1', name: 'lobby', type: 0 },
+          uses: 0,
+          max_uses: 1,
+          max_age: 86400,
+          created_at: '2026-01-01T00:00:00Z',
+        });
+      }),
+      http.post('*/api/v1/users/@me/channels', () => {
+        calls.push('dm');
+        return HttpResponse.json({
+          id: 'dm5',
+          type: 1,
+          recipients: [{ id: '2', username: 'bob' }],
+        });
+      }),
+      http.post('*/api/v1/channels/dm5/messages', () => {
+        calls.push('message');
+        return HttpResponse.json({
+          id: '9',
+          channel_id: 'dm5',
+          author: { id: '1', username: 'me' },
+          content: 'x',
+          timestamp: '2026-01-01T00:00:00Z',
+        });
+      }),
+      http.put('*/api/v1/users/@me/relationships/2', () => {
+        calls.push('block');
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    at('/channels/g1/c1');
+    await screen.findByRole('list', { name: 'Members' });
+    await waitFor(() => expect(useSocial.getState().status).toBe('ready'));
+    await rightClickBob();
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Invite to Server' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Beta Guild' }));
+    await waitFor(() => expect(calls).toEqual(['invite', 'dm', 'message']));
+
+    await rightClickBob();
+    expect(await screen.findByRole('menuitem', { name: 'Remove Friend' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Block' }));
+    await waitFor(() => expect(calls).toContain('block'));
+  });
+});
