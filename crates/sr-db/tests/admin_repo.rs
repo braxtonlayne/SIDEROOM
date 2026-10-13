@@ -1061,13 +1061,28 @@ async fn frozen_issuers_cannot_have_invites_redeemed() {
         }
     };
     // Level 1 is under the default threshold of 2: the invite works.
-    sqlx::query("UPDATE persons SET suspicion_level = 1 WHERE id = $1").bind(person).execute(&pool).await.unwrap();
+    sqlx::query("UPDATE persons SET suspicion_level = 1 WHERE id = $1")
+        .bind(person)
+        .execute(&pool)
+        .await
+        .unwrap();
     assert!(register(invite(false).await).await.is_ok());
     // At the threshold the issuer is frozen: a normal invite is refused, an operator one is not.
-    sqlx::query("UPDATE persons SET suspicion_level = 2 WHERE id = $1").bind(person).execute(&pool).await.unwrap();
-    assert_eq!(register(invite(false).await).await.unwrap_err(), Rejection::InviteUnavailable);
+    sqlx::query("UPDATE persons SET suspicion_level = 2 WHERE id = $1")
+        .bind(person)
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        register(invite(false).await).await.unwrap_err(),
+        Rejection::InviteUnavailable
+    );
     assert!(register(invite(true).await).await.is_ok());
     // Clearing suspicion unfreezes.
-    sqlx::query("UPDATE persons SET suspicion_level = 0 WHERE id = $1").bind(person).execute(&pool).await.unwrap();
+    sqlx::query("UPDATE persons SET suspicion_level = 0 WHERE id = $1")
+        .bind(person)
+        .execute(&pool)
+        .await
+        .unwrap();
     assert!(register(invite(false).await).await.is_ok());
 }
