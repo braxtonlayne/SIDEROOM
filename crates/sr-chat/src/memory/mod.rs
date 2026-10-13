@@ -145,6 +145,28 @@ impl ChannelRepository for MemoryRepo {
             .collect())
     }
 
+    async fn list_guild_threads(&self, guild: GuildId) -> RepoResult<Vec<Channel>> {
+        let mut v: Vec<Channel> = self
+            .lock()?
+            .channels
+            .values()
+            .filter(|c| c.guild_id == Some(guild) && c.kind.is_thread())
+            .cloned()
+            .collect();
+        v.sort_by_key(|c| c.id);
+        Ok(v)
+    }
+
+    async fn get_threads(&self, ids: &[ChannelId]) -> RepoResult<Vec<Channel>> {
+        let s = self.lock()?;
+        Ok(ids
+            .iter()
+            .filter_map(|id| s.channels.get(id))
+            .filter(|c| c.kind.is_thread())
+            .cloned()
+            .collect())
+    }
+
     async fn get_overwrites(&self, channel: ChannelId) -> RepoResult<Vec<Overwrite>> {
         Ok(self
             .lock()?

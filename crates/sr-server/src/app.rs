@@ -333,6 +333,27 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             social_ids,
             sr_chat::social::SocialLimits::default(),
         ));
+    // Threads: their own snowflake worker (process id + 5). The activity hook keeps
+    // counters, reopens archived threads and auto-joins posters; it runs after the
+    // social hooks on every stored message.
+    let threads_deps = Arc::new(routes::threads::ThreadsDeps::new(
+        sr_chat::threads::ThreadService::new(
+            PgChatRepo::new(pool.clone()),
+            clock.clone(),
+            SnowflakeGenerator::new(
+                clock.clone(),
+                cfg.server.worker_id,
+                (cfg.server.process_id + 5) % 32,
+            )
+            .context("thread snowflake generator")?,
+        ),
+        bus.clone(),
+    ));
+    let message_hooks: Arc<dyn sr_chat::message_hooks::MessageHooks> =
+        Arc::new(sr_chat::threads::hooks::HookChain(vec![
+            social,
+            threads_deps.activity_hook(),
+        ]));
     let cdn_signer =
         sr_storage::cdn::CdnSigner::new(secret_key(cfg.server.secret_key.expose())?.to_vec());
     let messages = routes::messages::MessagesDeps::new(
@@ -344,7 +365,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             sr_storage::upload::SizePolicy::default().standard_limit,
         )),
         Arc::new(PgChatRepo::new(pool.clone())),
-        Some(social),
+        Some(message_hooks),
         clock.clone(),
         cfg.server.worker_id,
         cfg.server.process_id,
@@ -458,6 +479,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .openapi(routes::openapi())
         .extension(Arc::new(guilds.clone()))
         .extension(Arc::new(messages))
+        .extension(threads_deps.clone())
         .extension(social_api)
         .extension(settings_deps.clone())
         .extension(Arc::new(AutoModGateHandle(settings_deps)))
@@ -509,9 +531,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     );
     let runner = crate::jobs::register_attachment_gc(runner, &pool, storage.clone());
     let runner = crate::jobs::register_audit_purge(runner, &pool);
+    let runner = crate::jobs::register_thread_archive(runner, &pool, threads_deps.clone());
     let runner = crate::search_jobs::register(runner, &pool, indexer);
     crate::jobs::schedule_recurring(&pool).await?;
     crate::jobs::schedule_audit_purge(&pool).await?;
+    crate::jobs::schedule_thread_archive(&pool).await?;
     crate::jobs::schedule_attachment_gc(&pool).await?;
     let jobs_task = tokio::spawn(runner.run(job_rx));
 

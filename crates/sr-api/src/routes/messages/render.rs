@@ -40,6 +40,32 @@ fn sign_attachments(deps: &MessagesDeps, objects: &mut [MessageObject]) {
     }
 }
 
+/// Attach the thread started from each message (a thread shares its starter's id).
+async fn attach_threads(deps: &MessagesDeps, msgs: &[Message], out: &mut [MessageObject]) {
+    let ids: Vec<sr_core::ChannelId> = msgs
+        .iter()
+        .filter(|m| m.guild_id.is_some())
+        .map(|m| sr_core::ChannelId::new(m.id.get()))
+        .collect();
+    if ids.is_empty() {
+        return;
+    }
+    let threads = match deps.repo.get_threads(&ids).await {
+        Ok(t) => t,
+        Err(e) => {
+            tracing::warn!(error = %e, "looking up message threads failed");
+            return;
+        }
+    };
+    for t in threads {
+        let Some(o) = out.iter_mut().find(|o| o.id == t.id.to_string()) else {
+            continue;
+        };
+        o.thread =
+            serde_json::to_value(crate::routes::guilds::dto::ChannelObject::new(&t, &[])).ok();
+    }
+}
+
 /// REST view: attachments, the viewer's reactions and user objects included.
 pub async fn render_many(
     deps: &MessagesDeps,
@@ -62,6 +88,7 @@ pub async fn render_many(
             )
         })
         .collect();
+    attach_threads(deps, msgs, &mut out).await;
     sign_attachments(deps, &mut out);
     Ok(out)
 }
@@ -88,5 +115,11 @@ pub async fn event_payload(deps: &MessagesDeps, msg: &Message) -> MsgResult<serd
     let users = lookup_users(deps, std::slice::from_ref(msg)).await?;
     let mut obj = MessageObject::build(msg, &atts, &[], nonce, &users);
     sign_attachments(deps, std::slice::from_mut(&mut obj));
+    attach_threads(
+        deps,
+        std::slice::from_ref(msg),
+        std::slice::from_mut(&mut obj),
+    )
+    .await;
     Ok(obj.to_value())
 }

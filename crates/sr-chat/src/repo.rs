@@ -54,6 +54,15 @@ pub trait GuildRepository: Send + Sync {
 pub trait ChannelRepository: Send + Sync {
     async fn get_channel(&self, id: ChannelId) -> RepoResult<Option<Channel>>;
     async fn list_guild_channels(&self, guild: GuildId) -> RepoResult<Vec<Channel>>;
+    /// Every thread of the guild, archived ones included (search and read states cover
+    /// them; `list_guild_channels` leaves them out). Default: none.
+    async fn list_guild_threads(&self, _guild: GuildId) -> RepoResult<Vec<Channel>> {
+        Ok(Vec::new())
+    }
+    /// The threads among `ids` (a message that has a thread shares its id). Default: none.
+    async fn get_threads(&self, _ids: &[ChannelId]) -> RepoResult<Vec<Channel>> {
+        Ok(Vec::new())
+    }
     async fn get_overwrites(&self, channel: ChannelId) -> RepoResult<Vec<Overwrite>>;
     async fn insert_channel(&self, channel: &Channel, overwrites: &[Overwrite]) -> RepoResult<()>;
     async fn update_channel(&self, channel: &Channel) -> RepoResult<()>;

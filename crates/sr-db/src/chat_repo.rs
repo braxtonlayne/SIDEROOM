@@ -606,6 +606,31 @@ impl ChannelRepository for PgChatRepo {
         rows.iter().map(channel_from).collect()
     }
 
+    async fn list_guild_threads(&self, guild: GuildId) -> RepoResult<Vec<Channel>> {
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "{CHANNEL_SELECT} WHERE c.guild_id = $1 AND c.type IN (10, 11, 12) ORDER BY c.id"
+        )))
+        .bind(i(guild.get()))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter().map(channel_from).collect()
+    }
+
+    async fn get_threads(&self, ids: &[ChannelId]) -> RepoResult<Vec<Channel>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "{CHANNEL_SELECT} WHERE c.id = ANY($1) AND c.type IN (10, 11, 12)"
+        )))
+        .bind(ids.iter().map(|c| i(c.get())).collect::<Vec<_>>())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter().map(channel_from).collect()
+    }
+
     async fn get_overwrites(&self, channel: ChannelId) -> RepoResult<Vec<Overwrite>> {
         let rows = sqlx::query(
             "SELECT target_id, target_type::text AS target_type, allow, deny \

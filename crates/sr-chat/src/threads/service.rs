@@ -159,6 +159,12 @@ impl<R: ChatRepository + ThreadRepository> ThreadService<R> {
         })
     }
 
+    /// Type of a channel, if it exists (lets endpoints that serve every channel type
+    /// route thread ids to the thread service).
+    pub async fn kind_of(&self, id: ChannelId) -> ChatResult<Option<ChannelType>> {
+        Ok(self.repo.get_channel(id).await?.map(|c| c.kind))
+    }
+
     async fn fresh(&self, id: ChannelId) -> ChatResult<Channel> {
         self.repo
             .get_channel(id)

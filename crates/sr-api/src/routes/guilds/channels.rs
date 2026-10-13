@@ -1,9 +1,12 @@
 //! Channels, categories, bulk reorder and permission overwrites.
 
 use super::dto::{
-    ChannelObject, CreateChannelBody, ModifyChannelBody, OverwriteBody, ReorderChannelEntry,
+    ChannelObject, CreateChannelBody, ForumSettingsBody, ModifyChannelBody, OverwriteBody,
+    ReorderChannelEntry,
 };
 use super::util::{Api, actor, ce, id, permissions};
+use crate::routes::MaybeExt;
+use crate::routes::threads::ThreadsDeps;
 use crate::{HttpError, Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
 use axum::{
     Json, Router,
@@ -14,8 +17,10 @@ use axum::{
 use sr_chat::ChannelType;
 use sr_chat::admin_rules::ChannelMove;
 use sr_chat::channel_rules::{ChannelPatch, NewChannel};
+use sr_chat::threads::{DefaultReaction, ForumPatch, TagInput, ThreadPatch};
 use sr_core::permissions::{Overwrite, OverwriteKind};
 use sr_core::{ApiError, ChannelId, GuildId, Snowflake};
+use std::sync::Arc;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -84,6 +89,85 @@ fn parent(
     })
 }
 
+fn opt_id(field: &str, raw: Option<&str>) -> Result<Option<u64>, HttpError> {
+    raw.map(|s| id::<u64>(field, s)).transpose()
+}
+
+/// Forum, media and thread-default settings of a create/modify body.
+fn forum_patch(f: &ForumSettingsBody, flags: Option<u32>) -> Result<ForumPatch, HttpError> {
+    let mut tags = None;
+    if let Some(list) = &f.available_tags {
+        let mut out = Vec::with_capacity(list.len());
+        for (n, t) in list.iter().enumerate() {
+            out.push(TagInput {
+                id: opt_id(&format!("available_tags.{n}.id"), t.id.as_deref())?,
+                name: t.name.clone(),
+                moderated: t.moderated,
+                emoji_id: opt_id(
+                    &format!("available_tags.{n}.emoji_id"),
+                    t.emoji_id.as_deref(),
+                )?,
+                emoji_name: t.emoji_name.clone(),
+            });
+        }
+        tags = Some(out);
+    }
+    let reaction = match &f.default_reaction_emoji {
+        None => None,
+        Some(None) => Some(None),
+        Some(Some(r)) => Some(Some(DefaultReaction {
+            emoji_id: opt_id("default_reaction_emoji.emoji_id", r.emoji_id.as_deref())?,
+            emoji_name: r.emoji_name.clone(),
+        })),
+    };
+    Ok(ForumPatch {
+        available_tags: tags,
+        default_reaction_emoji: reaction,
+        default_sort_order: f.default_sort_order,
+        default_forum_layout: f.default_forum_layout,
+        default_thread_rate_limit: f.default_thread_rate_limit_per_user,
+        default_auto_archive_duration: f.default_auto_archive_duration,
+        flags,
+    })
+}
+
+/// A `PATCH` of a thread.
+fn thread_patch(b: &ModifyChannelBody) -> Result<ThreadPatch, HttpError> {
+    let tags = match &b.applied_tags {
+        None => None,
+        Some(list) => Some(
+            list.iter()
+                .enumerate()
+                .map(|(n, s)| id::<u64>(&format!("applied_tags.{n}"), s))
+                .collect::<Result<Vec<_>, _>>()?,
+        ),
+    };
+    Ok(ThreadPatch {
+        name: b.name.clone(),
+        archived: b.archived,
+        auto_archive_duration: b.auto_archive_duration,
+        locked: b.locked,
+        invitable: b.invitable,
+        rate_limit_per_user: b.rate_limit_per_user,
+        applied_tags: tags,
+        flags: b.flags,
+    })
+}
+
+/// Whether `cid` is a thread and the thread service is wired.
+async fn thread_service(
+    threads: Option<&Arc<ThreadsDeps>>,
+    cid: ChannelId,
+) -> Result<Option<Arc<ThreadsDeps>>, HttpError> {
+    let Some(t) = threads else {
+        return Ok(None);
+    };
+    match t.ops.kind_of(cid).await.map_err(ce)? {
+        Some(k) if k.is_thread() => Ok(Some(t.clone())),
+        _ => Ok(None),
+    }
+}
+
 /// Channels of the guild that the caller can view.
 #[utoipa::path(
     get,
@@ -134,6 +218,7 @@ pub async fn create_channel(
     input.rate_limit_per_user = body.rate_limit_per_user.unwrap_or(0);
     input.bitrate = body.bitrate;
     input.user_limit = body.user_limit;
+    input.forum = forum_patch(&body.forum, body.flags)?;
     let mut overwrites = Vec::with_capacity(body.permission_overwrites.len());
     for (n, o) in body.permission_overwrites.iter().enumerate() {
         let raw = o.id.as_deref().ok_or_else(|| {
@@ -217,11 +302,18 @@ pub async fn get_channel(
 pub async fn modify_channel(
     p: Principal,
     Api(api): Api,
+    MaybeExt(threads): MaybeExt<ThreadsDeps>,
     Path(channel_id): Path<String>,
     Json(body): Json<ModifyChannelBody>,
 ) -> ApiResult<Json<ChannelObject>> {
     let user = actor(&p)?;
     let cid: ChannelId = id("channel_id", &channel_id)?;
+    // Threads are edited by the thread service (archive, lock, tags, pin, ...).
+    if let Some(t) = thread_service(threads.as_ref(), cid).await? {
+        let patch = thread_patch(&body)?;
+        let obj = t.modify(user, cid, patch).await.map_err(ce)?;
+        return Ok(Json(obj));
+    }
     let patch = ChannelPatch {
         name: body.name,
         topic: body.topic,
@@ -229,7 +321,7 @@ pub async fn modify_channel(
         rate_limit_per_user: body.rate_limit_per_user,
         bitrate: body.bitrate,
         user_limit: body.user_limit,
-        ..ChannelPatch::default()
+        forum: forum_patch(&body.forum, body.flags)?,
     };
     let mv = ChannelMove {
         position: body.position,
@@ -251,10 +343,15 @@ pub async fn modify_channel(
 pub async fn delete_channel(
     p: Principal,
     Api(api): Api,
+    MaybeExt(threads): MaybeExt<ThreadsDeps>,
     Path(channel_id): Path<String>,
 ) -> ApiResult<Json<ChannelObject>> {
     let user = actor(&p)?;
     let cid: ChannelId = id("channel_id", &channel_id)?;
+    if let Some(t) = thread_service(threads.as_ref(), cid).await? {
+        let obj = t.delete(user, cid).await.map_err(ce)?;
+        return Ok(Json(obj));
+    }
     let view = api.delete_channel(user, cid).await.map_err(ce)?;
     Ok(Json(ChannelObject::from(&view)))
 }

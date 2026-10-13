@@ -263,6 +263,61 @@ pub async fn schedule_audit_purge(pool: &PgPool) -> DbResult<()> {
     Ok(())
 }
 
+/// Reserved singleton id for `threads.auto_archive`.
+pub const THREAD_ARCHIVE_JOB_ID: i64 = 110;
+/// Kind of the recurring sweep that archives idle threads (LNG-THR-001).
+pub const THREAD_ARCHIVE_KIND: &str = "threads.auto_archive";
+/// The shortest auto-archive duration is an hour, so a five-minute sweep is plenty.
+const THREAD_ARCHIVE_INTERVAL: Duration = Duration::from_secs(300);
+
+async fn thread_archive_handler(
+    pool: PgPool,
+    threads: Arc<sr_api::routes::threads::ThreadsDeps>,
+    job: Job,
+) -> Result<(), HandlerError> {
+    // Loop until a short batch: a backlog after downtime clears in one run.
+    for _ in 0..50 {
+        let n = threads
+            .auto_archive()
+            .await
+            .map_err(|e| HandlerError::from(format!("auto-archive failed: {e}")))?;
+        if n > 0 {
+            tracing::info!(archived = n, "auto-archived idle threads");
+        }
+        if n < sr_api::routes::threads::deps::AUTO_ARCHIVE_BATCH {
+            break;
+        }
+    }
+    jobs::reschedule_running(&pool, job.id, THREAD_ARCHIVE_INTERVAL).await?;
+    Ok(())
+}
+
+/// Register the idle-thread sweep on `runner`. Pair with [`schedule_thread_archive`].
+pub fn register_thread_archive(
+    runner: JobRunner,
+    pool: &PgPool,
+    threads: Arc<sr_api::routes::threads::ThreadsDeps>,
+) -> JobRunner {
+    let pool = pool.clone();
+    runner.register(THREAD_ARCHIVE_KIND, 1, move |job| {
+        Box::pin(thread_archive_handler(pool.clone(), threads.clone(), job))
+    })
+}
+
+/// Create or re-arm the idle-thread sweep singleton. Call only when
+/// [`register_thread_archive`] is on the runner.
+pub async fn schedule_thread_archive(pool: &PgPool) -> DbResult<()> {
+    jobs::schedule_singleton(
+        pool,
+        THREAD_ARCHIVE_JOB_ID,
+        THREAD_ARCHIVE_KIND,
+        &json!({}),
+        THREAD_ARCHIVE_INTERVAL,
+    )
+    .await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -136,7 +136,8 @@ pub async fn ack_guild(
         .get_member(gid, me)
         .await?
         .ok_or(ErrorCode::MissingAccess)?;
-    let channels = messages.repo.list_guild_channels(gid).await?;
+    let mut channels = messages.repo.list_guild_channels(gid).await?;
+    channels.extend(messages.repo.list_guild_threads(gid).await?);
     for ch in channels {
         let Some(last) = ch.last_message_id else {
             continue;
