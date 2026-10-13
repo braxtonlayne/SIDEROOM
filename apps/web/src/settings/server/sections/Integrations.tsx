@@ -374,12 +374,12 @@ function Templates({ guildId }: { guildId: string; viewer: Viewer }) {
       await res.reload();
     }
   };
-  const copy = async (code: string) => {
-    if (await copyText(code)) {
-      setCopied(code);
-      setTimeout(() => setCopied((c) => (c === code ? null : c)), 2000);
+  const copy = async (code: string, text: string = code) => {
+    if (await copyText(text)) {
+      setCopied(text);
+      setTimeout(() => setCopied((c) => (c === text ? null : c)), 2000);
     } else
-      action.setError('Copying is blocked by the browser. Select the code and copy it by hand.');
+      action.setError('Copying is blocked by the browser. Select the text and copy it by hand.');
   };
 
   return (
@@ -407,6 +407,23 @@ function Templates({ guildId }: { guildId: string; viewer: Viewer }) {
                   <Button size="sm" onClick={() => void copy(t.code)}>
                     {copied === t.code ? 'Copied!' : 'Copy code'}
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    aria-label={`Copy link for ${t.name}`}
+                    onClick={() => void copy(t.code, `${origin()}/template/${t.code}`)}
+                  >
+                    {copied === `${origin()}/template/${t.code}` ? 'Copied!' : 'Copy link'}
+                  </Button>
+                  <a
+                    className="ss-link"
+                    href={`/template/${t.code}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`Preview template ${t.name}`}
+                  >
+                    Preview
+                  </a>
                   <Button
                     size="sm"
                     variant="secondary"

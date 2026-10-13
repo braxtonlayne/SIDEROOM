@@ -22,6 +22,7 @@ import { TwoFactor } from './routes/entrance/TwoFactor';
 import { DiscordCallback } from './routes/entrance/DiscordCallback';
 import { VerifyEmail } from './routes/entrance/VerifyEmail';
 import { EmailChangeCancel } from './routes/entrance/EmailChangeCancel';
+import { ServerTemplate } from './routes/entrance/ServerTemplate';
 
 const root = createRootRoute({ component: Outlet });
 const r = <P extends string>(path: P, component: () => React.JSX.Element | null) =>
@@ -82,6 +83,7 @@ const routeTree = root.addChildren([
   r('/no-invitation', NoInvitation),
   r('/house-notes', HouseNotes),
   r('/invite/$code', ServerInvite),
+  r('/template/$code', ServerTemplate),
   createLoungeRoutes(root),
   ...createUserSettingsRoutes(root),
   ...createServerSettingsRoutes(root),
