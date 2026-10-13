@@ -24,7 +24,7 @@ import {
 } from '../hooks';
 import { PERM, bitsToValues, has, permissionGroups, toBig } from '../permissions';
 import type { SectionProps } from '../ServerSettings';
-import { ActionStatus, Async, ColorDot, SectionHeader, useAction } from '../ui';
+import { ActionStatus, Async, ColorDot, NotAvailable, SectionHeader, useAction } from '../ui';
 import { ImageField } from './ImageField';
 
 const GROUPS = permissionGroups();
@@ -503,6 +503,16 @@ function RoleEditor({
             id: 'members',
             label: 'Manage Members',
             content: <RoleMembers guildId={guildId} viewer={viewer} role={role} />,
+          },
+          {
+            id: 'links',
+            label: 'Links',
+            content: (
+              <NotAvailable>
+                Linked roles (granting this role from an app connection) arrive with the developer
+                platform.
+              </NotAvailable>
+            ),
           },
         ]
       : []),
