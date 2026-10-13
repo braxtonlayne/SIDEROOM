@@ -375,6 +375,10 @@ pub struct GuildObject {
     pub description: Option<String>,
     pub owner_id: String,
     pub system_channel_id: Option<String>,
+    /// Voice channel idle members are moved to.
+    pub afk_channel_id: Option<String>,
+    /// Seconds of voice inactivity before that move: 60, 300, 900, 1800 or 3600.
+    pub afk_timeout: u32,
     pub verification_level: u8,
     pub default_message_notifications: u8,
     pub explicit_content_filter: u8,
@@ -397,6 +401,8 @@ impl GuildObject {
             description: g.description.clone(),
             owner_id: g.owner_id.to_string(),
             system_channel_id: g.system_channel_id.map(|c| c.to_string()),
+            afk_channel_id: g.afk_channel_id.map(|c| c.to_string()),
+            afk_timeout: g.afk_timeout,
             verification_level: g.verification_level,
             default_message_notifications: g.default_message_notifications,
             explicit_content_filter: g.explicit_content_filter,
@@ -490,6 +496,12 @@ pub struct ModifyGuildBody {
     #[serde(default, deserialize_with = "nullable")]
     #[schema(value_type = Option<String>)]
     pub system_channel_id: Option<Option<String>>,
+    /// A voice channel of the server; `null` clears it.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub afk_channel_id: Option<Option<String>>,
+    /// 60, 300, 900, 1800 or 3600 seconds.
+    pub afk_timeout: Option<u32>,
     pub verification_level: Option<u8>,
     pub default_message_notifications: Option<u8>,
     pub explicit_content_filter: Option<u8>,

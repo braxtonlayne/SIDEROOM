@@ -1703,3 +1703,267 @@ async fn users_me_is_a_discord_shaped_user_for_sessions() {
     assert!(b.get("global_name").is_none());
     assert!(b.get("display_name").is_none());
 }
+
+// ---- signed-in identity edits -------------------------------------------------
+
+#[tokio::test]
+async fn change_password_checks_current_and_revokes_other_sessions() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    let a = h.login("alice").await;
+    let b = h.login("alice").await;
+    let url = "/api/v1/sr/auth/password";
+
+    // Wrong current password: refused, nothing changes.
+    let bad = h
+        .post(
+            url,
+            json!({"current_password": "nope nope nope", "new_password": NEW_PW}),
+        )
+        .session(&a)
+        .send()
+        .await;
+    assert_eq!(bad.status, StatusCode::FORBIDDEN, "{:?}", bad.body);
+    // Weak new password.
+    let weak = h
+        .post(
+            url,
+            json!({"current_password": PW, "new_password": "alice1234"}),
+        )
+        .session(&a)
+        .send()
+        .await;
+    assert_eq!(weak.status, StatusCode::BAD_REQUEST);
+    // Same password again.
+    let same = h
+        .post(url, json!({"current_password": PW, "new_password": PW}))
+        .session(&a)
+        .send()
+        .await;
+    assert_eq!(same.status, StatusCode::BAD_REQUEST);
+
+    let ok = h
+        .post(url, json!({"current_password": PW, "new_password": NEW_PW}))
+        .session(&a)
+        .send()
+        .await;
+    assert_eq!(ok.status, StatusCode::NO_CONTENT, "{:?}", ok.body);
+    // The calling session survives, the other one is gone.
+    let sessions = h.get("/api/v1/sr/auth/sessions").session(&a).send().await;
+    assert_eq!(sessions.status, StatusCode::OK);
+    assert_eq!(sessions.body.as_array().unwrap().len(), 1);
+    let other = h.get("/api/v1/sr/auth/sessions").session(&b).send().await;
+    assert_eq!(other.status, StatusCode::UNAUTHORIZED);
+    // The new password logs in; the old one no longer does.
+    let login = |pw: &str| {
+        h.post(
+            "/api/v1/sr/auth/login",
+            json!({"login": "alice", "password": pw}),
+        )
+        .send()
+    };
+    assert_eq!(login(NEW_PW).await.status, StatusCode::OK);
+    assert_ne!(login(PW).await.status, StatusCode::OK);
+    // A notice mail went out and the change is audited.
+    let mails = h.wait_mail(1).await;
+    assert!(mails[0].subject.contains("password"));
+    assert!(
+        h.store
+            .audit_rows()
+            .iter()
+            .any(|(actor, action, _)| *actor == 1 && action == "account.password_change")
+    );
+}
+
+#[tokio::test]
+async fn change_password_can_keep_other_sessions() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    let a = h.login("alice").await;
+    let b = h.login("alice").await;
+    let ok = h
+        .post(
+            "/api/v1/sr/auth/password",
+            json!({"current_password": PW, "new_password": NEW_PW, "revoke_other_sessions": false}),
+        )
+        .session(&a)
+        .send()
+        .await;
+    assert_eq!(ok.status, StatusCode::NO_CONTENT);
+    let other = h.get("/api/v1/sr/auth/sessions").session(&b).send().await;
+    assert_eq!(other.status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn change_password_needs_a_session_and_csrf() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    let a = h.login("alice").await;
+    let body = json!({"current_password": PW, "new_password": NEW_PW});
+    let anon = h
+        .post("/api/v1/sr/auth/password", body.clone())
+        .send()
+        .await;
+    assert_eq!(anon.status, StatusCode::UNAUTHORIZED);
+    let no_csrf = h
+        .post("/api/v1/sr/auth/password", body)
+        .session_no_csrf(&a)
+        .send()
+        .await;
+    assert_eq!(no_csrf.status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn change_username_validates_reauths_and_rate_limits() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    h.add_account(2, "bobby", "bobby@x.test", AccountState::Active);
+    let s = h.login("alice").await;
+    let put = |u: &str, pw: &str| {
+        h.call(Method::PUT, "/api/v1/sr/auth/username")
+            .json(json!({"username": u, "password": pw}))
+            .session(&s)
+            .send()
+    };
+    assert_eq!(put("Bad Name!", PW).await.status, StatusCode::BAD_REQUEST);
+    assert_eq!(put("admin", PW).await.status, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        put("alice2", "wrong password").await.status,
+        StatusCode::FORBIDDEN
+    );
+    let taken = put("bobby", PW).await;
+    assert_eq!(taken.status, StatusCode::BAD_REQUEST);
+
+    let ok = put("Alice.New", PW).await;
+    assert_eq!(ok.status, StatusCode::OK, "{:?}", ok.body);
+    assert_eq!(ok.body["username"], "alice.new");
+    assert_eq!(h.account(1).username, "alice.new");
+    // Same name is a no-op and does not use up a change.
+    assert_eq!(put("alice.new", PW).await.status, StatusCode::OK);
+    assert_eq!(put("alice.v3", PW).await.status, StatusCode::OK);
+    // A third real change within a day is throttled.
+    assert_eq!(
+        put("alice.v4", PW).await.status,
+        StatusCode::TOO_MANY_REQUESTS
+    );
+    h.clock.advance_ms(86_401_000);
+    assert_eq!(put("alice.v4", PW).await.status, StatusCode::OK);
+    assert!(
+        h.store
+            .audit_rows()
+            .iter()
+            .any(|(_, action, _)| action == "account.username_change")
+    );
+}
+
+#[tokio::test]
+async fn change_email_confirms_through_the_verify_link() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    h.add_account(2, "bobby", "bobby@x.test", AccountState::Active);
+    let s = h.login("alice").await;
+    let start = |e: &str, pw: &str| {
+        h.post(
+            "/api/v1/sr/auth/email/change",
+            json!({"new_email": e, "password": pw}),
+        )
+        .session(&s)
+        .send()
+    };
+    assert_eq!(
+        start("not-an-email", PW).await.status,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        start("new@x.test", "wrong password").await.status,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        start("alice@x.test", PW).await.status,
+        StatusCode::BAD_REQUEST
+    );
+    // Someone else's address: 204 and no mail (no oracle).
+    assert_eq!(
+        start("bobby@x.test", PW).await.status,
+        StatusCode::NO_CONTENT
+    );
+    assert!(h.mailer.sent().is_empty());
+    h.clock.advance_ms(61_000);
+
+    assert_eq!(start("New@X.test", PW).await.status, StatusCode::NO_CONTENT);
+    let mails = h.wait_mail(1).await;
+    assert_eq!(mails[0].to, "new@x.test");
+    // Nothing changes until the link is used.
+    assert_eq!(h.account(1).email, "alice@x.test");
+    let token = link_token(&mails[0], "/verify-email/");
+    let confirm = h
+        .post("/api/v1/sr/auth/verify-email", json!({"token": token}))
+        .send()
+        .await;
+    assert_eq!(confirm.status, StatusCode::NO_CONTENT, "{:?}", confirm.body);
+    let acct = h.account(1);
+    assert_eq!(acct.email, "new@x.test");
+    assert!(acct.email_verified);
+    // The old address is told, the link is single use, and the change is audited.
+    let all = h.wait_mail(2).await;
+    assert_eq!(all[1].to, "alice@x.test");
+    let again = h
+        .post("/api/v1/sr/auth/verify-email", json!({"token": token}))
+        .send()
+        .await;
+    assert_eq!(again.status, StatusCode::BAD_REQUEST);
+    assert!(
+        h.store
+            .audit_rows()
+            .iter()
+            .any(|(_, action, _)| action == "account.email_change")
+    );
+    // Logging in with the new address works.
+    let login = h
+        .post(
+            "/api/v1/sr/auth/login",
+            json!({"login": "new@x.test", "password": PW}),
+        )
+        .send()
+        .await;
+    assert_eq!(login.status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn change_email_link_expires_and_loses_races() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    h.add_account(2, "bobby", "bobby@x.test", AccountState::Active);
+    let s = h.login("alice").await;
+    let start = |e: &str| {
+        h.post(
+            "/api/v1/sr/auth/email/change",
+            json!({"new_email": e, "password": PW}),
+        )
+        .session(&s)
+        .send()
+    };
+    assert_eq!(start("race@x.test").await.status, StatusCode::NO_CONTENT);
+    let mails = h.wait_mail(1).await;
+    let token = link_token(&mails[0], "/verify-email/");
+    // Another account takes the address first.
+    h.store.set_email(2, "race@x.test").await.unwrap();
+    let r = h
+        .post("/api/v1/sr/auth/verify-email", json!({"token": token}))
+        .send()
+        .await;
+    assert_eq!(r.status, StatusCode::BAD_REQUEST);
+    assert_eq!(h.account(1).email, "alice@x.test");
+
+    // An expired link is refused.
+    h.clock.advance_ms(61_000);
+    assert_eq!(start("later@x.test").await.status, StatusCode::NO_CONTENT);
+    let mails = h.wait_mail(2).await;
+    let token = link_token(&mails[1], "/verify-email/");
+    h.clock.advance_ms(25 * 3_600_000);
+    let r = h
+        .post("/api/v1/sr/auth/verify-email", json!({"token": token}))
+        .send()
+        .await;
+    assert_eq!(r.status, StatusCode::BAD_REQUEST);
+}

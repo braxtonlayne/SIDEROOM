@@ -75,6 +75,8 @@ pub fn plan_new_guild(
         owner_id: owner,
         is_staff_guild: false,
         system_channel_id: Some(general),
+        afk_channel_id: None,
+        afk_timeout: crate::admin_rules::DEFAULT_AFK_TIMEOUT,
         verification_level: 0,
         default_message_notifications: 0,
         explicit_content_filter: 0,

@@ -21,7 +21,9 @@ use sr_chat::social::relationships::{
 use sr_chat::social::repo::{
     DmRepository, GuildMembership, NotificationRepository, PresenceRepository, Privacy,
     ProfileRepository, ReadStateRepository, RelationshipRepository, RepoResult,
+    UserSettingsRepository,
 };
+use sr_chat::social::user_settings::UserSettings;
 use sr_core::{ChannelId, GuildId, MessageId, UserId};
 
 /// Postgres-backed social repository.
@@ -929,8 +931,8 @@ fn override_from_row(r: &PgRow) -> RepoResult<ChannelOverride> {
 impl ProfileRepository for PgSocialRepo {
     async fn get_profile(&self, user: UserId) -> RepoResult<Option<Profile>> {
         let row = sqlx::query(
-            "SELECT avatar_key, banner_key, accent_color, bio, pronouns \
-             FROM accounts WHERE id = $1",
+            "SELECT avatar_key, banner_key, accent_color, bio, pronouns, \
+             display_name FROM accounts WHERE id = $1",
         )
         .bind(i(user.get()))
         .fetch_optional(&self.pool)
@@ -971,6 +973,7 @@ impl ProfileRepository for PgSocialRepo {
                 .map(|c| c as u32),
             bio: r.try_get("bio").map_err(db)?,
             pronouns: r.try_get("pronouns").map_err(db)?,
+            display_name: r.try_get("display_name").map_err(db)?,
             connections,
         }))
     }
@@ -978,7 +981,7 @@ impl ProfileRepository for PgSocialRepo {
     async fn put_profile(&self, p: &Profile) -> RepoResult<()> {
         sqlx::query(
             "UPDATE accounts SET banner_key = $2, accent_color = $3, bio = $4, pronouns = $5, \
-             avatar_key = $6, updated_at = now() WHERE id = $1",
+             avatar_key = $6, display_name = $7, updated_at = now() WHERE id = $1",
         )
         .bind(i(p.user.get()))
         .bind(p.banner_key.as_deref())
@@ -986,6 +989,7 @@ impl ProfileRepository for PgSocialRepo {
         .bind(p.bio.as_deref())
         .bind(p.pronouns.as_deref())
         .bind(p.avatar_key.as_deref())
+        .bind(p.display_name.as_deref())
         .execute(&self.pool)
         .await
         .map_err(db)?;
@@ -1095,6 +1099,80 @@ impl PresenceRepository for PgSocialRepo {
         .bind(p.custom.emoji_name.as_deref())
         .bind(p.custom.emoji_id.map(i))
         .bind(p.custom.expires_ms)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl UserSettingsRepository for PgSocialRepo {
+    async fn get_user_settings(&self, user: UserId) -> RepoResult<Option<UserSettings>> {
+        let row = sqlx::query("SELECT settings, version FROM user_settings WHERE user_id = $1")
+            .bind(i(user.get()))
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db)?;
+        row.map(|r| {
+            Ok(UserSettings {
+                data: r.try_get("settings").map_err(db)?,
+                version: r.try_get("version").map_err(db)?,
+            })
+        })
+        .transpose()
+    }
+
+    async fn put_user_settings(
+        &self,
+        user: UserId,
+        data: &serde_json::Value,
+        expected_version: i64,
+    ) -> RepoResult<Option<i64>> {
+        sqlx::query_scalar(
+            "INSERT INTO user_settings (user_id, settings, version) VALUES ($1, $2, 1) \
+             ON CONFLICT (user_id) DO UPDATE SET settings = $2, \
+               version = user_settings.version + 1, updated_at = now() \
+             WHERE user_settings.version = $3 RETURNING version",
+        )
+        .bind(i(user.get()))
+        .bind(data)
+        .bind(expected_version)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)
+    }
+
+    async fn get_default_notification_level(
+        &self,
+        user: UserId,
+    ) -> RepoResult<Option<NotificationLevel>> {
+        let code: Option<Option<i16>> = sqlx::query_scalar(
+            "SELECT default_notification_level FROM user_settings WHERE user_id = $1",
+        )
+        .bind(i(user.get()))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        code.flatten()
+            .map(|c| {
+                NotificationLevel::from_code(c).ok_or_else(|| bad("default_notification_level"))
+            })
+            .transpose()
+    }
+
+    async fn put_default_notification_level(
+        &self,
+        user: UserId,
+        level: Option<NotificationLevel>,
+    ) -> RepoResult<()> {
+        sqlx::query(
+            "INSERT INTO user_settings (user_id, default_notification_level) VALUES ($1, $2) \
+             ON CONFLICT (user_id) DO UPDATE SET default_notification_level = $2, \
+               updated_at = now()",
+        )
+        .bind(i(user.get()))
+        .bind(level_code(level))
         .execute(&self.pool)
         .await
         .map_err(db)?;

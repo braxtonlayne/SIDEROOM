@@ -101,6 +101,7 @@ pub fn router() -> Router<AppState> {
         webhooks::get_webhook,
         webhooks::modify_webhook,
         webhooks::delete_webhook,
+        webhooks::reset_webhook_token,
         webhooks::get_webhook_with_token,
         webhooks::modify_webhook_with_token,
         webhooks::delete_webhook_with_token,

@@ -2,13 +2,14 @@
 //! `sr-db` (`social_repo`); [`super::memory::MemoryRepo`] backs the tests.
 
 use super::dm::{DmChannel, DmPrivacy, RequestState};
-use super::notifications::{ChannelOverride, ScopeSettings};
+use super::notifications::{ChannelOverride, NotificationLevel, ScopeSettings};
 use super::presence::PresencePrefs;
 use super::profile::{Connection, Profile};
 use super::read_state::ReadState;
 use super::relationships::{
     FriendRequestSources, RelOp, Relationship, RelationshipCounts, RelationshipKind,
 };
+use super::user_settings::UserSettings;
 use crate::error::RepoError;
 use async_trait::async_trait;
 use sr_core::{ChannelId, GuildId, UserId};
@@ -162,6 +163,29 @@ pub trait PresenceRepository: Send + Sync {
     async fn put_presence(&self, prefs: &PresencePrefs) -> RepoResult<()>;
 }
 
+#[async_trait]
+pub trait UserSettingsRepository: Send + Sync {
+    /// The synced settings blob; `None` until the first save.
+    async fn get_user_settings(&self, user: UserId) -> RepoResult<Option<UserSettings>>;
+    /// Save the blob if the stored version is still `expected_version` (0 = never
+    /// saved). Returns the new version, or `None` when another session won the race.
+    async fn put_user_settings(
+        &self,
+        user: UserId,
+        data: &serde_json::Value,
+        expected_version: i64,
+    ) -> RepoResult<Option<i64>>;
+    async fn get_default_notification_level(
+        &self,
+        user: UserId,
+    ) -> RepoResult<Option<NotificationLevel>>;
+    async fn put_default_notification_level(
+        &self,
+        user: UserId,
+        level: Option<NotificationLevel>,
+    ) -> RepoResult<()>;
+}
+
 /// Everything the service needs.
 pub trait SocialRepository:
     RelationshipRepository
@@ -170,6 +194,7 @@ pub trait SocialRepository:
     + NotificationRepository
     + ProfileRepository
     + PresenceRepository
+    + UserSettingsRepository
 {
 }
 impl<
@@ -178,7 +203,8 @@ impl<
         + ReadStateRepository
         + NotificationRepository
         + ProfileRepository
-        + PresenceRepository,
+        + PresenceRepository
+        + UserSettingsRepository,
 > SocialRepository for T
 {
 }

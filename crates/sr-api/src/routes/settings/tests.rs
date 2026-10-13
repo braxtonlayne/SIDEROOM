@@ -2177,3 +2177,70 @@ async fn emoji_url_endpoint_mints_signed_variants() {
     let missing = format!("{}/1/url", e.g("/emojis"));
     assert_eq!(e.get(&missing, "bob").await.0, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn webhook_token_can_be_reset_but_never_read_back() {
+    let e = env().await;
+    let base = format!("/channels/{}/webhooks", e.ch);
+    let (_, wh) = e.post(&base, "mod", json!({"name": "Deploys"})).await;
+    let id = wh["id"].as_str().unwrap().to_owned();
+    let old = wh["token"].as_str().unwrap().to_owned();
+
+    // No read path ever returns the token or url again.
+    for (_, v) in [
+        e.get(&format!("/webhooks/{id}"), "mod").await,
+        e.get(&e.g("/webhooks"), "mod").await,
+    ] {
+        let one = if v.is_array() { v[0].clone() } else { v };
+        assert!(
+            one.get("token").is_none() && one.get("url").is_none(),
+            "{one}"
+        );
+    }
+
+    // Managers only; unknown webhooks are 404.
+    let reset = format!("/webhooks/{id}/reset-token");
+    assert_eq!(
+        e.post(&reset, "bob", json!({})).await.0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        e.post("/webhooks/12345/reset-token", "mod", json!({}))
+            .await
+            .0,
+        StatusCode::NOT_FOUND
+    );
+    let (s, fresh) = e.post(&reset, "mod", json!({})).await;
+    assert_eq!(s, StatusCode::OK, "{fresh}");
+    let new = fresh["token"].as_str().unwrap().to_owned();
+    assert_eq!(new.len(), 68);
+    assert_ne!(new, old);
+    assert_eq!(fresh["url"], format!("/api/v1/webhooks/{id}/{new}"));
+    assert_eq!(fresh["name"], "Deploys");
+
+    // Only the new token's hash is stored, and the old URL stops working at once.
+    let stored = e
+        .repo
+        .get_webhook(id.parse().unwrap())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        stored.token_hash.unwrap(),
+        sr_chat::settings::webhooks::hash_token(&new)
+    );
+    let run = |t: String| {
+        let (e, path) = (&e, format!("/webhooks/{id}/{t}"));
+        async move {
+            e.call(Method::POST, &path, None, Some(json!({"content": "hi"})))
+                .await
+        }
+    };
+    assert_eq!(run(old.clone()).await.0, StatusCode::NOT_FOUND);
+    assert_eq!(run(new.clone()).await.0, StatusCode::NO_CONTENT);
+    // The audit log says the token changed, without the value.
+    let (_, log) = e.get(&e.g("/audit-logs"), "owner").await;
+    let text = log.to_string();
+    assert!(!text.contains(&old) && !text.contains(&new));
+    assert!(e.audit_actions().await.contains(&51));
+}

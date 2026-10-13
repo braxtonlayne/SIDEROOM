@@ -10,7 +10,7 @@ use super::dto::{ChannelObject, GuildObject, MemberObject, RoleObject, UserRef};
 use async_trait::async_trait;
 use serde::Serialize;
 use serde_json::{Value, json};
-use sr_chat::admin_repo::{Ban, GuildAdminRepository};
+use sr_chat::admin_repo::{Ban, GuildAdminRepository, MemberFilter};
 use sr_chat::admin_rules::{ChannelMove, GuildPatch, MemberPatch};
 use sr_chat::channel_rules::{ChannelPatch, NewChannel};
 use sr_chat::guild_rules::GuildBlueprint;
@@ -111,9 +111,34 @@ pub trait GuildBackend: Send + Sync {
         &self,
         actor: UserId,
         guild: GuildId,
+        filter: MemberFilter,
         after: Option<UserId>,
         limit: usize,
     ) -> ChatResult<Vec<Member>>;
+    async fn list_role_members(
+        &self,
+        actor: UserId,
+        guild: GuildId,
+        role: RoleId,
+        after: Option<UserId>,
+        limit: usize,
+    ) -> ChatResult<Vec<Member>>;
+    /// How many members a prune would remove.
+    async fn prune_preview(
+        &self,
+        actor: UserId,
+        guild: GuildId,
+        days: u32,
+        include_roles: Vec<RoleId>,
+    ) -> ChatResult<usize>;
+    /// Remove inactive members; returns how many were removed.
+    async fn prune(
+        &self,
+        actor: UserId,
+        guild: GuildId,
+        days: u32,
+        include_roles: Vec<RoleId>,
+    ) -> ChatResult<usize>;
     async fn get_member(&self, actor: UserId, guild: GuildId, user: UserId) -> ChatResult<Member>;
     async fn edit_member(
         &self,
@@ -602,10 +627,66 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
         &self,
         actor: UserId,
         guild: GuildId,
+        filter: MemberFilter,
         after: Option<UserId>,
         limit: usize,
     ) -> ChatResult<Vec<Member>> {
-        self.svc.list_members(actor, guild, after, limit).await
+        self.svc
+            .list_members(actor, guild, filter, after, limit)
+            .await
+    }
+
+    async fn list_role_members(
+        &self,
+        actor: UserId,
+        guild: GuildId,
+        role: RoleId,
+        after: Option<UserId>,
+        limit: usize,
+    ) -> ChatResult<Vec<Member>> {
+        self.svc
+            .list_role_members(actor, guild, role, after, limit)
+            .await
+    }
+
+    async fn prune_preview(
+        &self,
+        actor: UserId,
+        guild: GuildId,
+        days: u32,
+        include_roles: Vec<RoleId>,
+    ) -> ChatResult<usize> {
+        self.svc
+            .prune_preview(actor, guild, days, &include_roles)
+            .await
+    }
+
+    async fn prune(
+        &self,
+        actor: UserId,
+        guild: GuildId,
+        days: u32,
+        include_roles: Vec<RoleId>,
+    ) -> ChatResult<usize> {
+        let removed = self.svc.prune(actor, guild, days, &include_roles).await?;
+        for user in &removed {
+            self.emit_member_left(guild, *user).await;
+        }
+        if let Some(a) = self.audit.as_ref().filter(|_| !removed.is_empty()) {
+            a.record(
+                guild,
+                actor,
+                AuditAction::MemberPrune,
+                None,
+                vec![
+                    AuditChange::new("delete_member_days", None, Some(json!(days))),
+                    AuditChange::new("members_removed", None, Some(json!(removed.len()))),
+                ],
+                None,
+            )
+            .await;
+        }
+        Ok(removed.len())
     }
 
     async fn get_member(&self, actor: UserId, guild: GuildId, user: UserId) -> ChatResult<Member> {

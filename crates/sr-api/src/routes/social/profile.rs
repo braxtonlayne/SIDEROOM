@@ -223,6 +223,7 @@ pub async fn edit_self(
         accent_color: body.accent_color,
         bio: body.bio,
         pronouns: body.pronouns,
+        display_name: body.global_name,
     };
     let profile = match deps.service.edit_profile(me, &edit).await {
         Ok(p) => p,
@@ -261,7 +262,22 @@ pub async fn edit_self(
         Some(c) => deps.service.set_custom_status(me, c).await?,
         None => deps.service.presence(me).await?,
     };
-    let out = SelfObject {
+    let out = self_object(&deps, me, &profile, &prefs).await?;
+    publish_self_update(&deps, me, &out).await;
+    if body.custom_status.is_some() {
+        deps.announce_presence(&prefs).await;
+    }
+    Ok(Json(out))
+}
+
+/// The caller's `SelfObject` from already loaded profile and presence preferences.
+async fn self_object(
+    deps: &SocialDeps,
+    me: UserId,
+    profile: &sr_chat::social::profile::Profile,
+    prefs: &sr_chat::social::presence::PresencePrefs,
+) -> MsgResult<SelfObject> {
+    Ok(SelfObject {
         user: UserObject {
             avatar: profile.avatar_key.clone(),
             banner: profile.banner_key.clone(),
@@ -272,15 +288,34 @@ pub async fn edit_self(
         banner: profile.banner_key.clone(),
         accent_color: profile.accent_color,
         custom_status: CustomStatusObject::new(&prefs.custom),
-    };
-    let payload = serde_json::to_value(&out).unwrap_or(Value::Null);
+    })
+}
+
+/// `USER_UPDATE` to the user's own sessions, then to friends and shared servers
+/// (the private note and relationship data are never part of this payload).
+async fn publish_self_update(deps: &SocialDeps, me: UserId, out: &SelfObject) {
+    let payload = serde_json::to_value(out).unwrap_or(Value::Null);
     deps.emit(SocialEvent::new("USER_UPDATE", vec![me], payload.clone()))
         .await;
-    // Friends and members of shared guilds get the public fields (the private
-    // note and relationship data are never part of this payload).
     deps.fan_out_user_update(me, payload).await;
-    if body.custom_status.is_some() {
-        deps.announce_presence(&prefs).await;
+}
+
+/// Re-read the caller's profile and publish `USER_UPDATE` (used after an account
+/// change such as a new username). Best effort: the change is already stored.
+pub async fn broadcast_self_update(deps: &SocialDeps, user_id: i64) {
+    let Ok(raw) = u64::try_from(user_id) else {
+        return;
+    };
+    let me = UserId::new(raw);
+    let result = async {
+        let profile = deps.service.get_profile(me, me).await?;
+        let prefs = deps.service.presence(me).await?;
+        let out = self_object(deps, me, &profile, &prefs).await?;
+        publish_self_update(deps, me, &out).await;
+        Ok::<_, MsgError>(())
     }
-    Ok(Json(out))
+    .await;
+    if result.is_err() {
+        tracing::warn!("could not broadcast USER_UPDATE after an account change");
+    }
 }

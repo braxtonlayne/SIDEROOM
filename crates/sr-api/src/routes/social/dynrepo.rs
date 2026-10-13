@@ -4,12 +4,13 @@
 
 use async_trait::async_trait;
 use sr_chat::social::dm::{DmChannel, RequestState};
-use sr_chat::social::notifications::{ChannelOverride, ScopeSettings};
+use sr_chat::social::notifications::{ChannelOverride, NotificationLevel, ScopeSettings};
 use sr_chat::social::presence::PresencePrefs;
 use sr_chat::social::profile::{Connection, Profile};
 use sr_chat::social::read_state::ReadState;
 use sr_chat::social::relationships::{RelOp, Relationship, RelationshipCounts};
 use sr_chat::social::repo::*;
+use sr_chat::social::user_settings::UserSettings;
 use sr_core::{ChannelId, GuildId, UserId};
 use std::sync::Arc;
 
@@ -234,5 +235,33 @@ impl PresenceRepository for DynRepo {
     }
     async fn put_presence(&self, prefs: &PresencePrefs) -> RepoResult<()> {
         self.0.put_presence(prefs).await
+    }
+}
+
+#[async_trait]
+impl UserSettingsRepository for DynRepo {
+    async fn get_user_settings(&self, user: UserId) -> RepoResult<Option<UserSettings>> {
+        self.0.get_user_settings(user).await
+    }
+    async fn put_user_settings(
+        &self,
+        user: UserId,
+        data: &serde_json::Value,
+        expected_version: i64,
+    ) -> RepoResult<Option<i64>> {
+        self.0.put_user_settings(user, data, expected_version).await
+    }
+    async fn get_default_notification_level(
+        &self,
+        user: UserId,
+    ) -> RepoResult<Option<NotificationLevel>> {
+        self.0.get_default_notification_level(user).await
+    }
+    async fn put_default_notification_level(
+        &self,
+        user: UserId,
+        level: Option<NotificationLevel>,
+    ) -> RepoResult<()> {
+        self.0.put_default_notification_level(user, level).await
     }
 }

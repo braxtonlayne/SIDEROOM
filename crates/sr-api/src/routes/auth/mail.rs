@@ -192,6 +192,61 @@ pub fn verify_email(to: &str, link: &str) -> OutgoingMail {
     }
 }
 
+/// Confirm a new address typed in Settings. Sent to the new address only.
+pub fn change_email(to: &str, link: &str) -> OutgoingMail {
+    let (text, html) = wrap(
+        "Confirm your new email",
+        "Confirm this address to use it for your SIDE ROOM account. Until you do, your old address stays in place.",
+        link,
+        "Confirm new email",
+        "If you did not ask for this, ignore this message. The link expires in 24 hours.",
+    );
+    OutgoingMail {
+        to: to.to_owned(),
+        subject: "Confirm your new email for SIDE ROOM".to_owned(),
+        text,
+        html,
+    }
+}
+
+/// A link-less security notice (`heading`, then `body`).
+fn notice(to: &str, subject: &str, heading: &str, body: &str) -> OutgoingMail {
+    let text = format!("{heading}\n\n{body}\n\nSIDE ROOM\n");
+    let (h, b) = (html_escape(heading), html_escape(body));
+    let html = format!(
+        "<!doctype html><html><body style=\"margin:0;background:#14110f;color:#eee6d8;\
+         font-family:Georgia,serif\"><div style=\"max-width:480px;margin:0 auto;padding:32px\">\
+         <h1 style=\"font-weight:normal\">{h}</h1><p>{b}</p>\
+         <p style=\"color:#9a9082;font-size:13px\">SIDE ROOM</p></div></body></html>"
+    );
+    OutgoingMail {
+        to: to.to_owned(),
+        subject: subject.to_owned(),
+        text,
+        html,
+    }
+}
+
+/// Sent to the old address once an email change is confirmed.
+pub fn email_changed(to: &str) -> OutgoingMail {
+    notice(
+        to,
+        "Your SIDE ROOM email was changed",
+        "Your email was changed",
+        "The email address on your SIDE ROOM account was just changed to a new one. If this was not you, reset your password right away and contact the operator.",
+    )
+}
+
+/// Sent after a signed-in password change.
+pub fn password_changed(to: &str) -> OutgoingMail {
+    notice(
+        to,
+        "Your SIDE ROOM password was changed",
+        "Your password was changed",
+        "The password on your SIDE ROOM account was just changed. If this was not you, reset your password right away and contact the operator.",
+    )
+}
+
 /// Password reset message.
 pub fn reset_password(to: &str, link: &str) -> OutgoingMail {
     let (text, html) = wrap(

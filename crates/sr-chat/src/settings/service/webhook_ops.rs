@@ -130,6 +130,37 @@ impl<R: SettingsRepository> SettingsService<R> {
         Ok(w)
     }
 
+    /// Replace the execution token of an incoming webhook (`MANAGE_WEBHOOKS`). The old token
+    /// stops working at once; the new one is returned once and, like the first, only its
+    /// SHA-256 is stored. This is how a manager gets a copyable URL again: stored tokens are
+    /// hashes (open question 137) and cannot be shown later.
+    pub async fn reset_webhook_token(
+        &self,
+        perms: Permissions,
+        actor: UserId,
+        guild: GuildId,
+        id: WebhookId,
+    ) -> SettingsResult<(Webhook, String)> {
+        let mut w = self.guild_webhook(perms, guild, id).await?;
+        if w.kind != WebhookKind::Incoming {
+            return Err(SettingsError::UnknownWebhook);
+        }
+        let token = webhooks::generate_token(|| (self.entropy)());
+        w.token_hash = Some(webhooks::hash_token(&token));
+        self.repo.update_webhook(&w).await?;
+        self.record_audit(
+            guild,
+            actor,
+            AuditAction::WebhookUpdate,
+            Some(id.get()),
+            // The value is a secret; the entry only says that it changed.
+            vec![AuditChange::new("token", None, None)],
+            None,
+        )
+        .await?;
+        Ok((w, token))
+    }
+
     pub async fn delete_webhook(
         &self,
         perms: Permissions,

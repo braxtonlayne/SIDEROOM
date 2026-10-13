@@ -177,12 +177,32 @@ pub async fn verify_email(
         .map_err(|retry_after| AuthRouteError::Throttled { retry_after })?;
     let token =
         EmailToken::parse(EmailTokenPurpose::VerifyEmail, &body.token).ok_or_else(invalid_link)?;
-    let user_id = svc
+    let hash = token.hash();
+    if let Some(user_id) = svc
         .store
-        .email_token_consume(EmailTokenPurpose::VerifyEmail, &token.hash(), now)
+        .email_token_consume(EmailTokenPurpose::VerifyEmail, &hash, now)
+        .await?
+    {
+        svc.store.mark_email_verified(user_id).await?;
+        return Ok(StatusCode::NO_CONTENT);
+    }
+    // The same link page confirms an address change started in Settings.
+    let change =
+        EmailToken::parse(EmailTokenPurpose::ChangeEmail, &body.token).ok_or_else(invalid_link)?;
+    let (user_id, new_email) = svc
+        .store
+        .email_change_consume(&change.hash(), now)
         .await?
         .ok_or_else(invalid_link)?;
-    svc.store.mark_email_verified(user_id).await?;
+    if !super::identity::apply_email_change(&svc, now, user_id, &new_email).await? {
+        return Err(ApiError::invalid_form()
+            .field(
+                "token",
+                "taken",
+                "That address is now used by another account.",
+            )
+            .into());
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 

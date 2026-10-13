@@ -1024,3 +1024,203 @@ async fn guild_icon_banner_splash_upload_replace_remove() {
         before
     );
 }
+
+fn name_user(f: &Fx, id: u64, username: &str, display: Option<&str>) {
+    f.repo.store.lock().unwrap().users.insert(
+        UserId::new(id),
+        sr_chat::repo::UserSummary {
+            id: UserId::new(id),
+            username: username.into(),
+            display_name: display.map(str::to_owned),
+            avatar_key: None,
+            banner_key: None,
+        },
+    );
+}
+
+fn ids_of(v: &Value) -> Vec<String> {
+    v.as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["user"]["id"].as_str().unwrap().to_owned())
+        .collect()
+}
+
+#[tokio::test]
+async fn member_search_role_filter_and_role_members() {
+    let f = fixture();
+    let (gid, _) = guild(&f).await;
+    name_user(&f, 1, "olivia", None);
+    name_user(&f, 2, "bobby", Some("Robert"));
+    name_user(&f, 3, "carol", None);
+    let members = format!("/guilds/{gid}/members");
+
+    let (s, v) = get(&f, &format!("{members}?limit=100&query=ROB"), "carol").await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(ids_of(&v), ["2"]);
+    // Discord's search endpoint is the same match, query required.
+    let (s, v) = get(
+        &f,
+        &format!("{members}/search?query=oliv&limit=10"),
+        "carol",
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(ids_of(&v), ["1"]);
+    let (s, _) = get(&f, &format!("{members}/search?query=%20"), "carol").await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, _) = get(&f, &format!("{members}/search"), "carol").await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, _) = get(&f, &format!("{members}?query={}", "x".repeat(65)), "carol").await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    // Outsiders still get nothing.
+    let (s, _) = get(&f, &format!("{members}?query=a"), "stranger").await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+
+    // Role filter and the role-members listing.
+    let (_, role) = post(
+        &f,
+        &format!("/guilds/{gid}/roles"),
+        "owner",
+        json!({ "name": "crew" }),
+    )
+    .await;
+    let rid = role["id"].as_str().unwrap();
+    let (s, _) = put(
+        &f,
+        &format!("{members}/2/roles/{rid}"),
+        "owner",
+        json!(null),
+    )
+    .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    let (_, v) = get(&f, &format!("{members}?limit=100&role_id={rid}"), "carol").await;
+    assert_eq!(ids_of(&v), ["2"]);
+    let (s, v) = get(&f, &format!("/guilds/{gid}/roles/{rid}/members"), "carol").await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(ids_of(&v), ["2"]);
+    let (_, v) = get(&f, &format!("/guilds/{gid}/roles/{gid}/members"), "carol").await;
+    assert_eq!(ids_of(&v), ["1", "2", "3"]);
+    let (s, _) = get(&f, &format!("/guilds/{gid}/roles/4242/members"), "carol").await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    let (s, _) = get(&f, &format!("{members}?role_id=nope"), "carol").await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn prune_preview_and_execute_are_permission_gated_dispatched_and_audited() {
+    let rec = Arc::new(Recorder::default());
+    let f = fixture_with(Some(rec.clone()));
+    let (gid, _) = guild(&f).await;
+    let g = GuildId::new(gid.parse().unwrap());
+    // Everyone joined "now"; make Bob and Carol old.
+    for m in f.repo.store.lock().unwrap().members.iter_mut() {
+        m.joined_at_ms = T0 - 40 * 86_400_000;
+    }
+    let mut events = f.bus.subscribe(Topic::Guild(g));
+    let uri = format!("/guilds/{gid}/prune");
+
+    // Plain members may not even preview.
+    let (s, _) = get(&f, &format!("{uri}?days=7"), "bob").await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (s, _) = post(&f, &uri, "bob", json!({ "days": 7 })).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    // Bad input.
+    for q in ["days=0", "days=31", "days=7&include_roles=nope"] {
+        let (s, _) = get(&f, &format!("{uri}?{q}"), "owner").await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{q}");
+    }
+
+    let (s, v) = get(&f, &format!("{uri}?days=7"), "owner").await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["pruned"], 2);
+    // Preview changes nothing and writes no audit entry.
+    assert!(rec.0.lock().unwrap().is_empty());
+    let (_, list) = get(&f, &format!("/guilds/{gid}/members?limit=100"), "owner").await;
+    assert_eq!(list.as_array().unwrap().len(), 3);
+
+    let (s, v) = post(&f, &uri, "owner", json!({ "days": 7 })).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["pruned"], 2);
+    let (_, list) = get(&f, &format!("/guilds/{gid}/members?limit=100"), "owner").await;
+    assert_eq!(ids_of(&list), ["1"], "the owner is never pruned");
+    // One MemberLeft per removed member, one audit entry for the prune.
+    let mut left = Vec::new();
+    while let Some(ev) = next_event(&mut events).await {
+        if let DomainEvent::MemberLeft { user, .. } = ev {
+            left.push(user.get());
+        }
+    }
+    left.sort_unstable();
+    assert_eq!(left, [2, 3]);
+    let log = rec.0.lock().unwrap().clone();
+    assert_eq!(log.len(), 1);
+    assert_eq!(log[0].0, AuditAction::MemberPrune);
+    // Nothing left to do, and an empty prune is not audited.
+    let (_, v) = post(&f, &uri, "owner", json!({})).await;
+    assert_eq!(v["pruned"], 0);
+    assert_eq!(rec.0.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn afk_channel_and_timeout_are_validated_and_returned() {
+    let f = fixture();
+    let (gid, created) = guild(&f).await;
+    let uri = format!("/guilds/{gid}");
+    // Defaults: no AFK channel, five minutes.
+    assert!(created["afk_channel_id"].is_null());
+    assert_eq!(created["afk_timeout"], 300);
+
+    let text = created["channels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["type"] == 0)
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let (s, voice) = post(
+        &f,
+        &format!("{uri}/channels"),
+        "owner",
+        json!({ "name": "afk-lounge", "type": 2 }),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "{voice}");
+    let voice = voice["id"].as_str().unwrap().to_owned();
+
+    // Only a voice channel of this guild qualifies.
+    for bad in [text.as_str(), "4242"] {
+        let (s, e) = patch(&f, &uri, "owner", json!({ "afk_channel_id": bad })).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{bad}: {e}");
+    }
+    let (s, _) = patch(&f, &uri, "owner", json!({ "afk_timeout": 1234 })).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    // MANAGE_GUILD only.
+    let (s, _) = patch(&f, &uri, "bob", json!({ "afk_timeout": 60 })).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+
+    let (s, g) = patch(
+        &f,
+        &uri,
+        "owner",
+        json!({ "afk_channel_id": voice, "afk_timeout": 900 }),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{g}");
+    assert_eq!(g["afk_channel_id"], voice.as_str());
+    assert_eq!(g["afk_timeout"], 900);
+    let (_, g) = get(&f, &uri, "bob").await;
+    assert_eq!(
+        (g["afk_channel_id"].as_str(), g["afk_timeout"].as_u64()),
+        (Some(voice.as_str()), Some(900))
+    );
+
+    // An unrelated edit keeps them; null clears the channel.
+    let (_, g) = patch(&f, &uri, "owner", json!({ "name": "Still AFK" })).await;
+    assert_eq!(g["afk_channel_id"], voice.as_str());
+    let (_, g) = patch(&f, &uri, "owner", json!({ "afk_channel_id": null })).await;
+    assert!(g["afk_channel_id"].is_null());
+    assert_eq!(g["afk_timeout"], 900);
+}

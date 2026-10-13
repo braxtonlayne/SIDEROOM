@@ -983,12 +983,14 @@ async fn profile_edit_and_connections() {
                 pronouns: Some(Some("they/them".into())),
                 accent_color: Some(Some(0x00AB_CDEF)),
                 banner_key: Some(Some("banners/1".into())),
+                display_name: Some(Some("  Ada L.  ".into())),
                 avatar_key: Some(Some("0123456789abcdef0123456789abcdef".into())),
             },
         )
         .await
         .unwrap();
     assert_eq!(p.bio.as_deref(), Some("hello **world**"));
+    assert_eq!(p.display_name.as_deref(), Some("Ada L."));
     assert_eq!(p.accent_color, Some(0x00AB_CDEF));
     assert_eq!(
         p.avatar_key.as_deref(),
@@ -1196,4 +1198,127 @@ fn error_mapping() {
     assert_eq!(SocialError::DmNotAllowed.to_api_error().code.code(), 50007);
     assert_eq!(SocialError::NotOwner.to_api_error().status(), 403);
     assert_eq!(SocialError::MaxFriends.to_api_error().status(), 400);
+}
+
+// ---- user settings, privacy, global notification default ----
+
+#[tokio::test]
+async fn user_settings_blob_merges_versions_and_caps() {
+    use super::user_settings::MAX_SETTINGS_BYTES;
+    use serde_json::json;
+    let f = fx();
+    let empty = f.svc.user_settings(u(1)).await.unwrap();
+    assert_eq!((empty.version, empty.data), (0, json!({})));
+
+    let s = f
+        .svc
+        .patch_user_settings(u(1), &json!({"theme": "ash", "ui": {"compact": true}}))
+        .await
+        .unwrap();
+    assert_eq!(s.version, 1);
+    let s = f
+        .svc
+        .patch_user_settings(u(1), &json!({"ui": {"zoom": 110}, "theme": null}))
+        .await
+        .unwrap();
+    assert_eq!(s.version, 2);
+    assert_eq!(s.data, json!({"ui": {"compact": true, "zoom": 110}}));
+    // Settings are per user.
+    assert_eq!(f.svc.user_settings(u(2)).await.unwrap().version, 0);
+    // Rejected patches change nothing and do not bump the version.
+    let too_big = json!({"x": "y".repeat(MAX_SETTINGS_BYTES)});
+    assert!(f.svc.patch_user_settings(u(1), &too_big).await.is_err());
+    assert!(f.svc.patch_user_settings(u(1), &json!([1])).await.is_err());
+    assert_eq!(f.svc.user_settings(u(1)).await.unwrap().version, 2);
+}
+
+#[tokio::test]
+async fn privacy_updates_are_partial_and_drive_dm_access() {
+    use super::user_settings::PrivacyUpdate;
+    let f = fx();
+    let p = f.svc.privacy(u(1)).await.unwrap();
+    assert!(p.friend_requests.everyone && p.dms.message_requests);
+
+    let p = f
+        .svc
+        .update_privacy(
+            u(1),
+            PrivacyUpdate {
+                friend_everyone: Some(false),
+                friend_of_friends: Some(false),
+                allow_server_member_dms: Some(false),
+                ..PrivacyUpdate::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert!(!p.friend_requests.everyone && !p.friend_requests.friends_of_friends);
+    assert!(p.friend_requests.server_members, "untouched field stays");
+    assert!(!p.dms.allow_server_member_dms && p.dms.message_requests);
+    // Persisted, and it affects who may send a friend request.
+    assert_eq!(f.svc.privacy(u(1)).await.unwrap(), p);
+    f.svc
+        .repo()
+        .store
+        .lock()
+        .unwrap()
+        .shared_guilds
+        .insert((u(1), u(2)));
+    assert!(f.svc.send_friend_request(u(2), u(1)).await.is_ok());
+    assert!(matches!(
+        f.svc.send_friend_request(u(3), u(1)).await,
+        Err(SocialError::RequestsNotAccepted)
+    ));
+}
+
+#[tokio::test]
+async fn global_default_level_sits_between_guild_setting_and_guild_default() {
+    let f = fx();
+    let (g, ch) = (sr_core::GuildId::new(7), ChannelId::new(70));
+    let resolve = |guild_default| {
+        f.svc
+            .resolve_notifications(u(1), Some(g), ch, None, guild_default)
+    };
+    assert_eq!(
+        resolve(NotificationLevel::All).await.unwrap().level,
+        NotificationLevel::All
+    );
+    f.svc
+        .set_default_notification_level(u(1), Some(NotificationLevel::OnlyMentions))
+        .await
+        .unwrap();
+    assert_eq!(
+        resolve(NotificationLevel::All).await.unwrap().level,
+        NotificationLevel::OnlyMentions
+    );
+    // An explicit per-guild choice wins over the global default.
+    f.svc
+        .update_scope(
+            u(1),
+            Some(g),
+            &ScopeUpdate {
+                level: Some(Some(NotificationLevel::Nothing)),
+                ..ScopeUpdate::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        resolve(NotificationLevel::All).await.unwrap().level,
+        NotificationLevel::Nothing
+    );
+    // The DM scope ignores the global default.
+    assert_eq!(
+        f.svc
+            .resolve_notifications(u(1), None, ch, None, NotificationLevel::All)
+            .await
+            .unwrap()
+            .level,
+        NotificationLevel::All
+    );
+    f.svc
+        .set_default_notification_level(u(1), None)
+        .await
+        .unwrap();
+    assert_eq!(f.svc.default_notification_level(u(1)).await.unwrap(), None);
 }

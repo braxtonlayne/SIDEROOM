@@ -1433,8 +1433,31 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Page through the members of a guild, ordered by user id. */
+        /**
+         * Page through the members of a guild, ordered by user id.
+         * @description `query` and `role_id` narrow the page to members matching a search text and/or holding a role.
+         */
         get: operations["list_members"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/members/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Discord's member search: members whose nickname, username or display name contains
+         *     `query` (case-insensitive), ordered by user id.
+         */
+        get: operations["search_members"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1519,6 +1542,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/prune": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** How many members a prune would remove right now. Counts at most 10,000. */
+        get: operations["prune_count"];
+        put?: never;
+        /**
+         * Remove inactive members (`KICK_MEMBERS`). Removes at most 10,000 per call; call again
+         *     for a bigger backlog.
+         */
+        post: operations["prune"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/roles": {
         parameters: {
             query?: never;
@@ -1554,6 +1598,26 @@ export interface paths {
         head?: never;
         /** Modify a role the caller outranks. */
         patch: operations["modify_role"];
+        trace?: never;
+    };
+    "/guilds/{guild_id}/roles/{role_id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Members holding a role, ordered by user id (any member of the guild may list them).
+         *     `@everyone` lists every member.
+         */
+        get: operations["list_role_members"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/guilds/{guild_id}/sr/community": {
@@ -1770,6 +1834,73 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sr/auth/email/change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /sr/auth/email/change {new_email, password}`: start an email change. A
+         *     confirmation link goes to the new address; the old one stays until it is used.
+         *     One request per minute per account. `204` also when the address belongs to
+         *     someone else, so the endpoint is not an account-existence oracle (the mail is
+         *     simply not sent).
+         */
+        post: operations["change_email"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/auth/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /sr/auth/password {current_password, new_password, revoke_other_sessions?}`:
+         *     change the password of the signed-in account. The current password is checked
+         *     first (and counts toward the login lockout). By default every other session and
+         *     every trusted device is revoked; the current session always stays. A notice goes
+         *     to the account's email.
+         */
+        post: operations["change_password"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/auth/username": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * `PUT /sr/auth/username {username, password}`: change the login name. Same rules as
+         *     signup (`^[a-z0-9_.]{2,32}$`, not reserved), two changes per day. Returns the new
+         *     username. Friends and shared servers receive `USER_UPDATE`.
+         */
+        put: operations["change_username"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sr/csrf": {
         parameters: {
             query?: never;
@@ -1978,6 +2109,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/@me/notification-defaults": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller's global default notification level. It applies to servers where
+         *     neither the server nor a channel has an explicit choice, and takes precedence
+         *     over the server owner's suggested default.
+         */
+        get: operations["get_notification_defaults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Set (or clear with `null`) the global default notification level. Publishes
+         *     `SR_NOTIFICATION_DEFAULTS_UPDATE` to the caller's sessions.
+         */
+        patch: operations["patch_notification_defaults"];
+        trace?: never;
+    };
     "/users/@me/presence": {
         parameters: {
             query?: never;
@@ -1997,6 +2153,28 @@ export interface paths {
          *     `duration_seconds`) and set or clear the custom status.
          */
         patch: operations["patch_presence"];
+        trace?: never;
+    };
+    "/users/@me/privacy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's DM and friend-request privacy settings. */
+        get: operations["get_privacy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change DM and friend-request privacy. Takes effect for new requests and new
+         *     conversations; existing friendships and open DMs are untouched. Publishes
+         *     `SR_PRIVACY_UPDATE` to the caller's sessions.
+         */
+        patch: operations["patch_privacy"];
         trace?: never;
     };
     "/users/@me/profile": {
@@ -2078,6 +2256,27 @@ export interface paths {
         patch: operations["set_nickname"];
         trace?: never;
     };
+    "/users/@me/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's synced settings blob (empty at version 0 until the first save). */
+        get: operations["get_settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Merge a partial update into the settings blob. Publishes `SR_USER_SETTINGS_UPDATE`
+         *     to the caller's other sessions.
+         */
+        patch: operations["patch_settings"];
+        trace?: never;
+    };
     "/users/{user_id}/profile": {
         parameters: {
             query?: never;
@@ -2115,6 +2314,28 @@ export interface paths {
         head?: never;
         /** Modify a webhook's name or channel (`MANAGE_WEBHOOKS`). */
         patch: operations["modify_webhook"];
+        trace?: never;
+    };
+    "/webhooks/{webhook_id}/reset-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue a new execution token for an incoming webhook and invalidate the old one
+         *     (`MANAGE_WEBHOOKS`). The token is stored only as a hash, so an existing URL cannot be
+         *     shown again; this is the supported way to get a copyable URL later. The response is the
+         *     only place the new `token` and `url` appear.
+         */
+        post: operations["reset_webhook_token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/webhooks/{webhook_id}/{token}": {
@@ -2417,6 +2638,31 @@ export interface components {
             problem?: string | null;
             /** Format: int64 */
             rows_checked: number;
+        };
+        /** @description Body for `POST /sr/auth/email/change`. */
+        ChangeEmailBody: {
+            new_email: string;
+            /** @description Current password. */
+            password: string;
+        };
+        /** @description Body for `POST /sr/auth/password`. */
+        ChangePasswordBody: {
+            /** @description The password in use now. */
+            current_password: string;
+            /** @description At least 10 characters and not easy to guess (zxcvbn score 3 or more). */
+            new_password: string;
+            /**
+             * @description Sign out every other session and trusted device (default `true`). Pass
+             *     `false` to keep the other browsers signed in.
+             */
+            revoke_other_sessions?: boolean;
+        };
+        /** @description Body for `PUT /sr/auth/username`. */
+        ChangeUsernameBody: {
+            /** @description Current password. */
+            password: string;
+            /** @description 2 to 32 characters of `a-z 0-9 _ .` (case-insensitive), not reserved. */
+            username: string;
         };
         ChannelObject: {
             /** @description Forum tag ids applied to a post. */
@@ -2745,6 +2991,11 @@ export interface components {
             banner?: string | null;
             bio?: string | null;
             custom_status?: null | components["schemas"]["CustomStatusBody"];
+            /**
+             * @description Display name (Discord `global_name`, 32 characters at most); `null` clears it so
+             *     the username shows. The username itself changes through `PUT /sr/auth/username`.
+             */
+            global_name?: string | null;
             pronouns?: string | null;
         };
         EmojiObject: {
@@ -2838,6 +3089,13 @@ export interface components {
             default_thread_rate_limit_per_user?: number | null;
         };
         GuildObject: {
+            /** @description Voice channel idle members are moved to. */
+            afk_channel_id?: string | null;
+            /**
+             * Format: int32
+             * @description Seconds of voice inactivity before that move: 60, 300, 900, 1800 or 3600.
+             */
+            afk_timeout: number;
             /** @description Banner hash, same URL shape as the icon. */
             banner?: string | null;
             channels?: components["schemas"]["ChannelObject"][] | null;
@@ -3150,6 +3408,13 @@ export interface components {
             roles?: string[] | null;
         };
         ModifyGuildBody: {
+            /** @description A voice channel of the server; `null` clears it. */
+            afk_channel_id?: string | null;
+            /**
+             * Format: int32
+             * @description 60, 300, 900, 1800 or 3600 seconds.
+             */
+            afk_timeout?: number | null;
             /** @description Banner image data URI (aspect ratio kept, at most 1920x1080); `null` removes it. */
             banner?: string | null;
             /** Format: int32 */
@@ -3242,6 +3507,14 @@ export interface components {
             note_user_id: string;
             user_id: string;
         };
+        /** @description The caller's own default notification level. */
+        NotificationDefaultsObject: {
+            /**
+             * Format: int32
+             * @description 0 all messages, 1 only @mentions, 2 nothing; `null` follows each server's default.
+             */
+            message_notifications?: number | null;
+        };
         OnboardingDto: {
             default_channel_ids?: string[];
             enabled?: boolean;
@@ -3296,10 +3569,35 @@ export interface components {
             /** @description Replace the platform-scope setting overrides (validated against the feature schema). */
             settings?: Record<string, never> | null;
         };
+        /** @description Body of `PATCH /users/@me/notification-defaults`. */
+        PatchNotificationDefaultsBody: {
+            /**
+             * Format: int32
+             * @description 0, 1 or 2; `null` goes back to following each server's default.
+             */
+            message_notifications?: number | null;
+        };
+        /** @description Body of `PATCH /users/@me/privacy`; absent fields stay. */
+        PatchPrivacyBody: {
+            allow_server_member_dms?: boolean | null;
+            friend_requests_everyone?: boolean | null;
+            friend_requests_friends_of_friends?: boolean | null;
+            friend_requests_server_members?: boolean | null;
+            message_requests?: boolean | null;
+        };
         PatchSettingsBody: {
             reason?: string | null;
             /** @description Setting key to new value; unknown keys or out-of-range values reject the whole patch. */
             values: Record<string, never>;
+        };
+        /** @description Body of `PATCH /users/@me/settings`. */
+        PatchUserSettingsBody: {
+            /**
+             * @description A JSON Merge Patch (RFC 7386): objects merge key by key, `null` deletes a key,
+             *     other values replace. The merged blob may not exceed 64 KiB, 8 levels of nesting
+             *     or 256 top-level keys.
+             */
+            settings: Record<string, never>;
         };
         PersonBanBody: {
             category: components["schemas"]["BanCategory"];
@@ -3344,6 +3642,19 @@ export interface components {
             status: string;
             status_expires_at?: string | null;
         };
+        /** @description Who may send the caller friend requests and DMs. */
+        PrivacyObject: {
+            /** @description DMs from members of shared servers (default on). */
+            allow_server_member_dms: boolean;
+            /** @description Friend requests from anyone. */
+            friend_requests_everyone: boolean;
+            /** @description Friend requests from friends of friends. */
+            friend_requests_friends_of_friends: boolean;
+            /** @description Friend requests from members of a shared server. */
+            friend_requests_server_members: boolean;
+            /** @description DMs from non-friends land in Message Requests (default on). */
+            message_requests: boolean;
+        };
         ProbeView: {
             error?: string | null;
             name: string;
@@ -3375,6 +3686,19 @@ export interface components {
             required?: boolean;
             single_select?: boolean;
             title: string;
+        };
+        PruneBody: {
+            /**
+             * Format: int32
+             * @description 1 to 30, default 7.
+             */
+            days?: number | null;
+            /** @description Roles whose holders may be pruned; members with other roles are kept. */
+            include_roles?: string[];
+        };
+        PruneResult: {
+            /** @description Members that would be (preview) or were (execute) removed. */
+            pruned: number;
         };
         PutRelationshipBody: {
             /**
@@ -3823,6 +4147,16 @@ export interface components {
             global_name?: string | null;
             id: string;
             username?: string | null;
+        };
+        /** @description The synced settings blob. */
+        UserSettingsObject: {
+            /** @description Client-owned JSON object. */
+            settings: Record<string, never>;
+            /**
+             * Format: int64
+             * @description Bumps on every save; 0 when nothing was ever saved.
+             */
+            version: number;
         };
         WebhookObject: {
             avatar?: string | null;
@@ -8971,6 +9305,10 @@ export interface operations {
                 limit?: number;
                 /** @description User snowflake cursor */
                 after?: string;
+                /** @description Search text (at most 64 characters): matches nickname, username or display name, case-insensitive */
+                query?: string;
+                /** @description Only members holding this role snowflake */
+                role_id?: string;
             };
             header?: never;
             path: {
@@ -8987,6 +9325,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MemberObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    search_members: {
+        parameters: {
+            query: {
+                /** @description Search text, 1 to 64 characters */
+                query: string;
+                /** @description 1 to 1000, default 1 */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberObject"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             403: {
@@ -9379,6 +9768,107 @@ export interface operations {
             };
         };
     };
+    prune_count: {
+        parameters: {
+            query?: {
+                /** @description 1 to 30, default 7 */
+                days?: number;
+                /** @description Comma-separated role snowflakes */
+                include_roles?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PruneResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    prune: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PruneBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PruneResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_roles: {
         parameters: {
             query?: never;
@@ -9596,6 +10086,51 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_role_members: {
+        parameters: {
+            query?: {
+                /** @description 1 to 1000, default 100 */
+                limit?: number;
+                /** @description User snowflake cursor */
+                after?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Role snowflake */
+                role_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberObject"][];
                 };
             };
             403: {
@@ -10510,6 +11045,144 @@ export interface operations {
             };
         };
     };
+    change_email: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeEmailBody"];
+            };
+        };
+        responses: {
+            /** @description Confirmation link sent, if the address is free */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    change_password: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangePasswordBody"];
+            };
+        };
+        responses: {
+            /** @description Password changed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    change_username: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeUsernameBody"];
+            };
+        };
+        responses: {
+            /** @description `{username}`: the new login name */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     csrf_token: {
         parameters: {
             query?: never;
@@ -11121,6 +11794,56 @@ export interface operations {
             };
         };
     };
+    get_notification_defaults: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationDefaultsObject"];
+                };
+            };
+        };
+    };
+    patch_notification_defaults: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchNotificationDefaultsBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationDefaultsObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_presence: {
         parameters: {
             query?: never;
@@ -11167,6 +11890,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_privacy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrivacyObject"];
+                };
+            };
+        };
+    };
+    patch_privacy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchPrivacyBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrivacyObject"];
                 };
             };
         };
@@ -11424,6 +12189,56 @@ export interface operations {
             };
         };
     };
+    get_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserSettingsObject"];
+                };
+            };
+        };
+    };
+    patch_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchUserSettingsBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserSettingsObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_profile: {
         parameters: {
             query?: {
@@ -11561,6 +12376,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    reset_webhook_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Webhook snowflake */
+                webhook_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookObject"];
                 };
             };
             403: {

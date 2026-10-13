@@ -71,7 +71,7 @@ fn vis_parse(s: &str) -> RepoResult<Visibility> {
 
 pub(crate) const GUILD_COLS: &str = "id, name, description, icon_key, banner_key, splash_key, \
     owner_id, is_staff_guild, system_channel_id, verification_level, default_message_notifications, \
-    explicit_content_filter, preferred_locale";
+    explicit_content_filter, preferred_locale, afk_channel_id, afk_timeout";
 
 pub(crate) fn guild_from(r: &PgRow) -> Result<Guild, sqlx::Error> {
     Ok(Guild {
@@ -86,6 +86,10 @@ pub(crate) fn guild_from(r: &PgRow) -> Result<Guild, sqlx::Error> {
         system_channel_id: r
             .try_get::<Option<i64>, _>("system_channel_id")?
             .map(|v| ChannelId::new(u(v))),
+        afk_channel_id: r
+            .try_get::<Option<i64>, _>("afk_channel_id")?
+            .map(|v| ChannelId::new(u(v))),
+        afk_timeout: u32::try_from(r.try_get::<i32, _>("afk_timeout")?).unwrap_or(300),
         verification_level: u8::try_from(r.try_get::<i16, _>("verification_level")?).unwrap_or(0),
         default_message_notifications: u8::try_from(
             r.try_get::<i16, _>("default_message_notifications")?,

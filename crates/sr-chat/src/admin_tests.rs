@@ -1,5 +1,6 @@
 //! Service tests for guild administration over the in-memory repository.
 
+use crate::admin_repo::MemberFilter;
 use crate::admin_rules::{ChannelMove, GuildPatch, MemberPatch};
 use crate::channel_rules::ChannelPatch;
 use crate::domain::Member;
@@ -7,7 +8,7 @@ use crate::error::ChatError;
 use crate::limits::ChatLimits;
 use crate::memory::MemoryRepo;
 use crate::role_rules::{NewRole, RolePatch};
-use crate::service::ChatService;
+use crate::service::{ChatService, SendMessage};
 use sr_core::permissions::{Overwrite, OverwriteKind, Permissions};
 use sr_core::{ChannelId, Clock, GuildId, ManualClock, RoleId, SnowflakeGenerator, UserId};
 use std::sync::Arc;
@@ -306,11 +307,21 @@ async fn member_edit_kick_and_ban() {
             .is_err()
     );
 
-    let listed = f.svc.list_members(OWNER, f.guild, None, 2).await.unwrap();
+    let listed = f
+        .svc
+        .list_members(OWNER, f.guild, MemberFilter::default(), None, 2)
+        .await
+        .unwrap();
     assert_eq!(listed.len(), 2);
     let next = f
         .svc
-        .list_members(OWNER, f.guild, Some(listed[1].user_id), 10)
+        .list_members(
+            OWNER,
+            f.guild,
+            MemberFilter::default(),
+            Some(listed[1].user_id),
+            10,
+        )
         .await
         .unwrap();
     assert_eq!(next.len(), 1);
@@ -370,4 +381,244 @@ async fn timeouts_follow_hierarchy() {
         .unwrap();
     assert_eq!(m.communication_disabled_until_ms, Some(until));
     assert!(f.svc.edit_member(BOB, f.guild, OWNER, patch).await.is_err());
+}
+
+// ---- member search, role members, prune ------------------------------------------
+
+const DAY: i64 = 86_400_000;
+const DAVE: UserId = UserId::new(4);
+const ERIN: UserId = UserId::new(5);
+
+fn push_member(f: &Fx, user: UserId, nick: Option<&str>, joined: i64, roles: Vec<RoleId>) {
+    f.svc
+        .repo_for_tests()
+        .store
+        .lock()
+        .unwrap()
+        .members
+        .push(Member {
+            guild_id: f.guild,
+            user_id: user,
+            nick: nick.map(str::to_owned),
+            role_ids: roles,
+            joined_at_ms: joined,
+            communication_disabled_until_ms: None,
+            pending: false,
+        });
+}
+
+fn name(f: &Fx, user: UserId, username: &str, display: Option<&str>) {
+    f.svc.repo_for_tests().store.lock().unwrap().users.insert(
+        user,
+        crate::repo::UserSummary {
+            id: user,
+            username: username.into(),
+            display_name: display.map(str::to_owned),
+            avatar_key: None,
+            banner_key: None,
+        },
+    );
+}
+
+async fn ids(f: &Fx, filter: MemberFilter) -> Vec<u64> {
+    f.svc
+        .list_members(OWNER, f.guild, filter, None, 100)
+        .await
+        .unwrap()
+        .iter()
+        .map(|m| m.user_id.get())
+        .collect()
+}
+
+#[tokio::test]
+async fn member_search_matches_nick_username_and_display_name_and_filters_by_role() {
+    let f = fx().await;
+    name(&f, OWNER, "olivia", None);
+    name(&f, BOB, "bobby_b", Some("Robert"));
+    name(&f, CAROL, "carol", Some("Caroline 100%"));
+    push_member(&f, DAVE, Some("The Dave"), T0, vec![]);
+    name(&f, DAVE, "d4ve", None);
+    let q = |s: &str| MemberFilter {
+        query: Some(s.into()),
+        role: None,
+    };
+    assert_eq!(ids(&f, MemberFilter::default()).await, [1, 2, 3, 4]);
+    // Username, display name and nickname, case-insensitive, substring.
+    assert_eq!(ids(&f, q("BOBBY")).await, [2]);
+    assert_eq!(ids(&f, q("robert")).await, [2]);
+    assert_eq!(ids(&f, q("the dave")).await, [4]);
+    assert_eq!(ids(&f, q("o")).await, [1, 2, 3]);
+    assert_eq!(ids(&f, q("zzz")).await, Vec::<u64>::new());
+    // Blank searches are no filter at all.
+    assert_eq!(ids(&f, q("   ")).await, [1, 2, 3, 4]);
+    assert!(
+        f.svc
+            .list_members(OWNER, f.guild, q(&"x".repeat(65)), None, 10)
+            .await
+            .is_err()
+    );
+    // Paging still works under a filter.
+    let first = f
+        .svc
+        .list_members(OWNER, f.guild, q("o"), None, 2)
+        .await
+        .unwrap();
+    assert_eq!(first.len(), 2);
+    let rest = f
+        .svc
+        .list_members(OWNER, f.guild, q("o"), Some(first[1].user_id), 10)
+        .await
+        .unwrap();
+    assert_eq!(
+        rest.iter().map(|m| m.user_id.get()).collect::<Vec<_>>(),
+        [3]
+    );
+
+    // Role filter and role members.
+    let staff = role_with(&f, Permissions::empty()).await;
+    f.svc
+        .assign_role(OWNER, f.guild, BOB, staff, true)
+        .await
+        .unwrap();
+    let by_role = MemberFilter {
+        query: None,
+        role: Some(staff),
+    };
+    assert_eq!(ids(&f, by_role.clone()).await, [2]);
+    let both = MemberFilter {
+        query: Some("carol".into()),
+        role: Some(staff),
+    };
+    assert_eq!(ids(&f, both).await, Vec::<u64>::new());
+    let m = f
+        .svc
+        .list_role_members(CAROL, f.guild, staff, None, 10)
+        .await
+        .unwrap();
+    assert_eq!(m.len(), 1);
+    // @everyone matches all; an unknown role is an error; outsiders cannot list.
+    let everyone = RoleId::new(f.guild.get());
+    assert_eq!(
+        ids(
+            &f,
+            MemberFilter {
+                query: None,
+                role: Some(everyone)
+            }
+        )
+        .await
+        .len(),
+        4
+    );
+    assert!(matches!(
+        f.svc
+            .list_role_members(OWNER, f.guild, RoleId::new(424_242), None, 10)
+            .await,
+        Err(ChatError::UnknownRole)
+    ));
+    assert!(matches!(
+        f.svc
+            .list_role_members(UserId::new(99), f.guild, staff, None, 10)
+            .await,
+        Err(ChatError::MissingAccess)
+    ));
+}
+
+#[tokio::test]
+async fn prune_removes_only_inactive_role_free_members_below_the_actor() {
+    let f = fx().await;
+    let old = T0 - 40 * DAY;
+    // fx() members joined at T0; make Bob and Carol old, add Dave (old, has a role),
+    // Erin (new) and a moderator who prunes.
+    for m in f
+        .svc
+        .repo_for_tests()
+        .store
+        .lock()
+        .unwrap()
+        .members
+        .iter_mut()
+    {
+        m.joined_at_ms = old;
+    }
+    let vip = role_with(&f, Permissions::empty()).await;
+    let kicker = role_with(&f, Permissions::KICK_MEMBERS).await;
+    push_member(&f, DAVE, None, old, vec![vip]);
+    push_member(&f, ERIN, None, T0 - DAY, vec![]);
+    // Carol is active: she wrote a message.
+    f.svc
+        .send_message(CAROL, f.general, say("still here"))
+        .await
+        .unwrap();
+    f.svc
+        .assign_role(OWNER, f.guild, BOB, kicker, true)
+        .await
+        .unwrap();
+
+    // Pruning needs KICK_MEMBERS.
+    assert!(matches!(
+        f.svc.prune_preview(CAROL, f.guild, 7, &[]).await,
+        Err(ChatError::MissingPermissions)
+    ));
+    // Nobody qualifies: Bob holds a role, Carol is active, Dave has a role, Erin is new
+    // and the owner is exempt.
+    assert_eq!(
+        f.svc.prune_preview(OWNER, f.guild, 7, &[]).await.unwrap(),
+        0
+    );
+    // Including a role makes its holders candidates.
+    assert_eq!(
+        f.svc
+            .prune_preview(OWNER, f.guild, 7, &[vip])
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        f.svc
+            .prune_preview(OWNER, f.guild, 7, &[vip, kicker])
+            .await
+            .unwrap(),
+        2
+    );
+    // Bad input.
+    assert!(f.svc.prune_preview(OWNER, f.guild, 0, &[]).await.is_err());
+    assert!(f.svc.prune_preview(OWNER, f.guild, 31, &[]).await.is_err());
+    assert!(
+        f.svc
+            .prune_preview(OWNER, f.guild, 7, &[RoleId::new(999)])
+            .await
+            .is_err()
+    );
+
+    // A moderator cannot prune members at or above their own rank, even when included, and
+    // never counts himself.
+    let pos = |r: RoleId| {
+        let roles = f.svc.repo_for_tests().store.lock().unwrap().roles.clone();
+        roles.iter().find(|x| x.id == r).unwrap().position
+    };
+    let expect = usize::from(pos(kicker) > pos(vip));
+    assert_eq!(
+        f.svc
+            .prune_preview(BOB, f.guild, 7, &[vip, kicker])
+            .await
+            .unwrap(),
+        expect
+    );
+
+    // Execute: removes exactly the previewed members and nobody else.
+    let removed = f.svc.prune(OWNER, f.guild, 7, &[vip]).await.unwrap();
+    assert_eq!(removed, vec![DAVE]);
+    assert_eq!(ids(&f, MemberFilter::default()).await, [1, 2, 3, 5]);
+    assert_eq!(
+        f.svc.prune(OWNER, f.guild, 7, &[vip]).await.unwrap(),
+        vec![]
+    );
+}
+
+fn say(s: &str) -> SendMessage {
+    SendMessage {
+        content: s.into(),
+        ..Default::default()
+    }
 }

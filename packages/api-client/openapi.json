@@ -8237,6 +8237,7 @@
           "members"
         ],
         "summary": "Page through the members of a guild, ordered by user id.",
+        "description": "`query` and `role_id` narrow the page to members matching a search text and/or holding a role.",
         "operationId": "list_members",
         "parameters": [
           {
@@ -8266,6 +8267,24 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "description": "Search text (at most 64 characters): matches nickname, username or display name, case-insensitive",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "role_id",
+            "in": "query",
+            "description": "Only members holding this role snowflake",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -8278,6 +8297,98 @@
                   "items": {
                     "$ref": "#/components/schemas/MemberObject"
                   }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/members/search": {
+      "get": {
+        "tags": [
+          "members"
+        ],
+        "summary": "Discord's member search: members whose nickname, username or display name contains\n`query` (case-insensitive), ordered by user id.",
+        "operationId": "search_members",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "description": "Search text, 1 to 64 characters",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 1000, default 1",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MemberObject"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -8987,6 +9098,174 @@
         ]
       }
     },
+    "/guilds/{guild_id}/prune": {
+      "get": {
+        "tags": [
+          "prune"
+        ],
+        "summary": "How many members a prune would remove right now. Counts at most 10,000.",
+        "operationId": "prune_count",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "description": "1 to 30, default 7",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "include_roles",
+            "in": "query",
+            "description": "Comma-separated role snowflakes",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PruneResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "prune"
+        ],
+        "summary": "Remove inactive members (`KICK_MEMBERS`). Removes at most 10,000 per call; call again\nfor a bigger backlog.",
+        "operationId": "prune",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PruneBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PruneResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/roles": {
       "get": {
         "tags": [
@@ -9336,6 +9615,97 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/roles/{role_id}/members": {
+      "get": {
+        "tags": [
+          "roles"
+        ],
+        "summary": "Members holding a role, ordered by user id (any member of the guild may list them).\n`@everyone` lists every member.",
+        "operationId": "list_role_members",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "role_id",
+            "in": "path",
+            "description": "Role snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 1000, default 100",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "description": "User snowflake cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MemberObject"
+                  }
                 }
               }
             }
@@ -10826,6 +11196,177 @@
         ]
       }
     },
+    "/sr/auth/email/change": {
+      "post": {
+        "tags": [],
+        "summary": "`POST /sr/auth/email/change {new_email, password}`: start an email change. A\nconfirmation link goes to the new address; the old one stays until it is used.\nOne request per minute per account. `204` also when the address belongs to\nsomeone else, so the endpoint is not an account-existence oracle (the mail is\nsimply not sent).",
+        "operationId": "change_email",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeEmailBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Confirmation link sent, if the address is free"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/sr/auth/password": {
+      "post": {
+        "tags": [],
+        "summary": "`POST /sr/auth/password {current_password, new_password, revoke_other_sessions?}`:\nchange the password of the signed-in account. The current password is checked\nfirst (and counts toward the login lockout). By default every other session and\nevery trusted device is revoked; the current session always stays. A notice goes\nto the account's email.",
+        "operationId": "change_password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Password changed"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/sr/auth/username": {
+      "put": {
+        "tags": [],
+        "summary": "`PUT /sr/auth/username {username, password}`: change the login name. Same rules as\nsignup (`^[a-z0-9_.]{2,32}$`, not reserved), two changes per day. Returns the new\nusername. Friends and shared servers receive `USER_UPDATE`.",
+        "operationId": "change_username",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeUsernameBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "`{username}`: the new login name"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/sr/csrf": {
       "get": {
         "tags": [],
@@ -11737,6 +12278,82 @@
         ]
       }
     },
+    "/users/@me/notification-defaults": {
+      "get": {
+        "tags": [
+          "user_settings"
+        ],
+        "summary": "The caller's global default notification level. It applies to servers where\nneither the server nor a channel has an explicit choice, and takes precedence\nover the server owner's suggested default.",
+        "operationId": "get_notification_defaults",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationDefaultsObject"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "user_settings"
+        ],
+        "summary": "Set (or clear with `null`) the global default notification level. Publishes\n`SR_NOTIFICATION_DEFAULTS_UPDATE` to the caller's sessions.",
+        "operationId": "patch_notification_defaults",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchNotificationDefaultsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationDefaultsObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/users/@me/presence": {
       "get": {
         "tags": [
@@ -11798,6 +12415,72 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/privacy": {
+      "get": {
+        "tags": [
+          "user_settings"
+        ],
+        "summary": "The caller's DM and friend-request privacy settings.",
+        "operationId": "get_privacy",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivacyObject"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "user_settings"
+        ],
+        "summary": "Change DM and friend-request privacy. Takes effect for new requests and new\nconversations; existing friendships and open DMs are untouched. Publishes\n`SR_PRIVACY_UPDATE` to the caller's sessions.",
+        "operationId": "patch_privacy",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchPrivacyBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivacyObject"
                 }
               }
             }
@@ -12193,6 +12876,82 @@
         ]
       }
     },
+    "/users/@me/settings": {
+      "get": {
+        "tags": [
+          "user_settings"
+        ],
+        "summary": "The caller's synced settings blob (empty at version 0 until the first save).",
+        "operationId": "get_settings",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSettingsObject"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "user_settings"
+        ],
+        "summary": "Merge a partial update into the settings blob. Publishes `SR_USER_SETTINGS_UPDATE`\nto the caller's other sessions.",
+        "operationId": "patch_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchUserSettingsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSettingsObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/users/{user_id}/profile": {
       "get": {
         "tags": [
@@ -12406,6 +13165,66 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/webhooks/{webhook_id}/reset-token": {
+      "post": {
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Issue a new execution token for an incoming webhook and invalidate the old one\n(`MANAGE_WEBHOOKS`). The token is stored only as a hash, so an existing URL cannot be\nshown again; this is the supported way to get a copyable URL later. The response is the\nonly place the new `token` and `url` appear.",
+        "operationId": "reset_webhook_token",
+        "parameters": [
+          {
+            "name": "webhook_id",
+            "in": "path",
+            "description": "Webhook snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookObject"
                 }
               }
             }
@@ -13559,6 +14378,63 @@
           }
         }
       },
+      "ChangeEmailBody": {
+        "type": "object",
+        "description": "Body for `POST /sr/auth/email/change`.",
+        "required": [
+          "new_email",
+          "password"
+        ],
+        "properties": {
+          "new_email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string",
+            "description": "Current password."
+          }
+        }
+      },
+      "ChangePasswordBody": {
+        "type": "object",
+        "description": "Body for `POST /sr/auth/password`.",
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "properties": {
+          "current_password": {
+            "type": "string",
+            "description": "The password in use now."
+          },
+          "new_password": {
+            "type": "string",
+            "description": "At least 10 characters and not easy to guess (zxcvbn score 3 or more)."
+          },
+          "revoke_other_sessions": {
+            "type": "boolean",
+            "description": "Sign out every other session and trusted device (default `true`). Pass\n`false` to keep the other browsers signed in."
+          }
+        }
+      },
+      "ChangeUsernameBody": {
+        "type": "object",
+        "description": "Body for `PUT /sr/auth/username`.",
+        "required": [
+          "username",
+          "password"
+        ],
+        "properties": {
+          "password": {
+            "type": "string",
+            "description": "Current password."
+          },
+          "username": {
+            "type": "string",
+            "description": "2 to 32 characters of `a-z 0-9 _ .` (case-insensitive), not reserved."
+          }
+        }
+      },
       "ChannelObject": {
         "type": "object",
         "required": [
@@ -14701,6 +15577,13 @@
               }
             ]
           },
+          "global_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Display name (Discord `global_name`, 32 characters at most); `null` clears it so\nthe username shows. The username itself changes through `PUT /sr/auth/username`."
+          },
           "pronouns": {
             "type": [
               "string",
@@ -15009,6 +15892,7 @@
           "id",
           "name",
           "owner_id",
+          "afk_timeout",
           "verification_level",
           "default_message_notifications",
           "explicit_content_filter",
@@ -15016,6 +15900,19 @@
           "features"
         ],
         "properties": {
+          "afk_channel_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Voice channel idle members are moved to."
+          },
+          "afk_timeout": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Seconds of voice inactivity before that move: 60, 300, 900, 1800 or 3600.",
+            "minimum": 0
+          },
           "banner": {
             "type": [
               "string",
@@ -16156,6 +17053,22 @@
       "ModifyGuildBody": {
         "type": "object",
         "properties": {
+          "afk_channel_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A voice channel of the server; `null` clears it."
+          },
+          "afk_timeout": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "60, 300, 900, 1800 or 3600 seconds.",
+            "minimum": 0
+          },
           "banner": {
             "type": [
               "string",
@@ -16482,6 +17395,21 @@
           }
         }
       },
+      "NotificationDefaultsObject": {
+        "type": "object",
+        "description": "The caller's own default notification level.",
+        "properties": {
+          "message_notifications": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "0 all messages, 1 only @mentions, 2 nothing; `null` follows each server's default.",
+            "minimum": 0
+          }
+        }
+      },
       "OnboardingDto": {
         "type": "object",
         "properties": {
@@ -16678,6 +17606,57 @@
           }
         }
       },
+      "PatchNotificationDefaultsBody": {
+        "type": "object",
+        "description": "Body of `PATCH /users/@me/notification-defaults`.",
+        "properties": {
+          "message_notifications": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "0, 1 or 2; `null` goes back to following each server's default.",
+            "minimum": 0
+          }
+        }
+      },
+      "PatchPrivacyBody": {
+        "type": "object",
+        "description": "Body of `PATCH /users/@me/privacy`; absent fields stay.",
+        "properties": {
+          "allow_server_member_dms": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "friend_requests_everyone": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "friend_requests_friends_of_friends": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "friend_requests_server_members": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "message_requests": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
       "PatchSettingsBody": {
         "type": "object",
         "required": [
@@ -16693,6 +17672,19 @@
           "values": {
             "type": "object",
             "description": "Setting key to new value; unknown keys or out-of-range values reject the whole patch."
+          }
+        }
+      },
+      "PatchUserSettingsBody": {
+        "type": "object",
+        "description": "Body of `PATCH /users/@me/settings`.",
+        "required": [
+          "settings"
+        ],
+        "properties": {
+          "settings": {
+            "type": "object",
+            "description": "A JSON Merge Patch (RFC 7386): objects merge key by key, `null` deletes a key,\nother values replace. The merged blob may not exceed 64 KiB, 8 levels of nesting\nor 256 top-level keys."
           }
         }
       },
@@ -16864,6 +17856,39 @@
           }
         }
       },
+      "PrivacyObject": {
+        "type": "object",
+        "description": "Who may send the caller friend requests and DMs.",
+        "required": [
+          "friend_requests_everyone",
+          "friend_requests_friends_of_friends",
+          "friend_requests_server_members",
+          "allow_server_member_dms",
+          "message_requests"
+        ],
+        "properties": {
+          "allow_server_member_dms": {
+            "type": "boolean",
+            "description": "DMs from members of shared servers (default on)."
+          },
+          "friend_requests_everyone": {
+            "type": "boolean",
+            "description": "Friend requests from anyone."
+          },
+          "friend_requests_friends_of_friends": {
+            "type": "boolean",
+            "description": "Friend requests from friends of friends."
+          },
+          "friend_requests_server_members": {
+            "type": "boolean",
+            "description": "Friend requests from members of a shared server."
+          },
+          "message_requests": {
+            "type": "boolean",
+            "description": "DMs from non-friends land in Message Requests (default on)."
+          }
+        }
+      },
       "ProbeView": {
         "type": "object",
         "required": [
@@ -16971,6 +17996,40 @@
           },
           "title": {
             "type": "string"
+          }
+        }
+      },
+      "PruneBody": {
+        "type": "object",
+        "properties": {
+          "days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "1 to 30, default 7.",
+            "minimum": 0
+          },
+          "include_roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Roles whose holders may be pruned; members with other roles are kept."
+          }
+        }
+      },
+      "PruneResult": {
+        "type": "object",
+        "required": [
+          "pruned"
+        ],
+        "properties": {
+          "pruned": {
+            "type": "integer",
+            "description": "Members that would be (preview) or were (execute) removed.",
+            "minimum": 0
           }
         }
       },
@@ -18462,6 +19521,25 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "UserSettingsObject": {
+        "type": "object",
+        "description": "The synced settings blob.",
+        "required": [
+          "version",
+          "settings"
+        ],
+        "properties": {
+          "settings": {
+            "type": "object",
+            "description": "Client-owned JSON object."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bumps on every save; 0 when nothing was ever saved."
           }
         }
       },

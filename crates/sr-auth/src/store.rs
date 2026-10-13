@@ -183,6 +183,31 @@ pub trait AuthStore: Send + Sync {
     /// Record the age-gate answer (doc 06 section 7).
     async fn set_age_confirmed(&self, id: i64, confirmed: bool, now: i64) -> StoreResult<()>;
 
+    // ---- account identity edits (display name, username, email) --------
+    /// Set (or clear) the display name.
+    async fn set_display_name(&self, id: i64, display_name: Option<&str>) -> StoreResult<()>;
+    /// Change the username (already validated and lowercased). `false` when
+    /// another account has it.
+    async fn set_username(&self, id: i64, username: &str) -> StoreResult<bool>;
+    /// Store a pending address change: a token whose row remembers `new_email`.
+    /// Supersedes the account's earlier unconsumed change tokens.
+    async fn email_change_put(
+        &self,
+        user_id: i64,
+        new_email: &str,
+        hash: &TokenHash,
+        expires_at: i64,
+    ) -> StoreResult<()>;
+    /// Atomically consume a valid change token, returning `(account, new_email)`.
+    async fn email_change_consume(
+        &self,
+        hash: &TokenHash,
+        now: i64,
+    ) -> StoreResult<Option<(i64, String)>>;
+    /// Replace the account's email and mark it verified (the owner just proved
+    /// control of it). `false` when another account already has the address.
+    async fn set_email(&self, id: i64, email: &str) -> StoreResult<bool>;
+
     // ---- sessions (same table the `Principal` extractor reads) ---------
     /// Insert a session.
     async fn create_session(&self, rec: SessionRecord) -> StoreResult<()>;
