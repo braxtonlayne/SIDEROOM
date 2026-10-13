@@ -35,12 +35,14 @@ impl MemberFilter {
 }
 
 /// Who a prune would remove (Discord `prune`): members who joined before
-/// `joined_before_ms`, wrote no message in the guild since `active_since_ms`, are not
+/// `joined_before_ms`, wrote no message in the guild since `active_since_ms`, were
+/// last seen (gateway or login, D-166) before `seen_before_ms` or never, are not
 /// the owner, and hold no role except possibly those in `include_roles`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PruneCriteria {
     pub joined_before_ms: i64,
     pub active_since_ms: i64,
+    pub seen_before_ms: i64,
     pub include_roles: Vec<RoleId>,
 }
 

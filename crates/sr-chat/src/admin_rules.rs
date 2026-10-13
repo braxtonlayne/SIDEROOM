@@ -488,6 +488,7 @@ pub fn plan_prune(
     Ok(PruneCriteria {
         joined_before_ms: cutoff,
         active_since_ms: cutoff,
+        seen_before_ms: cutoff,
         include_roles: include_roles.to_vec(),
     })
 }

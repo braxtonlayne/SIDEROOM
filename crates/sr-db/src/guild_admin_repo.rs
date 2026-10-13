@@ -176,6 +176,8 @@ impl GuildAdminRepository for PgChatRepo {
              AND NOT EXISTS (SELECT 1 FROM messages msg WHERE msg.author_id = gm.user_id \
                   AND msg.guild_id = gm.guild_id AND msg.id >= sr_snowflake_floor( \
                   to_timestamp($3::bigint::double precision / 1000.0))) \
+             AND NOT EXISTS (SELECT 1 FROM accounts a WHERE a.id = gm.user_id \
+                  AND a.last_seen_at >= to_timestamp($6::bigint::double precision / 1000.0)) \
              ORDER BY gm.user_id LIMIT $5"
         )))
         .bind(i(guild.get()))
@@ -183,6 +185,7 @@ impl GuildAdminRepository for PgChatRepo {
         .bind(criteria.active_since_ms)
         .bind(&include)
         .bind(lim(limit))
+        .bind(criteria.seen_before_ms)
         .fetch_all(&self.pool)
         .await
         .map_err(db)?;
