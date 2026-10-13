@@ -55,12 +55,15 @@ describe('User Settings shell', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/settings/user/account'));
   });
 
-  it('shows the read-only keybind table including the settings shortcut', async () => {
+  it('shows the read-only keybind table (built-ins are not editable) including the settings shortcut', async () => {
     signedIn();
     openSettings('keybinds');
     expect(await screen.findByText('Open user settings')).toBeInTheDocument();
     expect(screen.getAllByRole('img', { name: /plus ,|Ctrl plus K/ }).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('button', { name: /edit|record/i })).toBeNull();
+    // Only the voice keybinds can be recorded; the built-in table has no edit controls.
+    const nav = screen.getByRole('heading', { name: 'Navigation' }).closest('section')!;
+    expect(within(nav).queryByRole('button')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Record Push to Talk keybind' })).toBeInTheDocument();
   });
 
   it('shows English only with a disabled selector and a note', async () => {

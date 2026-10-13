@@ -17,6 +17,7 @@ import {
 } from './data';
 import { AgeConfirmPrompt, useAgeGate } from './AgeGate';
 import { MessageList } from './MessageList';
+import { VoiceChannelView } from './voice/VoiceChannelView';
 import { useLoungeGoto } from './nav';
 import { useMyTimeout } from './timeout';
 import { useLoungeUi } from './store';
@@ -63,6 +64,9 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
       />
     );
   }
+
+  // Server voice channels have their own view (tiles and call controls), not a message list.
+  if (channel?.type === 'voice') return <VoiceChannelView channel={channel} onBack={onBack} />;
 
   const title =
     isDm && dm ? dmTitle(dm, (id) => users[id]?.displayName ?? 'Unknown') : (channel?.name ?? '');

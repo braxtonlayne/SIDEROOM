@@ -5,7 +5,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import { DEFAULT_THRESHOLD_DB, THRESHOLD_RANGE } from './vad';
-import { sanitizeKeybind, type Keybind } from './keybind';
+import { sameKeybind, sanitizeKeybind, type Keybind } from './keybind';
 
 export type InputMode = 'vad' | 'ptt';
 export type KeybindAction = 'ptt' | 'toggleMute' | 'toggleDeafen' | 'disconnect';
@@ -211,3 +211,13 @@ export function effectiveInputMode(
 }
 
 export const userVolumeOf = (s: VoiceSettings, userId: string) => s.userVolumes[userId] ?? 100;
+
+/** Another voice action that already uses this bind, as a message; null when the bind is free. */
+export function keybindConflict(
+  binds: VoiceSettings['keybinds'],
+  action: KeybindAction,
+  bind: Keybind,
+): string | null {
+  const other = KEYBIND_ACTIONS.find((a) => a.id !== action && sameKeybind(binds[a.id], bind));
+  return other ? `That key is already used for "${other.label}".` : null;
+}

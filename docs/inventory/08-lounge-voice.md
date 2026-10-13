@@ -38,26 +38,26 @@ Phase 2. Spec: [lounge-voice-video](../specs/lounge-voice-video.md), ADRs 0003/0
 - [ ] **VOX-E2E-008** [TEST] Interop test vectors Rust ↔ WASM; SFU plaintext-assertion test
 
 ## VOX-CLI — Client media engine
-- [ ] **VOX-CLI-001** [FE] getUserMedia device handling (hot-plug, permission prompts, device-lost recovery)
-- [ ] **VOX-CLI-002** [FE] Voice activity detection (energy gate + optional ML VAD), sensitivity
-- [ ] **VOX-CLI-003** [FE] Push-to-talk (keybind while focused, release delay, sounds), PTT-only channel enforcement (USE_VAD permission)
-- [ ] **VOX-CLI-004** [FE] Per-user volume (WebAudio gain 0–200%), local mute
-- [ ] **VOX-CLI-005** [FE] Output device selection (setSinkId)
+- [ ] **VOX-CLI-001** [FE] getUserMedia device handling (hot-plug, permission prompts, device-lost recovery) _(partial, feat/p5-voice-client: permission prompts and blocked-mic help, hot-plug device lists, fallback to the default device; a device lost mid-call ends the call with a fix-it message instead of recovering)_
+- [x] **VOX-CLI-002** [FE] Voice activity detection (energy gate + optional ML VAD), sensitivity
+- [x] **VOX-CLI-003** [FE] Push-to-talk (keybind while focused, release delay, sounds), PTT-only channel enforcement (USE_VAD permission)
+- [x] **VOX-CLI-004** [FE] Per-user volume (WebAudio gain 0–200%), local mute
+- [x] **VOX-CLI-005** [FE] Output device selection (setSinkId)
 - [ ] **VOX-CLI-006** [FE] Webcam publish with simulcast encodings, quality caps by entitlement
 - [ ] **VOX-CLI-007** [FE] getDisplayMedia screen/window/tab share with audio, quality selector, content hint (motion/detail)
 - [ ] **VOX-CLI-008** [FE] Stream preview thumbnail uploader
-- [ ] **VOX-CLI-009** [FE] ICE restart on network change, reconnect UI
-- [ ] **VOX-CLI-010** [FE] Voice persists across section navigation (global call store, never unmounted)
+- [x] **VOX-CLI-009** [FE] ICE restart on network change, reconnect UI
+- [x] **VOX-CLI-010** [FE] Voice persists across section navigation (global call store, never unmounted)
 
 ## VOX-UI — Interfaces
-- [ ] **VOX-UI-001** [FE] Voice connection panel above user panel (Voice Connected / RTC Connecting, channel / server link, ping tooltip with graph, disconnect, camera, screen share, activity, soundboard buttons)
-- [ ] **VOX-UI-002** [FE] Voice channel view: tile grid, focus mode, sidebar tiles, full-screen, hide non-video participants, "Join Voice" pre-join screen with camera preview
-- [ ] **VOX-UI-003** [FE] Participant tile (video or avatar, name, mute/deaf icons, speaking ring, E2EE, connection quality, context menu)
+- [ ] **VOX-UI-001** [FE] Voice connection panel above user panel (Voice Connected / RTC Connecting, channel / server link, ping tooltip with graph, disconnect, camera, screen share, activity, soundboard buttons) _(partial, feat/p5-voice-client: state, channel/server link, quality bars with ping tooltip, settings, disconnect; no ping graph, camera, screen share, activity or soundboard buttons yet)_
+- [ ] **VOX-UI-002** [FE] Voice channel view: tile grid, focus mode, sidebar tiles, full-screen, hide non-video participants, "Join Voice" pre-join screen with camera preview _(partial, feat/p5-voice-client: audio-only tile grid and Join Voice screen; no focus mode, sidebar tiles, full screen or camera preview)_
+- [ ] **VOX-UI-003** [FE] Participant tile (video or avatar, name, mute/deaf icons, speaking ring, E2EE, connection quality, context menu) _(partial, feat/p5-voice-client: avatar tile, name, mute/deaf icons, speaking ring, context menu and volume; no video, E2EE or per-tile quality)_
 - [ ] **VOX-UI-004** [FE] Stream tile (LIVE badge, viewer count, "Watch Stream", preview), stream viewer controls (volume, pop-out, full-screen, quality info)
-- [ ] **VOX-UI-005** [FE] Bottom call controls (camera ▾ devices, share screen ▾ quality, activities, soundboard, mic ▾, deafen, disconnect, more ⋯)
+- [ ] **VOX-UI-005** [FE] Bottom call controls (camera ▾ devices, share screen ▾ quality, activities, soundboard, mic ▾, deafen, disconnect, more ⋯) _(partial, feat/p5-voice-client: mute, deafen, disconnect only)_
 - [ ] **VOX-UI-006** [FE] Screen share picker modal (source type, quality resolution/fps radios gated by entitlement with Patron/level hint, share audio toggle)
 - [ ] **VOX-UI-007** [FE] Text-in-voice chat panel
-- [ ] **VOX-UI-008** [FE] Voice user context menu (Profile, Mention, Message, Call, Add Note, User Volume slider, Mute, Disable Video, Server Mute/Deafen, Move To ▸, Disconnect, Timeout/Kick/Ban, Copy ID)
+- [ ] **VOX-UI-008** [FE] Voice user context menu (Profile, Mention, Message, Call, Add Note, User Volume slider, Mute, Disable Video, Server Mute/Deafen, Move To ▸, Disconnect, Timeout/Kick/Ban, Copy ID) _(partial, feat/p5-voice-client: User Volume, local Mute, Server Mute/Deafen, Move To, Disconnect in the channel list, tiles and member list; the profile/DM/ban entries are not in the voice menu)_
 - [ ] **VOX-UI-009** [FE] Drag users between voice channels (MOVE_MEMBERS)
 - [ ] **VOX-UI-010** [FE] Incoming call overlay (caller avatar, Accept voice/video, Decline, ringtone) + outgoing ringing state
 - [ ] **VOX-UI-011** [FE] DM call view (header area expands into call stage, resize handle)

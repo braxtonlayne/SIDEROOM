@@ -15,6 +15,7 @@ import {
   type RailEntry,
 } from './data';
 import { useLoungeRoute } from './nav';
+import { useVoiceSession } from '../voice/session';
 import { useLoungeUi } from './store';
 import { useGuildMenuCore, useLoadNotifSettings } from './shell/useGuildMenu';
 import { useRailDnd, type DropMark, type DropTarget } from './shell/useRailDnd';
@@ -88,7 +89,7 @@ function GuildIcon({
   dnd: DndBits;
   inFolder?: string;
 }) {
-  const inVoice = useLoungeUi((s) => s.voice?.guildId === guild.id);
+  const inVoice = useVoiceSession((s) => s.guildId === guild.id && s.status !== 'idle');
   const voice = inVoice || guild.voiceConnected;
   const pill: RailPillState = selected ? 'selected' : guild.unread ? 'unread' : 'none';
   const setLayout = useLoungeUi((s) => s.setRailLayout);

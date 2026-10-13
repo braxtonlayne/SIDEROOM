@@ -14,7 +14,9 @@ import { USER_SETTINGS_SECTIONS, type UserSettingsSectionId } from './nav';
 import { applyPrefs, prefsEqual, usePrefsStore, useSavedPrefs, type UserPrefs } from './prefs';
 import { useMediaQuery } from '@sideroom/ui';
 import { AccountSection } from './sections/Account';
-import { AdvancedSection, KeybindsSection, LanguageSection } from './sections/App';
+import { AdvancedSection, LanguageSection } from './sections/App';
+import { KeybindsSection } from './sections/Keybinds';
+import { VoiceVideoSection } from './sections/VoiceVideo';
 import { AppearanceSection } from './sections/Appearance';
 import { NotificationsSection } from './sections/Notifications';
 import { PrivacySection } from './sections/Privacy';
@@ -118,6 +120,7 @@ function Body({
         {section === 'privacy' && <PrivacySection />}
         {section === 'appearance' && <AppearanceSection {...prefsProps} />}
         {section === 'notifications' && <NotificationsSection {...prefsProps} />}
+        {section === 'voice' && <VoiceVideoSection />}
         {section === 'keybinds' && <KeybindsSection />}
         {section === 'language' && <LanguageSection />}
         {section === 'advanced' && <AdvancedSection {...prefsProps} />}

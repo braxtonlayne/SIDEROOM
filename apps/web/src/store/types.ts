@@ -35,6 +35,10 @@ export interface Channel {
   recipients?: User[];
   /** DM from a non-friend awaiting acceptance; such channels stay out of the DM list. */
   is_message_request?: boolean | null;
+  /** Voice channels: maximum simultaneous participants (0 or absent = unlimited). */
+  user_limit?: number;
+  /** Voice channels: audio bitrate in bits per second. */
+  bitrate?: number;
   /** Age-restricted channel (the Lounge asks the viewer to confirm they are 18 or older). */
   nsfw?: boolean;
   /** Per-channel role/member overwrites (type 0 role, 1 member; allow/deny are decimal strings). */

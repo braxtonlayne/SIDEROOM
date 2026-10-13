@@ -19,6 +19,7 @@ import {
   type LiveSnapshot,
 } from './live';
 import { applyRailLayout } from './shell/railLayout';
+import { useVoiceParticipants } from '../voice/hooks';
 import { useSocial } from './shell/social';
 import { useLoungeUi } from './store';
 
@@ -103,6 +104,13 @@ export interface ChannelPermissions {
   sendTts?: boolean;
   /** CREATE_PUBLIC_THREADS. */
   createThreads?: boolean;
+  /** Voice: join, talk, use voice activity (without it push-to-talk is required), and moderate others. */
+  connect?: boolean;
+  speak?: boolean;
+  useVad?: boolean;
+  muteMembers?: boolean;
+  deafenMembers?: boolean;
+  moveMembers?: boolean;
 }
 
 export interface Channel {
@@ -143,6 +151,9 @@ export interface VoiceMember {
   speaking?: boolean;
   muted?: boolean;
   deafened?: boolean;
+  /** Muted / deafened by a moderator (the viewer cannot undo it). */
+  serverMuted?: boolean;
+  serverDeafened?: boolean;
   video?: boolean;
   streaming?: boolean;
 }
@@ -461,8 +472,9 @@ export function useTyping(channelId: Snowflake | undefined): Snowflake[] {
 }
 export function useVoiceMembers(channelId: Snowflake): VoiceMember[] {
   const { mock } = useSource();
-  // Voice state is not in the store yet (LNG-VOICE); live mode shows nobody connected.
-  return mock?.voice[channelId] ?? EMPTY_VOICE;
+  const live = useVoiceParticipants(mock ? undefined : channelId);
+  if (mock) return mock.voice[channelId] ?? EMPTY_VOICE;
+  return live;
 }
 export function useMessages(channelId: Snowflake | undefined): MessagesState {
   const mock = useContext(LoungeDataContext);

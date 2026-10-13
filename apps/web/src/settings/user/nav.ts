@@ -7,6 +7,7 @@ export const USER_SETTINGS_SECTIONS = [
   { id: 'privacy', label: 'Privacy & Safety', group: 'User Settings' },
   { id: 'appearance', label: 'Appearance', group: 'App Settings' },
   { id: 'notifications', label: 'Notifications', group: 'App Settings' },
+  { id: 'voice', label: 'Voice & Video', group: 'App Settings' },
   { id: 'keybinds', label: 'Keybinds', group: 'App Settings' },
   { id: 'language', label: 'Language', group: 'App Settings' },
   { id: 'advanced', label: 'Advanced', group: 'App Settings' },

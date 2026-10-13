@@ -3,7 +3,9 @@ import { useOpenUserSettings } from '../settings/user/nav';
 import { useCurrentUser, usePresence } from './data';
 import { useSelfPresence } from './shell/selfPresence';
 import { statusLabel, StatusMenu } from './shell/StatusMenu';
-import { useLoungeUi } from './store';
+import { voiceController } from '../voice/controller';
+import { useVoiceSession } from '../voice/session';
+import { VoicePanel } from './voice/VoicePanel';
 
 export function UserPanel() {
   const me = useCurrentUser();
@@ -11,12 +13,12 @@ export function UserPanel() {
   const selfStatus = useSelfPresence((s) => s.status);
   const selfCustom = useSelfPresence((s) => s.customText);
   const toast = useToast();
-  const voice = useLoungeUi((s) => s.voice);
-  const joinVoice = useLoungeUi((s) => s.joinVoice);
-  const micMuted = useLoungeUi((s) => s.micMuted);
-  const deafened = useLoungeUi((s) => s.deafened);
-  const toggleMic = useLoungeUi((s) => s.toggleMic);
-  const toggleDeafen = useLoungeUi((s) => s.toggleDeafen);
+  const micMuted = useVoiceSession((s) => s.selfMute || s.serverMute);
+  const serverMuted = useVoiceSession((s) => s.serverMute);
+  const deafened = useVoiceSession((s) => s.selfDeaf || s.serverDeaf);
+  const serverDeaf = useVoiceSession((s) => s.serverDeaf);
+  const toggleMic = () => voiceController().toggleMute();
+  const toggleDeafen = () => voiceController().toggleDeafen();
   const openSettings = useOpenUserSettings();
 
   const copy = () => {
@@ -26,24 +28,7 @@ export function UserPanel() {
 
   return (
     <div className="lng-user-area">
-      {voice && (
-        <div className="lng-voice-panel" role="status" aria-label="Voice connection">
-          <div>
-            <div className="lng-voice-state">Voice Connected</div>
-            <div className="lng-voice-where">{voice.name}</div>
-          </div>
-          <Tooltip content="Disconnect">
-            <button
-              type="button"
-              className="lng-icon-btn"
-              aria-label="Disconnect"
-              onClick={() => joinVoice(null)}
-            >
-              <Icon name="logout" size={20} />
-            </button>
-          </Tooltip>
-        </div>
-      )}
+      <VoicePanel />
       <div className="lng-user-panel">
         <StatusMenu name={me.displayName} />
         <button
@@ -62,23 +47,27 @@ export function UserPanel() {
             </span>
           </span>
         </button>
-        <Tooltip content={micMuted ? 'Unmute' : 'Mute'}>
+        <Tooltip content={serverMuted ? 'Muted by a moderator' : micMuted ? 'Unmute' : 'Mute'}>
           <button
             type="button"
             className="lng-icon-btn"
             aria-label={micMuted ? 'Unmute' : 'Mute'}
             aria-pressed={micMuted}
+            disabled={serverMuted}
             onClick={toggleMic}
           >
             <Icon name={micMuted ? 'mic-off' : 'mic'} size={20} />
           </button>
         </Tooltip>
-        <Tooltip content={deafened ? 'Undeafen' : 'Deafen'}>
+        <Tooltip
+          content={serverDeaf ? 'Deafened by a moderator' : deafened ? 'Undeafen' : 'Deafen'}
+        >
           <button
             type="button"
             className="lng-icon-btn"
             aria-label={deafened ? 'Undeafen' : 'Deafen'}
             aria-pressed={deafened}
+            disabled={serverDeaf}
             onClick={toggleDeafen}
           >
             <Icon name={deafened ? 'volume-off' : 'headphones'} size={20} />

@@ -70,6 +70,8 @@ const defaultDeps = (): ControllerDeps => ({
 export class VoiceController {
   private engine: VoiceEngine | null = null;
   private target: JoinTarget | null = null;
+  /** The last channel the viewer asked for, so "Try again" after a failure can re-join it. */
+  private lastTarget: JoinTarget | null = null;
   /** We have seen our own voice state for the target channel (so a later "left" is a real disconnect). */
   private joinedSeen = false;
   private server: VoiceServerInfo | null = null;
@@ -136,6 +138,7 @@ export class VoiceController {
       return;
     if (this.target) this.teardownEngine();
     this.target = { ...target, pttForced: !!target.pttForced };
+    this.lastTarget = this.target;
     this.joinedSeen = false;
     this.server = null;
     this.started = false;
@@ -162,6 +165,16 @@ export class VoiceController {
     this.armWait();
     this.applyKeys();
     this.applyPtt();
+  }
+
+  /** Join the last requested channel again (after a refused or failed join). */
+  retry(): void {
+    if (this.lastTarget && !this.target) this.join(this.lastTarget);
+  }
+
+  /** Forget a failed attempt's message. */
+  dismissError(): void {
+    if (!this.target) resetSession({ ...mutedFlags() });
   }
 
   leave(sendState = true): void {
@@ -658,6 +671,11 @@ function refusalText(code: string, message: string): string {
       return message || 'Could not join voice.';
   }
 }
+
+const mutedFlags = () => {
+  const { selfMute, selfDeaf } = useVoiceSession.getState();
+  return { selfMute, selfDeaf };
+};
 
 const micOptions = (s: VoiceSettings) => ({
   deviceId: s.inputDeviceId,

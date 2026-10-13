@@ -235,3 +235,90 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* ---------- Voice & Video, Keybinds (VOX-CLI-002/003, LNG-USET-043..049, 053) ---------- */
+.us-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.us-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+.us-form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+.us-row-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.us-mic-test {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+.us-meter {
+  position: relative;
+  flex: 1;
+  height: 10px;
+  min-width: 120px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: var(--bg-base-lowest);
+}
+.us-meter-fill {
+  height: 100%;
+  background: var(--ui-status-online);
+}
+.us-meter-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--text-normal, currentColor);
+}
+.us-keybind {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.us-keybind-value {
+  min-width: 120px;
+}
+.us-keybind-problem {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--danger);
+  font-size: 13px;
+}
+.us-keybind-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.us-keybind-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.us-keybind-row p {
+  margin: 0;
+}
