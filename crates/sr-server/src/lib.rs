@@ -5,6 +5,7 @@
 pub mod admin_jobs;
 pub mod app;
 pub mod backends;
+pub mod external_jobs;
 pub mod features_store;
 pub mod gateway_pg;
 pub mod jobs;

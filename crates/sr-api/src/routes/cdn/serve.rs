@@ -38,9 +38,20 @@ pub(super) async fn rate_limit(
     req: Request,
     next: Next,
 ) -> Response {
-    let who = crate::rate_limit::client_ip(&req, state.settings().trust_forwarded_for)
-        .map_or_else(|| "ip:unknown".to_owned(), |ip| format!("cdn-ip:{ip}"));
-    match state.rate_limiter().check(ROUTE_KEY, "", &who) {
+    // The external image proxy has its own, tighter buckets.
+    let (route, who) = if req.uri().path().starts_with("/cdn/external/") {
+        (
+            super::external::ROUTE_KEY,
+            super::external::ip_identity(&req, state.settings().trust_forwarded_for),
+        )
+    } else {
+        (
+            ROUTE_KEY,
+            crate::rate_limit::client_ip(&req, state.settings().trust_forwarded_for)
+                .map_or_else(|| "ip:unknown".to_owned(), |ip| format!("cdn-ip:{ip}")),
+        )
+    };
+    match state.rate_limiter().check(route, "", &who) {
         Decision::Allowed(_) => next.run(req).await,
         Decision::Limited { retry_after, .. } => {
             let mut r = plain(StatusCode::TOO_MANY_REQUESTS, "rate limited");
@@ -68,18 +79,18 @@ fn etag(key: &str, backend: Option<&str>, size: u64) -> String {
 }
 
 /// RFC 9110 weak comparison of an `If-None-Match` list against `etag`.
-fn matches_etag(list: &str, etag: &str) -> bool {
+pub(super) fn matches_etag(list: &str, etag: &str) -> bool {
     list.split(',').any(|t| {
         let t = t.trim();
         t == "*" || t.strip_prefix("W/").unwrap_or(t) == etag
     })
 }
 
-fn header_str(h: &HeaderMap, name: HeaderName) -> Option<&str> {
+pub(super) fn header_str(h: &HeaderMap, name: HeaderName) -> Option<&str> {
     h.get(name).and_then(|v| v.to_str().ok())
 }
 
-fn put(h: &mut HeaderMap, n: HeaderName, v: &str) {
+pub(super) fn put(h: &mut HeaderMap, n: HeaderName, v: &str) {
     if let Ok(v) = HeaderValue::from_str(v) {
         h.insert(n, v);
     }

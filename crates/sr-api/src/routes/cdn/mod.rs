@@ -26,14 +26,21 @@
 //!   permits ignoring Range). `If-Range` with a non-matching validator also
 //!   serves 200.
 //! * Rate limit: the process-wide limiter, bucket `GET /cdn/{*path}` per client IP.
+//! * `/cdn/external/{hmac}/{url_b64}` is the third-party image proxy
+//!   ([`external`]); it has its own buckets and no storage object of its own
+//!   beyond the cache.
 
 pub mod content;
+pub mod external;
 pub mod path;
 mod serve;
 mod variant;
 
 #[cfg(test)]
 mod variant_tests;
+
+#[cfg(test)]
+mod external_tests;
 
 #[cfg(test)]
 mod tests;
@@ -98,7 +105,10 @@ impl CdnDeps {
 /// The bare route (`/cdn/{*path}`), GET and HEAD. Axum answers HEAD from GET
 /// routes, but the handler distinguishes it to avoid reading the body.
 pub fn router() -> Router<AppState> {
-    Router::new().route("/cdn/{*path}", get(serve::serve))
+    Router::new()
+        // The static prefix wins over the catch-all below.
+        .route("/cdn/external/{hmac}/{url_b64}", get(external::serve))
+        .route("/cdn/{*path}", get(serve::serve))
 }
 
 /// [`router`] with state applied and the layers the CDN needs: request id,

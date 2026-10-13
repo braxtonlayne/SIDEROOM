@@ -99,6 +99,14 @@ impl Default for RateLimitConfig {
             ("POST /sr/register", BucketSpec::new(5, 60)),
             // Signed media links: a page of messages fans out into many image fetches.
             ("GET /cdn/{*path}", BucketSpec::new(300, 10)),
+            // Third-party image proxy (D-176): every request per client address, cache
+            // misses per user and in total (each one fetches from the internet).
+            (
+                "GET /cdn/external/{hmac}/{url_b64}",
+                BucketSpec::new(300, 10),
+            ),
+            ("GET /cdn/external (fetch)", BucketSpec::new(30, 60)),
+            ("GET /cdn/external (global)", BucketSpec::new(240, 60)),
         ]
         .into_iter()
         .map(|(k, v)| (k.to_owned(), v))

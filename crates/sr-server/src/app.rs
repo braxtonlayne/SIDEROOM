@@ -382,12 +382,19 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             "unfurl.allow_private_for_tests is ON: link previews may fetch loopback and private \n             addresses. This is for tests only and lets any user probe the internal network."
         );
     }
+    let unfurl_policy = sr_unfurl::Policy {
+        deny_hosts: cfg.unfurl.deny_hosts.clone(),
+        allow_private_for_tests: cfg.unfurl.allow_private_for_tests,
+    };
     let unfurler = Arc::new(sr_unfurl::production(
-        sr_unfurl::Policy {
-            deny_hosts: cfg.unfurl.deny_hosts.clone(),
-            allow_private_for_tests: cfg.unfurl.allow_private_for_tests,
-        },
+        unfurl_policy.clone(),
         cfg.unfurl.per_host_per_minute.max(1),
+    ));
+    // The image proxy (D-176) fetches under the same SSRF policy and deny list.
+    let external_images = Arc::new(routes::cdn::external::ExternalImageDeps::new(
+        sr_unfurl::production_fetcher(unfurl_policy),
+        storage.clone(),
+        cdn_signer.clone(),
     ));
     let job_ids: crate::search_jobs::JobIds = {
         let ids = ids.clone();
@@ -566,6 +573,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             storage.clone(),
             cdn_signer,
         )))
+        .extension(external_images)
         .readiness(Arc::new(DbReady::new(pool.clone(), readiness_timeout)))
         .readiness(Arc::new(StorageReady::new(storage.clone())))
         .build();
@@ -613,12 +621,14 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::search_jobs::register(runner, &pool, indexer);
     let runner = crate::admin_jobs::register(runner, &pool, id_src.clone(), bus.clone());
     let runner = crate::rich_jobs::register(runner, &pool, messages.clone());
+    let runner = crate::external_jobs::register(runner, &pool, storage.clone());
     crate::jobs::schedule_recurring(&pool).await?;
     crate::jobs::schedule_audit_purge(&pool).await?;
     crate::jobs::schedule_thread_archive(&pool).await?;
     crate::jobs::schedule_attachment_gc(&pool).await?;
     crate::admin_jobs::schedule(&pool).await?;
     crate::rich_jobs::schedule_poll_sweep(&pool).await?;
+    crate::external_jobs::schedule(&pool).await?;
     let jobs_task = tokio::spawn(runner.run(job_rx));
 
     // REST: every feature module, feature-owned routes, and the guild backend.

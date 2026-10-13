@@ -245,6 +245,15 @@ impl MessagesDeps {
         }
     }
 
+    /// Give the third-party images of embed JSON a `proxy_url` (D-176, F-09). A
+    /// no-op without a signer. Applied when a message is rendered, so a rotated
+    /// key or a changed proxy needs no data migration.
+    pub fn proxy_embed_images(&self, embeds: &mut [serde_json::Value]) {
+        if let Some(signer) = &self.cdn {
+            crate::routes::cdn::external::proxy_embed_images(embeds, signer);
+        }
+    }
+
     /// `path?ex=..&sig=..` valid for 24 hours from now, when a signer is installed.
     pub fn sign_attachment_url(&self, path: &str) -> String {
         match &self.cdn {

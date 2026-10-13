@@ -31,12 +31,14 @@ async fn lookup_users(
     Ok(found.into_iter().map(|u| (u.id, u)).collect())
 }
 
-/// Attachment URLs are signed for the viewer (open question 153).
+/// Attachment URLs are signed for the viewer (open question 153); third-party embed
+/// images get a `proxy_url` (D-176).
 fn sign_attachments(deps: &MessagesDeps, objects: &mut [MessageObject]) {
     for o in objects {
         for a in &mut o.attachments {
             a.url = deps.sign_attachment_url(&a.url);
         }
+        deps.proxy_embed_images(&mut o.embeds);
     }
 }
 

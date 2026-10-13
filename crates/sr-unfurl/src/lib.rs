@@ -19,6 +19,16 @@ pub use unfurl::{UnfurlError, UnfurledEmbed, Unfurler};
 
 use std::sync::Arc;
 
+/// A fetcher wired to the system resolver and the reqwest transport, for the image
+/// proxy (the unfurler's own fetcher is private).
+pub fn production_fetcher(policy: Policy) -> SafeFetcher {
+    SafeFetcher::new(
+        policy,
+        Arc::new(SystemResolver),
+        Arc::new(transport::ReqwestTransport),
+    )
+}
+
 /// An unfurler wired to the system resolver and the reqwest transport.
 pub fn production(policy: Policy, per_host_per_minute: u32) -> Unfurler {
     Unfurler::new(
