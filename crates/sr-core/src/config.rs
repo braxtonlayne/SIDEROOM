@@ -166,6 +166,9 @@ impl Default for GatewayLimits {
 pub struct UnfurlConfig {
     /// Hosts (and their subdomains) that are never fetched.
     pub deny_hosts: Vec<String>,
+    /// When not empty, link previews and the image proxy fetch only these hosts (and
+    /// their subdomains). The deny list still wins.
+    pub allow_hosts: Vec<String>,
     /// Outgoing requests allowed per destination host per minute.
     pub per_host_per_minute: u32,
     /// TEST ONLY, DANGEROUS: disables the private/loopback address check of the
@@ -178,6 +181,7 @@ impl Default for UnfurlConfig {
     fn default() -> Self {
         Self {
             deny_hosts: Vec::new(),
+            allow_hosts: Vec::new(),
             per_host_per_minute: 20,
             allow_private_for_tests: false,
         }

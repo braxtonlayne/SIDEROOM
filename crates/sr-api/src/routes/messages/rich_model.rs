@@ -74,10 +74,16 @@ fn snapshot_value(deps: &MessagesDeps, f: &ForwardSnapshot) -> Value {
             serde_json::to_value(o).unwrap_or(Value::Null)
         })
         .collect();
+    let mut embeds: Vec<Value> = f
+        .embeds
+        .iter()
+        .map(|e| serde_json::to_value(e).unwrap_or(Value::Null))
+        .collect();
+    deps.proxy_embed_images(&mut embeds);
     json!({"message": {
         "type": f.kind,
         "content": f.content,
-        "embeds": f.embeds,
+        "embeds": embeds,
         "attachments": attachments,
         "timestamp": iso(f.timestamp_ms),
         "edited_timestamp": f.edited_timestamp_ms.map(iso),

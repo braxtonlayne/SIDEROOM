@@ -73,7 +73,10 @@ impl HttpTransport for ReqwestTransport {
         let (declared_cap, read_cap) = match class {
             BodyClass::Html => (MAX_HTML_BYTES as u64, MAX_HTML_BYTES),
             BodyClass::Json => (MAX_JSON_BYTES as u64, MAX_JSON_BYTES),
-            BodyClass::Image => (MAX_IMAGE_BYTES, IMAGE_HEAD_BYTES),
+            BodyClass::Image => match req.full_image_cap {
+                Some(n) => (n as u64, n),
+                None => (MAX_IMAGE_BYTES, IMAGE_HEAD_BYTES),
+            },
             BodyClass::Video => return Ok(out),
         };
         if class == BodyClass::Json && content_length.is_some_and(|n| n > declared_cap) {
@@ -82,14 +85,29 @@ impl HttpTransport for ReqwestTransport {
         if class == BodyClass::Image && content_length.is_some_and(|n| n > declared_cap) {
             return Err(FetchError::TooLarge);
         }
+        let full = class == BodyClass::Image && req.full_image_cap.is_some();
         while out.body.len() < read_cap {
             match resp.chunk().await.map_err(|e| http_err(&e.without_url()))? {
                 Some(chunk) => {
                     let room = read_cap - out.body.len();
                     out.body.extend_from_slice(&chunk[..chunk.len().min(room)]);
+                    // A full read that fills the cap and still has bytes left is too large.
+                    if full && chunk.len() > room {
+                        return Err(FetchError::TooLarge);
+                    }
                 }
                 None => break,
             }
+        }
+        if full
+            && out.body.len() == read_cap
+            && resp
+                .chunk()
+                .await
+                .map_err(|e| http_err(&e.without_url()))?
+                .is_some()
+        {
+            return Err(FetchError::TooLarge);
         }
         Ok(out)
     }

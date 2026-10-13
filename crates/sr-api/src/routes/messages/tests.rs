@@ -114,7 +114,10 @@ async fn env_full(
         1,
         1,
     )
-    .unwrap();
+    .unwrap()
+    .with_cdn_signer(sr_storage::cdn::CdnSigner::new(
+        b"messages-test-secret-0123456789ab".to_vec(),
+    ));
     let jobs = Arc::new(rich_tests::RecordingScheduler::default());
     let web = Arc::new(rich_tests::FakeWeb::default());
     let deps = Arc::new(deps.with_rich(super::RichDeps {
@@ -1269,6 +1272,37 @@ async fn embeds_are_stored_and_echoed() {
     assert_eq!(m["embeds"][0]["fields"][0]["name"], "a");
     let (_, list) = e.get("/messages", "bob").await;
     assert_eq!(list[0]["embeds"][0]["title"], "Hello");
+}
+
+#[tokio::test]
+async fn third_party_embed_images_get_a_proxy_url_when_rendered() {
+    let e = env().await;
+    let body = json!({
+        "content": "",
+        "embeds": [{
+            "title": "pic",
+            "image": {"url": "https://img.example/a.png", "proxy_url": "https://evil.example/x"},
+            "author": {"name": "a", "icon_url": "https://img.example/i.png"}
+        }]
+    });
+    let (s, m) = e.post("/messages", "bob", body).await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    for emb in [
+        &m["embeds"][0],
+        &e.get("/messages", "bob").await.1[0]["embeds"][0],
+    ] {
+        // The original URL stays (the client shows it only behind "Load image"); the
+        // proxied form is added, and a client-sent proxy_url never survives.
+        assert_eq!(emb["image"]["url"], "https://img.example/a.png");
+        let p = emb["image"]["proxy_url"].as_str().unwrap();
+        assert!(p.starts_with("/cdn/external/"), "{p}");
+        assert!(
+            emb["author"]["proxy_icon_url"]
+                .as_str()
+                .unwrap()
+                .starts_with("/cdn/external/")
+        );
+    }
 }
 
 #[tokio::test]

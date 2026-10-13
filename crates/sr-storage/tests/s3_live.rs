@@ -397,3 +397,25 @@ async fn bad_credentials_and_bucket_error_cleanly() {
         Ok(_) | Err(StorageError::NotFound(_))
     ));
 }
+
+/// F-08 (D-175): `put_bucket_cors` applies the upload rule, twice, and the
+/// bucket reports it back.
+#[tokio::test]
+#[ignore = "needs SR_TEST_S3_ENDPOINT"]
+async fn ensure_cors_is_applied_and_idempotent() {
+    require_s3!();
+    let admin = sr_storage::s3admin::S3Admin::new(
+        &env("SR_TEST_S3_ENDPOINT"),
+        &env("SR_TEST_S3_BUCKET"),
+        &region(),
+        &env("SR_TEST_S3_ACCESS_KEY"),
+        &env("SR_TEST_S3_SECRET_KEY"),
+    )
+    .unwrap();
+    let origins = vec!["http://localhost:8080".to_owned()];
+    admin.put_bucket_cors(&origins).await.unwrap();
+    admin.put_bucket_cors(&origins).await.unwrap();
+    let got = admin.get_bucket_cors().await.unwrap().expect("a CORS rule");
+    assert!(got.contains("http://localhost:8080"), "{got}");
+    assert!(got.contains("PUT") && got.contains("ETag"), "{got}");
+}

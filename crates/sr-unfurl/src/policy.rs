@@ -20,6 +20,8 @@ pub enum Blocked {
     TooLong,
     #[error("the host is on the operator deny list")]
     DeniedHost,
+    #[error("the host is not on the operator allow list")]
+    NotAllowedHost,
     #[error("the host resolves to a non-public address ({0})")]
     PrivateAddress(IpAddr),
     #[error("the host did not resolve to any address")]
@@ -35,6 +37,9 @@ pub struct Policy {
     /// Hosts (and all their subdomains) that are never fetched. Compared in
     /// lower case without a trailing dot.
     pub deny_hosts: Vec<String>,
+    /// When not empty, only these hosts (and their subdomains) are fetched, and
+    /// literal IP addresses are refused. The deny list still wins.
+    pub allow_hosts: Vec<String>,
     /// TEST ONLY. Disables the address check so a loopback test server can be
     /// fetched. Must stay `false` in every real deployment.
     pub allow_private_for_tests: bool,
@@ -57,31 +62,34 @@ impl Policy {
             Some(Host::Domain(d)) => {
                 if self.is_denied(d) {
                     Err(Blocked::DeniedHost)
+                } else if !self.allow_hosts.is_empty() && !matches_list(&self.allow_hosts, d) {
+                    Err(Blocked::NotAllowedHost)
                 } else {
                     Ok(())
                 }
             }
             // Literal addresses are checked for range here and need no lookup.
-            Some(Host::Ipv4(ip)) => self.check_ip(IpAddr::V4(ip)),
-            Some(Host::Ipv6(ip)) => self.check_ip(IpAddr::V6(ip)),
+            Some(Host::Ipv4(ip)) => self
+                .check_ip(IpAddr::V4(ip))
+                .and_then(|()| self.no_allow_list()),
+            Some(Host::Ipv6(ip)) => self
+                .check_ip(IpAddr::V6(ip))
+                .and_then(|()| self.no_allow_list()),
         }
     }
 
     /// Whether `host` or one of its parents is on the deny list.
     pub fn is_denied(&self, host: &str) -> bool {
-        let host = host.trim_end_matches('.').to_ascii_lowercase();
-        self.deny_hosts.iter().any(|d| {
-            let d = d
-                .trim()
-                .trim_start_matches("*.")
-                .trim_end_matches('.')
-                .to_ascii_lowercase();
-            !d.is_empty()
-                && (host == d
-                    || host
-                        .strip_suffix(d.as_str())
-                        .is_some_and(|rest| rest.ends_with('.')))
-        })
+        matches_list(&self.deny_hosts, host)
+    }
+
+    /// A literal IP address cannot be on a host allow list.
+    fn no_allow_list(&self) -> Result<(), Blocked> {
+        if self.allow_hosts.is_empty() {
+            Ok(())
+        } else {
+            Err(Blocked::NotAllowedHost)
+        }
     }
 
     /// Check one resolved address.
@@ -101,6 +109,24 @@ impl Policy {
         }
         ips.iter().try_for_each(|ip| self.check_ip(*ip))
     }
+}
+
+/// Whether `host` equals, or is a subdomain of, an entry of `list` (entries may be
+/// written `*.example.org`; case and a trailing dot do not matter).
+fn matches_list(list: &[String], host: &str) -> bool {
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+    list.iter().any(|d| {
+        let d = d
+            .trim()
+            .trim_start_matches("*.")
+            .trim_end_matches('.')
+            .to_ascii_lowercase();
+        !d.is_empty()
+            && (host == d
+                || host
+                    .strip_suffix(d.as_str())
+                    .is_some_and(|rest| rest.ends_with('.')))
+    })
 }
 
 /// True for every address that is not a normal public unicast address.
@@ -269,6 +295,39 @@ mod tests {
             let got = p.check_url(&Url::parse(u).unwrap());
             assert_eq!(got, want, "{u}");
         }
+    }
+
+    #[test]
+    fn allow_list_limits_hosts_and_the_deny_list_still_wins() {
+        let p = Policy {
+            allow_hosts: vec!["images.example".into(), "*.cdn.test".into()],
+            deny_hosts: vec!["bad.cdn.test".into()],
+            ..Policy::default()
+        };
+        let check = |u: &str| p.check_url(&Url::parse(u).unwrap());
+        assert_eq!(check("https://images.example/a.png"), Ok(()));
+        assert_eq!(check("https://x.images.example/a.png"), Ok(()));
+        assert_eq!(check("https://a.cdn.test/a.png"), Ok(()));
+        assert_eq!(
+            check("https://other.example/a.png"),
+            Err(Blocked::NotAllowedHost)
+        );
+        assert_eq!(
+            check("https://notimages.example/a.png"),
+            Err(Blocked::NotAllowedHost)
+        );
+        assert_eq!(
+            check("https://bad.cdn.test/a.png"),
+            Err(Blocked::DeniedHost)
+        );
+        // Literal addresses are never on a host list.
+        assert_eq!(check("http://8.8.8.8/a.png"), Err(Blocked::NotAllowedHost));
+        // An empty allow list allows every public host (the default).
+        assert!(
+            Policy::default()
+                .check_url(&Url::parse("https://other.example/").unwrap())
+                .is_ok()
+        );
     }
 
     #[test]
