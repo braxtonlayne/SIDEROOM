@@ -33,7 +33,7 @@ Top: search "Search manga, authors, and genres…" (instant results dropdown: se
 | Footer | `SIDE ROOM / THE LIBRARY` · About · Help · Image credits · Privacy · Terms |
 
 ### 3.2 Browse (`/library/browse`)
-Filters: kind, genre (include/exclude), tags, status, language/edition, year, rating, age-restricted (hidden unless confirmed), sort (trending, rating, newest, A–Z, recently updated). Grid/list toggle. Infinite scroll with a virtualized grid.
+Filters: kind, genre (include/exclude), tags, status, language/edition, year, rating, age-restricted (shown by default; "hidden" and "only" are options, and a member setting can make hidden the default; D-184), sort (trending, rating, newest, A–Z, recently updated). Grid/list toggle. Infinite scroll with a virtualized grid.
 
 ### 3.3 Series page (`/library/s/:id`)
 Backdrop + cover, title, alt titles, authors/artists, status, year, rating (score + distribution; scope switch), genres/tags, synopsis (expand), **Follow** (bell), **Add to list**, **Start reading / Continue Ch. N**, share-to-Lounge. Edition selector. Chapter list (volume groups, sort asc/desc, read/unread marks, release group, date, "mark as read up to here," download icon for Patrons). Tabs: Chapters · Reviews · Comments · Related · Contributors (who uploaded, credited).
@@ -74,4 +74,4 @@ See the submissions spec. Library-specific metadata: kind, title, alt titles, au
 - [ ] Progress on phone shows on desktop within 5s.
 - [ ] Trending differs correctly between Friends, Known, and Global for a seeded dataset (integration test).
 - [ ] Non-Patrons have no download endpoint access (403 server-side).
-- [ ] Age-restricted series are hidden from users who haven't confirmed 18+.
+- [ ] Age-restricted series are visible to everyone, but opening one (reader, page URLs) needs a confirmed 18+ answer: unconfirmed accounts get the "Are you 18 or older?" dialog once (403 `900011`), and the yes is remembered permanently (D-032, D-184).

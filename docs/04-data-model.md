@@ -30,7 +30,7 @@ The staff-side record of a real human. It may span several accounts (D-030).
 | password_hash | text | argon2id PHC string |
 | state | enum `active`, `deactivated`, `deleted`, `platform_banned` | Only `active` counts toward the 20k cap (D-013) |
 | state_changed_at | timestamptz | |
-| age_confirmed_at | timestamptz null | D-032 |
+| age_confirmed_at | timestamptz null | D-032. Gates opening age-restricted channels and Library pages (D-184) |
 | locale, timezone | text | |
 | flags | bigint | public badges (staff, early member, donor, contributor…) |
 | invited_by_invite_id | bigint fk platform_invites null | null only for the bootstrap Owner |

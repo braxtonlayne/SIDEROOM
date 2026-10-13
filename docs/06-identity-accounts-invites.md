@@ -101,7 +101,11 @@ Discord-identical, with these SIDE ROOM rules:
 
 The first time a user opens an age-restricted channel, title, series, or Live TV channel, a modal asks "Are you 18 or older?" with **Yes / No**.
 - Yes → `age_confirmed_at = now()`. Never asked again.
-- No → `age_confirmed = false` stored. Restricted content stays hidden. The user can change this later in Settings → Content & Social (that path asks again).
+- No → `age_confirmed = false` stored. Restricted content stays closed. The user can change this later in Settings → Content & Social (that path asks again).
+
+**Library (D-184).** Age-restricted Library titles are visible to every account (browse, search, detail, feeds, follows, covers, metadata). Only *opening* one is gated: `GET /library/chapters/{id}/pages` for an age-restricted series answers 403 with code `900011` (`AGE_CONFIRMATION_REQUIRED`) while `age_confirmed_at` is null. The client then shows the same "Are you 18 or older?" dialog the Lounge uses for age-restricted channels, sends `POST /sr/age-gate {over_18:true}` on Yes, and repeats the request. The server reads `age_confirmed_at` on every request, so the retry succeeds at once and the yes is never asked again. No (or dismissing the dialog) leaves the reader closed.
+
+**For the future Library UI.** There is no shared age dialog component in the web app yet (the Lounge interstitial is LNG-CHN-022). Build it once as a hook plus modal, for example `useAgeGate()` returning `ensureAdult(): Promise<boolean>` that opens the dialog, posts `{over_18}` and resolves with the answer, and have the Lounge channel gate and the Library reader both use it. In the reader's data layer, catch an API error whose `code === 900011`, `await ensureAdult()`, and on `true` refetch the manifest once; on `false` return to the series page. Everything else in the Library renders without the gate. Members who prefer not to see restricted titles set `library.hide_age_restricted: true` in the user settings blob (`{"library": {"hide_age_restricted": true}}`, default false), which makes `hide` the default `age` filter and removes restricted series from search, updates and follows; a request with an explicit `age=include` or `age=only` still works.
 
 ## 8. Bootstrap
 

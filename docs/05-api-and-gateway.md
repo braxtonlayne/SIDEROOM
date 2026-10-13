@@ -27,7 +27,7 @@ Discord's user-token automation ("self-bots") is not supported, and user session
 ## 3. Conventions (identical to Discord)
 
 - Snowflake IDs as strings. ISO8601 timestamps.
-- Error body `{ "code": <int>, "message": "...", "errors": {…field tree…} }`. Codes reuse Discord's JSON error codes where an equivalent exists (e.g. `10003 Unknown Channel`, `50013 Missing Permissions`). SIDE ROOM-specific codes start at `900000`.
+- Error body `{ "code": <int>, "message": "...", "errors": {…field tree…} }`. Codes reuse Discord's JSON error codes where an equivalent exists (e.g. `10003 Unknown Channel`, `50013 Missing Permissions`). SIDE ROOM-specific codes start at `900000`. `900011` `AGE_CONFIRMATION_REQUIRED` (HTTP 403) means the content is visible but opening it needs the account to confirm it is 18 or older: show the age dialog, `POST /sr/age-gate`, retry (doc 06 §7, D-184). Today only `GET /library/chapters/{id}/pages` returns it.
 - Rate-limit headers `X-RateLimit-Limit/Remaining/Reset/Reset-After/Bucket/Scope`. 429 body includes `retry_after`.
 - Pagination: `before`, `after`, `around`, `limit`.
 - `X-Audit-Log-Reason` header is honoured.
