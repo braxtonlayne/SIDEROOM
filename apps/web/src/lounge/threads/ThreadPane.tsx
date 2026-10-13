@@ -5,6 +5,7 @@ import { Composer } from '../Composer';
 import { useGuild, type Message } from '../data';
 import { MessageList } from '../MessageList';
 import { useLoungeGoto } from '../nav';
+import { useMyTimeout } from '../timeout';
 import { useThreads } from './threadStore';
 import './threads.css';
 
@@ -20,6 +21,7 @@ export function ThreadPane({
 }) {
   const thread = useThreads((s) => s.byId[threadId]);
   const guild = useGuild(guildId);
+  const timedOutUntil = useMyTimeout(guildId);
   const goto = useLoungeGoto();
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editing, setEditing] = useState<Message | null>(null);
@@ -108,6 +110,7 @@ export function ThreadPane({
             guildId={guildId}
             target={name}
             canSend={canSend}
+            timedOutUntil={timedOutUntil}
             bypassSlowmode={!!guild?.permissions.manageMessages}
             replyTo={replyTo}
             onCancelReply={() => setReplyTo(null)}

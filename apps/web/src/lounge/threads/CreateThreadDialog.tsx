@@ -34,10 +34,11 @@ export function CreateThreadDialog({
 }: {
   guildId: string;
   channelId: string;
-  messageId: string;
+  /** Absent: a thread that does not grow from a message. */
+  messageId?: string | undefined;
   onClose: () => void;
 }) {
-  const message = useStore((s) => s.messages[messageId]);
+  const message = useStore((s) => (messageId ? s.messages[messageId] : undefined));
   const [name, setName] = useState(() => suggestThreadName(message?.content ?? ''));
   const [archive, setArchive] = useState('1440');
   const [busy, setBusy] = useState(false);
@@ -54,10 +55,10 @@ export function CreateThreadDialog({
     setBusy(true);
     setError(null);
     try {
-      const t = await useThreads.getState().createFromMessage(channelId, messageId, {
-        name: trimmed,
-        auto_archive_duration: Number(archive),
-      });
+      const body = { name: trimmed, auto_archive_duration: Number(archive) };
+      const t = messageId
+        ? await useThreads.getState().createFromMessage(channelId, messageId, body)
+        : await useThreads.getState().createStandalone(channelId, body);
       onClose();
       openThread(guildId, channelId, t.id);
     } catch (err) {

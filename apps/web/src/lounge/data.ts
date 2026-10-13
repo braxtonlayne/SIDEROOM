@@ -250,6 +250,10 @@ export interface SendExtras {
   /** false = reply without pinging the author. */
   mentionRepliedUser?: boolean;
   flags?: number;
+  /** Guild stickers to send (up to three). */
+  stickerIds?: string[];
+  /** Text-to-speech message (needs SEND_TTS_MESSAGES). */
+  tts?: boolean;
 }
 
 export interface Message {

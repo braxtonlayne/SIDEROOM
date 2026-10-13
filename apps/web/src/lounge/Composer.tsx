@@ -10,7 +10,10 @@ import {
   useState,
 } from 'react';
 import type { ChangeEvent, ClipboardEvent, KeyboardEvent } from 'react';
+import { ApiError, apiFetch } from '../api/client';
+import { useStore } from '../store';
 import { EmojiPicker } from './components/EmojiPicker';
+import { ExpressionPicker, type GuildSticker } from './components/ExpressionPicker';
 import { EMOJI_CATEGORIES } from './components/emoji';
 import {
   insertAt,
@@ -48,9 +51,15 @@ import {
 } from './msg/autocomplete';
 import { AutocompletePopup } from './msg/AutocompletePopup';
 import { PollModal } from './msg/PollModal';
-import { commandSuggestions, runSlash } from './msg/slashCommands';
+import { commandSuggestions, runSlash, type SlashContext } from './msg/slashCommands';
 import { UploadTray } from './msg/UploadTray';
 import { MAX_FILES, uploadFiles, type PendingFile } from './msg/upload';
+import { VoiceRecorder, type VoiceClip } from './msg/VoiceRecorder';
+import { VOICE_FLAG, voiceMimeType } from './msg/voice';
+import { createDm } from './shell/api';
+import { rememberDm } from './shell/dm';
+import { useSaved } from './shell/savedMessages';
+import { useLoungeUi } from './store';
 import './msg/msg.css';
 
 /** Shortcodes become emoji at send time (Q89): the parser leaves `:name:` literal. */
@@ -92,6 +101,12 @@ export interface ComposerProps {
   bypassSlowmode?: boolean | undefined;
   /** May use @everyone / @here. */
   canMentionEveryone?: boolean | undefined;
+  /** ISO end of the viewer's timeout in this server (they cannot send until then). */
+  timedOutUntil?: string | null | undefined;
+  /** May send /tts messages here. */
+  canTts?: boolean | undefined;
+  /** May start a thread in this channel (not in a DM or inside a thread). */
+  canStartThread?: boolean | undefined;
 }
 
 const FORMATS: { label: string; run: (v: string, s: number, e: number) => TextEdit }[] = [
@@ -129,6 +144,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     slowmodeSeconds,
     bypassSlowmode,
     canMentionEveryone,
+    timedOutUntil,
+    canTts,
+    canStartThread,
   },
   handle,
 ) {
@@ -159,6 +177,15 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const [acDismissed, setAcDismissed] = useState<number | null>(null);
   const [cooldownEnd, setCooldownEnd] = useState(0);
   const [now, setNow] = useState(() => Date.now());
+  const [recording, setRecording] = useState(false);
+  const voiceStop = useRef<(() => void) | null>(null);
+  const openDialog = useLoungeUi((s) => s.openDialog);
+  const canVoice = voiceMimeType() !== null;
+  const slashCtx: SlashContext = {
+    guild: !!guildId,
+    threads: !!canStartThread,
+    tts: !!canTts,
+  };
 
   useEffect(() => {
     if (replyTo) {
@@ -271,10 +298,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     }
   };
 
-  const submit = (content: string, poll?: NewPoll) => {
+  const submit = (content: string, poll?: NewPoll, more: { tts?: boolean } = {}) => {
     const base = {
       ...(replyTo && !ping ? { mentionRepliedUser: false } : {}),
       ...(poll ? { poll } : {}),
+      ...(more.tts ? { tts: true } : {}),
     };
     if (files.length === 0) {
       actions.sendMessage(
@@ -313,8 +341,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     let content = resolveTokens(text.trim(), tokens.current);
     if (!content && files.length === 0) return;
     if (content.length > MAX_MESSAGE_LENGTH) return;
+    let tts = false;
     if (content.startsWith('/')) {
-      const r = runSlash(content);
+      const r = runSlash(content, slashCtx);
       if (r.kind === 'poll') {
         setPollOpen(true);
         return;
@@ -323,9 +352,144 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         toast.show({ title: r.message, variant: 'danger', duration: 3000 });
         return;
       }
-      if (r.kind === 'send') content = r.content;
+      if (r.kind === 'send') {
+        content = r.content;
+        tts = !!r.tts;
+      } else if (r.kind !== 'none') {
+        runAction(r);
+        return;
+      }
     }
-    expandForSend(content, (c) => submit(c));
+    expandForSend(content, (c) => submit(c, undefined, { tts }));
+  };
+
+  /** Commands that do something other than post their text. The box is cleared once they are accepted. */
+  const runAction = (
+    r: Exclude<ReturnType<typeof runSlash>, { kind: 'send' | 'poll' | 'none' | 'error' }>,
+  ) => {
+    const done = () => {
+      drafts.delete(channelId);
+      setText('');
+      setCaret(0);
+      tokens.current.clear();
+    };
+    const fail = (title: string) => toast.show({ title, variant: 'danger', duration: 4000 });
+    switch (r.kind) {
+      case 'nick':
+        if (!guildId) return;
+        apiFetch<unknown>(`/guilds/${guildId}/members/${me.id}`, {
+          method: 'PATCH',
+          json: { nick: r.nick },
+          retries: 0,
+        })
+          .then(() => {
+            useStore.getState().applyDispatch('GUILD_MEMBER_UPDATE', {
+              guild_id: guildId,
+              user: { id: me.id },
+              nick: r.nick,
+              roles: members.find((m) => m.user.id === me.id)?.roleIds ?? [],
+            });
+            toast.show({
+              title: r.nick ? `Your nickname is now ${r.nick}` : 'Your nickname was reset',
+              variant: 'success',
+              duration: 3000,
+            });
+          })
+          .catch((e: unknown) =>
+            fail(
+              e instanceof ApiError && e.status === 403
+                ? 'You cannot change your nickname in this server.'
+                : 'Could not change your nickname.',
+            ),
+          );
+        done();
+        return;
+      case 'thread':
+        if (guildId) openDialog({ kind: 'createThread', guildId, channelId });
+        done();
+        return;
+      case 'msg':
+        createDm([r.userId])
+          .then((dm) => {
+            rememberDm(dm);
+            actions.sendMessage(dm.id, r.content, null);
+            toast.show({ title: 'Message sent', variant: 'success', duration: 2500 });
+          })
+          .catch(() => fail('Could not send that direct message.'));
+        done();
+        return;
+      case 'remind': {
+        const at = new Date(Date.now() + r.ms);
+        const stamp = Date.now();
+        useSaved.getState().addReminder(
+          {
+            message_id: `remind-${stamp}`,
+            channel_id: channelId,
+            guild_id: guildId ?? null,
+            preview: r.text,
+            author: 'You',
+            saved_at: new Date(stamp).toISOString(),
+          },
+          at,
+        );
+        toast.show({
+          title: `I will remind you at ${at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`,
+          variant: 'success',
+          duration: 3000,
+        });
+        done();
+        return;
+      }
+    }
+  };
+
+  const sendSticker = (s: GuildSticker) => {
+    actions.sendMessage(channelId, '', replyTo?.id ?? null, {
+      stickerIds: [s.id],
+      ...(replyTo && !ping ? { mentionRepliedUser: false } : {}),
+    });
+    onCancelReply();
+    if (slowmodeSeconds && !bypassSlowmode) {
+      setCooldownEnd(Date.now() + slowmodeSeconds * 1000);
+      setNow(Date.now());
+    }
+  };
+
+  const sendVoice = (clip: VoiceClip) => {
+    const pending: PendingFile = {
+      id: `f${Date.now().toString(36)}${fileCounter++}`,
+      file: clip.file,
+      name: clip.file.name,
+      spoiler: false,
+      description: '',
+      progress: 0,
+      status: 'queued',
+    };
+    const ctl = new AbortController();
+    abort.current = ctl;
+    setSending(true);
+    uploadFiles(channelId, [pending], { onUpdate: () => undefined, signal: ctl.signal })
+      .then(([ref]) => {
+        if (!ref) return;
+        actions.sendMessage(channelId, '', replyTo?.id ?? null, {
+          flags: VOICE_FLAG,
+          attachments: [{ ...ref, durationSecs: clip.durationSecs, waveform: clip.waveform }],
+        });
+        setRecording(false);
+        onCancelReply();
+      })
+      .catch((e: unknown) => {
+        if (ctl.signal.aborted) return;
+        toast.show({
+          title: e instanceof Error ? e.message : 'The voice message could not be sent.',
+          variant: 'danger',
+          duration: 5000,
+        });
+      })
+      .finally(() => {
+        setSending(false);
+        abort.current = null;
+      });
   };
 
   const sendAsFile = () => {
@@ -368,7 +532,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     );
     acTitle = 'Emoji matching';
   } else if (trigger?.kind === '/') {
-    suggestions = commandSuggestions(trigger.query);
+    suggestions = commandSuggestions(trigger.query, slashCtx);
     acTitle = 'Commands';
   }
   const acOpen = suggestions.length > 0;
@@ -461,12 +625,14 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const showCounter = remaining <= 200;
   const hasContent = !!text.trim() || files.length > 0;
 
-  if (!canSend) {
+  if (!canSend || timedOutUntil) {
     return (
       <div className="lng-composer-wrap">
         <div className="lng-composer lng-composer-locked" role="note">
-          <Icon name="lock" size={20} />
-          You do not have permission to send messages in this channel.
+          <Icon name={timedOutUntil ? 'clock' : 'lock'} size={20} />
+          {timedOutUntil
+            ? `You are timed out and cannot send messages until ${new Date(timedOutUntil).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}.`
+            : 'You do not have permission to send messages in this channel.'}
         </div>
       </div>
     );
@@ -538,7 +704,19 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           placement="top-start"
           items={[
             { label: 'Upload a File', onSelect: () => fileInput.current?.click() },
+            ...(canStartThread && guildId
+              ? [
+                  {
+                    label: 'Create Thread',
+                    onSelect: () => openDialog({ kind: 'createThread', guildId, channelId }),
+                  },
+                ]
+              : []),
             { label: 'Create Poll', onSelect: () => setPollOpen(true) },
+            { type: 'separator' as const },
+            { label: 'Use Apps (no apps installed)', disabled: true },
+            { label: 'Share from Cinema (coming soon)', disabled: true },
+            { label: 'Share from Library (coming soon)', disabled: true },
           ]}
           trigger={
             <button type="button" className="lng-icon-btn" aria-label="Add to message">
@@ -558,28 +736,36 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             e.target.value = '';
           }}
         />
-        <textarea
-          ref={ref}
-          className="lng-textarea"
-          data-composer
-          rows={1}
-          aria-label={`Message ${target}`}
-          aria-controls={acOpen ? acId : undefined}
-          aria-activedescendant={acOpen ? `${acId}-${activeIdx}` : undefined}
-          placeholder={
-            cooldownLeft > 0
-              ? `Slowmode is on. You can send another message in ${cooldownLeft}s`
-              : `Message ${target}`
-          }
-          value={text}
-          onChange={onChange}
-          onKeyDown={onKeyDown}
-          onKeyUp={trackSelection}
-          onSelect={trackSelection}
-          onClick={trackSelection}
-          onPaste={onPaste}
-        />
-        {showCounter && (
+        {recording ? (
+          <VoiceRecorder
+            stopRef={voiceStop}
+            onCancel={() => setRecording(false)}
+            onSend={sendVoice}
+          />
+        ) : (
+          <textarea
+            ref={ref}
+            className="lng-textarea"
+            data-composer
+            rows={1}
+            aria-label={`Message ${target}`}
+            aria-controls={acOpen ? acId : undefined}
+            aria-activedescendant={acOpen ? `${acId}-${activeIdx}` : undefined}
+            placeholder={
+              cooldownLeft > 0
+                ? `Slowmode is on. You can send another message in ${cooldownLeft}s`
+                : `Message ${target}`
+            }
+            value={text}
+            onChange={onChange}
+            onKeyDown={onKeyDown}
+            onKeyUp={trackSelection}
+            onSelect={trackSelection}
+            onClick={trackSelection}
+            onPaste={onPaste}
+          />
+        )}
+        {showCounter && !recording && (
           <span
             className="lng-counter"
             data-over={remaining < 0 || undefined}
@@ -588,6 +774,74 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           >
             {remaining}
           </span>
+        )}
+        {canVoice && !recording && (
+          <Tooltip content="Record a voice message">
+            <button
+              type="button"
+              className="lng-icon-btn"
+              aria-label="Record a voice message"
+              onClick={(e) => {
+                // Touch: hold to record (below); mouse and keyboard: click to start.
+                if (e.detail === 0 || (e.nativeEvent as PointerEvent).pointerType !== 'touch')
+                  setRecording(true);
+              }}
+              onPointerDown={(e) => {
+                if (e.pointerType === 'touch') setRecording(true);
+              }}
+              onPointerUp={(e) => {
+                if (e.pointerType === 'touch') voiceStop.current?.();
+              }}
+            >
+              <Icon name="mic" size={20} />
+            </button>
+          </Tooltip>
+        )}
+        {!recording && (
+          <>
+            <Popover
+              label="GIF picker"
+              placement="top-end"
+              trigger={
+                <button type="button" className="lng-icon-btn" aria-label="Open GIF picker">
+                  <span aria-hidden="true" className="lng-gif-glyph">
+                    GIF
+                  </span>
+                </button>
+              }
+            >
+              <ExpressionPicker
+                initial="gifs"
+                guildId={guildId}
+                onEmoji={(emoji) => {
+                  const { s, e } = sel();
+                  apply(insertAt(text, s, e, emoji));
+                  ref.current?.focus();
+                }}
+                onSticker={sendSticker}
+              />
+            </Popover>
+            <Popover
+              label="Sticker picker"
+              placement="top-end"
+              trigger={
+                <button type="button" className="lng-icon-btn" aria-label="Open sticker picker">
+                  <Icon name="image" size={20} />
+                </button>
+              }
+            >
+              <ExpressionPicker
+                initial="stickers"
+                guildId={guildId}
+                onEmoji={(emoji) => {
+                  const { s, e } = sel();
+                  apply(insertAt(text, s, e, emoji));
+                  ref.current?.focus();
+                }}
+                onSticker={sendSticker}
+              />
+            </Popover>
+          </>
         )}
         <Popover
           label="Emoji picker"

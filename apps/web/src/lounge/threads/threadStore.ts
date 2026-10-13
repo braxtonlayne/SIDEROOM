@@ -79,6 +79,11 @@ export interface ThreadsState {
     messageId: string,
     body: { name: string; auto_archive_duration?: number },
   ): Promise<ThreadInfo>;
+  /** Start a thread that is not attached to a message (`POST /channels/{c}/threads`). */
+  createStandalone(
+    channelId: string,
+    body: { name: string; auto_archive_duration?: number },
+  ): Promise<ThreadInfo>;
   join(threadId: string): Promise<void>;
   leave(threadId: string): Promise<void>;
   reset(): void;
@@ -122,6 +127,17 @@ export const useThreads = create<ThreadsState>()((set, get) => ({
     const w = await apiFetch<WireThread>(`/channels/${channelId}/messages/${messageId}/threads`, {
       method: 'POST',
       json: body,
+      retries: 0,
+    });
+    get().upsert([{ ...w, member: w.member ?? {} }]);
+    const t = get().byId[w.id];
+    if (!t) throw new Error('The thread could not be created.');
+    return t;
+  },
+  async createStandalone(channelId, body) {
+    const w = await apiFetch<WireThread>(`/channels/${channelId}/threads`, {
+      method: 'POST',
+      json: { ...body, type: 11 },
       retries: 0,
     });
     get().upsert([{ ...w, member: w.member ?? {} }]);

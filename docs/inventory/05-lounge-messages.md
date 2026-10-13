@@ -69,24 +69,24 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [x] **LNG-MSGUI-031** [FE] Failed-send state (retry/delete), pending (greyed) state with nonce reconciliation
 - [x] **LNG-MSGUI-032** [FE] Blocked/ignored message collapsing
 - [x] **LNG-MSGUI-033** [FE] Typing indicator bar (animated dots, names)
-- [ ] **LNG-MSGUI-034** [FE] Speak Message (Web Speech API TTS) + /tts permission
+- [x] **LNG-MSGUI-034** [FE] Speak Message (Web Speech API TTS) + /tts permission
 
 ## LNG-CMP — Composer
 - [x] **LNG-CMP-002** [FE] Enter to send / Shift+Enter newline, markdown shortcuts, paste plain-text rules
 - [x] **LNG-CMP-003** [FE] Autocomplete: `@` users/roles/everyone, `#` channels, `:` emoji (fuzzy), `/` commands (built-in + apps), keyboard navigation
-- [ ] **LNG-CMP-004** [FE] "+" menu: Upload a File, Create Thread, Create Poll, Use Apps, Share from Cinema, Share from Library
+- [x] **LNG-CMP-004** [FE] "+" menu: Upload a File, Create Thread, Create Poll, Use Apps, Share from Cinema, Share from Library *Use Apps, Share from Cinema and Share from Library are listed but disabled until those features exist.*
 - [ ] **LNG-CMP-005** [FE] Upload queue tray: per-file thumbnail, edit (filename, spoiler, alt/description), remove; size check with Patron hint; multi-file ≤ 10
 - [x] **LNG-CMP-006** [FE] Paste image/file from clipboard; drag-and-drop to composer
 - [ ] **LNG-CMP-007** [FE] Upload progress (per file), cancel, resumable for > 64 MB (multipart)
 - [x] **LNG-CMP-008** [FE] Create Poll modal (question, answers 2–10 with emoji, duration, allow multiple)
 - [x] **LNG-CMP-009** [FE] Reply bar ("Replying to @x", ping toggle @ON/OFF, close)
-- [ ] **LNG-CMP-010** [FE] Slowmode countdown, "You do not have permission to send messages in this channel", timeout state
+- [x] **LNG-CMP-010** [FE] Slowmode countdown, "You do not have permission to send messages in this channel", timeout state
 - [x] **LNG-CMP-011** [FE] Character counter near limit + over-limit block (offer "upload as file")
-- [ ] **LNG-CMP-012** [FE] Voice message recorder (hold to record on mobile, click on desktop, preview, send)
+- [x] **LNG-CMP-012** [FE] Voice message recorder (hold to record on mobile, click on desktop, preview, send) *Only in browsers that can record Ogg (Firefox); the server accepts audio/ogg only, and Chrome/Safari record WebM/MP4 so they do not see the button.*
 - [x] **LNG-CMP-013** [FE] Draft persistence per channel (local)
 - [x] **LNG-CMP-014** [FE] Up-arrow to edit last message
-- [ ] **LNG-CMP-015** [FE] Built-in slash commands: /shrug, /tableflip, /unflip, /me, /spoiler, /nick, /tts, /thread, /msg, /giphy-equivalent (GIF provider), /remind (feature), /poll
-- [ ] **LNG-CMP-016** [FE] Composer icons row: GIF, sticker, emoji (gift icon **removed**)
+- [x] **LNG-CMP-015** [FE] Built-in slash commands: /shrug, /tableflip, /unflip, /me, /spoiler, /nick, /tts, /thread, /msg, /giphy-equivalent (GIF provider), /remind (feature), /poll *No /giphy: there is no GIF provider (LNG-EXP-005).*
+- [x] **LNG-CMP-016** [FE] Composer icons row: GIF, sticker, emoji (gift icon **removed**)
 - [ ] **LNG-CMP-001** [FE] Rich composer on Lexical (inline tokens for mentions, emoji, channels, timestamps) *(scheduled after the LNG-MSGUI gaps; the composer stays a textarea through Phase 2, D-174)*
 
 ## LNG-EXP — Expression (emoji, stickers, GIFs, soundboard data)
@@ -97,9 +97,9 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [ ] **LNG-EXP-005** [BE] GIF provider proxy (Tenor/Klipy API key in admin, or disabled), trending/search/categories, privacy proxy of media
 - [ ] **LNG-EXP-006** [GW] GUILD_EMOJIS_UPDATE, GUILD_STICKERS_UPDATE
 - [ ] **LNG-EXP-007** [FE] Emoji picker (search, categories sidebar with server icons, frequently used, favorites (right-click), skin tone selector, hover preview footer, "use anywhere" free)
-- [ ] **LNG-EXP-008** [FE] Sticker picker (packs, search, server sections)
+- [x] **LNG-EXP-008** [FE] Sticker picker (packs, search, server sections) *Current server's stickers with search; no default packs yet (LNG-EXP-004).*
 - [ ] **LNG-EXP-009** [FE] GIF picker (trending categories grid, search, favorites star)
-- [ ] **LNG-EXP-010** [FE] Expression picker tabs container (GIFs / Stickers / Emoji)
+- [x] **LNG-EXP-010** [FE] Expression picker tabs container (GIFs / Stickers / Emoji) *The GIF tab explains that no GIF provider is connected.*
 - [ ] **LNG-EXP-011** [FE] Emoji tooltip/popout on click (name, source server, "Join server" if public)
 - [ ] **LNG-EXP-012** [FE] Super/burst reaction picker variant + animations
 

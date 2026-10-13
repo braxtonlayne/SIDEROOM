@@ -51,6 +51,8 @@ export interface PostExtras {
   };
   allow_reply_ping?: boolean;
   flags?: number;
+  sticker_ids?: string[];
+  tts?: boolean;
 }
 
 export const postMessage = (
@@ -72,6 +74,8 @@ export const postMessage = (
       ...(extras.attachments?.length ? { attachments: extras.attachments } : {}),
       ...(extras.poll ? { poll: extras.poll } : {}),
       ...(extras.flags ? { flags: extras.flags } : {}),
+      ...(extras.sticker_ids?.length ? { sticker_ids: extras.sticker_ids } : {}),
+      ...(extras.tts ? { tts: true } : {}),
       ...(replyToId && extras.allow_reply_ping === false
         ? { allowed_mentions: { replied_user: false, parse: ['users', 'roles', 'everyone'] } }
         : {}),

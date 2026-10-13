@@ -16,6 +16,7 @@ import {
   type Message,
 } from './data';
 import { MessageList } from './MessageList';
+import { useMyTimeout } from './timeout';
 import { useLoungeUi } from './store';
 
 export interface ChannelViewProps {
@@ -36,6 +37,7 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
   const setMembersOpen = useLoungeUi((s) => s.setMemberListOpen);
   const composer = useRef<ComposerHandle | null>(null);
   const guild = useGuild(isDm ? undefined : guildId);
+  const timedOutUntil = useMyTimeout(isDm ? undefined : guildId);
 
   const channel = channels.find((c) => c.id === channelId);
   const dm = dms.find((d) => d.id === channelId);
@@ -140,6 +142,13 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
             : (channel?.permissions?.mentionEveryone ?? guild?.permissions.mentionEveryone ?? false)
         }
         target={target}
+        timedOutUntil={timedOutUntil}
+        canTts={!isDm && (channel?.permissions?.sendTts ?? true)}
+        canStartThread={
+          !isDm &&
+          (channel?.type === 'text' || channel?.type === 'announcement') &&
+          (channel.permissions?.createThreads ?? true)
+        }
         canSend={channel ? channel.canSend : true}
         replyTo={replyTo}
         onCancelReply={() => setReplyTo(null)}

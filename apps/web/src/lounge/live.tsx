@@ -333,6 +333,8 @@ export function toPostExtras(x: SendExtras): rest.PostExtras {
       : {}),
     ...(x.mentionRepliedUser === false ? { allow_reply_ping: false } : {}),
     ...(x.flags ? { flags: x.flags } : {}),
+    ...(x.stickerIds?.length ? { sticker_ids: x.stickerIds } : {}),
+    ...(x.tts ? { tts: true } : {}),
   };
 }
 
