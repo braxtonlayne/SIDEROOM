@@ -8070,7 +8070,7 @@
         "tags": [
           "guild"
         ],
-        "summary": "Create a guild with `@everyone`, two categories, `#general` and a voice channel.",
+        "summary": "Create a guild with `@everyone`, two categories, `#general` and a voice channel, or\nfrom a template (`template`: a built-in id or a template code) in one transaction.",
         "operationId": "create_guild",
         "requestBody": {
           "content": {
@@ -8094,6 +8094,48 @@
             }
           },
           "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/templates/builtin": {
+      "get": {
+        "tags": [
+          "templates"
+        ],
+        "summary": "The built-in templates of the Create a Server wizard (any signed-in user).",
+        "operationId": "list_builtin_templates",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BuiltinTemplateObject"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
             "description": "",
             "content": {
               "application/json": {
@@ -8139,6 +8181,74 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TemplateObject"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "templates"
+        ],
+        "summary": "Create a server from a template (a built-in id or a template code) in one\ntransaction; the caller owns it. One `GUILD_CREATE`.",
+        "operationId": "create_guild_from_template",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "description": "Built-in template id or template code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuildFromTemplateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The new guild with its roles and channels",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuildObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -13556,10 +13666,52 @@
         ]
       }
     },
+    "/sr/auth/email/cancel": {
+      "post": {
+        "tags": [],
+        "summary": "`POST /sr/auth/email/cancel {token}`: the \"This wasn't me\" link of an email-change\nnotice. No login needed. While the change is still pending it is cancelled; once it\nhas completed, every session and trusted device is revoked instead. The token works\nonce, within 7 days.",
+        "operationId": "cancel_change_email",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelEmailChangeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Pending change cancelled, or all sessions revoked"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/sr/auth/email/change": {
       "post": {
         "tags": [],
-        "summary": "`POST /sr/auth/email/change {new_email, password}`: start an email change. A\nconfirmation link goes to the new address; the old one stays until it is used.\nOne request per minute per account. `204` also when the address belongs to\nsomeone else, so the endpoint is not an account-existence oracle (the mail is\nsimply not sent).",
+        "summary": "`POST /sr/auth/email/change {new_email, password, mfa?}`: start an email change. A\nconfirmation link goes to the new address; the old one stays until it is used, and\nreceives a notice with a \"This wasn't me\" link. With two-factor authentication on,\n`mfa {method, code}` is required unless this session passed a second-factor check\nin the last 15 minutes. One request per minute per account. `204` also when the address belongs to\nsomeone else, so the endpoint is not an account-existence oracle (the mail is\nsimply not sent).",
         "operationId": "change_email",
         "requestBody": {
           "content": {
@@ -16666,6 +16818,32 @@
           }
         }
       },
+      "BuiltinTemplateObject": {
+        "type": "object",
+        "description": "A template shipped with the server.",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "serialized_source_guild"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "description": "Pass as `template` to `POST /guilds`, or as the path code of\n`POST /guilds/templates/{code}`."
+          },
+          "name": {
+            "type": "string"
+          },
+          "serialized_source_guild": {
+            "type": "object",
+            "description": "The snapshot: `settings`, `roles` and `channels` with local ids."
+          }
+        }
+      },
       "BulkAckBody": {
         "type": "object",
         "required": [
@@ -16706,6 +16884,19 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "CancelEmailChangeBody": {
+        "type": "object",
+        "description": "Body for `POST /sr/auth/email/cancel`.",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "The token from the \"This wasn't me\" link."
           }
         }
       },
@@ -16755,6 +16946,17 @@
           "password"
         ],
         "properties": {
+          "mfa": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MfaProof",
+                "description": "Second factor. Required when the account has two-factor authentication on,\nunless this session passed a second-factor check in the last 15 minutes."
+              }
+            ]
+          },
           "new_email": {
             "type": "string"
           },
@@ -17491,6 +17693,13 @@
           },
           "name": {
             "type": "string"
+          },
+          "template": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A built-in template id (see `GET /guilds/templates/builtin`) or a template code.\nThe server is created from it in one step."
           }
         }
       },
@@ -18563,6 +18772,26 @@
           }
         }
       },
+      "GuildFromTemplateBody": {
+        "type": "object",
+        "description": "Body of `POST /guilds/templates/{code}`.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Accepted for compatibility; icon upload arrives with the media pipeline."
+          },
+          "name": {
+            "type": "string",
+            "description": "2-100 characters."
+          }
+        }
+      },
       "GuildObject": {
         "type": "object",
         "required": [
@@ -19558,6 +19787,24 @@
           "state": {
             "type": "string",
             "description": "`accepted`, `ignored` or `spam`."
+          }
+        }
+      },
+      "MfaProof": {
+        "type": "object",
+        "description": "A second-factor proof (D-167).",
+        "required": [
+          "method",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "The authenticator code or an unused recovery code."
+          },
+          "method": {
+            "type": "string",
+            "description": "`totp` or `recovery`."
           }
         }
       },
