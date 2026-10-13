@@ -88,9 +88,19 @@
   position: absolute;
   inset: 0;
   background-image: var(--ent-door-image, url('/entrance/door.jpg'));
-  background-size: cover;
-  /* Lands the photographed door where the CSS stand-in was drawn (left 18%). */
-  background-position: 93% center;
+  /* Calibrated at 1704 px to the mockup: the door is about 1.26x the panel-height crop and sits near the left third. */
+  background-size: auto 125%;
+  background-position: 99% 25%;
+  background-repeat: no-repeat;
+  background-color: var(--sr-bg-0);
+}
+/* The wall dissolves into the page on the text side, as in the mockups (no hard panel edge). */
+.ent-door-art::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, var(--sr-bg-0) 0%, transparent 40%);
+  pointer-events: none;
 }
 /* The CSS-drawn leaf and light are only a stand-in for when the photograph is removed. */
 .ent-door-leaf {
@@ -372,6 +382,11 @@
   position: absolute;
   inset: 0;
   opacity: 0.55;
+}
+.ent-split-left .ent-door-art {
+  /* Portrait panel: door fills the height, leaf starts about 40% across (login mockup). */
+  background-size: auto 100%;
+  background-position: 71% 50%;
 }
 .ent-split-copy {
   position: relative;
@@ -673,5 +688,31 @@
   }
   .ent-split-right {
     padding: 48px var(--ent-pad);
+  }
+}
+
+/* Calibrated to the 1704 px login mockup: roomy fields and sentence-case labels on wide screens.
+   The shared primitives stay compact elsewhere. */
+@media (min-width: 1200px) {
+  .ent-split-copy .ent-big {
+    max-width: 8ch;
+  }
+  .ent-form [class*='_label_'] {
+    font-size: 14px;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--sr-text);
+  }
+  .ent-form [class*='_control_'] {
+    height: 76px;
+    padding: 0 24px;
+    font-size: 18px;
+    background: var(--sr-bg-0);
+  }
+  .ent-form button[type='submit'],
+  .ent-form [class*='_outline_'] {
+    min-height: 78px;
+    font-size: 17px;
   }
 }

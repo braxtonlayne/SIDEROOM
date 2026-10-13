@@ -9,7 +9,6 @@ Remove an entry when it is decided, and record the decision in [01-decisions-log
 For each of these, the recommended answer was adopted as the default and is being implemented. The owner confirms it or overrides it.
 
 1. **Age-restricted series are shown by default to confirmed adults.** (OQ-32, D-171) Accounts with `age_confirmed_at` now get age-restricted series included by default (`AgeFilter::Include`), with "hidden" and "only" as filter options; unconfirmed accounts never see them (404 everywhere, unchanged). A user setting `library.show_age_restricted` (default on) and the platform setting `library.age_restricted_default_visible` (default true) let a member or the operator flip the default without code. Recommendation: confirm. D-032 remembers the one-time answer permanently, so asking adults to opt in on every list contradicts it, and Discord shows age-gated channels once the gate is passed. Override by setting the platform default to `false`, which restores the opt-in behaviour. — [service.rs](../crates/sr-library/src/service.rs)
-4. **Token calibration against the mockups.** (OQ-13) A visual pass at 1440 and 1704 px against [docs/assets/mockups](assets/mockups/README.md) and under 900 px, landed as token-only PRs. The fonts have landed (2026-10-13), so the pass can start now.
 
 ## Human actions (not decisions)
 
