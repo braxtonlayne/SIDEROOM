@@ -65,9 +65,9 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 - [ ] **LNG-CHN-024** [FE] Rules channel + Updates channel badges (Community)
 
 ## LNG-THR — Threads
-- [ ] **LNG-THR-001** [BE] Start thread from message / without message, private threads, join/leave, add/remove member, archive/lock/unarchive, auto-archive job
-- [ ] **LNG-THR-002** [BE] Active/archived (public/private/joined) listings with pagination
-- [ ] **LNG-THR-003** [GW] THREAD_CREATE/UPDATE/DELETE/LIST_SYNC/MEMBER_UPDATE/MEMBERS_UPDATE
+- [x] **LNG-THR-001** [BE] Start thread from message / without message, private threads, join/leave, add/remove member, archive/lock/unarchive, auto-archive job
+- [x] **LNG-THR-002** [BE] Active/archived (public/private/joined) listings with pagination
+- [x] **LNG-THR-003** [GW] THREAD_CREATE/UPDATE/DELETE/LIST_SYNC/MEMBER_UPDATE/MEMBERS_UPDATE
 - [ ] **LNG-THR-004** [FE] Threads list popout (Joined / Active / Archived, search)
 - [ ] **LNG-THR-005** [FE] Thread side pane (header, members, notification menu, close, open full view)
 - [ ] **LNG-THR-006** [FE] Thread starter row under message ("N Messages ›" + last message preview)
@@ -76,7 +76,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 - [ ] **LNG-THR-009** [FE] Thread settings (name, slowmode, archive duration, lock, delete)
 
 ## LNG-FRM — Forum & media channels
-- [ ] **LNG-FRM-001** [BE] Forum posts (thread + starter message), tags (available_tags, moderated tags), required tag, default reaction, sort order, layout, guidelines
+- [x] **LNG-FRM-001** [BE] Forum posts (thread + starter message), tags (available_tags, moderated tags), required tag, default reaction, sort order, layout, guidelines
 - [ ] **LNG-FRM-002** [FE] Forum channel view: guidelines banner, "New Post" button, search posts, sort & view (list/gallery), tag filter chips
 - [ ] **LNG-FRM-003** [FE] Forum post card (title, tags, author, preview text, media thumbnail, reaction, message count, last activity)
 - [ ] **LNG-FRM-004** [FE] New Post composer (title, tags picker, content, attachments)

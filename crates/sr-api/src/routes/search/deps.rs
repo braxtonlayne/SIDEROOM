@@ -5,7 +5,6 @@
 use async_trait::async_trait;
 use moka::sync::Cache;
 use sr_chat::ChannelType;
-use sr_chat::perms::channel_permissions;
 use sr_chat::repo::ChatRepository;
 use sr_core::permissions::Permissions;
 use sr_core::{ChannelId, GuildId, UserId};
@@ -141,14 +140,9 @@ async fn nsfw_channels(
     repo: &dyn ChatRepository,
     guild: GuildId,
 ) -> Result<HashSet<ChannelId>, HttpError> {
-    Ok(repo
-        .list_guild_channels(guild)
-        .await
-        .map_err(re)?
-        .into_iter()
-        .filter(|c| c.nsfw)
-        .map(|c| c.id)
-        .collect())
+    let mut all = repo.list_guild_channels(guild).await.map_err(re)?;
+    all.extend(repo.list_guild_threads(guild).await.map_err(re)?);
+    Ok(all.into_iter().filter(|c| c.nsfw).map(|c| c.id).collect())
 }
 
 async fn compute_viewable(
@@ -170,15 +164,21 @@ async fn compute_viewable(
     let roles = repo.list_roles(guild).await.map_err(re)?;
     let mut out = Vec::new();
     let mut nsfw = HashSet::new();
-    for ch in repo.list_guild_channels(guild).await.map_err(re)? {
+    let mut all = repo.list_guild_channels(guild).await.map_err(re)?;
+    // Threads are searchable too; they inherit the parent's overwrites.
+    all.extend(repo.list_guild_threads(guild).await.map_err(re)?);
+    for ch in all {
         if ch.nsfw {
             nsfw.insert(ch.id);
         }
         if ch.kind == ChannelType::Category {
             continue;
         }
-        let overwrites = repo.get_overwrites(ch.id).await.map_err(re)?;
-        let perms = channel_permissions(&g, &member, &roles, &overwrites, now_ms);
+        let perms = sr_chat::threads::access::guild_channel_permissions(
+            repo, &g, &member, &roles, &ch, now_ms,
+        )
+        .await
+        .map_err(re)?;
         if perms.has(Permissions::VIEW_CHANNEL) && perms.has(Permissions::READ_MESSAGE_HISTORY) {
             out.push(ch.id);
         }

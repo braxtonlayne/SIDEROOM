@@ -2,6 +2,7 @@
 //!
 //! Timestamps are Unix milliseconds so the logic stays clock-injectable and wasm-clean.
 
+use crate::threads::model::{ForumConfig, ThreadInfo};
 use sr_core::permissions::{Overwrite, Permissions};
 use sr_core::{AttachmentId, ChannelId, GuildId, MessageId, RoleId, UserId};
 
@@ -100,6 +101,16 @@ impl ChannelType {
         )
     }
 
+    /// Forum and media channels: posts are threads.
+    pub const fn is_forum_like(self) -> bool {
+        matches!(self, Self::Forum | Self::Media)
+    }
+
+    /// Parents that hold ordinary threads (started from a message or on their own).
+    pub const fn hosts_threads(self) -> bool {
+        matches!(self, Self::Text | Self::Announcement)
+    }
+
     pub const fn is_voice_like(self) -> bool {
         matches!(self, Self::Voice | Self::Stage)
     }
@@ -177,6 +188,12 @@ pub struct Channel {
     pub user_limit: Option<u32>,
     pub last_message_id: Option<MessageId>,
     pub owner_id: Option<UserId>,
+    /// Discord channel flags (`PINNED`, `REQUIRE_TAG`, ...; see [`crate::threads::model::channel_flags`]).
+    pub flags: u32,
+    /// Present for thread channels (types 10/11/12).
+    pub thread: Option<ThreadInfo>,
+    /// Forum/media settings and thread defaults.
+    pub forum: ForumConfig,
 }
 
 impl Channel {
@@ -195,6 +212,9 @@ impl Channel {
             user_limit: None,
             last_message_id: None,
             owner_id: None,
+            flags: 0,
+            thread: None,
+            forum: ForumConfig::default(),
         }
     }
 }

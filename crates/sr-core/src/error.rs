@@ -64,6 +64,7 @@ error_codes! {
     FeatureDisabled = 40006, 403, "This feature has been temporarily disabled server-side";
     UserBanned = 40007, 403, "The user is banned from this guild";
     TooManyRequests = 40062, 429, "You are being rate limited";
+    TagRequired = 40067, 400, "A tag is required to create a forum post in this channel";
     MissingAccess = 50001, 403, "Missing Access";
     InvalidAccountType = 50002, 403, "Invalid Account Type";
     CannotExecuteOnDm = 50003, 403, "Cannot execute action on a DM channel";
@@ -75,9 +76,13 @@ error_codes! {
     NoteTooLong = 50015, 400, "Note was too long";
     InvalidFormBody = 50035, 400, "Invalid Form Body";
     InvalidApiVersion = 50041, 400, "Invalid API version provided";
+    ThreadArchived = 50083, 400, "Thread is archived";
     TwoFactorRequired = 60003, 403, "Two factor is required for this operation";
     ReactionBlocked = 90001, 403, "Reaction was blocked";
     ApiResourceOverloaded = 130000, 503, "API resource is currently overloaded. Try again a little later";
+    ThreadAlreadyCreated = 160004, 400, "A thread has already been created for this message";
+    ThreadLocked = 160005, 400, "Thread is locked";
+    MaxActiveThreads = 160006, 400, "Maximum number of active threads reached";
     AutoModBlocked = 200000, 400, "Message was blocked by AutoMod";
 
     // SIDE ROOM specific (>= 900000).

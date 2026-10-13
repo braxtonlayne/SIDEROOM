@@ -117,6 +117,10 @@ pub struct MessageObject {
     pub flags: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message_reference: Option<MessageReferenceObject>,
+    /// The thread started from this message (a thread has its starter's id).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<Object>)]
+    pub thread: Option<serde_json::Value>,
 }
 
 impl MessageObject {
@@ -170,6 +174,7 @@ impl MessageObject {
                 channel_id: r.channel_id.to_string(),
                 guild_id: gid,
             }),
+            thread: None,
         }
     }
 

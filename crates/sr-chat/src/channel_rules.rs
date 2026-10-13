@@ -4,11 +4,14 @@ use crate::domain::{Channel, ChannelType, Role};
 use crate::error::{ChatError, ChatResult};
 use crate::limits::ChatLimits;
 use crate::perms::GuildActor;
+use crate::threads::model::ForumPatch;
+use crate::threads::rules::apply_forum_patch;
 use sr_core::permissions::{Overwrite, OverwriteKind, Permissions};
 use sr_core::{ChannelId, GuildId};
 
 pub const CHANNEL_NAME_MAX: usize = 100;
 pub const TOPIC_MAX: usize = 1024;
+pub const FORUM_TOPIC_MAX: usize = 4096;
 pub const SLOWMODE_MAX_SECS: u32 = 21_600;
 pub const BITRATE_MIN: u32 = 8_000;
 pub const BITRATE_MAX: u32 = 384_000;
@@ -25,6 +28,8 @@ pub struct NewChannel {
     pub rate_limit_per_user: u32,
     pub bitrate: Option<u32>,
     pub user_limit: Option<u32>,
+    /// Forum, media and thread-default settings.
+    pub forum: ForumPatch,
 }
 
 impl NewChannel {
@@ -39,6 +44,7 @@ impl NewChannel {
             rate_limit_per_user: 0,
             bitrate: None,
             user_limit: None,
+            forum: ForumPatch::default(),
         }
     }
 }
@@ -86,11 +92,16 @@ fn validate_common(
             format!("Must be between 1 and {CHANNEL_NAME_MAX} in length."),
         ));
     }
-    if topic.is_some_and(|t| t.chars().count() > TOPIC_MAX) {
+    let topic_max = if kind.is_forum_like() {
+        FORUM_TOPIC_MAX
+    } else {
+        TOPIC_MAX
+    };
+    if topic.is_some_and(|t| t.chars().count() > topic_max) {
         return Err(ChatError::invalid(
             "topic",
             "BASE_TYPE_MAX_LENGTH",
-            format!("Must be {TOPIC_MAX} or fewer in length."),
+            format!("Must be {topic_max} or fewer in length."),
         ));
     }
     if rate > SLOWMODE_MAX_SECS {
@@ -181,6 +192,7 @@ pub fn plan_create_channel(
     }
     c.parent_id = input.parent_id;
     c.position = input.position.unwrap_or(0).max(0);
+    apply_forum_patch(&mut c, &input.forum)?;
     Ok(c)
 }
 
@@ -192,6 +204,7 @@ pub struct ChannelPatch {
     pub rate_limit_per_user: Option<u32>,
     pub bitrate: Option<u32>,
     pub user_limit: Option<u32>,
+    pub forum: ForumPatch,
 }
 
 pub fn plan_edit_channel(
@@ -239,6 +252,7 @@ pub fn plan_edit_channel(
         out.bitrate = patch.bitrate.or(channel.bitrate);
         out.user_limit = patch.user_limit.or(channel.user_limit);
     }
+    apply_forum_patch(&mut out, &patch.forum)?;
     Ok(out)
 }
 

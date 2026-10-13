@@ -31,6 +31,7 @@ pub mod messages;
 pub mod search;
 pub mod settings;
 pub mod social;
+pub mod threads;
 
 /// Extractor for a service registered on [`AppState`]. A missing service is a
 /// server misconfiguration: it logs once per request and answers 500
@@ -82,6 +83,7 @@ pub fn all() -> Router<AppState> {
         .merge(social::router())
         .merge(settings::router())
         .merge(search::router())
+        .merge(threads::router())
 }
 
 /// Feature-owned routers (`Feature::routes()`), nested under
@@ -103,6 +105,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(social::openapi());
     doc.merge(settings::openapi());
     doc.merge(search::openapi());
+    doc.merge(threads::openapi());
     doc
 }
 

@@ -20,6 +20,7 @@ pub mod registration;
 pub mod runner;
 pub mod settings_repo;
 pub mod social_repo;
+pub mod thread_repo;
 mod tx;
 
 pub use error::{DbError, DbResult};

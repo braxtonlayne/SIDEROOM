@@ -263,6 +263,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/channels/{channel_id}/messages/{message_id}/threads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start a thread from a message. The thread's id is the message's id; a message can
+         *     have one thread. Needs `CREATE_PUBLIC_THREADS`.
+         */
+        post: operations["start_from_message"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/channels/{channel_id}/permissions/{overwrite_id}": {
         parameters: {
             query?: never;
@@ -354,6 +374,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/channels/{channel_id}/thread-members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Members of a thread, ordered by user id (`after` pages; `limit` 1-100). */
+        get: operations["list_members"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/thread-members/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One thread member. */
+        get: operations["get_member"];
+        /** Add a member to a thread (`@me` joins). The thread must not be archived. */
+        put: operations["add_member"];
+        post?: never;
+        /**
+         * Remove a member from a thread (`@me` leaves). Removing others needs
+         *     `MANAGE_THREADS`, or being the owner of a private thread.
+         */
+        delete: operations["remove_member"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/threads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start a thread without a message, or a post in a forum or media channel (then
+         *     `message` is required and becomes the first message).
+         */
+        post: operations["start_thread"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/threads/archived/private": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every archived private thread of a channel. Needs `MANAGE_THREADS`. */
+        get: operations["archived_private"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/threads/archived/public": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Archived public threads (and forum posts) of a channel, newest archive first.
+         *     `before` is the ISO8601 `archive_timestamp` of the last thread of the previous page.
+         */
+        get: operations["archived_public"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/channels/{channel_id}/typing": {
         parameters: {
             query?: never;
@@ -365,6 +481,23 @@ export interface paths {
         put?: never;
         /** Trigger the typing indicator. */
         post: operations["trigger_typing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/users/@me/threads/archived/private": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Archived private threads of a channel that the caller joined. */
+        get: operations["archived_joined_private"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -861,6 +994,23 @@ export interface paths {
         head?: never;
         /** Change the template's name or description (`MANAGE_GUILD`). */
         patch: operations["modify_template"];
+        trace?: never;
+    };
+    "/guilds/{guild_id}/threads/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Unarchived threads of a guild that the caller can see, with their memberships. */
+        get: operations["list_active"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/guilds/{guild_id}/webhooks": {
@@ -1440,22 +1590,54 @@ export interface components {
             messages: string[];
         };
         ChannelObject: {
+            /** @description Forum tag ids applied to a post. */
+            applied_tags?: string[] | null;
+            /** @description Forum and media channels: the tags a post can carry. */
+            available_tags?: Record<string, never>[] | null;
             /** Format: int32 */
             bitrate?: number | null;
+            /** Format: int32 */
+            default_auto_archive_duration?: number | null;
+            /** Format: int32 */
+            default_forum_layout?: number | null;
+            default_reaction_emoji?: Record<string, never> | null;
+            /** Format: int32 */
+            default_sort_order?: number | null;
+            /** Format: int32 */
+            default_thread_rate_limit_per_user?: number | null;
             /** Format: int32 */
             flags: number;
             guild_id?: string | null;
             id: string;
             last_message_id?: string | null;
+            member?: null | components["schemas"]["ThreadMemberObject"];
+            /**
+             * Format: int32
+             * @description Members of a thread.
+             */
+            member_count?: number | null;
+            /**
+             * Format: int32
+             * @description Messages in a thread, capped at 50.
+             */
+            message_count?: number | null;
             name?: string | null;
             nsfw: boolean;
+            /** @description Creator of a thread. */
+            owner_id?: string | null;
             parent_id?: string | null;
             permission_overwrites: components["schemas"]["OverwriteObject"][];
             /** Format: int32 */
             position: number;
             /** Format: int32 */
             rate_limit_per_user: number;
+            thread_metadata?: null | components["schemas"]["ThreadMetadataObject"];
             topic?: string | null;
+            /**
+             * Format: int32
+             * @description Every message ever sent in a thread.
+             */
+            total_message_sent?: number | null;
             /** Format: int32 */
             type: number;
             /** Format: int32 */
@@ -1504,9 +1686,14 @@ export interface components {
             type: string;
             verified: boolean;
         };
-        CreateChannelBody: {
+        CreateChannelBody: components["schemas"]["ForumSettingsBody"] & {
             /** Format: int32 */
             bitrate?: number | null;
+            /**
+             * Format: int32
+             * @description Forum and media channels: `REQUIRE_TAG` (1 << 4) and similar settings bits.
+             */
+            flags?: number | null;
             name: string;
             nsfw?: boolean | null;
             parent_id?: string | null;
@@ -1668,6 +1855,10 @@ export interface components {
             expires_at?: string | null;
             text?: string | null;
         };
+        DefaultReactionBody: {
+            emoji_id?: string | null;
+            emoji_name?: string | null;
+        };
         DmChannelObject: {
             icon?: string | null;
             id: string;
@@ -1748,6 +1939,31 @@ export interface components {
             /** @description Client-chosen id, echoed back. */
             id?: string | null;
             spoiler?: boolean | null;
+        };
+        /** @description Forum and media settings, plus the thread defaults of text channels. */
+        ForumSettingsBody: {
+            available_tags?: components["schemas"]["TagBody"][] | null;
+            /**
+             * Format: int32
+             * @description Minutes of inactivity before new threads auto-archive.
+             */
+            default_auto_archive_duration?: number | null;
+            /**
+             * Format: int32
+             * @description 0 not set, 1 list, 2 gallery.
+             */
+            default_forum_layout?: number | null;
+            default_reaction_emoji?: null | components["schemas"]["DefaultReactionBody"];
+            /**
+             * Format: int32
+             * @description 0 latest activity, 1 creation date; `null` clears.
+             */
+            default_sort_order?: number | null;
+            /**
+             * Format: int32
+             * @description Slowmode (seconds) new posts start with.
+             */
+            default_thread_rate_limit_per_user?: number | null;
         };
         GuildObject: {
             channels?: components["schemas"]["ChannelObject"][] | null;
@@ -1872,6 +2088,8 @@ export interface components {
             nonce?: string | null;
             pinned: boolean;
             reactions?: components["schemas"]["ReactionObject"][];
+            /** @description The thread started from this message (a thread has its starter's id). */
+            thread?: Record<string, never> | null;
             timestamp: string;
             tts: boolean;
             /** Format: int32 */
@@ -1894,11 +2112,22 @@ export interface components {
             /** @description `accepted`, `ignored` or `spam`. */
             state: string;
         };
-        ModifyChannelBody: {
+        ModifyChannelBody: components["schemas"]["ForumSettingsBody"] & {
+            applied_tags?: string[] | null;
+            archived?: boolean | null;
+            /** Format: int32 */
+            auto_archive_duration?: number | null;
             /** Format: int32 */
             bitrate?: number | null;
+            /**
+             * Format: int32
+             * @description Forum channels: setting bits; threads: `PINNED` (1 << 1) for forum posts.
+             */
+            flags?: number | null;
+            invitable?: boolean | null;
             /** @description Copy the category's overwrites onto this channel. */
             lock_permissions?: boolean;
+            locked?: boolean | null;
             name?: string | null;
             nsfw?: boolean | null;
             parent_id?: string | null;
@@ -2236,6 +2465,41 @@ export interface components {
             pronouns?: string | null;
             user: components["schemas"]["UserObject"];
         };
+        /** @description `POST /channels/{id}/messages/{id}/threads`. */
+        StartFromMessageBody: {
+            /**
+             * Format: int32
+             * @description Minutes of inactivity before archiving: 60, 1440, 4320 or 10080.
+             */
+            auto_archive_duration?: number | null;
+            name: string;
+            /**
+             * Format: int32
+             * @description Slowmode in seconds.
+             */
+            rate_limit_per_user?: number | null;
+        };
+        /**
+         * @description `POST /channels/{id}/threads`. In a forum or media channel `message` is required
+         *     and becomes the post's first message.
+         */
+        StartThreadBody: {
+            /** @description Forum and media channels: tag ids, at most 5. */
+            applied_tags?: string[] | null;
+            /** Format: int32 */
+            auto_archive_duration?: number | null;
+            /** @description Private threads: whether members may invite others. */
+            invitable?: boolean | null;
+            message?: null | components["schemas"]["CreateMessageBody"];
+            name: string;
+            /** Format: int32 */
+            rate_limit_per_user?: number | null;
+            /**
+             * Format: int32
+             * @description 10 announcement, 11 public (default) or 12 private thread.
+             */
+            type?: number | null;
+        };
         StickerObject: {
             available: boolean;
             description?: string | null;
@@ -2255,6 +2519,14 @@ export interface components {
             type: number;
             user: components["schemas"]["UserRef"];
         };
+        /** @description A forum tag as sent by clients; the server assigns an id when absent. */
+        TagBody: {
+            emoji_id?: string | null;
+            emoji_name?: string | null;
+            id?: string | null;
+            moderated?: boolean;
+            name: string;
+        };
         TemplateObject: {
             code: string;
             created_at: string;
@@ -2270,6 +2542,35 @@ export interface components {
             updated_at: string;
             /** Format: int32 */
             usage_count: number;
+        };
+        /** @description Thread listings: the threads plus the caller's memberships among them. */
+        ThreadList: {
+            has_more: boolean;
+            members: components["schemas"]["ThreadMemberObject"][];
+            threads: components["schemas"]["ChannelObject"][];
+        };
+        /** @description A thread member (`thread-members` endpoints and `member` of a thread object). */
+        ThreadMemberObject: {
+            /** Format: int32 */
+            flags: number;
+            /** @description The thread id. */
+            id: string;
+            join_timestamp: string;
+            user_id: string;
+        };
+        /** @description Thread-only fields of a channel object (`thread_metadata`). */
+        ThreadMetadataObject: {
+            archive_timestamp: string;
+            archived: boolean;
+            /** Format: int32 */
+            auto_archive_duration: number;
+            create_timestamp: string;
+            invitable?: boolean | null;
+            locked: boolean;
+        };
+        /** @description A thread channel object; for forum posts also the starter `message`. */
+        ThreadResponse: components["schemas"]["ChannelObject"] & {
+            message?: null | components["schemas"]["MessageObject"];
         };
         TriggerMetadata: {
             allow_list?: string[];
@@ -3395,6 +3696,58 @@ export interface operations {
             };
         };
     };
+    start_from_message: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Parent channel snowflake */
+                channel_id: string;
+                /** @description Message snowflake */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartFromMessageBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThreadResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     put_overwrite: {
         parameters: {
             query?: never;
@@ -3738,6 +4091,329 @@ export interface operations {
             };
         };
     };
+    list_members: {
+        parameters: {
+            query?: {
+                /** @description Last user id of the previous page */
+                after?: string;
+                /** @description 1 to 100, default 100 */
+                limit?: number;
+                /** @description Accepted for compatibility */
+                with_member?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description Thread snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThreadMemberObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_member: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Thread snowflake */
+                channel_id: string;
+                /** @description User snowflake or `@me` */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThreadMemberObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    add_member: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Thread snowflake */
+                channel_id: string;
+                /** @description User snowflake or `@me` */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Added (or already a member) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove_member: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Thread snowflake */
+                channel_id: string;
+                /** @description User snowflake or `@me` */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed (or was not a member) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    start_thread: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Parent channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartThreadBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThreadResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    archived_private: {
+        parameters: {
+            query?: {
+                /** @description ISO8601 archive timestamp cursor */
+                before?: string;
+                /** @description 1 to 100, default 50 */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Parent channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThreadList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    archived_public: {
+        parameters: {
+            query?: {
+                /** @description ISO8601 archive timestamp cursor */
+                before?: string;
+                /** @description 1 to 100, default 50 */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Parent channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThreadList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     trigger_typing: {
         parameters: {
             query?: never;
@@ -3755,6 +4431,57 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    archived_joined_private: {
+        parameters: {
+            query?: {
+                /** @description ISO8601 archive timestamp cursor */
+                before?: string;
+                /** @description 1 to 100, default 50 */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Parent channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThreadList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
             };
             403: {
                 headers: {
@@ -6091,6 +6818,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_active: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThreadList"];
                 };
             };
             403: {

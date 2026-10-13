@@ -39,6 +39,16 @@ pub enum ChatError {
     MaxPins,
     #[error("maximum number of reactions reached")]
     MaxReactions,
+    #[error("thread is archived")]
+    ThreadArchived,
+    #[error("thread is locked")]
+    ThreadLocked,
+    #[error("a thread has already been created for this message")]
+    ThreadAlreadyCreated,
+    #[error("maximum number of active threads reached")]
+    MaxActiveThreads,
+    #[error("a tag is required to create a forum post")]
+    TagRequired,
     #[error("slowmode: retry in {retry_after_ms} ms")]
     Slowmode { retry_after_ms: i64 },
     /// Invalid field; rendered as 50035 with a field path.
@@ -79,6 +89,11 @@ impl ChatError {
             Self::MaxPins => ApiError::new(ErrorCode::MaxPins),
             Self::MaxReactions => ApiError::new(ErrorCode::MaxReactions),
             Self::Slowmode { .. } => ApiError::new(ErrorCode::SlowmodeRateLimit),
+            Self::ThreadArchived => ApiError::new(ErrorCode::ThreadArchived),
+            Self::ThreadLocked => ApiError::new(ErrorCode::ThreadLocked),
+            Self::ThreadAlreadyCreated => ApiError::new(ErrorCode::ThreadAlreadyCreated),
+            Self::MaxActiveThreads => ApiError::new(ErrorCode::MaxActiveThreads),
+            Self::TagRequired => ApiError::new(ErrorCode::TagRequired),
             Self::Invalid {
                 field,
                 code,

@@ -78,6 +78,13 @@ pub trait GuildDirectory: Send + Sync {
         json!({ "id": guild })
     }
 
+    /// Body of `THREAD_LIST_SYNC` for `user` in `guild` (the active threads they can
+    /// see and their own memberships), sent right after `GUILD_CREATE`. `None` when
+    /// there is nothing to sync. Default: none.
+    async fn thread_list_sync(&self, _user: UserId, _guild: GuildId) -> Option<Value> {
+        None
+    }
+
     /// Members of the staff guild; they receive `SR_STAFF_ALERT` dispatches
     /// (open question 142). Default: nobody.
     async fn staff_users(&self) -> Vec<UserId> {

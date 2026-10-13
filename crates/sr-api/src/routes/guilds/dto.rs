@@ -3,8 +3,9 @@
 
 use serde::{Deserialize, Deserializer, Serialize};
 use sr_chat::admin_repo::Ban;
-use sr_chat::domain::{Channel, ChannelWithOverwrites, Guild, Member, Role};
+use sr_chat::domain::{Channel, ChannelType, ChannelWithOverwrites, Guild, Member, Role};
 use sr_chat::repo::UserSummary;
+use sr_chat::threads::model::{ThreadInfo, ThreadMember};
 use sr_core::UserId;
 use sr_core::permissions::{Overwrite, OverwriteKind};
 use std::collections::HashMap;
@@ -202,6 +203,39 @@ impl From<&Overwrite> for OverwriteObject {
     }
 }
 
+/// Thread-only fields of a channel object (`thread_metadata`).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ThreadMetadataObject {
+    pub archived: bool,
+    pub auto_archive_duration: u32,
+    pub archive_timestamp: String,
+    pub locked: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub invitable: Option<bool>,
+    pub create_timestamp: String,
+}
+
+/// A thread member (`thread-members` endpoints and `member` of a thread object).
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ThreadMemberObject {
+    /// The thread id.
+    pub id: String,
+    pub user_id: String,
+    pub join_timestamp: String,
+    pub flags: u32,
+}
+
+impl From<&ThreadMember> for ThreadMemberObject {
+    fn from(m: &ThreadMember) -> Self {
+        Self {
+            id: m.thread_id.to_string(),
+            user_id: m.user_id.to_string(),
+            join_timestamp: iso8601(m.joined_at_ms),
+            flags: m.flags,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct ChannelObject {
     pub id: String,
@@ -221,10 +255,47 @@ pub struct ChannelObject {
     pub last_message_id: Option<String>,
     pub permission_overwrites: Vec<OverwriteObject>,
     pub flags: u32,
+    /// Creator of a thread.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thread_metadata: Option<ThreadMetadataObject>,
+    /// Members of a thread.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub member_count: Option<u32>,
+    /// Messages in a thread, capped at 50.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message_count: Option<u32>,
+    /// Every message ever sent in a thread.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_message_sent: Option<u32>,
+    /// Forum tag ids applied to a post.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub applied_tags: Option<Vec<String>>,
+    /// The requesting user's membership of a thread.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub member: Option<ThreadMemberObject>,
+    /// Forum and media channels: the tags a post can carry.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<Vec<Object>>)]
+    pub available_tags: Option<Vec<serde_json::Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<Object>)]
+    pub default_reaction_emoji: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_sort_order: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_forum_layout: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_thread_rate_limit_per_user: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_auto_archive_duration: Option<u32>,
 }
 
 impl ChannelObject {
     pub fn new(c: &Channel, overwrites: &[Overwrite]) -> Self {
+        let t = c.thread.as_ref();
+        let forum = c.kind.is_forum_like();
         Self {
             id: c.id.to_string(),
             kind: c.kind.code(),
@@ -239,8 +310,49 @@ impl ChannelObject {
             user_limit: c.user_limit,
             last_message_id: c.last_message_id.map(|m| m.to_string()),
             permission_overwrites: overwrites.iter().map(OverwriteObject::from).collect(),
-            flags: 0,
+            flags: c.flags,
+            owner_id: t.and(c.owner_id).map(|o| o.to_string()),
+            thread_metadata: t.map(|t| ThreadMetadataObject {
+                archived: t.archived,
+                auto_archive_duration: t.auto_archive_duration,
+                archive_timestamp: iso8601(t.archive_timestamp_ms),
+                locked: t.locked,
+                invitable: (c.kind == ChannelType::PrivateThread).then_some(t.invitable),
+                create_timestamp: iso8601(t.create_timestamp_ms),
+            }),
+            member_count: t.map(|t| t.member_count),
+            message_count: t.map(ThreadInfo::reported_message_count),
+            total_message_sent: t.map(|t| t.total_message_sent),
+            applied_tags: t.filter(|_| c.parent_id.is_some()).and_then(|t| {
+                (!t.applied_tags.is_empty())
+                    .then(|| t.applied_tags.iter().map(u64::to_string).collect())
+            }),
+            member: None,
+            available_tags: forum.then(|| {
+                c.forum
+                    .available_tags
+                    .iter()
+                    .filter_map(|t| serde_json::to_value(t).ok())
+                    .collect()
+            }),
+            default_reaction_emoji: c
+                .forum
+                .default_reaction_emoji
+                .as_ref()
+                .filter(|_| forum)
+                .and_then(|r| serde_json::to_value(r).ok()),
+            default_sort_order: c.forum.default_sort_order.filter(|_| forum),
+            default_forum_layout: c.forum.default_forum_layout.filter(|_| forum),
+            default_thread_rate_limit_per_user: c.forum.default_thread_rate_limit,
+            default_auto_archive_duration: c.forum.default_auto_archive_duration,
         }
+    }
+
+    /// Attach the requesting user's thread membership.
+    #[must_use]
+    pub fn with_member(mut self, m: Option<&ThreadMember>) -> Self {
+        self.member = m.map(ThreadMemberObject::from);
+        self
     }
 }
 
@@ -396,6 +508,42 @@ pub struct OverwriteBody {
     pub deny: Option<String>,
 }
 
+/// A forum tag as sent by clients; the server assigns an id when absent.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct TagBody {
+    pub id: Option<String>,
+    pub name: String,
+    #[serde(default)]
+    pub moderated: bool,
+    pub emoji_id: Option<String>,
+    pub emoji_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct DefaultReactionBody {
+    pub emoji_id: Option<String>,
+    pub emoji_name: Option<String>,
+}
+
+/// Forum and media settings, plus the thread defaults of text channels.
+#[derive(Debug, Default, Deserialize, ToSchema)]
+pub struct ForumSettingsBody {
+    pub available_tags: Option<Vec<TagBody>>,
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<DefaultReactionBody>)]
+    pub default_reaction_emoji: Option<Option<DefaultReactionBody>>,
+    /// 0 latest activity, 1 creation date; `null` clears.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<u8>)]
+    pub default_sort_order: Option<Option<u8>>,
+    /// 0 not set, 1 list, 2 gallery.
+    pub default_forum_layout: Option<u8>,
+    /// Slowmode (seconds) new posts start with.
+    pub default_thread_rate_limit_per_user: Option<u32>,
+    /// Minutes of inactivity before new threads auto-archive.
+    pub default_auto_archive_duration: Option<u32>,
+}
+
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateChannelBody {
     pub name: String,
@@ -411,6 +559,10 @@ pub struct CreateChannelBody {
     pub user_limit: Option<u32>,
     #[serde(default)]
     pub permission_overwrites: Vec<OverwriteBody>,
+    /// Forum and media channels: `REQUIRE_TAG` (1 << 4) and similar settings bits.
+    pub flags: Option<u32>,
+    #[serde(flatten)]
+    pub forum: ForumSettingsBody,
 }
 
 #[derive(Debug, Default, Deserialize, ToSchema)]
@@ -430,6 +582,16 @@ pub struct ModifyChannelBody {
     /// Copy the category's overwrites onto this channel.
     #[serde(default)]
     pub lock_permissions: bool,
+    /// Forum channels: setting bits; threads: `PINNED` (1 << 1) for forum posts.
+    pub flags: Option<u32>,
+    #[serde(flatten)]
+    pub forum: ForumSettingsBody,
+    // Thread fields.
+    pub archived: Option<bool>,
+    pub auto_archive_duration: Option<u32>,
+    pub locked: Option<bool>,
+    pub invitable: Option<bool>,
+    pub applied_tags: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
