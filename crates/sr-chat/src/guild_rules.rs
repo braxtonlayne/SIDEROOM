@@ -70,6 +70,8 @@ pub fn plan_new_guild(
         name,
         description: None,
         icon_key: None,
+        banner_key: None,
+        splash_key: None,
         owner_id: owner,
         is_staff_guild: false,
         system_channel_id: Some(general),

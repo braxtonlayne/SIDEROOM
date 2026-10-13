@@ -95,17 +95,65 @@ impl CdnSigner {
     }
 
     /// Convenience: verify from a raw query string (`ex=1&sig=abc&size=64`).
+    /// `size` and `format` in the query are part of the signed string.
     pub fn verify_query(&self, path: &str, query: &str, now: u64) -> Result<(), VerifyError> {
-        let (mut ex, mut sig) = (None, None);
+        let (mut ex, mut sig, mut size, mut format) = (None, None, None, None);
         for pair in query.split('&') {
             match pair.split_once('=') {
                 Some(("ex", v)) => ex = Some(v),
                 Some(("sig", v)) => sig = Some(v),
+                Some(("size", v)) => size = Some(v),
+                Some(("format", v)) => format = Some(v),
                 _ => {}
             }
         }
-        self.verify(path, ex, sig, now)
+        let size = match size {
+            Some(v) => Some(v.parse::<u32>().map_err(|_| VerifyError::Malformed)?),
+            None => None,
+        };
+        let canonical = variant_canonical(path, size, format);
+        self.verify(&canonical, ex, sig, now)
     }
+
+    /// `path?size=..&format=..&ex=..&sig=..`, the signature covering the variant.
+    pub fn signed_variant_url(
+        &self,
+        path: &str,
+        size: Option<u32>,
+        format: Option<&str>,
+        expires_at: u64,
+    ) -> String {
+        let canonical = variant_canonical(path, size, format);
+        let mut q = String::new();
+        if let Some(s) = size {
+            q.push_str(&format!("size={s}&"));
+        }
+        if let Some(f) = format {
+            q.push_str(&format!("format={}&", f.to_ascii_lowercase()));
+        }
+        format!(
+            "{path}?{q}ex={expires_at}&sig={}",
+            self.sign(&canonical, expires_at)
+        )
+    }
+}
+
+/// The string that is signed for an image variant: `path`, then `?size=N` and
+/// `&format=F` for the parameters present (format lower-cased). With neither it
+/// is `path` itself, so URLs signed before resizing existed stay valid.
+pub fn variant_canonical(path: &str, size: Option<u32>, format: Option<&str>) -> String {
+    let mut out = path.to_owned();
+    let mut sep = '?';
+    if let Some(s) = size {
+        out.push(sep);
+        out.push_str(&format!("size={s}"));
+        sep = '&';
+    }
+    if let Some(f) = format {
+        out.push(sep);
+        out.push_str(&format!("format={}", f.to_ascii_lowercase()));
+    }
+    out
 }
 
 /// A parsed single byte range from a `Range` header.
@@ -241,6 +289,47 @@ mod tests {
             Err(VerifyError::Malformed)
         );
         assert_eq!(s.verify_query(P, "size=64", 0), Err(VerifyError::Malformed));
+    }
+
+    #[test]
+    fn variant_signature_covers_size_and_format() {
+        let s = CdnSigner::new(b"k".repeat(32));
+        let url = s.signed_variant_url(P, Some(128), Some("WebP"), 1000);
+        let q = url.split_once('?').unwrap().1;
+        assert!(q.starts_with("size=128&format=webp&ex=1000&sig="));
+        assert_eq!(s.verify_query(P, q, 10), Ok(()));
+        let other_size = q.replace("size=128", "size=256");
+        assert_eq!(
+            s.verify_query(P, &other_size, 10),
+            Err(VerifyError::BadSignature)
+        );
+        let other_fmt = q.replace("format=webp", "format=png");
+        assert_eq!(
+            s.verify_query(P, &other_fmt, 10),
+            Err(VerifyError::BadSignature)
+        );
+        let stripped = q.replace("size=128&format=webp&", "");
+        assert_eq!(
+            s.verify_query(P, &stripped, 10),
+            Err(VerifyError::BadSignature)
+        );
+        // A bare-path signature (old URL) still verifies, but cannot be turned into a variant.
+        let bare = s.signed_url(P, 1000);
+        let bq = bare.split_once('?').unwrap().1;
+        assert_eq!(s.verify_query(P, bq, 10), Ok(()));
+        assert_eq!(
+            s.verify_query(P, &format!("size=64&{bq}"), 10),
+            Err(VerifyError::BadSignature)
+        );
+        assert_eq!(
+            s.verify_query(P, "size=abc&ex=1&sig=x", 0),
+            Err(VerifyError::Malformed)
+        );
+        assert_eq!(variant_canonical(P, Some(64), None), format!("{P}?size=64"));
+        assert_eq!(
+            variant_canonical(P, None, Some("PNG")),
+            format!("{P}?format=png")
+        );
     }
 
     #[test]

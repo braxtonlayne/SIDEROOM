@@ -2,6 +2,7 @@
 
 use super::dto::{CreateGuildBody, GuildObject, GuildPreviewObject, ModifyGuildBody};
 use super::util::{Api, actor, ce, id};
+use crate::routes::{MaybeExt, media::MediaDeps};
 use crate::{AuthKind, Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
 use axum::{
     Json, Router,
@@ -11,13 +12,15 @@ use axum::{
 };
 use sr_chat::admin_rules::GuildPatch;
 use sr_core::{ChannelId, GuildId, UserId};
+use sr_storage::media::MediaKind;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/guilds", axum::routing::post(create_guild))
+        .route("/guilds/{guild_id}", get(get_guild).delete(delete_guild))
         .route(
             "/guilds/{guild_id}",
-            get(get_guild).patch(modify_guild).delete(delete_guild),
+            axum::routing::patch(modify_guild).layer(crate::routes::media::body_limit()),
         )
         .route("/users/@me/guilds", get(list_my_guilds))
         .route("/users/@me/guilds/{guild_id}", delete(leave_guild))
@@ -93,6 +96,7 @@ pub async fn get_guild(
 pub async fn modify_guild(
     p: Principal,
     Api(api): Api,
+    MaybeExt(media): MaybeExt<MediaDeps>,
     Path(guild_id): Path<String>,
     Json(body): Json<ModifyGuildBody>,
 ) -> ApiResult<Json<GuildObject>> {
@@ -108,6 +112,47 @@ pub async fn modify_guild(
         .as_deref()
         .map(|o| id::<UserId>("owner_id", o))
         .transpose()?;
+
+    // Images first: a bad upload fails the whole edit before anything is written.
+    let wants_images = body.icon.is_some() || body.banner.is_some() || body.splash.is_some();
+    let media = match (wants_images, media) {
+        (true, None) => {
+            tracing::error!("guild image edit needs MediaDeps registered on AppState");
+            return Err(sr_core::ErrorCode::SrInternal.into());
+        }
+        (_, m) => m,
+    };
+    let before = if wants_images {
+        Some(api.get_guild(user, gid).await.map_err(ce)?.0)
+    } else {
+        None
+    };
+    let mut stored: Vec<(MediaKind, String)> = Vec::new();
+    let mut keys: [Option<Option<String>>; 3] = [None, None, None];
+    let inputs = [
+        (MediaKind::GuildIcon, "icon", body.icon),
+        (MediaKind::GuildBanner, "banner", body.banner),
+        (MediaKind::GuildSplash, "splash", body.splash),
+    ];
+    for (n, (kind, field, v)) in inputs.into_iter().enumerate() {
+        match (v, &media) {
+            (None, _) | (Some(Some(_)), None) => {}
+            (Some(None), _) => keys[n] = Some(None),
+            (Some(Some(uri)), Some(m)) => match m.store(kind, gid.get(), field, uri).await {
+                Ok(h) => {
+                    stored.push((kind, h.clone()));
+                    keys[n] = Some(Some(h));
+                }
+                Err(e) => {
+                    for (k, h) in &stored {
+                        m.remove(*k, gid.get(), h).await;
+                    }
+                    return Err(e);
+                }
+            },
+        }
+    }
+    let [icon_key, banner_key, splash_key] = keys;
     let patch = GuildPatch {
         name: body.name,
         description: body.description,
@@ -117,8 +162,35 @@ pub async fn modify_guild(
         explicit_content_filter: body.explicit_content_filter,
         preferred_locale: body.preferred_locale,
         owner_id,
+        icon_key,
+        banner_key,
+        splash_key,
     };
-    let g = api.edit_guild(user, gid, patch).await.map_err(ce)?;
+    let g = match api.edit_guild(user, gid, patch).await {
+        Ok(g) => g,
+        Err(e) => {
+            if let Some(m) = &media {
+                for (k, h) in &stored {
+                    m.remove(*k, gid.get(), h).await;
+                }
+            }
+            return Err(ce(e));
+        }
+    };
+    // Committed: delete the images this edit replaced or cleared.
+    if let (Some(m), Some(b)) = (&media, &before) {
+        for (kind, old, new) in [
+            (MediaKind::GuildIcon, &b.icon_key, &g.icon_key),
+            (MediaKind::GuildBanner, &b.banner_key, &g.banner_key),
+            (MediaKind::GuildSplash, &b.splash_key, &g.splash_key),
+        ] {
+            if let Some(old) = old
+                && Some(old) != new.as_ref()
+            {
+                m.remove(kind, gid.get(), old).await;
+            }
+        }
+    }
     let (_, roles) = api.get_guild(user, gid).await.map_err(ce)?;
     Ok(Json(GuildObject::new(&g, Some(&roles), None)))
 }

@@ -122,6 +122,10 @@ pub struct Guild {
     pub name: String,
     pub description: Option<String>,
     pub icon_key: Option<String>,
+    /// Banner hash (`/cdn/icons/{guild}/{hash}.png`).
+    pub banner_key: Option<String>,
+    /// Invite splash hash.
+    pub splash_key: Option<String>,
     pub owner_id: UserId,
     pub is_staff_guild: bool,
     pub system_channel_id: Option<ChannelId>,

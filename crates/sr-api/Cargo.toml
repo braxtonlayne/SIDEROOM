@@ -43,4 +43,5 @@ moka.workspace = true
 [dev-dependencies]
 sr-chat = { path = "../sr-chat", features = ["memory"] }
 http-body-util = "0.1"
+image = { version = "0.25", default-features = false, features = ["png", "gif"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "sync"] }

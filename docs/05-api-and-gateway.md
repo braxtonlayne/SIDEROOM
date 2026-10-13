@@ -111,9 +111,23 @@ Not implemented yet: passkeys (`/sr/auth/passkey/*`). The `webauthn-rs` crate de
 | `attachments` | `chat/{channel}/{attachment}/{filename}` | message attachments (`url` / `proxy_url` are returned signed, valid 24 h) |
 | `emoji` | `emoji/{guild}/{emoji}.{ext}` | custom emoji (`/cdn/emoji/{guild}/{emoji}.{png,jpg,gif,webp}`) |
 | `stickers` | `sticker/{guild}/{sticker}.{ext}` | guild stickers |
-| `avatars`, `icons` | `avatars/...`, `icons/...` | reserved |
+| `avatars` | `avatars/{user}/{hash}` | user avatars and profile banners (`PATCH /users/@me`); public kind, see below |
+| `icons` | `icons/{guild}/{hash}` | guild icon, banner and splash (`PATCH /guilds/{id}`); public kind, see below |
 
-Any other kind is 404. Emoji objects carry no URL in the Discord shape; clients build the path from the guild and emoji ids and obtain a signature from the server. Rust code builds paths with `routes::cdn::cdn_path(kind, &[segments])`, which percent-encodes each segment (everything but `A-Za-z0-9-._~`) and yields the canonical path that is signed. The server decodes the request path and re-canonicalises it before verifying, so `%20` vs a literal space, or hex case, do not matter. (`?size=` resizing is not implemented; FND-STOR-003.)
+Any other kind is 404. Emoji objects carry no URL in the Discord shape; clients build the path from the guild and emoji ids and obtain a signature from the server. Rust code builds paths with `routes::cdn::cdn_path(kind, &[segments])`, which percent-encodes each segment (everything but `A-Za-z0-9-._~`) and yields the canonical path that is signed. The server decodes the request path and re-canonicalises it before verifying, so `%20` vs a literal space, or hex case, do not matter.
+
+**Image variants (FND-STOR-003).** Any image object accepts `?size=` and `format=`:
+
+- `size`: the longest edge in pixels, a power of two from 16 to 4096 (anything else is 400). The aspect ratio is kept and the image is never upscaled past the original.
+- `format`: `png`, `jpg` (or `jpeg`), `webp` or `gif`. For `avatars` and `icons` the URL extension (`/cdn/avatars/{user}/{hash}.webp`) names the format and `format=` overrides it. With neither, the output follows the source (JPEG stays JPEG, GIF stays GIF, otherwise WebP if `Accept` lists `image/webp`, else PNG) and the response has `Vary: Accept`.
+- Animated GIF stays an animated GIF when resized. Requesting another format gives the first frame. Animated WebP sources are decoded as their first frame, and WebP output is lossless-only, because the pure-Rust `image` encoder has no lossy or animated mode.
+- Outputs are re-encoded from pixels, so EXIF/XMP/ICC metadata never survives, and the EXIF orientation is applied.
+- Each variant is computed once and cached in object storage as `<key>@<size>.<ext>` (`<key>@orig.<ext>` for a format-only conversion). Deleting an avatar or icon deletes its variants.
+- Work is bounded: sources over 16 MiB or 24 million pixels (animations: 32 million pixels in total, 400 frames) give 413; a source that is not a PNG, JPEG, GIF or WebP gives 415. Resizes run at most four at a time.
+- Signatures cover the variant: the signed string is `{path}?size=N&format=F` with only the parameters present. A URL without them signs the bare path exactly as before, so URLs minted earlier stay valid, but they cannot be turned into a variant by appending `size`. Emoji and stickers get signed variant URLs from `GET /guilds/{guild}/emojis/{id}/url?size=&format=` and `.../stickers/{id}/url` (one hour, any member).
+- `Range` is ignored on variants.
+
+**Exception: `avatars` and `icons` are public kinds.** Their URLs are `/cdn/avatars/{user}/{hash}.{ext}` and `/cdn/icons/{guild}/{hash}.{ext}`, where `hash` is 32 hex characters of a SHA-256 over the normalised image (prefix `a_` when animated). The unguessable hash is the credential, as on Discord, so these two kinds are served **without** `ex`/`sig`, with `Cache-Control: public, max-age=31536000, immutable`. This is a deliberate exception to docs/02 section 5 ("Buckets are never public; URLs are signed"): every API object already shows these hashes to anyone who can see the user or guild, and a per-viewer signed URL for every avatar in a member list would defeat caching. The bucket itself stays private and the server streams the object. A signature that is present must still be valid (a bad one is 403), and every other kind still requires one. The owner can overrule this; turning it off means returning `avatar_url` fields signed per request.
 
 Responses:
 
@@ -125,6 +139,8 @@ Responses:
 | 403 | `ex` or `sig` missing, malformed, or not matching the path |
 | 404 | Unknown kind (before any signature check), or object missing (only after a valid signature) |
 | 410 | Signature valid but `ex` is in the past (the client should refetch the message for a fresh URL) |
+| 413 | Variant source over the byte or pixel budget |
+| 415 | Variant requested for something that is not a PNG, JPEG, GIF or WebP |
 | 416 | Unsatisfiable range, with `Content-Range: bytes */<len>` |
 | 429 | Per-client-IP limit (bucket `GET /cdn/{*path}`, default 300 per 10 s, shared process-wide limiter) |
 

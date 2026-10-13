@@ -983,12 +983,17 @@ async fn profile_edit_and_connections() {
                 pronouns: Some(Some("they/them".into())),
                 accent_color: Some(Some(0x00AB_CDEF)),
                 banner_key: Some(Some("banners/1".into())),
+                avatar_key: Some(Some("0123456789abcdef0123456789abcdef".into())),
             },
         )
         .await
         .unwrap();
     assert_eq!(p.bio.as_deref(), Some("hello **world**"));
     assert_eq!(p.accent_color, Some(0x00AB_CDEF));
+    assert_eq!(
+        p.avatar_key.as_deref(),
+        Some("0123456789abcdef0123456789abcdef")
+    );
     // Bad values rejected without changing anything.
     for bad in [
         ProfileEdit {

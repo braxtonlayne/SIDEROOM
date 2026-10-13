@@ -283,5 +283,75 @@ const textBytes = Buffer.from('hello from the live storage test\n'.repeat(2000))
   check('sweep deleted the abandoned object from S3', !(await s3Get(key)).exists);
 }
 
+// 9. avatar / guild icon upload and the resizing /cdn proxy
+{
+  const { deflateSync } = await import('node:zlib');
+  const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+  const crc = (b) => { let c = 0xffffffff; for (const x of b) c = crcTable[(c ^ x) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const chunk = (t, d) => { const len = Buffer.alloc(4); len.writeUInt32BE(d.length); const td = Buffer.concat([Buffer.from(t), d]); const c = Buffer.alloc(4); c.writeUInt32BE(crc(td)); return Buffer.concat([len, td, c]); };
+  const png = (w, h, seed) => {
+    const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2;
+    const raw = Buffer.alloc((w * 3 + 1) * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const o = y * (w * 3 + 1) + 1 + x * 3; raw[o] = (x * 3 + seed) & 255; raw[o + 1] = (y * 5) & 255; raw[o + 2] = seed; }
+    return Buffer.concat([Buffer.from('\x89PNG\r\n\x1a\n', 'latin1'), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+  };
+  const uri = (b) => `data:image/png;base64,${b.toString('base64')}`;
+  const dims = (b) => [b.readUInt32BE(16), b.readUInt32BE(20)];
+  const cdn = async (path, headers = {}) => { const r = await fetch(BASE + path, { headers }); return { r, body: Buffer.from(await r.arrayBuffer()) }; };
+
+  // user avatar: 96x64 source is cropped to a 64x64 square
+  const up = await A.call('PATCH', '/users/@me', { avatar: uri(png(96, 64, 7)) });
+  const hash = up.body?.user?.avatar;
+  check('avatar upload returns a hash', up.status === 200 && /^(a_)?[0-9a-f]{32}$/.test(hash ?? ''), up);
+  const key = `avatars/${A.id}/${hash}`;
+  const stored = await s3Get(key);
+  check('avatar original stored in S3 as a square', stored.exists && dims(stored.body).join('x') === '64x64', key);
+  const me = await A.call('GET', '/users/@me');
+  check('GET /users/@me carries the avatar hash', me.body?.avatar === hash, me);
+
+  const orig = await cdn(`/cdn/avatars/${A.id}/${hash}.png`);
+  check('unsigned avatar fetch serves the original', orig.r.status === 200 && orig.r.headers.get('content-type') === 'image/png' && orig.body.equals(stored.body), orig.r.status);
+  const small = await cdn(`/cdn/avatars/${A.id}/${hash}.png?size=16`);
+  check('?size=16 resizes to 16x16 PNG', small.r.status === 200 && small.r.headers.get('content-type') === 'image/png' && dims(small.body).join('x') === '16x16', small.r.status);
+  const cached = await s3Get(`${key}@16.png`);
+  check('resized variant cached in S3 under <key>@16.png', cached.exists && cached.body.equals(small.body));
+  const big = await cdn(`/cdn/avatars/${A.id}/${hash}.png?size=1024`);
+  check('size above the original is not upscaled', big.r.status === 200 && dims(big.body).join('x') === '64x64');
+  const webp = await cdn(`/cdn/avatars/${A.id}/${hash}.webp?size=32`);
+  check('.webp extension gives WebP', webp.r.status === 200 && webp.r.headers.get('content-type') === 'image/webp' && webp.body.subarray(8, 12).toString() === 'WEBP');
+  const badSize = await cdn(`/cdn/avatars/${A.id}/${hash}.png?size=100`);
+  check('non power-of-two size is 400', badSize.r.status === 400, badSize.r.status);
+  const badSig = await cdn(`/cdn/avatars/${A.id}/${hash}.png?ex=1&sig=bad`);
+  check('a present but invalid signature is 403', badSig.r.status === 403, badSig.r.status);
+
+  // replace: old object and its variants disappear
+  const up2 = await A.call('PATCH', '/users/@me', { avatar: uri(png(32, 32, 99)) });
+  const hash2 = up2.body?.user?.avatar;
+  check('avatar replace gives a new hash', up2.status === 200 && hash2 && hash2 !== hash, up2);
+  check('replaced avatar object and variants removed from S3', !(await s3Get(key)).exists && !(await s3Get(`${key}@16.png`)).exists);
+  const notImg = await A.call('PATCH', '/users/@me', { avatar: `data:image/png;base64,${Buffer.from('<html>').toString('base64')}` });
+  check('non-image avatar rejected', notImg.status === 400, notImg);
+  const rm = await A.call('PATCH', '/users/@me', { avatar: null });
+  check('avatar removal clears the field', rm.status === 200 && rm.body?.user?.avatar === null, rm);
+  check('removed avatar object deleted from S3', !(await s3Get(`avatars/${A.id}/${hash2}`)).exists);
+
+  // guild icon
+  const gi = await A.call('PATCH', `/guilds/${guild}`, { icon: uri(png(80, 80, 3)), banner: uri(png(160, 90, 4)) });
+  check('guild icon and banner upload', gi.status === 200 && !!gi.body?.icon && !!gi.body?.banner, gi);
+  const icon = await cdn(`/cdn/icons/${guild}/${gi.body?.icon}.png?size=16`);
+  check('guild icon resized via /cdn/icons', icon.r.status === 200 && dims(icon.body).join('x') === '16x16', icon.r.status);
+  const clr = await A.call('PATCH', `/guilds/${guild}`, { icon: null, banner: null });
+  check('guild icon and banner removed', clr.status === 200 && clr.body?.icon === null && clr.body?.banner === null, clr);
+  check('guild icon object deleted from S3', !(await s3Get(`icons/${guild}/${gi.body?.icon}`)).exists);
+
+  // signed emoji URL endpoint
+  const em = await A.call('POST', `/guilds/${guild}/emojis`, { name: 'url_' + sfx, image: uri(png(48, 48, 5)) });
+  const eu = await A.call('GET', `/guilds/${guild}/emojis/${em.body?.id}/url?size=16&format=png`);
+  check('emoji url endpoint returns a signed variant URL', eu.status === 200 && /size=16&format=png&ex=\d+&sig=/.test(eu.body?.url ?? ''), eu);
+  const ef = await cdn(eu.body?.url ?? '/cdn/none');
+  check('signed emoji variant is served resized', ef.r.status === 200 && dims(ef.body).join('x') === '16x16', ef.r.status);
+  await A.call('DELETE', `/guilds/${guild}/emojis/${em.body?.id}`);
+}
+
 console.log(failures ? `\n${failures} check(s) FAILED` : '\nall checks passed');
 process.exit(failures ? 1 : 0);

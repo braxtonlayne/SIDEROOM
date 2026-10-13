@@ -68,7 +68,8 @@ impl GuildAdminRepository for PgChatRepo {
         sqlx::query(
             "UPDATE guilds SET name = $2, description = $3, icon_key = $4, owner_id = $5, \
              system_channel_id = $6, verification_level = $7, default_message_notifications = $8, \
-             explicit_content_filter = $9, preferred_locale = $10, updated_at = now() WHERE id = $1",
+             explicit_content_filter = $9, preferred_locale = $10, banner_key = $11, splash_key = $12, \
+             updated_at = now() WHERE id = $1",
         )
         .bind(i(g.id.get()))
         .bind(&g.name)
@@ -80,6 +81,8 @@ impl GuildAdminRepository for PgChatRepo {
         .bind(i16::from(g.default_message_notifications))
         .bind(i16::from(g.explicit_content_filter))
         .bind(&g.preferred_locale)
+        .bind(g.banner_key.as_deref())
+        .bind(g.splash_key.as_deref())
         .execute(&self.pool)
         .await
         .map_err(db)?;

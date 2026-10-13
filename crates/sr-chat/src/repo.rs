@@ -142,6 +142,8 @@ pub struct UserSummary {
     pub username: String,
     pub display_name: Option<String>,
     pub avatar_key: Option<String>,
+    /// Profile banner hash, when one is set.
+    pub banner_key: Option<String>,
 }
 
 /// Looks up the user fields that Discord embeds in member, ban and message

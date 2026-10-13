@@ -366,7 +366,12 @@ impl From<&ChannelWithOverwrites> for ChannelObject {
 pub struct GuildObject {
     pub id: String,
     pub name: String,
+    /// Icon hash: `/cdn/icons/{id}/{hash}.png` (`a_` prefix = animated).
     pub icon: Option<String>,
+    /// Banner hash, same URL shape as the icon.
+    pub banner: Option<String>,
+    /// Invite splash hash, same URL shape as the icon.
+    pub splash: Option<String>,
     pub description: Option<String>,
     pub owner_id: String,
     pub system_channel_id: Option<String>,
@@ -387,6 +392,8 @@ impl GuildObject {
             id: g.id.to_string(),
             name: g.name.clone(),
             icon: g.icon_key.clone(),
+            banner: g.banner_key.clone(),
+            splash: g.splash_key.clone(),
             description: g.description.clone(),
             owner_id: g.owner_id.to_string(),
             system_channel_id: g.system_channel_id.map(|c| c.to_string()),
@@ -489,10 +496,19 @@ pub struct ModifyGuildBody {
     pub preferred_locale: Option<String>,
     /// Transfers ownership (owner only).
     pub owner_id: Option<String>,
-    /// Accepted and ignored for now.
+    /// Image data URI (PNG, JPEG, GIF or WebP, 8 MiB at most; cropped to a square);
+    /// `null` removes the icon.
     #[serde(default, deserialize_with = "nullable")]
     #[schema(value_type = Option<String>)]
     pub icon: Option<Option<String>>,
+    /// Banner image data URI (aspect ratio kept, at most 1920x1080); `null` removes it.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub banner: Option<Option<String>>,
+    /// Invite splash image data URI; `null` removes it.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub splash: Option<Option<String>>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

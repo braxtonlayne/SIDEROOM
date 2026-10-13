@@ -69,8 +69,8 @@ fn vis_parse(s: &str) -> RepoResult<Visibility> {
     })
 }
 
-pub(crate) const GUILD_COLS: &str = "id, name, description, icon_key, owner_id, is_staff_guild, \
-    system_channel_id, verification_level, default_message_notifications, \
+pub(crate) const GUILD_COLS: &str = "id, name, description, icon_key, banner_key, splash_key, \
+    owner_id, is_staff_guild, system_channel_id, verification_level, default_message_notifications, \
     explicit_content_filter, preferred_locale";
 
 pub(crate) fn guild_from(r: &PgRow) -> Result<Guild, sqlx::Error> {
@@ -79,6 +79,8 @@ pub(crate) fn guild_from(r: &PgRow) -> Result<Guild, sqlx::Error> {
         name: r.try_get("name")?,
         description: r.try_get("description")?,
         icon_key: r.try_get("icon_key")?,
+        banner_key: r.try_get("banner_key")?,
+        splash_key: r.try_get("splash_key")?,
         owner_id: UserId::new(u(r.try_get("owner_id")?)),
         is_staff_guild: r.try_get("is_staff_guild")?,
         system_channel_id: r
@@ -1441,8 +1443,8 @@ impl UserLookup for PgChatRepo {
     async fn users(&self, ids: &[UserId]) -> RepoResult<Vec<UserSummary>> {
         let ids: Vec<i64> = ids.iter().map(|u| i(u.get())).collect();
         let rows = sqlx::query(
-            "SELECT id, username::text AS username, display_name, avatar_key \
-             FROM accounts WHERE id = ANY($1)",
+            "SELECT id, username::text AS username, display_name, avatar_key, \
+             banner_key FROM accounts WHERE id = ANY($1)",
         )
         .bind(ids)
         .fetch_all(&self.pool)
@@ -1455,6 +1457,7 @@ impl UserLookup for PgChatRepo {
                 username: r.try_get("username").map_err(db)?,
                 display_name: r.try_get("display_name").map_err(db)?,
                 avatar_key: r.try_get("avatar_key").map_err(db)?,
+                banner_key: r.try_get("banner_key").map_err(db)?,
             });
         }
         Ok(out)

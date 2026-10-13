@@ -29,6 +29,7 @@ pub mod admin;
 pub mod auth;
 pub mod cdn;
 pub mod guilds;
+pub mod media;
 pub mod messages;
 pub mod search;
 pub mod settings;

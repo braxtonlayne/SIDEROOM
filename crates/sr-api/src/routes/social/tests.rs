@@ -25,7 +25,7 @@ use sr_chat::social::profile::Profile;
 use sr_chat::social::repo::{ReadStateRepository, RelationshipRepository, SocialRepository};
 use sr_core::{ChannelId, Clock, GuildId, ManualClock, SnowflakeGenerator, UserId};
 use sr_events::{DomainEvent, EventBus, InProcessBus, Topic};
-use sr_storage::ObjectStoreStorage;
+use sr_storage::{ObjectStorage, ObjectStoreStorage};
 use std::sync::Arc;
 use std::time::Duration;
 use tower::ServiceExt;
@@ -42,6 +42,7 @@ struct Env {
     backend: MemoryBackend,
     bus: Arc<InProcessBus>,
     clock: Arc<ManualClock>,
+    storage: Arc<ObjectStoreStorage>,
     guild: GuildId,
     ch: ChannelId,
 }
@@ -126,7 +127,7 @@ async fn env() -> Env {
     let messages = MessagesDeps::new(
         backend.clone(),
         Arc::new(backend.clone()),
-        storage,
+        storage.clone(),
         bus.clone(),
         Arc::new(FixedEntitlements(1 << 20)),
         Arc::new(backend.clone()),
@@ -143,6 +144,9 @@ async fn env() -> Env {
         .settings(settings)
         .extension(Arc::new(messages))
         .extension(social)
+        .extension(Arc::new(crate::routes::media::MediaDeps::new(
+            storage.clone(),
+        )))
         .build();
     Env {
         app: build_router(state, router().merge(messages::router())),
@@ -150,6 +154,7 @@ async fn env() -> Env {
         backend,
         bus,
         clock,
+        storage,
         guild,
         ch,
     }
@@ -917,7 +922,7 @@ async fn profile_edit_and_view() {
                 "bio": "  hello there ",
                 "pronouns": "they/them",
                 "accent_color": 0x00ff_8800u32,
-                "banner": "banners/a.png",
+                "banner": png_uri(120, 40),
                 "custom_status": {"text": "brb", "emoji_name": "coffee"}
             }),
         )
@@ -931,7 +936,13 @@ async fn profile_edit_and_view() {
     assert_eq!(v["user_profile"]["bio"], "hello there");
     assert_eq!(v["user_profile"]["pronouns"], "they/them");
     assert_eq!(v["user_profile"]["accent_color"], 0x00ff_8800u32);
-    assert_eq!(v["user_profile"]["banner"], "banners/a.png");
+    let banner = v["user_profile"]["banner"].as_str().unwrap().to_owned();
+    assert!(sr_storage::media::is_valid_hash(&banner), "{banner}");
+    assert_eq!(v["user"]["banner"], banner.as_str());
+    e.storage
+        .head(&format!("avatars/1/{banner}"))
+        .await
+        .unwrap();
     assert_eq!(v["user"]["id"], "1");
     assert_eq!(
         e.get("/users/@me/profile", ALICE).await.1["user_profile"]["bio"],
@@ -1545,4 +1556,119 @@ async fn group_member_changes_reach_the_right_users() {
     // Leaving a group does the same for the leaver.
     e.delete(&format!("/users/@me/channels/{id}"), BOB).await;
     assert_eq!(scoped(&mut bob, "CHANNEL_DELETE").await["id"], id.as_str());
+}
+
+fn png_uri(w: u32, h: u32) -> String {
+    let img = image::RgbaImage::from_fn(w, h, |x, y| {
+        image::Rgba([(x % 255) as u8, (y % 255) as u8, 9, 255])
+    });
+    let mut out = Vec::new();
+    image::DynamicImage::ImageRgba8(img)
+        .write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
+        .unwrap();
+    format!(
+        "data:image/png;base64,{}",
+        data_encoding::BASE64.encode(&out)
+    )
+}
+
+#[tokio::test]
+async fn avatar_upload_replace_and_remove() {
+    let e = env().await;
+    let mut events = e.bus.subscribe(Topic::User(UserId::new(ALICE)));
+
+    // Upload: cropped to a square, stored under avatars/<user>/<hash>.
+    let (s, v) = e
+        .patch("/users/@me", ALICE, json!({"avatar": png_uri(300, 200)}))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let h1 = v["user"]["avatar"].as_str().unwrap().to_owned();
+    assert!(sr_storage::media::is_valid_hash(&h1));
+    let key1 = format!("avatars/1/{h1}");
+    let stored = e.storage.get(&key1).await.unwrap();
+    let dims = image::ImageReader::new(std::io::Cursor::new(&stored))
+        .with_guessed_format()
+        .unwrap()
+        .into_dimensions()
+        .unwrap();
+    assert_eq!(dims, (200, 200));
+    // Others see it on the profile and user objects.
+    let (_, v) = e.get("/users/1/profile", BOB).await;
+    assert_eq!(v["user"]["avatar"], h1.as_str());
+    // A USER_UPDATE carrying the hash went to the owner.
+    let ev = tokio::time::timeout(Duration::from_secs(1), events.next())
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(format!("{ev:?}").contains(&h1));
+
+    // Replace: the old object and its cached variants are deleted.
+    e.storage
+        .put(&format!("{key1}@64.webp"), bytes::Bytes::from_static(b"v"))
+        .await
+        .unwrap();
+    let (s, v) = e
+        .patch("/users/@me", ALICE, json!({"avatar": png_uri(64, 64)}))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let h2 = v["user"]["avatar"].as_str().unwrap().to_owned();
+    assert_ne!(h1, h2);
+    assert!(e.storage.head(&key1).await.is_err());
+    assert!(e.storage.head(&format!("{key1}@64.webp")).await.is_err());
+    assert!(e.storage.head(&format!("avatars/1/{h2}")).await.is_ok());
+
+    // An edit that does not mention the avatar keeps it.
+    let (_, v) = e.patch("/users/@me", ALICE, json!({"bio": "x"})).await;
+    assert_eq!(v["user"]["avatar"], h2.as_str());
+
+    // Remove: null clears the field and deletes the object.
+    let (s, v) = e.patch("/users/@me", ALICE, json!({"avatar": null})).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert!(v["user"]["avatar"].is_null());
+    assert!(e.storage.head(&format!("avatars/1/{h2}")).await.is_err());
+}
+
+#[tokio::test]
+async fn bad_avatar_uploads_are_rejected_without_side_effects() {
+    let e = env().await;
+    let html = format!(
+        "data:image/png;base64,{}",
+        data_encoding::BASE64.encode(b"<html><script>alert(1)</script>")
+    );
+    for (bad, code) in [
+        (json!("https://example.com/a.png"), "IMAGE_INVALID"),
+        (
+            json!("data:image/svg+xml;base64,PHN2Zz48L3N2Zz4="),
+            "IMAGE_INVALID",
+        ),
+        (json!(html), "IMAGE_INVALID"),
+        (json!("data:image/png;base64,@@@"), "IMAGE_INVALID"),
+    ] {
+        let (s, v) = e
+            .patch("/users/@me", ALICE, json!({"avatar": bad, "bio": "nope"}))
+            .await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{v}");
+        assert_eq!(v["errors"]["avatar"]["_errors"][0]["code"], code, "{v}");
+    }
+    // The failed edits changed nothing (bio untouched) and stored nothing.
+    let (_, v) = e.get("/users/@me/profile", ALICE).await;
+    assert!(v["user_profile"]["bio"].is_null());
+    assert!(e.storage.list("avatars/").await.unwrap().is_empty());
+    // Oversized pixel count.
+    let big = format!(
+        "data:image/png;base64,{}",
+        data_encoding::BASE64.encode(&{
+            let mut out = Vec::new();
+            image::DynamicImage::ImageLuma8(image::GrayImage::new(6000, 6000))
+                .write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
+                .unwrap();
+            out
+        })
+    );
+    let (s, v) = e.patch("/users/@me", ALICE, json!({"avatar": big})).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{v}");
+    assert_eq!(
+        v["errors"]["avatar"]["_errors"][0]["code"],
+        "BINARY_TYPE_MAX_SIZE"
+    );
 }
