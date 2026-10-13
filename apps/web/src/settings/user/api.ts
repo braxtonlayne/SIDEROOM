@@ -57,6 +57,15 @@ export const resendVerification = () => apiPost<void>('/sr/auth/verify-email/res
 /** The only password route that exists is the emailed reset link (there is no "change password" route). */
 export const sendPasswordReset = (email: string) => apiPost<void>('/sr/auth/forgot', { email });
 
+export interface ChangeEmailBody {
+  new_email: string;
+  password: string;
+  /** Required when two-factor is on, unless this session passed a check in the last 15 minutes. */
+  mfa?: { method: 'totp' | 'recovery'; code: string };
+}
+/** `POST /sr/auth/email/change`: mails a confirmation link to the new address (204). */
+export const changeEmail = (body: ChangeEmailBody) => apiPost<void>('/sr/auth/email/change', body);
+
 export interface TotpEnrollment {
   otpauth_uri: string;
   manual_entry_key: string;

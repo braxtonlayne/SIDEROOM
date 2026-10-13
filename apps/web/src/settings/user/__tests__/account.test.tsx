@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, server } from '../../../test/server';
+import { axeViolations } from '../../../../../../packages/ui/src/test-axe';
 import { fieldError, openSettings, PROFILE, resetPrefs, signedIn } from './helpers';
 
 const session = (id: string, current = false) => ({
@@ -40,7 +41,7 @@ describe('My Account', () => {
     expect(screen.getByText('alice@example.com')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Resend verification/ })).toBeNull();
     // No endpoint exists to edit these, and the page says so.
-    expect(screen.getByText(/Changing your username, display name or email/)).toBeInTheDocument();
+    expect(screen.getByText(/Changing your username or display name/)).toBeInTheDocument();
   });
 
   it('resends the verification email and reports a cooldown', async () => {
@@ -349,5 +350,100 @@ describe('My Account', () => {
     );
     const router = openSettings('account');
     await waitFor(() => expect(router.state.location.pathname).toBe('/login'));
+  });
+});
+
+describe('Change email (D-167)', () => {
+  const mfaError = (code: string) => ({
+    code: 50035,
+    message: 'Invalid Form Body',
+    errors: { mfa: { _errors: [{ code, message: 'Enter a code.' }] } },
+  });
+
+  async function fillDetails(button: string) {
+    await userEvent.click(await screen.findByRole('button', { name: 'Change email' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Change your email' });
+    await userEvent.type(within(dialog).getByLabelText('New email'), 'new@example.com');
+    await userEvent.type(within(dialog).getByLabelText('Current password'), 'hunter22');
+    await userEvent.click(within(dialog).getByRole('button', { name: button }));
+    return dialog;
+  }
+
+  it('sends the link straight away when two-factor is off', async () => {
+    signedIn();
+    accountEndpoints();
+    let body: unknown;
+    server.use(
+      http.post('*/api/v1/sr/auth/email/change', async ({ request }) => {
+        body = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    openSettings('account');
+    await userEvent.click(await screen.findByRole('button', { name: 'Change email' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Change your email' });
+    expect(await axeViolations(dialog)).toEqual([]);
+    await userEvent.type(within(dialog).getByLabelText('New email'), 'new@example.com');
+    await userEvent.type(within(dialog).getByLabelText('Current password'), 'hunter22');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Send link' }));
+    expect(await screen.findByText('Check your new inbox')).toBeInTheDocument();
+    expect(body).toEqual({ new_email: 'new@example.com', password: 'hunter22' });
+  });
+
+  it('asks for a second factor when two-factor is on, and tells TOTP from recovery codes', async () => {
+    signedIn({ mfa_enabled: true });
+    accountEndpoints();
+    const bodies: Record<string, unknown>[] = [];
+    server.use(
+      http.post('*/api/v1/sr/auth/email/change', async ({ request }) => {
+        const b = (await request.json()) as Record<string, unknown>;
+        bodies.push(b);
+        const code = (b.mfa as { code: string }).code;
+        return code === '000000'
+          ? HttpResponse.json(mfaError('invalid'), { status: 400 })
+          : new HttpResponse(null, { status: 204 });
+      }),
+    );
+    openSettings('account');
+    await fillDetails('Continue');
+    expect(bodies).toEqual([]);
+    const step = await screen.findByRole('dialog', { name: 'Confirm it\u2019s you' });
+    expect(await axeViolations(step)).toEqual([]);
+    const field = within(step).getByLabelText('Authentication or recovery code');
+    await userEvent.type(field, '000000');
+    await userEvent.click(within(step).getByRole('button', { name: 'Send link' }));
+    expect(await within(step).findByText('Enter a code.')).toBeInTheDocument();
+    await userEvent.clear(field);
+    await userEvent.type(field, 'ABCD-EFGH');
+    await userEvent.click(within(step).getByRole('button', { name: 'Send link' }));
+    expect(await screen.findByText('Check your new inbox')).toBeInTheDocument();
+    expect(bodies[0]).toMatchObject({ mfa: { method: 'totp', code: '000000' } });
+    expect(bodies[1]).toMatchObject({ mfa: { method: 'recovery', code: 'ABCD-EFGH' } });
+  });
+
+  it('moves to the code step when the server asks for one', async () => {
+    signedIn();
+    accountEndpoints();
+    server.use(
+      http.post('*/api/v1/sr/auth/email/change', () =>
+        HttpResponse.json(mfaError('required'), { status: 400 }),
+      ),
+    );
+    openSettings('account');
+    await fillDetails('Send link');
+    expect(await screen.findByLabelText('Authentication or recovery code')).toBeInTheDocument();
+  });
+
+  it('shows a refused address on the first step', async () => {
+    signedIn();
+    accountEndpoints();
+    server.use(
+      http.post('*/api/v1/sr/auth/email/change', () =>
+        HttpResponse.json(fieldError('new_email', 'That is already your email.'), { status: 400 }),
+      ),
+    );
+    openSettings('account');
+    const dialog = await fillDetails('Send link');
+    expect(await within(dialog).findByText('That is already your email.')).toBeInTheDocument();
   });
 });

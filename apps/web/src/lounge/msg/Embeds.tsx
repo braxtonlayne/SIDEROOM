@@ -4,6 +4,7 @@ import type { Embed } from '../data';
 import { formatFullTime } from '../time';
 import { isHttpUrl } from './format';
 import { Md } from './Md';
+import { useLoadRemoteImages } from './remoteImages';
 
 const THIRD_PARTY_HINT =
   'Loading this video connects to a third-party site, which can see your IP address.';
@@ -119,7 +120,10 @@ function Link({ href, children }: { href: string | undefined; children: string }
  */
 export function EmbedView({ embed: e, resolvers }: { embed: Embed; resolvers?: Resolvers }) {
   const [loaded, setLoaded] = useState(false);
-  const [imagesLoaded, setImagesLoaded] = useState(false);
+  const [clicked, setImagesLoaded] = useState(false);
+  // "Load remote images automatically" (default off) skips the click; the proxy copy never needed it.
+  const auto = useLoadRemoteImages();
+  const imagesLoaded = clicked || auto;
   const color = colorHex(e.color);
   const isVideo = isHttpUrl(e.video?.url);
   const provider = e.provider?.name ?? (e.url ? hostOf(e.url) : 'a third-party site');

@@ -38,13 +38,15 @@ export function VerifyEmail() {
       )}
       {state === 'done' && (
         <p role="status" className="ent-sub">
-          Your email is verified. Thanks for confirming.
+          Your email is verified. Thanks for confirming. If you were changing your address, the new
+          one is now what you sign in with.
         </p>
       )}
       {state === 'expired' && (
         <p role="alert" className="ent-sub">
           That link has expired or was already used. Sign in and ask for a new one from the banner
-          in the lounge.
+          in the lounge, or, if you were changing your email, start the change again from Settings,
+          My Account.
         </p>
       )}
       {state === 'error' && (

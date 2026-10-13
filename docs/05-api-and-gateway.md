@@ -206,7 +206,7 @@ All Discord events relevant to implemented features use the same names and paylo
 Rich presence for watching/reading uses standard `activities` on `PRESENCE_UPDATE` (type 3 "Watching", plus a custom type for "Reading"), so it renders like Discord's activity cards.
 
 ### 6.4 Session lifecycle
-`HELLO(heartbeat_interval=41250)` → `IDENTIFY(token, intents, properties)` → `READY(session_id, resume_gateway_url, user, guilds (unavailable stubs), private_channels, relationships, read_state, user_settings, sessions)`. `private_channels` entries carry full `recipients` user objects (everyone but the viewer), the same shape as `GET /users/@me/channels` and the DM `CHANNEL_CREATE` (D-181). The gateway records every frame size in the `sr_gateway_dispatch_bytes` histogram (`/internal/metrics`) so the "p95 above 64 KiB" trigger for browser zstd is measurable → `GUILD_CREATE` per guild. Resume buffers are kept in memory per session for 2 minutes or 5,000 events.
+`HELLO(heartbeat_interval=41250)` → `IDENTIFY(token, intents, properties)` → `READY(session_id, resume_gateway_url, user, guilds (unavailable stubs), private_channels, relationships, read_state, user_settings, sessions)`. `private_channels` entries carry full `recipients` user objects (everyone but the viewer), the same shape as `GET /users/@me/channels` and the DM `CHANNEL_CREATE` (D-181); a conversation in the viewer's Message Requests also carries `is_message_request: true`. The gateway records every frame size in the `sr_gateway_dispatch_bytes` histogram (`/internal/metrics`) so the "p95 above 64 KiB" trigger for browser zstd is measurable → `GUILD_CREATE` per guild. Resume buffers are kept in memory per session for 2 minutes or 5,000 events.
 
 ## 7. Bot compatibility checklist (porting guide)
 

@@ -193,8 +193,23 @@ export interface CreateChannelBody {
 
 export type GuildWithChannels = Guild & { channels?: Channel[]; roles?: Role[] };
 
-export const createGuild = (name: string) =>
-  apiFetch<GuildWithChannels>('/guilds', { method: 'POST', json: { name }, retries: 0 });
+/** `template` is a built-in template id or a template code; the server builds the whole layout in one go. */
+export const createGuild = (name: string, template?: string) =>
+  apiFetch<GuildWithChannels>('/guilds', {
+    method: 'POST',
+    json: template ? { name, template } : { name },
+    retries: 0,
+  });
+
+/** A starter layout shipped with the server (Create a Server wizard, LNG-GLD-015). */
+export interface BuiltinTemplate {
+  id: string;
+  name: string;
+  /** One line shown under the name. */
+  description: string;
+}
+export const listBuiltinTemplates = () =>
+  apiFetch<BuiltinTemplate[]>('/guilds/templates/builtin', { retries: 0 });
 
 export const getInvite = (code: string) =>
   apiFetch<Invite>(`/invites/${encodeURIComponent(code)}?with_counts=true`, { retries: 0 });

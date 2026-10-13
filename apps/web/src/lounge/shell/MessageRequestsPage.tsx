@@ -1,5 +1,5 @@
-import { Avatar, Button, EmptyState, Icon, Notice, Spinner } from '@sideroom/ui';
-import { useEffect, useState } from 'react';
+import { Avatar, Button, EmptyState, Icon, Notice } from '@sideroom/ui';
+import { useState } from 'react';
 import { ApiError } from '../../api/client';
 import { HOME } from '../channels';
 import { useLoungeGoto } from '../nav';
@@ -10,16 +10,10 @@ import { useSocial, wireName } from './social';
 /** Message Requests (LNG-DM-008): conversations from people who are not friends yet. */
 export function MessageRequestsPage() {
   const list = useSocial((s) => s.messageRequests);
-  const status = useSocial((s) => s.messageRequestsStatus);
-  const load = useSocial((s) => s.loadDms);
   const forget = useSocial((s) => s.forgetMessageRequest);
   const goto = useLoungeGoto();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   const answer = async (
     dm: DmObject,
@@ -55,20 +49,7 @@ export function MessageRequestsPage() {
             {error}
           </Notice>
         )}
-        {status === 'loading' && list.length === 0 && (
-          <p role="status">
-            <Spinner label="Loading message requests" />
-          </p>
-        )}
-        {status === 'error' && (
-          <Notice variant="danger">
-            Could not load your message requests.{' '}
-            <Button size="sm" variant="secondary" onClick={() => void load()}>
-              Try again
-            </Button>
-          </Notice>
-        )}
-        {status === 'ready' && list.length === 0 && (
+        {list.length === 0 && (
           <EmptyState
             icon={<Icon name="user" size={24} />}
             title="No message requests"

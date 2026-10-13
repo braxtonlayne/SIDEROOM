@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Embed } from '../data';
 import { EmbedList } from '../msg/Embeds';
+import { resetStore, useStore } from '../../store';
 import { axeViolations } from '../../../../../packages/ui/src/test-axe';
 
 const PROXY = '/cdn/external/abc123/aHR0cHM6Ly9pbWcuZXhhbXBsZS9hLnBuZw';
@@ -140,6 +141,47 @@ describe('embed images (LNG-MSG-014, D-176, F-20)', () => {
     const proxiedBare: Embed = { ...bare, thumbnail: { url: bare.url, proxy_url: PROXY } };
     const second = render(<EmbedList embeds={[proxiedBare]} />);
     expect(imgSources(second.container)).toEqual([PROXY]);
+  });
+
+  describe('"Load remote images automatically"', () => {
+    const setAuto = (on: boolean | undefined) =>
+      useStore.setState({
+        userSettings: { version: 1, settings: on === undefined ? {} : { load_remote_images: on } },
+      });
+    afterEach(() => resetStore());
+
+    it('stays gated when the setting is missing or false', () => {
+      for (const on of [undefined, false]) {
+        setAuto(on);
+        const { container, unmount } = render(<EmbedList embeds={[remote]} />);
+        expect(container.querySelectorAll('img')).toHaveLength(0);
+        expect(screen.getByRole('button', { name: /Load image/ })).toBeInTheDocument();
+        unmount();
+      }
+    });
+
+    it('loads remote images with no click, still without a referrer', () => {
+      setAuto(true);
+      const { container } = render(<EmbedList embeds={[remote]} />);
+      expect(imgSources(container)).toHaveLength(4);
+      for (const img of container.querySelectorAll('img')) {
+        expect(img).toHaveAttribute('referrerpolicy', 'no-referrer');
+      }
+      expect(screen.queryByRole('button', { name: /Load image/ })).toBeNull();
+    });
+
+    it('keeps video embeds behind their own click', () => {
+      setAuto(true);
+      const video: Embed = {
+        type: 'video',
+        title: 'Clip',
+        url: 'https://v.example/watch',
+        video: { url: 'https://v.example/embed' },
+      };
+      const { container } = render(<EmbedList embeds={[video]} />);
+      expect(container.querySelector('iframe')).toBeNull();
+      expect(screen.getByRole('button', { name: /Load video/ })).toBeInTheDocument();
+    });
   });
 
   it('has no axe violations while gated', async () => {
