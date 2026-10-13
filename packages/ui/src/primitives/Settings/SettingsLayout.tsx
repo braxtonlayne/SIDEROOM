@@ -145,6 +145,7 @@ export function SettingsLayout({
           {navToggleLabel}
           {typeof active?.label === "string" ? `: ${active.label}` : ""}
         </button>
+        {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- arrow keys bubble from the section buttons (roving tabindex) */}
         <nav id={`${navId}-nav`} className={styles.nav} aria-label={title} onKeyDown={onNavKey}>
           {groups.map((g, gi) => (
             <div key={`${g.name ?? "g"}-${gi}`} className={styles.group}>
