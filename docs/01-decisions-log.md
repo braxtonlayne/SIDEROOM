@@ -156,3 +156,4 @@ Status key: **Decided** = owner's explicit answer. **Default** = engineering def
 | D-153 | Hosted on a rented server. Must be installable by another operator from the docs. | Decided |
 | D-154 | Delivery order: Lounge first, then Library (manga), then Cinema (media). | Decided |
 | D-155 | Repository is on GitHub; visibility and license are at the owner's discretion. | Decided |
+| D-156 | **CI and local tooling run Node 24** (`.nvmrc`; `engines` stays `>=22`). The web test setup bridges jsdom abort signals past Node 24 undici's brand check. | Decided |
