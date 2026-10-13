@@ -1764,6 +1764,95 @@
         ]
       }
     },
+    "/channels/{channel_id}/messages/{message_id}/threads": {
+      "post": {
+        "tags": [
+          "start"
+        ],
+        "summary": "Start a thread from a message. The thread's id is the message's id; a message can\nhave one thread. Needs `CREATE_PUBLIC_THREADS`.",
+        "operationId": "start_from_message",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Parent channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "message_id",
+            "in": "path",
+            "description": "Message snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartFromMessageBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/channels/{channel_id}/permissions/{overwrite_id}": {
       "put": {
         "tags": [
@@ -2296,6 +2385,554 @@
         ]
       }
     },
+    "/channels/{channel_id}/thread-members": {
+      "get": {
+        "tags": [
+          "members"
+        ],
+        "summary": "Members of a thread, ordered by user id (`after` pages; `limit` 1-100).",
+        "operationId": "list_members",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Thread snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "description": "Last user id of the previous page",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 100",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "with_member",
+            "in": "query",
+            "description": "Accepted for compatibility",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ThreadMemberObject"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/thread-members/{user_id}": {
+      "get": {
+        "tags": [
+          "members"
+        ],
+        "summary": "One thread member.",
+        "operationId": "get_member",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Thread snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "User snowflake or `@me`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadMemberObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "members"
+        ],
+        "summary": "Add a member to a thread (`@me` joins). The thread must not be archived.",
+        "operationId": "add_member",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Thread snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "User snowflake or `@me`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Added (or already a member)"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "members"
+        ],
+        "summary": "Remove a member from a thread (`@me` leaves). Removing others needs\n`MANAGE_THREADS`, or being the owner of a private thread.",
+        "operationId": "remove_member",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Thread snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "User snowflake or `@me`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed (or was not a member)"
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/threads": {
+      "post": {
+        "tags": [
+          "start"
+        ],
+        "summary": "Start a thread without a message, or a post in a forum or media channel (then\n`message` is required and becomes the first message).",
+        "operationId": "start_thread",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Parent channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartThreadBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/threads/archived/private": {
+      "get": {
+        "tags": [
+          "list"
+        ],
+        "summary": "Every archived private thread of a channel. Needs `MANAGE_THREADS`.",
+        "operationId": "archived_private",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Parent channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "ISO8601 archive timestamp cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 50",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/threads/archived/public": {
+      "get": {
+        "tags": [
+          "list"
+        ],
+        "summary": "Archived public threads (and forum posts) of a channel, newest archive first.\n`before` is the ISO8601 `archive_timestamp` of the last thread of the previous page.",
+        "operationId": "archived_public",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Parent channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "ISO8601 archive timestamp cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 50",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/channels/{channel_id}/typing": {
       "post": {
         "tags": [
@@ -2317,6 +2954,95 @@
         "responses": {
           "204": {
             "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/users/@me/threads/archived/private": {
+      "get": {
+        "tags": [
+          "list"
+        ],
+        "summary": "Archived private threads of a channel that the caller joined.",
+        "operationId": "archived_joined_private",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Parent channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "ISO8601 archive timestamp cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 50",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "403": {
             "description": "",
@@ -6243,6 +6969,66 @@
         ]
       }
     },
+    "/guilds/{guild_id}/threads/active": {
+      "get": {
+        "tags": [
+          "list"
+        ],
+        "summary": "Unarchived threads of a guild that the caller can see, with their memberships.",
+        "operationId": "list_active",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadList"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/webhooks": {
       "get": {
         "tags": [
@@ -8947,7 +9733,65 @@
           "flags"
         ],
         "properties": {
+          "applied_tags": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Forum tag ids applied to a post."
+          },
+          "available_tags": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object"
+            },
+            "description": "Forum and media channels: the tags a post can carry."
+          },
           "bitrate": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "default_auto_archive_duration": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "default_forum_layout": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "default_reaction_emoji": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "default_sort_order": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "default_thread_rate_limit_per_user": {
             "type": [
               "integer",
               "null"
@@ -8975,6 +9819,35 @@
               "null"
             ]
           },
+          "member": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ThreadMemberObject",
+                "description": "The requesting user's membership of a thread."
+              }
+            ]
+          },
+          "member_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Members of a thread.",
+            "minimum": 0
+          },
+          "message_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Messages in a thread, capped at 50.",
+            "minimum": 0
+          },
           "name": {
             "type": [
               "string",
@@ -8983,6 +9856,13 @@
           },
           "nsfw": {
             "type": "boolean"
+          },
+          "owner_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Creator of a thread."
           },
           "parent_id": {
             "type": [
@@ -9005,11 +9885,30 @@
             "format": "int32",
             "minimum": 0
           },
+          "thread_metadata": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ThreadMetadataObject"
+              }
+            ]
+          },
           "topic": {
             "type": [
               "string",
               "null"
             ]
+          },
+          "total_message_sent": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Every message ever sent in a thread.",
+            "minimum": 0
           },
           "type": {
             "type": "integer",
@@ -9182,78 +10081,94 @@
         }
       },
       "CreateChannelBody": {
-        "type": "object",
-        "required": [
-          "name"
-        ],
-        "properties": {
-          "bitrate": {
-            "type": [
-              "integer",
-              "null"
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ForumSettingsBody"
+          },
+          {
+            "type": "object",
+            "required": [
+              "name"
             ],
-            "format": "int32",
-            "minimum": 0
-          },
-          "name": {
-            "type": "string"
-          },
-          "nsfw": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "parent_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "permission_overwrites": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/OverwriteBody"
+            "properties": {
+              "bitrate": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              },
+              "flags": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "description": "Forum and media channels: `REQUIRE_TAG` (1 << 4) and similar settings bits.",
+                "minimum": 0
+              },
+              "name": {
+                "type": "string"
+              },
+              "nsfw": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "parent_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "permission_overwrites": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/OverwriteBody"
+                }
+              },
+              "position": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32"
+              },
+              "rate_limit_per_user": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              },
+              "topic": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "type": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "description": "Discord channel type; defaults to 0 (text). 4 creates a category."
+              },
+              "user_limit": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              }
             }
-          },
-          "position": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32"
-          },
-          "rate_limit_per_user": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32",
-            "minimum": 0
-          },
-          "topic": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "type": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32",
-            "description": "Discord channel type; defaults to 0 (text). 4 creates a category."
-          },
-          "user_limit": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32",
-            "minimum": 0
           }
-        }
+        ]
       },
       "CreateDmBody": {
         "type": "object",
@@ -9738,6 +10653,23 @@
           }
         }
       },
+      "DefaultReactionBody": {
+        "type": "object",
+        "properties": {
+          "emoji_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "emoji_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "DmChannelObject": {
         "type": "object",
         "required": [
@@ -10043,6 +10975,67 @@
               "boolean",
               "null"
             ]
+          }
+        }
+      },
+      "ForumSettingsBody": {
+        "type": "object",
+        "description": "Forum and media settings, plus the thread defaults of text channels.",
+        "properties": {
+          "available_tags": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/TagBody"
+            }
+          },
+          "default_auto_archive_duration": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Minutes of inactivity before new threads auto-archive.",
+            "minimum": 0
+          },
+          "default_forum_layout": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "0 not set, 1 list, 2 gallery.",
+            "minimum": 0
+          },
+          "default_reaction_emoji": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DefaultReactionBody"
+              }
+            ]
+          },
+          "default_sort_order": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "0 latest activity, 1 creation date; `null` clears.",
+            "minimum": 0
+          },
+          "default_thread_rate_limit_per_user": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Slowmode (seconds) new posts start with.",
+            "minimum": 0
           }
         }
       },
@@ -10529,6 +11522,13 @@
               "$ref": "#/components/schemas/ReactionObject"
             }
           },
+          "thread": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The thread started from this message (a thread has its starter's id)."
+          },
           "timestamp": {
             "type": "string"
           },
@@ -10593,68 +11593,119 @@
         }
       },
       "ModifyChannelBody": {
-        "type": "object",
-        "properties": {
-          "bitrate": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32",
-            "minimum": 0
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ForumSettingsBody"
           },
-          "lock_permissions": {
-            "type": "boolean",
-            "description": "Copy the category's overwrites onto this channel."
-          },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "nsfw": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "parent_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "position": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32"
-          },
-          "rate_limit_per_user": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32",
-            "minimum": 0
-          },
-          "topic": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "user_limit": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32",
-            "minimum": 0
+          {
+            "type": "object",
+            "properties": {
+              "applied_tags": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                }
+              },
+              "archived": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "auto_archive_duration": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              },
+              "bitrate": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              },
+              "flags": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "description": "Forum channels: setting bits; threads: `PINNED` (1 << 1) for forum posts.",
+                "minimum": 0
+              },
+              "invitable": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "lock_permissions": {
+                "type": "boolean",
+                "description": "Copy the category's overwrites onto this channel."
+              },
+              "locked": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "nsfw": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "parent_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "position": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32"
+              },
+              "rate_limit_per_user": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              },
+              "topic": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "user_limit": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "minimum": 0
+              }
+            }
           }
-        }
+        ]
       },
       "ModifyCommunityBody": {
         "type": "object",
@@ -11871,6 +12922,100 @@
           }
         }
       },
+      "StartFromMessageBody": {
+        "type": "object",
+        "description": "`POST /channels/{id}/messages/{id}/threads`.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "auto_archive_duration": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Minutes of inactivity before archiving: 60, 1440, 4320 or 10080.",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string"
+          },
+          "rate_limit_per_user": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Slowmode in seconds.",
+            "minimum": 0
+          }
+        }
+      },
+      "StartThreadBody": {
+        "type": "object",
+        "description": "`POST /channels/{id}/threads`. In a forum or media channel `message` is required\nand becomes the post's first message.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "applied_tags": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Forum and media channels: tag ids, at most 5."
+          },
+          "auto_archive_duration": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "invitable": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Private threads: whether members may invite others."
+          },
+          "message": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CreateMessageBody",
+                "description": "Forum and media channels: the starter message (no attachments yet)."
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "rate_limit_per_user": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "type": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "10 announcement, 11 public (default) or 12 private thread."
+          }
+        }
+      },
       "StickerObject": {
         "type": "object",
         "required": [
@@ -11918,6 +13063,39 @@
           },
           "user": {
             "$ref": "#/components/schemas/UserRef"
+          }
+        }
+      },
+      "TagBody": {
+        "type": "object",
+        "description": "A forum tag as sent by clients; the server assigns an id when absent.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "emoji_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "emoji_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "moderated": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
           }
         }
       },
@@ -11979,6 +13157,118 @@
             "minimum": 0
           }
         }
+      },
+      "ThreadList": {
+        "type": "object",
+        "description": "Thread listings: the threads plus the caller's memberships among them.",
+        "required": [
+          "threads",
+          "members",
+          "has_more"
+        ],
+        "properties": {
+          "has_more": {
+            "type": "boolean"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ThreadMemberObject"
+            }
+          },
+          "threads": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChannelObject"
+            }
+          }
+        }
+      },
+      "ThreadMemberObject": {
+        "type": "object",
+        "description": "A thread member (`thread-members` endpoints and `member` of a thread object).",
+        "required": [
+          "id",
+          "user_id",
+          "join_timestamp",
+          "flags"
+        ],
+        "properties": {
+          "flags": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "id": {
+            "type": "string",
+            "description": "The thread id."
+          },
+          "join_timestamp": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ThreadMetadataObject": {
+        "type": "object",
+        "description": "Thread-only fields of a channel object (`thread_metadata`).",
+        "required": [
+          "archived",
+          "auto_archive_duration",
+          "archive_timestamp",
+          "locked",
+          "create_timestamp"
+        ],
+        "properties": {
+          "archive_timestamp": {
+            "type": "string"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "auto_archive_duration": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "create_timestamp": {
+            "type": "string"
+          },
+          "invitable": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "locked": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ThreadResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ChannelObject"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "message": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/MessageObject"
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        "description": "A thread channel object; for forum posts also the starter `message`."
       },
       "TriggerMetadata": {
         "type": "object",
