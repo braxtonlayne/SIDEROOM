@@ -124,12 +124,16 @@ export interface RawEmbed {
   url?: string;
   color?: number;
   timestamp?: string;
-  footer?: { text: string; icon_url?: string };
-  image?: { url?: string; width?: number; height?: number };
-  thumbnail?: { url?: string; width?: number; height?: number };
-  video?: { url?: string; width?: number; height?: number };
+  footer?: { text: string; icon_url?: string; proxy_icon_url?: string };
+  /**
+   * `proxy_url` (a same-origin `/cdn/external/...` path, D-176) is the only form of a third-party
+   * image the client loads without a click; `url` is the original on the other site.
+   */
+  image?: { url?: string; proxy_url?: string; width?: number; height?: number };
+  thumbnail?: { url?: string; proxy_url?: string; width?: number; height?: number };
+  video?: { url?: string; proxy_url?: string; width?: number; height?: number };
   provider?: { name?: string; url?: string };
-  author?: { name: string; url?: string; icon_url?: string };
+  author?: { name: string; url?: string; icon_url?: string; proxy_icon_url?: string };
   fields?: { name: string; value: string; inline?: boolean }[];
 }
 
