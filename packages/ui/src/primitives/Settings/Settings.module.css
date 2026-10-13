@@ -8,6 +8,9 @@
   padding: 48px 12px 24px 24px; background: var(--ui-bg-raised); overflow-y: auto; box-sizing: border-box;
 }
 .sidebar > * { width: min(100%, 220px); }
+.nav { display: block; }
+.navToggle { display: none; }
+.wide .content { max-width: none; }
 .group + .group { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--ui-border); }
 .groupName { margin: 0 0 6px 10px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ui-text-muted); }
 .list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
@@ -49,8 +52,12 @@
 :global([data-reduced-motion="true"]) .bar { animation: none; }
 @media (max-width: 720px) {
   .root { flex-direction: column; }
-  .sidebar { flex: none; align-items: stretch; padding: 12px; }
+  .sidebar { flex: none; align-items: stretch; padding: 12px; max-height: 60vh; }
+  .navToggle { display: block; padding: 8px 10px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: transparent; color: var(--ui-text); font: inherit; text-align: left; cursor: pointer; }
+  .navToggle:focus-visible { outline: 2px solid var(--ui-focus); }
+  .sidebar[data-open="false"] .nav { display: none; }
+  .sidebar[data-open="true"] .nav { margin-top: 8px; }
   .sidebar > * { width: 100%; }
   .content { padding: 24px 16px 96px; }
-  .topline { top: 8px; right: 8px; }
+  .topline { top: 4px; right: 8px; }
 }

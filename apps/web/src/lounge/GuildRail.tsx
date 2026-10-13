@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { Avatar, ContextMenu, CounterBadge, Icon, Tooltip, type MenuEntry } from '@sideroom/ui';
 import { useState, type ReactNode } from 'react';
 import { RailPill, type RailPillState } from '@sideroom/ui';
@@ -74,6 +74,7 @@ function GuildIcon({ guild, selected }: { guild: Guild; selected: boolean }) {
   const pill: RailPillState = selected ? 'selected' : guild.unread ? 'unread' : 'none';
   const actions = useLoungeActions();
   const openDialog = useLoungeUi((s) => s.openDialog);
+  const navigate = useNavigate();
   const menu: MenuEntry[] = [
     {
       label: 'Mark As Read',
@@ -88,7 +89,12 @@ function GuildIcon({ guild, selected }: { guild: Guild; selected: boolean }) {
     { label: 'Mute Server', disabled: true },
     { label: 'Notification Settings', disabled: true },
     { type: 'separator' },
-    { label: 'Server Settings', disabled: !guild.permissions.manageGuild },
+    {
+      label: 'Server Settings',
+      disabled: !(guild.permissions.serverSettings ?? guild.permissions.manageGuild),
+      onSelect: () =>
+        void navigate({ to: '/settings/server/$guildId', params: { guildId: guild.id } }),
+    },
     {
       label: 'Create Channel',
       disabled: !guild.permissions.manageChannels,

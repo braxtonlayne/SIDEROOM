@@ -58,3 +58,4 @@ export * from "./primitives/QRCode/QRCode";
 export { encodeQr } from "./util/qr";
 export type { QrEcc, QrMatrix } from "./util/qr";
 export * from "./primitives/Kbd/KeybindRow";
+export * from "./primitives/Permissions/Permissions";

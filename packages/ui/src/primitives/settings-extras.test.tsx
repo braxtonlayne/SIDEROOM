@@ -175,6 +175,10 @@ describe("SettingsLayout nav", () => {
     const b = screen.getByRole("button", { name: "Profile" });
     const c = screen.getByRole("button", { name: "Appearance" });
     expect([a.tabIndex, b.tabIndex, c.tabIndex]).toEqual([-1, 0, -1]);
+    // The "Sections" toggle is the first tab stop in the DOM. CSS hides it on wide screens and only
+    // shows it on narrow ones, but this environment loads no CSS, so step over it here.
+    await userEvent.tab();
+    expect(screen.getByRole("button", { name: /Sections/ })).toHaveFocus();
     await userEvent.tab();
     expect(b).toHaveFocus();
     await userEvent.keyboard("{ArrowDown}");

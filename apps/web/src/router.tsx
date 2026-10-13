@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-router';
 import { createLoungeRoutes } from './routes/lounge';
 import { createUserSettingsRoutes } from './settings/user/routes';
+import { createServerSettingsRoutes } from './routes/settingsServer';
 import * as P from './routes/pages';
 import { Landing } from './routes/entrance/Landing';
 import { Login } from './routes/entrance/Login';
@@ -72,6 +73,7 @@ const routeTree = root.addChildren([
   r('/invite/$code', ServerInvite),
   createLoungeRoutes(root),
   ...createUserSettingsRoutes(root),
+  ...createServerSettingsRoutes(root),
   r('/cinema', P.Cinema),
   r('/library', P.Library),
   r('/admin', P.Admin),

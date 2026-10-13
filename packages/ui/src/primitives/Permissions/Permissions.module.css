@@ -1,0 +1,34 @@
+.tri { display: inline-flex; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); overflow: hidden; flex: none; }
+.tri[data-disabled] { opacity: 0.55; }
+.triBtn {
+  width: 34px; height: 30px; border: 0; background: var(--ui-bg-raised); color: var(--ui-text-muted);
+  font: inherit; cursor: pointer; display: grid; place-items: center;
+}
+.triBtn + .triBtn { border-left: 1px solid var(--ui-border); }
+.triBtn:disabled { cursor: not-allowed; }
+.triBtn:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: -2px; }
+.triBtn[aria-checked="true"][data-state="allow"] { background: var(--ui-success); color: #0b0b0a; }
+.triBtn[aria-checked="true"][data-state="deny"] { background: var(--ui-danger); color: #0b0b0a; }
+.triBtn[aria-checked="true"][data-state="neutral"] { background: var(--ui-bg-hover); color: var(--ui-text); }
+
+.matrix { display: flex; flex-direction: column; gap: 16px; }
+.toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.search {
+  flex: 1; min-width: 160px; min-height: 36px; padding: 6px 12px; box-sizing: border-box;
+  background: var(--ui-bg-raised); color: var(--ui-text); border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius); font: inherit;
+}
+.search:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 1px; }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.empty { margin: 0; color: var(--ui-text-muted); }
+.group { display: flex; flex-direction: column; gap: 4px; }
+.groupTitle { margin: 0 0 4px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ui-text-muted); }
+.list { margin: 0; padding: 0; list-style: none; }
+.row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 0; border-bottom: 1px solid var(--ui-border);
+}
+.row[data-danger] .label { color: var(--ui-danger); }
+.text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.label { font-size: 0.875rem; color: var(--ui-text); }
+.desc { font-size: 0.75rem; color: var(--ui-text-muted); line-height: 1.3; }

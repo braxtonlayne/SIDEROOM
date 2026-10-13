@@ -11,6 +11,7 @@ import {
   reduceDispatch,
 } from './reducer';
 import * as rest from './rest';
+import { emitDispatch } from './events';
 import type { Channel, ConnectionStatus, Message, MessageReaction, MessageWindow } from './types';
 
 /** Minimum gap between two read-state acks for one channel (Q128). */
@@ -148,7 +149,10 @@ export const useStore = create<StoreState>()((set, get) => {
     ...emptyData(),
     connection: 'idle',
     setConnection: (connection) => set({ connection }),
-    applyDispatch: (event, data) => set((s) => reduceDispatch(s, event, data)),
+    applyDispatch: (event, data) => {
+      set((s) => reduceDispatch(s, event, data));
+      emitDispatch(event, data);
+    },
     pruneTyping: (now = Date.now()) =>
       set((s) => {
         let changed = false;
