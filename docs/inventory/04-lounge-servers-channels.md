@@ -5,9 +5,9 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 ## LNG-GLD — Guilds
 - [x] **LNG-GLD-001** [DB] guilds, guild_members, roles, member_roles migrations
 - [x] **LNG-GLD-002** [BE] Create guild (default @everyone, #general, General voice, categories) → `POST /guilds`
-- [ ] **LNG-GLD-003** [BE] Create from template (built-in + Discord-compatible template JSON)
+- [x] **LNG-GLD-003** [BE] Create from template (built-in + Discord-compatible template JSON) *(`GET /guilds/templates/builtin`, `POST /guilds/templates/{code}` and `POST /guilds {template}` in one transaction; the wizard still creates the extras client-side until the paired web change lands)*
 - [x] **LNG-GLD-004** [BE] Get/modify/delete guild; owner transfer
-- [ ] **LNG-GLD-005** [BE] Member list/search/get/modify (nick, roles, timeout, voice mute/deaf/move), kick, prune (dry-run count). Done: list, search (`query`, `role_id`, `/members/search`), role members, get, modify, kick, prune with count preview. Open: voice mute/deaf/move
+- [ ] **LNG-GLD-005** [BE] Member list/search/get/modify (nick, roles, timeout, voice mute/deaf/move), kick, prune (dry-run count). Done: list, search (`query`, `role_id`, `/members/search`), role members, get, modify, kick, prune with count preview, judged on messages and last-seen (D-166). Open: voice mute/deaf/move
 - [ ] **LNG-GLD-006** [BE] Bans (create with delete-message-seconds, list, remove), bulk ban
 - [x] **LNG-GLD-007** [BE] Roles CRUD, positions, hierarchy enforcement (can't manage roles ≥ own top role)
 - [ ] **LNG-GLD-008** [BE] Guild member join/leave pipeline (system message, welcome screen, onboarding, membership screening `pending`)

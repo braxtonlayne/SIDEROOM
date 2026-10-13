@@ -58,6 +58,8 @@ struct Inner {
     totp: HashMap<i64, TotpRecord>,
     recovery: HashMap<i64, Vec<MemRecovery>>,
     tokens: Vec<MemToken>,
+    /// Session id to the time of its last second-factor check.
+    mfa_verified: HashMap<i64, i64>,
     trusted: Vec<MemTrusted>,
     /// `(actor, action, target, note)`.
     audit: Vec<(i64, String, Option<i64>, String)>,
@@ -377,6 +379,24 @@ impl AuthStore for MemoryAuthStore {
         };
         t.consumed = true;
         Ok(t.email.clone().map(|e| (t.user_id, e)))
+    }
+
+    async fn email_change_cancel(&self, user_id: i64) -> StoreResult<bool> {
+        let mut g = self.lock();
+        let before = g.tokens.len();
+        g.tokens.retain(|t| {
+            !(t.user_id == user_id && t.purpose == EmailTokenPurpose::ChangeEmail && !t.consumed)
+        });
+        Ok(g.tokens.len() != before)
+    }
+
+    async fn session_mfa_verified_at(&self, session_id: i64) -> StoreResult<Option<i64>> {
+        Ok(self.lock().mfa_verified.get(&session_id).copied())
+    }
+
+    async fn session_mark_mfa_verified(&self, session_id: i64, at: i64) -> StoreResult<()> {
+        self.lock().mfa_verified.insert(session_id, at);
+        Ok(())
     }
 
     async fn set_email(&self, id: i64, email: &str) -> StoreResult<bool> {

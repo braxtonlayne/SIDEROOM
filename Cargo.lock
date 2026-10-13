@@ -4691,6 +4691,7 @@ dependencies = [
  "axum",
  "futures",
  "getrandom 0.4.3",
+ "metrics",
  "ruzstd",
  "serde",
  "serde_json",

@@ -93,6 +93,14 @@ async fn sessions_roundtrip_and_revoke() {
         device_name: Some("Firefox on Linux".into()),
     };
     SessionRepository::create(&r, rec.clone()).await.unwrap();
+    // F-02: a login counts as the account being seen.
+    let seen: bool =
+        sqlx::query_scalar("SELECT last_seen_at IS NOT NULL FROM accounts WHERE id = $1")
+            .bind(user)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(seen, "creating a session sets accounts.last_seen_at");
     let found = r.find_by_hash(&tok.hash()).await.unwrap().unwrap();
     assert_eq!(found, rec);
 

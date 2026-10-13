@@ -3,7 +3,8 @@
 use crate::domain::{Channel, ChannelType, Guild, Member, Role};
 use crate::error::{ChatError, ChatResult};
 use crate::perms::{GuildActor, default_everyone_permissions};
-use sr_core::permissions::Permissions;
+use crate::settings::templates::{self, TemplateSnapshot};
+use sr_core::permissions::{Overwrite, Permissions};
 use sr_core::{ChannelId, GuildId, RoleId, Snowflake, UserId};
 
 pub const GUILD_NAME_MIN: usize = 2;
@@ -33,6 +34,10 @@ pub struct GuildBlueprint {
     pub everyone_role: Role,
     pub owner_member: Member,
     pub channels: Vec<Channel>,
+    /// Roles beyond `@everyone` (only a template brings any).
+    pub extra_roles: Vec<Role>,
+    /// Channel permission overwrites (only a template brings any).
+    pub overwrites: Vec<(ChannelId, Overwrite)>,
 }
 
 /// Plan a new guild: `@everyone`, categories "Text Channels" / "Voice Channels",
@@ -109,7 +114,46 @@ pub fn plan_new_guild(
         everyone_role,
         owner_member,
         channels,
+        extra_roles: Vec::new(),
+        overwrites: Vec::new(),
     })
+}
+
+/// Plan a new guild from a template snapshot (D-180): the same guild row, owner
+/// membership and `@everyone` as [`plan_new_guild`], but roles, channels, overwrites and
+/// the settings the snapshot carries replace the default layout. A snapshot without an
+/// `@everyone` role keeps the default one. Everything is created in one repository call.
+pub fn plan_guild_from_snapshot(
+    owner: UserId,
+    name: &str,
+    now_ms: i64,
+    snapshot: &TemplateSnapshot,
+    mut next_id: impl FnMut() -> Snowflake,
+) -> ChatResult<GuildBlueprint> {
+    let mut bp = plan_new_guild(owner, name, now_ms, &mut next_id)?;
+    let inst = templates::instantiate(snapshot, bp.guild.id, || next_id().get());
+    for r in inst.roles {
+        if r.id.get() == bp.guild.id.get() {
+            bp.everyone_role = r;
+        } else {
+            bp.extra_roles.push(r);
+        }
+    }
+    bp.overwrites = inst
+        .channels
+        .iter()
+        .flat_map(|c| c.overwrites.iter().map(|o| (c.channel.id, *o)))
+        .collect();
+    bp.channels = inst.channels.into_iter().map(|c| c.channel).collect();
+    let s = &snapshot.settings;
+    bp.guild.system_channel_id = inst.system_channel_id;
+    bp.guild.verification_level = s.verification_level.min(4);
+    bp.guild.default_message_notifications = s.default_message_notifications.min(1);
+    bp.guild.explicit_content_filter = s.explicit_content_filter.min(2);
+    if !s.preferred_locale.trim().is_empty() {
+        bp.guild.preferred_locale = s.preferred_locale.clone();
+    }
+    Ok(bp)
 }
 
 /// Only the owner may transfer ownership, to another existing member.
@@ -266,6 +310,96 @@ mod tests {
         ids.sort_unstable();
         ids.dedup();
         assert_eq!(ids.len(), 5);
+    }
+
+    #[test]
+    fn template_blueprint_replaces_the_default_layout() {
+        let gen_ = SnowflakeGenerator::new(ManualClock::new(1_800_000_000_000), 1, 1).unwrap();
+        let tmpl = templates::builtin("gaming").unwrap();
+        let bp = plan_guild_from_snapshot(UserId::new(7), "Squad", 5, &tmpl.snapshot, || {
+            gen_.generate()
+        })
+        .unwrap();
+        let names: Vec<_> = bp.channels.iter().filter_map(|c| c.name.clone()).collect();
+        assert!(names.contains(&"game-chat".to_owned()), "{names:?}");
+        assert!(names.contains(&"general".to_owned()));
+        // The system channel is the template's #general, and every parent exists.
+        let sys = bp.guild.system_channel_id.unwrap();
+        assert_eq!(
+            bp.channels
+                .iter()
+                .find(|c| c.id == sys)
+                .unwrap()
+                .name
+                .as_deref(),
+            Some("general")
+        );
+        for c in &bp.channels {
+            if let Some(p) = c.parent_id {
+                assert!(bp.channels.iter().any(|x| x.id == p));
+            }
+        }
+        // No @everyone in the snapshot: the default one stays.
+        assert_eq!(bp.everyone_role.id.get(), bp.guild.id.get());
+        assert_eq!(bp.everyone_role.permissions, default_everyone_permissions());
+        assert!(bp.extra_roles.is_empty());
+        let mut ids: Vec<_> = bp.channels.iter().map(|c| c.id.get()).collect();
+        ids.push(bp.guild.id.get());
+        let n = ids.len();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), n, "ids are unique");
+    }
+
+    #[test]
+    fn template_blueprint_keeps_roles_and_overwrites() {
+        use crate::settings::templates::{SnapChannel, SnapOverwrite, SnapRole, SnapSettings};
+        let gen_ = SnowflakeGenerator::new(ManualClock::new(1_800_000_000_000), 1, 1).unwrap();
+        let snap = TemplateSnapshot {
+            settings: SnapSettings {
+                preferred_locale: "de".into(),
+                verification_level: 9,
+                default_message_notifications: 1,
+                explicit_content_filter: 2,
+                system_channel_local_id: Some(1),
+            },
+            roles: vec![SnapRole {
+                local_id: 1,
+                name: "Mods".into(),
+                color: 0,
+                hoist: true,
+                position: 1,
+                permissions: Permissions::KICK_MEMBERS.bits(),
+                mentionable: false,
+                unicode_emoji: None,
+            }],
+            channels: vec![SnapChannel {
+                local_id: 1,
+                kind: 0,
+                name: "mods-only".into(),
+                topic: None,
+                position: 0,
+                parent_local_id: None,
+                nsfw: false,
+                rate_limit_per_user: 0,
+                bitrate: None,
+                user_limit: None,
+                overwrites: vec![SnapOverwrite {
+                    role_local_id: 1,
+                    allow: Permissions::VIEW_CHANNEL.bits(),
+                    deny: 0,
+                }],
+            }],
+        };
+        let bp =
+            plan_guild_from_snapshot(UserId::new(7), "Mods", 5, &snap, || gen_.generate()).unwrap();
+        assert_eq!(bp.extra_roles.len(), 1);
+        assert_eq!(bp.extra_roles[0].name, "Mods");
+        assert_eq!(bp.overwrites.len(), 1);
+        assert_eq!(bp.overwrites[0].0, bp.channels[0].id);
+        assert_eq!(bp.overwrites[0].1.id.get(), bp.extra_roles[0].id.get());
+        assert_eq!(bp.guild.verification_level, 4, "clamped");
+        assert_eq!(bp.guild.preferred_locale, "de");
     }
 
     #[test]

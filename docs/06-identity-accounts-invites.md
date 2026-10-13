@@ -56,6 +56,8 @@ Decisions: D-013, D-014, D-020–D-032.
 - "Continue with Discord": logs in if a linked active account exists. Otherwise: "No SIDE ROOM account is linked to this Discord account. You'll need an invitation." Never auto-registers.
 - Failed login throttling: per account (exponential back-off after 5) and per IP.
 - Sessions list in User Settings → Devices, with revoke.
+- Changing the email needs the password and, when 2FA is on, a fresh second factor (TOTP or recovery code; passkeys join them once they exist). A second-factor check on the same session in the last 15 minutes counts, so a login with 2FA covers it. The confirmation link goes to the new address; the old address is told at once and again after completion, each time with a "This wasn't me" link that cancels a pending change or, after completion, signs every device out (D-167).
+- Every login and every gateway IDENTIFY/RESUME (then at most every 10 minutes per session) stamps `accounts.last_seen_at`. It feeds member prune only and is never part of a user object (D-166).
 - Forgot password: email link (single use, 30 minutes). Accounts with 2FA still need 2FA after reset.
 - Changing the email address (D-167) needs the current password plus, when 2FA is enabled (TOTP, recovery code, or a passkey once they exist), a fresh second-factor proof; a successful re-prompt within the last 15 minutes counts. The verification link goes to the new address, the old address gets a notice with a "This wasn't me" link that cancels a pending change, or revokes all sessions if the change already completed. The address only changes once the new one is verified.
 
@@ -112,6 +114,6 @@ The first time a user opens an age-restricted channel, title, series, or Live TV
 
 `sr-cli bootstrap --owner-username <u> --owner-email <e>` creates:
 1. The Owner account (prompts for a password).
-2. The Staff Server (`is_staff_guild = true`) owned by the Owner, with default staff roles (see doc 07).
+2. The Staff Server (`is_staff_guild = true`) owned by the Owner, with the default staff roles from `staff_role_templates` (see doc 07; the Owner holds the Owner role and an appointment). `sr-cli staff ensure-roles` repeats that step and is safe to run again: roles are matched by name, so only missing ones are created and edits are kept (D-162).
 3. The system user "SIDE ROOM" (id = 1) used for system messages.
 4. Prints a one-time Owner login link.

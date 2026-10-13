@@ -64,7 +64,7 @@ pub async fn run(cli: Cli) -> Result<()> {
             invite_create(&pool, &cfg, ids, issuer, note).await?
         }
         Command::User(UserCmd::Reset2fa { user }) => reset_2fa(&pool, &cfg, ids, &user).await?,
-        Command::Staff(cmd) => staff(&pool, ids, cmd).await?,
+        Command::Staff(cmd) => staff(&pool, &cfg.server, ids, cmd).await?,
         Command::VerifyAccessLog => verify_access_log(&pool, ids).await?,
         Command::RotateSecretKey => rotate_secret_key(&pool, &cfg, ids).await?,
         Command::Seed { password, force } => seed(&pool, &cfg, ids, &password, force).await?,
@@ -347,7 +347,12 @@ async fn account_by_name(pool: &PgPool, who: &str) -> Result<i64> {
 
 /// Staff commands run as the operator (the system user acting as Owner): shell access is the
 /// authorisation, and every action still lands in the audit logs.
-async fn staff(pool: &PgPool, ids: IdSource, cmd: StaffCmd) -> Result<()> {
+async fn staff(
+    pool: &PgPool,
+    server: &sr_core::config::ServerConfig,
+    ids: IdSource,
+    cmd: StaffCmd,
+) -> Result<()> {
     let svc = admin_service(pool, ids);
     let op = Caller::operator(ADMIN_SYSTEM_USER);
     match cmd {
@@ -390,6 +395,13 @@ async fn staff(pool: &PgPool, ids: IdSource, cmd: StaffCmd) -> Result<()> {
                 .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             println!("appointed {} as {}", m.username, roles.join(", "));
+        }
+        StaffCmd::EnsureRoles => {
+            let (guild, owner) = guilds::find_staff_guild(pool)
+                .await?
+                .context("no Staff Server yet; run `sr-cli bootstrap` first")?;
+            let n = guilds::ensure_staff_roles(pool, server, guild, owner).await?;
+            println!("Staff Server {guild}: {n} role(s) created; the rest were already there.");
         }
         StaffCmd::Revoke { user, reason } => {
             let id = account_by_name(pool, &user).await?;

@@ -19,6 +19,7 @@ use sr_chat::role_rules::{NewRole, RolePatch};
 use sr_chat::settings::SettingsService;
 use sr_chat::settings::audit::{AuditAction, AuditChange};
 use sr_chat::settings::repo::SettingsRepository;
+use sr_chat::settings::templates::TemplateSnapshot;
 use sr_chat::{ChannelWithOverwrites, ChatResult, ChatService, Guild, Member, Role};
 use sr_core::permissions::{Overwrite, Permissions};
 use sr_core::{ChannelId, GuildId, RoleId, Snowflake, UserId};
@@ -32,6 +33,13 @@ use std::sync::Arc;
 pub trait GuildBackend: Send + Sync {
     // guilds
     async fn create_guild(&self, owner: UserId, name: &str) -> ChatResult<GuildBlueprint>;
+    /// Create a guild from a template snapshot in one transaction; one `GUILD_CREATE`.
+    async fn create_guild_from_snapshot(
+        &self,
+        owner: UserId,
+        name: &str,
+        snapshot: &TemplateSnapshot,
+    ) -> ChatResult<GuildBlueprint>;
     async fn get_guild(&self, actor: UserId, id: GuildId) -> ChatResult<(Guild, Vec<Role>)>;
     async fn list_my_guilds(&self, user: UserId) -> ChatResult<Vec<(Guild, Permissions)>>;
     async fn edit_guild(&self, actor: UserId, id: GuildId, patch: GuildPatch) -> ChatResult<Guild>;
@@ -319,6 +327,24 @@ impl<R: ChatRepository + GuildAdminRepository> ChatBackend<R> {
 impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBackend<R> {
     async fn create_guild(&self, owner: UserId, name: &str) -> ChatResult<GuildBlueprint> {
         let bp = self.svc.create_guild(owner, name).await?;
+        self.emit(DomainEvent::GuildCreated {
+            guild: bp.guild.id,
+            owner,
+        })
+        .await;
+        Ok(bp)
+    }
+
+    async fn create_guild_from_snapshot(
+        &self,
+        owner: UserId,
+        name: &str,
+        snapshot: &TemplateSnapshot,
+    ) -> ChatResult<GuildBlueprint> {
+        let bp = self
+            .svc
+            .create_guild_from_snapshot(owner, name, snapshot)
+            .await?;
         self.emit(DomainEvent::GuildCreated {
             guild: bp.guild.id,
             owner,

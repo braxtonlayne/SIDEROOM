@@ -6,6 +6,8 @@
 use super::deps::{GuildAccess, SettingsDeps, actor, id, re, se};
 use crate::routes::Ext;
 use crate::routes::guilds::dto::{UserRef, iso8601};
+use crate::routes::guilds::guild::{count_template_use, created, resolve_template};
+use crate::routes::guilds::util::{Api, ce};
 use crate::routes::messages::error::ApiJson;
 use crate::{Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
 use axum::{
@@ -16,13 +18,19 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sr_chat::ChannelWithOverwrites;
-use sr_chat::settings::templates::{GuildTemplate, SnapSettings, TemplateSnapshot, snapshot_guild};
+use sr_chat::settings::templates::{
+    GuildTemplate, SnapSettings, TemplateSnapshot, builtin_templates, snapshot_guild,
+};
 use sr_core::GuildId;
 use utoipa::ToSchema;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/guilds/templates/{code}", get(get_template))
+        .route("/guilds/templates/builtin", get(list_builtin_templates))
+        .route(
+            "/guilds/templates/{code}",
+            get(get_template).post(create_guild_from_template),
+        )
         .route(
             "/guilds/{guild_id}/templates",
             get(list_guild_templates).post(create_template),
@@ -145,6 +153,85 @@ async fn object(
         &users,
         current.map(|c| t.is_dirty(c)),
     ))
+}
+
+/// A template shipped with the server.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct BuiltinTemplateObject {
+    /// Pass as `template` to `POST /guilds`, or as the path code of
+    /// `POST /guilds/templates/{code}`.
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    /// The snapshot: `settings`, `roles` and `channels` with local ids.
+    #[schema(value_type = Object)]
+    pub serialized_source_guild: Value,
+}
+
+/// The built-in templates of the Create a Server wizard (any signed-in user).
+#[utoipa::path(
+    get,
+    path = "/guilds/templates/builtin",
+    responses((status = 200, body = Vec<BuiltinTemplateObject>), (status = 401, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn list_builtin_templates(p: Principal) -> ApiResult<Json<Vec<BuiltinTemplateObject>>> {
+    actor(&p)?;
+    Ok(Json(
+        builtin_templates()
+            .iter()
+            .map(|t| BuiltinTemplateObject {
+                id: t.id.clone(),
+                name: t.name.clone(),
+                description: t.description.clone(),
+                serialized_source_guild: serde_json::to_value(&t.snapshot).unwrap_or_default(),
+            })
+            .collect(),
+    ))
+}
+
+/// Body of `POST /guilds/templates/{code}`.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct GuildFromTemplateBody {
+    /// 2-100 characters.
+    pub name: String,
+    /// Accepted for compatibility; icon upload arrives with the media pipeline.
+    #[serde(default)]
+    pub icon: Option<String>,
+}
+
+/// Create a server from a template (a built-in id or a template code) in one
+/// transaction; the caller owns it. One `GUILD_CREATE`.
+#[utoipa::path(
+    post,
+    path = "/guilds/templates/{code}",
+    params(("code" = String, Path, description = "Built-in template id or template code")),
+    request_body = GuildFromTemplateBody,
+    responses(
+        (status = 201, description = "The new guild with its roles and channels", body = crate::routes::guilds::dto::GuildObject),
+        (status = 400, body = ErrorBody),
+        (status = 404, body = ErrorBody)
+    ),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn create_guild_from_template(
+    p: Principal,
+    Api(api): Api,
+    Ext(deps): Ext<SettingsDeps>,
+    Path(code): Path<String>,
+    ApiJson(body): ApiJson<GuildFromTemplateBody>,
+) -> ApiResult<(
+    axum::http::StatusCode,
+    Json<crate::routes::guilds::dto::GuildObject>,
+)> {
+    let owner = actor(&p)?;
+    let (snapshot, used) = resolve_template(Some(&deps), code.trim()).await?;
+    let bp = api
+        .create_guild_from_snapshot(owner, &body.name, &snapshot)
+        .await
+        .map_err(ce)?;
+    count_template_use(Some(&deps), used).await;
+    Ok(created(&bp))
 }
 
 /// Preview a template by its code (any signed-in user).

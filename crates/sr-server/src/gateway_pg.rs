@@ -4,12 +4,12 @@ use async_trait::async_trait;
 use serde_json::{Value, json};
 use sqlx::{PgPool, Row};
 use sr_api::routes::guilds::dto::{ChannelObject, GuildObject, MemberObject, iso8601};
+use sr_api::routes::social::model::DmChannelObject;
 use sr_auth::{repo::SessionRepository, session::SessionPolicy, session::SessionToken};
 use sr_chat::repo::UserLookup;
 use sr_chat::{
     repo::{ChannelRepository, GuildRepository},
     social::{
-        dm::DmKind,
         relationships::RelationshipKind,
         repo::{DmRepository, ReadStateRepository, RelationshipRepository},
     },
@@ -217,22 +217,23 @@ impl PgGuildDirectory {
     /// READY extras from the social repositories: DM `private_channels`,
     /// `relationships` (friends, blocks, pending requests) and `read_state`.
     async fn build_ready_extras(&self, user: UserId) -> BuildResult<Value> {
-        let private_channels: Vec<Value> = self
-            .social
-            .list_dms(user, false)
-            .await?
+        // Full `recipients` user objects (everyone but the viewer), the same shape as
+        // `GET /users/@me/channels` and the DM `CHANNEL_CREATE` (D-181).
+        let dms = self.social.list_dms(user, false).await?;
+        let ids: Vec<UserId> = dms
             .iter()
-            .map(|d| {
-                json!({
-                    "id": d.id,
-                    "type": match d.kind { DmKind::Dm => 1, DmKind::Group => 3 },
-                    "name": d.name,
-                    "icon": d.icon_key,
-                    "owner_id": d.owner,
-                    "last_message_id": d.last_message_id,
-                    "recipient_ids": d.recipients,
-                })
-            })
+            .flat_map(|d| d.recipients.iter().copied())
+            .collect();
+        let users: std::collections::HashMap<UserId, sr_chat::repo::UserSummary> = self
+            .chat
+            .users(&ids)
+            .await?
+            .into_iter()
+            .map(|u| (u.id, u))
+            .collect();
+        let private_channels: Vec<Value> = dms
+            .iter()
+            .map(|d| json!(DmChannelObject::new(d, user, &users)))
             .collect();
         let relationships: Vec<Value> = self
             .social

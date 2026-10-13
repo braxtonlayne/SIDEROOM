@@ -403,3 +403,49 @@ async fn afk_settings_persist_and_clear_when_the_channel_is_deleted() {
     let (g, _) = svc.get_guild(owner, gid).await.unwrap();
     assert_eq!((g.afk_channel_id, g.afk_timeout), (None, 1800));
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn prune_spares_members_seen_recently() {
+    let pool = pool().await;
+    let (svc, ids) = service(&pool);
+    let [owner, seen_now, seen_old, never] = [
+        account(&pool, &ids).await,
+        account(&pool, &ids).await,
+        account(&pool, &ids).await,
+        account(&pool, &ids).await,
+    ];
+    let bp = svc.create_guild(owner, "Seen Test").await.unwrap();
+    let gid = bp.guild.id;
+    for u in [seen_now, seen_old, never] {
+        join(&pool, gid, u).await;
+    }
+    sqlx::query(
+        "UPDATE guild_members SET joined_at = now() - interval '40 days' \
+         WHERE guild_id = $1 AND user_id <> $2",
+    )
+    .bind(gid.get() as i64)
+    .bind(owner.get() as i64)
+    .execute(&pool)
+    .await
+    .unwrap();
+    // seen_now: the gateway batch write; seen_old: last seen 40 days ago; never: NULL.
+    sr_db::accounts::touch_last_seen(&pool, &[seen_now.get() as i64])
+        .await
+        .unwrap();
+    sqlx::query("UPDATE accounts SET last_seen_at = now() - interval '40 days' WHERE id = $1")
+        .bind(seen_old.get() as i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert_eq!(svc.prune_preview(owner, gid, 7, &[]).await.unwrap(), 2);
+    let mut removed = svc.prune(owner, gid, 7, &[]).await.unwrap();
+    removed.sort();
+    let mut expect = vec![seen_old, never];
+    expect.sort();
+    assert_eq!(removed, expect);
+    assert_eq!(
+        sr_db::accounts::touch_last_seen(&pool, &[]).await.unwrap(),
+        0
+    );
+}

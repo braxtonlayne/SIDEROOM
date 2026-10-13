@@ -12,6 +12,7 @@ async-trait.workspace = true
 axum = { version = "0.8", default-features = false, features = ["ws", "query"] }
 futures.workspace = true
 getrandom = "0.4"
+metrics = "0.24"
 ruzstd = "0.9.1"
 serde.workspace = true
 serde_json.workspace = true

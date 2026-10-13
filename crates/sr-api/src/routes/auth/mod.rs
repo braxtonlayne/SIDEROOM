@@ -85,6 +85,7 @@ pub fn router() -> Router<AppState> {
         .route("/sr/auth/password", post(identity::change_password))
         .route("/sr/auth/username", put(identity::change_username))
         .route("/sr/auth/email/change", post(identity::change_email))
+        .route("/sr/auth/email/cancel", post(identity::cancel_change_email))
         .route(
             "/sr/auth/verify-email/resend",
             post(account::resend_verification),

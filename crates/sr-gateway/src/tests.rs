@@ -280,6 +280,28 @@ async fn heartbeat_ack_and_timeout() {
     assert_eq!(c.recv_close().await, close::SESSION_TIMED_OUT);
 }
 
+#[tokio::test(start_paused = true)]
+async fn seen_is_marked_on_identify_and_at_most_every_ten_minutes() {
+    let e = env_with(GatewayConfig {
+        heartbeat_interval: Duration::from_secs(3600),
+        ..GatewayConfig::default()
+    });
+    let mut c = connect(&e);
+    c.identify("bot:1", GUILDS_MSGS, 1).await;
+    assert_eq!(e.gw.drain_seen(), vec![u(1)]);
+    assert!(e.gw.drain_seen().is_empty(), "drained once");
+    // Heartbeats inside the window do not mark again.
+    tokio::time::advance(Duration::from_secs(300)).await;
+    c.send(json!({"op": 1, "d": null})).await;
+    assert_eq!(c.recv().await["op"], 11);
+    assert!(e.gw.drain_seen().is_empty());
+    // Past ten minutes the next heartbeat marks the user once more.
+    tokio::time::advance(Duration::from_secs(301)).await;
+    c.send(json!({"op": 1, "d": null})).await;
+    assert_eq!(c.recv().await["op"], 11);
+    assert_eq!(e.gw.drain_seen(), vec![u(1)]);
+}
+
 #[tokio::test]
 async fn protocol_errors_close_with_discord_codes() {
     let e = env();

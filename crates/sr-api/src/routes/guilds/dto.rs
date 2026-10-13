@@ -485,6 +485,10 @@ pub struct CreateGuildBody {
     /// Accepted for compatibility; icon upload arrives with the media pipeline.
     #[serde(default)]
     pub icon: Option<String>,
+    /// A built-in template id (see `GET /guilds/templates/builtin`) or a template code.
+    /// The server is created from it in one step.
+    #[serde(default)]
+    pub template: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize, ToSchema)]

@@ -5,7 +5,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
+use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
 use sr_core::config::LogConfig;
 use std::{sync::OnceLock, time::Instant};
 use tracing_subscriber::{EnvFilter, util::SubscriberInitExt};
@@ -28,6 +28,15 @@ pub mod names {
     pub const JOBS_TOTAL: &str = "jobs_processed_total";
     /// Counter: rejected by the rate limiter, `scope`.
     pub const RATE_LIMITED_TOTAL: &str = "http_rate_limited_total";
+    /// Histogram (bytes): size of each gateway frame sent to a client, before
+    /// compression; `compression` is `none` or `zstd`. The "p95 above 64 KiB"
+    /// trigger for browser zstd (Q122) is read from this. Recorded by `sr-gateway`
+    /// under the same key.
+    pub const GATEWAY_DISPATCH_BYTES: &str = "sr_gateway_dispatch_bytes";
+    /// Bucket bounds (bytes) for [`GATEWAY_DISPATCH_BYTES`]; 64 KiB is a bound.
+    pub const GATEWAY_DISPATCH_BUCKETS: &[f64] = &[
+        256.0, 1024.0, 4096.0, 16384.0, 32768.0, 65536.0, 131072.0, 262144.0, 1048576.0,
+    ];
 }
 
 /// Initialise `tracing` from config: JSON lines (or human text when
@@ -68,7 +77,15 @@ impl Metrics {
     pub fn global() -> Self {
         GLOBAL
             .get_or_init(|| {
-                let recorder = PrometheusBuilder::new().build_recorder();
+                let recorder = PrometheusBuilder::new()
+                    .set_buckets_for_metric(
+                        Matcher::Full(names::GATEWAY_DISPATCH_BYTES.to_owned()),
+                        names::GATEWAY_DISPATCH_BUCKETS,
+                    )
+                    .map_or_else(
+                        |_| PrometheusBuilder::new().build_recorder(),
+                        |b| b.build_recorder(),
+                    );
                 let handle = recorder.handle();
                 if metrics::set_global_recorder(recorder).is_err() {
                     tracing::warn!("a global metrics recorder was already installed");
@@ -97,6 +114,11 @@ fn describe() {
     describe_gauge!(names::DB_POOL_SIZE, "Open database connections");
     describe_gauge!(names::DB_POOL_IDLE, "Idle database connections");
     describe_gauge!(names::GATEWAY_SESSIONS, "Live gateway sessions");
+    describe_histogram!(
+        names::GATEWAY_DISPATCH_BYTES,
+        Unit::Bytes,
+        "Size of gateway frames sent to clients, before compression"
+    );
     describe_counter!(names::JOBS_TOTAL, "Background jobs processed");
     describe_counter!(
         names::RATE_LIMITED_TOTAL,

@@ -602,6 +602,25 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         }
     });
 
+    // Last-seen tracking for prune (D-166): the gateway collects users seen on
+    // IDENTIFY/RESUME and the 10-minute refresh; one batched UPDATE per flush.
+    let gw_for_seen = gateway.clone();
+    let seen_pool = pool.clone();
+    let seen_task = tokio::spawn(async move {
+        let mut tick = tokio::time::interval(Duration::from_secs(30));
+        loop {
+            tick.tick().await;
+            let ids: Vec<i64> = gw_for_seen
+                .drain_seen()
+                .into_iter()
+                .filter_map(|u| i64::try_from(u.get()).ok())
+                .collect();
+            if let Err(e) = sr_db::accounts::touch_last_seen(&seen_pool, &ids).await {
+                tracing::warn!(error = %e, "could not record last-seen times");
+            }
+        }
+    });
+
     let (job_tx, job_rx) = watch::channel(false);
     let runner = crate::jobs::register(
         JobRunner::new(pool.clone(), format!("srv-{}", std::process::id())),
@@ -658,6 +677,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let _ = job_tx.send(true);
     gateway.shutdown();
     gauge_task.abort();
+    seen_task.abort();
     metrics_task.abort();
     search_consumer.abort();
     if let Some(h) = features_listener {

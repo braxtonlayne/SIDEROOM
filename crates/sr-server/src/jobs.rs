@@ -322,6 +322,28 @@ pub async fn schedule_thread_archive(pool: &PgPool) -> DbResult<()> {
 mod tests {
     use super::*;
 
+    /// F-13: the setting the purge job reads is declared in the platform settings
+    /// catalog, so Admin -> Limits renders and validates it (0 = forever, default 45).
+    #[test]
+    fn audit_retention_is_editable_in_admin_limits() {
+        let def = sr_admin::settings::find(sr_chat::settings::audit::AUDIT_RETENTION_SETTING)
+            .expect("declared in the Admin settings catalog");
+        assert_eq!(def.default_value(), json!(45));
+        assert_eq!(
+            def.default_value(),
+            json!(sr_chat::settings::audit::AuditRetention::default().keep_days)
+        );
+        assert_eq!(def.group, "retention");
+        assert!(def.validate(&json!(0)).is_ok(), "0 keeps entries forever");
+        assert!(def.validate(&json!(-1)).is_err());
+        assert!(def.validate(&json!("soon")).is_err());
+        // What the catalog accepts, the job understands.
+        assert_eq!(
+            audit_cutoff(Some(&json!(30)), 100 * 86_400_000),
+            Some(70 * 86_400_000)
+        );
+    }
+
     #[test]
     fn audit_retention_setting_drives_the_cutoff() {
         let now = 100 * 86_400_000_i64;

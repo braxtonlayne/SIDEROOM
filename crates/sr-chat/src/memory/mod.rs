@@ -53,9 +53,13 @@ impl GuildRepository for MemoryRepo {
         let mut s = self.lock()?;
         s.guilds.insert(bp.guild.id, bp.guild.clone());
         s.roles.push(bp.everyone_role.clone());
+        s.roles.extend(bp.extra_roles.iter().cloned());
         s.members.push(bp.owner_member.clone());
         for c in &bp.channels {
             s.channels.insert(c.id, c.clone());
+        }
+        for (channel, overwrite) in &bp.overwrites {
+            s.overwrites.entry(*channel).or_default().push(*overwrite);
         }
         Ok(())
     }

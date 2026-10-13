@@ -1438,8 +1438,28 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create a guild with `@everyone`, two categories, `#general` and a voice channel. */
+        /**
+         * Create a guild with `@everyone`, two categories, `#general` and a voice channel, or
+         *     from a template (`template`: a built-in id or a template code) in one transaction.
+         */
         post: operations["create_guild"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/templates/builtin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The built-in templates of the Create a Server wizard (any signed-in user). */
+        get: operations["list_builtin_templates"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1456,7 +1476,11 @@ export interface paths {
         /** Preview a template by its code (any signed-in user). */
         get: operations["get_template"];
         put?: never;
-        post?: never;
+        /**
+         * Create a server from a template (a built-in id or a template code) in one
+         *     transaction; the caller owns it. One `GUILD_CREATE`.
+         */
+        post: operations["create_guild_from_template"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2244,6 +2268,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sr/auth/email/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /sr/auth/email/cancel {token}`: the "This wasn't me" link of an email-change
+         *     notice. No login needed. While the change is still pending it is cancelled; once it
+         *     has completed, every session and trusted device is revoked instead. The token works
+         *     once, within 7 days.
+         */
+        post: operations["cancel_change_email"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sr/auth/email/change": {
         parameters: {
             query?: never;
@@ -2254,9 +2300,11 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * `POST /sr/auth/email/change {new_email, password}`: start an email change. A
-         *     confirmation link goes to the new address; the old one stays until it is used.
-         *     One request per minute per account. `204` also when the address belongs to
+         * `POST /sr/auth/email/change {new_email, password, mfa?}`: start an email change. A
+         *     confirmation link goes to the new address; the old one stays until it is used, and
+         *     receives a notice with a "This wasn't me" link. With two-factor authentication on,
+         *     `mfa {method, code}` is required unless this session passed a second-factor check
+         *     in the last 15 minutes. One request per minute per account. `204` also when the address belongs to
          *     someone else, so the endpoint is not an account-existence oracle (the mail is
          *     simply not sent).
          */
@@ -3031,6 +3079,18 @@ export interface components {
             note: string;
             person_id: string;
         };
+        /** @description A template shipped with the server. */
+        BuiltinTemplateObject: {
+            description: string;
+            /**
+             * @description Pass as `template` to `POST /guilds`, or as the path code of
+             *     `POST /guilds/templates/{code}`.
+             */
+            id: string;
+            name: string;
+            /** @description The snapshot: `settings`, `roles` and `channels` with local ids. */
+            serialized_source_guild: Record<string, never>;
+        };
         BulkAckBody: {
             read_states: components["schemas"]["BulkAckEntry"][];
         };
@@ -3040,6 +3100,11 @@ export interface components {
         };
         BulkDeleteBody: {
             messages: string[];
+        };
+        /** @description Body for `POST /sr/auth/email/cancel`. */
+        CancelEmailChangeBody: {
+            /** @description The token from the "This wasn't me" link. */
+            token: string;
         };
         /** @description Result of verifying the whole chain. */
         ChainReport: {
@@ -3057,6 +3122,7 @@ export interface components {
         };
         /** @description Body for `POST /sr/auth/email/change`. */
         ChangeEmailBody: {
+            mfa?: null | components["schemas"]["MfaProof"];
             new_email: string;
             /** @description Current password. */
             password: string;
@@ -3265,6 +3331,11 @@ export interface components {
             /** @description Accepted for compatibility; icon upload arrives with the media pipeline. */
             icon?: string | null;
             name: string;
+            /**
+             * @description A built-in template id (see `GET /guilds/templates/builtin`) or a template code.
+             *     The server is created from it in one step.
+             */
+            template?: string | null;
         };
         /** @description Body of `POST /channels/{id}/invites`. Every field is optional. */
         CreateInviteBody: {
@@ -3587,6 +3658,13 @@ export interface components {
              */
             default_thread_rate_limit_per_user?: number | null;
         };
+        /** @description Body of `POST /guilds/templates/{code}`. */
+        GuildFromTemplateBody: {
+            /** @description Accepted for compatibility; icon upload arrives with the media pipeline. */
+            icon?: string | null;
+            /** @description 2-100 characters. */
+            name: string;
+        };
         GuildObject: {
             /** @description Voice channel idle members are moved to. */
             afk_channel_id?: string | null;
@@ -3870,6 +3948,13 @@ export interface components {
         MessageRequestBody: {
             /** @description `accepted`, `ignored` or `spam`. */
             state: string;
+        };
+        /** @description A second-factor proof (D-167). */
+        MfaProof: {
+            /** @description The authenticator code or an unused recovery code. */
+            code: string;
+            /** @description `totp` or `recovery`. */
+            method: string;
         };
         ModifyChannelBody: components["schemas"]["ForumSettingsBody"] & {
             applied_tags?: string[] | null;
@@ -10015,6 +10100,33 @@ export interface operations {
             };
         };
     };
+    list_builtin_templates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BuiltinTemplateObject"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_template: {
         parameters: {
             query?: never;
@@ -10033,6 +10145,49 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TemplateObject"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_guild_from_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Built-in template id or template code */
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuildFromTemplateBody"];
+            };
+        };
+        responses: {
+            /** @description The new guild with its roles and channels */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuildObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             404: {
@@ -13211,6 +13366,44 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cancel_change_email: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelEmailChangeBody"];
+            };
+        };
+        responses: {
+            /** @description Pending change cancelled, or all sessions revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
