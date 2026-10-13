@@ -29,7 +29,7 @@ const msg = (id: string, over: Partial<S.Message> = {}): S.Message => ({
   channel_id: 'c1',
   author: bob,
   content: '',
-  timestamp: iso(60 - Number(id.slice(-2))),
+  timestamp: iso(60 - (Number(id.slice(-2)) || 0)),
   ...over,
 });
 
@@ -166,6 +166,31 @@ function seedMessages(): S.Message[] {
       message_reference: { message_id: '101000000000000' },
     }),
     msg('110', { content: 'hey @Me Myself', mentions: [me] }),
+    msg('111', {
+      content: 'app message',
+      components: [
+        {
+          type: 1,
+          components: [
+            { type: 2, style: 1, label: 'Approve', custom_id: 'a' },
+            { type: 2, style: 5, label: 'Docs', url: 'https://docs.example/x' },
+            { type: 2, style: 2, label: 'Nope', custom_id: 'b', disabled: true },
+          ],
+        },
+        {
+          type: 1,
+          components: [
+            {
+              type: 3,
+              custom_id: 's',
+              placeholder: 'Pick a colour',
+              options: [{ label: 'Red', value: 'r' }],
+            },
+          ],
+        },
+      ],
+    }),
+    msg('112', { content: `join us ${location.origin}/invite/abc123` }),
   ];
 }
 
@@ -247,6 +272,19 @@ function handlers() {
     http.get('*/api/v1/sr/csrf', () => HttpResponse.json({ token: 't' })),
     http.get('*/api/v1/guilds/:gid/members', () => HttpResponse.json([])),
     http.get('*/api/v1/channels/:cid/messages', () => HttpResponse.json([])),
+    http.get('*/api/v1/invites/abc123', () =>
+      HttpResponse.json({
+        code: 'abc123',
+        guild: { id: 'g2', name: 'Book Club' },
+        channel: { id: 'c9', type: 0 },
+        uses: 0,
+        max_uses: 0,
+        max_age: 0,
+        created_at: iso(5),
+        approximate_member_count: 42,
+        approximate_presence_count: 7,
+      }),
+    ),
     http.get('*/api/v1/guilds/g1/stickers/9/url', () =>
       HttpResponse.json({ url: '/cdn/stickers/g1/9.png?sig=x', expires_at: 1 }),
     ),
@@ -326,6 +364,23 @@ describe('message rendering', () => {
       .getByText(/hey @Me Myself/)
       .closest('article');
     expect(mentioned).toHaveAttribute('data-mention');
+  });
+
+  it('renders app components and a server invite card', async () => {
+    at('/channels/g1/c1');
+    const log = await screen.findByRole('log');
+    expect(within(log).getByRole('button', { name: 'Approve' })).toBeEnabled();
+    expect(within(log).getByRole('button', { name: 'Nope' })).toBeDisabled();
+    expect(within(log).getByRole('link', { name: 'Docs' })).toHaveAttribute(
+      'href',
+      'https://docs.example/x',
+    );
+    expect(within(log).getByRole('combobox', { name: 'Pick a colour' })).toBeInTheDocument();
+    await userEvent.click(within(log).getByRole('button', { name: 'Approve' }));
+    expect(await screen.findByText('This interaction failed')).toBeInTheDocument();
+    const invite = await within(log).findByRole('region', { name: 'Invite to Book Club' });
+    expect(within(invite).getByText('7 Online • 42 Members')).toBeInTheDocument();
+    expect(within(invite).getByRole('button', { name: 'Join' })).toBeInTheDocument();
   });
 
   it('keeps third-party video embeds behind a click', async () => {
@@ -479,6 +534,108 @@ describe('message actions', () => {
       message_reference: Record<string, unknown>;
     };
     expect(body.message_reference).toMatchObject({ type: 1, message_id: '100', channel_id: 'c1' });
+  });
+});
+
+describe('reactors, failed sends, drops and limits', () => {
+  beforeEach(() => {
+    seed({
+      messages: [
+        msg('100', {
+          content: 'react to me',
+          reactions: [
+            { emoji: { id: null, name: '🔥' }, count: 2, me: false },
+            { emoji: { id: null, name: '👍' }, count: 1, me: false },
+          ],
+        }),
+      ],
+    });
+    handlers();
+  });
+
+  it('lists who reacted per emoji and lets a moderator remove a reaction', async () => {
+    let removed = '';
+    server.use(
+      http.get('*/api/v1/channels/c1/messages/100/reactions/:emoji', ({ params }) =>
+        HttpResponse.json(
+          decodeURIComponent(String(params.emoji)) === '🔥'
+            ? [bob, { id: '5', username: 'carol' }]
+            : [{ id: '6', username: 'dave' }],
+        ),
+      ),
+      http.delete('*/api/v1/channels/c1/messages/100/reactions/:emoji/:uid', ({ params }) => {
+        removed = String(params.uid);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    at('/channels/g1/c1');
+    const row = (await screen.findByText('react to me')).closest('article') as HTMLElement;
+    await userEvent.click(within(row).getByRole('button', { name: /🔥 2 reactions/ }), {
+      pointerEventsCheck: 0,
+    });
+    // left click toggles; the modal opens from the context action
+    await userEvent.pointer({
+      keys: '[MouseRight]',
+      target: within(row).getByRole('button', { name: /🔥/ }),
+    });
+    const dialog = await screen.findByRole('dialog', { name: 'Reactions' });
+    expect(await within(dialog).findByText('carol')).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole('tab', { name: /👍/ }));
+    expect(await within(dialog).findByText('dave')).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole('button', { name: /Remove dave/ }));
+    await waitFor(() => expect(removed).toBe('6'));
+    expect(within(dialog).queryByText('dave')).toBeNull();
+  });
+
+  it('retries or discards a message that failed to send', async () => {
+    useStore.setState((s) => ({
+      messages: {
+        ...s.messages,
+        'pending:n1': msg('pending:n1', {
+          author: me,
+          content: 'did not go',
+          timestamp: iso(1),
+          local: { status: 'failed', nonce: 'n1' },
+        }),
+      },
+      windows: { ...s.windows, c1: { ...s.windows.c1!, pending: ['pending:n1'] } },
+    }));
+    server.use(
+      http.post('*/api/v1/channels/c1/messages', async (ctx) => {
+        await record('POST')(ctx);
+        return HttpResponse.json(msg('400', { author: me, content: 'did not go', nonce: 'n1' }));
+      }),
+    );
+    at('/channels/g1/c1');
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('could not be delivered');
+    await userEvent.click(within(alert).getByRole('button', { name: 'Retry' }));
+    await waitFor(() =>
+      expect(calls.some((c) => c.key === 'POST /channels/c1/messages')).toBe(true),
+    );
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+    expect(useStore.getState().messages['400']).toBeDefined();
+  });
+
+  it('queues files dropped on the channel and blocks an over-limit message', async () => {
+    at('/channels/g1/c1');
+    const section = (await screen.findByRole('region', { name: '#general' })) as HTMLElement;
+    const file = new File(['x'], 'drop.txt', { type: 'text/plain' });
+    fireEvent.dragOver(section, { dataTransfer: { types: ['Files'], files: [file] } });
+    fireEvent.drop(section, { dataTransfer: { types: ['Files'], files: [file] } });
+    const tray = await screen.findByRole('list', { name: 'Files to upload' });
+    expect(within(tray).getByText('drop.txt')).toBeInTheDocument();
+    await userEvent.click(within(tray).getByRole('button', { name: 'Remove drop.txt' }));
+    expect(screen.queryByRole('list', { name: 'Files to upload' })).toBeNull();
+
+    const box = await screen.findByRole('textbox', { name: 'Message #general' });
+    fireEvent.change(box, { target: { value: 'x'.repeat(2005) } });
+    expect(await screen.findByRole('alert')).toHaveTextContent('5 characters over the limit');
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Upload as a file instead' }));
+    const tray2 = await screen.findByRole('list', { name: 'Files to upload' });
+    expect(within(tray2).getByText('message.txt')).toBeInTheDocument();
+    expect(box).toHaveValue('');
   });
 });
 

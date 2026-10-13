@@ -253,6 +253,8 @@ export interface Message {
   /** Voice message (flag 1 << 13). */
   voice?: boolean;
   suppressEmbeds?: boolean;
+  /** Buttons and selects on app messages. */
+  components?: import('../store/types').RawComponent[];
 }
 
 export interface MessagesState {

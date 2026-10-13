@@ -271,6 +271,7 @@ export function toLoungeMessage(m: S.Message): Message {
         }
       : {}),
     ...(m.poll ? { poll: toLoungePoll(m.poll) } : {}),
+    ...(m.components?.length ? { components: m.components } : {}),
     ...(snap
       ? {
           forwarded: {

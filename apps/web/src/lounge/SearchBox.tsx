@@ -226,6 +226,21 @@ export function SearchBox({
               ))}
             </ul>
           )}
+          {open && /^(before|during|after):/i.test(token) && (
+            <label className="lng-search-date">
+              <span>Pick a date</span>
+              <input
+                type="date"
+                aria-label="Pick a date"
+                onChange={(e) => {
+                  if (!e.target.value) return;
+                  const key = /^(w+):/.exec(token)![1];
+                  setText((t) => `${t.slice(0, currentToken(t).start)}${key}:${e.target.value} `);
+                  input.current?.focus();
+                }}
+              />
+            </label>
+          )}
           {showHistory && (
             <div className="lng-search-history">
               <div className="lng-search-history-head">

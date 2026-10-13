@@ -39,50 +39,50 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [ ] **LNG-MSGUI-001** [FE] Virtualized message list with bidirectional pagination, scroll anchoring, jump-to-message (highlight flash), jump-to-present bar
 - [ ] **LNG-MSGUI-002** [FE] Message group header (avatar, name w/ role color/gradient, role icon, tag chip, APP badge, timestamp) + continuation rows with hover timestamp
 - [ ] **LNG-MSGUI-003** [FE] Cozy vs compact display modes
-- [ ] **LNG-MSGUI-004** [FE] Date dividers, "NEW" unread divider, unread banner with "Mark As Read"
+- [x] **LNG-MSGUI-004** [FE] Date dividers, "NEW" unread divider, unread banner with "Mark As Read"
 - [ ] **LNG-MSGUI-005** [FE] Reply preview line (avatar, name, snippet, click to jump, "Original message was deleted")
 - [ ] **LNG-MSGUI-006** [FE] Forwarded message frame ("Forwarded" + source)
 - [x] **LNG-MSGUI-007** [FE] "(edited)" tag with tooltip timestamp
-- [ ] **LNG-MSGUI-008** [FE] Mention highlight (row tint + left bar) for messages mentioning me
+- [x] **LNG-MSGUI-008** [FE] Mention highlight (row tint + left bar) for messages mentioning me
 - [ ] **LNG-MSGUI-009** [FE] Image/video attachment grid & mosaic (1–10), aspect handling, blurhash placeholders, spoiler blur w/ click reveal, alt text "ALT" chip
-- [ ] **LNG-MSGUI-010** [FE] Lightbox/media viewer (zoom, pan, prev/next in message, download, open original, copy)
-- [ ] **LNG-MSGUI-011** [FE] File attachment card (icon by type, name, size, download), text-file preview (expand)
-- [ ] **LNG-MSGUI-012** [FE] Audio attachment player
-- [ ] **LNG-MSGUI-013** [FE] Video attachment inline player
-- [ ] **LNG-MSGUI-014** [FE] Voice message player (waveform, play/pause, playback speed)
-- [ ] **LNG-MSGUI-015** [FE] Expired large-file chip ("This file has expired")
-- [ ] **LNG-MSGUI-016** [FE] Embed renderer (color bar, author, title, description md, fields inline/block, image, thumbnail, footer, timestamp, video/provider)
-- [ ] **LNG-MSGUI-017** [FE] Click-to-load third-party embeds (YouTube etc.) with privacy notice
+- [x] **LNG-MSGUI-010** [FE] Lightbox/media viewer (zoom, pan, prev/next in message, download, open original, copy)
+- [x] **LNG-MSGUI-011** [FE] File attachment card (icon by type, name, size, download), text-file preview (expand)
+- [x] **LNG-MSGUI-012** [FE] Audio attachment player
+- [x] **LNG-MSGUI-013** [FE] Video attachment inline player
+- [x] **LNG-MSGUI-014** [FE] Voice message player (waveform, play/pause, playback speed)
+- [x] **LNG-MSGUI-015** [FE] Expired large-file chip ("This file has expired")
+- [x] **LNG-MSGUI-016** [FE] Embed renderer (color bar, author, title, description md, fields inline/block, image, thumbnail, footer, timestamp, video/provider)
+- [x] **LNG-MSGUI-017** [FE] Click-to-load third-party embeds (YouTube etc.) with privacy notice
 - [ ] **LNG-MSGUI-018** [FE] Cinema/Library rich cards (poster, title, meta, Watch/Read, Watch together)
 - [ ] **LNG-MSGUI-019** [FE] Server invite embed, message link preview
-- [ ] **LNG-MSGUI-020** [FE] Sticker render (PNG/APNG/Lottie-free GIF/WebP), sticker tooltip
-- [ ] **LNG-MSGUI-021** [FE] Poll widget (answers with emoji, vote select, multi, results bars, %, voters list modal, time left, End Poll)
+- [x] **LNG-MSGUI-020** [FE] Sticker render (PNG/APNG/Lottie-free GIF/WebP), sticker tooltip
+- [x] **LNG-MSGUI-021** [FE] Poll widget (answers with emoji, vote select, multi, results bars, %, voters list modal, time left, End Poll)
 - [ ] **LNG-MSGUI-022** [FE] Components: buttons (styles, link, disabled), select menus (string/user/role/channel), loading state, "interaction failed"
 - [ ] **LNG-MSGUI-023** [FE] Reactions row (emoji, count, me-reacted state, burst animation, tooltip of reactors, add-reaction button)
-- [ ] **LNG-MSGUI-024** [FE] Reactors modal (per-emoji tabs, user list, remove for mods)
+- [x] **LNG-MSGUI-024** [FE] Reactors modal (per-emoji tabs, user list, remove for mods)
 - [ ] **LNG-MSGUI-025** [FE] Hover action bar (quick reactions ×3, add reaction, reply, forward, create thread, edit, more)
 - [ ] **LNG-MSGUI-026** [FE] Message context menu (Add Reaction ▸, Edit, Reply, Forward, Create Thread, Copy Text, Apps ▸, Mark Unread, Copy Message Link, Pin, Speak Message, Remind Me, Bookmark, Delete, Report (flagged off), Copy Message ID)
-- [ ] **LNG-MSGUI-027** [FE] Inline edit mode (Esc cancel / Enter save / "escape to cancel • enter to save" hint), empty edit → delete prompt
-- [ ] **LNG-MSGUI-028** [FE] Delete confirm modal (shift-click bypass), pin confirm modal
-- [ ] **LNG-MSGUI-029** [FE] Forward modal (destination search, multi-select ≤ 5, optional message)
+- [x] **LNG-MSGUI-027** [FE] Inline edit mode (Esc cancel / Enter save / "escape to cancel • enter to save" hint), empty edit → delete prompt
+- [x] **LNG-MSGUI-028** [FE] Delete confirm modal (shift-click bypass), pin confirm modal
+- [x] **LNG-MSGUI-029** [FE] Forward modal (destination search, multi-select ≤ 5, optional message)
 - [ ] **LNG-MSGUI-030** [FE] System message renderers (join, pin, thread, call, follow, support)
-- [ ] **LNG-MSGUI-031** [FE] Failed-send state (retry/delete), pending (greyed) state with nonce reconciliation
+- [x] **LNG-MSGUI-031** [FE] Failed-send state (retry/delete), pending (greyed) state with nonce reconciliation
 - [ ] **LNG-MSGUI-032** [FE] Blocked/ignored message collapsing
-- [ ] **LNG-MSGUI-033** [FE] Typing indicator bar (animated dots, names)
+- [x] **LNG-MSGUI-033** [FE] Typing indicator bar (animated dots, names)
 - [ ] **LNG-MSGUI-034** [FE] Speak Message (Web Speech API TTS) + /tts permission
 
 ## LNG-CMP — Composer
 - [ ] **LNG-CMP-001** [FE] Rich editor (Lexical/Slate) with inline tokens for mentions, emoji, channels, timestamps
-- [ ] **LNG-CMP-002** [FE] Enter to send / Shift+Enter newline, markdown shortcuts, paste plain-text rules
-- [ ] **LNG-CMP-003** [FE] Autocomplete: `@` users/roles/everyone, `#` channels, `:` emoji (fuzzy), `/` commands (built-in + apps), keyboard navigation
+- [x] **LNG-CMP-002** [FE] Enter to send / Shift+Enter newline, markdown shortcuts, paste plain-text rules
+- [x] **LNG-CMP-003** [FE] Autocomplete: `@` users/roles/everyone, `#` channels, `:` emoji (fuzzy), `/` commands (built-in + apps), keyboard navigation
 - [ ] **LNG-CMP-004** [FE] "+" menu: Upload a File, Create Thread, Create Poll, Use Apps, Share from Cinema, Share from Library
 - [ ] **LNG-CMP-005** [FE] Upload queue tray: per-file thumbnail, edit (filename, spoiler, alt/description), remove; size check with Patron hint; multi-file ≤ 10
-- [ ] **LNG-CMP-006** [FE] Paste image/file from clipboard; drag-and-drop to composer
+- [x] **LNG-CMP-006** [FE] Paste image/file from clipboard; drag-and-drop to composer
 - [ ] **LNG-CMP-007** [FE] Upload progress (per file), cancel, resumable for > 64 MB (multipart)
-- [ ] **LNG-CMP-008** [FE] Create Poll modal (question, answers 2–10 with emoji, duration, allow multiple)
-- [ ] **LNG-CMP-009** [FE] Reply bar ("Replying to @x", ping toggle @ON/OFF, close)
+- [x] **LNG-CMP-008** [FE] Create Poll modal (question, answers 2–10 with emoji, duration, allow multiple)
+- [x] **LNG-CMP-009** [FE] Reply bar ("Replying to @x", ping toggle @ON/OFF, close)
 - [ ] **LNG-CMP-010** [FE] Slowmode countdown, "You do not have permission to send messages in this channel", timeout state
-- [ ] **LNG-CMP-011** [FE] Character counter near limit + over-limit block (offer "upload as file")
+- [x] **LNG-CMP-011** [FE] Character counter near limit + over-limit block (offer "upload as file")
 - [ ] **LNG-CMP-012** [FE] Voice message recorder (hold to record on mobile, click on desktop, preview, send)
 - [x] **LNG-CMP-013** [FE] Draft persistence per channel (local)
 - [x] **LNG-CMP-014** [FE] Up-arrow to edit last message
@@ -107,9 +107,9 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [x] **LNG-SRC-001** [BE] Tantivy message index schema (content, author, channel, guild, has-flags, timestamps, pinned, author type, mentions)
 - [ ] **LNG-SRC-002** [JOB] Index on create/edit, remove on delete; full reindex command
 - [x] **LNG-SRC-003** [BE] Search API (guild & DM/channel scopes) with filters from:, mentions:, has:, before:, during:, after:, in:, pinned:, authorType:; permission filtering; sort; pagination; total count
-- [ ] **LNG-SRC-004** [FE] Search box with filter autocomplete popover (options list, user/channel pickers, date picker)
+- [x] **LNG-SRC-004** [FE] Search box with filter autocomplete popover (options list, user/channel pickers, date picker)
 - [ ] **LNG-SRC-005** [FE] Results pane (grouped by channel, context lines, Jump, sort New/Old/Relevant, pagination)
-- [ ] **LNG-SRC-006** [FE] Search history (recent queries, clear)
+- [x] **LNG-SRC-006** [FE] Search history (recent queries, clear)
 
 ## LNG-NTF — Notifications & inbox
 - [x] **LNG-NTF-001** [BE] Notification settings model (guild/category/channel overrides, mute with expiry, suppress everyone/roles/highlights, mobile push)

@@ -792,3 +792,58 @@
   color: var(--text-muted);
   cursor: default;
 }
+
+/* components + invite */
+.lng-components {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.lng-component-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.lng-cbtn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 2px 16px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--bg-base-lower);
+  color: var(--text-normal);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+}
+.lng-cbtn[data-style='primary'] {
+  background: var(--brand);
+  color: #fff;
+}
+.lng-cbtn[data-style='success'] {
+  background: var(--ui-status-online);
+  color: #fff;
+}
+.lng-cbtn[data-style='danger'] {
+  background: var(--danger);
+  color: #fff;
+}
+.lng-cbtn:disabled,
+.lng-cbtn[aria-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.lng-cselect {
+  min-height: 32px;
+  border: 1px solid var(--ui-border);
+  border-radius: 4px;
+  background: var(--bg-base-lowest);
+  color: var(--text-normal);
+}
+.lng-invite {
+  align-items: center;
+  border-left-color: var(--brand);
+}

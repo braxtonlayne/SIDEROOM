@@ -83,9 +83,23 @@ export interface Message {
   embeds?: RawEmbed[];
   sticker_items?: { id: string; name: string; format_type: number }[];
   poll?: RawPoll | null;
+  components?: RawComponent[];
   message_snapshots?: { message: Partial<Message> }[];
   /** Client-only: set while the message is optimistic. Absent on server messages. */
   local?: LocalState;
+}
+
+/** Message components as stored (Discord shape). Interactions are not supported by the server yet. */
+export interface RawComponent {
+  type: number;
+  style?: number;
+  label?: string;
+  url?: string;
+  disabled?: boolean;
+  custom_id?: string;
+  placeholder?: string;
+  options?: { label: string; value: string; description?: string }[];
+  components?: RawComponent[];
 }
 
 export interface RawAttachment {

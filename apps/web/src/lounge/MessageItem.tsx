@@ -13,6 +13,8 @@ import { EmojiPicker } from './components/EmojiPicker';
 import type { Message, Snowflake } from './data';
 import { isJumbo, parseMarkdown, useMarkdownReady } from './markdown';
 import { AttachmentList } from './msg/Attachments';
+import { ComponentRows } from './msg/Components';
+import { findInviteCode, InviteCard } from './msg/InviteCard';
 import { EmbedList } from './msg/Embeds';
 import { ForwardedFrame } from './msg/Forwarded';
 import { InlineEdit } from './msg/InlineEdit';
@@ -84,6 +86,7 @@ function MessageBody({
   // Re-renders this body once the WASM parser is ready (plain text until then).
   useMarkdownReady();
   const nodes = parseMarkdown(m.content);
+  const inviteCode = useMemo(() => findInviteCode(m.content, location.origin), [m.content]);
   return (
     <>
       {m.content && (
@@ -107,6 +110,8 @@ function MessageBody({
       {m.embeds && m.embeds.length > 0 && !m.suppressEmbeds && (
         <EmbedList embeds={m.embeds} resolvers={resolvers} />
       )}
+      {!m.suppressEmbeds && inviteCode && <InviteCard code={inviteCode} />}
+      {m.components && m.components.length > 0 && <ComponentRows rows={m.components} />}
       {m.stickers?.map((s) => (
         <Sticker key={s.id} sticker={s} guildId={guildId} />
       ))}
@@ -172,6 +177,16 @@ function MessageItemImpl(props: MessageItemProps) {
     if (m.content) entries.push({ label: 'Copy Text', onSelect: () => copy(m.content) });
     if (m.reactions?.length && onViewReactions)
       entries.push({ label: 'View Reactions', onSelect: () => onViewReactions(m) });
+    if (m.content && typeof speechSynthesis !== 'undefined')
+      entries.push({
+        label: 'Speak Message',
+        onSelect: () => {
+          speechSynthesis.cancel();
+          speechSynthesis.speak(
+            new SpeechSynthesisUtterance(`${m.author.displayName} says ${m.content}`),
+          );
+        },
+      });
     entries.push({
       label: 'Copy Message Link',
       onSelect: () => copy(messageLink(location.origin, guildId, m)),
