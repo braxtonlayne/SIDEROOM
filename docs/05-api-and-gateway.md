@@ -37,12 +37,14 @@ Discord's user-token automation ("self-bots") is not supported, and user session
 
 Implement these route families with Discord-compatible request and response shapes. Phase is in brackets.
 
-- **Users** [1]: `GET/PATCH /users/@me`, `GET /users/{id}`, `GET /users/@me/guilds`, `DELETE /users/@me/guilds/{id}`, `POST /users/@me/channels`, connections, application role connections (later).
+- **Users** [1]: `GET/PATCH /users/@me` (`global_name` is the display name), `GET /users/{id}`, `GET /users/@me/guilds`, `DELETE /users/@me/guilds/{id}`, `POST /users/@me/channels`, connections, application role connections (later). SIDE ROOM additions for the Settings screens: `GET/PATCH /users/@me/settings` (a client-owned JSON blob, merged as an RFC 7386 merge patch, at most 64 KiB / 8 levels / 256 top-level keys, versioned, `SR_USER_SETTINGS_UPDATE` to the user's sessions), `GET/PATCH /users/@me/notification-defaults` (`message_notifications` 0/1/2/null; resolved after the per-server and per-channel choices and before the server's own default; servers only, DMs keep their own scope), `GET/PATCH /users/@me/privacy` (friend-request sources, DMs from server members, Message Requests). Signed-in password, username and email changes are under `/sr/auth/*` (section 5.1).
 - **Guilds** [1]: create/get/modify/delete, channels, members (list, search, add, modify, remove), roles, bans, prune, widgets, vanity URL, welcome screen, onboarding, previews, MFA level, integrations (stub).
+  Member listing takes `query` (nickname, username or display name, case-insensitive, at most 64 characters) and `role_id`; `GET /guilds/{id}/members/search` is Discord's alias and `GET /guilds/{id}/roles/{role_id}/members` lists a role's members. `GET/POST /guilds/{id}/prune` previews and runs a prune (`KICK_MEMBERS`; members who joined and wrote nothing for `days` (1 to 30), hold no role except `include_roles`, rank below the caller and are not the owner; at most 10,000 per call; one `MEMBER_PRUNE` audit entry). The guild object carries `afk_channel_id` and `afk_timeout`.
 - **Channels** [1]: get/modify/delete, messages (CRUD, bulk delete, crosspost), reactions, pins, typing, permissions overwrites, invites, follow announcement channel, threads (start, join, leave, members, archived lists), forum posts.
 - **Emoji / Stickers / Soundboard** [1–2].
 - **Invites** [1]: get/delete (server invites).
 - **Webhooks** [1]: create, execute (incl. `?wait`, `thread_id`), Slack/GitHub-compatible endpoints [later].
+  Webhook tokens are stored only as a SHA-256 hash (open question 137), so a URL cannot be shown again after creation; `POST /webhooks/{id}/reset-token` issues a new token (and URL) and invalidates the old one.
 - **Polls** [1]: answer voters, end poll.
 - **Audit logs** [1]. **AutoMod** [1]. **Scheduled events** [1]. **Stage instances** [2]. **Guild templates** [1].
 - **Voice** [2]: regions, voice state modification.
@@ -90,7 +92,11 @@ Implemented in `crates/sr-api/src/routes/auth/` (`routes::auth::router_with(serv
 | `POST /sr/auth/recovery-codes` | session | `{password}` | `{recovery_codes:[10 codes]}`, replacing the old set |
 | `POST /sr/auth/forgot` | none | `{email}` | Always 204 (no account enumeration; the email is sent in the background). 5 per 10 min per IP, one mail per address per minute |
 | `POST /sr/auth/reset` | none | `{token,password}` | 204 and all sessions are revoked; 2FA is still required at the next login. 400 `errors.token` for an invalid, used or expired (30 min) link; 400 `errors.password` for a weak password (the link stays valid) |
-| `POST /sr/auth/verify-email` | none | `{token}` | 204, or 400 `errors.token` (24 h, single use) |
+| `POST /sr/auth/verify-email` | none | `{token}` | 204, or 400 `errors.token` (24 h, single use). Also confirms an address change started with `POST /sr/auth/email/change` (the link is the same `/verify-email/{token}` page; the new address becomes the login and is marked verified, and the old one is told) |
+| `POST /sr/auth/password` | session | `{current_password,new_password,revoke_other_sessions?}` | 204. Re-checks the current password (shares the login lockout), applies the signup strength rules, by default revokes every other session and trusted device (`revoke_other_sessions: false` keeps them), mails a notice and writes a platform audit row. 403 `900004` on a wrong password, 400 `errors.new_password` |
+| `PUT /sr/auth/username` | session | `{username,password}` | `{username}`. Same rules as signup; two changes per account per day (429); 400 `errors.username` (`taken`/`invalid`). Friends and shared servers get `USER_UPDATE` |
+| `POST /sr/auth/email/change` | session | `{new_email,password}` | 204. Mails a 24 h single-use link to the new address; the account keeps its old address until the link is used. An address that already belongs to someone else also answers 204 and sends nothing (no oracle). One request per minute per account |
+
 | `POST /sr/auth/verify-email/resend` | session | n/a | 204. One mail per account per minute (429 otherwise); no-op once verified |
 | `POST /sr/auth/login-link` | none | `{token}` | `{status:"ok"}` and the session cookie for the one-time Owner link printed by `sr-cli bootstrap` (1 hour, single use). 400 `errors.token` otherwise; a reset link never logs in |
 | `GET /sr/auth/trusted-devices` | session | n/a | `[{id,device_name,created_at,expires_at}]` |

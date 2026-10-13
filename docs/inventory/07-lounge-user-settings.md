@@ -4,7 +4,7 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
 
 ## Shell
 - [ ] **LNG-USET-001** [FE] Full-screen settings with search box, group headers (USER SETTINGS, SIDE ROOM, APP SETTINGS), What's New, Log Out (confirm), social links/version footer
-- [ ] **LNG-USET-002** [BE] User settings blob (versioned JSON, partial PATCH, `USER_SETTINGS_UPDATE` dispatch across sessions)
+- [x] **LNG-USET-002** [BE] User settings blob (versioned JSON, partial PATCH, `USER_SETTINGS_UPDATE` dispatch across sessions). `GET/PATCH /users/@me/settings`; the dispatch is `SR_USER_SETTINGS_UPDATE` because `USER_SETTINGS_UPDATE` already carries presence (see also `/users/@me/notification-defaults` and `/users/@me/privacy`, LNG-USET-013/014 and LNG-NTF-001)
 
 ## My Account
 - [ ] **LNG-USET-003** [FE] Account card (banner, avatar, display name, username, email (reveal), Edit buttons per field)
