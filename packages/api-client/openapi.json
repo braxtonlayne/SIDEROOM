@@ -5052,6 +5052,359 @@
         ]
       }
     },
+    "/channels/{channel_id}/polls/{message_id}/answers/{answer_id}": {
+      "get": {
+        "tags": [
+          "polls"
+        ],
+        "summary": "Users who voted for an answer, ascending by id.",
+        "operationId": "voters",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "message_id",
+            "in": "path",
+            "description": "Poll message snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "answer_id",
+            "in": "path",
+            "description": "Answer id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1-100, default 25",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "description": "User id to start after",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PollVoters"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/polls/{message_id}/answers/{answer_id}/voters/@me": {
+      "put": {
+        "tags": [
+          "polls"
+        ],
+        "summary": "Vote for an answer. A single-choice poll moves the caller's earlier vote.",
+        "operationId": "vote",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "message_id",
+            "in": "path",
+            "description": "Poll message snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "answer_id",
+            "in": "path",
+            "description": "Answer id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Unknown answer or the poll has ended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "polls"
+        ],
+        "summary": "Withdraw the caller's vote for an answer.",
+        "operationId": "unvote",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "message_id",
+            "in": "path",
+            "description": "Poll message snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "answer_id",
+            "in": "path",
+            "description": "Answer id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/polls/{message_id}/expire": {
+      "post": {
+        "tags": [
+          "polls"
+        ],
+        "summary": "End a poll now. Only the author can; the final results go out as `MESSAGE_UPDATE`.",
+        "operationId": "expire",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "message_id",
+            "in": "path",
+            "description": "Poll message snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The poll has already ended",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/channels/{channel_id}/recipients/{user_id}": {
       "put": {
         "tags": [
@@ -12797,6 +13150,14 @@
               "null"
             ]
           },
+          "duration_secs": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Voice messages: length in seconds."
+          },
           "expires_at": {
             "type": [
               "string",
@@ -12818,6 +13179,13 @@
           "url": {
             "type": "string",
             "description": "Relative CDN path (`/cdn/attachments/...`); signing happens at the edge."
+          },
+          "waveform": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Voice messages: base64 waveform."
           }
         }
       },
@@ -12830,6 +13198,14 @@
               "string",
               "null"
             ]
+          },
+          "duration_secs": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Voice messages: length in seconds (at most 120)."
           },
           "id": {
             "type": [
@@ -12844,6 +13220,13 @@
               "null"
             ],
             "description": "`upload_filename` returned by the upload-slot call."
+          },
+          "waveform": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Voice messages: base64 waveform of up to 256 amplitude bytes."
           }
         }
       },
@@ -15428,6 +15811,13 @@
               }
             ]
           },
+          "message_snapshots": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Forwarded messages: the copy taken at forward time."
+          },
           "nonce": {
             "type": [
               "string",
@@ -15437,10 +15827,23 @@
           "pinned": {
             "type": "boolean"
           },
+          "poll": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Poll definition with live results (`results.answer_counts`)."
+          },
           "reactions": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ReactionObject"
+            }
+          },
+          "sticker_items": {
+            "type": "array",
+            "items": {
+              "type": "object"
             }
           },
           "thread": {
@@ -15468,6 +15871,13 @@
           "message_id"
         ],
         "properties": {
+          "channel_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Source channel of a forward (a reply stays in this channel)."
+          },
           "fail_if_not_exists": {
             "type": [
               "boolean",
@@ -15477,12 +15887,22 @@
           },
           "message_id": {
             "type": "string"
+          },
+          "type": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "0 (default) replies, 1 forwards the referenced message into this channel.",
+            "minimum": 0
           }
         }
       },
       "MessageReferenceObject": {
         "type": "object",
         "required": [
+          "type",
           "message_id",
           "channel_id"
         ],
@@ -15498,6 +15918,12 @@
           },
           "message_id": {
             "type": "string"
+          },
+          "type": {
+            "type": "integer",
+            "format": "int32",
+            "description": "0 reply, 1 forward.",
+            "minimum": 0
           }
         }
       },
@@ -16361,6 +16787,21 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PinEntry"
+            }
+          }
+        }
+      },
+      "PollVoters": {
+        "type": "object",
+        "description": "Users who picked one answer.",
+        "required": [
+          "users"
+        ],
+        "properties": {
+          "users": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserRef"
             }
           }
         }

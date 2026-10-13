@@ -1,0 +1,32 @@
+//! sr-unfurl: SSRF-safe link previews (LNG-MSG-014).
+//!
+//! * [`policy`]: which URLs and addresses may be fetched (table-tested).
+//! * [`fetch`]: resolve, validate, pin and follow at most three redirects; the DNS
+//!   resolver and the single-hop HTTP exchange are injectable.
+//! * [`transport`]: the reqwest/rustls transport (no OpenSSL, no proxies).
+//! * [`parse`]: OpenGraph, Twitter card and oEmbed readers over a pure Rust HTML parser.
+//! * [`unfurl`]: building embeds, the 24 hour cache and the per-host rate limit.
+
+pub mod fetch;
+pub mod parse;
+pub mod policy;
+pub mod transport;
+pub mod unfurl;
+
+pub use fetch::{FetchError, Resolver, SafeFetcher, SystemResolver};
+pub use policy::{Blocked, Policy, is_forbidden_ip};
+pub use unfurl::{UnfurlError, UnfurledEmbed, Unfurler};
+
+use std::sync::Arc;
+
+/// An unfurler wired to the system resolver and the reqwest transport.
+pub fn production(policy: Policy, per_host_per_minute: u32) -> Unfurler {
+    Unfurler::new(
+        SafeFetcher::new(
+            policy,
+            Arc::new(SystemResolver),
+            Arc::new(transport::ReqwestTransport),
+        ),
+        per_host_per_minute,
+    )
+}

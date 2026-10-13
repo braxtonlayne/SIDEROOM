@@ -228,6 +228,7 @@ impl<R: ChatRepository + ThreadRepository> ThreadService<R> {
                 Some(crate::domain::MessageReference {
                     message_id: orig.id,
                     channel_id: parent.id,
+                    forward: None,
                 }),
             );
             self.repo.insert_message(&m).await?;
@@ -242,6 +243,7 @@ impl<R: ChatRepository + ThreadRepository> ThreadService<R> {
                 Some(crate::domain::MessageReference {
                     message_id: MessageId::new(thread.id.get()),
                     channel_id: thread.id,
+                    forward: None,
                 }),
             );
             self.repo.insert_message(&m).await?;

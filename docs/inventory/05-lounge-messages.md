@@ -9,10 +9,10 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [x] **LNG-MSG-004** [BE] Edit message (author only, content/embeds/flags, store previous in message_edits)
 - [x] **LNG-MSG-005** [BE] Delete message (author or MANAGE_MESSAGES) → visibility user_deleted, purge_after = +30d, hold check
 - [x] **LNG-MSG-006** [BE] Bulk delete (2–100, ≤ 14 days old, Discord parity)
-- [ ] **LNG-MSG-007** [BE] Forward message (snapshot into target channel, permission checks)
+- [x] **LNG-MSG-007** [BE] Forward message (snapshot into target channel, permission checks)
 - [x] **LNG-MSG-008** [BE] Pins (pin/unpin/list, 250 cap), system message on pin
 - [ ] **LNG-MSG-009** [BE] Reactions add/remove (own, others with permission, all, per-emoji), list users, burst reactions
-- [ ] **LNG-MSG-010** [BE] Polls: create, vote/unvote, end, expiry job, results, `MESSAGE_POLL_VOTE_ADD/REMOVE`
+- [x] **LNG-MSG-010** [BE] Polls: create, vote/unvote, end, expiry job, results, `MESSAGE_POLL_VOTE_ADD/REMOVE`
 - [x] **LNG-MSG-011** [BE] Mentions extraction via `sr-markdown`; @everyone/@here permission gate; role mentionable gate
 - [x] **LNG-MSG-012** [BE] Read states: ack message, mention counts, mark guild read, mark unread (set ack to previous)
 - [x] **LNG-MSG-013** [BE] Typing indicator endpoint + 10s TTL broadcast

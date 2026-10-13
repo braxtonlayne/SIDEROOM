@@ -244,6 +244,9 @@ fn message_from(r: &PgRow) -> RepoResult<Message> {
             Some(MessageReference {
                 message_id: MessageId::new(m),
                 channel_id: ChannelId::new(c),
+                forward: v
+                    .get("snapshot")
+                    .and_then(|s| serde_json::from_value(s.clone()).ok()),
             })
         });
     Ok(Message {
@@ -833,11 +836,24 @@ impl MessageRepository for PgChatRepo {
 
     async fn insert_message(&self, m: &Message) -> RepoResult<()> {
         let reference = m.reference.as_ref().map(|r| {
-            serde_json::json!({
+            let mut v = serde_json::json!({
                 "message_id": r.message_id.to_string(),
                 "channel_id": r.channel_id.to_string(),
-            })
+            });
+            // A forward keeps the copy it was made from (`message_reference.type = 1`).
+            if let Some(f) = &r.forward
+                && let Ok(s) = serde_json::to_value(f)
+            {
+                v["type"] = serde_json::json!(1);
+                v["snapshot"] = s;
+            }
+            v
         });
+        let poll_expires_ms = m
+            .poll
+            .as_ref()
+            .filter(|p| !p.finalized)
+            .and_then(|p| p.expiry_ms);
         let embeds = serde_json::to_value(&m.embeds).map_err(|e| RepoError(e.to_string()))?;
         let components =
             serde_json::to_value(&m.components).map_err(|e| RepoError(e.to_string()))?;
@@ -851,8 +867,9 @@ impl MessageRepository for PgChatRepo {
         sqlx::query(
             "INSERT INTO messages (id, channel_id, guild_id, author_id, type, content, flags, \
              reference, embeds, components, sticker_ids, poll, mention_everyone, \
-             mention_user_ids, mention_role_ids, mention_channel_ids, pinned) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)",
+             mention_user_ids, mention_role_ids, mention_channel_ids, pinned, poll_expires_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, \
+             to_timestamp($18::double precision / 1000.0))",
         )
         .bind(i(m.id.get()))
         .bind(i(m.channel_id.get()))
@@ -871,6 +888,7 @@ impl MessageRepository for PgChatRepo {
         .bind(ids_i64(&m.mention_role_ids, RoleId::get))
         .bind(ids_i64(&m.mention_channel_ids, ChannelId::get))
         .bind(m.pinned)
+        .bind(poll_expires_ms.map(|ms| ms as f64))
         .execute(&mut *tx)
         .await
         .map_err(db)?;
@@ -1079,7 +1097,8 @@ pub const ATTACHMENT_SPOILER_FLAG: i32 = 1 << 3;
 const ATTACHMENT_COLS: &str = "id, channel_id, uploader_id, filename, size_bytes, storage_key, \
     declared_content_type, content_type, description, flags, message_id, \
     state::text AS state, (extract(epoch FROM expires_at) * 1000)::bigint AS expires_ms, \
-    (extract(epoch FROM created_at) * 1000)::bigint AS created_ms";
+    (extract(epoch FROM created_at) * 1000)::bigint AS created_ms, \
+    round(duration_secs * 1000)::integer AS duration_ms, waveform";
 
 fn attachment_from(r: &PgRow) -> Result<Attachment, sqlx::Error> {
     let message_id: Option<i64> = r.try_get("message_id")?;
@@ -1105,7 +1124,16 @@ fn attachment_from(r: &PgRow) -> Result<Attachment, sqlx::Error> {
         message_id: message_id.map(|m| MessageId::new(u(m))),
         expires_at_ms: r.try_get("expires_ms")?,
         created_at_ms: r.try_get("created_ms")?,
+        duration_ms: r
+            .try_get::<Option<i32>, _>("duration_ms")?
+            .and_then(|v| u32::try_from(v).ok()),
+        waveform: r.try_get("waveform")?,
     })
+}
+
+/// Milliseconds as the `attachments.duration_secs` REAL column.
+fn duration_secs(ms: u32) -> f32 {
+    ms as f32 / 1000.0
 }
 
 fn sdb(e: sqlx::Error) -> StoreError {
@@ -1346,9 +1374,9 @@ impl MessageStore for PgMessageStore {
         sqlx::query(
             "INSERT INTO attachments (id, channel_id, uploader_id, filename, size_bytes, \
              storage_key, declared_content_type, content_type, description, flags, is_large, \
-             expires_at, state) \
+             expires_at, state, duration_secs, waveform) \
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, \
-             to_timestamp($12::double precision), $13::attachment_state)",
+             to_timestamp($12::double precision), $13::attachment_state, $14, $15)",
         )
         .bind(i(a.id.get()))
         .bind(i(a.channel_id.get()))
@@ -1367,6 +1395,8 @@ impl MessageStore for PgMessageStore {
         .bind(a.expires_at_ms.is_some())
         .bind(expires_secs)
         .bind(upload_state_text(a.state))
+        .bind(a.duration_ms.map(duration_secs))
+        .bind(a.waveform.as_deref())
         .execute(&self.pool)
         .await
         .map_err(sdb)?;
@@ -1393,7 +1423,7 @@ impl MessageStore for PgMessageStore {
             "UPDATE attachments SET message_id = $2, state = $3::attachment_state, \
              description = $4, content_type = $5, flags = $6, \
              expires_at = to_timestamp($7::double precision), size_bytes = $8, \
-             updated_at = now() \
+             duration_secs = $9, waveform = $10, updated_at = now() \
              WHERE id = $1",
         )
         .bind(i(a.id.get()))
@@ -1409,6 +1439,8 @@ impl MessageStore for PgMessageStore {
         .bind(expires_secs)
         // The EXIF/metadata strip rewrites the object, so the stored size must follow it.
         .bind(i(a.size))
+        .bind(a.duration_ms.map(duration_secs))
+        .bind(a.waveform.as_deref())
         .execute(&self.pool)
         .await
         .map_err(sdb)?;

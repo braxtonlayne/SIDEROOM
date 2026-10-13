@@ -133,6 +133,8 @@ pub async fn request_slots(
                 .expires_after
                 .map(|t| now + i64::try_from(t.as_millis()).unwrap_or(i64::MAX / 2)),
             created_at_ms: now,
+            duration_ms: None,
+            waveform: None,
         };
         let url = deps
             .storage

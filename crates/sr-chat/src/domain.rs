@@ -333,6 +333,8 @@ pub enum Visibility {
 pub struct MessageReference {
     pub message_id: MessageId,
     pub channel_id: ChannelId,
+    /// Present for forwards (`message_reference.type = 1`): the copy taken at forward time.
+    pub forward: Option<crate::message::ForwardSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

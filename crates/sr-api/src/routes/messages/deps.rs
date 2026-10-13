@@ -161,6 +161,8 @@ pub struct MessagesDeps {
     /// How long a nonce keeps deduplicating (Discord: a few minutes).
     pub nonce_window_ms: i64,
     pub upload_url_ttl: Duration,
+    /// Polls, stickers and link previews (see [`super::rich`]).
+    pub rich: super::rich::RichDeps,
 }
 
 impl MessagesDeps {
@@ -206,6 +208,7 @@ impl MessagesDeps {
             size_policy: SizePolicy::default(),
             nonce_window_ms: i64::try_from(NONCE_WINDOW.as_millis()).unwrap_or(i64::MAX),
             upload_url_ttl: Duration::from_secs(15 * 60),
+            rich: super::rich::RichDeps::default(),
         })
     }
 

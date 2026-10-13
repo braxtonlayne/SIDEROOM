@@ -50,20 +50,6 @@ pub async fn create_message(
     let author = actor(&p);
     let channel_id: ChannelId = parse_id(&channel_id, ErrorCode::UnknownChannel)?;
 
-    if body.poll.is_some() {
-        return Err(invalid(
-            "poll",
-            "NOT_SUPPORTED",
-            "Polls are not available yet.",
-        ));
-    }
-    if body.sticker_ids.as_ref().is_some_and(|s| !s.is_empty()) {
-        return Err(invalid(
-            "sticker_ids",
-            "NOT_SUPPORTED",
-            "Stickers are not available yet.",
-        ));
-    }
     if let Some(n) = &body.nonce
         && (n.is_empty() || n.chars().count() > MAX_NONCE_LEN)
     {
@@ -118,9 +104,12 @@ pub async fn create_message(
         }
     }
 
+    let flags_in = body.flags.unwrap_or(0);
+
     // Attachments: must be the caller's uploads in this channel, not yet used.
     let mut uploads = Vec::new();
-    for r in body.attachments.iter().flatten() {
+    let refs: Vec<&super::model::AttachmentRef> = body.attachments.iter().flatten().collect();
+    for r in &refs {
         let raw = r
             .uploaded_filename
             .as_deref()
@@ -155,10 +144,21 @@ pub async fn create_message(
         finalize(&deps, &mut att).await?;
         uploads.push((att, r.description.clone()));
     }
+    super::rich_create::apply_voice_meta(&mut uploads, &refs);
+    if flags_in & message_flags::IS_VOICE_MESSAGE != 0 {
+        super::rich_create::validate_voice(&uploads)?;
+    }
 
     // Replies may tolerate a missing target.
     let mut reply_to = None;
-    if let Some(r) = &body.message_reference {
+    let mut forward = None;
+    if let Some(r) = body
+        .message_reference
+        .as_ref()
+        .filter(|r| r.kind == Some(1))
+    {
+        forward = Some(super::rich_create::plan_forward(&deps, author, r).await?);
+    } else if let Some(r) = &body.message_reference {
         let id: MessageId = r.message_id.parse().map_err(|_| {
             invalid(
                 "message_reference.message_id",
@@ -176,6 +176,9 @@ pub async fn create_message(
         }
     }
 
+    if let Some(a) = &body.allowed_mentions {
+        super::rich_create::validate_allowed_mentions(a)?;
+    }
     let allowed_mentions = body
         .allowed_mentions
         .as_ref()
@@ -185,14 +188,15 @@ pub async fn create_message(
     if body.tts == Some(true) {
         flags |= message_flags::TTS;
     }
-    let embeds = body.embeds.clone().unwrap_or_default();
-    if embeds.len() > sr_chat::message::MAX_EMBEDS {
-        return Err(invalid(
-            "embeds",
-            "BASE_TYPE_MAX_LENGTH",
-            "Must be 10 or fewer in length.",
-        ));
-    }
+    let mut embeds = body.embeds.clone().unwrap_or_default();
+    sr_chat::embed_rules::validate_embeds(&mut embeds)?;
+    let poll = super::rich_create::plan_poll(&deps, body.poll.as_ref())?;
+    let sticker_ids = super::rich_create::resolve_stickers(
+        &deps,
+        acc.channel.guild_id,
+        body.sticker_ids.as_ref(),
+    )
+    .await?;
     let req = SendMessage {
         content: body.content.clone().unwrap_or_default(),
         nonce: body.nonce.clone(),
@@ -200,10 +204,11 @@ pub async fn create_message(
         attachment_ids: uploads.iter().map(|(a, _)| a.id).collect(),
         embeds,
         components: body.components.clone().unwrap_or_default(),
-        sticker_ids: Vec::new(),
-        poll: None,
+        sticker_ids,
+        poll,
         flags,
         allowed_mentions,
+        forward,
     };
     // Decided before the send: storing the message reopens closed DMs.
     let dm_announce = deps.plan_dm_announce(&acc.channel, author).await;
@@ -236,9 +241,19 @@ pub async fn create_message(
     if let (Some(v), Some(guild)) = (&verdict, msg.guild_id) {
         publish_alerts(&deps, guild, v, Some(msg.id)).await;
     }
+    if msg.poll.is_some() {
+        deps.schedule_poll_finalize(&msg).await;
+    }
+    if !message_flags_suppress(msg.flags) {
+        deps.schedule_unfurl(&msg).await;
+    }
     let mut out = render_one(&deps, author, &msg).await?;
     out.nonce.clone_from(&body.nonce);
     Ok(Json(out))
+}
+
+fn message_flags_suppress(flags: u32) -> bool {
+    MessagesDeps::embeds_suppressed(flags)
 }
 
 /// Announce each `send_alert_message` action of `verdict` as an
@@ -295,6 +310,7 @@ pub async fn edit_message(
     )
     .await?;
     let msg = deps.visible_message(channel_id, message_id).await?;
+    deps.schedule_unfurl(&msg).await;
     let data = event_payload(&deps, &msg).await?;
     deps.publish(DomainEvent::MessageEdited {
         guild: msg.guild_id,

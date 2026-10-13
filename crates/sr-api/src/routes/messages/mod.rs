@@ -19,8 +19,13 @@ pub mod list;
 
 pub mod model;
 pub mod pins;
+pub mod polls;
 pub mod reactions;
 pub mod render;
+pub mod rich;
+pub mod rich_create;
+pub mod rich_jobs;
+pub mod rich_model;
 pub mod send;
 pub mod store;
 pub mod typing;
@@ -29,6 +34,7 @@ pub mod typing;
 mod tests;
 
 pub use deps::{DmAnnouncer, FixedEntitlements, MessagesDeps, UploadEntitlements};
+pub use rich::{JobScheduler, RichDeps, UnfurlGate};
 
 use crate::{openapi::ErrorBody, state::AppState};
 use axum::{
@@ -78,6 +84,18 @@ pub fn router() -> Router<AppState> {
             put(pins::pin).delete(pins::unpin),
         )
         .route(
+            "/channels/{channel_id}/polls/{message_id}/answers/{answer_id}",
+            get(polls::voters),
+        )
+        .route(
+            "/channels/{channel_id}/polls/{message_id}/answers/{answer_id}/voters/@me",
+            put(polls::vote).delete(polls::unvote),
+        )
+        .route(
+            "/channels/{channel_id}/polls/{message_id}/expire",
+            post(polls::expire),
+        )
+        .route(
             "/channels/{channel_id}/typing",
             post(typing::trigger_typing),
         )
@@ -112,6 +130,10 @@ pub fn router() -> Router<AppState> {
         pins::pin,
         pins::unpin,
         typing::trigger_typing,
+        polls::vote,
+        polls::unvote,
+        polls::voters,
+        polls::expire,
         attachments::request_slots,
         attachments::complete_upload,
     ),
@@ -135,6 +157,7 @@ pub fn router() -> Router<AppState> {
         model::UserListEntry,
         model::PinEntry,
         model::PinsPage,
+        polls::PollVoters,
     ))
 )]
 pub struct MessagesApi;

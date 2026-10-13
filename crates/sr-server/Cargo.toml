@@ -35,6 +35,7 @@ sr-events = { path = "../sr-events" }
 sr-features = { path = "../sr-features" }
 sr-gateway = { path = "../sr-gateway" }
 sr-search = { path = "../sr-search" }
+sr-unfurl = { path = "../sr-unfurl" }
 sr-storage = { path = "../sr-storage" }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time"] }
 tracing = "0.1"

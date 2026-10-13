@@ -1,6 +1,7 @@
 //! In-memory repository used by the service tests.
 
 pub mod messages;
+mod rich;
 use crate::admin_repo::{Ban, GuildAdminRepository};
 use crate::domain::{Channel, Guild, Member, Message, Role, Visibility};
 use crate::error::RepoError;

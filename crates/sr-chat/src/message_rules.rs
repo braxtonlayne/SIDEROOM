@@ -114,6 +114,8 @@ pub struct CreateMessageInput {
     pub embed_count: usize,
     pub sticker_ids: Vec<u64>,
     pub has_poll: bool,
+    /// A forward (`message_reference.type = 1`): the message carries only the copy.
+    pub has_forward: bool,
     pub flags: u32,
 }
 
@@ -211,7 +213,13 @@ pub fn validate_create(
     }
     if flags & message_flags::IS_VOICE_MESSAGE != 0 {
         require(ctx.perms, Permissions::SEND_VOICE_MESSAGES)?;
-        if input.attachment_count != 1 || !content.is_empty() {
+        if input.attachment_count != 1
+            || !content.is_empty()
+            || input.embed_count > 0
+            || !input.sticker_ids.is_empty()
+            || input.has_poll
+            || input.has_forward
+        {
             return Err(ChatError::invalid(
                 "flags",
                 "VOICE_MESSAGE_SHAPE",
@@ -220,11 +228,27 @@ pub fn validate_create(
         }
     }
 
+    if input.has_forward
+        && (!content.is_empty()
+            || input.attachment_count > 0
+            || input.embed_count > 0
+            || !input.sticker_ids.is_empty()
+            || input.has_poll
+            || input.reply_to.is_some())
+    {
+        return Err(ChatError::invalid(
+            "message_reference",
+            "FORWARD_SHAPE",
+            "A forwarded message cannot carry content, attachments, embeds, stickers, a poll or a reply.",
+        ));
+    }
+
     let empty = content.is_empty()
         && input.attachment_count == 0
         && input.embed_count == 0
         && input.sticker_ids.is_empty()
-        && !input.has_poll;
+        && !input.has_poll
+        && !input.has_forward;
     if empty {
         return Err(ChatError::EmptyMessage);
     }
@@ -243,6 +267,7 @@ pub fn validate_create(
                     Some(MessageReference {
                         message_id: t.id,
                         channel_id: ch.id,
+                        forward: None,
                     }),
                 ),
                 _ => return Err(ChatError::UnknownMessage),

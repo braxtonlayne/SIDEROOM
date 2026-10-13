@@ -26,7 +26,9 @@ sr-features = { path = "../sr-features" }
 sr-chat = { path = "../sr-chat" }
 sr-core = { path = "../sr-core" }
 sr-events = { path = "../sr-events" }
+sr-markdown = { path = "../sr-markdown" }
 sr-search = { path = "../sr-search" }
+sr-unfurl = { path = "../sr-unfurl" }
 sr-storage = { path = "../sr-storage" }
 subtle = "2"
 thiserror.workspace = true

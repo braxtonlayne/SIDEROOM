@@ -116,6 +116,7 @@ pub async fn pin(
         reference: Some(MessageReference {
             message_id,
             channel_id,
+            forward: None,
         }),
         attachment_ids: Vec::new(),
         embeds: Vec::new(),

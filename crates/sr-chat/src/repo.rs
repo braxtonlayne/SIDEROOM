@@ -259,6 +259,10 @@ pub struct Attachment {
     /// Large files (above the standard limit) expire; `None` lives with the message.
     pub expires_at_ms: Option<i64>,
     pub created_at_ms: i64,
+    /// Voice messages: length in milliseconds, as declared by the client.
+    pub duration_ms: Option<u32>,
+    /// Voice messages: base64 waveform (up to 256 amplitude samples).
+    pub waveform: Option<String>,
 }
 
 #[async_trait]
