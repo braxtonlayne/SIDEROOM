@@ -107,7 +107,7 @@ export interface StoreActions {
   /** Add or remove the signed-in user's reaction (optimistic; rolled back on failure). */
   toggleReaction: (channelId: string, messageId: string, emoji: string) => Promise<void>;
   /** POST /guilds, then hydrate the new guild (channels, roles) into the store. */
-  createGuild: (name: string) => Promise<rest.GuildWithChannels>;
+  createGuild: (name: string, template?: string) => Promise<rest.GuildWithChannels>;
   /** POST /invites/{code}, then load the joined guild. Resolves with the accepted invite. */
   acceptInvite: (code: string) => Promise<rest.Invite>;
   /** POST /guilds/{id}/channels; the channel is added to the store without waiting for the gateway. */
@@ -438,8 +438,8 @@ export const useStore = create<StoreState>()((set, get) => {
       }
     },
 
-    createGuild: async (name) => {
-      const guild = await rest.createGuild(name);
+    createGuild: async (name, template) => {
+      const guild = await rest.createGuild(name, template);
       get().applyDispatch('GUILD_CREATE', guild);
       return guild;
     },
