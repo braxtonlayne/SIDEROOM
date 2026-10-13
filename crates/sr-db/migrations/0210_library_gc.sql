@@ -11,3 +11,8 @@ CREATE TABLE reading_gc_keys (
     queued_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX reading_gc_keys_queued_idx ON reading_gc_keys (queued_at);
+
+-- The collector checks whether a queued object is still referenced by a cover or a source file.
+CREATE INDEX reading_series_cover_idx ON reading_series (cover_key) WHERE cover_key IS NOT NULL;
+CREATE INDEX reading_volumes_cover_idx ON reading_volumes (cover_key) WHERE cover_key IS NOT NULL;
+CREATE INDEX reading_chapters_source_idx ON reading_chapters (source_key) WHERE source_key IS NOT NULL;

@@ -4711,6 +4711,7 @@ dependencies = [
  "async-trait",
  "blurhash",
  "bytes",
+ "futures",
  "image",
  "quick-xml 0.42.0",
  "serde",

@@ -17,7 +17,7 @@ use sr_storage::cdn::CdnSigner;
 
 use crate::error::{LibraryError, LibraryResult};
 use crate::model::*;
-use crate::repo::{LibraryRepository, NewSeries, UpdateRecord};
+use crate::repo::{ChapterListQuery, LibraryRepository, NewSeries, UpdateRecord};
 use crate::rules;
 use crate::search::{IndexedSeries, SeriesIndex};
 
@@ -41,12 +41,12 @@ pub struct Viewer {
 }
 
 impl Viewer {
-    fn scope(self) -> Scope {
+    pub(crate) fn scope(self) -> Scope {
         Scope::Public
     }
 
     /// Whether search, follows and updates include restricted series.
-    fn include_restricted(self) -> bool {
+    pub(crate) fn include_restricted(self) -> bool {
         !self.hide_restricted
     }
 }
@@ -67,7 +67,7 @@ impl Actor {
         }
     }
 
-    fn publish(self) -> LibraryResult<()> {
+    pub(crate) fn publish(self) -> LibraryResult<()> {
         self.need(P::PUBLISH_READING, "PUBLISH_READING")
     }
 
@@ -78,11 +78,14 @@ impl Actor {
 
 #[derive(Clone)]
 pub struct LibraryService {
-    repo: Arc<dyn LibraryRepository>,
+    pub(crate) repo: Arc<dyn LibraryRepository>,
     index: Option<Arc<SeriesIndex>>,
     signer: CdnSigner,
-    clock: Arc<dyn Clock>,
-    ids: IdSource,
+    pub(crate) clock: Arc<dyn Clock>,
+    pub(crate) ids: IdSource,
+    pub(crate) ingest: Option<crate::uploads::IngestWiring>,
+    pub(crate) events: Option<Arc<dyn crate::reading::LibraryEvents>>,
+    pub(crate) audit: Option<Arc<dyn crate::uploads::LibraryAudit>>,
 }
 
 impl LibraryService {
@@ -98,7 +101,16 @@ impl LibraryService {
             signer,
             clock,
             ids,
+            ingest: None,
+            events: None,
+            audit: None,
         }
+    }
+
+    /// Deliver `SR_LIBRARY_UPDATE` events (progress sync, follows, new chapters) to members.
+    pub fn with_events(mut self, events: Arc<dyn crate::reading::LibraryEvents>) -> Self {
+        self.events = Some(events);
+        self
     }
 
     /// Attach the search index. Call [`Self::reindex_all`] after opening it.
@@ -109,16 +121,16 @@ impl LibraryService {
 
     // ---- presentation --------------------------------------------------
 
-    fn expires_at(&self) -> u64 {
+    pub(crate) fn expires_at(&self) -> u64 {
         let now = u64::try_from(self.clock.now_unix_ms() / 1000).unwrap_or(0);
         (now / 3600 + URL_HOURS + 1) * 3600
     }
 
-    fn url(&self, key: &str, expires_at: u64) -> String {
+    pub(crate) fn url(&self, key: &str, expires_at: u64) -> String {
         self.signer.signed_url(&format!("/cdn/{key}"), expires_at)
     }
 
-    fn series(&self, r: SeriesRecord, exp: u64) -> Series {
+    pub(crate) fn series(&self, r: SeriesRecord, exp: u64) -> Series {
         Series {
             id: r.id,
             kind: r.kind,
@@ -145,7 +157,7 @@ impl LibraryService {
         }
     }
 
-    fn chapter(c: &ChapterRecord) -> Chapter {
+    pub(crate) fn chapter(c: &ChapterRecord) -> Chapter {
         Chapter {
             id: c.id,
             series_id: c.series_id,
@@ -199,7 +211,11 @@ impl LibraryService {
         })
     }
 
-    async fn visible_series(&self, id: i64, scope: Scope) -> LibraryResult<SeriesRecord> {
+    pub(crate) async fn visible_series(
+        &self,
+        id: i64,
+        scope: Scope,
+    ) -> LibraryResult<SeriesRecord> {
         if let Some(r) = self.repo.get_series(id, scope).await? {
             return Ok(r);
         }
@@ -232,22 +248,55 @@ impl LibraryService {
         })
     }
 
-    /// Chapter list with volumes and the viewer's read marks.
+    /// Chapter list with volumes and the viewer's read marks. With `q.limit` the list is a
+    /// keyset page (`next_cursor`), otherwise every chapter.
     pub async fn chapters(
         &self,
         v: Viewer,
         series: i64,
-        edition: Option<i64>,
+        q: ChapterQuery,
     ) -> LibraryResult<ChapterList> {
         let rec = self.visible_series(series, v.scope()).await?;
-        let list = self
+        self.chapter_page(rec.id, q, Some(v.user_id), v.scope())
+            .await
+    }
+
+    async fn chapter_page(
+        &self,
+        series: i64,
+        q: ChapterQuery,
+        viewer: Option<i64>,
+        scope: Scope,
+    ) -> LibraryResult<ChapterList> {
+        let limit = q.limit.map(|l| l.clamp(1, rules::MAX_CHAPTER_LIMIT));
+        let after = q
+            .after
+            .as_deref()
+            .map(rules::decode_chapter_cursor)
+            .transpose()?;
+        let query = ChapterListQuery {
+            edition: q.edition,
+            after,
+            // One extra row tells whether there is a next page.
+            limit: limit.map(|l| l + 1),
+            descending: q.descending,
+        };
+        let mut list = self
             .repo
-            .list_chapters(rec.id, edition, Some(v.user_id), v.scope())
+            .list_chapters(series, &query, viewer, scope)
             .await?;
+        let mut next_cursor = None;
+        if let Some(l) = limit
+            && list.len() > l as usize
+        {
+            list.truncate(l as usize);
+            next_cursor = list.last().map(|c| rules::encode_chapter_cursor(c));
+        }
         Ok(ChapterList {
-            editions: self.repo.list_editions(rec.id).await?,
-            volumes: self.repo.list_volumes(rec.id).await?,
+            editions: self.repo.list_editions(series).await?,
+            volumes: self.repo.list_volumes(series).await?,
             chapters: list.iter().map(Self::chapter).collect(),
+            next_cursor,
         })
     }
 
@@ -303,6 +352,9 @@ impl LibraryService {
             prev_chapter_id: neighbours.prev,
             next_chapter_id: neighbours.next,
             expires_at: exp,
+            source_url: (c.format != ChapterFormat::Images)
+                .then(|| c.source_key.as_deref().map(|k| self.url(k, exp)))
+                .flatten(),
         })
     }
 
@@ -401,12 +453,34 @@ impl LibraryService {
         notify: bool,
     ) -> LibraryResult<Follow> {
         let rec = self.visible_series(series, v.scope()).await?;
-        self.repo.set_follow(v.user_id, rec.id, shelf, notify).await
+        let f = self
+            .repo
+            .set_follow(v.user_id, rec.id, shelf, notify)
+            .await?;
+        self.emit(
+            v.user_id,
+            serde_json::json!({
+                "type": "follow",
+                "series_id": rec.id.to_string(),
+                "shelf": f.shelf.as_str(),
+                "notify": f.notify,
+            }),
+        )
+        .await;
+        Ok(f)
     }
 
     /// Returns whether a follow existed.
     pub async fn unfollow(&self, v: Viewer, series: i64) -> LibraryResult<bool> {
-        self.repo.remove_follow(v.user_id, series).await
+        let removed = self.repo.remove_follow(v.user_id, series).await?;
+        if removed {
+            self.emit(
+                v.user_id,
+                serde_json::json!({"type": "unfollow", "series_id": series.to_string()}),
+            )
+            .await;
+        }
+        Ok(removed)
     }
 
     pub async fn my_follows(
@@ -508,21 +582,18 @@ impl LibraryService {
         })
     }
 
-    pub async fn admin_chapters(&self, a: Actor, series: i64) -> LibraryResult<ChapterList> {
+    pub async fn admin_chapters(
+        &self,
+        a: Actor,
+        series: i64,
+        q: ChapterQuery,
+    ) -> LibraryResult<ChapterList> {
         a.publish()?;
         self.repo
             .get_series(series, Scope::Staff)
             .await?
             .ok_or(LibraryError::NotFound("series"))?;
-        let list = self
-            .repo
-            .list_chapters(series, None, None, Scope::Staff)
-            .await?;
-        Ok(ChapterList {
-            editions: self.repo.list_editions(series).await?,
-            volumes: self.repo.list_volumes(series).await?,
-            chapters: list.iter().map(Self::chapter).collect(),
-        })
+        self.chapter_page(series, q, None, Scope::Staff).await
     }
 
     pub async fn admin_page_manifest(&self, a: Actor, chapter: i64) -> LibraryResult<PageManifest> {
@@ -702,6 +773,7 @@ impl LibraryService {
         id: i64,
         published: bool,
     ) -> LibraryResult<Chapter> {
+        let mut was_published = true;
         if published {
             a.publish()?;
             let c = self
@@ -718,6 +790,7 @@ impl LibraryService {
                     "a chapter without pages cannot be published".into(),
                 ));
             }
+            was_published = c.published;
         } else if a.publish().is_err() {
             a.delete()?;
         }
@@ -726,6 +799,21 @@ impl LibraryService {
             .set_chapter_published(id, published)
             .await?
             .ok_or(LibraryError::NotFound("chapter"))?;
+        if published
+            && !was_published
+            && rec.series_published
+            && !rec.series_merged
+            && self.events.is_some()
+        {
+            // Fan out to followers off the request path; a failure only loses a live nudge.
+            let svc = self.clone();
+            let rec2 = rec.clone();
+            tokio::spawn(async move {
+                if let Err(e) = svc.notify_followers(&rec2).await {
+                    tracing::warn!(chapter = rec2.id, error = %e, "notifying followers failed");
+                }
+            });
+        }
         Ok(Self::chapter(&rec))
     }
 

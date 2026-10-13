@@ -465,14 +465,26 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         clock.clone(),
         id_src.clone(),
     )
-    .with_index(library_index);
+    .with_index(library_index)
+    .with_events(Arc::new(routes::library::BusLibraryEvents::new(
+        bus.clone(),
+    )))
+    .with_ingest(
+        storage.clone(),
+        Arc::new(crate::library_jobs::PgIngestSettings::new(pool.clone())),
+        Arc::new(crate::library_jobs::PgIngestQueue::new(pool.clone())),
+    )
+    .with_audit(Arc::new(crate::library_jobs::AdminLibraryAudit::new(
+        pool.clone(),
+        id_src.clone(),
+    )));
     let indexed = library_service
         .reindex_all()
         .await
         .map_err(|e| anyhow::anyhow!("indexing the library catalog: {e}"))?;
     tracing::info!(series = indexed, "library search index rebuilt");
     let library_deps = Arc::new(
-        routes::library::LibraryDeps::new(library_service)
+        routes::library::LibraryDeps::new(library_service.clone())
             .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone())))
             .with_prefs(Arc::new(crate::settings_pg::PgLibraryPrefs::new(
                 pool.clone(),
@@ -642,6 +654,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::admin_jobs::register(runner, &pool, id_src.clone(), bus.clone());
     let runner = crate::rich_jobs::register(runner, &pool, messages.clone());
     let runner = crate::external_jobs::register(runner, &pool, storage.clone());
+    let runner = crate::library_jobs::register(runner, &pool, library_service.clone());
     crate::jobs::schedule_recurring(&pool).await?;
     crate::jobs::schedule_audit_purge(&pool).await?;
     crate::jobs::schedule_thread_archive(&pool).await?;
@@ -649,6 +662,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::admin_jobs::schedule(&pool).await?;
     crate::rich_jobs::schedule_poll_sweep(&pool).await?;
     crate::external_jobs::schedule(&pool).await?;
+    crate::library_jobs::schedule_gc(&pool).await?;
     let jobs_task = tokio::spawn(runner.run(job_rx));
 
     // REST: every feature module, feature-owned routes, and the guild backend.

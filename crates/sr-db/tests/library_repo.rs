@@ -312,7 +312,11 @@ async fn catalog_lifecycle_and_page_manifest() {
     assert_eq!(detail.editions.len(), 1);
     assert!(detail.follow.is_none());
 
-    let list = w.svc.chapters(w.member, s.id, None).await.unwrap();
+    let list = w
+        .svc
+        .chapters(w.member, s.id, ChapterQuery::default())
+        .await
+        .unwrap();
     assert_eq!(list.chapters.len(), 1);
     assert!(list.chapters[0].progress.is_none());
 
@@ -486,7 +490,12 @@ async fn age_restricted_series_are_visible_but_pages_need_confirmation() {
     // Detail, chapter list, follow: open to the unconfirmed.
     let d = w.svc.series_detail(w.member, adult_s).await.unwrap();
     assert!(d.series.age_restricted);
-    assert!(w.svc.chapters(w.member, adult_s, None).await.is_ok());
+    assert!(
+        w.svc
+            .chapters(w.member, adult_s, ChapterQuery::default())
+            .await
+            .is_ok()
+    );
     w.svc
         .follow(w.member, adult_s, Shelf::Reading, true)
         .await
@@ -1134,7 +1143,11 @@ async fn editions_volumes_and_chapter_constraints() {
             .await
             .unwrap_err()
     ));
-    let list = w.svc.admin_chapters(w.publisher, s.id).await.unwrap();
+    let list = w
+        .svc
+        .admin_chapters(w.publisher, s.id, ChapterQuery::default())
+        .await
+        .unwrap();
     assert_eq!(
         (list.chapters.len(), list.volumes.len(), list.editions.len()),
         (1, 1, 2)

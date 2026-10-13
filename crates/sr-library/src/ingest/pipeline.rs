@@ -124,12 +124,27 @@ async fn put(storage: &dyn ObjectStorage, key: &str, data: Vec<u8>) -> Result<()
         .map_err(|e| IngestError::Storage(e.to_string()))
 }
 
-/// Convert and store every page of a ZIP/CBZ for chapter `chapter` of `series`.
+/// Convert and store every page of an archive for chapter `chapter` of `series`.
 pub async fn ingest_archive<R>(
     reader: R,
     storage: Arc<dyn ObjectStorage>,
     series: i64,
     chapter: i64,
+    limits: IngestLimits,
+) -> Result<IngestedChapter, IngestError>
+where
+    R: Read + Seek + Send + 'static,
+{
+    ingest_archive_rev(reader, storage, series, chapter, None, limits).await
+}
+
+/// [`ingest_archive`] with the pages stored under revision `revision` (see [`page_key`]).
+pub async fn ingest_archive_rev<R>(
+    reader: R,
+    storage: Arc<dyn ObjectStorage>,
+    series: i64,
+    chapter: i64,
+    revision: Option<i64>,
     limits: IngestLimits,
 ) -> Result<IngestedChapter, IngestError>
 where
@@ -149,12 +164,12 @@ where
     let mut failure: Option<IngestError> = None;
     while let Some((i, name, p)) = rx.recv().await {
         let res: Result<PageInput, IngestError> = async {
-            let key = page_key(series, chapter, i);
+            let key = page_key(series, chapter, revision, i);
             put(storage.as_ref(), &key, p.webp).await?;
             stored.push(key.clone());
             let mut variants = BTreeMap::new();
             for v in p.variants {
-                let vk = variant_key(series, chapter, i, v.width);
+                let vk = variant_key(series, chapter, revision, i, v.width);
                 put(storage.as_ref(), &vk, v.webp).await?;
                 stored.push(vk.clone());
                 variants.insert(v.width.to_string(), vk);

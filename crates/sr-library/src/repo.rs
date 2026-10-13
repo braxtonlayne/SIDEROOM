@@ -49,7 +49,9 @@ pub struct Neighbours {
 }
 
 #[async_trait]
-pub trait LibraryRepository: Send + Sync {
+pub trait LibraryRepository:
+    crate::reading::ReadingStateRepository + crate::uploads::UploadRepository + Send + Sync
+{
     // ---- reads ---------------------------------------------------------
     async fn browse(&self, q: &BrowseQuery, scope: Scope) -> LibraryResult<Rows<SeriesRecord>>;
     async fn get_series(&self, id: i64, scope: Scope) -> LibraryResult<Option<SeriesRecord>>;
@@ -57,12 +59,13 @@ pub trait LibraryRepository: Send + Sync {
     async fn series_by_ids(&self, ids: &[i64], scope: Scope) -> LibraryResult<Vec<SeriesRecord>>;
     async fn list_editions(&self, series_id: i64) -> LibraryResult<Vec<Edition>>;
     async fn list_volumes(&self, series_id: i64) -> LibraryResult<Vec<Volume>>;
-    /// Chapters of a series (all editions unless `edition` is given), ascending by
-    /// number. `viewer` attaches that user's reading progress.
+    /// Chapters of a series (all editions unless `q.edition` is given), by edition, number and
+    /// id (reversed when `q.descending`). `viewer` attaches that user's reading progress. With
+    /// `q.limit` at most that many rows after the `after` cursor are returned.
     async fn list_chapters(
         &self,
         series_id: i64,
-        edition: Option<i64>,
+        q: &ChapterListQuery,
         viewer: Option<i64>,
         scope: Scope,
     ) -> LibraryResult<Vec<ChapterRecord>>;
@@ -171,4 +174,14 @@ pub trait LibraryRepository: Send + Sync {
     // ---- search index feed --------------------------------------------
     /// Published, non-merged series with `id > after`, ascending, for (re)indexing.
     async fn index_batch(&self, after: i64, limit: u32) -> LibraryResult<Vec<SeriesRecord>>;
+}
+
+/// A decoded chapter list request.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ChapterListQuery {
+    pub edition: Option<i64>,
+    pub after: Option<ChapterCursor>,
+    /// Rows to return; `None` is all.
+    pub limit: Option<u32>,
+    pub descending: bool,
 }

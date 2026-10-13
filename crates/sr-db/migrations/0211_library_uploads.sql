@@ -26,3 +26,4 @@ CREATE TABLE reading_uploads (
 );
 CREATE INDEX reading_uploads_chapter_idx ON reading_uploads (chapter_id, created_at DESC);
 CREATE INDEX reading_uploads_pending_idx ON reading_uploads (created_at) WHERE status = 'awaiting_upload';
+CREATE INDEX reading_uploads_key_idx ON reading_uploads (object_key);

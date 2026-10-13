@@ -28,7 +28,11 @@ use sr_auth::{
 use sr_core::{PlatformPermissions as P, SystemClock, UserId};
 use sr_library::error::{LibraryError, LibraryResult};
 use sr_library::model::*;
-use sr_library::repo::{LibraryRepository, Neighbours, NewSeries, Rows, UpdateRecord};
+use sr_library::reading::Progress;
+use sr_library::reading::{Bookmark, HistoryRecord};
+use sr_library::repo::{
+    ChapterListQuery, LibraryRepository, Neighbours, NewSeries, Rows, UpdateRecord,
+};
 use sr_library::{LibraryService, SeriesIndex};
 use sr_storage::cdn::CdnSigner;
 use std::{
@@ -81,6 +85,12 @@ struct Stub {
     browses: Mutex<Vec<(Scope, AgeFilter)>>,
     /// `include_restricted` of every `latest_updates` call.
     updates: Mutex<Vec<bool>>,
+    progress: Mutex<HashMap<(i64, i64), Progress>>,
+    bookmarks: Mutex<Vec<(i64, Bookmark)>>,
+    uploads: Mutex<HashMap<i64, UploadRecord>>,
+    /// Keys queued for the storage collector.
+    gc: Mutex<Vec<String>>,
+    clock: std::sync::atomic::AtomicI64,
 }
 
 /// Accounts that confirmed their age; the test adds to it like `POST /sr/age-gate` does.
@@ -156,7 +166,7 @@ impl LibraryRepository for Stub {
     async fn list_chapters(
         &self,
         _: i64,
-        _: Option<i64>,
+        _: &ChapterListQuery,
         _: Option<i64>,
         _: Scope,
     ) -> LibraryResult<Vec<ChapterRecord>> {
@@ -285,6 +295,188 @@ impl LibraryRepository for Stub {
     }
     async fn index_batch(&self, _: i64, _: u32) -> LibraryResult<Vec<SeriesRecord>> {
         Ok(vec![])
+    }
+}
+
+#[async_trait]
+impl sr_library::ReadingStateRepository for Stub {
+    async fn get_progress(&self, user: i64, chapter: i64) -> LibraryResult<Option<Progress>> {
+        Ok(self.progress.lock().unwrap().get(&(user, chapter)).cloned())
+    }
+    async fn put_progress(
+        &self,
+        user: i64,
+        series: i64,
+        chapter: i64,
+        w: &sr_library::reading::ProgressWrite,
+        force: bool,
+    ) -> LibraryResult<(Progress, bool)> {
+        let mut map = self.progress.lock().unwrap();
+        if let (Some(cur), Some(base), false) =
+            (map.get(&(user, chapter)), w.base_updated_at_ms, force)
+            && cur.updated_at_ms > base
+        {
+            return Ok((cur.clone(), false));
+        }
+        let now = self
+            .clock
+            .fetch_add(10, std::sync::atomic::Ordering::SeqCst)
+            + 10;
+        let p = Progress {
+            chapter_id: chapter,
+            series_id: series,
+            page_index: w.page_index,
+            percent: w.percent,
+            cfi: w.cfi.clone(),
+            completed: w.completed,
+            updated_at_ms: now,
+        };
+        map.insert((user, chapter), p.clone());
+        Ok((p, true))
+    }
+    async fn clear_progress(&self, user: i64, chapter: i64) -> LibraryResult<bool> {
+        Ok(self
+            .progress
+            .lock()
+            .unwrap()
+            .remove(&(user, chapter))
+            .is_some())
+    }
+    async fn mark_read(
+        &self,
+        _: i64,
+        _: &ChapterRecord,
+        _: bool,
+        up_to: bool,
+    ) -> LibraryResult<u64> {
+        Ok(if up_to { 3 } else { 1 })
+    }
+    async fn history(
+        &self,
+        _: i64,
+        _: bool,
+        _: bool,
+        _: Option<(i64, i64)>,
+        _: u32,
+    ) -> LibraryResult<Vec<HistoryRecord>> {
+        Ok(vec![])
+    }
+    async fn list_bookmarks(&self, user: i64, chapter: i64) -> LibraryResult<Vec<Bookmark>> {
+        Ok(self
+            .bookmarks
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(u, b)| *u == user && b.chapter_id == chapter)
+            .map(|(_, b)| b.clone())
+            .collect())
+    }
+    async fn put_bookmark(
+        &self,
+        id: i64,
+        user: i64,
+        chapter: &ChapterRecord,
+        page_index: i32,
+        note: &str,
+    ) -> LibraryResult<(sr_library::reading::BookmarkOutcome, Option<Bookmark>)> {
+        let b = Bookmark {
+            id,
+            chapter_id: chapter.id,
+            series_id: chapter.series_id,
+            page_index,
+            note: note.to_owned(),
+            created_at_ms: 1,
+        };
+        self.bookmarks.lock().unwrap().push((user, b.clone()));
+        Ok((sr_library::reading::BookmarkOutcome::Saved, Some(b)))
+    }
+    async fn delete_bookmark(&self, user: i64, id: i64) -> LibraryResult<Option<Bookmark>> {
+        let mut all = self.bookmarks.lock().unwrap();
+        let at = all.iter().position(|(u, b)| *u == user && b.id == id);
+        Ok(at.map(|i| all.remove(i).1))
+    }
+    async fn all_bookmarks(
+        &self,
+        _: i64,
+        _: bool,
+        _: Option<(i64, i64)>,
+        _: u32,
+    ) -> LibraryResult<Vec<sr_library::reading::BookmarkRecord>> {
+        Ok(vec![])
+    }
+    async fn followers_to_notify(&self, _: i64, after: i64, _: u32) -> LibraryResult<Vec<i64>> {
+        Ok([MEMBER, ADULT].into_iter().filter(|u| *u > after).collect())
+    }
+}
+
+#[async_trait]
+impl sr_library::UploadRepository for Stub {
+    async fn create_upload(&self, u: &UploadRecord) -> LibraryResult<()> {
+        self.uploads.lock().unwrap().insert(u.id, u.clone());
+        Ok(())
+    }
+    async fn get_upload(&self, id: i64) -> LibraryResult<Option<UploadRecord>> {
+        Ok(self.uploads.lock().unwrap().get(&id).cloned())
+    }
+    async fn list_uploads(&self, chapter: i64, _: u32) -> LibraryResult<Vec<UploadRecord>> {
+        Ok(self
+            .uploads
+            .lock()
+            .unwrap()
+            .values()
+            .filter(|u| u.chapter_id == chapter)
+            .cloned()
+            .collect())
+    }
+    async fn transition_upload(
+        &self,
+        id: i64,
+        from: &[UploadStatus],
+        to: UploadStatus,
+    ) -> LibraryResult<Option<UploadRecord>> {
+        let mut all = self.uploads.lock().unwrap();
+        Ok(all
+            .get_mut(&id)
+            .filter(|u| from.contains(&u.status))
+            .map(|u| {
+                u.status = to;
+                u.clone()
+            }))
+    }
+    async fn finish_upload(
+        &self,
+        id: i64,
+        status: UploadStatus,
+        error: Option<&str>,
+        warnings: &[String],
+        page_count: Option<i32>,
+        metadata: &serde_json::Value,
+    ) -> LibraryResult<Option<UploadRecord>> {
+        let mut all = self.uploads.lock().unwrap();
+        Ok(all.get_mut(&id).map(|u| {
+            u.status = status;
+            u.error = error.map(str::to_owned);
+            u.warnings = warnings.to_vec();
+            u.page_count = page_count;
+            u.metadata = metadata.clone();
+            u.clone()
+        }))
+    }
+    async fn set_chapter_source(&self, _: i64, _: &str, _: i32) -> LibraryResult<bool> {
+        Ok(true)
+    }
+    async fn expire_uploads(&self, _: i64, _: u32) -> LibraryResult<Vec<UploadRecord>> {
+        Ok(vec![])
+    }
+    async fn queue_gc(&self, keys: &[String], _: Option<i64>) -> LibraryResult<()> {
+        self.gc.lock().unwrap().extend_from_slice(keys);
+        Ok(())
+    }
+    async fn gc_due(&self, _: i64, _: u32) -> LibraryResult<Vec<String>> {
+        Ok(vec![])
+    }
+    async fn gc_done(&self, _: &[String]) -> LibraryResult<u64> {
+        Ok(0)
     }
 }
 
