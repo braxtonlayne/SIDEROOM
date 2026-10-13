@@ -7,6 +7,7 @@
 //! * [`search`]: the Tantivy series index behind the instant search.
 
 pub mod error;
+pub mod ingest;
 pub mod model;
 pub mod repo;
 pub mod rules;
