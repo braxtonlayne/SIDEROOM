@@ -10,12 +10,14 @@ use axum::{
     routing::get,
 };
 use serde::Deserialize;
+use sr_chat::admin_repo::MemberFilter;
 use sr_chat::admin_rules::MemberPatch;
 use sr_core::{ApiError, GuildId, RoleId, UserId};
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/guilds/{guild_id}/members", get(list_members))
+        .route("/guilds/{guild_id}/members/search", get(search_members))
         .route(
             "/guilds/{guild_id}/members/{user_id}",
             get(get_member).patch(modify_member).delete(kick_member),
@@ -28,9 +30,14 @@ pub struct ListMembersQuery {
     pub limit: Option<usize>,
     /// Highest user id of the previous page.
     pub after: Option<String>,
+    /// Case-insensitive text that must appear in the nickname, username or display name.
+    pub query: Option<String>,
+    /// Only members holding this role.
+    pub role_id: Option<String>,
 }
 
-/// Page through the members of a guild, ordered by user id.
+/// Page through the members of a guild, ordered by user id, optionally narrowed by a
+/// search text and/or a role.
 #[utoipa::path(
     get,
     path = "/guilds/{guild_id}/members",
@@ -38,6 +45,8 @@ pub struct ListMembersQuery {
         ("guild_id" = String, Path, description = "Guild snowflake"),
         ("limit" = Option<usize>, Query, description = "1 to 1000, default 1"),
         ("after" = Option<String>, Query, description = "User snowflake cursor"),
+        ("query" = Option<String>, Query, description = "Search text (at most 64 characters): matches nickname, username or display name, case-insensitive"),
+        ("role_id" = Option<String>, Query, description = "Only members holding this role snowflake"),
     ),
     responses((status = 200, body = Vec<MemberObject>), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
     security(("authorization" = []), ("session" = []))
@@ -55,8 +64,17 @@ pub async fn list_members(
         .as_deref()
         .map(|a| id::<UserId>("after", a))
         .transpose()?;
+    let role = q
+        .role_id
+        .as_deref()
+        .map(|r| id::<RoleId>("role_id", r))
+        .transpose()?;
+    let filter = MemberFilter {
+        query: q.query,
+        role,
+    };
     let members = api
-        .list_members(user, gid, after, q.limit.unwrap_or(1))
+        .list_members(user, gid, filter, after, q.limit.unwrap_or(1))
         .await
         .map_err(ce)?;
     let users = users_for(&*api, members.iter().map(|m| m.user_id)).await?;
@@ -164,4 +182,58 @@ pub async fn kick_member(
     let uid: UserId = id("user_id", &user_id)?;
     api.kick_member(actor, gid, uid).await.map_err(ce)?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Query of `GET /guilds/{id}/members/search`.
+#[derive(Debug, Deserialize)]
+pub struct SearchMembersQuery {
+    /// Text to look for in nicknames, usernames and display names (required).
+    pub query: String,
+    /// 1 to 1000, default 1.
+    pub limit: Option<usize>,
+}
+
+/// Discord's member search: members whose nickname, username or display name contains
+/// `query` (case-insensitive), ordered by user id.
+#[utoipa::path(
+    get,
+    path = "/guilds/{guild_id}/members/search",
+    params(
+        ("guild_id" = String, Path, description = "Guild snowflake"),
+        ("query" = String, Query, description = "Search text, 1 to 64 characters"),
+        ("limit" = Option<usize>, Query, description = "1 to 1000, default 1"),
+    ),
+    responses((status = 200, body = Vec<MemberObject>), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn search_members(
+    p: Principal,
+    Api(api): Api,
+    Path(guild_id): Path<String>,
+    Query(q): Query<SearchMembersQuery>,
+) -> ApiResult<Json<Vec<MemberObject>>> {
+    let user = actor(&p)?;
+    let gid: GuildId = id("guild_id", &guild_id)?;
+    if q.query.trim().is_empty() {
+        return Err(HttpError(ApiError::invalid_form().field(
+            "query",
+            "BASE_TYPE_REQUIRED",
+            "This field is required.",
+        )));
+    }
+    let filter = MemberFilter {
+        query: Some(q.query),
+        role: None,
+    };
+    let members = api
+        .list_members(user, gid, filter, None, q.limit.unwrap_or(1))
+        .await
+        .map_err(ce)?;
+    let users = users_for(&*api, members.iter().map(|m| m.user_id)).await?;
+    Ok(Json(
+        members
+            .iter()
+            .map(|m| MemberObject::new(m, false, &users))
+            .collect(),
+    ))
 }

@@ -23,6 +23,7 @@ pub mod channels;
 pub mod dto;
 pub mod guild;
 pub mod members;
+pub mod prune;
 pub mod roles;
 pub mod util;
 
@@ -41,6 +42,7 @@ pub fn router() -> Router<AppState> {
         .merge(channels::routes())
         .merge(roles::routes())
         .merge(members::routes())
+        .merge(prune::routes())
         .merge(bans::routes())
 }
 
@@ -73,6 +75,10 @@ pub fn router() -> Router<AppState> {
         members::get_member,
         members::modify_member,
         members::kick_member,
+        members::search_members,
+        roles::list_role_members,
+        prune::prune_count,
+        prune::prune,
         bans::list_bans,
         bans::get_ban,
         bans::create_ban,
@@ -98,6 +104,8 @@ pub fn router() -> Router<AppState> {
         dto::ReorderRoleEntry,
         dto::ModifyMemberBody,
         dto::BanBody,
+        prune::PruneBody,
+        prune::PruneResult,
     ))
 )]
 pub struct GuildsApiDoc;

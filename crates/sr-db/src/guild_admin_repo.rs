@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use sqlx::Row;
 use sqlx::postgres::PgRow;
 
-use sr_chat::admin_repo::{Ban, GuildAdminRepository};
+use sr_chat::admin_repo::{Ban, GuildAdminRepository, MemberFilter, PruneCriteria};
 use sr_chat::domain::{Channel, Guild, Member};
 use sr_chat::repo::RepoResult;
 use sr_core::permissions::{Overwrite, OverwriteKind};
@@ -15,6 +15,20 @@ use crate::chat_repo::{GUILD_COLS, PgChatRepo, db, guild_from, i, u};
 
 fn lim(limit: usize) -> i64 {
     i64::try_from(limit).unwrap_or(i64::MAX)
+}
+
+/// `%text%` for `ILIKE ... ESCAPE '!'`, with the LIKE metacharacters in `text` escaped.
+fn like_pattern(text: &str) -> String {
+    let mut out = String::with_capacity(text.len() + 2);
+    out.push('%');
+    for c in text.chars() {
+        if matches!(c, '!' | '%' | '_') {
+            out.push('!');
+        }
+        out.push(c);
+    }
+    out.push('%');
+    out
 }
 
 const MEMBER_SELECT: &str = "SELECT gm.guild_id, gm.user_id, gm.nick, gm.pending, \
@@ -117,15 +131,55 @@ impl GuildAdminRepository for PgChatRepo {
     async fn list_members(
         &self,
         guild: GuildId,
+        filter: &MemberFilter,
         after: Option<UserId>,
         limit: usize,
     ) -> RepoResult<Vec<Member>> {
         let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
             "{MEMBER_SELECT} WHERE gm.guild_id = $1 AND gm.user_id > $2 \
+             AND ($4::bigint IS NULL OR $4 = $1 OR EXISTS (SELECT 1 FROM member_roles mr \
+                  WHERE mr.guild_id = gm.guild_id AND mr.user_id = gm.user_id AND mr.role_id = $4)) \
+             AND ($5::text IS NULL OR gm.nick ILIKE $5 ESCAPE '!' OR EXISTS (SELECT 1 FROM accounts a \
+                  WHERE a.id = gm.user_id AND (a.username::text ILIKE $5 ESCAPE '!' \
+                  OR a.display_name ILIKE $5 ESCAPE '!'))) \
              ORDER BY gm.user_id LIMIT $3"
         )))
         .bind(i(guild.get()))
         .bind(after.map_or(0, |a| i(a.get())))
+        .bind(lim(limit))
+        .bind(filter.role.map(|r| i(r.get())))
+        .bind(filter.query.as_deref().map(like_pattern))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter()
+            .map(member_from)
+            .collect::<Result<_, _>>()
+            .map_err(db)
+    }
+
+    async fn prune_candidates(
+        &self,
+        guild: GuildId,
+        criteria: &PruneCriteria,
+        limit: usize,
+    ) -> RepoResult<Vec<Member>> {
+        let include: Vec<i64> = criteria.include_roles.iter().map(|r| i(r.get())).collect();
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "{MEMBER_SELECT} WHERE gm.guild_id = $1 \
+             AND gm.joined_at < to_timestamp($2::bigint::double precision / 1000.0) \
+             AND gm.user_id <> (SELECT owner_id FROM guilds WHERE id = $1) \
+             AND NOT EXISTS (SELECT 1 FROM member_roles mr WHERE mr.guild_id = gm.guild_id \
+                  AND mr.user_id = gm.user_id AND NOT (mr.role_id = ANY($4))) \
+             AND NOT EXISTS (SELECT 1 FROM messages msg WHERE msg.author_id = gm.user_id \
+                  AND msg.guild_id = gm.guild_id AND msg.id >= sr_snowflake_floor( \
+                  to_timestamp($3::bigint::double precision / 1000.0))) \
+             ORDER BY gm.user_id LIMIT $5"
+        )))
+        .bind(i(guild.get()))
+        .bind(criteria.joined_before_ms)
+        .bind(criteria.active_since_ms)
+        .bind(&include)
         .bind(lim(limit))
         .fetch_all(&self.pool)
         .await
@@ -134,6 +188,17 @@ impl GuildAdminRepository for PgChatRepo {
             .map(member_from)
             .collect::<Result<_, _>>()
             .map_err(db)
+    }
+
+    async fn remove_members(&self, guild: GuildId, users: &[UserId]) -> RepoResult<u64> {
+        let ids: Vec<i64> = users.iter().map(|u| i(u.get())).collect();
+        let r = sqlx::query("DELETE FROM guild_members WHERE guild_id = $1 AND user_id = ANY($2)")
+            .bind(i(guild.get()))
+            .bind(&ids)
+            .execute(&self.pool)
+            .await
+            .map_err(db)?;
+        Ok(r.rows_affected())
     }
 
     async fn update_member(&self, m: &Member) -> RepoResult<()> {

@@ -2,7 +2,7 @@
 //! management with server-side permission checks. Orchestration only; the
 //! decisions live in [`crate::admin_rules`] and the older rule modules.
 
-use crate::admin_repo::{Ban, GuildAdminRepository};
+use crate::admin_repo::{Ban, GuildAdminRepository, MemberFilter};
 use crate::admin_rules::{
     self, ChannelMove, GuildPatch, MemberPatch, MemberTarget, plan_channel_moves, plan_edit_guild,
     plan_edit_member, plan_role_order,
@@ -393,14 +393,110 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
         &self,
         actor: UserId,
         id: GuildId,
+        filter: MemberFilter,
         after: Option<UserId>,
         limit: usize,
     ) -> ChatResult<Vec<Member>> {
-        self.ctx(actor, id).await?;
+        let c = self.ctx(actor, id).await?;
+        let filter = admin_rules::validate_member_filter(filter, &c.roles)?;
         Ok(self
             .repo
-            .list_members(id, after, Self::clamp_page(limit))
+            .list_members(id, &filter, after, Self::clamp_page(limit))
             .await?)
+    }
+
+    /// Members holding `role`, ordered by user id (Discord has no such endpoint; the
+    /// role editor's "Manage Members" tab needs it). Any member may list them, like the
+    /// member list itself.
+    pub async fn list_role_members(
+        &self,
+        actor: UserId,
+        id: GuildId,
+        role: RoleId,
+        after: Option<UserId>,
+        limit: usize,
+    ) -> ChatResult<Vec<Member>> {
+        self.list_members(
+            actor,
+            id,
+            MemberFilter {
+                query: None,
+                role: Some(role),
+            },
+            after,
+            limit,
+        )
+        .await
+    }
+
+    // ---------------------------------------------------------- prune
+
+    /// Members a prune would remove for the actor: inactive for `days`, role-free (or only
+    /// holding `include_roles`), not the owner, and below the actor in the role hierarchy.
+    async fn prune_targets(
+        &self,
+        c: &Ctx,
+        days: u32,
+        include_roles: &[RoleId],
+    ) -> ChatResult<Vec<Member>> {
+        if !c.actor.perms.has(Permissions::KICK_MEMBERS) {
+            return Err(ChatError::MissingPermissions);
+        }
+        let criteria = admin_rules::plan_prune(days, include_roles, &c.roles, self.now())?;
+        let found = self
+            .repo
+            .prune_candidates(c.guild.id, &criteria, admin_rules::MAX_PRUNE_BATCH)
+            .await?;
+        Ok(found
+            .into_iter()
+            .filter(|m| {
+                check_moderation(
+                    &c.guild,
+                    ModAction::Kick,
+                    c.member.user_id,
+                    &c.actor,
+                    m,
+                    top_role_position(m, &c.roles),
+                    guild_permissions(&c.guild, m, &c.roles),
+                )
+                .is_ok()
+            })
+            .collect())
+    }
+
+    /// How many members `prune` would remove right now (`KICK_MEMBERS`). Capped at
+    /// [`admin_rules::MAX_PRUNE_BATCH`] per call.
+    pub async fn prune_preview(
+        &self,
+        actor: UserId,
+        id: GuildId,
+        days: u32,
+        include_roles: &[RoleId],
+    ) -> ChatResult<usize> {
+        let c = self.ctx(actor, id).await?;
+        Ok(self.prune_targets(&c, days, include_roles).await?.len())
+    }
+
+    /// Remove the members `prune_preview` counts (`KICK_MEMBERS`) and return their ids, for
+    /// the caller's `GUILD_MEMBER_REMOVE` dispatches and audit entry.
+    pub async fn prune(
+        &self,
+        actor: UserId,
+        id: GuildId,
+        days: u32,
+        include_roles: &[RoleId],
+    ) -> ChatResult<Vec<UserId>> {
+        let c = self.ctx(actor, id).await?;
+        let ids: Vec<UserId> = self
+            .prune_targets(&c, days, include_roles)
+            .await?
+            .iter()
+            .map(|m| m.user_id)
+            .collect();
+        if !ids.is_empty() {
+            self.repo.remove_members(id, &ids).await?;
+        }
+        Ok(ids)
     }
 
     pub async fn get_member_view(

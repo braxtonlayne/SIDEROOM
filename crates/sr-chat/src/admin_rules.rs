@@ -1,6 +1,7 @@
 //! Pure rules for guild administration: guild edits, member edits, channel and
 //! role ordering (LNG-GLD-004/005/007, LNG-CHN-002).
 
+use crate::admin_repo::{MemberFilter, PruneCriteria};
 use crate::domain::{Channel, ChannelType, Guild, Member, Role};
 use crate::error::{ChatError, ChatResult};
 use crate::guild_rules::{
@@ -403,6 +404,63 @@ pub fn validate_ban_reason(reason: Option<String>) -> ChatResult<Option<String>>
     }
 }
 
+/// Longest member search text.
+pub const MEMBER_QUERY_MAX: usize = 64;
+/// Prune window in days (Discord: 1 to 30).
+pub const PRUNE_DAYS_MAX: u32 = 30;
+/// Most members one prune call removes (and one preview counts). A larger backlog takes
+/// several calls.
+pub const MAX_PRUNE_BATCH: usize = 10_000;
+
+/// Trim the search text and check that a role filter names a role of this guild.
+pub fn validate_member_filter(mut f: MemberFilter, roles: &[Role]) -> ChatResult<MemberFilter> {
+    if let Some(q) = f.query.take() {
+        let q = q.trim();
+        if q.chars().count() > MEMBER_QUERY_MAX {
+            return Err(ChatError::invalid(
+                "query",
+                "BASE_TYPE_MAX_LENGTH",
+                format!("Must be {MEMBER_QUERY_MAX} or fewer in length."),
+            ));
+        }
+        f.query = (!q.is_empty()).then(|| q.to_owned());
+    }
+    if let Some(r) = f.role
+        && !roles.iter().any(|x| x.id == r)
+    {
+        return Err(ChatError::UnknownRole);
+    }
+    Ok(f)
+}
+
+/// The selection criteria of a prune of `days` days now (`now_ms`). `include_roles` must be
+/// roles of the guild and not `@everyone`.
+pub fn plan_prune(
+    days: u32,
+    include_roles: &[RoleId],
+    roles: &[Role],
+    now_ms: i64,
+) -> ChatResult<PruneCriteria> {
+    if !(1..=PRUNE_DAYS_MAX).contains(&days) {
+        return Err(ChatError::invalid(
+            "days",
+            "NUMBER_TYPE_MAX",
+            format!("Must be between 1 and {PRUNE_DAYS_MAX}."),
+        ));
+    }
+    for r in include_roles {
+        if !roles.iter().any(|x| x.id == *r && !x.is_everyone()) {
+            return Err(ChatError::UnknownRole);
+        }
+    }
+    let cutoff = now_ms.saturating_sub(i64::from(days) * 86_400_000);
+    Ok(PruneCriteria {
+        joined_before_ms: cutoff,
+        active_since_ms: cutoff,
+        include_roles: include_roles.to_vec(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -589,5 +647,51 @@ mod tests {
         assert!(check_ban_non_member(&g, UserId::new(5), &a, UserId::new(5)).is_err());
         assert_eq!(validate_ban_reason(Some("  ".into())).unwrap(), None);
         assert!(validate_ban_reason(Some("x".repeat(513))).is_err());
+    }
+    #[test]
+    fn member_filter_and_prune_plan_validate() {
+        let roles = [everyone(), role(200, 1, Permissions::empty())];
+        let f = validate_member_filter(
+            MemberFilter {
+                query: Some("  Ann ".into()),
+                role: Some(RoleId::new(200)),
+            },
+            &roles,
+        )
+        .unwrap();
+        assert_eq!(f.query.as_deref(), Some("Ann"));
+        let blank = validate_member_filter(
+            MemberFilter {
+                query: Some("   ".into()),
+                role: None,
+            },
+            &roles,
+        )
+        .unwrap();
+        assert!(blank.is_empty());
+        let too_long = MemberFilter {
+            query: Some("x".repeat(MEMBER_QUERY_MAX + 1)),
+            role: None,
+        };
+        assert!(validate_member_filter(too_long, &roles).is_err());
+        let unknown = MemberFilter {
+            query: None,
+            role: Some(RoleId::new(999)),
+        };
+        assert!(matches!(
+            validate_member_filter(unknown, &roles),
+            Err(ChatError::UnknownRole)
+        ));
+
+        let now = 40 * 86_400_000;
+        let p = plan_prune(7, &[RoleId::new(200)], &roles, now).unwrap();
+        assert_eq!(p.joined_before_ms, now - 7 * 86_400_000);
+        assert_eq!(p.active_since_ms, p.joined_before_ms);
+        for bad in [0, 31] {
+            assert!(plan_prune(bad, &[], &roles, now).is_err());
+        }
+        assert!(plan_prune(7, &[RoleId::new(999)], &roles, now).is_err());
+        // @everyone cannot be "included": it is not a real assignment.
+        assert!(plan_prune(7, &[RoleId::new(GUILD)], &roles, now).is_err());
     }
 }
