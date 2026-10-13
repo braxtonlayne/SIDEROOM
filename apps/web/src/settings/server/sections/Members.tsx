@@ -17,7 +17,6 @@ import {
 } from '../ui';
 
 const VIEW_PAGE = 25;
-const MAX_PAGES = 20;
 
 export const DELETE_WINDOWS = [
   { seconds: 0, label: "Don't delete any" },
@@ -44,21 +43,36 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  /** `query` after a short pause: this is what the server is asked for. */
+  const [applied, setApplied] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
   const [page, setPage] = useState(0);
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [details, setDetails] = useState<api.MemberObject | null>(null);
   const [pruning, setPruning] = useState(false);
   const [pruned, setPruned] = useState<number | null>(null);
-  const pages = useRef(0);
   const busy = useRef(false);
+  /** Bumped when the filters change so a response for an older filter is dropped. */
+  const generation = useRef(0);
+
+  useEffect(() => {
+    const t = setTimeout(() => setApplied(query.trim()), 250);
+    return () => clearTimeout(t);
+  }, [query]);
 
   const loadNext = useCallback(async () => {
-    if (busy.current || pages.current >= MAX_PAGES) return;
+    if (busy.current) return;
     busy.current = true;
+    const mine = generation.current;
     setLoading(true);
     try {
       const cursor = membersRef.current.at(-1)?.user.id;
-      const batch = await api.listMembers(guildId, cursor);
-      pages.current += 1;
+      const batch = await api.listMembers(guildId, {
+        ...(cursor ? { after: cursor } : {}),
+        ...(applied ? { query: applied } : {}),
+        ...(roleFilter ? { roleId: roleFilter } : {}),
+      });
+      if (mine !== generation.current) return;
       setMembers((cur) => {
         const seen = new Set(cur.map((m) => m.user.id));
         return [...cur, ...batch.filter((m) => !seen.has(m.user.id))];
@@ -66,23 +80,32 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
       if (batch.length < api.MEMBER_PAGE) setDone(true);
       setError(null);
     } catch (e) {
-      setError(api.errorText(e, 'Could not load members.'));
+      if (mine === generation.current) setError(api.errorText(e, 'Could not load members.'));
     } finally {
-      busy.current = false;
-      setLoading(false);
+      if (mine === generation.current) {
+        busy.current = false;
+        setLoading(false);
+      }
     }
-  }, [guildId]);
+  }, [guildId, applied, roleFilter]);
   const membersRef = useRef(members);
   membersRef.current = members;
 
-  useEffect(() => {
+  /** Start over from the first page (filters changed, or after a prune). */
+  const restart = useCallback(() => {
+    generation.current += 1;
+    busy.current = false;
+    membersRef.current = [];
+    setMembers([]);
+    setDone(false);
+    setPage(0);
     void loadNext();
   }, [loadNext]);
 
-  // Searching needs the whole list: keep fetching pages while a query is typed.
+  // First page, and again from the start whenever the search or the role filter changes.
   useEffect(() => {
-    if (query.trim() && !done && !loading && !error) void loadNext();
-  }, [query, done, loading, error, members.length, loadNext]);
+    restart();
+  }, [restart]);
 
   // Live updates from the gateway.
   useEffect(
@@ -119,19 +142,8 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
   );
 
   const roleById = useMemo(() => new Map(roles.map((r) => [r.id, r])), [roles]);
-  const q = query.trim().toLowerCase();
-  const filtered = useMemo(
-    () =>
-      q
-        ? members.filter(
-            (m) =>
-              memberName(m).toLowerCase().includes(q) ||
-              (m.user.username ?? '').toLowerCase().includes(q) ||
-              m.user.id.includes(q),
-          )
-        : members,
-    [members, q],
-  );
+  // The server did the filtering (search text, role).
+  const filtered = members;
   const pageCount = Math.max(1, Math.ceil(filtered.length / VIEW_PAGE));
   const safePage = Math.min(page, pageCount - 1);
   const visible = filtered.slice(safePage * VIEW_PAGE, (safePage + 1) * VIEW_PAGE);
@@ -163,12 +175,30 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
             label="Search members"
             type="search"
             value={query}
-            placeholder="Search by name or user ID"
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setPage(0);
-            }}
+            placeholder="Search by name"
+            onChange={(e) => setQuery(e.target.value)}
           />
+        </div>
+        <div>
+          <label className="ss-field-label" htmlFor="ss-member-role">
+            Filter by role
+          </label>
+          <select
+            id="ss-member-role"
+            className="ss-select"
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+          >
+            <option value="">All roles</option>
+            {[...roles]
+              .filter((r) => r.id !== guildId)
+              .sort((a, b) => b.position - a.position)
+              .map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+          </select>
         </div>
         {viewer.can('KICK_MEMBERS') && (
           <Button variant="secondary" onClick={() => setPruning(true)}>
@@ -183,6 +213,9 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
       )}
       {error && <LoadError message={error} onRetry={() => void loadNext()} />}
       {loading && members.length === 0 && !error && <Loading label="Loading members" />}
+      {members.length === 0 && done && !loading && !error && (
+        <p className="ss-na">No members match your search.</p>
+      )}
       {members.length > 0 && (
         <>
           <table className="ss-table">
@@ -207,11 +240,11 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
                   viewer={viewer}
                   block={blockReason(m)}
                   onAction={(kind) => setDialog({ kind, member: m })}
+                  onDetails={() => setDetails(m)}
                 />
               ))}
             </tbody>
           </table>
-          {filtered.length === 0 && <p className="ss-na">No members match your search.</p>}
           <div className="ss-pager">
             <Button
               size="sm"
@@ -249,12 +282,15 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
             setPruning(false);
             setPruned(n);
             // The gateway removes each pruned member from the list; reload covers a missed event.
-            setMembers([]);
-            membersRef.current = [];
-            setDone(false);
-            pages.current = 0;
-            void loadNext();
+            restart();
           }}
+        />
+      )}
+      {details && (
+        <MemberDetails
+          member={members.find((m) => m.user.id === details.user.id) ?? details}
+          roleById={roleById}
+          onClose={() => setDetails(null)}
         />
       )}
       {dialog?.kind === 'kick' && (
@@ -310,12 +346,14 @@ function MemberRow({
   viewer,
   block,
   onAction,
+  onDetails,
 }: {
   member: api.MemberObject;
   roleById: Map<string, { id: string; name: string; color: number }>;
   viewer: Viewer;
   block: string | undefined;
   onAction: (k: 'kick' | 'ban' | 'timeout' | 'roles') => void;
+  onDetails: () => void;
 }) {
   const name = memberName(member);
   const timedOut =
@@ -348,7 +386,14 @@ function MemberRow({
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
           <Avatar name={name} size={32} />
           <span>
-            <strong>{name}</strong>
+            <button
+              type="button"
+              className="ss-link"
+              aria-label={`Details for ${name}`}
+              onClick={onDetails}
+            >
+              <strong>{name}</strong>
+            </button>
             {member.nick && <span className="ss-meta"> ({api.userName(member.user)})</span>}
             {timedOut && <span className="ss-meta"> Timed out</span>}
           </span>
@@ -618,6 +663,69 @@ function MemberRolesDialog({
           );
         })}
       </ul>
+    </Modal>
+  );
+}
+
+function MemberDetails({
+  member,
+  roleById,
+  onClose,
+}: {
+  member: api.MemberObject;
+  roleById: Map<string, { id: string; name: string; color: number }>;
+  onClose: () => void;
+}) {
+  const name = memberName(member);
+  const until = member.communication_disabled_until;
+  const timedOut = !!until && new Date(until).getTime() > Date.now();
+  return (
+    <Modal open onClose={onClose} size="sm" title={name}>
+      <dl className="ss-details">
+        <div>
+          <dt>Username</dt>
+          <dd>{member.user.username ?? 'Unknown'}</dd>
+        </div>
+        <div>
+          <dt>User ID</dt>
+          <dd>
+            <code>{member.user.id}</code>
+          </dd>
+        </div>
+        <div>
+          <dt>Member since</dt>
+          <dd>{formatDate(member.joined_at)}</dd>
+        </div>
+        {member.nick && (
+          <div>
+            <dt>Nickname</dt>
+            <dd>{member.nick}</dd>
+          </div>
+        )}
+        <div>
+          <dt>Timeout</dt>
+          <dd>
+            {timedOut && until ? `Until ${new Date(until).toLocaleString()}` : 'Not timed out'}
+          </dd>
+        </div>
+        <div>
+          <dt>Roles</dt>
+          <dd>
+            <span className="ss-chips">
+              {member.roles.map((rid) => {
+                const r = roleById.get(rid);
+                return r ? (
+                  <span key={rid} className="ss-role-chip">
+                    <ColorDot color={r.color} />
+                    {r.name}
+                  </span>
+                ) : null;
+              })}
+              {member.roles.length === 0 && <span className="ss-meta">No roles</span>}
+            </span>
+          </dd>
+        </div>
+      </dl>
     </Modal>
   );
 }

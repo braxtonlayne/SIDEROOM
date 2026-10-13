@@ -381,3 +381,16 @@
   text-align: center;
   flex: none;
 }
+
+.ss-details {
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+.ss-details dt {
+  font-size: 0.75rem;
+  color: var(--ui-text-muted);
+}
+.ss-details dd {
+  margin: 0;
+}

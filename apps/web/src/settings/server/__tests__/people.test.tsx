@@ -30,6 +30,32 @@ describe('Members', () => {
     expect(screen.queryByText('carol')).toBeNull();
   });
 
+  it('asks the server for the search text and the role filter, and shows member details', async () => {
+    seed({ perms: [MANAGE.kick, MANAGE.ban, MANAGE.roles] });
+    const urls: string[] = [];
+    server.events.on('request:start', ({ request }) => {
+      if (request.url.includes('/guilds/g1/members?')) urls.push(new URL(request.url).search);
+    });
+    await openSettings('members');
+    expect(await screen.findByText('3 members')).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText('Filter by role'), 'mod');
+    await waitFor(() => expect(screen.getByText('1 member')).toBeInTheDocument());
+    expect(urls.at(-1)).toContain('role_id=mod');
+    expect(within(row('carol')).getByText('Mod')).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText('Search members'), 'zzz');
+    expect(await screen.findByText('No members match your search.')).toBeInTheDocument();
+    expect(urls.at(-1)).toContain('query=zzz');
+
+    await userEvent.clear(screen.getByLabelText('Search members'));
+    await userEvent.selectOptions(screen.getByLabelText('Filter by role'), '');
+    await screen.findByText('3 members');
+    await userEvent.click(screen.getByRole('button', { name: 'Details for carol' }));
+    const dialog = await screen.findByRole('dialog', { name: 'carol' });
+    expect(within(dialog).getByText('Not timed out')).toBeInTheDocument();
+    expect(within(dialog).getByText('3')).toBeInTheDocument();
+    expect(within(dialog).getByText('Mod')).toBeInTheDocument();
+  });
+
   it('prunes inactive members: previews the count, then removes (Discord wording, F-26)', async () => {
     seed({ perms: [MANAGE.kick] });
     const counts: string[] = [];

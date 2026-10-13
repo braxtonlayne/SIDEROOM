@@ -177,11 +177,23 @@ export interface MemberObject {
   communication_disabled_until: string | null;
 }
 export const MEMBER_PAGE = 100;
-/** Cursor paging by user id (`after`). There is no server-side search (see report). */
-export const listMembers = (g: string, after?: string, limit = MEMBER_PAGE) =>
-  apiFetch<MemberObject[]>(`/guilds/${g}/members?limit=${limit}${after ? `&after=${after}` : ''}`, {
-    retries: 0,
-  });
+export interface MemberQuery {
+  /** Cursor: the last user id of the previous page. */
+  after?: string;
+  limit?: number;
+  /** Case-insensitive substring of nickname, username or display name (server side, 64 chars at most). */
+  query?: string;
+  /** Only members holding this role (the @everyone role id matches all). */
+  roleId?: string;
+}
+/** Cursor paging by user id (`after`), with the server-side `query` and `role_id` filters. */
+export const listMembers = (g: string, o: MemberQuery = {}) => {
+  const p = new URLSearchParams({ limit: String(o.limit ?? MEMBER_PAGE) });
+  if (o.after) p.set('after', o.after);
+  if (o.query) p.set('query', o.query.slice(0, 64));
+  if (o.roleId && o.roleId !== g) p.set('role_id', o.roleId);
+  return apiFetch<MemberObject[]>(`/guilds/${g}/members?${p}`, { retries: 0 });
+};
 export const getMember = (g: string, u: string) =>
   apiFetch<MemberObject>(`/guilds/${g}/members/${u}`, { retries: 0 });
 export const kickMember = (g: string, u: string, reason?: string) =>
