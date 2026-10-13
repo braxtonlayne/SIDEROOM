@@ -178,6 +178,8 @@ export interface Attachment {
   spoiler?: boolean;
   /** Alt text. */
   description?: string | null;
+  /** BlurHash painted until the image has loaded. */
+  blurhash?: string;
   /** Voice messages: length in seconds. */
   durationSecs?: number | null;
   /** Voice messages: amplitude bytes (0..255). */
@@ -221,6 +223,8 @@ export interface StickerItem {
 
 /** The copy taken when a message was forwarded. */
 export interface ForwardSnapshot {
+  /** Where the original lives (`message_reference` of the forward). */
+  source?: { channelId: Snowflake; guildId?: Snowflake; messageId: Snowflake };
   content: string;
   createdAt: string;
   attachments: Attachment[];

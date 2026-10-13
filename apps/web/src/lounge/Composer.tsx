@@ -54,6 +54,7 @@ import { PollModal } from './msg/PollModal';
 import { commandSuggestions, runSlash, type SlashContext } from './msg/slashCommands';
 import { UploadTray } from './msg/UploadTray';
 import { MAX_FILES, uploadFiles, type PendingFile } from './msg/upload';
+import { imageMeta } from './msg/blurhash';
 import { VoiceRecorder, type VoiceClip } from './msg/VoiceRecorder';
 import { VOICE_FLAG, voiceMimeType } from './msg/voice';
 import { createDm } from './shell/api';
@@ -259,6 +260,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           progress: 0,
           status: 'queued',
         }));
+        // Pixel size and BlurHash are read in the background; a send before they are ready goes without.
+        for (const f of added)
+          void imageMeta(f.file).then((meta) => {
+            if (meta) setFiles((now) => now.map((x) => (x.id === f.id ? { ...x, meta } : x)));
+          });
         return [...cur, ...added];
       });
     },

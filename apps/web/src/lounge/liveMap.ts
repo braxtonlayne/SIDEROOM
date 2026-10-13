@@ -299,6 +299,7 @@ export function toLoungeAttachment(a: S.RawAttachment, now = Date.now()): Attach
     url: a.url,
     ...(a.width ? { width: a.width } : {}),
     ...(a.height ? { height: a.height } : {}),
+    ...(a.blurhash ? { blurhash: a.blurhash } : {}),
     // Discord marks spoiler attachments with a filename prefix.
     ...(a.filename.startsWith('SPOILER_') ? { spoiler: true } : {}),
     description: a.description ?? null,
@@ -368,6 +369,17 @@ export function toLoungeMessage(m: S.Message): Message {
     ...(snap
       ? {
           forwarded: {
+            ...(m.message_reference?.channel_id
+              ? {
+                  source: {
+                    channelId: m.message_reference.channel_id,
+                    messageId: m.message_reference.message_id,
+                    ...(m.message_reference.guild_id
+                      ? { guildId: m.message_reference.guild_id }
+                      : {}),
+                  },
+                }
+              : {}),
             content: snap.content ?? '',
             createdAt: snap.timestamp ?? m.timestamp,
             attachments: (snap.attachments ?? []).map((a) => toLoungeAttachment(a)),

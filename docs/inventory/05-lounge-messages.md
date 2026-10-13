@@ -41,10 +41,10 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [x] **LNG-MSGUI-003** [FE] Cozy vs compact display modes
 - [x] **LNG-MSGUI-004** [FE] Date dividers, "NEW" unread divider, unread banner with "Mark As Read"
 - [x] **LNG-MSGUI-005** [FE] Reply preview line (avatar, name, snippet, click to jump, "Original message was deleted")
-- [ ] **LNG-MSGUI-006** [FE] Forwarded message frame ("Forwarded" + source)
+- [x] **LNG-MSGUI-006** [FE] Forwarded message frame ("Forwarded" + source) *The source channel is named only when the viewer can see it.*
 - [x] **LNG-MSGUI-007** [FE] "(edited)" tag with tooltip timestamp
 - [x] **LNG-MSGUI-008** [FE] Mention highlight (row tint + left bar) for messages mentioning me
-- [ ] **LNG-MSGUI-009** [FE] Image/video attachment grid & mosaic (1–10), aspect handling, blurhash placeholders, spoiler blur w/ click reveal, alt text "ALT" chip
+- [x] **LNG-MSGUI-009** [FE] Image/video attachment grid & mosaic (1–10), aspect handling, blurhash placeholders, spoiler blur w/ click reveal, alt text "ALT" chip *Placeholders appear for images uploaded by this client (width, height and BlurHash are declared at upload); older uploads have none.*
 - [x] **LNG-MSGUI-010** [FE] Lightbox/media viewer (zoom, pan, prev/next in message, download, open original, copy)
 - [x] **LNG-MSGUI-011** [FE] File attachment card (icon by type, name, size, download), text-file preview (expand)
 - [x] **LNG-MSGUI-012** [FE] Audio attachment player
@@ -77,7 +77,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [x] **LNG-CMP-004** [FE] "+" menu: Upload a File, Create Thread, Create Poll, Use Apps, Share from Cinema, Share from Library *Use Apps, Share from Cinema and Share from Library are listed but disabled until those features exist.*
 - [ ] **LNG-CMP-005** [FE] Upload queue tray: per-file thumbnail, edit (filename, spoiler, alt/description), remove; size check with Patron hint; multi-file ≤ 10
 - [x] **LNG-CMP-006** [FE] Paste image/file from clipboard; drag-and-drop to composer
-- [ ] **LNG-CMP-007** [FE] Upload progress (per file), cancel, resumable for > 64 MB (multipart)
+- [ ] **LNG-CMP-007** [FE] Upload progress (per file), cancel, resumable for > 64 MB (multipart) *Partial: Progress and cancel are built. Resumable multipart for files over 64 MB is not: the API only hands out one presigned PUT per file (no multipart endpoints), so the client has nothing to resume against.*
 - [x] **LNG-CMP-008** [FE] Create Poll modal (question, answers 2–10 with emoji, duration, allow multiple)
 - [x] **LNG-CMP-009** [FE] Reply bar ("Replying to @x", ping toggle @ON/OFF, close)
 - [x] **LNG-CMP-010** [FE] Slowmode countdown, "You do not have permission to send messages in this channel", timeout state

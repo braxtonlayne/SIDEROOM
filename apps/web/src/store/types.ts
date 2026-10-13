@@ -134,6 +134,8 @@ export interface RawAttachment {
   duration_secs?: number | null;
   /** Base64 amplitude bytes (voice messages). */
   waveform?: string | null;
+  /** BlurHash placeholder (images), declared by the uploader. */
+  blurhash?: string | null;
   expires_at?: string | null;
 }
 

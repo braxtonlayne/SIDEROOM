@@ -1104,3 +1104,16 @@
   gap: 12px;
   margin-top: 12px;
 }
+
+/* LNG-MSGUI-009: BlurHash placeholder behind a loading image */
+.lng-tile-btn {
+  position: relative;
+}
+.lng-blurhash {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  pointer-events: none;
+}
