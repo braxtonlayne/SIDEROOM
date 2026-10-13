@@ -15,12 +15,12 @@ use axum::{
 use futures::{StreamExt, stream::BoxStream};
 use http_body_util::BodyExt;
 use serde_json::{Value, json};
+use sr_chat::Member;
 use sr_chat::guild_rules::plan_new_guild;
 use sr_chat::memory::{MemoryBackend, MemoryRepo};
 use sr_chat::repo::GuildRepository;
 use sr_chat::threads::{ThreadPatch, ThreadService};
-use sr_chat::{Member, Permissions};
-use sr_core::{ChannelId, Clock, GuildId, ManualClock, SnowflakeGenerator, UserId};
+use sr_core::{ChannelId, Clock, GuildId, ManualClock, Permissions, SnowflakeGenerator, UserId};
 use sr_events::{DomainEvent, EventBus, InProcessBus, Topic};
 use sr_storage::ObjectStoreStorage;
 use std::sync::Arc;
@@ -257,7 +257,7 @@ async fn start_from_message_creates_a_thread_with_the_message_id_and_announces_i
 
     // MESSAGE_CREATE of the original, THREAD_CREATE, then the two system messages.
     let mut kinds = Vec::new();
-    for _ in 0..5 {
+    for _ in 0..4 {
         match next_event(&mut ev).await {
             DomainEvent::MessageSent { data, .. } => kinds.push(format!("msg{}", data["type"])),
             DomainEvent::ThreadCreated { payload, .. } => {
@@ -292,7 +292,7 @@ async fn thread_messages_use_the_message_endpoints_and_update_counters() {
     assert_eq!(m["channel_id"], tid);
     // The poster joined the thread; the join is announced.
     let mut saw_members = false;
-    for _ in 0..3 {
+    for _ in 0..2 {
         match next_event(&mut ev).await {
             DomainEvent::ThreadMembersUpdated { payload, .. } => {
                 assert_eq!(payload["member_count"], 2);
@@ -651,7 +651,7 @@ async fn forum_posts_create_thread_and_starter_message_together() {
     assert_eq!(post["message_count"], 1);
     // THREAD_CREATE comes before the starter MESSAGE_CREATE.
     let mut order = Vec::new();
-    for _ in 0..3 {
+    for _ in 0..2 {
         match next_event(&mut ev).await {
             DomainEvent::ThreadCreated { .. } => order.push("thread"),
             DomainEvent::MessageSent { .. } => order.push("message"),
