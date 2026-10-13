@@ -18,7 +18,7 @@ use super::IngestError;
 use super::archive::{ArchiveLimits, ArchiveReader};
 use super::comicinfo::{self, ComicInfo};
 use super::image::{
-    PageLimits, ProcessedPage, name_marks_spread, page_key, process_page, variant_key,
+    PageLimits, ProcessedPage, is_avif, name_marks_spread, page_key, process_page, variant_key,
 };
 use super::series_json::{self, SeriesFile};
 use crate::model::PageInput;
@@ -89,6 +89,13 @@ fn produce<R: Read + Seek>(
     let pages = ar.pages().to_vec();
     for (i, entry) in pages.iter().enumerate() {
         let bytes = ar.read(entry)?;
+        // An AVIF hiding behind another extension is refused like an `.avif` page.
+        if is_avif(&bytes) {
+            return Err(IngestError::UnsupportedFormat {
+                what: "AVIF pages",
+                files: vec![entry.name.clone()],
+            });
+        }
         let processed =
             process_page(&bytes, &limits.page).map_err(|source| IngestError::Image {
                 page: entry.name.clone(),
@@ -376,5 +383,72 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(e, IngestError::Image { .. }));
+    }
+
+    fn seven(entries: &[(&str, Vec<u8>)]) -> Cursor<Vec<u8>> {
+        use sevenz_rust2::{ArchiveEntry, ArchiveWriter, SourceReader};
+        let mut w = ArchiveWriter::new(Cursor::new(Vec::new())).unwrap();
+        let es = entries
+            .iter()
+            .map(|(n, _)| ArchiveEntry::new_file(n))
+            .collect();
+        let rs = entries
+            .iter()
+            .map(|(_, d)| SourceReader::new(Cursor::new(d.clone())))
+            .collect();
+        w.push_archive_entries(es, rs).unwrap();
+        Cursor::new(w.finish().unwrap().into_inner())
+    }
+
+    #[tokio::test]
+    async fn a_cb7_becomes_stored_pages_too() {
+        let storage = mem();
+        let z = seven(&[
+            ("10.png", png(900, 300, 1)),
+            ("2.png", png(300, 400, 2)),
+            ("ComicInfo.xml", INFO.as_bytes().to_vec()),
+        ]);
+        let out = ingest_archive(z, storage.clone(), 3, 4, IngestLimits::default())
+            .await
+            .unwrap();
+        assert_eq!(out.pages.len(), 2);
+        assert_eq!((out.pages[0].width, out.pages[1].width), (300, 900));
+        assert_eq!(out.comic_info.unwrap().title.as_deref(), Some("Ch 1"));
+        assert_eq!(storage.list("library/3/4/").await.unwrap().len(), 2 + 1);
+    }
+
+    #[tokio::test]
+    async fn avif_pages_reject_the_archive_and_store_nothing() {
+        let storage = mem();
+        let avif = b"\0\0\0\x1cftypavif\0\0\0\0avifmif1".to_vec();
+        // By extension: nothing is even decoded.
+        let e = ingest_archive(
+            cbz(&[("1.png", png(50, 50, 1)), ("2.avif", avif.clone())]),
+            storage.clone(),
+            1,
+            2,
+            IngestLimits::default(),
+        )
+        .await
+        .unwrap_err();
+        assert!(
+            matches!(e, IngestError::UnsupportedFormat { ref files, .. } if files == &["2.avif"]),
+            "{e}"
+        );
+        // By content, under a misleading name; pages already uploaded are removed.
+        let e = ingest_archive(
+            cbz(&[("1.png", png(50, 50, 1)), ("2.jpg", avif)]),
+            storage.clone(),
+            1,
+            2,
+            IngestLimits::default(),
+        )
+        .await
+        .unwrap_err();
+        assert!(
+            matches!(e, IngestError::UnsupportedFormat { ref files, .. } if files == &["2.jpg"]),
+            "{e}"
+        );
+        assert!(storage.list("library/").await.unwrap().is_empty());
     }
 }

@@ -35,3 +35,13 @@ wasm-bindgen = "0.2"
 opt-level = 3
 [profile.dev.package.blake2]
 opt-level = 3
+# Page ingest: libwebp (C), the image resizer and the LZMA decoder are unusably slow at opt-level 0.
+
+[profile.dev.package.libwebp-sys]
+opt-level = 3
+[profile.dev.package.image]
+opt-level = 3
+[profile.dev.package.lzma-rust2]
+opt-level = 3
+[profile.dev.package.unrar_sys]
+opt-level = 3
