@@ -47,6 +47,12 @@ export interface GuildPermissions {
   manageChannels: boolean;
   createInvite: boolean;
   moderate: boolean;
+  /** Delete others' messages, remove reactions, end polls. */
+  manageMessages?: boolean;
+  /** Pin and unpin messages (Manage Messages also allows it). */
+  pinMessages?: boolean;
+  /** Use @everyone, @here and every role mention. */
+  mentionEveryone?: boolean;
   /** Any permission that opens Server Settings (Manage Server/Roles/Channels, Ban Members, View Audit Log, ...). */
   serverSettings?: boolean;
 }
@@ -143,12 +149,80 @@ export interface Attachment {
   width?: number;
   height?: number;
   spoiler?: boolean;
+  /** Alt text. */
+  description?: string | null;
+  /** Voice messages: length in seconds. */
+  durationSecs?: number | null;
+  /** Voice messages: amplitude bytes (0..255). */
+  waveform?: number[] | null;
+  /** Large file past its retention window ("This file has expired"). */
+  expired?: boolean;
 }
 
 export interface Reaction {
   emoji: string;
   count: number;
   me: boolean;
+}
+
+/** Discord-shaped embed (snake_case fields are kept: they are rendered, not edited). */
+export type Embed = import('../store/types').RawEmbed;
+
+export interface PollAnswer {
+  id: number;
+  text: string;
+  emoji?: string | undefined;
+  count: number;
+  me: boolean;
+}
+
+export interface Poll {
+  question: string;
+  answers: PollAnswer[];
+  multi: boolean;
+  /** ISO; null when the poll never closes. */
+  expiresAt: string | null;
+  finalized: boolean;
+}
+
+export interface StickerItem {
+  id: Snowflake;
+  name: string;
+  /** 1 PNG, 2 APNG, 3 Lottie, 4 GIF. */
+  formatType: number;
+}
+
+/** The copy taken when a message was forwarded. */
+export interface ForwardSnapshot {
+  content: string;
+  createdAt: string;
+  attachments: Attachment[];
+  embeds: Embed[];
+}
+
+/** A poll to create with a message. `durationHours` 1..168. */
+export interface NewPoll {
+  question: string;
+  answers: { text: string; emoji?: string }[];
+  durationHours: number;
+  multi: boolean;
+}
+
+/** An uploaded file to attach to a new message (see ./upload.ts). */
+export interface UploadedFile {
+  id: string;
+  uploadedFilename: string;
+  description?: string | null;
+  durationSecs?: number | null;
+  waveform?: string | null;
+}
+
+export interface SendExtras {
+  attachments?: UploadedFile[];
+  poll?: NewPoll;
+  /** false = reply without pinging the author. */
+  mentionRepliedUser?: boolean;
+  flags?: number;
 }
 
 export interface Message {
@@ -165,6 +239,20 @@ export interface Message {
   /** Local echo state for optimistic sends. */
   pending?: boolean;
   failed?: boolean;
+  pinned?: boolean;
+  /** Discord message type: 0 default, 6 pin notice. */
+  type?: number;
+  mentionIds?: Snowflake[];
+  mentionRoleIds?: Snowflake[];
+  mentionEveryone?: boolean;
+  embeds?: Embed[];
+  stickers?: StickerItem[];
+  poll?: Poll | null;
+  /** Set when this message is a forward (the original is summarized in the snapshot). */
+  forwarded?: ForwardSnapshot | null;
+  /** Voice message (flag 1 << 13). */
+  voice?: boolean;
+  suppressEmbeds?: boolean;
 }
 
 export interface MessagesState {
@@ -178,8 +266,28 @@ export interface MessagesState {
 }
 
 export interface LoungeActions {
-  sendMessage(channelId: Snowflake, content: string, replyToId?: Snowflake | null): void;
+  sendMessage(
+    channelId: Snowflake,
+    content: string,
+    replyToId?: Snowflake | null,
+    extras?: SendExtras,
+  ): void;
   editMessage(channelId: Snowflake, messageId: Snowflake, content: string): void;
+  deleteMessage?(channelId: Snowflake, messageId: Snowflake): void;
+  pinMessage?(channelId: Snowflake, messageId: Snowflake, pinned: boolean): void;
+  /** Forward a message to up to five channels, each optionally followed by a note. */
+  forwardMessage?(
+    source: { channelId: Snowflake; messageId: Snowflake; guildId?: Snowflake },
+    targets: Snowflake[],
+    note?: string,
+  ): void;
+  /** Cast or withdraw the viewer's vote on a poll answer. */
+  votePoll?(channelId: Snowflake, messageId: Snowflake, answerId: number, add: boolean): void;
+  /** Close a poll early (author only). */
+  endPoll?(channelId: Snowflake, messageId: Snowflake): void;
+  /** Re-send a message whose delivery failed / drop it. */
+  retryMessage?(channelId: Snowflake, messageId: Snowflake): void;
+  discardMessage?(channelId: Snowflake, messageId: Snowflake): void;
   loadOlder(channelId: Snowflake): void;
   markRead(channelId: Snowflake): void;
   markGuildRead(guildId: Snowflake): void;

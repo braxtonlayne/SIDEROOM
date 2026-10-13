@@ -3,6 +3,7 @@
  * view model (camelCase, src/lounge/data.ts). No React here, so it is unit-testable on its own.
  */
 import type {
+  Attachment,
   Channel,
   ChannelType,
   DmChannel,
@@ -11,6 +12,7 @@ import type {
   LoungeUser,
   Member,
   Message,
+  Poll,
   Presence,
   Role,
   Snowflake,
@@ -34,7 +36,10 @@ export const PERM = {
   MANAGE_CHANNELS: 1n << 4n,
   MANAGE_GUILD: 1n << 5n,
   SEND_MESSAGES: 1n << 11n,
+  MANAGE_MESSAGES: 1n << 13n,
+  MENTION_EVERYONE: 1n << 17n,
   MODERATE_MEMBERS: 1n << 40n,
+  PIN_MESSAGES: 1n << 51n,
 } as const;
 
 const ALL_BITS = (1n << 64n) - 1n;
@@ -71,6 +76,9 @@ export function toGuildPermissions(base: bigint): GuildPermissions {
     manageChannels: has(PERM.MANAGE_CHANNELS),
     createInvite: has(PERM.CREATE_INSTANT_INVITE),
     moderate: has(PERM.MODERATE_MEMBERS),
+    manageMessages: has(PERM.MANAGE_MESSAGES),
+    mentionEveryone: has(PERM.MENTION_EVERYONE),
+    pinMessages: has(PERM.PIN_MESSAGES) || has(PERM.MANAGE_MESSAGES),
     serverSettings: canOpenSettingsFromBits(base),
   };
 }
@@ -122,6 +130,7 @@ export function toLoungeChannel(
     mentionCount: rs?.mention_count ?? 0,
     lastReadMessageId: rs?.last_message_id ?? null,
     canSend,
+    ...(c.rate_limit_per_user ? { slowmodeSeconds: c.rate_limit_per_user } : {}),
   };
 }
 
@@ -176,13 +185,63 @@ export function toLoungeMember(m: S.Member, user: LoungeUser): Member {
   };
 }
 
-/** Converts one store message; reactions and reply target carry over, activity and embeds do not yet. */
+const FLAG_SUPPRESS_EMBEDS = 1 << 2;
+const FLAG_VOICE = 1 << 13;
+
+function decodeWaveform(b64: string | null | undefined): number[] | null {
+  if (!b64) return null;
+  try {
+    return Array.from(atob(b64), (c) => c.charCodeAt(0));
+  } catch {
+    return null;
+  }
+}
+
+export function toLoungeAttachment(a: S.RawAttachment, now = Date.now()): Attachment {
+  return {
+    id: a.id,
+    filename: a.filename,
+    size: a.size,
+    contentType: a.content_type ?? 'application/octet-stream',
+    url: a.url,
+    ...(a.width ? { width: a.width } : {}),
+    ...(a.height ? { height: a.height } : {}),
+    // Discord marks spoiler attachments with a filename prefix.
+    ...(a.filename.startsWith('SPOILER_') ? { spoiler: true } : {}),
+    description: a.description ?? null,
+    durationSecs: a.duration_secs ?? null,
+    waveform: decodeWaveform(a.waveform),
+    ...(a.expires_at && new Date(a.expires_at).getTime() <= now ? { expired: true } : {}),
+  };
+}
+
+export function toLoungePoll(p: S.RawPoll): Poll {
+  const counts = new Map((p.results?.answer_counts ?? []).map((c) => [c.id, c]));
+  return {
+    question: p.question.text ?? '',
+    answers: p.answers.map((a) => ({
+      id: a.answer_id,
+      text: a.poll_media.text ?? '',
+      emoji: a.poll_media.emoji?.name ?? undefined,
+      count: counts.get(a.answer_id)?.count ?? 0,
+      me: counts.get(a.answer_id)?.me_voted ?? false,
+    })),
+    multi: !!p.allow_multiselect,
+    expiresAt: p.expiry ?? null,
+    finalized: !!p.results?.is_finalized,
+  };
+}
+
+/** Converts one store message into the Lounge view model. */
 export function toLoungeMessage(m: S.Message): Message {
   const reactions = m.reactions?.map((r) => ({
     emoji: r.emoji.name ?? r.emoji.id ?? '',
     count: r.count,
     me: r.me,
   }));
+  const snap = m.message_reference?.type === 1 ? m.message_snapshots?.[0]?.message : undefined;
+  const flags = m.flags ?? 0;
+  const attachments = m.attachments?.map((a) => toLoungeAttachment(a));
   return {
     id: m.id,
     channelId: m.channel_id,
@@ -190,9 +249,39 @@ export function toLoungeMessage(m: S.Message): Message {
     content: m.content,
     createdAt: m.timestamp,
     editedAt: m.edited_timestamp ?? null,
-    replyToId: m.message_reference?.message_id ?? null,
+    // A forward also carries a message_reference, but it is not a reply.
+    replyToId: m.message_reference?.type === 1 ? null : (m.message_reference?.message_id ?? null),
     ...(reactions && reactions.length ? { reactions } : {}),
+    ...(attachments && attachments.length ? { attachments } : {}),
     pending: m.local?.status === 'sending',
     failed: m.local?.status === 'failed',
+    ...(m.pinned ? { pinned: true } : {}),
+    ...(m.type ? { type: m.type } : {}),
+    mentionIds: (m.mentions ?? []).map((u) => u.id),
+    mentionRoleIds: m.mention_roles ?? [],
+    mentionEveryone: !!m.mention_everyone,
+    ...(m.embeds?.length ? { embeds: m.embeds } : {}),
+    ...(m.sticker_items?.length
+      ? {
+          stickers: m.sticker_items.map((s) => ({
+            id: s.id,
+            name: s.name,
+            formatType: s.format_type,
+          })),
+        }
+      : {}),
+    ...(m.poll ? { poll: toLoungePoll(m.poll) } : {}),
+    ...(snap
+      ? {
+          forwarded: {
+            content: snap.content ?? '',
+            createdAt: snap.timestamp ?? m.timestamp,
+            attachments: (snap.attachments ?? []).map((a) => toLoungeAttachment(a)),
+            embeds: snap.embeds ?? [],
+          },
+        }
+      : {}),
+    ...(flags & FLAG_VOICE ? { voice: true } : {}),
+    ...(flags & FLAG_SUPPRESS_EMBEDS ? { suppressEmbeds: true } : {}),
   };
 }
