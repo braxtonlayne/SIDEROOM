@@ -4189,6 +4189,7 @@ dependencies = [
  "sr-chat",
  "sr-core",
  "sr-db",
+ "sr-storage",
  "tokio",
  "tracing",
 ]
@@ -4403,6 +4404,7 @@ dependencies = [
  "hmac",
  "image",
  "object_store",
+ "reqwest 0.13.5",
  "sha2 0.11.0",
  "subtle",
  "thiserror 2.0.21",

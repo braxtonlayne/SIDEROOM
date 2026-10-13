@@ -19,7 +19,7 @@ use sr_db::{
     auth_store::PgAuthStore,
 };
 
-use crate::{Cli, Command, InviteCmd, StaffCmd, UserCmd, guilds};
+use crate::{Cli, Command, InviteCmd, StaffCmd, StorageCmd, UserCmd, guilds};
 use sr_admin::{AdminService, Caller, SYSTEM_USER_ID as ADMIN_SYSTEM_USER};
 use sr_db::admin_repo::PgAdminRepo;
 
@@ -32,6 +32,10 @@ const MIN_PASSWORD_LEN: usize = 10;
 
 pub async fn run(cli: Cli) -> Result<()> {
     let cfg = Config::load(cli.config.as_deref()).context("loading configuration")?;
+    // Storage administration talks to the bucket only; no database needed.
+    if let Command::Storage(StorageCmd::EnsureCors { origins }) = &cli.command {
+        return ensure_cors(&cfg, origins).await;
+    }
     let pool = sr_db::connect(&DbConfig {
         max_connections: 4,
         ..DbConfig::new(cfg.database.url.expose())
@@ -68,7 +72,38 @@ pub async fn run(cli: Cli) -> Result<()> {
         Command::VerifyAccessLog => verify_access_log(&pool, ids).await?,
         Command::RotateSecretKey => rotate_secret_key(&pool, &cfg, ids).await?,
         Command::Seed { password, force } => seed(&pool, &cfg, ids, &password, force).await?,
+        // Handled before the database connection above.
+        Command::Storage(_) => {}
     }
+    Ok(())
+}
+
+/// `storage ensure-cors`: PutBucketCors for the app origin(s). Idempotent: S3
+/// replaces the configuration, so a second run sends the same document.
+async fn ensure_cors(cfg: &Config, origins: &[String]) -> Result<()> {
+    let origins: Vec<String> = if origins.is_empty() {
+        vec![cfg.server.public_url.clone()]
+    } else {
+        origins.to_vec()
+    };
+    let s = &cfg.storage;
+    let admin = sr_storage::s3admin::S3Admin::new(
+        &s.endpoint,
+        &s.bucket,
+        &s.region,
+        s.access_key.expose(),
+        s.secret_key.expose(),
+    )
+    .context("configuring object storage")?;
+    admin
+        .put_bucket_cors(&origins)
+        .await
+        .context("applying the bucket CORS rule")?;
+    println!(
+        "bucket {} allows PUT, GET and HEAD from {}",
+        s.bucket,
+        origins.join(", ")
+    );
     Ok(())
 }
 
