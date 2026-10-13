@@ -1077,6 +1077,19 @@ impl AdminService {
         self.require(c, perm, action).await
     }
 
+    /// Append an `admin_action` row to the access log for a change made by another
+    /// subsystem (the Library catalog). The caller has already authorised and applied it.
+    pub async fn record_action(
+        &self,
+        c: &Caller,
+        action: &str,
+        target: Option<(&str, i64)>,
+        detail: Value,
+    ) -> AdminResult<()> {
+        let e = self.entry(c, AccessKind::AdminAction, action, target, "", detail);
+        self.repo.append_log(&e).await.map(|_| ())
+    }
+
     /// Log a read of private content. High-level staff only; the reason is mandatory.
     /// The caller returns the content only after this succeeded.
     pub async fn log_private_read(

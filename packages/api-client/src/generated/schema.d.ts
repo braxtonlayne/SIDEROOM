@@ -365,6 +365,274 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/library/chapters/{chapter_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change a chapter's number, title, volume or release group (`PUBLISH_READING`). */
+        put: operations["admin_library_update_chapter"];
+        post?: never;
+        /** Delete a chapter and its pages (`DELETE_CONTENT`). */
+        delete: operations["admin_library_delete_chapter"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/chapters/{chapter_id}/pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Preview a chapter's page manifest, published or not (`PUBLISH_READING`). */
+        get: operations["admin_library_pages"];
+        /**
+         * Replace the whole page list of an image chapter: this is how pages are reordered,
+         *     replaced and removed (`PUBLISH_READING`). Object keys must live under
+         *     `library/{series_id}/{chapter_id}/`.
+         */
+        put: operations["admin_library_replace_pages"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/chapters/{chapter_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish a chapter; it needs pages (`PUBLISH_READING`). */
+        post: operations["admin_library_publish_chapter"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/chapters/{chapter_id}/unpublish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unpublish a chapter (`PUBLISH_READING` or `DELETE_CONTENT`). */
+        post: operations["admin_library_unpublish_chapter"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/editions/{edition_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change an edition (`PUBLISH_READING`). */
+        put: operations["admin_library_update_edition"];
+        post?: never;
+        /** Delete an edition and its chapters (`DELETE_CONTENT`). */
+        delete: operations["admin_library_delete_edition"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/editions/{edition_id}/chapters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add a draft chapter to an edition (`PUBLISH_READING`). */
+        post: operations["admin_library_create_chapter"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/editions/{edition_id}/volumes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add a volume to an edition (`PUBLISH_READING`). */
+        post: operations["admin_library_create_volume"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** All series, drafts included (`PUBLISH_READING`). */
+        get: operations["admin_library_list"];
+        put?: never;
+        /** Create a draft series (`PUBLISH_READING`). */
+        post: operations["admin_library_create_series"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/series/{series_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A series with its editions, published or not (`PUBLISH_READING`). */
+        get: operations["admin_library_series"];
+        /** Replace the editable fields of a series (`PUBLISH_READING`). */
+        put: operations["admin_library_update_series"];
+        post?: never;
+        /** Delete a series with everything under it (`DELETE_CONTENT`). */
+        delete: operations["admin_library_delete_series"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/series/{series_id}/chapters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Editions, volumes and every chapter of a series, published or not (`PUBLISH_READING`). */
+        get: operations["admin_library_chapters"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/series/{series_id}/editions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add an edition (`PUBLISH_READING`). */
+        post: operations["admin_library_create_edition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/series/{series_id}/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Merge this series into another (`PUBLISH_READING` and `DELETE_CONTENT`): editions,
+         *     chapters, follows and progress move; this series stays as a redirect.
+         */
+        post: operations["admin_library_merge_series"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/series/{series_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish a series (`PUBLISH_READING`). */
+        post: operations["admin_library_publish_series"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/series/{series_id}/unpublish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unpublish a series (`PUBLISH_READING` or `DELETE_CONTENT`). */
+        post: operations["admin_library_unpublish_series"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/volumes/{volume_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a volume; its chapters stay, ungrouped (`DELETE_CONTENT`). */
+        delete: operations["admin_library_delete_volume"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/me": {
         parameters: {
             query?: never;
@@ -1817,6 +2085,143 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/library/chapters/{chapter_id}/pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The reader's page manifest: sized, signed image URLs plus neighbouring chapters. */
+        get: operations["library_pages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/me/follows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's followed series ("My library"), newest follow first. */
+        get: operations["library_my_follows"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Instant search: matching series plus author, genre and tag suggestions. */
+        get: operations["library_search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Browse the catalog with filters, sort and pagination. */
+        get: operations["library_browse"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/series/{series_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A series with its editions and the caller's follow. A merged series answers with its target. */
+        get: operations["library_series"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/series/{series_id}/chapters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Chapters of a series with volumes, editions and the caller's read marks. */
+        get: operations["library_chapters"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/series/{series_id}/follow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Follow a series, or change its shelf and notification setting. */
+        put: operations["library_follow"];
+        post?: never;
+        /** Stop following a series. */
+        delete: operations["library_unfollow"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/updates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Latest published chapters, newest first. */
+        get: operations["library_updates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/read-states/ack-bulk": {
         parameters: {
             query?: never;
@@ -2497,6 +2902,11 @@ export interface components {
             balance: number;
         };
         /**
+         * @description How age-restricted series are treated by a listing.
+         * @enum {string}
+         */
+        AgeFilter: "hide" | "include" | "only";
+        /**
          * @description Discord's `allowed_mentions` object. `parse` may hold `users`, `roles` and
          *     `everyone`; listed `users`/`roles` ids may ping even when their kind is not parsed.
          */
@@ -2734,6 +3144,50 @@ export interface components {
             message_notifications?: number | null;
             mute_config?: null | components["schemas"]["MuteConfigObject"];
             muted: boolean;
+        };
+        Chapter: {
+            edition_id: string;
+            format: components["schemas"]["ChapterFormat"];
+            id: string;
+            /** Format: double */
+            number: number;
+            /** Format: int32 */
+            page_count: number;
+            progress?: null | components["schemas"]["ChapterProgress"];
+            published: boolean;
+            /** Format: int64 */
+            published_at_ms?: number | null;
+            release_group?: string | null;
+            series_id: string;
+            title?: string | null;
+            volume_id?: string | null;
+        };
+        /**
+         * @description How a chapter is stored.
+         * @enum {string}
+         */
+        ChapterFormat: "images" | "pdf" | "epub";
+        ChapterInput: {
+            format?: components["schemas"]["ChapterFormat"];
+            /** Format: double */
+            number: number;
+            release_group?: string | null;
+            /** @description Storage key of the original file (`pdf` / `epub` chapters). */
+            source_key?: string | null;
+            title?: string | null;
+            volume_id?: string | null;
+        };
+        ChapterList: {
+            chapters: components["schemas"]["Chapter"][];
+            editions: components["schemas"]["Edition"][];
+            volumes: components["schemas"]["Volume"][];
+        };
+        ChapterProgress: {
+            completed: boolean;
+            /** Format: int32 */
+            page_index: number;
+            /** Format: float */
+            percent: number;
         };
         CommunityObject: {
             age_restricted: boolean;
@@ -2998,6 +3452,20 @@ export interface components {
             global_name?: string | null;
             pronouns?: string | null;
         };
+        Edition: {
+            id: string;
+            is_default: boolean;
+            label: string;
+            language: string;
+            series_id: string;
+        };
+        EditionInput: {
+            is_default?: boolean;
+            /** @description "Official English", "Scanlation X". */
+            label: string;
+            /** @description BCP 47 language tag. */
+            language: string;
+        };
         EmojiObject: {
             animated: boolean;
             available: boolean;
@@ -3057,6 +3525,31 @@ export interface components {
             /** @description Client-chosen id, echoed back. */
             id?: string | null;
             spoiler?: boolean | null;
+        };
+        /** @description A followed series with the user's shelf. */
+        Follow: {
+            /** Format: int64 */
+            created_at_ms: number;
+            notify: boolean;
+            shelf: components["schemas"]["Shelf"];
+        };
+        FollowBody: {
+            /** @description New-chapter notifications; default on. */
+            notify?: boolean | null;
+            shelf?: null | components["schemas"]["Shelf"];
+        };
+        FollowPage: {
+            items: components["schemas"]["FollowedSeries"][];
+            /** Format: int32 */
+            limit: number;
+            /** Format: int32 */
+            offset: number;
+            /** Format: int64 */
+            total: number;
+        };
+        FollowedSeries: {
+            follow: components["schemas"]["Follow"];
+            series: components["schemas"]["Series"];
         };
         /** @description Result of a forced logout. */
         ForceLogoutResult: {
@@ -3142,6 +3635,13 @@ export interface components {
             suppress_everyone?: boolean | null;
             suppress_highlights?: boolean | null;
             suppress_roles?: boolean | null;
+        };
+        /** @description Instant-search result. */
+        InstantSearch: {
+            authors: string[];
+            genres: string[];
+            series: components["schemas"]["Series"][];
+            tags: string[];
         };
         InviteChannel: {
             id: string;
@@ -3301,6 +3801,10 @@ export interface components {
             premium_since?: string | null;
             roles: string[];
             user: components["schemas"]["UserRef"];
+        };
+        MergeBody: {
+            /** @description The series that stays; this one is merged into it. */
+            target_id: string;
         };
         MessageObject: {
             attachments: components["schemas"]["AttachmentObject"][];
@@ -3556,6 +4060,52 @@ export interface components {
              */
             type: number;
         };
+        PageEntry: {
+            blurhash?: string | null;
+            /** Format: int32 */
+            height: number;
+            /** Format: int32 */
+            index: number;
+            is_double_spread: boolean;
+            /** @description Full-size signed URL. */
+            url: string;
+            /** @description Smaller signed variants; pick by viewport width times device pixel ratio. */
+            variants: components["schemas"]["PageVariant"][];
+            /** Format: int32 */
+            width: number;
+        };
+        /** @description Replacement page list entry (admin). */
+        PageInput: {
+            blurhash?: string | null;
+            /** Format: int32 */
+            height: number;
+            is_double_spread?: boolean;
+            /** @description Full-size WebP object key; must live under `library/{series}/{chapter}/`. */
+            key: string;
+            /** @description Sized variants as `{"720": key, ...}`. */
+            variants?: {
+                [key: string]: string;
+            };
+            /** Format: int32 */
+            width: number;
+        };
+        PageManifest: {
+            chapter: components["schemas"]["Chapter"];
+            /**
+             * Format: int64
+             * @description Unix seconds when the signed URLs stop working.
+             */
+            expires_at: number;
+            next_chapter_id?: string | null;
+            pages: components["schemas"]["PageEntry"][];
+            prev_chapter_id?: string | null;
+            reading_direction: components["schemas"]["ReadingDirection"];
+        };
+        PageVariant: {
+            url: string;
+            /** Format: int32 */
+            width: number;
+        };
         PartialEmoji: {
             id?: string | null;
             name: string;
@@ -3724,6 +4274,11 @@ export interface components {
         ReadStatesResponse: {
             entries: components["schemas"]["ReadStateObject"][];
         };
+        /**
+         * @description Default reading mode of a series.
+         * @enum {string}
+         */
+        ReadingDirection: "rtl" | "ltr" | "vertical";
         /** @description Body of actions that only need a reason. */
         ReasonBody: {
             /**
@@ -3850,6 +4405,84 @@ export interface components {
             pronouns?: string | null;
             user: components["schemas"]["UserObject"];
         };
+        /** @description A series as the API shows it. */
+        Series: {
+            age_restricted: boolean;
+            alt_titles: string[];
+            artists: string[];
+            authors: string[];
+            /**
+             * Format: int32
+             * @description Published chapters across all editions.
+             */
+            chapter_count: number;
+            /** @description Signed, short-lived cover URL. */
+            cover_url?: string | null;
+            /** Format: int64 */
+            created_at_ms: number;
+            /** Format: int32 */
+            follower_count: number;
+            genres: string[];
+            id: string;
+            kind: components["schemas"]["SeriesKind"];
+            /** Format: int64 */
+            last_chapter_at_ms?: number | null;
+            merged_into?: string | null;
+            published: boolean;
+            /** Format: int64 */
+            published_at_ms?: number | null;
+            reading_direction: components["schemas"]["ReadingDirection"];
+            status: components["schemas"]["SeriesStatus"];
+            synopsis: string;
+            tags: string[];
+            title: string;
+            /** Format: int64 */
+            updated_at_ms: number;
+            /** Format: int32 */
+            year?: number | null;
+        };
+        SeriesDetail: {
+            editions: components["schemas"]["Edition"][];
+            follow?: null | components["schemas"]["Follow"];
+            series: components["schemas"]["Series"];
+        };
+        /** @description Editable fields of a series (create, and full replace on update). */
+        SeriesInput: {
+            age_restricted?: boolean;
+            alt_titles?: string[];
+            artists?: string[];
+            authors?: string[];
+            /** @description Storage key of the cover (under `library/`). */
+            cover_key?: string | null;
+            genres?: string[];
+            kind: components["schemas"]["SeriesKind"];
+            reading_direction?: null | components["schemas"]["ReadingDirection"];
+            status?: components["schemas"]["SeriesStatus"];
+            synopsis?: string;
+            tags?: string[];
+            title: string;
+            /** Format: int32 */
+            year?: number | null;
+        };
+        /**
+         * @description `reading_series.kind`.
+         * @enum {string}
+         */
+        SeriesKind: "manga" | "manhwa" | "manhua" | "webtoon" | "comic" | "novel" | "book";
+        SeriesPage: {
+            items: components["schemas"]["Series"][];
+            /** Format: int32 */
+            limit: number;
+            /** Format: int32 */
+            offset: number;
+            /** Format: int64 */
+            total: number;
+        };
+        /**
+         * @description `reading_series.status`.
+         * @enum {string}
+         */
+        SeriesStatus: "ongoing" | "completed" | "hiatus" | "cancelled";
         /** @enum {string} */
         SettingKind: "integer" | "number" | "boolean" | "text";
         /** @description One platform setting with its current value, for Admin -> Limits. */
@@ -3868,6 +4501,11 @@ export interface components {
             updated_at_ms?: number | null;
             value: unknown;
         };
+        /**
+         * @description The "My library" shelf of a followed series.
+         * @enum {string}
+         */
+        Shelf: "reading" | "plan_to_read" | "completed" | "on_hold" | "dropped";
         /** @description A short-lived signed CDN URL. */
         SignedUrlObject: {
             /**
@@ -3878,6 +4516,11 @@ export interface components {
             /** @description Relative to the public origin: `/cdn/...?size=..&ex=..&sig=..`. */
             url: string;
         };
+        /**
+         * @description Browse ordering.
+         * @enum {string}
+         */
+        SortKey: "newest" | "updated" | "title" | "followers";
         /** @description A current staff member. */
         StaffMember: {
             account_id: string;
@@ -4076,6 +4719,27 @@ export interface components {
             /** Format: int64 */
             accounts_reactivated: number;
         };
+        /** @description One entry of the latest-updates feed. */
+        UpdateItem: {
+            age_restricted: boolean;
+            chapter_id: string;
+            /** Format: double */
+            chapter_number: number;
+            chapter_title?: string | null;
+            cover_url?: string | null;
+            kind: components["schemas"]["SeriesKind"];
+            language: string;
+            /** Format: int64 */
+            published_at_ms: number;
+            release_group?: string | null;
+            series_id: string;
+            series_title: string;
+        };
+        UpdatesPage: {
+            items: components["schemas"]["UpdateItem"][];
+            /** @description Pass back as `before` for the next page; absent at the end. */
+            next_before?: string | null;
+        };
         UploadSlot: {
             /**
              * Format: int64
@@ -4157,6 +4821,19 @@ export interface components {
              * @description Bumps on every save; 0 when nothing was ever saved.
              */
             version: number;
+        };
+        Volume: {
+            edition_id: string;
+            id: string;
+            /** Format: double */
+            number: number;
+            title?: string | null;
+        };
+        VolumeInput: {
+            cover_key?: string | null;
+            /** Format: double */
+            number: number;
+            title?: string | null;
         };
         WebhookObject: {
             avatar?: string | null;
@@ -5338,6 +6015,1131 @@ export interface operations {
             path: {
                 /** @description Job snowflake */
                 job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_update_chapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChapterInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Chapter"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_delete_chapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_pages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageManifest"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_replace_pages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PageInput"][];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Chapter"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_publish_chapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Chapter"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_unpublish_chapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Chapter"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_update_edition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Edition snowflake */
+                edition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditionInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Edition"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_delete_edition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Edition snowflake */
+                edition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_create_chapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Edition snowflake */
+                edition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChapterInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Chapter"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_create_volume: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Edition snowflake */
+                edition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VolumeInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Volume"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_list: {
+        parameters: {
+            query?: {
+                kind?: components["schemas"]["SeriesKind"];
+                status?: components["schemas"]["SeriesStatus"];
+                /** @description Comma-separated genres the series must have. */
+                genres?: string;
+                /** @description Comma-separated tags the series must have. */
+                tags?: string;
+                /** @description `true` for published, `false` for drafts and unpublished series. */
+                published?: boolean;
+                /** @description Title substring. */
+                title?: string;
+                /** @description `include` (default), `hide` or `only`. */
+                age?: components["schemas"]["AgeFilter"];
+                sort?: components["schemas"]["SortKey"];
+                order?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesPage"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_create_series: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeriesInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Series"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_series: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesDetail"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_update_series: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeriesInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Series"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_delete_series: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_chapters: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChapterList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_create_edition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditionInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Edition"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_merge_series: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake to merge away */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MergeBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Series"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_publish_series: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Series"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_unpublish_series: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Series"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_delete_volume: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Volume snowflake */
+                volume_id: string;
             };
             cookie?: never;
         };
@@ -10998,6 +12800,364 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_pages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageManifest"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_my_follows: {
+        parameters: {
+            query?: {
+                shelf?: components["schemas"]["Shelf"];
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FollowPage"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_search: {
+        parameters: {
+            query: {
+                /** @description Search-box text; every word is matched as a prefix. */
+                q: string;
+                /** @description 1 to 20, default 8. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstantSearch"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_browse: {
+        parameters: {
+            query?: {
+                kind?: components["schemas"]["SeriesKind"];
+                status?: components["schemas"]["SeriesStatus"];
+                /** @description Comma-separated; a series must have every one. */
+                genres?: string;
+                /** @description Comma-separated; a series with any of them is left out. */
+                exclude_genres?: string;
+                /** @description Comma-separated; a series must have every one. */
+                tags?: string;
+                /** @description BCP 47 tag: series with a published chapter in this language. */
+                language?: string;
+                year_from?: number;
+                year_to?: number;
+                /** @description `hide` (default), `include` or `only`. Only accounts that confirmed they are 18+ get restricted series. */
+                age?: components["schemas"]["AgeFilter"];
+                /** @description `updated` (default), `newest`, `title` or `followers`. */
+                sort?: components["schemas"]["SortKey"];
+                /** @description `asc` or `desc`; default depends on the sort. */
+                order?: string;
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_series: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesDetail"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_chapters: {
+        parameters: {
+            query?: {
+                /** @description Only this edition's chapters. */
+                edition?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChapterList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_follow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FollowBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Follow"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_unfollow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_updates: {
+        parameters: {
+            query?: {
+                /** @description Only followed series. */
+                following?: boolean;
+                /** @description Cursor from the previous page's `next_before`. */
+                before?: string;
+                /** @description 1 to 100, default 30. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdatesPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
