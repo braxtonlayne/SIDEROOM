@@ -32,6 +32,7 @@ Discord's user-token automation ("self-bots") is not supported, and user session
 - Pagination: `before`, `after`, `around`, `limit`.
 - `X-Audit-Log-Reason` header is honoured.
 - Permission bits: **exactly Discord's bit positions** (`VIEW_CHANNEL = 1<<10`, `SEND_MESSAGES = 1<<11`, …). SIDE ROOM-only permissions use high bits starting at `1<<56` (see doc 07).
+- Attachments: when an upload slot is requested with `spoiler: true` the server prefixes the stored filename with `SPOILER_` (once; an already-prefixed name is not doubled), exactly like Discord, so `AttachmentObject.filename` carries the marker and there is no extra field (D-177). Embeds: `proxy_url` on `image`, `thumbnail`, `video`, `author.icon_url` and `footer.icon_url` is the only URL clients load. It points at `/cdn/external/{hmac}/{url_b64}`, the SSRF-safe, size- and time-limited, re-encoded image proxy; until that proxy exists `proxy_url` is absent and clients render text and offer a per-embed "Load image" action instead of fetching the original `url` (D-176).
 
 ## 4. Resource coverage (Discord-compatible)
 
@@ -39,7 +40,7 @@ Implement these route families with Discord-compatible request and response shap
 
 - **Users** [1]: `GET/PATCH /users/@me` (`global_name` is the display name), `GET /users/{id}`, `GET /users/@me/guilds`, `DELETE /users/@me/guilds/{id}`, `POST /users/@me/channels`, connections, application role connections (later). SIDE ROOM additions for the Settings screens: `GET/PATCH /users/@me/settings` (a client-owned JSON blob, merged as an RFC 7386 merge patch, at most 64 KiB / 8 levels / 256 top-level keys, versioned, `SR_USER_SETTINGS_UPDATE` to the user's sessions), `GET/PATCH /users/@me/notification-defaults` (`message_notifications` 0/1/2/null; resolved after the per-server and per-channel choices and before the server's own default; servers only, DMs keep their own scope), `GET/PATCH /users/@me/privacy` (friend-request sources, DMs from server members, Message Requests). Signed-in password, username and email changes are under `/sr/auth/*` (section 5.1).
 - **Guilds** [1]: create/get/modify/delete, channels, members (list, search, add, modify, remove), roles, bans, prune, widgets, vanity URL, welcome screen, onboarding, previews, MFA level, integrations (stub).
-  Member listing takes `query` (nickname, username or display name, case-insensitive, at most 64 characters) and `role_id`; `GET /guilds/{id}/members/search` is Discord's alias and `GET /guilds/{id}/roles/{role_id}/members` lists a role's members. `GET/POST /guilds/{id}/prune` previews and runs a prune (`KICK_MEMBERS`; members who joined and wrote nothing for `days` (1 to 30), hold no role except `include_roles`, rank below the caller and are not the owner; at most 10,000 per call; one `MEMBER_PRUNE` audit entry). The guild object carries `afk_channel_id` and `afk_timeout`.
+  Member listing takes `query` (nickname, username or display name, case-insensitive, at most 64 characters) and `role_id`; `GET /guilds/{id}/members/search` is Discord's alias and `GET /guilds/{id}/roles/{role_id}/members` lists a role's members. `GET/POST /guilds/{id}/prune` previews and runs a prune (`KICK_MEMBERS`; members who joined more than `days` (1 to 30) ago and wrote nothing in that time (with last-seen tracking, D-166, also not seen in that time), hold no role except `include_roles`, rank below the caller and are not the owner; at most 10,000 per call; one `MEMBER_PRUNE` audit entry). The guild object carries `afk_channel_id` and `afk_timeout`.
 - **Channels** [1]: get/modify/delete, messages (CRUD, bulk delete, crosspost), reactions, pins, typing, permissions overwrites, invites, follow announcement channel, threads (start, join, leave, members, archived lists), forum posts.
 - **Emoji / Stickers / Soundboard** [1–2].
 - **Invites** [1]: get/delete (server invites).
@@ -47,6 +48,7 @@ Implement these route families with Discord-compatible request and response shap
   Webhook tokens are stored only as a SHA-256 hash (open question 137), so a URL cannot be shown again after creation; `POST /webhooks/{id}/reset-token` issues a new token (and URL) and invalidates the old one.
 - **Polls** [1]: answer voters, end poll.
 - **Audit logs** [1]. **AutoMod** [1]. **Scheduled events** [1]. **Stage instances** [2]. **Guild templates** [1].
+  Create-from-template is one server transaction (D-180): `GET /guilds/templates/builtin` lists the eight built-in templates (Discord template JSON: channels, categories, roles, settings); `POST /guilds/templates/{code}` with `{name, icon?}` and `POST /guilds` with a `template` field both instantiate in one transaction and emit a single `GUILD_CREATE`. Clients never replay the template as separate channel and role POSTs.
 - **Voice** [2]: regions, voice state modification.
 - **Applications / Interactions / Commands** [6]: global and guild commands, interaction responses, follow-ups, components (buttons, selects, modals), autocomplete. Interactions are delivered over the gateway **or** to an HTTP endpoint with Ed25519 signatures (same as Discord).
 - **OAuth2** [6]: authorize, token, scopes `identify email guilds guilds.join bot applications.commands`.
@@ -184,7 +186,7 @@ All Discord events relevant to implemented features use the same names and paylo
 Rich presence for watching/reading uses standard `activities` on `PRESENCE_UPDATE` (type 3 "Watching", plus a custom type for "Reading"), so it renders like Discord's activity cards.
 
 ### 6.4 Session lifecycle
-`HELLO(heartbeat_interval=41250)` → `IDENTIFY(token, intents, properties)` → `READY(session_id, resume_gateway_url, user, guilds (unavailable stubs), private_channels, relationships, read_state, user_settings, sessions)` → `GUILD_CREATE` per guild. Resume buffers are kept in memory per session for 2 minutes or 5,000 events.
+`HELLO(heartbeat_interval=41250)` → `IDENTIFY(token, intents, properties)` → `READY(session_id, resume_gateway_url, user, guilds (unavailable stubs), private_channels, relationships, read_state, user_settings, sessions)`. Each `private_channels` entry carries the full `recipients` user objects (the caller excluded for 1:1 DMs), and DM `CHANNEL_CREATE` carries the same, so clients need no boot-time `GET /users/@me/channels` (D-181); there is no `recipient_ids` field. → `GUILD_CREATE` per guild. Resume buffers are kept in memory per session for 2 minutes or 5,000 events.
 
 ## 7. Bot compatibility checklist (porting guide)
 
@@ -193,5 +195,6 @@ Published at `docs/developers/porting-from-discord.md` (Phase 6):
 2. Use a SIDE ROOM bot token.
 3. Unsupported or different: Nitro/SKU/monetization endpoints (return 404), Stage Discovery, Discord-specific integrations (Twitch/YouTube), and `cdn.discordapp.com` URLs (use `<host>/cdn`).
 4. Extra capabilities: the `/sr/*` APIs with scopes `sr.cinema.read`, `sr.library.read`, `sr.parties`.
+5. Channel listings are permission-filtered, like Discord: `GET /guilds/{id}/channels` returns only the channels the caller can view; the owner, `ADMINISTRATOR` and bots holding it see all (D-160). A bot that assumed it sees every channel with only `VIEW_CHANNEL` missing from a role must grant the permission or expect gaps.
 
-A conformance test suite (`crates/sr-compat-tests`) runs real discord.js and serenity example bots against a test server in CI (Phase 6).
+A conformance test suite (`crates/sr-compat-tests`) runs real discord.js and serenity example bots against a test server in CI (Phase 6). It includes a permission-filtered listing case: a bot without `VIEW_CHANNEL` on a private channel must not see it in `GET /guilds/{id}/channels`, and the same bot with `ADMINISTRATOR` must (D-160).

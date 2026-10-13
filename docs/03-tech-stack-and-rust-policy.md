@@ -27,7 +27,7 @@ Applied as rules:
 | Search | `tantivy` | ✅ | Embedded. Index dir on local NVMe |
 | Object storage | **Garage** (S3-compatible) | ✅ | ADR-0002. Client: `object_store` crate (S3) |
 | Password hashing | `argon2` (argon2id) | ✅ | |
-| 2FA / passkeys | `totp-rs`, `webauthn-rs` | ✅ | |
+| 2FA / passkeys | `totp-rs`, `webauthn-rs` | ⚠️ C (openssl), see D-161 | Passkeys start with a pure-Rust relying-party spike; if none passes, ADR-0009 accepts `webauthn-rs` and §4 gains the row. |
 | OAuth (Discord login) | `oauth2` | ✅ | |
 | Rate limiting | `governor` | ✅ | |
 | Validation | `validator` / `garde` | ✅ | |

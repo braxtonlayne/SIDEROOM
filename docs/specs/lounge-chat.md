@@ -101,7 +101,7 @@ Discord parity: threads panel (active/archived, joined), thread view in a side p
 Search bar in the header ("Search <server>" / "Search <username>"). Filters `from:`, `mentions:`, `has:` (link, embed, file, image, video, sound, sticker, poll), `before:`, `during:`, `after:`, `in:`, `pinned:`, `authorType:`. Results pane with jump-to, sorted by newest/oldest/relevance. Backed by Tantivy, permission-filtered at query time, and excludes deleted messages.
 
 ## 10. Notifications
-Per server, category, and channel: All / Only @mentions / Nothing, Suppress @everyone/@here, Suppress role mentions, Suppress highlights, Mute (15 min … until I turn it off), Mobile push toggles. Inbox (top-right): Mentions, Unreads, For You tabs. Web Push through VAPID (PWA). Badges and desktop notifications with sound packs (themes may supply sounds).
+Per server, category, and channel: All / Only @mentions / Nothing. Precedence, most specific first: channel, category, the member's per-server choice, the member's global default (`/users/@me/notification-defaults`), then the server's `default_message_notifications`; this applies to servers only, DMs keep their own scope (D-165). Also: Suppress @everyone/@here, Suppress role mentions, Suppress highlights, Mute (15 min … until I turn it off), Mobile push toggles. Inbox (top-right): Mentions, Unreads, For You tabs. Web Push through VAPID (PWA). Badges and desktop notifications with sound packs (themes may supply sounds).
 
 ## 11. Server settings (sidebar per reference)
 
@@ -109,7 +109,7 @@ Per server, category, and channel: All / Only @mentions / Nothing, Suppress @eve
 |---|---|
 | `<SERVER NAME>` | **Server Profile** (name, icon, banner color/image, traits ×5, description), **Server Tag** (short tag + badge shown next to members' names), **Engagement** (system messages, default notifications, inactive channel/AFK), **Server Support** (replaces Boost Perks: level, pool, contributors, perks table, "Contribute") |
 | Expression | Emoji, Stickers, Soundboard |
-| People | Members (search, filters, bulk roles, prune), Roles (list, create, drag order, display/permissions/links/members tabs, "View server as role"), Invites (list, revoke, pause), Access (verification level, rules screening/membership applications, invite-only vs Directory) |
+| People | Members (search, filters, bulk roles, prune: a member is inactive for N days when they joined more than N days ago, were last seen more than N days ago or never, and sent no message in the server within N days, D-166), Roles (list, create, drag order, display/permissions/links/members tabs, "View server as role"), Invites (list, revoke, pause), Access (verification level, rules screening/membership applications, invite-only vs Directory) |
 | Apps | Integrations (webhooks, bots, followed channels), App Directory ↗ |
 | **SIDE ROOM** | **Features** (feature-module settings at guild scope), **Extensions & Themes** (approved packages), **Watch Parties & Library** (defaults: who can start parties, library feed channels) |
 | Moderation | Safety Setup (DM/spam/raid protections, verification), Audit Log, Bans, AutoMod (keyword/regex, spam, mention spam, profile filter; actions block/alert/timeout) |
