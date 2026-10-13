@@ -42,3 +42,5 @@ Ignored Postgres tests added: `sr-db/tests/guild_admin_repo.rs::prune_spares_mem
 - F-13: confirm that the Admin settings catalog (not `sr-features`) is the intended "registry" for Admin -> Limits.
 - Cancel-link semantics: with nothing pending, the link revokes all sessions (also when the pending change had merely expired).
 - Built-in templates keep the default layout (Text Channels, Voice Channels, `#general`, `General`) plus one extra category, exactly what the client produced before; none of them defines roles.
+- An unknown template code answers 400 `General error` (the existing `SettingsError::UnknownTemplate` mapping, also used by `GET /guilds/templates/{code}`); Discord's 10057 `Unknown Guild Template` is not in `ErrorCode` yet.
+- Test totals at hand-off: `cargo test --workspace` 947 passed (plus 13 in `sr-api --test guilds` rerun after the last test was added), ignored Postgres tests 76 (`sr-db`, `sr-cli`) + 15 (rest of workspace) passed on a throwaway database; `apps/web` typecheck clean, 425 Vitest tests passed. `cargo fmt --check`, `clippy -D warnings` and `cargo deny check` are clean.

@@ -1224,3 +1224,63 @@ async fn afk_channel_and_timeout_are_validated_and_returned() {
     assert!(g["afk_channel_id"].is_null());
     assert_eq!(g["afk_timeout"], 900);
 }
+
+#[tokio::test]
+async fn create_from_a_builtin_template_in_one_step() {
+    let f = fixture();
+    let mut platform = f.bus.subscribe(Topic::Platform);
+    let (s, g) = post(
+        &f,
+        "/guilds",
+        "owner",
+        json!({ "name": "Squad", "template": "gaming" }),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "{g}");
+    let names: Vec<&str> = g["channels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|c| c["name"].as_str())
+        .collect();
+    for want in [
+        "general",
+        "game-chat",
+        "clips-and-highlights",
+        "Squad 1",
+        "Games",
+    ] {
+        assert!(names.contains(&want), "{want} in {names:?}");
+    }
+    assert_eq!(g["roles"][0]["id"], g["id"], "@everyone is the first role");
+    let sys = g["system_channel_id"].as_str().unwrap();
+    let general = g["channels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == sys)
+        .unwrap();
+    assert_eq!(general["name"], "general");
+
+    // Exactly one GUILD_CREATE domain event.
+    let ev = next_event(&mut platform).await.unwrap();
+    assert!(matches!(ev, DomainEvent::GuildCreated { .. }), "{ev:?}");
+    assert!(next_event(&mut platform).await.is_none(), "only one event");
+
+    // The creator can read it back; an unknown template is refused and creates nothing.
+    let id = g["id"].as_str().unwrap();
+    assert_eq!(
+        get(&f, &format!("/guilds/{id}"), "owner").await.0,
+        StatusCode::OK
+    );
+    let (s, e) = post(
+        &f,
+        "/guilds",
+        "owner",
+        json!({ "name": "Nope", "template": "no-such-template" }),
+    )
+    .await;
+    assert!(s.is_client_error(), "{s} {e}");
+    let (_, mine) = get(&f, "/users/@me/guilds", "owner").await;
+    assert_eq!(mine.as_array().unwrap().len(), 1);
+}
