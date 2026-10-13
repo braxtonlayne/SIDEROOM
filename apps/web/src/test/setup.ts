@@ -65,3 +65,21 @@ afterEach(() => {
   sessionStorage.clear();
 });
 afterAll(() => server.close());
+
+// TEMP-DEBUG(node24)
+{
+  const f = globalThis.fetch;
+  beforeAll(() => {
+    const g = globalThis.fetch;
+    globalThis.fetch = (async (...a: Parameters<typeof fetch>) => {
+      try {
+        return await g(...a);
+      } catch (e) {
+        const c = (e as { cause?: Error }).cause;
+        process.stderr.write(`FETCHDBG ${String(e)} :: ${c?.name}: ${c?.message}\n${String(c?.stack).split('\n').slice(0, 8).join('\n')}\n`);
+        throw e;
+      }
+    }) as typeof fetch;
+  });
+  void f;
+}

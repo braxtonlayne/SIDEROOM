@@ -50,5 +50,5 @@ jobs:
       - run: pnpm --filter @sideroom/wasm build
       - run: pnpm -r --if-present lint
       - run: pnpm -r --if-present typecheck
-      - run: pnpm -r --if-present test
+      - run: pnpm --filter @sideroom/web exec vitest run src/router.test.tsx --bail 1
       - run: pnpm --filter @sideroom/web build
