@@ -18,7 +18,7 @@ Phase 4. Spec: [library-reader](../specs/library-reader.md). Mockup: `library-ho
 - [x] **LIB-ING-005** [BE] EPUB: validate, extract metadata/cover, keep as-is (`ingest::epub::inspect`)
 - [x] **LIB-ING-006** [BE] series.json parser
 - [ ] **LIB-ING-007** [BE] Auto-crop border detection data (optional per page)
-- [ ] **LIB-ING-008** [BE] Library `SubmissionKind` impls (series, items) with publish actions *(not possible yet: `sr-review` is an empty crate and there is no `submissions` table. Phase 4 delivered the publish half the kinds will call: staff upload via `/admin/library/chapters/{id}/uploads`, the `library.ingest` job, publish routes and the access-log entries; see library-reader spec section 6.6)*
+- [x] **LIB-ING-008** [BE] Library `SubmissionKind` impls (series, items) with publish actions *(phase 5: `sr-library::submissions`, `library.series` and `library.items`; members build drafts and upload through the existing presigned-PUT + `library.ingest` path scoped to their submission, a curator with `REVIEW_READING` approves and the Library service publishes; see submissions-and-review spec section 9)*
 - [ ] **LIB-ING-009** [WASM] Client-side pre-checks (image validity, sizes) before upload
 
 ## LIB-UI — Section chrome

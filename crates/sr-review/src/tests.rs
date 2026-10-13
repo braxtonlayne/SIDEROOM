@@ -1187,3 +1187,33 @@ async fn declining_a_request_needs_the_review_permission() {
         .unwrap();
     assert_eq!(d.status, RequestStatus::Declined);
 }
+
+#[tokio::test]
+async fn items_can_be_registered_only_by_the_submitter_while_editable() {
+    let w = world();
+    let id = draft(&w).await;
+    let item = |ref_id| NewItem {
+        ref_id,
+        label: format!("Chapter {ref_id}"),
+        position: 0,
+    };
+    w.svc.register_item(MEMBER, id, item(5)).await.unwrap();
+    // Registering again updates the label, it does not duplicate.
+    w.svc.register_item(MEMBER, id, item(5)).await.unwrap();
+    assert_eq!(w.svc.get_mine(MEMBER, id).await.unwrap().items.len(), 1);
+    assert_eq!(
+        w.svc.register_item(OTHER, id, item(6)).await.unwrap_err(),
+        ReviewError::NotFound("submission")
+    );
+    w.svc.unregister_item(MEMBER, id, 5).await.unwrap();
+    assert!(w.svc.get_mine(MEMBER, id).await.unwrap().items.is_empty());
+    w.svc.submit(MEMBER, id).await.unwrap();
+    assert!(matches!(
+        w.svc.register_item(MEMBER, id, item(7)).await,
+        Err(ReviewError::Conflict(_))
+    ));
+    assert!(matches!(
+        w.svc.unregister_item(MEMBER, id, 1).await,
+        Err(ReviewError::Conflict(_))
+    ));
+}
