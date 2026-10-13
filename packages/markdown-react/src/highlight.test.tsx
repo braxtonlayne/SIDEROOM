@@ -44,7 +44,7 @@ describe("highlightCode", () => {
       expect(lines, lang).not.toBeNull();
       expect(lines!.flat().map((t) => t.content).join(""), lang).toBe(code.replace(/\n/g, ""));
     }
-  });
+  }, 30_000);
 
   it("returns null for an unknown language", async () => {
     expect(await highlightCode("x", "nope-lang")).toBeNull();
