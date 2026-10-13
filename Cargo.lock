@@ -4638,6 +4638,8 @@ version = "0.0.0"
 dependencies = [
  "aes-gcm",
  "async-trait",
+ "bytes",
+ "image",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -4651,6 +4653,7 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
+ "zip",
 ]
 
 [[package]]
@@ -4713,6 +4716,7 @@ dependencies = [
  "async-trait",
  "blurhash",
  "bytes",
+ "futures",
  "image",
  "quick-xml 0.42.0",
  "serde",

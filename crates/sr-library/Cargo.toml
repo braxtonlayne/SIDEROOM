@@ -17,7 +17,8 @@ sr-storage = { path = "../sr-storage" }
 tantivy = "0.26"
 tempfile = "3"
 thiserror.workspace = true
-tokio = { workspace = true, features = ["rt", "sync"] }
+tokio = { workspace = true, features = ["rt", "sync", "fs", "io-util"] }
+futures.workspace = true
 tracing = "0.1"
 utoipa = "5"
 zip = { version = "9.0.2", default-features = false, features = ["deflate-flate2"] }

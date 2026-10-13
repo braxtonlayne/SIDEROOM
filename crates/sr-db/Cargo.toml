@@ -26,3 +26,6 @@ sha2 = "0.11"
 [dev-dependencies]
 sr-storage = { path = "../sr-storage" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+bytes = "1"
+image = { version = "0.25", default-features = false, features = ["png"] }
+zip = { version = "9.0.2", default-features = false, features = ["deflate-flate2"] }

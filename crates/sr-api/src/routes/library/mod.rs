@@ -25,6 +25,8 @@
 
 mod admin;
 mod member;
+mod reading;
+mod uploads;
 
 #[cfg(test)]
 mod tests;
@@ -212,6 +214,41 @@ pub(crate) fn csv(raw: &Option<String>) -> Vec<String> {
         .collect()
 }
 
+/// Delivers `SR_LIBRARY_UPDATE` to member sessions over the event bus.
+pub struct BusLibraryEvents {
+    bus: Arc<dyn sr_events::EventBus>,
+}
+
+impl BusLibraryEvents {
+    pub fn new(bus: Arc<dyn sr_events::EventBus>) -> Self {
+        Self { bus }
+    }
+}
+
+#[async_trait::async_trait]
+impl sr_library::LibraryEvents for BusLibraryEvents {
+    async fn emit(&self, users: Vec<i64>, payload: serde_json::Value) {
+        let users: Vec<UserId> = users
+            .into_iter()
+            .filter_map(|u| u64::try_from(u).ok().map(UserId::new))
+            .collect();
+        let ev = sr_events::DomainEvent::UserScoped {
+            users: users.clone(),
+            name: sr_library::reading::EVENT_NAME.to_owned(),
+            payload,
+        };
+        for u in users {
+            if let Err(e) = self
+                .bus
+                .publish(sr_events::Topic::User(u), ev.clone())
+                .await
+            {
+                tracing::warn!(error = %e, "publishing SR_LIBRARY_UPDATE failed");
+            }
+        }
+    }
+}
+
 /// Library routes (relative to the API version prefix).
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -230,6 +267,27 @@ pub fn router() -> Router<AppState> {
         .route("/library/search", get(member::search))
         .route("/library/updates", get(member::updates))
         .route("/library/me/follows", get(member::my_follows))
+        // Reading state.
+        .route(
+            "/library/chapters/{chapter_id}/progress",
+            get(reading::get_progress)
+                .put(reading::put_progress)
+                .delete(reading::delete_progress),
+        )
+        .route(
+            "/library/chapters/{chapter_id}/read",
+            post(reading::mark_read),
+        )
+        .route(
+            "/library/chapters/{chapter_id}/bookmarks",
+            get(reading::chapter_bookmarks).put(reading::put_bookmark),
+        )
+        .route(
+            "/library/bookmarks/{bookmark_id}",
+            delete(reading::delete_bookmark),
+        )
+        .route("/library/me/progress", get(reading::history))
+        .route("/library/me/bookmarks", get(reading::my_bookmarks))
         // Publishers.
         .route(
             "/admin/library/series",
@@ -293,6 +351,15 @@ pub fn router() -> Router<AppState> {
             "/admin/library/chapters/{chapter_id}/pages",
             get(admin::pages).put(admin::replace_pages),
         )
+        .route(
+            "/admin/library/chapters/{chapter_id}/uploads",
+            get(uploads::list).post(uploads::begin),
+        )
+        .route("/admin/library/uploads/{upload_id}", get(uploads::status))
+        .route(
+            "/admin/library/uploads/{upload_id}/complete",
+            post(uploads::complete),
+        )
 }
 
 /// OpenAPI fragment for the Library endpoints.
@@ -308,6 +375,15 @@ pub fn router() -> Router<AppState> {
         member::search,
         member::updates,
         member::my_follows,
+        reading::get_progress,
+        reading::put_progress,
+        reading::delete_progress,
+        reading::mark_read,
+        reading::history,
+        reading::chapter_bookmarks,
+        reading::put_bookmark,
+        reading::delete_bookmark,
+        reading::my_bookmarks,
         admin::list,
         admin::create_series,
         admin::series,
@@ -329,6 +405,10 @@ pub fn router() -> Router<AppState> {
         admin::unpublish_chapter,
         admin::pages,
         admin::replace_pages,
+        uploads::begin,
+        uploads::complete,
+        uploads::status,
+        uploads::list,
     ),
     components(schemas(
         ErrorBody,
@@ -363,6 +443,24 @@ pub fn router() -> Router<AppState> {
         sr_library::model::UpdateItem,
         sr_library::model::UpdatesPage,
         sr_library::model::InstantSearch,
+        sr_library::model::UploadKind,
+        sr_library::model::UploadStatus,
+        sr_library::model::Upload,
+        sr_library::model::UploadRequest,
+        sr_library::model::UploadSlot,
+        sr_library::model::UploadList,
+        sr_library::reading::ProgressInput,
+        sr_library::reading::Progress,
+        sr_library::reading::ProgressSaved,
+        sr_library::reading::ReadMarkInput,
+        sr_library::reading::ReadMarkResult,
+        sr_library::reading::HistoryItem,
+        sr_library::reading::HistoryPage,
+        sr_library::reading::BookmarkInput,
+        sr_library::reading::Bookmark,
+        sr_library::reading::BookmarkList,
+        sr_library::reading::BookmarkEntry,
+        sr_library::reading::BookmarkPage,
     ))
 )]
 pub struct LibraryApiDoc;

@@ -9,10 +9,12 @@ use async_trait::async_trait;
 use sqlx::{PgConnection, PgPool, Postgres, QueryBuilder, Row, postgres::PgRow};
 use sr_library::error::{LibraryError, LibraryResult};
 use sr_library::model::*;
-use sr_library::repo::{LibraryRepository, Neighbours, NewSeries, Rows, UpdateRecord};
+use sr_library::repo::{
+    ChapterListQuery, LibraryRepository, Neighbours, NewSeries, Rows, UpdateRecord,
+};
 
 pub struct PgLibraryRepo {
-    pool: PgPool,
+    pub(crate) pool: PgPool,
 }
 
 impl PgLibraryRepo {
@@ -21,7 +23,7 @@ impl PgLibraryRepo {
     }
 }
 
-fn db(e: sqlx::Error) -> LibraryError {
+pub(crate) fn db(e: sqlx::Error) -> LibraryError {
     LibraryError::Storage(e.to_string())
 }
 
@@ -31,12 +33,12 @@ fn code(e: &sqlx::Error) -> Option<String> {
         .map(|c| c.into_owned())
 }
 
-fn ms(col: &str, name: &str) -> String {
+pub(crate) fn ms(col: &str, name: &str) -> String {
     format!("(extract(epoch FROM {col}) * 1000)::bigint AS {name}")
 }
 
 /// Columns of a series row, read by [`series_from`].
-fn series_cols(a: &str) -> String {
+pub(crate) fn series_cols(a: &str) -> String {
     format!(
         "{a}.id, {a}.kind, {a}.title, {a}.alt_titles, {a}.authors, {a}.artists, {a}.status, \
          {a}.year, {a}.synopsis, {a}.genres, {a}.tags, {a}.reading_direction, {a}.age_restricted, \
@@ -52,7 +54,7 @@ fn bad<T>(what: &str, v: &str) -> LibraryResult<T> {
     Err(LibraryError::Storage(format!("unexpected {what} {v:?}")))
 }
 
-fn series_from(r: &PgRow) -> LibraryResult<SeriesRecord> {
+pub(crate) fn series_from(r: &PgRow) -> LibraryResult<SeriesRecord> {
     let g = |e: sqlx::Error| db(e);
     let kind: String = r.try_get("kind").map_err(g)?;
     let status: String = r.try_get("status").map_err(g)?;
@@ -90,21 +92,22 @@ fn series_from(r: &PgRow) -> LibraryResult<SeriesRecord> {
     })
 }
 
-fn chapter_cols() -> String {
+pub(crate) fn chapter_cols() -> String {
     format!(
         "c.id, c.series_id, c.edition_id, c.volume_id, c.number::float8 AS number, c.title, \
          c.page_count, c.format, c.source_key, c.release_group, c.published, {}, \
          s.published AS series_published, s.age_restricted AS series_age_restricted, \
          s.reading_direction AS series_direction, (s.merged_into IS NOT NULL) AS series_merged, \
-         p.page_index AS p_page, p.percent AS p_percent, p.completed AS p_completed",
+         p.page_index AS p_page, p.percent AS p_percent, p.completed AS p_completed, {}",
         ms("c.published_at", "published_at_ms"),
+        ms("p.updated_at", "p_updated_ms"),
     )
 }
 
-const CHAPTER_FROM: &str = "FROM reading_chapters c JOIN reading_series s ON s.id = c.series_id \
+pub(crate) const CHAPTER_FROM: &str = "FROM reading_chapters c JOIN reading_series s ON s.id = c.series_id \
      LEFT JOIN reading_progress p ON p.chapter_id = c.id AND p.user_id = ";
 
-fn chapter_from(r: &PgRow) -> LibraryResult<ChapterRecord> {
+pub(crate) fn chapter_from(r: &PgRow) -> LibraryResult<ChapterRecord> {
     let g = |e: sqlx::Error| db(e);
     let format: String = r.try_get("format").map_err(g)?;
     let dir: String = r.try_get("series_direction").map_err(g)?;
@@ -118,6 +121,7 @@ fn chapter_from(r: &PgRow) -> LibraryResult<ChapterRecord> {
             page_index,
             percent: r.try_get("p_percent").map_err(g)?,
             completed: r.try_get("p_completed").map_err(g)?,
+            updated_at_ms: r.try_get("p_updated_ms").map_err(g)?,
         }),
         None => None,
     };
@@ -255,6 +259,119 @@ async fn volume_belongs(
             "volume_id does not belong to the chapter's edition".into(),
         ))
     }
+}
+
+/// What a deletion removes, for [`queue_objects`].
+pub(crate) enum Doomed {
+    Chapter(i64),
+    Edition(i64),
+    Series(i64),
+    Volume(i64),
+}
+
+/// Queue the storage objects held by `what` (pages and variants, EPUB/PDF sources, covers and
+/// unfinished upload files) for the garbage collector. Runs inside the deleting transaction,
+/// before the rows go.
+pub(crate) async fn queue_objects(c: &mut PgConnection, what: Doomed) -> LibraryResult<()> {
+    let (chapters, volume_covers, series_cover, id) = match what {
+        Doomed::Chapter(id) => (
+            "SELECT id FROM reading_chapters WHERE id = $1",
+            None,
+            false,
+            id,
+        ),
+        Doomed::Edition(id) => (
+            "SELECT id FROM reading_chapters WHERE edition_id = $1",
+            Some("SELECT cover_key FROM reading_volumes WHERE edition_id = $1"),
+            false,
+            id,
+        ),
+        Doomed::Series(id) => (
+            "SELECT id FROM reading_chapters WHERE series_id = $1",
+            Some(
+                "SELECT v.cover_key FROM reading_volumes v \
+                 JOIN reading_editions e ON e.id = v.edition_id WHERE e.series_id = $1",
+            ),
+            true,
+            id,
+        ),
+        Doomed::Volume(id) => (
+            "SELECT id FROM reading_chapters WHERE FALSE AND id = $1",
+            Some("SELECT cover_key FROM reading_volumes WHERE id = $1"),
+            false,
+            id,
+        ),
+    };
+    // Pages and their sized variants.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO reading_gc_keys (key, chapter_id) \
+         SELECT k, chapter_id FROM ( \
+           SELECT p.chapter_id, p.key AS k FROM reading_pages p WHERE p.chapter_id IN ({chapters}) \
+           UNION \
+           SELECT p.chapter_id, v.value FROM reading_pages p, jsonb_each_text(p.variants) v \
+             WHERE p.chapter_id IN ({chapters}) \
+         ) t ON CONFLICT (key) DO UPDATE SET queued_at = now()"
+    )))
+    .bind(id)
+    .execute(&mut *c)
+    .await
+    .map_err(db)?;
+    // Sources of EPUB/PDF chapters and files of uploads that never finished.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO reading_gc_keys (key) \
+         SELECT source_key FROM reading_chapters WHERE id IN ({chapters}) AND source_key IS NOT NULL \
+         UNION \
+         SELECT object_key FROM reading_uploads WHERE chapter_id IN ({chapters}) \
+           AND status IN ('awaiting_upload', 'queued', 'running') \
+         ON CONFLICT (key) DO UPDATE SET queued_at = now()"
+    )))
+    .bind(id)
+    .execute(&mut *c)
+    .await
+    .map_err(db)?;
+    if let Some(sql) = volume_covers {
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "INSERT INTO reading_gc_keys (key) SELECT k FROM ({sql}) t(k) WHERE k IS NOT NULL \
+             ON CONFLICT (key) DO UPDATE SET queued_at = now()"
+        )))
+        .bind(id)
+        .execute(&mut *c)
+        .await
+        .map_err(db)?;
+    }
+    if series_cover {
+        sqlx::query(
+            "INSERT INTO reading_gc_keys (key) SELECT cover_key FROM reading_series \
+             WHERE id = $1 AND cover_key IS NOT NULL \
+             ON CONFLICT (key) DO UPDATE SET queued_at = now()",
+        )
+        .bind(id)
+        .execute(&mut *c)
+        .await
+        .map_err(db)?;
+    }
+    Ok(())
+}
+
+/// Queue `old` when it differs from `new` (a replaced cover or source file).
+pub(crate) async fn queue_replaced(
+    c: &mut PgConnection,
+    old: Option<String>,
+    new: Option<&str>,
+) -> LibraryResult<()> {
+    if let Some(old) = old
+        && Some(old.as_str()) != new
+    {
+        sqlx::query(
+            "INSERT INTO reading_gc_keys (key) VALUES ($1) \
+             ON CONFLICT (key) DO UPDATE SET queued_at = now()",
+        )
+        .bind(old)
+        .execute(&mut *c)
+        .await
+        .map_err(db)?;
+    }
+    Ok(())
 }
 
 #[async_trait]
@@ -407,7 +524,7 @@ impl LibraryRepository for PgLibraryRepo {
     async fn list_chapters(
         &self,
         series_id: i64,
-        edition: Option<i64>,
+        q: &ChapterListQuery,
         viewer: Option<i64>,
         scope: Scope,
     ) -> LibraryResult<Vec<ChapterRecord>> {
@@ -416,14 +533,36 @@ impl LibraryRepository for PgLibraryRepo {
         qb.push_bind(viewer)
             .push(" WHERE c.series_id = ")
             .push_bind(series_id);
-        if let Some(e) = edition {
+        if let Some(e) = q.edition {
             qb.push(" AND c.edition_id = ").push_bind(e);
         }
         if scope == Scope::Public {
             qb.push(" AND c.published");
         }
         push_scope(&mut qb, scope);
-        qb.push(" ORDER BY c.edition_id, c.number, c.id");
+        let (cmp, dir) = if q.descending {
+            ("<", " DESC")
+        } else {
+            (">", "")
+        };
+        if let Some(a) = q.after {
+            // Keyset: strictly after the last row of the previous page.
+            qb.push(format!(
+                " AND (c.edition_id, round(c.number * 100)::bigint, c.id) {cmp} ("
+            ))
+            .push_bind(a.edition_id)
+            .push(", ")
+            .push_bind(a.number_cents)
+            .push(", ")
+            .push_bind(a.id)
+            .push(")");
+        }
+        qb.push(format!(
+            " ORDER BY c.edition_id{dir}, c.number{dir}, c.id{dir}"
+        ));
+        if let Some(l) = q.limit {
+            qb.push(" LIMIT ").push_bind(i64::from(l));
+        }
         let rows = qb.build().fetch_all(&self.pool).await.map_err(db)?;
         rows.iter().map(chapter_from).collect()
     }
@@ -679,6 +818,17 @@ impl LibraryRepository for PgLibraryRepo {
         i: &SeriesInput,
         direction: ReadingDirection,
     ) -> LibraryResult<Option<SeriesRecord>> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        let old_cover: Option<Option<String>> =
+            sqlx::query_scalar("SELECT cover_key FROM reading_series WHERE id = $1 FOR UPDATE")
+                .bind(id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(db)?;
+        let Some(old_cover) = old_cover else {
+            return Ok(None);
+        };
+        queue_replaced(&mut tx, old_cover, i.cover_key.as_deref()).await?;
         let sql = format!(
             "UPDATE reading_series AS s SET kind = $2, title = $3, alt_titles = $4, authors = $5, \
              artists = $6, status = $7, year = $8, synopsis = $9, genres = $10, tags = $11, \
@@ -701,9 +851,10 @@ impl LibraryRepository for PgLibraryRepo {
             .bind(direction.as_str())
             .bind(i.age_restricted)
             .bind(&i.cover_key)
-            .fetch_optional(&self.pool)
+            .fetch_optional(&mut *tx)
             .await
             .map_err(db)?;
+        tx.commit().await.map_err(db)?;
         row.as_ref().map(series_from).transpose()
     }
 
@@ -729,12 +880,15 @@ impl LibraryRepository for PgLibraryRepo {
     }
 
     async fn delete_series(&self, id: i64) -> LibraryResult<bool> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        queue_objects(&mut tx, Doomed::Series(id)).await?;
         let n = sqlx::query("DELETE FROM reading_series WHERE id = $1")
             .bind(id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await
             .map_err(db)?
             .rows_affected();
+        tx.commit().await.map_err(db)?;
         Ok(n > 0)
     }
 
@@ -915,6 +1069,7 @@ impl LibraryRepository for PgLibraryRepo {
 
     async fn delete_edition(&self, id: i64) -> LibraryResult<bool> {
         let mut tx = self.pool.begin().await.map_err(db)?;
+        queue_objects(&mut tx, Doomed::Edition(id)).await?;
         let series: Option<i64> =
             sqlx::query_scalar("DELETE FROM reading_editions WHERE id = $1 RETURNING series_id")
                 .bind(id)
@@ -962,12 +1117,15 @@ impl LibraryRepository for PgLibraryRepo {
     }
 
     async fn delete_volume(&self, id: i64) -> LibraryResult<bool> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        queue_objects(&mut tx, Doomed::Volume(id)).await?;
         let n = sqlx::query("DELETE FROM reading_volumes WHERE id = $1")
             .bind(id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await
             .map_err(db)?
             .rows_affected();
+        tx.commit().await.map_err(db)?;
         Ok(n > 0)
     }
 
@@ -1033,6 +1191,15 @@ impl LibraryRepository for PgLibraryRepo {
             return Ok(None);
         };
         volume_belongs(&mut tx, input.volume_id, edition).await?;
+        let old_source: Option<String> =
+            sqlx::query_scalar("SELECT source_key FROM reading_chapters WHERE id = $1")
+                .bind(id)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(db)?;
+        // An ingested file is replaced by uploading another, never wiped by a metadata edit.
+        let source = input.source_key.clone().or_else(|| old_source.clone());
+        queue_replaced(&mut tx, old_source, source.as_deref()).await?;
         sqlx::query(
             "UPDATE reading_chapters SET number = $2::float8, title = $3, volume_id = $4, format = $5, \
              source_key = $6, release_group = $7, updated_at = now() WHERE id = $1",
@@ -1042,7 +1209,7 @@ impl LibraryRepository for PgLibraryRepo {
         .bind(&input.title)
         .bind(input.volume_id)
         .bind(input.format.as_str())
-        .bind(&input.source_key)
+        .bind(&source)
         .bind(&input.release_group)
         .execute(&mut *tx)
         .await
@@ -1085,6 +1252,7 @@ impl LibraryRepository for PgLibraryRepo {
 
     async fn delete_chapter(&self, id: i64) -> LibraryResult<bool> {
         let mut tx = self.pool.begin().await.map_err(db)?;
+        queue_objects(&mut tx, Doomed::Chapter(id)).await?;
         let series: Option<i64> =
             sqlx::query_scalar("DELETE FROM reading_chapters WHERE id = $1 RETURNING series_id")
                 .bind(id)
@@ -1114,6 +1282,28 @@ impl LibraryRepository for PgLibraryRepo {
         if locked.is_none() {
             return Ok(None);
         }
+        // Objects of pages that drop out (or whose key changes) go to the collector.
+        let kept: Vec<String> = pages
+            .iter()
+            .flat_map(|p| {
+                std::iter::once(p.key.clone()).chain(p.variants.iter().map(|(_, k)| k.clone()))
+            })
+            .collect();
+        sqlx::query(
+            "INSERT INTO reading_gc_keys (key, chapter_id) \
+             SELECT k, $1 FROM ( \
+               SELECT p.key AS k FROM reading_pages p WHERE p.chapter_id = $1 \
+               UNION \
+               SELECT v.value FROM reading_pages p, jsonb_each_text(p.variants) v \
+                 WHERE p.chapter_id = $1 \
+             ) o WHERE k <> ALL($2::text[]) \
+             ON CONFLICT (key) DO UPDATE SET queued_at = now()",
+        )
+        .bind(chapter)
+        .bind(&kept)
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
         sqlx::query("DELETE FROM reading_pages WHERE chapter_id = $1")
             .bind(chapter)
             .execute(&mut *tx)
@@ -1186,7 +1376,7 @@ impl LibraryRepository for PgLibraryRepo {
 
 /// A query built from a string assembled in this file out of constants and column lists;
 /// every value still travels as a bind parameter.
-fn dynq(
+pub(crate) fn dynq(
     sql: String,
 ) -> sqlx::query::Query<'static, Postgres, <Postgres as sqlx::Database>::Arguments> {
     sqlx::query(sqlx::AssertSqlSafe(sql))

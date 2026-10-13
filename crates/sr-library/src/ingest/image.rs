@@ -197,14 +197,28 @@ pub fn process_page_sized(
     })
 }
 
-/// Object key of a page original.
-pub fn page_key(series: i64, chapter: i64, index: usize) -> String {
-    format!("library/{series}/{chapter}/{index:04}.webp")
+/// Object key of a page original. A `revision` (the upload id) puts a re-ingest in its own
+/// folder, so replacing a chapter never overwrites the objects readers are still loading and a
+/// failed run cannot damage the live pages; the old objects are collected afterwards.
+pub fn page_key(series: i64, chapter: i64, revision: Option<i64>, index: usize) -> String {
+    match revision {
+        Some(r) => format!("library/{series}/{chapter}/r{r}/{index:04}.webp"),
+        None => format!("library/{series}/{chapter}/{index:04}.webp"),
+    }
 }
 
 /// Object key of a sized variant.
-pub fn variant_key(series: i64, chapter: i64, index: usize, width: u32) -> String {
-    format!("library/{series}/{chapter}/{index:04}_{width}.webp")
+pub fn variant_key(
+    series: i64,
+    chapter: i64,
+    revision: Option<i64>,
+    index: usize,
+    width: u32,
+) -> String {
+    match revision {
+        Some(r) => format!("library/{series}/{chapter}/r{r}/{index:04}_{width}.webp"),
+        None => format!("library/{series}/{chapter}/{index:04}_{width}.webp"),
+    }
 }
 
 #[cfg(test)]
@@ -410,10 +424,10 @@ mod tests {
 
     #[test]
     fn keys_stay_inside_the_chapter_prefix() {
-        assert_eq!(page_key(1, 2, 7), "library/1/2/0007.webp");
-        assert_eq!(variant_key(1, 2, 7, 720), "library/1/2/0007_720.webp");
-        assert!(crate::rules::check_key("k", &page_key(1, 2, 12345)).is_ok());
-        assert!(crate::rules::check_key("k", &variant_key(1, 2, 0, 1600)).is_ok());
+        assert_eq!(page_key(1, 2, None, 7), "library/1/2/0007.webp");
+        assert_eq!(variant_key(1, 2, None, 7, 720), "library/1/2/0007_720.webp");
+        assert!(crate::rules::check_key("k", &page_key(1, 2, Some(9), 12345)).is_ok());
+        assert!(crate::rules::check_key("k", &variant_key(1, 2, Some(9), 0, 1600)).is_ok());
     }
 
     #[test]

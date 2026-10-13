@@ -327,6 +327,8 @@ pub struct ChapterProgress {
     pub page_index: i32,
     pub percent: f32,
     pub completed: bool,
+    /// When this progress was last saved; send it back as `base_updated_at_ms` when saving.
+    pub updated_at_ms: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
@@ -359,6 +361,29 @@ pub struct ChapterList {
     pub editions: Vec<Edition>,
     pub volumes: Vec<Volume>,
     pub chapters: Vec<Chapter>,
+    /// Pass back as `after` for the next page; absent at the end or when no `limit` was given.
+    pub next_cursor: Option<String>,
+}
+
+/// Paging of a chapter list (keyset over edition, number, id).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ChapterQuery {
+    /// Only this edition's chapters.
+    pub edition: Option<i64>,
+    /// Cursor from the previous page.
+    pub after: Option<String>,
+    /// `None` returns every chapter.
+    pub limit: Option<u32>,
+    pub descending: bool,
+}
+
+/// Decoded chapter cursor: the last row of the previous page.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChapterCursor {
+    pub edition_id: i64,
+    /// Chapter number in hundredths (`NUMERIC(8,2)`).
+    pub number_cents: i64,
+    pub id: i64,
 }
 
 /// One stored page of a chapter.
@@ -421,6 +446,8 @@ pub struct PageManifest {
     pub next_chapter_id: Option<i64>,
     /// Unix seconds when the signed URLs stop working.
     pub expires_at: u64,
+    /// Signed link to the original file of an EPUB or PDF chapter (such a chapter has no pages).
+    pub source_url: Option<String>,
 }
 
 /// A followed series with the user's shelf.
@@ -551,4 +578,100 @@ impl Default for BrowseQuery {
             offset: 0,
         }
     }
+}
+
+str_enum!(
+    /// What an uploaded file is expected to be (from the chapter's format).
+    UploadKind {
+        Archive => "archive",
+        Epub => "epub",
+        Pdf => "pdf",
+    }
+);
+
+str_enum!(
+    /// Where an upload is in its life.
+    UploadStatus {
+        AwaitingUpload => "awaiting_upload",
+        Queued => "queued",
+        Running => "running",
+        Done => "done",
+        Failed => "failed",
+        Expired => "expired",
+    }
+);
+
+/// An upload row as stored.
+#[derive(Debug, Clone, PartialEq)]
+pub struct UploadRecord {
+    pub id: i64,
+    pub chapter_id: i64,
+    pub series_id: i64,
+    pub user_id: Option<i64>,
+    pub filename: String,
+    pub kind: UploadKind,
+    pub size_bytes: i64,
+    pub object_key: String,
+    pub status: UploadStatus,
+    pub error: Option<String>,
+    pub warnings: Vec<String>,
+    pub page_count: Option<i32>,
+    pub metadata: serde_json::Value,
+    pub created_at_ms: i64,
+    pub updated_at_ms: i64,
+    pub finished_at_ms: Option<i64>,
+}
+
+/// An upload as the API shows it (the status the client polls).
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+pub struct Upload {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub id: i64,
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub chapter_id: i64,
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub series_id: i64,
+    pub filename: String,
+    pub kind: UploadKind,
+    pub size_bytes: i64,
+    pub status: UploadStatus,
+    /// Why the upload failed, naming the offending page or file.
+    pub error: Option<String>,
+    /// Ignored files and unreadable metadata.
+    pub warnings: Vec<String>,
+    /// Pages stored (archives) or spine items (EPUB).
+    pub page_count: Option<i32>,
+    /// Title, number, volume, writers and so on read from the file, for the editor to offer.
+    pub metadata: serde_json::Value,
+    pub created_at_ms: i64,
+    pub updated_at_ms: i64,
+    pub finished_at_ms: Option<i64>,
+}
+
+/// Body of `POST /admin/library/chapters/{id}/uploads`.
+#[derive(Debug, Clone, Deserialize, ToSchema)]
+pub struct UploadRequest {
+    /// Original file name; its extension must fit the chapter's format.
+    pub filename: String,
+    pub size_bytes: u64,
+}
+
+/// A new upload slot: PUT the file to `upload_url`, then complete the upload.
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+pub struct UploadSlot {
+    pub upload: Upload,
+    pub upload_url: String,
+    /// Always `PUT`.
+    pub upload_method: String,
+    pub expires_in_secs: u64,
+    /// The operator's size limit for this upload.
+    pub max_bytes: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+pub struct UploadList {
+    pub uploads: Vec<Upload>,
 }

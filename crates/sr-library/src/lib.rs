@@ -9,12 +9,20 @@
 pub mod error;
 pub mod ingest;
 pub mod model;
+pub mod reading;
+mod reading_service;
 pub mod repo;
 pub mod rules;
 pub mod search;
 pub mod service;
+pub mod uploads;
 
 pub use error::{LibraryError, LibraryResult};
+pub use reading::{LibraryEvents, ReadingStateRepository};
 pub use repo::LibraryRepository;
 pub use search::SeriesIndex;
 pub use service::{Actor, IdSource, LibraryService, Viewer};
+pub use uploads::{
+    GcReport, IngestQueue, IngestSettings, IngestSettingsSnapshot, LibraryAudit,
+    StaticIngestSettings, UploadRepository,
+};
