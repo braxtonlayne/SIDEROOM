@@ -620,6 +620,26 @@ export interface paths {
         patch: operations["modify_emoji"];
         trace?: never;
     };
+    "/guilds/{guild_id}/emojis/{emoji_id}/url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mint a short-lived signed CDN URL for an emoji image (any member). Emoji
+         *     objects carry no URL, so clients ask here and may request `size`/`format`.
+         */
+        get: operations["emoji_url"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/invites": {
         parameters: {
             query?: never;
@@ -826,6 +846,23 @@ export interface paths {
         patch: operations["modify_sticker"];
         trace?: never;
     };
+    "/guilds/{guild_id}/stickers/{sticker_id}/url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Mint a short-lived signed CDN URL for a sticker image (any member). */
+        get: operations["sticker_url"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/templates": {
         parameters: {
             query?: never;
@@ -979,8 +1016,10 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Edit the caller's profile: `bio` (190), `pronouns` (40), `banner`, `accent_color`
-         *     and `custom_status`. Absent fields stay, `null` clears.
+         * Edit the caller's profile: `avatar` and `banner` (image data URIs, stored by the
+         *     media pipeline), `bio` (190), `pronouns` (40), `accent_color` and
+         *     `custom_status`. Absent fields stay, `null` clears (and deletes the stored
+         *     image). Publishes `USER_UPDATE`.
          */
         patch: operations["edit_self"];
         trace?: never;
@@ -1628,8 +1667,10 @@ export interface components {
         CurrentUser: {
             /** @description `session`, `bot` or `bearer` (SIDE ROOM addition). */
             auth: string;
-            /** @description Avatar hash; always null until avatars land. */
+            /** @description Avatar hash; the image is at `/cdn/avatars/{id}/{hash}.png`. */
             avatar?: string | null;
+            /** @description Profile banner hash, served like the avatar. */
+            banner?: string | null;
             /** @description True for bot callers. */
             bot: boolean;
             /** @description Always `"0"` (no discriminators). */
@@ -1699,7 +1740,15 @@ export interface components {
         EditSelfBody: {
             /** Format: int32 */
             accent_color?: number | null;
-            /** @description Banner key from the media pipeline; `null` removes it. */
+            /**
+             * @description New avatar as a `data:image/{png,jpeg,gif,webp};base64,...` URI (8 MiB at
+             *     most; cropped to a centred square, EXIF stripped); `null` removes it.
+             */
+            avatar?: string | null;
+            /**
+             * @description New profile banner as an image data URI (aspect ratio kept, at most
+             *     1920x1080); `null` removes it.
+             */
             banner?: string | null;
             bio?: string | null;
             custom_status?: null | components["schemas"]["CustomStatusBody"];
@@ -1750,6 +1799,8 @@ export interface components {
             spoiler?: boolean | null;
         };
         GuildObject: {
+            /** @description Banner hash, same URL shape as the icon. */
+            banner?: string | null;
             channels?: components["schemas"]["ChannelObject"][] | null;
             /** Format: int32 */
             default_message_notifications: number;
@@ -1757,12 +1808,15 @@ export interface components {
             /** Format: int32 */
             explicit_content_filter: number;
             features: string[];
+            /** @description Icon hash: `/cdn/icons/{id}/{hash}.png` (`a_` prefix = animated). */
             icon?: string | null;
             id: string;
             name: string;
             owner_id: string;
             preferred_locale: string;
             roles?: components["schemas"]["RoleObject"][] | null;
+            /** @description Invite splash hash, same URL shape as the icon. */
+            splash?: string | null;
             system_channel_id?: string | null;
             /** Format: int32 */
             verification_level: number;
@@ -1930,17 +1984,24 @@ export interface components {
             roles?: string[] | null;
         };
         ModifyGuildBody: {
+            /** @description Banner image data URI (aspect ratio kept, at most 1920x1080); `null` removes it. */
+            banner?: string | null;
             /** Format: int32 */
             default_message_notifications?: number | null;
             description?: string | null;
             /** Format: int32 */
             explicit_content_filter?: number | null;
-            /** @description Accepted and ignored for now. */
+            /**
+             * @description Image data URI (PNG, JPEG, GIF or WebP, 8 MiB at most; cropped to a square);
+             *     `null` removes the icon.
+             */
             icon?: string | null;
             name?: string | null;
             /** @description Transfers ownership (owner only). */
             owner_id?: string | null;
             preferred_locale?: string | null;
+            /** @description Invite splash image data URI; `null` removes it. */
+            splash?: string | null;
             system_channel_id?: string | null;
             /** Format: int32 */
             verification_level?: number | null;
@@ -2236,6 +2297,16 @@ export interface components {
             pronouns?: string | null;
             user: components["schemas"]["UserObject"];
         };
+        /** @description A short-lived signed CDN URL. */
+        SignedUrlObject: {
+            /**
+             * Format: int64
+             * @description Unix seconds.
+             */
+            expires_at: number;
+            /** @description Relative to the public origin: `/cdn/...?size=..&ex=..&sig=..`. */
+            url: string;
+        };
         StickerObject: {
             available: boolean;
             description?: string | null;
@@ -2332,8 +2403,10 @@ export interface components {
             id: string;
         };
         UserObject: {
-            /** @description Avatar key, when one is set. */
+            /** @description Avatar hash (`/cdn/avatars/{id}/{hash}.png`), when one is set. */
             avatar?: string | null;
+            /** @description Profile banner hash (`/cdn/avatars/{id}/{hash}.png`), when one is set. */
+            banner?: string | null;
             global_name?: string | null;
             id: string;
             username?: string | null;
@@ -4894,6 +4967,59 @@ export interface operations {
             };
         };
     };
+    emoji_url: {
+        parameters: {
+            query?: {
+                /** @description Power of two, 16 to 4096 */
+                size?: number;
+                /** @description png, jpg, webp or gif */
+                format?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Emoji snowflake */
+                emoji_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignedUrlObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_guild_invites: {
         parameters: {
             query?: never;
@@ -5863,6 +5989,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StickerObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    sticker_url: {
+        parameters: {
+            query?: {
+                /** @description Power of two, 16 to 4096 */
+                size?: number;
+                /** @description png, jpg, webp or gif */
+                format?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Sticker snowflake */
+                sticker_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignedUrlObject"];
                 };
             };
             400: {

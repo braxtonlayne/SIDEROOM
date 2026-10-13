@@ -4181,6 +4181,105 @@
         ]
       }
     },
+    "/guilds/{guild_id}/emojis/{emoji_id}/url": {
+      "get": {
+        "tags": [
+          "expressions"
+        ],
+        "summary": "Mint a short-lived signed CDN URL for an emoji image (any member). Emoji\nobjects carry no URL, so clients ask here and may request `size`/`format`.",
+        "operationId": "emoji_url",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "emoji_id",
+            "in": "path",
+            "description": "Emoji snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "Power of two, 16 to 4096",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "description": "png, jpg, webp or gif",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignedUrlObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/invites": {
       "get": {
         "tags": [
@@ -5879,6 +5978,105 @@
         ]
       }
     },
+    "/guilds/{guild_id}/stickers/{sticker_id}/url": {
+      "get": {
+        "tags": [
+          "expressions"
+        ],
+        "summary": "Mint a short-lived signed CDN URL for a sticker image (any member).",
+        "operationId": "sticker_url",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sticker_id",
+            "in": "path",
+            "description": "Sticker snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "Power of two, 16 to 4096",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "description": "png, jpg, webp or gif",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignedUrlObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/templates": {
       "get": {
         "tags": [
@@ -6754,7 +6952,7 @@
         "tags": [
           "profile"
         ],
-        "summary": "Edit the caller's profile: `bio` (190), `pronouns` (40), `banner`, `accent_color`\nand `custom_status`. Absent fields stay, `null` clears.",
+        "summary": "Edit the caller's profile: `avatar` and `banner` (image data URIs, stored by the\nmedia pipeline), `bio` (190), `pronouns` (40), `accent_color` and\n`custom_status`. Absent fields stay, `null` clears (and deletes the stored\nimage). Publishes `USER_UPDATE`.",
         "operationId": "edit_self",
         "requestBody": {
           "content": {
@@ -9607,7 +9805,14 @@
               "string",
               "null"
             ],
-            "description": "Avatar hash; always null until avatars land."
+            "description": "Avatar hash; the image is at `/cdn/avatars/{id}/{hash}.png`."
+          },
+          "banner": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Profile banner hash, served like the avatar."
           },
           "bot": {
             "type": "boolean",
@@ -9850,12 +10055,19 @@
             "format": "int32",
             "minimum": 0
           },
+          "avatar": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "New avatar as a `data:image/{png,jpeg,gif,webp};base64,...` URI (8 MiB at\nmost; cropped to a centred square, EXIF stripped); `null` removes it."
+          },
           "banner": {
             "type": [
               "string",
               "null"
             ],
-            "description": "Banner key from the media pipeline; `null` removes it."
+            "description": "New profile banner as an image data URI (aspect ratio kept, at most\n1920x1080); `null` removes it."
           },
           "bio": {
             "type": [
@@ -10059,6 +10271,13 @@
           "features"
         ],
         "properties": {
+          "banner": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Banner hash, same URL shape as the icon."
+          },
           "channels": {
             "type": [
               "array",
@@ -10094,7 +10313,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Icon hash: `/cdn/icons/{id}/{hash}.png` (`a_` prefix = animated)."
           },
           "id": {
             "type": "string"
@@ -10116,6 +10336,13 @@
             "items": {
               "$ref": "#/components/schemas/RoleObject"
             }
+          },
+          "splash": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Invite splash hash, same URL shape as the icon."
           },
           "system_channel_id": {
             "type": [
@@ -10758,6 +10985,13 @@
       "ModifyGuildBody": {
         "type": "object",
         "properties": {
+          "banner": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Banner image data URI (aspect ratio kept, at most 1920x1080); `null` removes it."
+          },
           "default_message_notifications": {
             "type": [
               "integer",
@@ -10785,7 +11019,7 @@
               "string",
               "null"
             ],
-            "description": "Accepted and ignored for now."
+            "description": "Image data URI (PNG, JPEG, GIF or WebP, 8 MiB at most; cropped to a square);\n`null` removes the icon."
           },
           "name": {
             "type": [
@@ -10805,6 +11039,13 @@
               "string",
               "null"
             ]
+          },
+          "splash": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Invite splash image data URI; `null` removes it."
           },
           "system_channel_id": {
             "type": [
@@ -11871,6 +12112,26 @@
           }
         }
       },
+      "SignedUrlObject": {
+        "type": "object",
+        "description": "A short-lived signed CDN URL.",
+        "required": [
+          "url",
+          "expires_at"
+        ],
+        "properties": {
+          "expires_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix seconds.",
+            "minimum": 0
+          },
+          "url": {
+            "type": "string",
+            "description": "Relative to the public origin: `/cdn/...?size=..&ex=..&sig=..`."
+          }
+        }
+      },
       "StickerObject": {
         "type": "object",
         "required": [
@@ -12199,7 +12460,14 @@
               "string",
               "null"
             ],
-            "description": "Avatar key, when one is set."
+            "description": "Avatar hash (`/cdn/avatars/{id}/{hash}.png`), when one is set."
+          },
+          "banner": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Profile banner hash (`/cdn/avatars/{id}/{hash}.png`), when one is set."
           },
           "global_name": {
             "type": [
