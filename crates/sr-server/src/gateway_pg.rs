@@ -10,6 +10,7 @@ use sr_chat::repo::UserLookup;
 use sr_chat::{
     repo::{ChannelRepository, GuildRepository},
     social::{
+        dm::RequestState,
         relationships::RelationshipKind,
         repo::{DmRepository, ReadStateRepository, RelationshipRepository},
     },
@@ -231,10 +232,16 @@ impl PgGuildDirectory {
             .into_iter()
             .map(|u| (u.id, u))
             .collect();
-        let private_channels: Vec<Value> = dms
-            .iter()
-            .map(|d| json!(DmChannelObject::new(d, user, &users)))
-            .collect();
+        // A conversation sitting in the viewer's Message Requests carries
+        // `is_message_request: true`, as in `GET /users/@me/channels`.
+        let mut private_channels: Vec<Value> = Vec::with_capacity(dms.len());
+        for d in &dms {
+            let mut obj = DmChannelObject::new(d, user, &users);
+            if self.social.get_request_state(user, d.id).await? == Some(RequestState::Pending) {
+                obj.is_message_request = Some(true);
+            }
+            private_channels.push(json!(obj));
+        }
         let relationships: Vec<Value> = self
             .social
             .list_relationships(user)
@@ -438,5 +445,78 @@ impl sr_api::routes::settings::PresenceCounter for GatewayPresence {
                     .is_some_and(|p| p.visible_status() != "offline")
             })
             .count() as u64
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sr_chat::social::repo::DmRepository;
+    use sr_core::{SnowflakeGenerator, SystemClock};
+
+    async fn account(pool: &PgPool, ids: &SnowflakeGenerator<Arc<dyn Clock>>) -> UserId {
+        let person = ids.generate().get() as i64;
+        let acct = ids.generate();
+        sqlx::query("INSERT INTO persons (id) VALUES ($1)")
+            .bind(person)
+            .execute(pool)
+            .await
+            .unwrap();
+        let name = format!("u{}", acct.get());
+        sqlx::query(
+            "INSERT INTO accounts (id, person_id, username, email, password_hash) \
+             VALUES ($1, $2, $3, $4, 'x')",
+        )
+        .bind(acct.get() as i64)
+        .bind(person)
+        .bind(&name[..name.len().min(32)])
+        .bind(format!("{name}@example.test"))
+        .execute(pool)
+        .await
+        .unwrap();
+        UserId::new(acct.get())
+    }
+
+    /// READY `private_channels` carry full `recipients` and flag only the conversation that sits
+    /// in the viewer's Message Requests (D-181).
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn ready_private_channels_flag_message_requests() {
+        let url = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL must be set");
+        let pool = sr_db::connect(&sr_db::DbConfig::new(url))
+            .await
+            .expect("connect");
+        sr_db::migrate(&pool).await.expect("migrate");
+        let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+        let w = ((std::process::id() % 16) * 2) as u8 + 1;
+        let ids = SnowflakeGenerator::new(clock.clone(), w, w).expect("ids");
+        let (me, friend, stranger) = (
+            account(&pool, &ids).await,
+            account(&pool, &ids).await,
+            account(&pool, &ids).await,
+        );
+        let repo = PgSocialRepo::new(pool.clone());
+        let accepted = ChannelId::new(ids.generate().get());
+        let request = ChannelId::new(ids.generate().get());
+        repo.insert_dm(accepted, me, friend).await.unwrap();
+        repo.insert_dm(request, stranger, me).await.unwrap();
+        repo.set_request_state(me, request, RequestState::Pending)
+            .await
+            .unwrap();
+
+        let dir = PgGuildDirectory::new(pool, clock);
+        let extras = dir.build_ready_extras(me).await.unwrap();
+        let list = extras["private_channels"].as_array().unwrap();
+        assert_eq!(list.len(), 2);
+        for c in list {
+            let rid = c["recipients"][0]["id"].as_str().unwrap();
+            let is_request = c["id"] == request.to_string();
+            assert_eq!(rid, if is_request { stranger } else { friend }.to_string());
+            assert_eq!(
+                c["is_message_request"].as_bool().unwrap_or(false),
+                is_request
+            );
+            assert!(c.get("recipient_ids").is_none());
+        }
     }
 }
