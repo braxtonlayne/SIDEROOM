@@ -286,6 +286,24 @@ pub enum DomainEvent {
         guild: GuildId,
         payload: Value,
     },
+    // --- rich messages: polls (LNG-MSG-010) ---
+    /// `MESSAGE_POLL_VOTE_ADD`.
+    PollVoteAdded {
+        guild: Option<GuildId>,
+        channel: ChannelId,
+        message_id: u64,
+        user: UserId,
+        answer_id: u32,
+    },
+    /// `MESSAGE_POLL_VOTE_REMOVE`.
+    PollVoteRemoved {
+        guild: Option<GuildId>,
+        channel: ChannelId,
+        message_id: u64,
+        user: UserId,
+        answer_id: u32,
+    },
+    // --- end rich messages ---
     /// `TYPING_START` triggered by `POST /channels/{id}/typing`.
     TypingStarted {
         guild: Option<GuildId>,
@@ -342,6 +360,16 @@ impl DomainEvent {
                 channel,
                 ..
             }
+            | Self::PollVoteAdded {
+                guild: None,
+                channel,
+                ..
+            }
+            | Self::PollVoteRemoved {
+                guild: None,
+                channel,
+                ..
+            }
             | Self::ChannelPinsUpdated {
                 guild: None,
                 channel,
@@ -394,6 +422,8 @@ impl DomainEvent {
             | Self::ReactionRemoved { guild, channel, .. }
             | Self::ReactionsCleared { guild, channel, .. }
             | Self::ReactionEmojiCleared { guild, channel, .. }
+            | Self::PollVoteAdded { guild, channel, .. }
+            | Self::PollVoteRemoved { guild, channel, .. }
             | Self::ChannelPinsUpdated { guild, channel, .. }
             | Self::TypingStarted { guild, channel, .. } => {
                 let mut t = vec![Topic::Channel(*channel)];

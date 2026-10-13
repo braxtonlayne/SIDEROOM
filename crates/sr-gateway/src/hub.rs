@@ -197,6 +197,8 @@ fn redact_for(session: &Session, name: &str, data: &Value) -> Option<Value> {
     let mut v = data.clone();
     if let Some(o) = v.as_object_mut() {
         o.insert("content".into(), json!(""));
+        o.remove("message_snapshots");
+        o.remove("sticker_items");
         for k in ["embeds", "attachments", "components"] {
             o.insert(k.into(), json!([]));
         }
@@ -305,6 +307,36 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
             data: json!({
                 "channel_id": channel, "message_id": message_id.to_string(),
                 "guild_id": guild, "emoji": emoji,
+            }),
+            channel: Some(*channel),
+            audience: None,
+        },
+        DomainEvent::PollVoteAdded {
+            guild,
+            channel,
+            message_id,
+            user,
+            answer_id,
+        } => Dispatch {
+            name: "MESSAGE_POLL_VOTE_ADD",
+            data: json!({
+                "user_id": user, "channel_id": channel, "message_id": message_id.to_string(),
+                "guild_id": guild, "answer_id": answer_id,
+            }),
+            channel: Some(*channel),
+            audience: None,
+        },
+        DomainEvent::PollVoteRemoved {
+            guild,
+            channel,
+            message_id,
+            user,
+            answer_id,
+        } => Dispatch {
+            name: "MESSAGE_POLL_VOTE_REMOVE",
+            data: json!({
+                "user_id": user, "channel_id": channel, "message_id": message_id.to_string(),
+                "guild_id": guild, "answer_id": answer_id,
             }),
             channel: Some(*channel),
             audience: None,

@@ -158,6 +158,32 @@ impl Default for GatewayLimits {
         }
     }
 }
+
+/// `[unfurl]`: server-side link previews (LNG-MSG-014). The feature itself is the
+/// `unfurl` feature module (default on); this section holds operator policy.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct UnfurlConfig {
+    /// Hosts (and their subdomains) that are never fetched.
+    pub deny_hosts: Vec<String>,
+    /// Outgoing requests allowed per destination host per minute.
+    pub per_host_per_minute: u32,
+    /// TEST ONLY, DANGEROUS: disables the private/loopback address check of the
+    /// SSRF policy so a local test page can be previewed. Anyone who can post a link
+    /// can then make this server fetch internal URLs. Never enable it in production.
+    pub allow_private_for_tests: bool,
+}
+
+impl Default for UnfurlConfig {
+    fn default() -> Self {
+        Self {
+            deny_hosts: Vec::new(),
+            per_host_per_minute: 20,
+            allow_private_for_tests: false,
+        }
+    }
+}
+
 /// `[search]`: the message search index (open questions 131-138).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -231,6 +257,7 @@ pub struct Config {
     pub discord: DiscordConfig,
     pub gateway: GatewayLimits,
     pub search: SearchConfig,
+    pub unfurl: UnfurlConfig,
 }
 
 /// `[discord]`: OAuth sign-in and registration (open question 79). An empty
