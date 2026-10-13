@@ -62,7 +62,7 @@ describe('Overview', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
     await screen.findByText('Server settings saved.');
     expect(cap.calls[0]!.body).toEqual({ name: 'Book Club 2', default_message_notifications: 1 });
-    expect(screen.queryByText(/unsaved changes/)).toBeNull();
+    await waitFor(() => expect(screen.queryByText(/unsaved changes/)).toBeNull());
   });
 
   it('validates the name and surfaces server errors', async () => {
