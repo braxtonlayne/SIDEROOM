@@ -384,6 +384,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     }
     let unfurl_policy = sr_unfurl::Policy {
         deny_hosts: cfg.unfurl.deny_hosts.clone(),
+        allow_hosts: cfg.unfurl.allow_hosts.clone(),
         allow_private_for_tests: cfg.unfurl.allow_private_for_tests,
     };
     let unfurler = Arc::new(sr_unfurl::production(

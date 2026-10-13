@@ -16,7 +16,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [x] **LNG-MSG-011** [BE] Mentions extraction via `sr-markdown`; @everyone/@here permission gate; role mentionable gate
 - [x] **LNG-MSG-012** [BE] Read states: ack message, mention counts, mark guild read, mark unread (set ack to previous)
 - [x] **LNG-MSG-013** [BE] Typing indicator endpoint + 10s TTL broadcast
-- [ ] **LNG-MSG-014** [BE] Link unfurler: SSRF-safe fetch (deny private IPs, size/time limits), OpenGraph/Twitter cards/oEmbed parse, image proxying, cache by URL, operator allow/deny lists
+- [x] **LNG-MSG-014** [BE] Link unfurler: SSRF-safe fetch (deny private IPs, size/time limits), OpenGraph/Twitter cards/oEmbed parse, image proxying, cache by URL, operator allow/deny lists *(the proxy is `GET /cdn/external/{hmac}/{url_b64}`; the allow/deny lists are `[unfurl] allow_hosts` / `deny_hosts` in the config. The Admin → Features → Embeds page for them is not built yet.)*
 - [ ] **LNG-MSG-015** [BE] Embed suppression (flag), spoiler handling in embeds
 - [ ] **LNG-MSG-016** [BE] System messages (member join with randomized lines, pin, thread created, call start/missed/ended, follow added, server support contribution)
 - [ ] **LNG-MSG-017** [BE] Message components storage (buttons/selects) for app messages

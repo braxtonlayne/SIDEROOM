@@ -31,6 +31,7 @@ Discord's user-token automation ("self-bots") is not supported, and user session
 - Rate-limit headers `X-RateLimit-Limit/Remaining/Reset/Reset-After/Bucket/Scope`. 429 body includes `retry_after`.
 - Pagination: `before`, `after`, `around`, `limit`.
 - `X-Audit-Log-Reason` header is honoured.
+- **Embed images and `proxy_url` (D-176).** The client never loads a third-party image URL by itself. Where Discord's embed objects carry `proxy_url`, SIDE ROOM fills it on `embed.image`, `embed.thumbnail` (not `embed.video`, whose `proxy_url` is always removed) with a same-origin path `/cdn/external/{hmac}/{url_b64}` (section 5.2), and fills `embed.author.proxy_icon_url` and `embed.footer.proxy_icon_url` the same way. The fields are added when a message is rendered (REST and gateway, forward snapshots included), for link previews and for embeds written by bots or users alike; a `proxy_url` sent by a client is discarded. The original `url` stays in the object, but a client may show it only behind an explicit "Load image" click, without a referrer. URLs that are not absolute http(s), and paths of our own CDN, get no `proxy_url`. Only images are proxied (PNG, JPEG, GIF, WebP).
 - Permission bits: **exactly Discord's bit positions** (`VIEW_CHANNEL = 1<<10`, `SEND_MESSAGES = 1<<11`, …). SIDE ROOM-only permissions use high bits starting at `1<<56` (see doc 07).
 
 ## 4. Resource coverage (Discord-compatible)
@@ -135,7 +136,25 @@ Any other kind is 404. Emoji objects carry no URL in the Discord shape; clients 
 
 **Exception: `avatars` and `icons` are public kinds.** Their URLs are `/cdn/avatars/{user}/{hash}.{ext}` and `/cdn/icons/{guild}/{hash}.{ext}`, where `hash` is 32 hex characters of a SHA-256 over the normalised image (prefix `a_` when animated). The unguessable hash is the credential, as on Discord, so these two kinds are served **without** `ex`/`sig`, with `Cache-Control: public, max-age=31536000, immutable`. This is a deliberate exception to docs/02 section 5 ("Buckets are never public; URLs are signed"): every API object already shows these hashes to anyone who can see the user or guild, and a per-viewer signed URL for every avatar in a member list would defeat caching. The bucket itself stays private and the server streams the object. A signature that is present must still be valid (a bad one is 403), and every other kind still requires one. The owner can overrule this; turning it off means returning `avatar_url` fields signed per request.
 
-Responses:
+**External images (LNG-MSG-014, D-176): `GET /cdn/external/{hmac}/{url_b64}`.** Both segments are base64url without padding: `url_b64` is the third-party URL (at most 2048 bytes, http or https) and `hmac` is `HMAC-SHA256(K, url)` where `K = HMAC-SHA256(server.secret_key, "sideroom/external-image/v1")`. There is no `ex`: the link is stable, so browsers cache it. The signature is the credential, checked in constant time before anything is fetched, so the route is not an open relay and only URLs the server itself put in a message can be requested. The handler:
+
+- fetches through the same SSRF-safe fetcher as link previews: scheme and credentials are checked, the host is resolved and **every** resolved address is checked after DNS (private, loopback, link-local, CGNAT, multicast, reserved, cloud metadata, IPv4-mapped, NAT64, 6to4 and Teredo forms; decimal, hex, octal and short IPv4 spellings are normalised by the URL parser first), the connection is pinned to the checked addresses so DNS cannot change between check and connect, and the same rules apply to each of at most three redirects. The operator's `[unfurl] deny_hosts` and `allow_hosts` apply;
+- reads at most 10 MiB, within 10 s in total (connect 5 s); only an image content type is accepted, then the bytes must sniff as PNG, JPEG, GIF or WebP and decode within the pixel budget (24 million pixels). SVG, HTML, AVIF and anything else is 415;
+- re-encodes from pixels at no more than 2048 px a side (JPEG stays JPEG, an animated GIF stays animated, everything else becomes PNG), so EXIF, XMP, ICC and text chunks are gone. The pure-Rust encoder has no lossy WebP, so WebP is not produced;
+- stores the result as `external/{sha256(url)}` in the bucket for 30 days (the first 12 bytes of the object hold `SRX1` and the expiry) and deletes expired objects with the hourly `external_images.gc` job. A failed fetch is remembered for ten minutes in memory;
+- answers `200` with the real `Content-Type`, `Content-Disposition: inline`, `Cache-Control: public, max-age=86400`, a strong `ETag` (`If-None-Match` gives 304), `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; sandbox` and `Referrer-Policy: no-referrer`.
+
+| Status | When |
+|---|---|
+| 400 | `hmac` or `url_b64` is not base64url |
+| 403 | The signature does not match, or the address is not allowed (the body never says what a name resolved to) |
+| 413 | Over 10 MiB, or over the pixel budget |
+| 415 | Not a PNG, JPEG, GIF or WebP |
+| 429 | Per client address (bucket `GET /cdn/external/{hmac}/{url_b64}`, 300 per 10 s); a cache miss also counts per user (session) or per address (`GET /cdn/external (fetch)`, 30 per minute) and across all callers (`GET /cdn/external (global)`, 240 per minute) |
+| 502 / 504 | The other site failed or timed out |
+| 503 | Six fetches are already running; `Retry-After: 5` |
+
+Responses of the normal `/cdn/{*path}` route:
 
 | Status | When |
 |---|---|

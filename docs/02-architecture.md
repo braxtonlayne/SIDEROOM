@@ -105,7 +105,12 @@ The TypeScript side:
 
 ### 4.5 Uploads
 - Chat attachments: client requests an upload slot (`POST /channels/{id}/attachments`). Server checks the per-user limit (30 MB / 500 MB) and returns a presigned S3 PUT (multipart for > 64 MB). Client uploads, then posts the message referencing the upload IDs.
+- The presigned PUT goes from the browser straight to the bucket, so **the bucket needs a CORS rule for the app origin** (D-175): `PUT, GET, HEAD` from `server.public_url`, `Content-Type` allowed, `ETag` exposed. `sr-cli storage ensure-cors --origin <public_url>` applies it (idempotent; the rule is replaced, not appended) and the Garage bootstrap script and the install walkthrough call it. The presigner signs method and path only, so the browser's `Content-Type` is advisory and the server sniffs the real type when the upload is finalised. The call is a hand-signed SigV4 `PutBucketCors` in `sr-storage::s3admin`, because `object_store` only presigns object requests.
 - Library submissions: resumable multipart uploads into a `pending/` prefix, any size. Processing jobs run, and the item lands in the review queue (see the submissions spec).
+
+### 4.6 Third-party images
+- The client never loads a third-party image URL by itself (D-176). When a message is rendered, the server adds a `proxy_url` of the form `/cdn/external/{hmac}/{url_b64}` to every http(s) embed image (doc 05 section 3). `GET` on that path is the image proxy: HMAC-checked, fetched with the SSRF-safe fetcher of `sr-unfurl` (addresses checked after DNS and on every redirect, pinned connect, 10 MiB and 10 s), sniffed, decoded and re-encoded without metadata, cached in the bucket under `external/` for 30 days, and rate limited per address, per user and globally. The details and status codes are in doc 05 section 5.2.
+- Until a reader clicks "Load image", an embed shows its text only. A click loads the original from the other site without a referrer.
 
 ## 5. Events and scale-out
 
