@@ -230,10 +230,6 @@ const SOON: Record<string, { title: string; text: string }> = {
     title: 'Reading lists',
     text: 'Lists you can order, share and feature arrive with LIB-SOC-010.',
   },
-  submissions: {
-    title: 'Submissions',
-    text: 'Your uploads and their review states arrive with the submissions pipeline.',
-  },
   upload: { title: 'Upload', text: 'Member uploads arrive with the submissions pipeline.' },
 };
 
