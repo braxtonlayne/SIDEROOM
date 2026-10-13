@@ -452,3 +452,163 @@ describe('accessibility', () => {
     expect(await axeViolations(dialog)).toEqual([]);
   });
 });
+
+describe('Create a Server wizard', () => {
+  beforeEach(() => {
+    quiet();
+    seed('1');
+  });
+
+  it('builds a template server: guild first, then its categories and channels', async () => {
+    const posted: Record<string, unknown>[] = [];
+    server.use(
+      http.post('*/api/v1/guilds', () =>
+        HttpResponse.json(
+          {
+            id: 'g5',
+            name: 'Raid Night',
+            owner_id: '1',
+            channels: [{ id: 'k2', type: 0, guild_id: 'g5', name: 'general', position: 0 }],
+            roles: [],
+          },
+          { status: 201 },
+        ),
+      ),
+      http.post('*/api/v1/guilds/g5/channels', async ({ request }) => {
+        const body = (await request.json()) as Record<string, unknown>;
+        posted.push(body);
+        return HttpResponse.json(
+          {
+            id: `n${posted.length}`,
+            guild_id: 'g5',
+            position: posted.length,
+            ...body,
+          },
+          { status: 201 },
+        );
+      }),
+    );
+    const router = at('/channels/g1/c1');
+    await userEvent.click(await screen.findByRole('button', { name: 'Add a Server' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Create a Server' });
+    await userEvent.click(within(dialog).getByRole('button', { name: /Gaming/ }));
+    await userEvent.click(await screen.findByRole('button', { name: 'For me and my friends' }));
+    expect(screen.getByText(/Gaming/, { selector: 'strong' })).toBeInTheDocument();
+    const name = screen.getByLabelText('Server name');
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Raid Night');
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/channels/g5/k2'));
+    expect(posted.map((p) => [p.name, p.type, p.parent_id ?? null])).toEqual([
+      ['Games', 4, null],
+      ['game-chat', 0, 'n1'],
+      ['clips-and-highlights', 0, 'n1'],
+      ['Squad 1', 2, 'n1'],
+    ]);
+  });
+
+  it('goes back through the steps and lists the invite examples on Join', async () => {
+    at('/channels/g1/c1');
+    await userEvent.click(await screen.findByRole('button', { name: 'Add a Server' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Create My Own' }));
+    expect(
+      screen.getByRole('dialog', { name: 'Tell us more about your server' }),
+    ).toBeInTheDocument();
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Back' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Join a Server' }));
+    expect(screen.getByText('hTKzmak')).toBeInTheDocument();
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Back' }));
+    expect(screen.getByRole('dialog', { name: 'Create a Server' })).toBeInTheDocument();
+  });
+
+  it('the wizard steps have no axe violations', async () => {
+    at('/channels/g1/c1');
+    await userEvent.click(await screen.findByRole('button', { name: 'Add a Server' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Create a Server' });
+    expect(await axeViolations(dialog)).toEqual([]);
+    await userEvent.click(within(dialog).getByRole('button', { name: /Study Group/ }));
+    expect(await axeViolations(screen.getByRole('dialog'))).toEqual([]);
+    await userEvent.click(screen.getByRole('button', { name: 'skip this question' }));
+    expect(await axeViolations(screen.getByRole('dialog'))).toEqual([]);
+  });
+});
+
+describe('Create Channel types and private picker', () => {
+  beforeEach(() => {
+    quiet();
+    seed('1');
+  });
+
+  const capture = () => {
+    const bodies: Record<string, unknown>[] = [];
+    server.use(
+      http.post('*/api/v1/guilds/g1/channels', async ({ request }) => {
+        const b = (await request.json()) as Record<string, unknown>;
+        bodies.push(b);
+        return HttpResponse.json({ id: 'n1', guild_id: 'g1', ...b }, { status: 201 });
+      }),
+    );
+    return bodies;
+  };
+
+  async function openCreate() {
+    useLoungeUi.getState().openDialog({ kind: 'createChannel', guildId: 'g1' });
+    return screen.findByRole('dialog', { name: 'Create Channel' });
+  }
+
+  it.each([
+    ['Announcement', 5, 'big-news'],
+    ['Forum', 15, 'help-desk'],
+    ['Stage', 13, 'Town Hall'],
+    ['Media', 16, 'art-wall'],
+  ])('creates a %s channel with type %i', async (label, type, expected) => {
+    const bodies = capture();
+    at('/channels/g1/c1');
+    const dialog = await openCreate();
+    await userEvent.click(within(dialog).getByRole('radio', { name: new RegExp(label) }));
+    await userEvent.type(within(dialog).getByLabelText('Channel name'), expected);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Create Channel' }));
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]).toMatchObject({ type, name: expected });
+  });
+
+  it('shows the slug a text channel name becomes', async () => {
+    at('/channels/g1/c1');
+    const dialog = await openCreate();
+    await userEvent.type(within(dialog).getByLabelText('Channel name'), 'Movie Night!');
+    expect(within(dialog).getByText('#movie-night')).toBeInTheDocument();
+  });
+
+  it('a private channel can include picked roles and members', async () => {
+    useStore.setState({
+      roles: {
+        g1: {
+          id: 'g1',
+          guild_id: 'g1',
+          name: '@everyone',
+          color: 0,
+          position: 0,
+          permissions: EVERYONE,
+        },
+        r1: { id: 'r1', guild_id: 'g1', name: 'Mods', color: 0, position: 1, permissions: '0' },
+      },
+      roleIdsByGuild: { g1: ['g1', 'r1'] },
+    });
+    const bodies = capture();
+    at('/channels/g1/c1');
+    const dialog = await openCreate();
+    await userEvent.type(within(dialog).getByLabelText('Channel name'), 'staff');
+    await userEvent.click(within(dialog).getByRole('switch', { name: /Private Channel/ }));
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Mods' }));
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: /bob/ }));
+    expect(await axeViolations(dialog)).toEqual([]);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Create Channel' }));
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]!.permission_overwrites).toEqual([
+      { id: 'g1', type: 0, allow: '0', deny: '1024' },
+      { id: '1', type: 1, allow: '1024', deny: '0' },
+      { id: 'r1', type: 0, allow: '1024', deny: '0' },
+      { id: '2', type: 1, allow: '1024', deny: '0' },
+    ]);
+  });
+});

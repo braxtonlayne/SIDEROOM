@@ -255,3 +255,51 @@
 .lng-dm-wrap:focus-within .lng-dm-close {
   display: inline-flex;
 }
+
+/* Create a Server wizard */
+.lng-template-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lng-template {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  background: var(--bg-base-lowest);
+  color: var(--text-normal);
+  text-align: left;
+  cursor: pointer;
+}
+.lng-template:hover {
+  background: var(--bg-base-low);
+}
+.lng-template-text {
+  display: flex;
+  flex-direction: column;
+}
+.lng-template-text small {
+  color: var(--text-muted);
+}
+.lng-link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-link, var(--brand));
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+.lng-examples {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
