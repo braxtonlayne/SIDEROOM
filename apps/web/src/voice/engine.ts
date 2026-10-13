@@ -47,6 +47,8 @@ export interface ConnectParams {
   /** The viewer's user id (their own SPEAKING echo is ignored). */
   userId: string;
   iceServers?: VoiceIceServer[];
+  /** The channel's audio bitrate in bits per second (advertised to the SFU and set on the sender, spec 4.4). */
+  maxBitrate?: number;
   mic: MicOptions;
 }
 
@@ -235,6 +237,7 @@ export class RtcVoiceEngine implements VoiceEngine {
     const resolve = this.resolveConnect;
     this.resolveConnect = this.rejectConnect = null;
     this.setStatus('connected');
+    this.applyBitrate();
     resolve?.();
   }
 
@@ -424,9 +427,13 @@ export class RtcVoiceEngine implements VoiceEngine {
     this.reoffer = null;
     this.offerPending = true;
     const offer = await pc.createOffer(restart ? { iceRestart: true } : undefined);
-    await pc.setLocalDescription(offer);
+    // Opus DTX / FEC / mono go into the local description too, so what we sent is what we run.
+    await pc.setLocalDescription({
+      type: 'offer',
+      sdp: tuneOpus(offer.sdp ?? '', this.params.maxBitrate),
+    });
     await this.gathered(pc);
-    const sdp = tuneOpus(pc.localDescription?.sdp ?? offer.sdp ?? '');
+    const sdp = pc.localDescription?.sdp ?? offer.sdp ?? '';
     if (!this.send(VoiceOp.SDP_OFFER, { sdp })) {
       // Socket is down: the resume handler sends it when the socket is back.
       this.offerPending = false;
@@ -459,15 +466,15 @@ export class RtcVoiceEngine implements VoiceEngine {
     if (this.reoffer) await this.negotiate(this.reoffer.restart);
   }
 
-  /** The SFU renegotiates when a remote line is added or removed. We are the polite peer on glare. */
+  /**
+   * The SFU renegotiates when a remote line is added or removed. On glare the client is the impolite peer
+   * (spec 4.4): while our own offer is outstanding a server offer is ignored, the server abandons it, answers
+   * ours and sends a fresh offer afterwards.
+   */
   private async onServerOffer(sdp: string): Promise<void> {
     const pc = this.pc;
     if (!pc) return;
-    if (this.offerPending || pc.signalingState === 'have-local-offer') {
-      await pc.setLocalDescription({ type: 'rollback' });
-      this.offerPending = false;
-      this.reoffer = { restart: this.reoffer?.restart ?? false };
-    }
+    if (this.offerPending || pc.signalingState === 'have-local-offer') return;
     await pc.setRemoteDescription({ type: 'offer', sdp });
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
@@ -502,6 +509,20 @@ export class RtcVoiceEngine implements VoiceEngine {
     this.iceRestarts++;
     this.setStatus('reconnecting');
     this.enqueue(() => this.negotiate(true));
+  }
+
+  /** Cap the Opus sender at the channel bitrate. The SFU trusts but does not enforce it in v1. */
+  private applyBitrate(): void {
+    const max = this.params?.maxBitrate;
+    const pc = this.pc as (PeerLike & { getSenders?: () => RTCRtpSender[] }) | null;
+    if (!max || !pc?.getSenders) return;
+    for (const sender of pc.getSenders()) {
+      if (sender.track?.kind !== 'audio') continue;
+      const p = sender.getParameters();
+      p.encodings = p.encodings?.length ? p.encodings : [{}];
+      p.encodings[0]!.maxBitrate = max;
+      void sender.setParameters(p).catch(() => undefined);
+    }
   }
 
   private startQuality(): void {

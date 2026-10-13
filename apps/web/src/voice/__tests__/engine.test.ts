@@ -226,7 +226,7 @@ describe('RtcVoiceEngine media', () => {
     expect(ws.ops(VoiceOp.SDP_ANSWER).at(-1)!.d).toEqual({ sdp: 'answer-sdp' });
   });
 
-  it('is the polite peer: rolls back its own pending offer on glare, then re-offers', async () => {
+  it('is the impolite peer: ignores a server offer while its own is outstanding (spec 4.4)', async () => {
     const { world, engine } = setup();
     const done = engine.connect(params);
     done.catch(() => undefined);
@@ -239,15 +239,48 @@ describe('RtcVoiceEngine media', () => {
     expect(ws.ops(VoiceOp.SDP_OFFER)).toHaveLength(1); // our offer is outstanding
     ws.serve(VoiceOp.SDP_OFFER, { sdp: 'server-offer' });
     await flush();
-    expect(pc.rollbacks).toBe(1);
-    expect(ws.ops(VoiceOp.SDP_ANSWER)).toHaveLength(1);
-    // After answering it offers again.
-    expect(ws.ops(VoiceOp.SDP_OFFER)).toHaveLength(2);
-    ws.serve(VoiceOp.SDP_ANSWER, { sdp: 'answer-2' });
+    // No rollback, no answer: the server abandons its offer and replaces it after answering ours.
+    expect(pc.rollbacks).toBe(0);
+    expect(ws.ops(VoiceOp.SDP_ANSWER)).toHaveLength(0);
+    expect(pc.remote).toHaveLength(0);
+    ws.serve(VoiceOp.SDP_ANSWER, { sdp: 'answer-1' });
     await flush();
     pc.setState('connected');
     await done;
-    expect(pc.remote.at(-1)).toEqual({ type: 'answer', sdp: 'answer-2' });
+    expect(pc.remote).toEqual([{ type: 'answer', sdp: 'answer-1' }]);
+    // The replacement offer now gets answered.
+    ws.serve(VoiceOp.SDP_OFFER, { sdp: 'server-offer-2' });
+    await flush();
+    expect(pc.remote.at(-1)).toEqual({ type: 'offer', sdp: 'server-offer-2' });
+    expect(ws.ops(VoiceOp.SDP_ANSWER)).toHaveLength(1);
+  });
+
+  it('applies the channel bitrate to the offer and the sender (spec 4.4)', async () => {
+    const { world, engine } = setup();
+    const setParameters = vi.fn(async () => undefined);
+    const done = engine.connect({ ...params, maxBitrate: 96_000 });
+    done.catch(() => undefined);
+    await flush();
+    const ws = world.sockets[0]!;
+    ws.open();
+    ws.serve(VoiceOp.READY, READY);
+    await flush();
+    const pc = world.peers[0]!;
+    (pc as unknown as { getSenders: () => unknown[] }).getSenders = () => [
+      {
+        track: { kind: 'audio' },
+        getParameters: () => ({ encodings: [{}] }),
+        setParameters,
+      },
+    ];
+    expect((ws.ops(VoiceOp.SDP_OFFER)[0]!.d as { sdp: string }).sdp).toContain(
+      'maxaveragebitrate=96000',
+    );
+    ws.serve(VoiceOp.SDP_ANSWER, { sdp: 'a' });
+    await flush();
+    pc.setState('connected');
+    await done;
+    expect(setParameters).toHaveBeenCalledWith({ encodings: [{ maxBitrate: 96_000 }] });
   });
 
   it('swaps the input device mid-call without renegotiating', async () => {

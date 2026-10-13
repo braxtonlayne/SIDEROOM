@@ -436,6 +436,7 @@ export class VoiceController {
         token: this.server.token,
         userId: me,
         ...(this.server.ice_servers ? { iceServers: this.server.ice_servers } : {}),
+        ...bitrateOf(t.channelId),
         mic: micOptions(s),
       })
       .then(() => {
@@ -527,6 +528,15 @@ export class VoiceController {
       return;
     }
     patchSession({ status: 'reconnecting' });
+    // Spec 4.5: a repeated op 4 for the channel we are in issues no new VOICE_SERVER_UPDATE, so leave first.
+    const t = this.target;
+    const s = useVoiceSession.getState();
+    this.deps.sendGateway(Op.VOICE_STATE_UPDATE, {
+      guild_id: t.guildId === DM_GUILD_ID ? null : t.guildId,
+      channel_id: null,
+      self_mute: s.selfMute,
+      self_deaf: s.selfDeaf,
+    });
     this.sendState();
     this.armWait();
   }
@@ -689,6 +699,12 @@ function omit<T>(rec: Record<string, T>, key: string): Record<string, T> {
   const copy = { ...rec };
   delete copy[key];
   return copy;
+}
+
+/** The channel's bitrate (bps) from the store, when the API provided one. */
+function bitrateOf(channelId: string): { maxBitrate: number } | Record<string, never> {
+  const bitrate = useStore.getState().channels[channelId]?.bitrate;
+  return bitrate && bitrate > 0 ? { maxBitrate: bitrate } : {};
 }
 
 function lookupChannelName(channelId: string): string | undefined {

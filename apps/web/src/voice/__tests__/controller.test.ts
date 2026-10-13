@@ -565,7 +565,10 @@ describe('server-driven changes', () => {
     for (let i = 0; i < MAX_REJOINS; i++) {
       h.last().events.fatal({ code: 'closed', message: 'x' });
       expect(sess().status).toBe('reconnecting');
-      expect(h.sent).toHaveLength(base + i + 1);
+      // Leave, then join again: a repeated join of the same channel would not issue a new server update.
+      expect(h.sent).toHaveLength(base + 2 * (i + 1));
+      expect(h.sent.at(-2)!.d.channel_id).toBeNull();
+      expect(h.sent.at(-1)!.d.channel_id).toBe('c1');
       h.emit('VOICE_SERVER_UPDATE', { guild_id: 'g1', endpoint: `n${i}.test`, token: 't' });
     }
     h.last().events.fatal({ code: 'closed', message: 'x' });

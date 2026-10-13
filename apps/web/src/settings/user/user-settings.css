@@ -275,6 +275,7 @@
   height: 10px;
   min-width: 120px;
   overflow: hidden;
+  border: 1px solid var(--ui-border);
   border-radius: 5px;
   background: var(--bg-base-lowest);
 }

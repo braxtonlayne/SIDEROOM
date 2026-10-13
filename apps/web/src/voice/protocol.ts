@@ -123,7 +123,7 @@ export function voiceUrl(
  * Opus tuning for voice: DTX and in-band FEC on, mono, constrained bitrate (spec section 2).
  * Rewrites (or adds) the `a=fmtp` line of the opus payload type in an offer.
  */
-export function tuneOpus(sdp: string, maxBitrate = 64_000): string {
+export function tuneOpus(sdp: string, maxBitrate: number | undefined = 64_000): string {
   const m = /a=rtpmap:(\d+) opus\/48000/i.exec(sdp);
   if (!m) return sdp;
   const pt = m[1]!;
