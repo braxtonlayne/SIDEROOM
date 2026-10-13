@@ -12837,6 +12837,7 @@
           "member"
         ],
         "summary": "The reader's page manifest: sized, signed image URLs plus neighbouring chapters.",
+        "description": "For an age-restricted series the account must have confirmed it is 18 or older\n(D-032); otherwise the answer is 403 with code 900011 (`AGE_CONFIRMATION_REQUIRED`)\nand the client shows the same dialog as age-restricted Lounge channels.",
         "operationId": "library_pages",
         "parameters": [
           {
@@ -12862,6 +12863,16 @@
           },
           "401": {
             "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Age-restricted series and the account has not confirmed it is 18 or older: error code 900011 (AGE_CONFIRMATION_REQUIRED). Show the 'Are you 18 or older?' dialog, POST /sr/age-gate, then retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -13093,7 +13104,7 @@
           {
             "name": "age",
             "in": "query",
-            "description": "`hide` (default), `include` or `only`. Only accounts that confirmed they are 18+ get restricted series.",
+            "description": "`include` (default), `hide` or `only`. Everyone may see restricted series; opening their pages needs age confirmation. A member who set `library.hide_age_restricted` gets `hide` as the default.",
             "required": false,
             "schema": {
               "$ref": "#/components/schemas/AgeFilter"
@@ -16246,7 +16257,7 @@
       },
       "AgeFilter": {
         "type": "string",
-        "description": "How age-restricted series are treated by a listing.",
+        "description": "How age-restricted series are treated by a listing. Everyone sees them by\ndefault (`include`); `hide` and `only` are optional filters (D-184).",
         "enum": [
           "hide",
           "include",

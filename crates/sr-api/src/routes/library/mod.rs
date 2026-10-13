@@ -1,9 +1,12 @@
 //! Library REST API: the member-facing catalog (`/library/*`) and the publisher
 //! endpoints (`/admin/library/*`). LIB-DATA-002..006.
 //!
-//! * Members read published series. Age-restricted series are visible only to
-//!   accounts that confirmed they are 18 or older, and then only on request
-//!   (`age=include|only`); everyone else gets 404 for them, never 403.
+//! * Members read published series. Age-restricted series are visible to everyone
+//!   (D-184); `age=hide|only` narrows a listing and the user setting
+//!   `library.hide_age_restricted` flips the default to `hide`. Opening the pages of
+//!   a restricted series (`GET /library/chapters/{id}/pages`) answers 403
+//!   `AGE_CONFIRMATION_REQUIRED` (code 900011) until the account answered yes to
+//!   "Are you 18 or older?" through `POST /sr/age-gate` (D-032); the answer is permanent.
 //! * Publishers are staff sessions holding `PUBLISH_READING` (create, edit, publish)
 //!   or `DELETE_CONTENT` (unpublish, delete, merge). Every change is also written to
 //!   the staff access log.
@@ -48,10 +51,29 @@ use sr_library::{Actor, LibraryError, LibraryService, Viewer};
 use std::sync::Arc;
 use utoipa::OpenApi;
 
+/// Per-user Library preferences, read from the user settings blob.
+#[async_trait::async_trait]
+pub trait LibraryPrefs: Send + Sync {
+    /// `library.hide_age_restricted` (default false): leave restricted series out of
+    /// listings, search and follows unless a listing asks for them (D-184).
+    async fn hide_age_restricted(&self, user: UserId) -> bool;
+}
+
+/// Nobody hides restricted series (tests, tools).
+pub struct NoLibraryPrefs;
+
+#[async_trait::async_trait]
+impl LibraryPrefs for NoLibraryPrefs {
+    async fn hide_age_restricted(&self, _: UserId) -> bool {
+        false
+    }
+}
+
 /// Collaborators of the Library endpoints.
 pub struct LibraryDeps {
     pub service: LibraryService,
     age: Arc<dyn AgeGate>,
+    prefs: Arc<dyn LibraryPrefs>,
 }
 
 impl LibraryDeps {
@@ -59,7 +81,14 @@ impl LibraryDeps {
         Self {
             service,
             age: Arc::new(NoAgeConfirmed),
+            prefs: Arc::new(NoLibraryPrefs),
         }
+    }
+
+    /// Source of the per-user preferences (`library.hide_age_restricted`).
+    pub fn with_prefs(mut self, prefs: Arc<dyn LibraryPrefs>) -> Self {
+        self.prefs = prefs;
+        self
     }
 
     /// Source of the 18+ confirmation (`accounts.age_confirmed_at`).
@@ -84,14 +113,14 @@ impl FromRequestParts<AppState> for MemberCtx {
     ) -> Result<Self, Self::Rejection> {
         let UserOnly(p) = UserOnly::from_request_parts(parts, state).await?;
         let Ext(deps) = Ext::<LibraryDeps>::from_request_parts(parts, state).await?;
-        let adult = deps
-            .age
-            .age_confirmed(UserId::new(u64::try_from(p.user_id).unwrap_or(0)))
-            .await;
+        let user = UserId::new(u64::try_from(p.user_id).unwrap_or(0));
+        let adult = deps.age.age_confirmed(user).await;
+        let hide_restricted = deps.prefs.hide_age_restricted(user).await;
         Ok(Self {
             viewer: Viewer {
                 user_id: p.user_id,
                 adult,
+                hide_restricted,
             },
             deps,
         })
@@ -158,6 +187,7 @@ fn not_found(what: &str) -> HttpError {
 pub(crate) fn map_err(e: LibraryError) -> HttpError {
     match e {
         LibraryError::NotFound(w) => not_found(w),
+        LibraryError::AgeConfirmationRequired => ErrorCode::SrAgeConfirmationRequired.into(),
         LibraryError::MissingPermission(p) => ApiError::with_message(
             ErrorCode::MissingPermissions,
             format!("Missing platform permission {p}"),

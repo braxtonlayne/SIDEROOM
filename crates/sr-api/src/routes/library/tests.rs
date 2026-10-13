@@ -2,7 +2,7 @@
 //! staff matrices, permission mapping, the age gate reaching the repository, and the
 //! JSON shape. Behaviour against real tables is covered by `sr-db/tests/library_repo.rs`.
 
-use super::{LibraryDeps, router};
+use super::{LibraryDeps, LibraryPrefs, router};
 use crate::{
     ApiSettings, AppState,
     auth::{
@@ -10,7 +10,7 @@ use crate::{
         memory::{MemoryBots, MemorySessions},
     },
     build_router,
-    routes::{admin::AdminDeps, search::ConfirmedUsers},
+    routes::{admin::AdminDeps, search::AgeGate},
 };
 use async_trait::async_trait;
 use axum::{
@@ -42,6 +42,8 @@ const CURATOR: i64 = 11;
 const BASIC: i64 = 12;
 const MEMBER: i64 = 20;
 const ADULT: i64 = 21;
+/// Confirmed adult who set `library.hide_age_restricted`.
+const HIDER: i64 = 22;
 const R_OWNER: i64 = 1;
 const R_CURATOR: i64 = 2;
 const R_BASIC: i64 = 3;
@@ -77,6 +79,50 @@ fn record(id: i64, restricted: bool) -> SeriesRecord {
 #[derive(Default)]
 struct Stub {
     browses: Mutex<Vec<(Scope, AgeFilter)>>,
+    /// `include_restricted` of every `latest_updates` call.
+    updates: Mutex<Vec<bool>>,
+}
+
+/// Accounts that confirmed their age; the test adds to it like `POST /sr/age-gate` does.
+struct Confirmed(Mutex<HashSet<UserId>>);
+
+#[async_trait]
+impl AgeGate for Confirmed {
+    async fn age_confirmed(&self, user: UserId) -> bool {
+        self.0.lock().unwrap().contains(&user)
+    }
+}
+
+struct Hiders(HashSet<UserId>);
+
+#[async_trait]
+impl LibraryPrefs for Hiders {
+    async fn hide_age_restricted(&self, user: UserId) -> bool {
+        self.0.contains(&user)
+    }
+}
+
+/// Chapter 90 belongs to the restricted series 9, chapter 70 to the plain series 7.
+fn chapter_record(id: i64) -> ChapterRecord {
+    ChapterRecord {
+        id,
+        series_id: if id == 90 { 9 } else { 7 },
+        edition_id: 1,
+        volume_id: None,
+        number: 1.0,
+        title: None,
+        page_count: 0,
+        format: ChapterFormat::Images,
+        source_key: None,
+        release_group: None,
+        published: true,
+        published_at_ms: Some(1),
+        series_published: true,
+        series_age_restricted: id == 90,
+        series_direction: ReadingDirection::Rtl,
+        series_merged: false,
+        progress: None,
+    }
 }
 
 fn unsupported<T>() -> LibraryResult<T> {
@@ -95,10 +141,8 @@ impl LibraryRepository for Stub {
     async fn get_series(&self, id: i64, scope: Scope) -> LibraryResult<Option<SeriesRecord>> {
         // Series 9 is age-restricted, everything else is plain.
         let r = record(id, id == 9);
-        Ok(match scope {
-            Scope::Public { adult: false } if r.age_restricted => None,
-            _ => Some(r),
-        })
+        let _ = scope;
+        Ok(Some(r))
     }
     async fn series_by_ids(&self, _: &[i64], _: Scope) -> LibraryResult<Vec<SeriesRecord>> {
         Ok(vec![])
@@ -118,8 +162,8 @@ impl LibraryRepository for Stub {
     ) -> LibraryResult<Vec<ChapterRecord>> {
         Ok(vec![])
     }
-    async fn get_chapter(&self, _: i64, _: Option<i64>) -> LibraryResult<Option<ChapterRecord>> {
-        Ok(None)
+    async fn get_chapter(&self, id: i64, _: Option<i64>) -> LibraryResult<Option<ChapterRecord>> {
+        Ok(matches!(id, 70 | 90).then(|| chapter_record(id)))
     }
     async fn list_pages(&self, _: i64) -> LibraryResult<Vec<PageRecord>> {
         Ok(vec![])
@@ -129,11 +173,12 @@ impl LibraryRepository for Stub {
     }
     async fn latest_updates(
         &self,
-        _: bool,
+        include_restricted: bool,
         _: Option<i64>,
         _: Option<(i64, i64)>,
         _: u32,
     ) -> LibraryResult<Vec<UpdateRecord>> {
+        self.updates.lock().unwrap().push(include_restricted);
         Ok(vec![])
     }
     async fn get_follow(&self, _: i64, _: i64) -> LibraryResult<Option<Follow>> {
@@ -247,6 +292,7 @@ struct Env {
     app: Router,
     stub: Arc<Stub>,
     admin: Arc<MemoryAdminRepo>,
+    age: Arc<Confirmed>,
     tokens: HashMap<i64, String>,
 }
 
@@ -265,6 +311,7 @@ async fn env_with(library: bool) -> Env {
         (BASIC, "basic"),
         (MEMBER, "member"),
         (ADULT, "adult"),
+        (HIDER, "hider"),
     ] {
         admin.add_account(id, name, AccountState::Active, None, Some(OWNER));
     }
@@ -288,7 +335,7 @@ async fn env_with(library: bool) -> Env {
 
     let sessions = Arc::new(MemorySessions::new());
     let mut tokens = HashMap::new();
-    for (n, uid) in [OWNER, CURATOR, BASIC, MEMBER, ADULT]
+    for (n, uid) in [OWNER, CURATOR, BASIC, MEMBER, ADULT, HIDER]
         .into_iter()
         .enumerate()
     {
@@ -324,9 +371,13 @@ async fn env_with(library: bool) -> Env {
         Arc::new(|| 4242),
     )
     .with_index(Arc::new(SeriesIndex::in_ram().unwrap()));
-    let age: Arc<dyn crate::routes::search::AgeGate> =
-        Arc::new(ConfirmedUsers(HashSet::from([UserId::new(ADULT as u64)])));
-    let deps = LibraryDeps::new(service).with_age_gate(age);
+    let age = Arc::new(Confirmed(Mutex::new(HashSet::from([
+        UserId::new(ADULT as u64),
+        UserId::new(HIDER as u64),
+    ]))));
+    let deps = LibraryDeps::new(service)
+        .with_age_gate(age.clone())
+        .with_prefs(Arc::new(Hiders(HashSet::from([UserId::new(HIDER as u64)]))));
 
     let mut settings = ApiSettings::default();
     settings.rate_limit.enabled = false;
@@ -342,6 +393,7 @@ async fn env_with(library: bool) -> Env {
         app: build_router(b.build(), router()),
         stub,
         admin,
+        age,
         tokens,
     }
 }
@@ -572,7 +624,7 @@ async fn creating_a_series_normalises_returns_string_ids_and_is_logged() {
 }
 
 #[tokio::test]
-async fn the_age_gate_reaches_the_repository() {
+async fn age_filter_defaults_to_showing_everything() {
     let e = env().await;
     let (s, body) = e
         .call(
@@ -585,39 +637,104 @@ async fn the_age_gate_reaches_the_repository() {
     assert_eq!(s, StatusCode::OK, "{body}");
     assert_eq!(body["items"][0]["id"], "7");
     assert_eq!(body["limit"], 100);
+    for p in [
+        "/library/series",
+        "/library/series?age=hide",
+        "/library/series?age=only",
+    ] {
+        let (s, _) = e.call(Some(MEMBER), Method::GET, p, None).await;
+        assert_eq!(s, StatusCode::OK, "{p}");
+    }
+    // A member who hides restricted titles gets `hide` by default, and can still ask.
+    let (s, _) = e
+        .call(Some(HIDER), Method::GET, "/library/series", None)
+        .await;
+    assert_eq!(s, StatusCode::OK);
     let (s, _) = e
         .call(
-            Some(ADULT),
+            Some(HIDER),
             Method::GET,
             "/library/series?age=include",
             None,
         )
         .await;
     assert_eq!(s, StatusCode::OK);
-    let (s, _) = e
-        .call(Some(ADULT), Method::GET, "/library/series", None)
-        .await;
-    assert_eq!(s, StatusCode::OK);
     let seen = e.stub.browses.lock().unwrap().clone();
     assert_eq!(
         seen,
         [
-            // Unconfirmed account asking for restricted series is downgraded to Hide.
-            (Scope::Public { adult: false }, AgeFilter::Hide),
-            (Scope::Public { adult: true }, AgeFilter::Include),
-            // Confirmed accounts still need to ask.
-            (Scope::Public { adult: true }, AgeFilter::Hide),
+            (Scope::Public, AgeFilter::Include),
+            (Scope::Public, AgeFilter::Include),
+            (Scope::Public, AgeFilter::Hide),
+            (Scope::Public, AgeFilter::Only),
+            (Scope::Public, AgeFilter::Hide),
+            (Scope::Public, AgeFilter::Include),
         ]
     );
-    // A restricted series answers 404 to the unconfirmed and 200 to the adult.
+    // Updates follow the preference too.
+    for who in [MEMBER, HIDER] {
+        let (s, _) = e
+            .call(Some(who), Method::GET, "/library/updates", None)
+            .await;
+        assert_eq!(s, StatusCode::OK);
+    }
+    assert_eq!(*e.stub.updates.lock().unwrap(), [true, false]);
+}
+
+#[tokio::test]
+async fn restricted_series_are_visible_to_unconfirmed_accounts() {
+    let e = env().await;
+    for who in [MEMBER, ADULT] {
+        let (s, body) = e
+            .call(Some(who), Method::GET, "/library/series/9", None)
+            .await;
+        assert_eq!(s, StatusCode::OK, "{body}");
+        assert_eq!(body["series"]["age_restricted"], true);
+    }
+}
+
+#[tokio::test]
+async fn opening_restricted_pages_needs_age_confirmation() {
+    let e = env().await;
+    // Unconfirmed: a documented 403 with its own code, not a 404.
     let (s, body) = e
-        .call(Some(MEMBER), Method::GET, "/library/series/9", None)
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            "/library/chapters/90/pages",
+            None,
+        )
         .await;
-    assert_eq!(s, StatusCode::NOT_FOUND, "{body}");
+    assert_eq!(s, StatusCode::FORBIDDEN, "{body}");
+    assert_eq!(body["code"], 900011);
+    // Plain series and confirmed adults are not gated.
+    for (who, ch) in [(MEMBER, 70), (ADULT, 90)] {
+        let (s, body) = e
+            .call(
+                Some(who),
+                Method::GET,
+                &format!("/library/chapters/{ch}/pages"),
+                None,
+            )
+            .await;
+        assert_eq!(s, StatusCode::OK, "{body}");
+    }
+    // Unknown chapters stay 404, never the age error.
     let (s, _) = e
-        .call(Some(ADULT), Method::GET, "/library/series/9", None)
+        .call(Some(MEMBER), Method::GET, "/library/chapters/5/pages", None)
         .await;
-    assert_eq!(s, StatusCode::OK);
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    // Confirming (POST /sr/age-gate sets age_confirmed_at) lets the retry succeed.
+    e.age.0.lock().unwrap().insert(UserId::new(MEMBER as u64));
+    let (s, body) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            "/library/chapters/90/pages",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{body}");
 }
 
 #[tokio::test]
@@ -701,4 +818,5 @@ fn openapi_lists_every_library_path() {
         assert!(paths.contains_key(p), "{p}");
     }
     assert!(doc["components"]["schemas"]["PageManifest"].is_object());
+    assert!(paths["/library/chapters/{chapter_id}/pages"]["get"]["responses"]["403"].is_object());
 }

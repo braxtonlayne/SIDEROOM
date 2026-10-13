@@ -138,7 +138,8 @@ str_enum!(
 );
 
 str_enum!(
-    /// How age-restricted series are treated by a listing.
+    /// How age-restricted series are treated by a listing. Everyone sees them by
+    /// default (`include`); `hide` and `only` are optional filters (D-184).
     AgeFilter {
         Hide => "hide",
         Include => "include",
@@ -499,8 +500,9 @@ pub struct InstantSearch {
 /// Which rows a read may return.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Scope {
-    /// Members: published and not merged away; age-restricted only when `adult`.
-    Public { adult: bool },
+    /// Members: published and not merged away. Age-restricted series are included;
+    /// only opening their pages needs age confirmation (D-184).
+    Public,
     /// Publishers: everything.
     Staff,
 }
@@ -540,7 +542,7 @@ impl Default for BrowseQuery {
             language: None,
             year_from: None,
             year_to: None,
-            age: AgeFilter::Hide,
+            age: AgeFilter::Include,
             sort: SortKey::Updated,
             descending: None,
             published: None,

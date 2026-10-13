@@ -465,7 +465,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     tracing::info!(series = indexed, "library search index rebuilt");
     let library_deps = Arc::new(
         routes::library::LibraryDeps::new(library_service)
-            .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone()))),
+            .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone())))
+            .with_prefs(Arc::new(crate::settings_pg::PgLibraryPrefs::new(
+                pool.clone(),
+            ))),
     );
 
     // Index jobs for every message event, DMs included, and search cache

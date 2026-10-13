@@ -96,6 +96,7 @@ error_codes! {
     SrPlatformBanned = 900008, 403, "This account is banned from the platform";
     SrNotFound = 900009, 404, "Unknown resource";
     SrConflict = 900010, 409, "The current state does not allow this action";
+    SrAgeConfirmationRequired = 900011, 403, "You need to confirm you are 18 or older to open this";
     SrIgnoreListFull = 900101, 400, "Your ignore list is full";
     SrInternal = 900500, 500, "Internal server error";
 }

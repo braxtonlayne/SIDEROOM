@@ -79,7 +79,7 @@ pub trait LibraryRepository: Send + Sync {
     /// `before` is a `(published_at_ms, chapter_id)` keyset cursor.
     async fn latest_updates(
         &self,
-        adult: bool,
+        include_restricted: bool,
         followed_by: Option<i64>,
         before: Option<(i64, i64)>,
         limit: u32,
@@ -99,7 +99,7 @@ pub trait LibraryRepository: Send + Sync {
         &self,
         user: i64,
         shelf: Option<Shelf>,
-        adult: bool,
+        include_restricted: bool,
         limit: u32,
         offset: u32,
     ) -> LibraryResult<Rows<(SeriesRecord, Follow)>>;

@@ -96,10 +96,12 @@ async fn world() -> World {
         member: Viewer {
             user_id: m,
             adult: false,
+            hide_restricted: false,
         },
         adult: Viewer {
             user_id: a,
             adult: true,
+            hide_restricted: false,
         },
         genre: format!("g{}", uid()),
     }
@@ -458,116 +460,107 @@ async fn publishers_need_the_right_permissions() {
 
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
-async fn age_restricted_series_are_hidden_everywhere() {
+async fn age_restricted_series_are_visible_but_pages_need_confirmation() {
     let w = world().await;
     let (ok_s, _, _) = w.published("Plain", false, 1.0).await;
     let (adult_s, _, adult_c) = w.published("Mature", true, 1.0).await;
     w.svc.reindex_all().await.unwrap();
+    let ids = |p: &SeriesPage| p.items.iter().map(|s| s.id).collect::<Vec<_>>();
 
-    // Browse: unconfirmed never sees it, even when asking for it.
-    for age in [AgeFilter::Hide, AgeFilter::Include, AgeFilter::Only] {
-        let q = BrowseQuery { age, ..w.browse() };
-        let page = w.svc.browse(w.member, q).await.unwrap();
-        let ids: Vec<i64> = page.items.iter().map(|s| s.id).collect();
-        assert!(!ids.contains(&adult_s), "{age:?}");
-        assert_eq!(page.total, i64::from(age != AgeFilter::Only));
-        assert_eq!(ids.contains(&ok_s), age != AgeFilter::Only);
+    // Browse: everyone sees restricted series by default; `hide` and `only` narrow it.
+    for who in [w.member, w.adult] {
+        let all = w.svc.browse(who, w.browse()).await.unwrap();
+        assert_eq!(all.total, 2);
+        let hide = BrowseQuery {
+            age: AgeFilter::Hide,
+            ..w.browse()
+        };
+        assert_eq!(ids(&w.svc.browse(who, hide).await.unwrap()), [ok_s]);
+        let only = BrowseQuery {
+            age: AgeFilter::Only,
+            ..w.browse()
+        };
+        assert_eq!(ids(&w.svc.browse(who, only).await.unwrap()), [adult_s]);
     }
-    // A confirmed adult sees it only on request.
-    let hide = w.svc.browse(w.adult, w.browse()).await.unwrap();
-    assert_eq!(hide.items.len(), 1);
-    let inc = w
-        .svc
-        .browse(
-            w.adult,
-            BrowseQuery {
-                age: AgeFilter::Include,
-                ..w.browse()
-            },
-        )
-        .await
-        .unwrap();
-    assert_eq!(inc.items.len(), 2);
-    let only = w
-        .svc
-        .browse(
-            w.adult,
-            BrowseQuery {
-                age: AgeFilter::Only,
-                ..w.browse()
-            },
-        )
-        .await
-        .unwrap();
-    assert_eq!(
-        only.items.iter().map(|s| s.id).collect::<Vec<_>>(),
-        [adult_s]
-    );
 
-    // Detail, chapters, manifest, follow: not found for the unconfirmed.
-    assert!(not_found(
-        w.svc.series_detail(w.member, adult_s).await.unwrap_err()
-    ));
-    assert!(not_found(
-        w.svc.chapters(w.member, adult_s, None).await.unwrap_err()
-    ));
-    assert!(not_found(
-        w.svc.page_manifest(w.member, adult_c).await.unwrap_err()
-    ));
-    assert!(not_found(
-        w.svc
-            .follow(w.member, adult_s, Shelf::Reading, true)
-            .await
-            .unwrap_err()
-    ));
-    assert!(w.svc.series_detail(w.adult, adult_s).await.is_ok());
+    // Detail, chapter list, follow: open to the unconfirmed.
+    let d = w.svc.series_detail(w.member, adult_s).await.unwrap();
+    assert!(d.series.age_restricted);
+    assert!(w.svc.chapters(w.member, adult_s, None).await.is_ok());
+    w.svc
+        .follow(w.member, adult_s, Shelf::Reading, true)
+        .await
+        .unwrap();
+
+    // Opening the pages is the gated step.
+    assert_eq!(
+        w.svc.page_manifest(w.member, adult_c).await.unwrap_err(),
+        LibraryError::AgeConfirmationRequired
+    );
     assert!(w.svc.page_manifest(w.adult, adult_c).await.is_ok());
-
-    // Search.
-    let hits = w.svc.search(w.member, &w.genre, 20).await.unwrap();
-    assert_eq!(hits.series.iter().map(|s| s.id).collect::<Vec<_>>(), [ok_s]);
-    let hits = w.svc.search(w.adult, &w.genre, 20).await.unwrap();
-    assert_eq!(hits.series.len(), 2);
-
-    // Latest updates, global and followed.
-    w.svc
-        .follow(w.adult, adult_s, Shelf::Reading, true)
-        .await
-        .unwrap();
-    w.svc
-        .follow(w.adult, ok_s, Shelf::Reading, true)
-        .await
-        .unwrap();
-    let ids = |p: &UpdatesPage| p.items.iter().map(|u| u.series_id).collect::<Vec<_>>();
-    let mine = |p: UpdatesPage| {
-        ids(&p)
-            .into_iter()
-            .filter(|i| *i == adult_s || *i == ok_s)
-            .collect::<Vec<_>>()
-    };
-    assert_eq!(
-        mine(w.svc.updates(w.member, false, None, 100).await.unwrap()),
-        [ok_s]
+    // An unknown chapter is still just not found.
+    assert!(not_found(
+        w.svc.page_manifest(w.member, 1).await.unwrap_err()
+    ));
+    // Staff are never gated.
+    assert!(
+        w.svc
+            .admin_page_manifest(w.publisher, adult_c)
+            .await
+            .is_ok()
     );
-    let mut both = mine(w.svc.updates(w.adult, true, None, 100).await.unwrap());
-    both.sort_unstable();
+
+    // Search, updates and follows include restricted series for everyone.
+    for who in [w.member, w.adult] {
+        let hits = w.svc.search(who, &w.genre, 20).await.unwrap();
+        assert_eq!(hits.series.len(), 2);
+    }
+    w.svc
+        .follow(w.member, ok_s, Shelf::Reading, true)
+        .await
+        .unwrap();
+    let mine = |p: UpdatesPage| {
+        let mut v: Vec<i64> = p
+            .items
+            .iter()
+            .map(|u| u.series_id)
+            .filter(|i| *i == adult_s || *i == ok_s)
+            .collect();
+        v.sort_unstable();
+        v
+    };
     let mut want = vec![ok_s, adult_s];
     want.sort_unstable();
-    assert_eq!(both, want);
-    // A follow made while confirmed disappears from the unconfirmed view of the same account.
-    let sneaky = Viewer {
-        user_id: w.adult.user_id,
-        adult: false,
+    assert_eq!(
+        mine(w.svc.updates(w.member, false, None, 100).await.unwrap()),
+        want
+    );
+    assert_eq!(
+        mine(w.svc.updates(w.member, true, None, 100).await.unwrap()),
+        want
+    );
+    let f = w.svc.my_follows(w.member, None, None, None).await.unwrap();
+    assert_eq!(f.total, 2);
+
+    // `library.hide_age_restricted`: the same account drops restricted series from
+    // search, updates and follows (browse takes its default from the router).
+    let hider = Viewer {
+        hide_restricted: true,
+        ..w.member
     };
-    let f = w.svc.my_follows(sneaky, None, None, None).await.unwrap();
+    let hits = w.svc.search(hider, &w.genre, 20).await.unwrap();
+    assert_eq!(hits.series.iter().map(|s| s.id).collect::<Vec<_>>(), [ok_s]);
+    assert_eq!(
+        mine(w.svc.updates(hider, true, None, 100).await.unwrap()),
+        [ok_s]
+    );
+    let f = w.svc.my_follows(hider, None, None, None).await.unwrap();
     assert_eq!(
         f.items.iter().map(|i| i.series.id).collect::<Vec<_>>(),
         [ok_s]
     );
-    assert_eq!(
-        mine(w.svc.updates(sneaky, true, None, 100).await.unwrap()),
-        [ok_s]
-    );
+    // Opening a restricted series directly is not affected by the preference.
+    assert!(w.svc.series_detail(hider, adult_s).await.is_ok());
 }
 
 #[tokio::test]
