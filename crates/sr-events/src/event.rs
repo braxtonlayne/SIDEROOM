@@ -31,12 +31,24 @@ pub enum Topic {
 pub enum StaffAlertKind {
     /// A registration was refused because the Person is banned.
     BannedPersonAttempt,
+    /// A serious ban raised suspicion on the banned account's inviter (D-031).
+    InviterSuspicion,
+    /// An inviter's suspicion reached the escalation threshold.
+    InviterEscalated,
+    /// A staff appointment was revoked.
+    StaffRevoked,
+    /// The staff access-log hash chain failed verification.
+    AccessLogChainBroken,
 }
 
 impl StaffAlertKind {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::BannedPersonAttempt => "banned_person_attempt",
+            Self::InviterSuspicion => "inviter_suspicion",
+            Self::InviterEscalated => "inviter_escalated",
+            Self::StaffRevoked => "staff_revoked",
+            Self::AccessLogChainBroken => "access_log_chain_broken",
         }
     }
 }

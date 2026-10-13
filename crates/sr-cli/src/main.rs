@@ -39,6 +39,11 @@ pub enum Command {
     /// Platform invites (operator emergency use; bypasses credit rules).
     #[command(subcommand)]
     Invite(InviteCmd),
+    /// Staff appointments and Staff Server ownership.
+    #[command(subcommand)]
+    Staff(StaffCmd),
+    /// Verify the staff access-log hash chain (exit code 1 when it is broken).
+    VerifyAccessLog,
     /// Account recovery tools.
     #[command(subcommand)]
     User(UserCmd),
@@ -65,6 +70,34 @@ pub enum InviteCmd {
         /// Private note (visible to issuer and staff).
         #[arg(long)]
         note: Option<String>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum StaffCmd {
+    /// List current staff.
+    List,
+    /// Appoint an account as staff with one or more Staff Server roles (not Owner).
+    Appoint {
+        /// Username or email.
+        user: String,
+        /// Role name, e.g. "Moderator" (repeatable).
+        #[arg(long = "role", required = true)]
+        roles: Vec<String>,
+        #[arg(long)]
+        reason: String,
+    },
+    /// Revoke an appointment (the Owner cannot be revoked).
+    Revoke {
+        user: String,
+        #[arg(long)]
+        reason: String,
+    },
+    /// Hand the Staff Server and the Owner role to another account.
+    TransferOwner {
+        user: String,
+        #[arg(long)]
+        reason: String,
     },
 }
 
@@ -113,6 +146,25 @@ mod tests {
             c.command,
             Command::Invite(InviteCmd::Create { .. })
         ));
+        let c = Cli::try_parse_from([
+            "sr-cli",
+            "staff",
+            "appoint",
+            "bob",
+            "--role",
+            "Moderator",
+            "--reason",
+            "x",
+        ])
+        .unwrap();
+        assert!(matches!(
+            c.command,
+            Command::Staff(StaffCmd::Appoint { .. })
+        ));
+        assert!(
+            Cli::try_parse_from(["sr-cli", "staff", "appoint", "bob", "--reason", "x"]).is_err()
+        );
+        assert!(Cli::try_parse_from(["sr-cli", "verify-access-log"]).is_ok());
         assert!(Cli::try_parse_from(["sr-cli", "bootstrap"]).is_err());
     }
 }

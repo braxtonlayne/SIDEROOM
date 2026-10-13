@@ -94,6 +94,8 @@ error_codes! {
     SrInviteExhausted = 900006, 403, "This invite can no longer be used";
     SrAccountDeactivated = 900007, 403, "This account has been deactivated";
     SrPlatformBanned = 900008, 403, "This account is banned from the platform";
+    SrNotFound = 900009, 404, "Unknown resource";
+    SrConflict = 900010, 409, "The current state does not allow this action";
     SrIgnoreListFull = 900101, 400, "Your ignore list is full";
     SrInternal = 900500, 500, "Internal server error";
 }

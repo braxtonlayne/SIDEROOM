@@ -128,6 +128,13 @@ pub struct Reset2fa {
 /// re-enrols (doc 07: MANAGE_ACCOUNTS "reset 2FA").
 pub async fn reset_2fa(pool: &PgPool, account_id: i64) -> DbResult<Reset2fa> {
     let mut tx = pool.begin().await?;
+    let out = reset_2fa_in(&mut tx, account_id).await?;
+    tx.commit().await?;
+    Ok(out)
+}
+
+/// The same inside the caller's transaction (admin actions record their audit row in it).
+pub async fn reset_2fa_in(tx: &mut sqlx::PgConnection, account_id: i64) -> DbResult<Reset2fa> {
     let totp = sqlx::query("DELETE FROM mfa_totp WHERE account_id = $1")
         .bind(account_id)
         .execute(&mut *tx)
@@ -159,7 +166,6 @@ pub async fn reset_2fa(pool: &PgPool, account_id: i64) -> DbResult<Reset2fa> {
     .execute(&mut *tx)
     .await?
     .rows_affected();
-    tx.commit().await?;
     Ok(Reset2fa {
         totp,
         recovery_codes,

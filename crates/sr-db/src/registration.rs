@@ -80,6 +80,20 @@ pub async fn register_with_invite(
         return Ok(Err(Rejection::InviteUnavailable));
     }
 
+    // An issuer whose Person reached the suspicion freeze threshold (doc 06 section 5.4) has
+    // their invites frozen pending staff review; operator emergency invites are exempt.
+    if !emergency {
+        let frozen: bool = sqlx::query_scalar(
+            "SELECT p.suspicion_level >= COALESCE(                  (SELECT floor((value #>> '{}')::numeric)::int FROM platform_settings                   WHERE key = 'invites.suspicion_freeze_threshold' AND jsonb_typeof(value) = 'number'), 2)              FROM accounts a JOIN persons p ON p.id = a.person_id WHERE a.id = $1",
+        )
+        .bind(issuer_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if frozen {
+            return Ok(Err(Rejection::InviteUnavailable));
+        }
+    }
+
     lock::xact_lock(&mut tx, lock::CAP_LOCK).await?;
     let active: i64 = sqlx::query_scalar("SELECT count(*) FROM accounts WHERE state = 'active'")
         .fetch_one(&mut *tx)
@@ -152,7 +166,9 @@ pub async fn register_with_invite(
         Some(p) => {
             let banned: bool = sqlx::query_scalar(
                 "SELECT EXISTS(SELECT 1 FROM accounts \
-                 WHERE person_id = $1 AND state = 'platform_banned')",
+                 WHERE person_id = $1 AND state = 'platform_banned') \
+                 OR EXISTS(SELECT 1 FROM person_bans \
+                 WHERE person_id = $1 AND lifted_at IS NULL)",
             )
             .bind(p)
             .fetch_one(&mut *tx)

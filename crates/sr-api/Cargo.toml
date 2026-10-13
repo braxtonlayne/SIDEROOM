@@ -20,7 +20,9 @@ metrics-exporter-prometheus = { version = "0.16", default-features = false }
 serde.workspace = true
 serde_json.workspace = true
 sha2 = "0.11"
+sr-admin = { path = "../sr-admin" }
 sr-auth = { path = "../sr-auth" }
+sr-features = { path = "../sr-features" }
 sr-chat = { path = "../sr-chat" }
 sr-core = { path = "../sr-core" }
 sr-events = { path = "../sr-events" }

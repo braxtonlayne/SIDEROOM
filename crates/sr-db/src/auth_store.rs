@@ -101,6 +101,16 @@ impl AuthStore for PgAuthStore {
         })
     }
 
+    async fn account_cap_override(&self) -> StoreResult<Option<u64>> {
+        let v: Option<i64> = sqlx::query_scalar(
+            "SELECT floor((value #>> '{}')::numeric)::bigint FROM platform_settings              WHERE key = 'accounts.cap' AND jsonb_typeof(value) = 'number'",
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(store_err)?;
+        Ok(v.and_then(|v| u64::try_from(v).ok()).filter(|v| *v > 0))
+    }
+
     async fn counted_accounts(&self) -> StoreResult<u64> {
         let n: i64 = sqlx::query_scalar("SELECT count(*) FROM accounts WHERE state = 'active'")
             .fetch_one(&self.pool)

@@ -106,7 +106,7 @@ pub async fn register(
     let Ok(code) = InviteCode::parse(&body.code) else {
         return Err(unusable());
     };
-    if svc.store.counted_accounts().await? >= svc.cfg.account_cap {
+    if svc.store.counted_accounts().await? >= svc.account_cap().await? {
         return Err(closed());
     }
     if svc.store.invite_state(&code).await? != Some(InviteState::Open) {
@@ -133,7 +133,7 @@ pub async fn register(
             display_name,
             email: email.clone(),
             password_hash,
-            account_cap: svc.cfg.account_cap,
+            account_cap: svc.account_cap().await?,
             initial_credits: svc.cfg.initial_credits,
             now,
         })
