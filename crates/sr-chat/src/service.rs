@@ -151,6 +151,21 @@ impl<R: ChatRepository> ChatService<R> {
         Ok(bp)
     }
 
+    /// Create a guild from a template snapshot in one repository call (D-180): the
+    /// roles, channels and overwrites it carries replace the default layout.
+    pub async fn create_guild_from_snapshot(
+        &self,
+        owner: UserId,
+        name: &str,
+        snapshot: &crate::settings::templates::TemplateSnapshot,
+    ) -> ChatResult<GuildBlueprint> {
+        let bp = guild_rules::plan_guild_from_snapshot(owner, name, self.now(), snapshot, || {
+            self.ids.generate()
+        })?;
+        self.repo.insert_guild(&bp).await?;
+        Ok(bp)
+    }
+
     pub async fn create_role(
         &self,
         actor: UserId,

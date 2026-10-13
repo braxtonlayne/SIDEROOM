@@ -374,23 +374,24 @@ impl GuildRepository for PgChatRepo {
         .await
         .map_err(db)?;
 
-        let e = &bp.everyone_role;
-        sqlx::query(
-            "INSERT INTO roles (id, guild_id, name, color, hoist, position, permissions, \
-             mentionable, managed) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
-        )
-        .bind(i(e.id.get()))
-        .bind(i(e.guild_id.get()))
-        .bind(&e.name)
-        .bind(i32::try_from(e.color).unwrap_or(0))
-        .bind(e.hoist)
-        .bind(e.position)
-        .bind(i(e.permissions.bits()))
-        .bind(e.mentionable)
-        .bind(e.managed)
-        .execute(&mut *tx)
-        .await
-        .map_err(db)?;
+        for e in std::iter::once(&bp.everyone_role).chain(&bp.extra_roles) {
+            sqlx::query(
+                "INSERT INTO roles (id, guild_id, name, color, hoist, position, permissions, \
+                 mentionable, managed) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+            )
+            .bind(i(e.id.get()))
+            .bind(i(e.guild_id.get()))
+            .bind(&e.name)
+            .bind(i32::try_from(e.color).unwrap_or(0))
+            .bind(e.hoist)
+            .bind(e.position)
+            .bind(i(e.permissions.bits()))
+            .bind(e.mentionable)
+            .bind(e.managed)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        }
 
         let m = &bp.owner_member;
         sqlx::query(
@@ -404,11 +405,31 @@ impl GuildRepository for PgChatRepo {
         .await
         .map_err(db)?;
 
-        for c in &bp.channels {
+        // Parents first: a category must exist before the channels under it.
+        let mut ordered: Vec<&Channel> = bp.channels.iter().collect();
+        ordered.sort_by_key(|c| c.parent_id.is_some());
+        for c in ordered {
             bind_channel(sqlx::query(INSERT_CHANNEL), c)
                 .execute(&mut *tx)
                 .await
                 .map_err(db)?;
+        }
+        for (channel, o) in &bp.overwrites {
+            sqlx::query(
+                "INSERT INTO permission_overwrites (channel_id, target_id, target_type, allow, deny) \
+                 VALUES ($1, $2, $3::overwrite_target, $4, $5)",
+            )
+            .bind(i(channel.get()))
+            .bind(i(o.id.get()))
+            .bind(match o.kind {
+                OverwriteKind::Role => "role",
+                OverwriteKind::Member => "member",
+            })
+            .bind(i(o.allow.bits()))
+            .bind(i(o.deny.bits()))
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
         }
         if let Some(sys) = g.system_channel_id {
             sqlx::query("UPDATE guilds SET system_channel_id = $2 WHERE id = $1")
