@@ -1,0 +1,57 @@
+name: Backup and restore drill
+# XC-OPS-003 / docs/12 section 5: weekly proof that deploy/scripts/backup.sh and restore-drill.sh still work
+# against the current schema. Migrates a scratch Postgres, seeds sample data, backs up, restores into a
+# throwaway database and checks it.
+on:
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "deploy/scripts/**"
+      - "crates/sr-db/migrations/**"
+      - ".github/workflows/backup-drill.yml"
+concurrency:
+  group: backup-drill-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+env:
+  PGPASSWORD: sideroom_ci
+  SR_DATABASE__URL: postgres://sideroom:sideroom_ci@localhost:5432/sideroom
+  SR_DATABASE_URL: postgres://sideroom:sideroom_ci@localhost:5432/sideroom
+  SR_BACKUP_DIR: ${{ github.workspace }}/backups
+jobs:
+  drill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: sideroom
+          POSTGRES_PASSWORD: sideroom_ci
+          POSTGRES_DB: sideroom
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sideroom" --health-interval 5s
+          --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build sr-cli
+        run: cargo build -p sr-cli
+      - name: Migrate and seed sample data
+        run: |
+          ./target/debug/sr-cli migrate
+          ./target/debug/sr-cli seed
+      - name: Back up
+        run: deploy/scripts/backup.sh
+      - name: Restore drill
+        run: deploy/scripts/restore-drill.sh
+      - name: A corrupted dump is refused
+        run: |
+          f=$(ls "$SR_BACKUP_DIR"/db/*.dump | head -n 1)
+          echo tamper >> "$f"
+          if deploy/scripts/restore-drill.sh; then echo "tampered dump was accepted" >&2; exit 1; fi

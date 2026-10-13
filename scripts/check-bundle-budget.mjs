@@ -3,9 +3,9 @@
 // Fails (exit 1) when a route's first-load JavaScript exceeds the gzip budget in bundle-budget.json.
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
+import { staticImports } from './lib/bundle.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const dist = resolve(process.argv[2] ?? join(here, '..', 'apps', 'web', 'dist'));
@@ -21,15 +21,6 @@ const gzipSize = (file) => {
   if (!gz.has(file)) gz.set(file, gzipSync(readFileSync(join(dist, file))).length);
   return gz.get(file);
 };
-
-/** Static (non-dynamic) imports of a built chunk, as paths relative to dist. */
-export function staticImports(file, code) {
-  const out = [];
-  const re =
-    /(?:^|[;}\n,])\s*(?:import|export)\s*(?:[^'"();]*?\bfrom\s*)?["']\.\/([^"']+\.js)["']/g;
-  for (const m of code.matchAll(re)) out.push(posix.join(posix.dirname(file), m[1]));
-  return out;
-}
 
 function closure(roots) {
   const seen = new Set();
