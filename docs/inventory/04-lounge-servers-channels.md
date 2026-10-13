@@ -68,11 +68,11 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 - [x] **LNG-THR-001** [BE] Start thread from message / without message, private threads, join/leave, add/remove member, archive/lock/unarchive, auto-archive job
 - [x] **LNG-THR-002** [BE] Active/archived (public/private/joined) listings with pagination
 - [x] **LNG-THR-003** [GW] THREAD_CREATE/UPDATE/DELETE/LIST_SYNC/MEMBER_UPDATE/MEMBERS_UPDATE
-- [ ] **LNG-THR-004** [FE] Threads list popout (Joined / Active / Archived, search)
-- [ ] **LNG-THR-005** [FE] Thread side pane (header, members, notification menu, close, open full view)
-- [ ] **LNG-THR-006** [FE] Thread starter row under message ("N Messages ›" + last message preview)
+- [ ] **LNG-THR-004** [FE] Threads list popout (Joined / Active / Archived, search) *Partial: Active and Archived lists with Load more are built (header Threads button). Joined filter and search are not.*
+- [ ] **LNG-THR-005** [FE] Thread side pane (header, members, notification menu, close, open full view) *Partial: Side pane with name, Follow/Following, close, messages and composer is built. Members list, notification menu and open-full-view are not.*
+- [x] **LNG-THR-006** [FE] Thread starter row under message ("N Messages ›" + last message preview) *Shows the thread name and message count; no last-message preview yet.*
 - [ ] **LNG-THR-007** [FE] Threads nested in channel list (joined/active)
-- [ ] **LNG-THR-008** [FE] Create Thread composer (name, private toggle, archive duration)
+- [ ] **LNG-THR-008** [FE] Create Thread composer (name, private toggle, archive duration) *Partial: Create Thread dialog (from a message, or standalone from the plus menu and /thread) takes a name and archive duration. The private-thread toggle is not built.*
 - [ ] **LNG-THR-009** [FE] Thread settings (name, slowmode, archive duration, lock, delete)
 
 ## LNG-FRM — Forum & media channels
