@@ -329,6 +329,38 @@ impl AuthStore for PgAuthStore {
         .transpose()
     }
 
+    async fn email_change_cancel(&self, user_id: i64) -> StoreResult<bool> {
+        let r = sqlx::query(
+            "DELETE FROM email_tokens WHERE account_id = $1              AND purpose = 'change_email'::email_token_purpose AND used_at IS NULL",
+        )
+        .bind(user_id)
+        .execute(&self.pool)
+        .await
+        .map_err(store_err)?;
+        Ok(r.rows_affected() > 0)
+    }
+
+    async fn session_mfa_verified_at(&self, session_id: i64) -> StoreResult<Option<i64>> {
+        sqlx::query_scalar(
+            "SELECT EXTRACT(EPOCH FROM mfa_verified_at)::BIGINT FROM sessions              WHERE id = $1 AND revoked_at IS NULL",
+        )
+        .bind(session_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map(Option::flatten)
+        .map_err(store_err)
+    }
+
+    async fn session_mark_mfa_verified(&self, session_id: i64, at: i64) -> StoreResult<()> {
+        sqlx::query("UPDATE sessions SET mfa_verified_at = to_timestamp($2::float8) WHERE id = $1")
+            .bind(session_id)
+            .bind(at as f64)
+            .execute(&self.pool)
+            .await
+            .map_err(store_err)?;
+        Ok(())
+    }
+
     async fn set_email(&self, id: i64, email: &str) -> StoreResult<bool> {
         let r = sqlx::query(
             "UPDATE accounts SET email = $2, email_verified_at = now(), updated_at = now() \

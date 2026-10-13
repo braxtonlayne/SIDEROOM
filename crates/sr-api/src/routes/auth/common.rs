@@ -271,6 +271,29 @@ impl AuthService {
         user_id: i64,
         user_agent: Option<&str>,
     ) -> Result<(SessionToken, String), AuthRouteError> {
+        self.start_session_inner(state, user_id, user_agent, false)
+            .await
+    }
+
+    /// Like [`Self::start_session`] for a login that just passed a second-factor
+    /// check, so the session counts as freshly verified (F-03, 15 minutes).
+    pub(super) async fn start_session_mfa(
+        &self,
+        state: &AppState,
+        user_id: i64,
+        user_agent: Option<&str>,
+    ) -> Result<(SessionToken, String), AuthRouteError> {
+        self.start_session_inner(state, user_id, user_agent, true)
+            .await
+    }
+
+    async fn start_session_inner(
+        &self,
+        state: &AppState,
+        user_id: i64,
+        user_agent: Option<&str>,
+        mfa_verified: bool,
+    ) -> Result<(SessionToken, String), AuthRouteError> {
         let now = state.now_secs();
         let token = SessionToken::generate()?;
         let policy: &SessionPolicy = state.session_policy();
@@ -283,13 +306,28 @@ impl AuthService {
             expires_at: policy.expiry(now, now),
             device_name: super::validate::device_name(user_agent),
         };
+        let session_id = rec.id;
         self.store.create_session(rec).await?;
+        if mfa_verified {
+            self.store
+                .session_mark_mfa_verified(session_id, now)
+                .await?;
+        }
         let cookie = session_cookie(
             &token,
             state.settings().secure_cookies,
             policy.absolute_ttl_secs,
         );
         Ok((token, cookie))
+    }
+
+    /// Render the "This wasn't me" link of an email-change notice (the web page
+    /// `/email-change/cancel?token=`, F-24).
+    pub(super) fn cancel_email_link(&self, token: &str) -> String {
+        format!(
+            "{}/email-change/cancel?token={token}",
+            self.cfg.public_url.trim_end_matches('/')
+        )
     }
 
     /// Render a verification/reset link.

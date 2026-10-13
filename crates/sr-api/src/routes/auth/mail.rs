@@ -209,6 +209,27 @@ pub fn change_email(to: &str, link: &str) -> OutgoingMail {
     }
 }
 
+/// Sent to the *old* address when an email change starts: the account holder can
+/// cancel it with the "This wasn't me" link (D-167).
+pub fn change_email_notice(to: &str, new_email: &str, cancel_link: &str) -> OutgoingMail {
+    let intro = format!(
+        "Someone asked to change the email on your SIDE ROOM account to {new_email}. Nothing changes until that address is confirmed. If this was you, you can ignore this message."
+    );
+    let (text, html) = wrap(
+        "Your email is about to change",
+        &intro,
+        cancel_link,
+        "This wasn't me",
+        "If this was not you, use the button to cancel the change. If it already went through, the same link signs every device out. The link works for 7 days.",
+    );
+    OutgoingMail {
+        to: to.to_owned(),
+        subject: "Your SIDE ROOM email is being changed".to_owned(),
+        text,
+        html,
+    }
+}
+
 /// A link-less security notice (`heading`, then `body`).
 fn notice(to: &str, subject: &str, heading: &str, body: &str) -> OutgoingMail {
     let text = format!("{heading}\n\n{body}\n\nSIDE ROOM\n");
@@ -227,14 +248,22 @@ fn notice(to: &str, subject: &str, heading: &str, body: &str) -> OutgoingMail {
     }
 }
 
-/// Sent to the old address once an email change is confirmed.
-pub fn email_changed(to: &str) -> OutgoingMail {
-    notice(
-        to,
-        "Your SIDE ROOM email was changed",
+/// Sent to the old address once an email change is confirmed. The link signs every
+/// device out (D-167).
+pub fn email_changed(to: &str, cancel_link: &str) -> OutgoingMail {
+    let (text, html) = wrap(
         "Your email was changed",
-        "The email address on your SIDE ROOM account was just changed to a new one. If this was not you, reset your password right away and contact the operator.",
-    )
+        "The email address on your SIDE ROOM account was just changed to a new one. If this was you, no action is needed.",
+        cancel_link,
+        "This wasn't me",
+        "If this was not you, use the button to sign out every device, then reset your password and contact the operator. The link works for 7 days.",
+    );
+    OutgoingMail {
+        to: to.to_owned(),
+        subject: "Your SIDE ROOM email was changed".to_owned(),
+        text,
+        html,
+    }
 }
 
 /// Sent after a signed-in password change.

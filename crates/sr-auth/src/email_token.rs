@@ -21,6 +21,10 @@ pub enum EmailTokenPurpose {
     /// Confirm a new address for a signed-in account (24 hours). The pending
     /// address is stored beside the token, not on the account, until confirmed.
     ChangeEmail,
+    /// The "This wasn't me" link in the notice sent to the *old* address when an
+    /// email change starts or completes (D-167, 7 days). Cancels a pending change,
+    /// or revokes every session once the change has completed.
+    CancelEmailChange,
 }
 
 impl EmailTokenPurpose {
@@ -30,6 +34,7 @@ impl EmailTokenPurpose {
             Self::ResetPassword => "sideroom/email-token/reset/v1",
             Self::LoginLink => "sideroom/email-token/login-link/v1",
             Self::ChangeEmail => "sideroom/email-token/change-email/v1",
+            Self::CancelEmailChange => "sideroom/email-token/cancel-email-change/v1",
         }
     }
 
@@ -39,6 +44,7 @@ impl EmailTokenPurpose {
             Self::VerifyEmail | Self::ChangeEmail => 24 * 3600,
             Self::ResetPassword => 30 * 60,
             Self::LoginLink => 3600,
+            Self::CancelEmailChange => 7 * 24 * 3600,
         }
     }
 }

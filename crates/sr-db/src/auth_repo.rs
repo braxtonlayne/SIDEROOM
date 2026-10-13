@@ -210,11 +210,14 @@ impl SessionRepository for PgAuthRepo {
     type Error = AuthRepoError;
 
     async fn create(&self, rec: SessionRecord) -> Result<(), Self::Error> {
+        // A login also counts as the account being seen (prune, D-166).
         sqlx::query(
-            "INSERT INTO sessions (id, account_id, token_hash, device_label, \
+            "WITH ins AS (INSERT INTO sessions (id, account_id, token_hash, device_label, \
              created_at, last_seen_at, expires_at) \
              VALUES ($1, $2, $3, $4, to_timestamp($5::float8), to_timestamp($6::float8), \
-             to_timestamp($7::float8))",
+             to_timestamp($7::float8)) RETURNING account_id) \
+             UPDATE accounts SET last_seen_at = to_timestamp($6::float8) \
+             WHERE id = (SELECT account_id FROM ins)",
         )
         .bind(rec.id)
         .bind(rec.user_id)
@@ -508,6 +511,7 @@ fn purpose_sql(p: EmailTokenPurpose) -> &'static str {
         EmailTokenPurpose::ResetPassword => "reset_password",
         EmailTokenPurpose::LoginLink => "login_link",
         EmailTokenPurpose::ChangeEmail => "change_email",
+        EmailTokenPurpose::CancelEmailChange => "cancel_email_change",
     }
 }
 

@@ -204,6 +204,8 @@ pub trait AuthStore: Send + Sync {
         hash: &TokenHash,
         now: i64,
     ) -> StoreResult<Option<(i64, String)>>;
+    /// Drop the account's pending (unconsumed) address change. `true` when there was one.
+    async fn email_change_cancel(&self, user_id: i64) -> StoreResult<bool>;
     /// Replace the account's email and mark it verified (the owner just proved
     /// control of it). `false` when another account already has the address.
     async fn set_email(&self, id: i64, email: &str) -> StoreResult<bool>;
@@ -215,6 +217,11 @@ pub trait AuthStore: Send + Sync {
     async fn list_sessions(&self, user_id: i64, now: i64) -> StoreResult<Vec<SessionRecord>>;
     /// Revoke one session; false if it was not the user's.
     async fn revoke_session(&self, user_id: i64, session_id: i64) -> StoreResult<bool>;
+    /// When this session last passed a second-factor check (login 2FA or the
+    /// email-change re-prompt), as Unix seconds. `None` when it never did.
+    async fn session_mfa_verified_at(&self, session_id: i64) -> StoreResult<Option<i64>>;
+    /// Record a second-factor check on this session.
+    async fn session_mark_mfa_verified(&self, session_id: i64, at: i64) -> StoreResult<()>;
     /// Revoke all sessions except `keep`.
     async fn revoke_sessions_except(&self, user_id: i64, keep: Option<i64>) -> StoreResult<u64>;
 
