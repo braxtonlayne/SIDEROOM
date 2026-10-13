@@ -1,7 +1,8 @@
 // REST calls feeding the store (docs/05 section 4). Thin wrappers over apiFetch.
 import { apiFetch } from '../api/client';
 import { cmpId } from './reducer';
-import type { Channel, Guild, Message, Role, User } from './types';
+import type { Channel, Guild, Message, Role, User, UserSettingsBlob } from './types';
+export type { UserSettingsBlob };
 
 export const PAGE_SIZE = 50;
 
@@ -177,6 +178,8 @@ export interface CreateInviteOptions {
   max_age?: number;
   /** 0 (unlimited) to 100. */
   max_uses?: number;
+  /** "Copy link": the invite leaves the platform, so the server defaults to a single use (D-022). */
+  external?: boolean;
 }
 
 export interface CreateChannelBody {
@@ -256,3 +259,13 @@ export const searchChannelMessages = (
     `/channels/${channelId}/messages/search?${searchParams(q, typeof o === 'number' ? { offset: o } : o)}`,
     { retries: 0 },
   );
+
+/** The synced per-user settings blob (`GET/PATCH /users/@me/settings`, RFC 7386 merge patch). */
+export const fetchUserSettings = () =>
+  apiFetch<UserSettingsBlob>('/users/@me/settings', { retries: 0 });
+export const patchUserSettings = (settings: Record<string, unknown>) =>
+  apiFetch<UserSettingsBlob>('/users/@me/settings', {
+    method: 'PATCH',
+    json: { settings },
+    retries: 0,
+  });

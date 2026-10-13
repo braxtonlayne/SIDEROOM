@@ -43,6 +43,7 @@ export const loadPermissions = once(async (wasmUrl) => {
     computeOverwrites: (base, guildId, memberId, memberRoleIds, overwrites) =>
       m.computeOverwrites(base, guildId, memberId, memberRoleIds, JSON.stringify(overwrites)),
     has: (have, want) => m.hasPermission(have, want),
+    compute: (input) => m.compute(JSON.stringify(input)),
   };
 });
 

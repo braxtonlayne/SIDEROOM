@@ -33,6 +33,10 @@ export interface Channel {
   rate_limit_per_user?: number;
   /** DM / group DM participants. */
   recipients?: User[];
+  /** DM from a non-friend awaiting acceptance; such channels stay out of the DM list. */
+  is_message_request?: boolean | null;
+  /** Per-channel role/member overwrites (type 0 role, 1 member; allow/deny are decimal strings). */
+  permission_overwrites?: { id: string; type: number; allow: string; deny: string }[];
 }
 
 export interface Role {
@@ -52,6 +56,8 @@ export interface Member {
   nick?: string | null;
   roles: string[];
   joined_at?: string;
+  /** ISO end of the member's timeout, when timed out. */
+  communication_disabled_until?: string | null;
 }
 
 export interface Message {
@@ -195,3 +201,9 @@ export interface MessageWindow {
 }
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'closed';
+
+/** The synced per-user settings blob (`/users/@me/settings`): a client-owned JSON object plus its version. */
+export interface UserSettingsBlob {
+  version: number;
+  settings: Record<string, unknown>;
+}
