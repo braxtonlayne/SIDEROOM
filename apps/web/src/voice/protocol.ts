@@ -1,50 +1,57 @@
 /**
- * Voice WebSocket protocol (`sr-voice-proto`, docs/specs/lounge-voice-video.md section 4).
+ * Voice WebSocket protocol (`sr-voice-proto`, docs/specs/lounge-voice-video.md section 4.3; Rust types in
+ * crates/sr-voice-proto/src/wire.rs). Text frames `{"op": n, "d": {...}}`, ids are decimal strings.
  *
- * Discord-voice-gateway-like opcodes. The numbers and payload shapes here are the client's reading of the
- * contract; if the SFU's `sr-voice-proto` differs, this file is the only place that changes (the engine
- * speaks to it through `encode` / `parseFrame`). Assumptions are listed in
- * docs/dev/handoff/feat-p5-voice-client.md.
- *
- * Flow: gateway `VOICE_STATE_UPDATE` (op 4) -> `VOICE_SERVER_UPDATE` {endpoint, token, ice_servers} ->
- * WebSocket `wss://{endpoint}/voice?v=1` -> HELLO -> IDENTIFY -> READY -> SELECT_PROTOCOL {sdp offer}
- * -> SESSION_DESCRIPTION {sdp answer}. The offer is sent after ICE gathering, so no trickle ops exist.
+ * Flow: gateway `VOICE_STATE_UPDATE` (op 4) -> `VOICE_SERVER_UPDATE` {endpoint (full ws URL), token,
+ * ice_servers} -> open the endpoint, send IDENTIFY {token} -> READY -> client SDP_OFFER (after ICE gathering,
+ * so no trickle) -> SDP_ANSWER. The server later sends its own SDP_OFFERs to add or remove one sendonly audio
+ * line per remote participant (msid stream id = user id); the client answers and is the polite peer on glare.
  */
 export const VoiceOp = {
   IDENTIFY: 0,
-  SELECT_PROTOCOL: 1,
-  READY: 2,
-  HEARTBEAT: 3,
-  SESSION_DESCRIPTION: 4,
-  SPEAKING: 5,
-  HEARTBEAT_ACK: 6,
-  RESUME: 7,
-  HELLO: 8,
+  READY: 1,
+  HEARTBEAT: 2,
+  HEARTBEAT_ACK: 3,
+  SDP_OFFER: 4,
+  SDP_ANSWER: 5,
+  ICE_CANDIDATE: 6,
+  SPEAKING: 7,
+  RESUME: 8,
   RESUMED: 9,
+  CLIENT_CONNECT: 10,
+  CLIENT_DISCONNECT: 11,
+  /** Reserved: video, screen share. */
   VIDEO: 12,
-  CLIENT_DISCONNECT: 13,
-  CLIENT_CONNECT: 18,
+  /** Reserved: egress governor notices. */
+  QUALITY: 13,
 } as const;
 
-/** Close codes after which the voice session is gone and a fresh VOICE_SERVER_UPDATE is needed. */
 export const VoiceClose = {
   AUTHENTICATION_FAILED: 4004,
-  SESSION_NO_LONGER_VALID: 4006,
-  SESSION_TIMEOUT: 4009,
-  SERVER_NOT_FOUND: 4011,
+  SESSION_INVALID: 4006,
+  HEARTBEAT_TIMEOUT: 4009,
+  /** Removed from the call (moderator disconnect or move): do not reconnect. */
   DISCONNECTED: 4014,
-  SERVER_CRASHED: 4015,
+  /** SFU draining: resume, else rejoin. */
+  SERVER_RESTARTING: 4015,
+  /** The same user joined from another tab or device. */
+  SESSION_REPLACED: 4016,
+  SERVER_FULL: 4017,
 } as const;
 
-export const FATAL_VOICE_CLOSES: ReadonlySet<number> = new Set([
+/** Closes after which only a fresh join through the gateway (new VOICE_SERVER_UPDATE) can help. */
+export const REJOIN_VOICE_CLOSES: ReadonlySet<number> = new Set([
+  1,
+  2,
+  3,
+  4001,
+  4002,
+  4003,
   VoiceClose.AUTHENTICATION_FAILED,
-  VoiceClose.SESSION_NO_LONGER_VALID,
-  VoiceClose.SESSION_TIMEOUT,
-  VoiceClose.SERVER_NOT_FOUND,
-  VoiceClose.DISCONNECTED,
+  VoiceClose.SESSION_INVALID,
 ]);
 
-/** SPEAKING flag bits. */
+/** SPEAKING bitmask. */
 export const SPEAKING_VOICE = 1;
 export const SPEAKING_PRIORITY = 4;
 
@@ -54,32 +61,36 @@ export interface VoiceFrame {
 }
 
 export interface IdentifyData {
-  server_id: string;
-  user_id: string;
-  session_id: string;
   token: string;
 }
 
-export interface ReadyData {
-  ssrc?: number;
-  ice_servers?: { urls: string | string[]; username?: string; credential?: string }[];
+export interface ParticipantInfo {
+  user_id: string;
+  speaking: number;
+  muted?: boolean;
+  deafened?: boolean;
 }
 
-export interface SessionDescriptionData {
+/** READY and RESUMED. */
+export interface ReadyData {
+  session_id: string;
+  resume_token: string;
+  heartbeat_interval: number;
+  user_id?: string;
+  channel_id?: string;
+  guild_id?: string;
+  participants?: ParticipantInfo[];
+}
+
+export interface SdpData {
   sdp: string;
-  audio_codec?: string;
 }
 
 export interface SpeakingData {
   /** Present on server -> client frames. */
   user_id?: string;
   speaking: number;
-  ssrc?: number;
-  delay?: number;
-}
-
-export interface HelloData {
-  heartbeat_interval: number;
+  audio_level?: number;
 }
 
 export const encode = (op: number, d?: unknown): string => JSON.stringify({ op, d });
@@ -94,18 +105,18 @@ export function parseFrame(raw: unknown): VoiceFrame | null {
   }
 }
 
-/** `wss://host/voice?v=1` for a `VOICE_SERVER_UPDATE` endpoint (a bare host, host:port, path, or full URL). */
+/** The WebSocket URL for a `VOICE_SERVER_UPDATE` endpoint: normally a full ws(s) URL; a bare host is tolerated. */
 export function voiceUrl(
   endpoint: string,
   secure: boolean = globalThis.location?.protocol === 'https:',
 ): string {
   if (/^wss?:\/\//.test(endpoint)) return endpoint;
   const scheme = secure ? 'wss' : 'ws';
-  // A leading slash means same-origin through the reverse proxy / dev proxy ("/voice").
+  // A leading slash means same-origin behind the reverse proxy / dev proxy.
   if (endpoint.startsWith('/')) {
     return `${scheme}://${globalThis.location?.host ?? 'localhost'}${endpoint}`;
   }
-  return `${scheme}://${endpoint}/voice?v=1`;
+  return `${scheme}://${endpoint}/voice/ws`;
 }
 
 /**

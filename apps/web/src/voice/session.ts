@@ -9,7 +9,7 @@ export type SessionStatus =
   'idle' | 'joining' | 'connecting' | 'connected' | 'reconnecting' | 'error';
 
 export interface SessionError {
-  code: 'mic' | 'connect' | 'gateway' | 'disconnected' | 'timeout';
+  code: 'mic' | 'connect' | 'gateway' | 'disconnected' | 'timeout' | 'refused' | 'replaced';
   message: string;
   /** Present for microphone failures so the UI can offer the right fix. */
   mic?: 'permission-denied' | 'no-device' | 'in-use' | 'unsupported' | 'unknown';

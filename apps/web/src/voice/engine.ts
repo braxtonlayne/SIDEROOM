@@ -12,15 +12,16 @@ import { RemoteAudio } from './playback';
 import { browserAudioDeps, type AudioDeps, MicError } from './deps';
 import {
   encode,
-  FATAL_VOICE_CLOSES,
   parseFrame,
+  REJOIN_VOICE_CLOSES,
+  SPEAKING_PRIORITY,
   SPEAKING_VOICE,
   tuneOpus,
+  VoiceClose,
   VoiceOp,
   voiceUrl,
-  type HelloData,
   type ReadyData,
-  type SessionDescriptionData,
+  type SdpData,
   type SpeakingData,
 } from './protocol';
 import { qualityFromStats, type ConnectionQuality } from './quality';
@@ -28,7 +29,7 @@ import { qualityFromStats, type ConnectionQuality } from './quality';
 export type EngineStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting';
 
 export interface VoiceError {
-  code: 'mic' | 'connect-timeout' | 'server' | 'closed';
+  code: 'mic' | 'connect-timeout' | 'closed' | 'removed' | 'replaced' | 'full';
   message: string;
   mic?: MicError['code'];
 }
@@ -43,18 +44,21 @@ export class VoiceConnectError extends Error {
 export interface ConnectParams {
   endpoint: string;
   token: string;
-  guildId: string;
+  /** The viewer's user id (their own SPEAKING echo is ignored). */
   userId: string;
-  sessionId: string;
   iceServers?: VoiceIceServer[];
   mic: MicOptions;
 }
 
 export interface EngineEvents {
   status(s: EngineStatus): void;
-  speaking(userId: string, speaking: boolean): void;
+  speaking(userId: string, speaking: boolean, priority: boolean): void;
   quality(q: ConnectionQuality): void;
-  /** The voice session cannot continue: ask the gateway for a fresh VOICE_SERVER_UPDATE. */
+  /**
+   * The voice session cannot continue. `closed`: ask the gateway for a fresh VOICE_SERVER_UPDATE.
+   * `removed` (4014): a moderator disconnected or moved us, wait for the gateway; do not rejoin.
+   * `replaced` / `full`: stop and tell the viewer.
+   */
   fatal(e: VoiceError): void;
   /** Mic level in dBFS, ~30 ms cadence while capturing. */
   level(db: number): void;
@@ -88,6 +92,7 @@ export type EngineFactory = (events: EngineEvents) => VoiceEngine;
 /** A narrow view of RTCPeerConnection (real or fake). */
 export interface PeerLike {
   readonly connectionState: string;
+  readonly signalingState: string;
   readonly iceGatheringState: string;
   readonly localDescription: { type: string; sdp?: string } | null;
   onconnectionstatechange: (() => void) | null;
@@ -141,6 +146,7 @@ export class RtcVoiceEngine implements VoiceEngine {
   private mic: MicPipeline;
   private playback: RemoteAudio;
   private heartbeat: ReturnType<typeof setInterval> | undefined;
+  private awaitingAck = false;
   private qualityTimer: ReturnType<typeof setInterval> | undefined;
   private graceTimer: ReturnType<typeof setTimeout> | undefined;
   private retryTimer: ReturnType<typeof setTimeout> | undefined;
@@ -150,10 +156,14 @@ export class RtcVoiceEngine implements VoiceEngine {
   private iceRestarts = 0;
   private transmitting = false;
   private announced = false;
-  private ssrc = 0;
+  private voiceSessionId = '';
+  private resumeToken = '';
   private resolveConnect: (() => void) | null = null;
   private rejectConnect: ((e: Error) => void) | null = null;
-  private pendingRestart = false;
+  private offerPending = false;
+  /** Our own offer must be (re)sent once the line is free / the socket is back. */
+  private reoffer: { restart: boolean } | null = null;
+  private chain: Promise<void> = Promise.resolve();
   private offLevel: (() => void) | null = null;
   private offLost: (() => void) | null = null;
   private offOnline: (() => void) | null = null;
@@ -236,8 +246,19 @@ export class RtcVoiceEngine implements VoiceEngine {
     const gen = ++this.wsGen;
     const ws = this.deps.createSocket(voiceUrl(p.endpoint));
     this.ws = ws;
+    ws.onopen = () => {
+      if (gen !== this.wsGen) return;
+      if (resume && this.voiceSessionId) {
+        this.send(VoiceOp.RESUME, {
+          session_id: this.voiceSessionId,
+          resume_token: this.resumeToken,
+        });
+      } else {
+        this.send(VoiceOp.IDENTIFY, { token: p.token });
+      }
+    };
     ws.onmessage = (m) => {
-      if (gen === this.wsGen) this.onFrame(m.data, resume);
+      if (gen === this.wsGen) this.onFrame(m.data);
     };
     ws.onclose = (ev) => {
       if (gen === this.wsGen) this.onSocketClose(ev.code);
@@ -253,55 +274,69 @@ export class RtcVoiceEngine implements VoiceEngine {
     return true;
   }
 
-  private onFrame(raw: unknown, resuming: boolean): void {
-    const f = parseFrame(raw);
-    const p = this.params;
-    if (!f || !p) return;
-    switch (f.op) {
-      case VoiceOp.HELLO: {
-        const interval = (f.d as HelloData | undefined)?.heartbeat_interval ?? 15_000;
-        clearInterval(this.heartbeat);
-        this.heartbeat = setInterval(() => this.send(VoiceOp.HEARTBEAT, Date.now()), interval);
-        if (resuming && this.pc) {
-          this.send(VoiceOp.RESUME, {
-            server_id: p.guildId,
-            session_id: p.sessionId,
-            token: p.token,
-          });
-        } else {
-          this.send(VoiceOp.IDENTIFY, {
-            server_id: p.guildId,
-            user_id: p.userId,
-            session_id: p.sessionId,
-            token: p.token,
-          });
+  private startHeartbeat(interval: number): void {
+    clearInterval(this.heartbeat);
+    this.awaitingAck = false;
+    this.heartbeat = setInterval(() => {
+      if (this.awaitingAck) {
+        // No ack for a whole interval: the socket is dead. Treat it like a heartbeat-timeout close.
+        const ws = this.ws;
+        this.wsGen++;
+        this.ws = null;
+        if (ws) {
+          ws.onmessage = ws.onclose = ws.onerror = ws.onopen = null;
+          try {
+            ws.close(4000, 'heartbeat ack timeout');
+          } catch {
+            /* already closed */
+          }
         }
-        break;
+        this.onSocketClose(VoiceClose.HEARTBEAT_TIMEOUT);
+        return;
       }
+      this.awaitingAck = true;
+      this.send(VoiceOp.HEARTBEAT, { t: Date.now() });
+    }, interval);
+  }
+
+  private onFrame(raw: unknown): void {
+    const f = parseFrame(raw);
+    if (!f || !this.params) return;
+    switch (f.op) {
       case VoiceOp.READY: {
-        const d = (f.d ?? {}) as ReadyData;
-        this.ssrc = d.ssrc ?? 0;
-        void this.negotiate(false, d.ice_servers).catch((e) =>
-          this.failConnect(e instanceof Error ? e : new Error(String(e))),
-        );
+        const d = f.d as ReadyData;
+        this.voiceSessionId = d.session_id;
+        this.resumeToken = d.resume_token;
+        this.startHeartbeat(d.heartbeat_interval || 13_750);
+        this.applyParticipants(d);
+        this.enqueue(() => this.negotiate(false));
         break;
       }
-      case VoiceOp.RESUMED:
+      case VoiceOp.RESUMED: {
+        const d = (f.d ?? {}) as Partial<ReadyData>;
         this.socketRetries = 0;
-        if (this.pendingRestart) void this.negotiate(true).catch(() => undefined);
+        this.startHeartbeat(d.heartbeat_interval || 13_750);
+        this.applyParticipants(d);
+        if (this.reoffer) this.enqueue(() => this.negotiate(this.reoffer?.restart ?? false));
         else if (this.pc?.connectionState === 'connected') this.setStatus('connected');
         break;
-      case VoiceOp.SESSION_DESCRIPTION:
-        void this.onDescription((f.d ?? {}) as SessionDescriptionData & { type?: string }).catch(
-          (e) => {
-            if (this.resolveConnect)
-              this.failConnect(e instanceof Error ? e : new Error(String(e)));
-          },
-        );
+      }
+      case VoiceOp.HEARTBEAT_ACK:
+        this.awaitingAck = false;
+        break;
+      case VoiceOp.SDP_ANSWER:
+        this.enqueue(() => this.onAnswer((f.d as SdpData).sdp));
+        break;
+      case VoiceOp.SDP_OFFER:
+        this.enqueue(() => this.onServerOffer((f.d as SdpData).sdp));
         break;
       case VoiceOp.SPEAKING: {
         const d = f.d as SpeakingData | undefined;
-        if (d?.user_id) this.events.speaking(d.user_id, (d.speaking & SPEAKING_VOICE) !== 0);
+        if (d?.user_id && d.user_id !== this.params.userId) {
+          const priority = (d.speaking & SPEAKING_PRIORITY) !== 0;
+          this.playback.setPriority(d.user_id, priority && d.speaking !== 0);
+          this.events.speaking(d.user_id, (d.speaking & SPEAKING_VOICE) !== 0, priority);
+        }
         break;
       }
       case VoiceOp.CLIENT_DISCONNECT: {
@@ -314,69 +349,90 @@ export class RtcVoiceEngine implements VoiceEngine {
     }
   }
 
+  private applyParticipants(d: Partial<ReadyData>): void {
+    for (const p of d.participants ?? []) {
+      if (p.user_id === this.params?.userId) continue;
+      this.playback.setPriority(p.user_id, (p.speaking & SPEAKING_PRIORITY) !== 0);
+      this.events.speaking(p.user_id, (p.speaking & SPEAKING_VOICE) !== 0, false);
+    }
+  }
+
   private onSocketClose(code: number): void {
     clearInterval(this.heartbeat);
     this.ws = null;
     if (!this.params) return;
-    if (FATAL_VOICE_CLOSES.has(code)) {
-      const wasConnecting = !!this.rejectConnect;
-      const err: VoiceError = { code: 'closed', message: `Voice session ended (${code}).` };
-      if (wasConnecting) this.failConnect(new VoiceConnectError(err));
+    const fail = (err: VoiceError) => {
+      if (this.rejectConnect) this.failConnect(new VoiceConnectError(err));
       else {
         this.teardown();
         this.events.fatal(err);
       }
-      return;
+    };
+    if (code === VoiceClose.DISCONNECTED) {
+      fail({ code: 'removed', message: 'You were removed from the call.' });
+    } else if (code === VoiceClose.SESSION_REPLACED) {
+      fail({ code: 'replaced', message: 'You joined this voice channel from another window.' });
+    } else if (code === VoiceClose.SERVER_FULL) {
+      fail({ code: 'full', message: 'This voice server is full. Try again in a moment.' });
+    } else if (REJOIN_VOICE_CLOSES.has(code) || (!this.voiceSessionId && this.rejectConnect)) {
+      fail({ code: 'closed', message: `Voice session ended (${code}).` });
+    } else if (this.socketRetries >= MAX_SOCKET_RETRIES) {
+      fail({ code: 'closed', message: 'Lost the voice connection.' });
+    } else {
+      this.setStatus('reconnecting');
+      const delay = Math.min(8000, 500 * 2 ** this.socketRetries++);
+      clearTimeout(this.retryTimer);
+      this.retryTimer = setTimeout(() => this.openSocket(true), delay);
     }
-    if (this.socketRetries >= MAX_SOCKET_RETRIES) {
-      this.teardown();
-      this.events.fatal({ code: 'closed', message: 'Lost the voice connection.' });
-      return;
-    }
-    this.setStatus('reconnecting');
-    const delay = Math.min(8000, 500 * 2 ** this.socketRetries++);
-    clearTimeout(this.retryTimer);
-    this.retryTimer = setTimeout(() => this.openSocket(true), delay);
   }
 
   // ---- WebRTC ----
 
-  private iceServers(extra?: ReadyData['ice_servers']): VoiceIceServer[] {
-    return [...(this.params?.iceServers ?? []), ...(extra ?? [])];
-  }
-
-  private buildPeer(extra?: ReadyData['ice_servers']): PeerLike {
-    const pc = this.deps.createPeer({ iceServers: this.iceServers(extra) });
+  private buildPeer(): PeerLike {
+    const pc = this.deps.createPeer({ iceServers: this.params?.iceServers ?? [] });
     const out = this.mic.outStream;
     const track = this.mic.track;
     if (track && out) pc.addTransceiver(track, { direction: 'sendrecv', streams: [out] });
     pc.ontrack = (ev) => {
       const stream = ev.streams[0];
       if (!stream || ev.track.kind !== 'audio') return;
-      // Convention: the SFU labels each forwarded stream with the sender's user id.
+      // The SFU labels each forwarded line's msid stream with the speaker's user id (spec 4.4).
       this.addPeer(stream.id, stream);
     };
     pc.onconnectionstatechange = () => this.onPeerState(pc);
     return pc;
   }
 
-  private async negotiate(restart: boolean, extraIce?: ReadyData['ice_servers']): Promise<void> {
-    if (!this.pc) this.pc = this.buildPeer(extraIce);
+  /** Serialize SDP work so offers, answers and rollbacks never interleave. */
+  private enqueue(fn: () => Promise<void>): void {
+    this.chain = this.chain.then(fn).catch((e: unknown) => {
+      if (this.resolveConnect) {
+        this.failConnect(e instanceof Error ? e : new Error(String(e)));
+      }
+    });
+  }
+
+  private async negotiate(restart: boolean): Promise<void> {
+    if (!this.params) return;
+    if (!this.pc) this.pc = this.buildPeer();
     const pc = this.pc;
-    this.pendingRestart = false;
+    if (this.offerPending) {
+      // One outstanding offer at a time: ask again once the answer is in.
+      this.reoffer = { restart: restart || (this.reoffer?.restart ?? false) };
+      return;
+    }
+    this.reoffer = null;
+    this.offerPending = true;
     const offer = await pc.createOffer(restart ? { iceRestart: true } : undefined);
     await pc.setLocalDescription(offer);
     await this.gathered(pc);
     const sdp = tuneOpus(pc.localDescription?.sdp ?? offer.sdp ?? '');
-    const sent = this.send(VoiceOp.SELECT_PROTOCOL, {
-      protocol: 'webrtc',
-      type: 'offer',
-      sdp,
-      data: sdp,
-      codecs: [{ name: 'opus', type: 'audio', priority: 1000, payload_type: 111 }],
-      ssrc: this.ssrc || undefined,
-    });
-    if (!sent) this.pendingRestart = true;
+    if (!this.send(VoiceOp.SDP_OFFER, { sdp })) {
+      // Socket is down: the resume handler sends it when the socket is back.
+      this.offerPending = false;
+      this.reoffer = { restart };
+      await pc.setLocalDescription({ type: 'rollback' });
+    }
   }
 
   private gathered(pc: PeerLike): Promise<void> {
@@ -394,23 +450,29 @@ export class RtcVoiceEngine implements VoiceEngine {
     });
   }
 
-  private async onDescription(d: SessionDescriptionData & { type?: string }): Promise<void> {
+  private async onAnswer(sdp: string): Promise<void> {
     const pc = this.pc;
-    if (!pc || !d.sdp) return;
-    if (d.type === 'offer') {
-      // The SFU renegotiates when streams are added or removed: answer on the same channel.
-      await pc.setRemoteDescription({ type: 'offer', sdp: d.sdp });
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      this.send(VoiceOp.SELECT_PROTOCOL, {
-        protocol: 'webrtc',
-        type: 'answer',
-        sdp: pc.localDescription?.sdp ?? answer.sdp,
-      });
-      return;
-    }
-    await pc.setRemoteDescription({ type: 'answer', sdp: d.sdp });
+    if (!pc || !this.offerPending) return;
+    this.offerPending = false;
+    await pc.setRemoteDescription({ type: 'answer', sdp });
     if (pc.connectionState === 'connected') this.onPeerState(pc);
+    if (this.reoffer) await this.negotiate(this.reoffer.restart);
+  }
+
+  /** The SFU renegotiates when a remote line is added or removed. We are the polite peer on glare. */
+  private async onServerOffer(sdp: string): Promise<void> {
+    const pc = this.pc;
+    if (!pc) return;
+    if (this.offerPending || pc.signalingState === 'have-local-offer') {
+      await pc.setLocalDescription({ type: 'rollback' });
+      this.offerPending = false;
+      this.reoffer = { restart: this.reoffer?.restart ?? false };
+    }
+    await pc.setRemoteDescription({ type: 'offer', sdp });
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    this.send(VoiceOp.SDP_ANSWER, { sdp: pc.localDescription?.sdp ?? answer.sdp });
+    if (this.reoffer) await this.negotiate(this.reoffer.restart);
   }
 
   private onPeerState(pc: PeerLike): void {
@@ -439,7 +501,7 @@ export class RtcVoiceEngine implements VoiceEngine {
     }
     this.iceRestarts++;
     this.setStatus('reconnecting');
-    void this.negotiate(true).catch(() => undefined);
+    this.enqueue(() => this.negotiate(true));
   }
 
   private startQuality(): void {
@@ -483,11 +545,8 @@ export class RtcVoiceEngine implements VoiceEngine {
     this.mic.setGate(transmitting);
     if (transmitting !== was || !this.announced) {
       this.announced = true;
-      this.send(VoiceOp.SPEAKING, {
-        speaking: transmitting ? SPEAKING_VOICE : 0,
-        delay: 0,
-        ssrc: this.ssrc,
-      });
+      // Spec 4.3: PTT must report 1 while held and 0 after the release delay (the SFU enforces it).
+      this.send(VoiceOp.SPEAKING, { speaking: transmitting ? SPEAKING_VOICE : 0 });
     }
   }
 
@@ -514,7 +573,7 @@ export class RtcVoiceEngine implements VoiceEngine {
     return this.playback.setOutputDevice(deviceId);
   }
 
-  /** Swap the capture device mid-call: new track replaces the sender's, no renegotiation. */
+  /** Swap the capture device mid-call: the new track replaces the sender's, no renegotiation. */
   async setInputDevice(opts: MicOptions): Promise<void> {
     if (this.status === 'idle') return;
     const pc = this.pc as (PeerLike & { getSenders?: () => RTCRtpSender[] }) | null;
@@ -548,7 +607,7 @@ export class RtcVoiceEngine implements VoiceEngine {
     const ws = this.ws;
     this.ws = null;
     if (ws) {
-      ws.onmessage = ws.onclose = ws.onerror = null;
+      ws.onmessage = ws.onclose = ws.onerror = ws.onopen = null;
       try {
         ws.close(1000, 'client leaving');
       } catch {
@@ -565,7 +624,10 @@ export class RtcVoiceEngine implements VoiceEngine {
     this.playback.dispose();
     this.params = null;
     this.socketRetries = this.iceRestarts = 0;
-    this.pendingRestart = false;
+    this.offerPending = false;
+    this.reoffer = null;
+    this.chain = Promise.resolve();
+    this.voiceSessionId = this.resumeToken = '';
     this.announced = false;
     const rej = this.rejectConnect;
     this.resolveConnect = this.rejectConnect = null;

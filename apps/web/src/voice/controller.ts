@@ -1,8 +1,8 @@
 /**
  * Voice controller: joins and leaves voice channels and owns the policy around the engine.
  *
- * Join = gateway `VOICE_STATE_UPDATE` (op 4) -> wait for our own VOICE_STATE_UPDATE (session id) and the
- * VOICE_SERVER_UPDATE (endpoint, token, ICE servers) -> engine.connect. Then it turns mic level (voice
+ * Join = gateway `VOICE_STATE_UPDATE` (op 4) -> wait for the VOICE_SERVER_UPDATE (endpoint, token, ICE
+ * servers) -> engine.connect. A refusal arrives as SR_VOICE_ERROR. Then it turns mic level (voice
  * activity), the PTT key, mute / deafen and moderator mutes into one "transmitting" decision, plays the cue
  * sounds, and re-joins through the gateway when the voice session dies.
  *
@@ -20,6 +20,7 @@ import {
   type EngineEvents,
   type EngineFactory,
   type VoiceEngine,
+  type VoiceError,
 } from './engine';
 import { PttController, ShortcutListener } from './ptt';
 import { patchSession, resetSession, useVoiceSession } from './session';
@@ -69,7 +70,8 @@ const defaultDeps = (): ControllerDeps => ({
 export class VoiceController {
   private engine: VoiceEngine | null = null;
   private target: JoinTarget | null = null;
-  private sessionId: string | null = null;
+  /** We have seen our own voice state for the target channel (so a later "left" is a real disconnect). */
+  private joinedSeen = false;
   private server: VoiceServerInfo | null = null;
   private started = false;
   private waitTimer: ReturnType<typeof setTimeout> | undefined;
@@ -134,7 +136,7 @@ export class VoiceController {
       return;
     if (this.target) this.teardownEngine();
     this.target = { ...target, pttForced: !!target.pttForced };
-    this.sessionId = null;
+    this.joinedSeen = false;
     this.server = null;
     this.started = false;
     this.rejoins = 0;
@@ -179,7 +181,7 @@ export class VoiceController {
     const wasConnected = useVoiceSession.getState().status === 'connected';
     const { selfMute, selfDeaf } = useVoiceSession.getState();
     this.target = null;
-    this.sessionId = null;
+    this.joinedSeen = false;
     this.server = null;
     this.roster.clear();
     this.vad.reset();
@@ -302,9 +304,17 @@ export class VoiceController {
       const channelId = (d.channel_id as string | null | undefined) ?? null;
       if (userId === me) this.onOwnState(d as unknown as VoiceState);
       else this.onOtherState(userId, channelId);
+    } else if (event === 'SR_VOICE_ERROR') {
+      if (d.channel_id !== undefined && d.channel_id !== t.channelId) return;
+      this.fail({
+        code: 'refused',
+        message: refusalText(String(d.code ?? ''), String(d.message ?? '')),
+      });
     } else if (event === 'VOICE_SERVER_UPDATE') {
       const sameGuild = (typeof d.guild_id === 'string' ? d.guild_id : DM_GUILD_ID) === t.guildId;
       if (!sameGuild) return;
+      // After a move a stale update for the old channel can still arrive: only the target channel counts.
+      if (typeof d.channel_id === 'string' && d.channel_id !== t.channelId) return;
       this.server = {
         guild_id: typeof d.guild_id === 'string' ? d.guild_id : null,
         endpoint: String(d.endpoint ?? ''),
@@ -323,9 +333,11 @@ export class VoiceController {
   private onOwnState(v: VoiceState): void {
     const t = this.target;
     if (!t) return;
+    // A refusal to leave the old guild can echo a state for another guild: only ours counts.
+    if ((v.guild_id ?? DM_GUILD_ID) !== t.guildId) return;
     if (v.channel_id === null) {
       // Disconnected by a moderator or the server (not by us: leave() clears the target first).
-      if (this.started || this.sessionId) {
+      if (this.joinedSeen) {
         const keep = {
           selfMute: useVoiceSession.getState().selfMute,
           selfDeaf: useVoiceSession.getState().selfDeaf,
@@ -335,7 +347,7 @@ export class VoiceController {
         this.offDispatch?.();
         this.offDispatch = null;
         this.target = null;
-        this.sessionId = null;
+        this.joinedSeen = false;
         this.server = null;
         resetSession({
           ...keep,
@@ -364,7 +376,7 @@ export class VoiceController {
           .map((x) => x.user_id),
       );
     }
-    if (v.session_id) this.sessionId = v.session_id;
+    this.joinedSeen = true;
     patchSession({ serverMute: !!v.mute, serverDeaf: !!v.deaf });
     this.engine?.setDeafened(!!v.deaf || useVoiceSession.getState().selfDeaf);
     this.recompute();
@@ -390,7 +402,7 @@ export class VoiceController {
   private maybeStart(): void {
     const t = this.target;
     const me = this.deps.currentUserId();
-    if (!t || !me || this.started || !this.server || !this.sessionId) return;
+    if (!t || !me || this.started || !this.server) return;
     if (!this.server.endpoint || !this.server.token) return;
     this.started = true;
     clearTimeout(this.waitTimer);
@@ -409,9 +421,7 @@ export class VoiceController {
       .connect({
         endpoint: this.server.endpoint,
         token: this.server.token,
-        guildId: t.guildId,
         userId: me,
-        sessionId: this.sessionId,
         ...(this.server.ice_servers ? { iceServers: this.server.ice_servers } : {}),
         mic: micOptions(s),
       })
@@ -450,7 +460,7 @@ export class VoiceController {
         patchSession({ speaking: { ...useVoiceSession.getState().speaking, [userId]: speaking } });
       },
       quality: (quality) => patchSession({ quality }),
-      fatal: () => this.rejoin(),
+      fatal: (e) => this.onEngineFatal(e),
       level: (db) => this.onLevelReading(db),
       micLost: () =>
         this.fail({
@@ -470,6 +480,23 @@ export class VoiceController {
     if (open !== this.vadOpen) {
       this.vadOpen = open;
       this.recompute();
+    }
+  }
+
+  private onEngineFatal(e: VoiceError): void {
+    if (!this.target) return;
+    if (e.code === 'removed') {
+      // A moderator disconnected or moved us. The gateway's VOICE_STATE_UPDATE (and, for a move, the next
+      // VOICE_SERVER_UPDATE) tells us which; do not re-join on our own.
+      this.teardownEngine();
+      this.started = false;
+      this.server = null;
+      patchSession({ status: 'connecting' });
+      this.armWait();
+    } else if (e.code === 'replaced' || e.code === 'full') {
+      this.fail({ code: e.code === 'full' ? 'refused' : 'replaced', message: e.message });
+    } else {
+      this.rejoin();
     }
   }
 
@@ -507,7 +534,7 @@ export class VoiceController {
       });
     }
     this.target = null;
-    this.sessionId = null;
+    this.joinedSeen = false;
     this.server = null;
     this.started = false;
     resetSession({ selfMute, selfDeaf, status: 'error', error });
@@ -611,6 +638,24 @@ export class VoiceController {
     const s = getVoiceSettings();
     if (!cueEnabled(cue, s)) return;
     this.cues.play(cue, s.soundVolume / 100);
+  }
+}
+
+function refusalText(code: string, message: string): string {
+  switch (code) {
+    case 'missing_permission':
+      return "You don't have permission to join this voice channel.";
+    case 'channel_full':
+      return 'This voice channel is full.';
+    case 'voice_unavailable':
+      return 'Voice is not available on this server.';
+    case 'not_voice_channel':
+    case 'unknown_channel':
+      return 'That voice channel is no longer available.';
+    case 'stage_unsupported':
+      return 'Stage channels are not supported yet.';
+    default:
+      return message || 'Could not join voice.';
   }
 }
 

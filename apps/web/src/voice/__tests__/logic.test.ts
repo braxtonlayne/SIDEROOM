@@ -127,17 +127,19 @@ describe('keybinds', () => {
 
 describe('voice protocol', () => {
   it('encodes and parses frames', () => {
-    expect(parseFrame(encode(VoiceOp.HEARTBEAT, 5))).toEqual({ op: 3, d: 5 });
+    expect(parseFrame(encode(VoiceOp.HEARTBEAT, 5))).toEqual({ op: 2, d: 5 });
     expect(parseFrame('not json')).toBeNull();
     expect(parseFrame('{"x":1}')).toBeNull();
     expect(parseFrame(new ArrayBuffer(2))).toBeNull();
   });
 
   it('builds the voice socket URL from an endpoint', () => {
-    expect(voiceUrl('voice.example.org:8443', true)).toBe('wss://voice.example.org:8443/voice?v=1');
-    expect(voiceUrl('voice.example.org', false)).toBe('ws://voice.example.org/voice?v=1');
-    expect(voiceUrl('wss://x.test/custom')).toBe('wss://x.test/custom');
-    expect(voiceUrl('/voice', false)).toMatch(/^ws:\/\/[^/]+\/voice$/);
+    // Normally a full ws(s) URL (spec 4.2).
+    expect(voiceUrl('wss://x.test/voice/ws')).toBe('wss://x.test/voice/ws');
+    expect(voiceUrl('ws://localhost:8080/voice/ws')).toBe('ws://localhost:8080/voice/ws');
+    // A bare host or a path is tolerated.
+    expect(voiceUrl('voice.example.org:8443', true)).toBe('wss://voice.example.org:8443/voice/ws');
+    expect(voiceUrl('/voice/ws', false)).toMatch(/^ws:\/\/[^/]+\/voice\/ws$/);
   });
 
   it('tunes the Opus fmtp line: DTX, FEC, mono, capped bitrate', () => {

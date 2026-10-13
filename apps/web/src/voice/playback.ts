@@ -19,6 +19,9 @@ interface Voice {
 type SinkElement = HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> };
 type SinkContext = AudioContext & { setSinkId?: (id: string) => Promise<void> };
 
+/** Gain applied to other voices while a priority speaker talks. */
+export const DUCK = 0.4;
+
 export class RemoteAudio {
   private voices = new Map<string, Voice>();
   private ctx: AudioContext | null = null;
@@ -26,6 +29,8 @@ export class RemoteAudio {
   private masterVolume = 100;
   private deafened = false;
   private sinkId = 'default';
+  /** People speaking with the priority bit: everyone else is ducked while any of them talks. */
+  private priority = new Set<string>();
 
   constructor(private readonly deps: AudioDeps) {}
 
@@ -64,7 +69,7 @@ export class RemoteAudio {
     }
     void (el as SinkElement).setSinkId?.(this.sink())?.catch?.(() => undefined);
     this.voices.set(userId, v);
-    this.apply(v);
+    this.apply(userId, v);
     void el.play?.()?.catch?.(() => undefined);
   }
 
@@ -72,6 +77,7 @@ export class RemoteAudio {
     const v = this.voices.get(userId);
     if (!v) return;
     this.voices.delete(userId);
+    this.priority.delete(userId);
     try {
       v.source?.disconnect();
       v.gain?.disconnect();
@@ -90,27 +96,36 @@ export class RemoteAudio {
     const v = this.voices.get(userId);
     if (!v) return;
     v.volume = percent;
-    this.apply(v);
+    this.apply(userId, v);
   }
 
   setMuted(userId: string, muted: boolean): void {
     const v = this.voices.get(userId);
     if (!v) return;
     v.muted = muted;
-    this.apply(v);
+    this.apply(userId, v);
+  }
+
+  /** Priority speaker (spec 4.3): other voices are ducked while a priority speaker is talking. */
+  setPriority(userId: string, on: boolean): void {
+    const had = this.priority.has(userId);
+    if (on === had) return;
+    if (on) this.priority.add(userId);
+    else this.priority.delete(userId);
+    for (const [id, v] of this.voices) this.apply(id, v);
   }
 
   setMasterVolume(percent: number): void {
     this.masterVolume = percent;
     this.applyMaster();
-    for (const v of this.voices.values()) this.apply(v);
+    for (const [id, v] of this.voices) this.apply(id, v);
   }
 
   /** Deafen silences every remote element at once. */
   setDeafened(deafened: boolean): void {
     this.deafened = deafened;
     this.applyMaster();
-    for (const v of this.voices.values()) this.apply(v);
+    for (const [id, v] of this.voices) this.apply(id, v);
   }
 
   async setOutputDevice(deviceId: string): Promise<void> {
@@ -135,17 +150,18 @@ export class RemoteAudio {
     if (this.master) this.master.gain.value = this.deafened ? 0 : this.masterVolume / 100;
   }
 
-  private apply(v: Voice): void {
+  private apply(userId: string, v: Voice): void {
     const silent = this.deafened || v.muted;
+    const ducked = this.priority.size > 0 && !this.priority.has(userId) ? DUCK : 1;
+    const level = (v.volume / 100) * ducked;
     if (v.gain) {
-      v.gain.gain.value = silent ? 0 : v.volume / 100;
+      v.gain.gain.value = silent ? 0 : level;
       // The element only keeps the stream flowing; it must never double the sound.
       v.el.muted = true;
     } else {
       v.el.muted = silent;
-      v.el.volume = Math.min(1, (v.volume / 100) * (this.masterVolume / 100));
+      v.el.volume = Math.min(1, level * (this.masterVolume / 100));
     }
-    if (silent) v.el.muted = true;
   }
 
   dispose(): void {

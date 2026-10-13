@@ -165,7 +165,7 @@ afterEach(() => {
 });
 
 describe('joining', () => {
-  it('sends VOICE_STATE_UPDATE and connects once the session id and server arrive', async () => {
+  it('sends VOICE_STATE_UPDATE and connects when the voice server arrives', async () => {
     const h = harness();
     h.c.join(target);
     expect(h.sent).toEqual([
@@ -195,9 +195,7 @@ describe('joining', () => {
     expect(h.last().connectParams).toMatchObject({
       endpoint: 'voice.test',
       token: 't0k',
-      guildId: 'g1',
       userId: 'me',
-      sessionId: 'sess-1',
       iceServers: [{ urls: 'stun:x' }],
       mic: { echoCancellation: true, autoGainControl: true },
     });
@@ -210,15 +208,46 @@ describe('joining', () => {
   it('works when the server update arrives before our own state', () => {
     const h = harness();
     h.c.join(target);
-    h.emit('VOICE_SERVER_UPDATE', { guild_id: 'g1', endpoint: 'voice.test', token: 't' });
-    expect(h.engines).toHaveLength(0);
-    h.emit('VOICE_STATE_UPDATE', {
+    h.emit('VOICE_SERVER_UPDATE', {
       guild_id: 'g1',
       channel_id: 'c1',
-      user_id: 'me',
-      session_id: 's',
+      endpoint: 'wss://v.test/voice/ws',
+      token: 't',
     });
     expect(h.engines).toHaveLength(1);
+  });
+
+  it('ignores a server update for a different channel (stale after a move)', () => {
+    const h = harness();
+    h.c.join(target);
+    h.emit('VOICE_SERVER_UPDATE', {
+      guild_id: 'g1',
+      channel_id: 'old',
+      endpoint: 'wss://v.test/voice/ws',
+      token: 't',
+    });
+    expect(h.engines).toHaveLength(0);
+  });
+
+  it('shows why the server refused the join (SR_VOICE_ERROR)', () => {
+    const h = harness();
+    h.c.join(target);
+    h.emit('SR_VOICE_ERROR', {
+      guild_id: 'g1',
+      channel_id: 'c1',
+      code: 'channel_full',
+      message: 'x',
+    });
+    expect(sess().status).toBe('error');
+    expect(sess().error).toEqual({ code: 'refused', message: 'This voice channel is full.' });
+    h.c.join(target);
+    h.emit('SR_VOICE_ERROR', {
+      guild_id: 'g1',
+      channel_id: 'c1',
+      code: 'missing_permission',
+      message: 'x',
+    });
+    expect(sess().error?.message).toContain("don't have permission");
   });
 
   it("ignores another guild's server update and other people's state", () => {
@@ -506,10 +535,19 @@ describe('server-driven changes', () => {
     });
     expect(sess().channelId).toBe('c9');
     expect(h.engines[0]!.disconnected).toBeGreaterThan(0);
-    // A new voice server follows; the engine reconnects.
-    h.emit('VOICE_SERVER_UPDATE', { guild_id: 'g1', endpoint: 'voice2.test', token: 'n' });
+    // No engine until the new room's voice server arrives.
+    expect(h.engines).toHaveLength(1);
+    h.emit('VOICE_SERVER_UPDATE', {
+      guild_id: 'g1',
+      channel_id: 'c9',
+      endpoint: 'wss://voice2.test/voice/ws',
+      token: 'n',
+    });
     expect(h.engines).toHaveLength(2);
-    expect(h.last().connectParams).toMatchObject({ endpoint: 'voice2.test', sessionId: 'sess-2' });
+    expect(h.last().connectParams).toMatchObject({
+      endpoint: 'wss://voice2.test/voice/ws',
+      token: 'n',
+    });
   });
 
   it('a fresh VOICE_SERVER_UPDATE while connected reconnects to the new node', async () => {
@@ -535,12 +573,38 @@ describe('server-driven changes', () => {
     expect(sess().error?.code).toBe('connect');
   });
 
+  it('4014 from the voice socket waits for the gateway instead of re-joining', async () => {
+    const h = harness();
+    await connected(h);
+    const sentBefore = h.sent.length;
+    h.last().events.fatal({ code: 'removed', message: 'x' });
+    expect(h.sent).toHaveLength(sentBefore);
+    expect(sess().status).toBe('connecting');
+    // The gateway says it was a disconnect.
+    h.emit('VOICE_STATE_UPDATE', { guild_id: 'g1', channel_id: null, user_id: 'me' });
+    expect(sess().error?.code).toBe('disconnected');
+  });
+
+  it('replaced by another tab, or a full server, stops with a clear message', async () => {
+    const h = harness();
+    await connected(h);
+    h.last().events.fatal({
+      code: 'replaced',
+      message: 'You joined this voice channel from another window.',
+    });
+    expect(sess().error).toMatchObject({ code: 'replaced' });
+    const h2 = harness();
+    await connected(h2);
+    h2.last().events.fatal({ code: 'full', message: 'This voice server is full.' });
+    expect(sess().error).toMatchObject({ code: 'refused' });
+  });
+
   it('tracks speakers and clears them when they leave', async () => {
     const h = harness();
     await connected(h);
-    h.last().events.speaking('u1', true);
+    h.last().events.speaking('u1', true, false);
     expect(sess().speaking).toEqual({ u1: true });
-    h.last().events.speaking('me', true); // own ring follows transmitting, not the echo
+    h.last().events.speaking('me', true, false); // own ring follows transmitting, not the echo
     expect(sess().speaking).toEqual({ u1: true });
     h.last().events.peer('u1', false);
     expect(sess().speaking).toEqual({});

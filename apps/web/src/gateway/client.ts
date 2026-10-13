@@ -50,6 +50,7 @@ const OPEN = 1;
 const DEFAULT_INTENTS =
   Intents.GUILDS |
   Intents.GUILD_MEMBERS |
+  Intents.GUILD_VOICE_STATES |
   Intents.GUILD_PRESENCES |
   Intents.GUILD_MESSAGES |
   Intents.GUILD_MESSAGE_TYPING |

@@ -193,6 +193,10 @@ export class FakeSocket implements SocketLike {
   sent: { op: number; d?: unknown }[] = [];
   closedWith: number | undefined;
   constructor(public url: string) {}
+  /** The browser opened the socket (the engine sends IDENTIFY / RESUME now). */
+  open() {
+    this.onopen?.({});
+  }
   send(data: string) {
     this.sent.push(JSON.parse(data) as { op: number; d?: unknown });
   }
@@ -215,6 +219,7 @@ export class FakeSocket implements SocketLike {
 
 export class FakePeer implements PeerLike {
   connectionState = 'new';
+  signalingState = 'stable';
   iceGatheringState = 'complete';
   localDescription: { type: string; sdp?: string } | null = null;
   onconnectionstatechange: (() => void) | null = null;
@@ -224,6 +229,7 @@ export class FakePeer implements PeerLike {
   offers: ({ iceRestart?: boolean } | undefined)[] = [];
   remote: { type: string; sdp?: string }[] = [];
   closed = false;
+  rollbacks = 0;
   stats: Record<string, unknown>[] = [];
   constructor(public config: unknown) {}
   addTransceiver(track: MediaStreamTrack, init: never) {
@@ -240,10 +246,18 @@ export class FakePeer implements PeerLike {
     return { type: 'answer', sdp: 'answer-sdp' };
   }
   async setLocalDescription(d?: { type: string; sdp?: string }) {
+    if (d?.type === 'rollback') {
+      this.rollbacks++;
+      this.signalingState = 'stable';
+      return;
+    }
     this.localDescription = d ?? null;
+    if (d?.type === 'offer') this.signalingState = 'have-local-offer';
+    if (d?.type === 'answer') this.signalingState = 'stable';
   }
   async setRemoteDescription(d: { type: string; sdp?: string }) {
     this.remote.push(d);
+    this.signalingState = d.type === 'offer' ? 'have-remote-offer' : 'stable';
   }
   async getStats() {
     const list = this.stats;
