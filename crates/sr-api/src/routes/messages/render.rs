@@ -62,6 +62,7 @@ pub async fn render_many(
             )
         })
         .collect();
+    super::rich_model::decorate(deps, Some(viewer), msgs, &mut out).await?;
     sign_attachments(deps, &mut out);
     Ok(out)
 }
@@ -86,7 +87,8 @@ pub async fn event_payload(deps: &MessagesDeps, msg: &Message) -> MsgResult<serd
         .unwrap_or_default();
     let nonce = deps.store.nonce_of(msg.id).await?;
     let users = lookup_users(deps, std::slice::from_ref(msg)).await?;
-    let mut obj = MessageObject::build(msg, &atts, &[], nonce, &users);
-    sign_attachments(deps, std::slice::from_mut(&mut obj));
-    Ok(obj.to_value())
+    let mut objs = vec![MessageObject::build(msg, &atts, &[], nonce, &users)];
+    super::rich_model::decorate(deps, None, std::slice::from_ref(msg), &mut objs).await?;
+    sign_attachments(deps, &mut objs);
+    Ok(objs[0].to_value())
 }

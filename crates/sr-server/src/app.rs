@@ -269,7 +269,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
 
     // Feature crates register into the registry before it is shared (none
     // exist yet). Their routes are mounted below from `Feature::routes()`.
-    let registry = Arc::new(FeatureRegistry::new());
+    let mut registry = FeatureRegistry::new();
+    registry
+        .register(crate::rich_jobs::UnfurlFeature)
+        .context("registering the unfurl feature")?;
+    let registry = Arc::new(registry);
     let features = FeatureService::new(
         registry.clone(),
         Arc::new(PgSettingsStore::new(pool.clone(), ids.clone())),
@@ -351,6 +355,32 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     )
     .context("message snowflake generator")?
     .with_cdn_signer(cdn_signer.clone());
+    // Rich messages: polls, stickers and link previews (LNG-MSG-010, LNG-MSG-014).
+    if cfg.unfurl.allow_private_for_tests {
+        tracing::warn!(
+            "unfurl.allow_private_for_tests is ON: link previews may fetch loopback and private \n             addresses. This is for tests only and lets any user probe the internal network."
+        );
+    }
+    let unfurler = Arc::new(sr_unfurl::production(
+        sr_unfurl::Policy {
+            deny_hosts: cfg.unfurl.deny_hosts.clone(),
+            allow_private_for_tests: cfg.unfurl.allow_private_for_tests,
+        },
+        cfg.unfurl.per_host_per_minute.max(1),
+    ));
+    let job_ids: crate::search_jobs::JobIds = {
+        let ids = ids.clone();
+        Arc::new(move || ids.generate().get() as i64)
+    };
+    let messages = messages.with_rich(routes::messages::RichDeps {
+        store: Some(Arc::new(sr_db::rich_repo::PgRichStore::new(pool.clone()))),
+        scheduler: Some(Arc::new(crate::rich_jobs::PgJobScheduler {
+            pool: pool.clone(),
+            ids: job_ids,
+        })),
+        unfurler: Some(unfurler),
+        gate: Some(Arc::new(crate::rich_jobs::FeatureUnfurlGate(features.clone()))),
+    });
 
     // Server settings and message search (open questions 131-138). The settings
     // service runs over Postgres on its own snowflake worker (process id + 3) and
@@ -440,7 +470,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // The first message of a DM (or the first after Close DM) announces the channel to
     // each recipient before the message itself.
     let social_api = Arc::new(social_api);
-    let messages = messages.with_dm_announcer(social_api.clone());
+    let messages = Arc::new(messages.with_dm_announcer(social_api.clone()));
 
     let settings = ApiSettings {
         trust_forwarded_for: cfg.server.trust_forwarded_for,
@@ -457,7 +487,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .bearers(Arc::new(NoBearers))
         .openapi(routes::openapi())
         .extension(Arc::new(guilds.clone()))
-        .extension(Arc::new(messages))
+        .extension(messages.clone())
         .extension(social_api)
         .extension(settings_deps.clone())
         .extension(Arc::new(AutoModGateHandle(settings_deps)))
@@ -510,9 +540,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::jobs::register_attachment_gc(runner, &pool, storage.clone());
     let runner = crate::jobs::register_audit_purge(runner, &pool);
     let runner = crate::search_jobs::register(runner, &pool, indexer);
+    let runner = crate::rich_jobs::register(runner, &pool, messages.clone());
     crate::jobs::schedule_recurring(&pool).await?;
     crate::jobs::schedule_audit_purge(&pool).await?;
     crate::jobs::schedule_attachment_gc(&pool).await?;
+    crate::rich_jobs::schedule_poll_sweep(&pool).await?;
     let jobs_task = tokio::spawn(runner.run(job_rx));
 
     // REST: every feature module, feature-owned routes, and the guild backend.
