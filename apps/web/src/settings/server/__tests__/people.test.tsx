@@ -46,9 +46,15 @@ describe('Members', () => {
     expect(screen.getByRole('button', { name: 'Kick me' })).toBeDisabled();
     await userEvent.click(screen.getByRole('button', { name: 'Kick bob' }));
     await userEvent.type(screen.getByLabelText('Reason'), 'spam & ads');
-    await userEvent.click(within(screen.getByRole('dialog', { name: /Kick bob/ })).getByRole('button', { name: 'Kick' }));
+    await userEvent.click(
+      within(screen.getByRole('dialog', { name: /Kick bob/ })).getByRole('button', {
+        name: 'Kick',
+      }),
+    );
     await waitFor(() => expect(cap.calls).toHaveLength(1));
-    expect(decodeURIComponent(cap.calls[0]!.headers.get('x-audit-log-reason') ?? '')).toBe('spam & ads');
+    expect(decodeURIComponent(cap.calls[0]!.headers.get('x-audit-log-reason') ?? '')).toBe(
+      'spam & ads',
+    );
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Kick bob' })).toBeNull());
   });
 
@@ -66,7 +72,9 @@ describe('Members', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Ban bob' }));
     await userEvent.selectOptions(screen.getByLabelText('Delete message history'), '604800');
     await userEvent.type(screen.getByLabelText('Reason'), 'raid');
-    await userEvent.click(within(screen.getByRole('dialog', { name: /Ban bob/ })).getByRole('button', { name: 'Ban' }));
+    await userEvent.click(
+      within(screen.getByRole('dialog', { name: /Ban bob/ })).getByRole('button', { name: 'Ban' }),
+    );
     await waitFor(() => expect(cap.calls).toHaveLength(1));
     expect(cap.calls[0]!.body).toEqual({ delete_message_seconds: 604800, reason: 'raid' });
   });
@@ -77,7 +85,9 @@ describe('Members', () => {
     server.use(
       http.patch('*/api/v1/guilds/g1/members/2', async ({ request }) => {
         await cap.record(request);
-        return HttpResponse.json(memberObj('2', 'bob', ['low'], { communication_disabled_until: '2099-01-01T00:00:00Z' }));
+        return HttpResponse.json(
+          memberObj('2', 'bob', ['low'], { communication_disabled_until: '2099-01-01T00:00:00Z' }),
+        );
       }),
       http.patch('*/api/v1/guilds/g1/members/3', () =>
         HttpResponse.json({ message: 'Missing Permissions' }, { status: 403 }),
@@ -88,7 +98,8 @@ describe('Members', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Timeout bob' }));
     await userEvent.click(screen.getByRole('button', { name: 'Timeout' }));
     await waitFor(() => expect(cap.calls).toHaveLength(1));
-    const until = (cap.calls[0]!.body as { communication_disabled_until: string }).communication_disabled_until;
+    const until = (cap.calls[0]!.body as { communication_disabled_until: string })
+      .communication_disabled_until;
     expect(new Date(until).getTime()).toBeGreaterThan(Date.now());
     await userEvent.click(await screen.findByRole('button', { name: 'Timeout carol' }));
     await userEvent.click(screen.getByRole('button', { name: 'Timeout' }));

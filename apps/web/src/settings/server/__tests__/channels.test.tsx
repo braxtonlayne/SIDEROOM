@@ -24,7 +24,10 @@ const ch = (id: string, name: string, type: number, extra: object = {}) => ({
 });
 
 const channels = (over: Record<string, object> = {}) => [
-  ch('cat', 'Text', 4, { permission_overwrites: [{ id: 'g1', type: 0, allow: '0', deny: bits(11) }], ...over.cat }),
+  ch('cat', 'Text', 4, {
+    permission_overwrites: [{ id: 'g1', type: 0, allow: '0', deny: bits(11) }],
+    ...over.cat,
+  }),
   ch('c1', 'general', 0, { parent_id: 'cat', position: 0, ...over.c1 }),
   ch('c2', 'random', 0, { parent_id: 'cat', position: 1, ...over.c2 }),
 ];
@@ -139,7 +142,9 @@ describe('Channels', () => {
     await openSettings('channels');
     await userEvent.click(await screen.findByRole('button', { name: '# general' }));
     await userEvent.click(await screen.findByRole('tab', { name: 'Permissions' }));
-    await userEvent.click(await screen.findByRole('switch', { name: /Sync permissions with category/ }));
+    await userEvent.click(
+      await screen.findByRole('switch', { name: /Sync permissions with category/ }),
+    );
     await waitFor(() => expect(cap.calls).toHaveLength(1));
     expect(cap.calls[0]!.body).toEqual({ lock_permissions: true });
   });

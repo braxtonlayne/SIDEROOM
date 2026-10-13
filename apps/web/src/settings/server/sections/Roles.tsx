@@ -541,14 +541,12 @@ function RoleMembers({
     const m = members.find((x) => x.member.user_id === userId);
     if (!m || !m.user) return;
     const roles = add ? [...m.member.roles, role.id] : m.member.roles.filter((r) => r !== role.id);
-    useStore
-      .getState()
-      .applyDispatch('GUILD_MEMBER_UPDATE', {
-        guild_id: guildId,
-        user: m.user,
-        nick: m.member.nick,
-        roles,
-      });
+    useStore.getState().applyDispatch('GUILD_MEMBER_UPDATE', {
+      guild_id: guildId,
+      user: m.user,
+      nick: m.member.nick,
+      roles,
+    });
   };
   const assign = async (userId: string) => {
     const ok = await action.run(async () => {

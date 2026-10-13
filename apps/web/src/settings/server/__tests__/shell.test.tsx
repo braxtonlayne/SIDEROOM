@@ -26,7 +26,23 @@ const guildObj = {
 function stubOverview() {
   server.use(
     http.get('*/api/v1/guilds/g1', () => HttpResponse.json(guildObj)),
-    http.get('*/api/v1/guilds/g1/sr/community', () => HttpResponse.json({ community_enabled: false, rules_channel_id: null, public_updates_channel_id: null, safety_alerts_channel_id: null, description: null, preferred_locale: 'en-US', onboarding_enabled: false, welcome_screen_enabled: false, guide_enabled: false, invites_paused: false, raid_alert_joins_per_minute: 0, age_restricted: false, guild_id: 'g1' })),
+    http.get('*/api/v1/guilds/g1/sr/community', () =>
+      HttpResponse.json({
+        community_enabled: false,
+        rules_channel_id: null,
+        public_updates_channel_id: null,
+        safety_alerts_channel_id: null,
+        description: null,
+        preferred_locale: 'en-US',
+        onboarding_enabled: false,
+        welcome_screen_enabled: false,
+        guide_enabled: false,
+        invites_paused: false,
+        raid_alert_joins_per_minute: 0,
+        age_restricted: false,
+        guild_id: 'g1',
+      }),
+    ),
   );
 }
 
@@ -38,7 +54,9 @@ describe('server settings shell', () => {
     server.use(http.get('*/api/v1/guilds/g1/bans', () => HttpResponse.json([])));
     await openSettings('bans');
     await screen.findByRole('heading', { name: 'Bans' });
-    const names = within(nav()).getAllByRole('button').map((b) => b.textContent);
+    const names = within(nav())
+      .getAllByRole('button')
+      .map((b) => b.textContent);
     expect(names).toEqual(['Members', 'Bans', 'Audit Log']);
     expect(within(nav()).queryByRole('button', { name: 'Roles' })).toBeNull();
     expect(within(nav()).queryByRole('button', { name: 'Delete Server' })).toBeNull();
@@ -54,7 +72,9 @@ describe('server settings shell', () => {
   it('shows no-access copy without any settings permission', async () => {
     seed({ perms: [] });
     await openSettings('overview');
-    expect(await screen.findByText('You do not have access to server settings')).toBeInTheDocument();
+    expect(
+      await screen.findByText('You do not have access to server settings'),
+    ).toBeInTheDocument();
   });
 
   it('owner sees Delete Server; section nav has a single tab stop and arrow keys', async () => {
