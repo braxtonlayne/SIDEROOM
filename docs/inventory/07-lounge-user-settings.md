@@ -16,7 +16,7 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
 ## Profiles
 - [ ] **LNG-USET-008** [FE] Tabs: Main Profile / Per-server Profiles (server picker)
 - [ ] **LNG-USET-009** [FE] Display name, pronouns, avatar (upload/crop/animated, remove), avatar decoration picker, profile effect picker, banner (image/animated or color), profile theme (two colors), about me (190 chars + markdown), server tag display picker
-- [ ] **LNG-USET-010** [FE] Live preview card (popout style)
+- [x] **LNG-USET-010** [FE] Live preview card (popout style)
 - [ ] **LNG-USET-011** [FE] Profile Layout entry ("MySpace mode", Phase 6 → EXT)
 
 ## Content & Social
@@ -24,7 +24,7 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
 - [ ] **LNG-USET-013** [FE] DM spam filter, message requests toggle, allow DMs from server members (default + per server)
 - [ ] **LNG-USET-014** [FE] Friend request sources (Everyone, Friends of Friends, Server Members)
 - [ ] **LNG-USET-015** [FE] Age-restricted content (shows confirmation state, re-confirm flow)
-- [ ] **LNG-USET-016** [FE] Blocked & ignored users list (unblock/unignore)
+- [x] **LNG-USET-016** [FE] Blocked & ignored users list (unblock/unignore)
 
 ## Data & Privacy
 - [ ] **LNG-USET-017** [FE] Activity privacy: share watching & reading (default on, friends + shared servers), per-section toggles, hide age-restricted from activity, pause history
@@ -101,4 +101,4 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
 - [ ] **LNG-USET-056** [FE] Developer Mode (Copy ID items), app test mode for developers, reset UI state
 
 ## Removed sections (must not exist)
-- [ ] **LNG-USET-057** [TEST] Assert no Nitro, Server Boost (Discord), Subscriptions, Gift Inventory, Billing, Family Center, Clips, Quests sections are rendered
+- [x] **LNG-USET-057** [TEST] Assert no Nitro, Server Boost (Discord), Subscriptions, Gift Inventory, Billing, Family Center, Clips, Quests sections are rendered

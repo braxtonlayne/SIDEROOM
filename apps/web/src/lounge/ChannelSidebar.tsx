@@ -139,10 +139,12 @@ function GuildHeader({ guild }: { guild: Guild }) {
   const items: MenuEntry[] = [
     { label: 'Server Support', onSelect: soon('Server Support') },
     ...(p.createInvite
-      ? [{
+      ? [
+          {
             label: 'Invite to Server',
             onSelect: () => openDialog({ kind: 'invite', guildId: guild.id }),
-          } as MenuEntry]
+          } as MenuEntry,
+        ]
       : []),
     ...(p.manageGuild
       ? [{ label: 'Server Settings', onSelect: soon('Server Settings') } as MenuEntry]

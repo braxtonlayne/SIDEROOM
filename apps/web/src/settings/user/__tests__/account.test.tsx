@@ -116,7 +116,8 @@ describe('My Account', () => {
     server.use(
       http.post('*/api/v1/sr/auth/totp/enroll', () =>
         HttpResponse.json({
-          otpauth_uri: 'otpauth://totp/SIDE%20ROOM:alice?secret=JBSWY3DPEHPK3PXP&issuer=SIDE%20ROOM',
+          otpauth_uri:
+            'otpauth://totp/SIDE%20ROOM:alice?secret=JBSWY3DPEHPK3PXP&issuer=SIDE%20ROOM',
           manual_entry_key: 'JBSW Y3DP EHPK 3PXP',
         }),
       ),
@@ -130,23 +131,26 @@ describe('My Account', () => {
             });
       }),
     );
-    const clip = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, 'clipboard', { value: { writeText: clip }, configurable: true });
     const createUrl = vi.fn(() => 'blob:codes');
     Object.assign(URL, { createObjectURL: createUrl, revokeObjectURL: vi.fn() });
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
 
     const user = userEvent.setup();
+    const clip = vi.spyOn(navigator.clipboard, 'writeText');
     openSettings('account');
     await user.click(await screen.findByRole('button', { name: 'Enable authenticator app' }));
     const dialog = await screen.findByRole('dialog', { name: 'Enable authenticator app' });
     expect(await within(dialog).findByRole('img', { name: /QR code/ })).toBeInTheDocument();
-    expect(within(dialog).getByLabelText('Manual entry key')).toHaveTextContent('JBSW Y3DP EHPK 3PXP');
+    expect(within(dialog).getByLabelText('Manual entry key')).toHaveTextContent(
+      'JBSW Y3DP EHPK 3PXP',
+    );
 
     // Client validation first, no request.
     await user.type(within(dialog).getByLabelText('Authentication code'), '12');
     await user.click(within(dialog).getByRole('button', { name: 'Verify and enable' }));
-    expect(await within(dialog).findByText('Enter the 6-digit code from your app.')).toBeInTheDocument();
+    expect(
+      await within(dialog).findByText('Enter the 6-digit code from your app.'),
+    ).toBeInTheDocument();
     expect(attempts).toBe(0);
 
     await user.clear(within(dialog).getByLabelText('Authentication code'));
@@ -176,12 +180,17 @@ describe('My Account', () => {
     accountEndpoints();
     server.use(
       http.post('*/api/v1/sr/auth/totp/enroll', () =>
-        HttpResponse.json({ message: 'Two-factor authentication is already enabled.' }, { status: 400 }),
+        HttpResponse.json(
+          { message: 'Two-factor authentication is already enabled.' },
+          { status: 400 },
+        ),
       ),
     );
     openSettings('account');
     await userEvent.click(await screen.findByRole('button', { name: 'Enable authenticator app' }));
-    expect(await screen.findByText('Two-factor authentication is already enabled.')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Two-factor authentication is already enabled.'),
+    ).toBeInTheDocument();
   });
 
   it('regenerates recovery codes after a password check, and shows a wrong-password error', async () => {
@@ -227,12 +236,16 @@ describe('My Account', () => {
     await user.type(within(dialog).getByLabelText('Current password'), 'pw');
     await user.click(within(dialog).getByRole('button', { name: 'Remove' }));
     await waitFor(() => expect(body).toEqual({ password: 'pw' }));
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Remove authenticator' })).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Remove authenticator' })).toBeNull(),
+    );
   });
 
   it('shows linked Discord status from the profile connections', async () => {
     signedIn();
-    accountEndpoints({ connections: [{ type: 'discord', id: '9', name: 'alice#0', verified: true }] });
+    accountEndpoints({
+      connections: [{ type: 'discord', id: '9', name: 'alice#0', verified: true }],
+    });
     openSettings('account');
     expect(await screen.findByText('alice#0')).toBeInTheDocument();
   });
@@ -248,24 +261,37 @@ describe('My Account', () => {
     signedIn();
     accountEndpoints({
       trusted: [
-        { id: '5', device_name: 'Laptop', created_at: '2026-01-01T00:00:00Z', expires_at: '2026-03-01T00:00:00Z' },
-        { id: '6', device_name: 'Phone', created_at: '2026-01-01T00:00:00Z', expires_at: '2026-03-01T00:00:00Z' },
+        {
+          id: '5',
+          device_name: 'Laptop',
+          created_at: '2026-01-01T00:00:00Z',
+          expires_at: '2026-03-01T00:00:00Z',
+        },
+        {
+          id: '6',
+          device_name: 'Phone',
+          created_at: '2026-01-01T00:00:00Z',
+          expires_at: '2026-03-01T00:00:00Z',
+        },
       ],
     });
     server.use(
-      http.delete('*/api/v1/sr/auth/trusted-devices/5', () => new HttpResponse(null, { status: 204 })),
+      http.delete(
+        '*/api/v1/sr/auth/trusted-devices/5',
+        () => new HttpResponse(null, { status: 204 }),
+      ),
       http.delete('*/api/v1/sr/auth/trusted-devices/6', () =>
         HttpResponse.json({ message: 'Unknown session.' }, { status: 404 }),
       ),
     );
     const user = userEvent.setup();
     openSettings('account');
-    expect(await screen.findByText('Laptop')).toBeInTheDocument();
+    expect((await screen.findAllByText('Laptop')).length).toBeGreaterThan(0);
     await user.click(screen.getByRole('button', { name: /Revoke\s+Laptop/ }));
-    await waitFor(() => expect(screen.queryByText('Laptop')).toBeNull());
+    await waitFor(() => expect(screen.queryAllByText('Laptop')).toHaveLength(0));
     await user.click(screen.getByRole('button', { name: /Revoke\s+Phone/ }));
     expect(await screen.findByText('Unknown session.')).toBeInTheDocument();
-    expect(screen.getByText('Phone')).toBeInTheDocument();
+    expect(screen.getAllByText('Phone').length).toBeGreaterThan(0);
   });
 
   it('lists sessions, marks this device, and revokes another', async () => {
@@ -275,11 +301,11 @@ describe('My Account', () => {
       http.delete('*/api/v1/sr/auth/sessions/11', () => new HttpResponse(null, { status: 204 })),
     );
     openSettings('account');
-    expect(await screen.findByText('Device 10')).toBeInTheDocument();
+    expect((await screen.findAllByText('Device 10')).length).toBeGreaterThan(0);
     expect(screen.getByText('This device')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Log out\s+Device 10/ })).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: /Log out\s+Device 11/ }));
-    await waitFor(() => expect(screen.queryByText('Device 11')).toBeNull());
+    await waitFor(() => expect(screen.queryAllByText('Device 11')).toHaveLength(0));
   });
 
   it('logs out everywhere after confirming, then goes to sign-in', async () => {
@@ -306,7 +332,9 @@ describe('My Account', () => {
   it('shows an error with a retry when the account cannot be loaded', async () => {
     server.use(
       http.get('*/api/v1/sr/csrf', () => HttpResponse.json({ token: 'c' })),
-      http.get('*/api/v1/users/@me', () => HttpResponse.json({ message: 'Boom.' }, { status: 500 })),
+      http.get('*/api/v1/users/@me', () =>
+        HttpResponse.json({ message: 'Boom.' }, { status: 500 }),
+      ),
     );
     openSettings('account');
     expect(await screen.findByText("Couldn't load your account")).toBeInTheDocument();
@@ -315,7 +343,9 @@ describe('My Account', () => {
 
   it('sends an expired session to sign-in', async () => {
     server.use(
-      http.get('*/api/v1/users/@me', () => HttpResponse.json({ message: 'Unauthorized' }, { status: 401 })),
+      http.get('*/api/v1/users/@me', () =>
+        HttpResponse.json({ message: 'Unauthorized' }, { status: 401 }),
+      ),
     );
     const router = openSettings('account');
     await waitFor(() => expect(router.state.location.pathname).toBe('/login'));

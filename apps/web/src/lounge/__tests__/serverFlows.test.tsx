@@ -50,7 +50,14 @@ function seed(ownerId: string) {
     },
     channelIdsByGuild: { g1: ['cat', 'c1'] },
     roles: {
-      g1: { id: 'g1', guild_id: 'g1', name: '@everyone', color: 0, position: 0, permissions: EVERYONE },
+      g1: {
+        id: 'g1',
+        guild_id: 'g1',
+        name: '@everyone',
+        color: 0,
+        position: 0,
+        permissions: EVERYONE,
+      },
     },
     roleIdsByGuild: { g1: ['g1'] },
     memberIdsByGuild: { g1: ['1', '2'] },
@@ -92,7 +99,10 @@ const quiet = () =>
     http.get('*/api/v1/sr/csrf', () => HttpResponse.json({ token: 't' })),
     http.get('*/api/v1/guilds/:gid/members', () => HttpResponse.json([])),
     http.get('*/api/v1/channels/:cid/messages', () => HttpResponse.json([])),
-    http.post('*/api/v1/channels/:cid/messages/:mid/ack', () => new HttpResponse(null, { status: 204 })),
+    http.post(
+      '*/api/v1/channels/:cid/messages/:mid/ack',
+      () => new HttpResponse(null, { status: 204 }),
+    ),
   );
 
 const signedIn = () =>
@@ -179,7 +189,9 @@ describe('logged-in invite acceptance', () => {
         accepted += 1;
         return HttpResponse.json(inviteObj());
       }),
-      http.get('*/api/v1/guilds/g2', () => HttpResponse.json({ id: 'g2', name: 'Book Club', owner_id: '2' })),
+      http.get('*/api/v1/guilds/g2', () =>
+        HttpResponse.json({ id: 'g2', name: 'Book Club', owner_id: '2' }),
+      ),
       http.get('*/api/v1/guilds/g2/channels', () =>
         HttpResponse.json([{ id: 'c9', type: 0, guild_id: 'g2', name: 'general', position: 0 }]),
       ),
@@ -210,7 +222,9 @@ describe('logged-in invite acceptance', () => {
 
   it('an expired invite shows the generic message and no buttons', async () => {
     server.use(
-      http.get('*/api/v1/invites/abc123', () => HttpResponse.json({ code: 10006 }, { status: 404 })),
+      http.get('*/api/v1/invites/abc123', () =>
+        HttpResponse.json({ code: 10006 }, { status: 404 }),
+      ),
     );
     at('/invite/abc123');
     expect(await screen.findByText('This invite is invalid or has expired.')).toBeInTheDocument();
@@ -262,7 +276,9 @@ describe('Add a Server', () => {
         hit = String(params.code);
         return HttpResponse.json(inviteObj({ code: hit }));
       }),
-      http.get('*/api/v1/guilds/g2', () => HttpResponse.json({ id: 'g2', name: 'Book Club', owner_id: '2' })),
+      http.get('*/api/v1/guilds/g2', () =>
+        HttpResponse.json({ id: 'g2', name: 'Book Club', owner_id: '2' }),
+      ),
       http.get('*/api/v1/guilds/g2/channels', () =>
         HttpResponse.json([{ id: 'c9', type: 0, guild_id: 'g2', name: 'general', position: 0 }]),
       ),
@@ -271,7 +287,10 @@ describe('Add a Server', () => {
     const router = at('/channels/g1/c1');
     await userEvent.click(await screen.findByRole('button', { name: 'Add a Server' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Join a Server' }));
-    await userEvent.type(screen.getByLabelText('Invite link or code'), 'http://localhost/invite/abc123');
+    await userEvent.type(
+      screen.getByLabelText('Invite link or code'),
+      'http://localhost/invite/abc123',
+    );
     await userEvent.click(screen.getByRole('button', { name: 'Join Server' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/channels/g2/c9'));
     expect(hit).toBe('abc123');
@@ -328,7 +347,10 @@ describe('Create Channel / Category', () => {
     server.use(
       http.post('*/api/v1/guilds/g1/channels', async ({ request }) => {
         body = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json({ id: 'v1', type: 2, guild_id: 'g1', name: 'Lounge' }, { status: 201 });
+        return HttpResponse.json(
+          { id: 'v1', type: 2, guild_id: 'g1', name: 'Lounge' },
+          { status: 201 },
+        );
       }),
     );
     at('/channels/g1/c1');
@@ -368,7 +390,9 @@ describe('Create Channel / Category', () => {
     await waitFor(() => expect(bodies).toHaveLength(1));
     expect(bodies[0]).toEqual({ name: 'Games', type: 4 });
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Create Channel in Text Channels' }));
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Create Channel in Text Channels' }),
+    );
     await userEvent.type(screen.getByLabelText('Channel name'), 'ideas');
     await userEvent.click(screen.getByRole('button', { name: 'Create Channel' }));
     await waitFor(() => expect(bodies).toHaveLength(2));
@@ -414,7 +438,14 @@ describe('Invite people', () => {
     let revoked = '';
     server.use(
       http.get('*/api/v1/guilds/g1/invites', () =>
-        HttpResponse.json([inviteObj({ code: 'old111', uses: 2, max_uses: 5, guild: { id: 'g1', name: 'Store Guild' } })]),
+        HttpResponse.json([
+          inviteObj({
+            code: 'old111',
+            uses: 2,
+            max_uses: 5,
+            guild: { id: 'g1', name: 'Store Guild' },
+          }),
+        ]),
       ),
       http.post('*/api/v1/channels/c1/invites', async ({ request }) => {
         body = await request.json();
@@ -456,7 +487,9 @@ describe('Invite people', () => {
         listed = true;
         return HttpResponse.json([]);
       }),
-      http.post('*/api/v1/channels/c1/invites', () => HttpResponse.json(inviteObj({ code: 'mine33' }))),
+      http.post('*/api/v1/channels/c1/invites', () =>
+        HttpResponse.json(inviteObj({ code: 'mine33' })),
+      ),
     );
     at('/channels/g1/c1');
     const sidebar = await screen.findByTestId('channel-sidebar');
@@ -476,7 +509,9 @@ describe('Invite people', () => {
     server.use(http.get('*/api/v1/guilds/g1/invites', () => HttpResponse.json([])));
     await userEvent.pointer({ keys: '[MouseRight]', target: link });
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Invite People' }));
-    expect(await screen.findByRole('dialog', { name: /Invite people to Store Guild/ })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('dialog', { name: /Invite people to Store Guild/ }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -502,7 +537,11 @@ describe('message search', () => {
     server.use(
       http.get('*/api/v1/guilds/g1/messages/search', ({ request }) => {
         q = new URL(request.url).searchParams.get('q') ?? '';
-        return HttpResponse.json({ total_results: 1, messages: [[hit]], doing_deep_historical_index: false });
+        return HttpResponse.json({
+          total_results: 1,
+          messages: [[hit]],
+          doing_deep_historical_index: false,
+        });
       }),
     );
     const router = at('/channels/g1/c1');
@@ -523,7 +562,11 @@ describe('message search', () => {
     server.use(
       http.get('*/api/v1/guilds/g1/messages/search', () => {
         called = true;
-        return HttpResponse.json({ total_results: 0, messages: [], doing_deep_historical_index: false });
+        return HttpResponse.json({
+          total_results: 0,
+          messages: [],
+          doing_deep_historical_index: false,
+        });
       }),
     );
     at('/channels/g1/c1');
@@ -584,7 +627,13 @@ describe('history after READY', () => {
       http.get('*/api/v1/channels/c1/messages', () => {
         fetches += 1;
         return HttpResponse.json([
-          { id: '100', channel_id: 'c1', author: { id: '2', username: 'bob' }, content: 'kept history', timestamp: '2026-01-01T00:00:00Z' },
+          {
+            id: '100',
+            channel_id: 'c1',
+            author: { id: '2', username: 'bob' },
+            content: 'kept history',
+            timestamp: '2026-01-01T00:00:00Z',
+          },
         ]);
       }),
     );
