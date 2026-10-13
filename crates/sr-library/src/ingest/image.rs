@@ -5,12 +5,14 @@
 //! and 1600 (only for sources wider than that: never upscaled), the dimensions, a
 //! blurhash for the loading placeholder and a double-page-spread flag.
 //!
-//! Pure Rust (`image` crate). Its WebP encoder is lossless-only, so the spec's
-//! "quality 85, lossless if smaller" cannot be met without libwebp (C); see
-//! `docs/open-questions.md`. AVIF input is refused for the same reason (the decoder
-//! needs dav1d). Input is bounded by [`PageLimits`] before pixels are decoded.
+//! Encoding is lossy WebP at quality 85 through libwebp (the `webp` crate, ADR-0005,
+//! D-168); PNG sources are also encoded lossless and the smaller file is kept, for the
+//! original and for every variant. Decoding stays pure Rust (`image`). libwebp cannot
+//! encode a side longer than 16,383 px: such a page is refused as too large. AVIF input
+//! is not decoded (D-169) and is reported by [`is_avif`]. Input is bounded by
+//! [`PageLimits`] before pixels are decoded.
 
-use ::image::{ExtendedColorType, RgbaImage, codecs::webp::WebPEncoder, imageops::FilterType};
+use ::image::{RgbaImage, imageops::FilterType};
 use sr_storage::img::{self, Decoded, ImgError, ImgFormat, Limits};
 
 /// Variant widths produced, ascending (spec section 3.4).
@@ -82,20 +84,46 @@ pub fn name_marks_spread(name: &str) -> bool {
     stem.ends_with("_spread") || stem.ends_with("-spread")
 }
 
-fn encode_webp(img: &RgbaImage) -> Result<Vec<u8>, ImgError> {
+/// Whether `data` is an AVIF still or sequence (an ISO-BMFF `ftyp` box with an `avif` or
+/// `avis` brand). Such pages are refused, not skipped (D-169).
+pub fn is_avif(data: &[u8]) -> bool {
+    data.len() >= 12 && &data[4..8] == b"ftyp" && matches!(&data[8..12], b"avif" | b"avis")
+}
+
+/// Lossy WebP quality for page images (D-168).
+pub const WEBP_QUALITY: f32 = 85.0;
+/// libwebp cannot encode a side longer than this.
+pub const WEBP_MAX_SIDE: u32 = 16_383;
+
+/// Encode one image: lossy q85, and for PNG sources also lossless, keeping the smaller
+/// file. A PNG is usually flat line art that lossless codes better and without artefacts.
+fn encode_webp(img: &RgbaImage, also_lossless: bool) -> Result<Vec<u8>, ImgError> {
     let (w, h) = img.dimensions();
-    let opaque = img.pixels().all(|p| p[3] == 255);
-    let mut out = Vec::new();
-    let enc = WebPEncoder::new_lossless(&mut out);
-    if opaque {
-        // Opaque pages (nearly all of them) drop the alpha channel: a quarter smaller.
-        let rgb: Vec<u8> = img.pixels().flat_map(|p| [p[0], p[1], p[2]]).collect();
-        enc.encode(&rgb, w, h, ExtendedColorType::Rgb8)
-    } else {
-        enc.encode(img.as_raw(), w, h, ExtendedColorType::Rgba8)
+    if w > WEBP_MAX_SIDE || h > WEBP_MAX_SIDE {
+        return Err(ImgError::TooLarge);
     }
-    .map_err(|_| ImgError::Malformed)?;
-    Ok(out)
+    let opaque = img.pixels().all(|p| p[3] == 255);
+    // Opaque pages (nearly all of them) drop the alpha channel: a quarter smaller.
+    let rgb: Vec<u8>;
+    let enc = if opaque {
+        rgb = img.pixels().flat_map(|p| [p[0], p[1], p[2]]).collect();
+        webp::Encoder::from_rgb(&rgb, w, h)
+    } else {
+        webp::Encoder::from_rgba(img.as_raw(), w, h)
+    };
+    let lossy = enc
+        .encode_simple(false, WEBP_QUALITY)
+        .map_err(|_| ImgError::Malformed)?;
+    let mut best: Vec<u8> = lossy.to_vec();
+    if also_lossless {
+        let lossless = enc
+            .encode_simple(true, 100.0)
+            .map_err(|_| ImgError::Malformed)?;
+        if lossless.len() < best.len() {
+            best = lossless.to_vec();
+        }
+    }
+    Ok(best)
 }
 
 fn blurhash_of(img: &RgbaImage) -> Result<String, ImgError> {
@@ -142,7 +170,8 @@ pub fn process_page_sized(
             .into_buffer(),
     };
     let (width, height) = rgba.dimensions();
-    let webp = encode_webp(&rgba)?;
+    let lossless_too = probe.format == ImgFormat::Png;
+    let webp = encode_webp(&rgba, lossless_too)?;
     let mut variants = Vec::new();
     for &w in widths {
         // Never upscale, and skip a variant that would be (nearly) the original.
@@ -154,7 +183,7 @@ pub fn process_page_sized(
         variants.push(VariantImage {
             width: w,
             height: vh,
-            webp: encode_webp(&resized)?,
+            webp: encode_webp(&resized, lossless_too)?,
         });
     }
     Ok(ProcessedPage {
@@ -393,5 +422,124 @@ mod tests {
         let p = process_page(&src, &PageLimits::default()).unwrap();
         assert_eq!(p.variants.len(), 1);
         assert_eq!((p.variants[0].width, p.variants[0].height), (720, 2400));
+    }
+
+    /// Deterministic noisy, photo-like pixels: lossless coding cannot shrink them much.
+    fn noisy(w: u32, h: u32) -> RgbImage {
+        let mut s = 0x2545_F491_4F6C_DD1Du64;
+        RgbImage::from_fn(w, h, |x, y| {
+            s ^= s << 13;
+            s ^= s >> 7;
+            s ^= s << 17;
+            let n = (s % 61) as i32 - 30;
+            let base = (x * 255 / w) as i32;
+            Rgb([
+                (base + n).clamp(0, 255) as u8,
+                ((y * 255 / h) as i32 + n).clamp(0, 255) as u8,
+                (128 + n).clamp(0, 255) as u8,
+            ])
+        })
+    }
+
+    /// Flat line art: a few colours in blocks.
+    fn flat(w: u32, h: u32) -> RgbImage {
+        RgbImage::from_fn(w, h, |x, y| {
+            if (x / 16 + y / 16) % 2 == 0 {
+                Rgb([255, 255, 255])
+            } else {
+                Rgb([20, 20, 20])
+            }
+        })
+    }
+
+    fn is_lossy_webp(b: &[u8]) -> bool {
+        // RIFF....WEBPVP8 (lossy) / VP8L (lossless) / VP8X (extended, with alpha)
+        &b[12..16] == b"VP8 "
+    }
+
+    #[test]
+    fn lossy_q85_beats_lossless_on_photographic_pages() {
+        let img = noisy(240, 320);
+        let lossless = webp::Encoder::from_rgb(img.as_raw(), 240, 320)
+            .encode_simple(true, 100.0)
+            .unwrap();
+        // JPEG source: lossy only.
+        let from_jpeg = process_page(&encoded(&img, ImageFormat::Jpeg), &PageLimits::default())
+            .unwrap()
+            .webp;
+        assert!(is_lossy_webp(&from_jpeg));
+        assert!(
+            from_jpeg.len() < lossless.len() / 2,
+            "{} vs {}",
+            from_jpeg.len(),
+            lossless.len()
+        );
+        // PNG source of the same noise: lossless is bigger, so lossy is kept.
+        let from_png = process_page(&encoded(&img, ImageFormat::Png), &PageLimits::default())
+            .unwrap()
+            .webp;
+        assert!(is_lossy_webp(&from_png));
+        assert!(from_png.len() < lossless.len());
+    }
+
+    #[test]
+    fn png_line_art_keeps_the_smaller_lossless_encoding() {
+        let img = flat(256, 256);
+        let lossy = webp::Encoder::from_rgb(img.as_raw(), 256, 256)
+            .encode_simple(false, WEBP_QUALITY)
+            .unwrap();
+        let p = process_page(&encoded(&img, ImageFormat::Png), &PageLimits::default()).unwrap();
+        assert!(
+            p.webp.len() <= lossy.len(),
+            "{} vs {}",
+            p.webp.len(),
+            lossy.len()
+        );
+        assert!(!is_lossy_webp(&p.webp), "lossless should win on flat art");
+        // Lossless means exact pixels.
+        let back = ::image::load_from_memory_with_format(&p.webp, ImageFormat::WebP)
+            .unwrap()
+            .to_rgb8();
+        assert_eq!(back.as_raw(), img.as_raw());
+    }
+
+    #[test]
+    fn variants_follow_the_same_size_rule() {
+        let p = process_page_sized(
+            &encoded(&noisy(300, 100), ImageFormat::Png),
+            &PageLimits::default(),
+            &[100, 200],
+        )
+        .unwrap();
+        assert_eq!(p.variants.len(), 2);
+        for v in &p.variants {
+            assert_eq!(webp_dims(&v.webp), (v.width, v.height));
+        }
+        let q = process_page_sized(
+            &encoded(&noisy(300, 100), ImageFormat::Jpeg),
+            &PageLimits::default(),
+            &[100],
+        )
+        .unwrap();
+        assert!(is_lossy_webp(&q.variants[0].webp));
+    }
+
+    #[test]
+    fn a_side_beyond_libwebp_limits_is_refused() {
+        let tall = RgbImage::from_pixel(1, WEBP_MAX_SIDE + 1, Rgb([9, 9, 9]));
+        assert_eq!(
+            process_page(&encoded(&tall, ImageFormat::Png), &PageLimits::default()).unwrap_err(),
+            ImgError::TooLarge
+        );
+        let ok = RgbImage::from_pixel(1, WEBP_MAX_SIDE, Rgb([9, 9, 9]));
+        assert!(process_page(&encoded(&ok, ImageFormat::Png), &PageLimits::default()).is_ok());
+    }
+
+    #[test]
+    fn avif_is_recognised_by_its_ftyp_brand() {
+        assert!(is_avif(b"\0\0\0\x1cftypavif\0\0\0\0avifmif1"));
+        assert!(is_avif(b"\0\0\0\x1cftypavis\0\0\0\0"));
+        assert!(!is_avif(b"\0\0\0\x1cftypheic\0\0\0\0"));
+        assert!(!is_avif(b"short"));
     }
 }
