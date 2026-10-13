@@ -1,0 +1,343 @@
+//! Library REST API: the member-facing catalog (`/library/*`) and the publisher
+//! endpoints (`/admin/library/*`). LIB-DATA-002..006.
+//!
+//! * Members read published series. Age-restricted series are visible only to
+//!   accounts that confirmed they are 18 or older, and then only on request
+//!   (`age=include|only`); everyone else gets 404 for them, never 403.
+//! * Publishers are staff sessions holding `PUBLISH_READING` (create, edit, publish)
+//!   or `DELETE_CONTENT` (unpublish, delete, merge). Every change is also written to
+//!   the staff access log.
+//! * Page and cover URLs are signed `/cdn/library/...` links.
+//!
+//! Wiring, in the composition root:
+//!
+//! ```ignore
+//! let library = LibraryService::new(Arc::new(PgLibraryRepo::new(pool)), cdn_signer, clock, ids)
+//!     .with_index(Arc::new(SeriesIndex::open_in_dir(&dir)?));
+//! library.reindex_all().await?;
+//! let deps = LibraryDeps::new(library).with_age_gate(Arc::new(PgAgeGate::new(pool)));
+//! let state = AppState::builder().extension(Arc::new(deps)).build();
+//! ```
+//! Publishers additionally need [`AdminDeps`](crate::routes::admin::AdminDeps).
+
+mod admin;
+mod member;
+
+#[cfg(test)]
+mod tests;
+
+use crate::{
+    auth::UserOnly,
+    error::HttpError,
+    openapi::ErrorBody,
+    routes::{
+        Ext,
+        admin::{AdminDeps, StaffCtx},
+        search::{AgeGate, NoAgeConfirmed},
+    },
+    state::AppState,
+};
+use axum::{
+    Router,
+    extract::FromRequestParts,
+    http::request::Parts,
+    routing::{delete, get, post, put},
+};
+use sr_core::{ApiError, ErrorCode, UserId};
+use sr_library::{Actor, LibraryError, LibraryService, Viewer};
+use std::sync::Arc;
+use utoipa::OpenApi;
+
+/// Collaborators of the Library endpoints.
+pub struct LibraryDeps {
+    pub service: LibraryService,
+    age: Arc<dyn AgeGate>,
+}
+
+impl LibraryDeps {
+    pub fn new(service: LibraryService) -> Self {
+        Self {
+            service,
+            age: Arc::new(NoAgeConfirmed),
+        }
+    }
+
+    /// Source of the 18+ confirmation (`accounts.age_confirmed_at`).
+    pub fn with_age_gate(mut self, age: Arc<dyn AgeGate>) -> Self {
+        self.age = age;
+        self
+    }
+}
+
+/// A signed-in member reading the catalog.
+pub(crate) struct MemberCtx {
+    pub deps: Arc<LibraryDeps>,
+    pub viewer: Viewer,
+}
+
+impl FromRequestParts<AppState> for MemberCtx {
+    type Rejection = HttpError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let UserOnly(p) = UserOnly::from_request_parts(parts, state).await?;
+        let Ext(deps) = Ext::<LibraryDeps>::from_request_parts(parts, state).await?;
+        let adult = deps
+            .age
+            .age_confirmed(UserId::new(u64::try_from(p.user_id).unwrap_or(0)))
+            .await;
+        Ok(Self {
+            viewer: Viewer {
+                user_id: p.user_id,
+                adult,
+            },
+            deps,
+        })
+    }
+}
+
+/// A staff session, with the library service next to it.
+pub(crate) struct PublisherCtx {
+    pub staff: StaffCtx,
+    pub library: Arc<LibraryDeps>,
+}
+
+impl PublisherCtx {
+    pub fn svc(&self) -> &LibraryService {
+        &self.library.service
+    }
+
+    pub fn actor(&self) -> Actor {
+        Actor {
+            user_id: self.staff.caller.user_id,
+            permissions: self.staff.caller.permissions,
+        }
+    }
+
+    /// Record a successful change in the staff access log. The change has already
+    /// happened, so a logging failure is reported but does not fail the request.
+    pub async fn audit(&self, action: &str, target: (&str, i64), detail: serde_json::Value) {
+        let admin: &AdminDeps = &self.staff.deps;
+        if let Err(e) = admin
+            .service
+            .record_action(&self.staff.caller, action, Some(target), detail)
+            .await
+        {
+            tracing::error!(error = %e, action, "library change was not written to the access log");
+        }
+    }
+}
+
+impl FromRequestParts<AppState> for PublisherCtx {
+    type Rejection = HttpError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let staff = StaffCtx::from_request_parts(parts, state).await?;
+        let Ext(library) = Ext::<LibraryDeps>::from_request_parts(parts, state).await?;
+        Ok(Self { staff, library })
+    }
+}
+
+/// Parse a snowflake path segment; a malformed one names nothing.
+pub(crate) fn id(raw: &str, what: &'static str) -> Result<i64, HttpError> {
+    raw.parse::<i64>()
+        .ok()
+        .filter(|v| *v > 0)
+        .ok_or_else(|| not_found(what))
+}
+
+fn not_found(what: &str) -> HttpError {
+    ApiError::with_message(ErrorCode::SrNotFound, format!("Unknown {what}")).into()
+}
+
+pub(crate) fn map_err(e: LibraryError) -> HttpError {
+    match e {
+        LibraryError::NotFound(w) => not_found(w),
+        LibraryError::MissingPermission(p) => ApiError::with_message(
+            ErrorCode::MissingPermissions,
+            format!("Missing platform permission {p}"),
+        )
+        .into(),
+        LibraryError::Invalid(m) => ApiError::with_message(ErrorCode::InvalidFormBody, m).into(),
+        LibraryError::Conflict(m) => ApiError::with_message(ErrorCode::SrConflict, m).into(),
+        LibraryError::Storage(m) | LibraryError::Search(m) => {
+            tracing::error!(error = %m, "library failure");
+            ErrorCode::SrInternal.into()
+        }
+    }
+}
+
+/// Split a comma-separated query value.
+pub(crate) fn csv(raw: &Option<String>) -> Vec<String> {
+    raw.iter()
+        .flat_map(|s| s.split(','))
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+/// Library routes (relative to the API version prefix).
+pub fn router() -> Router<AppState> {
+    Router::new()
+        // Members.
+        .route("/library/series", get(member::browse))
+        .route("/library/series/{series_id}", get(member::series))
+        .route(
+            "/library/series/{series_id}/chapters",
+            get(member::chapters),
+        )
+        .route(
+            "/library/series/{series_id}/follow",
+            put(member::follow).delete(member::unfollow),
+        )
+        .route("/library/chapters/{chapter_id}/pages", get(member::pages))
+        .route("/library/search", get(member::search))
+        .route("/library/updates", get(member::updates))
+        .route("/library/me/follows", get(member::my_follows))
+        // Publishers.
+        .route(
+            "/admin/library/series",
+            get(admin::list).post(admin::create_series),
+        )
+        .route(
+            "/admin/library/series/{series_id}",
+            get(admin::series)
+                .put(admin::update_series)
+                .delete(admin::delete_series),
+        )
+        .route(
+            "/admin/library/series/{series_id}/publish",
+            post(admin::publish_series),
+        )
+        .route(
+            "/admin/library/series/{series_id}/unpublish",
+            post(admin::unpublish_series),
+        )
+        .route(
+            "/admin/library/series/{series_id}/merge",
+            post(admin::merge_series),
+        )
+        .route(
+            "/admin/library/series/{series_id}/chapters",
+            get(admin::chapters),
+        )
+        .route(
+            "/admin/library/series/{series_id}/editions",
+            post(admin::create_edition),
+        )
+        .route(
+            "/admin/library/editions/{edition_id}",
+            put(admin::update_edition).delete(admin::delete_edition),
+        )
+        .route(
+            "/admin/library/editions/{edition_id}/volumes",
+            post(admin::create_volume),
+        )
+        .route(
+            "/admin/library/editions/{edition_id}/chapters",
+            post(admin::create_chapter),
+        )
+        .route(
+            "/admin/library/volumes/{volume_id}",
+            delete(admin::delete_volume),
+        )
+        .route(
+            "/admin/library/chapters/{chapter_id}",
+            put(admin::update_chapter).delete(admin::delete_chapter),
+        )
+        .route(
+            "/admin/library/chapters/{chapter_id}/publish",
+            post(admin::publish_chapter),
+        )
+        .route(
+            "/admin/library/chapters/{chapter_id}/unpublish",
+            post(admin::unpublish_chapter),
+        )
+        .route(
+            "/admin/library/chapters/{chapter_id}/pages",
+            get(admin::pages).put(admin::replace_pages),
+        )
+}
+
+/// OpenAPI fragment for the Library endpoints.
+#[derive(OpenApi)]
+#[openapi(
+    paths(
+        member::browse,
+        member::series,
+        member::chapters,
+        member::follow,
+        member::unfollow,
+        member::pages,
+        member::search,
+        member::updates,
+        member::my_follows,
+        admin::list,
+        admin::create_series,
+        admin::series,
+        admin::update_series,
+        admin::delete_series,
+        admin::publish_series,
+        admin::unpublish_series,
+        admin::merge_series,
+        admin::chapters,
+        admin::create_edition,
+        admin::update_edition,
+        admin::delete_edition,
+        admin::create_volume,
+        admin::delete_volume,
+        admin::create_chapter,
+        admin::update_chapter,
+        admin::delete_chapter,
+        admin::publish_chapter,
+        admin::unpublish_chapter,
+        admin::pages,
+        admin::replace_pages,
+    ),
+    components(schemas(
+        ErrorBody,
+        member::FollowBody,
+        admin::MergeBody,
+        sr_library::model::SeriesKind,
+        sr_library::model::SeriesStatus,
+        sr_library::model::ReadingDirection,
+        sr_library::model::ChapterFormat,
+        sr_library::model::Shelf,
+        sr_library::model::SortKey,
+        sr_library::model::AgeFilter,
+        sr_library::model::SeriesInput,
+        sr_library::model::Series,
+        sr_library::model::SeriesPage,
+        sr_library::model::SeriesDetail,
+        sr_library::model::EditionInput,
+        sr_library::model::Edition,
+        sr_library::model::VolumeInput,
+        sr_library::model::Volume,
+        sr_library::model::ChapterInput,
+        sr_library::model::Chapter,
+        sr_library::model::ChapterProgress,
+        sr_library::model::ChapterList,
+        sr_library::model::PageInput,
+        sr_library::model::PageVariant,
+        sr_library::model::PageEntry,
+        sr_library::model::PageManifest,
+        sr_library::model::Follow,
+        sr_library::model::FollowedSeries,
+        sr_library::model::FollowPage,
+        sr_library::model::UpdateItem,
+        sr_library::model::UpdatesPage,
+        sr_library::model::InstantSearch,
+    ))
+)]
+pub struct LibraryApiDoc;
+
+/// The OpenAPI document fragment for the Library endpoints.
+pub fn openapi() -> utoipa::openapi::OpenApi {
+    LibraryApiDoc::openapi()
+}

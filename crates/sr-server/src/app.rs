@@ -444,6 +444,30 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         SearchDeps::new(message_index.clone())
             .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone()))),
     );
+    // The Library catalog (LIB-DATA-*): Postgres repository, signed page/cover URLs (the same
+    // CDN signer as attachments), and a series search index in `<search dir>/library`,
+    // rebuilt from the database at startup so it can never drift across restarts.
+    let library_index = Arc::new(
+        sr_library::SeriesIndex::open_in_dir(&std::path::Path::new(&search_dir).join("library"))
+            .context("opening the library search index")?,
+    );
+    let library_service = sr_library::LibraryService::new(
+        Arc::new(sr_db::library_repo::PgLibraryRepo::new(pool.clone())),
+        cdn_signer.clone(),
+        clock.clone(),
+        id_src.clone(),
+    )
+    .with_index(library_index);
+    let indexed = library_service
+        .reindex_all()
+        .await
+        .map_err(|e| anyhow::anyhow!("indexing the library catalog: {e}"))?;
+    tracing::info!(series = indexed, "library search index rebuilt");
+    let library_deps = Arc::new(
+        routes::library::LibraryDeps::new(library_service)
+            .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone()))),
+    );
+
     // Index jobs for every message event, DMs included, and search cache
     // invalidation, from one firehose subscription (see `search_jobs`).
     let search_consumer = {
@@ -533,6 +557,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(settings_deps.clone())
         .extension(Arc::new(AutoModGateHandle(settings_deps)))
         .extension(search_deps)
+        .extension(library_deps)
         .extension(Arc::new(routes::media::MediaDeps::new(storage.clone())))
         .extension(Arc::new(routes::cdn::CdnDeps::new(
             storage.clone(),

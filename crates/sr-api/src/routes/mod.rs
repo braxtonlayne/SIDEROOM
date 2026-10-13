@@ -16,6 +16,7 @@
 //! * `admin`: `/admin/*` platform admin (staff sessions only; permissions checked per call).
 //! * `cdn`: `GET|HEAD /cdn/{*path}` signed media delivery. Not part of [`all`]: it lives
 //!   outside `/api/v1`; the composition root merges [`cdn::layered`] at the top level.
+//! * `library`: `/library/*` catalog for members, `/admin/library/*` for publishers.
 //! * `social`: relationships, ignores, notes, DMs (`/users/@me/channels*`, `/channels/{id}/recipients/*`),
 //!   acks and read states, notification settings, profiles (`PATCH /users/@me`, `/users/{id}/profile`)
 //!   and `/users/@me/presence`. Only `GET /users/@me` stays with the base router.
@@ -29,6 +30,7 @@ pub mod admin;
 pub mod auth;
 pub mod cdn;
 pub mod guilds;
+pub mod library;
 pub mod media;
 pub mod messages;
 pub mod search;
@@ -88,6 +90,7 @@ pub fn all() -> Router<AppState> {
         .merge(settings::router())
         .merge(search::router())
         .merge(threads::router())
+        .merge(library::router())
 }
 
 /// Feature-owned routers (`Feature::routes()`), nested under
@@ -111,6 +114,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(settings::openapi());
     doc.merge(search::openapi());
     doc.merge(threads::openapi());
+    doc.merge(library::openapi());
     doc
 }
 
