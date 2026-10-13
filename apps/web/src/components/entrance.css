@@ -87,7 +87,7 @@
 .ent-door-art {
   position: absolute;
   inset: 0;
-  background-image: var(--ent-door-image, url("/entrance/door.jpg"));
+  background-image: var(--ent-door-image, url('/entrance/door.jpg'));
   background-size: cover;
   /* Lands the photographed door where the CSS stand-in was drawn (left 18%). */
   background-position: 93% center;
