@@ -4203,6 +4203,8 @@ dependencies = [
  "sr-auth",
  "sr-chat",
  "sr-core",
+ "sr-library",
+ "sr-storage",
  "thiserror 2.0.21",
  "tokio",
  "tracing",
@@ -4258,6 +4260,22 @@ dependencies = [
  "sr-events",
  "thiserror 2.0.21",
  "tokio",
+]
+
+[[package]]
+name = "sr-library"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "serde",
+ "serde_json",
+ "sr-core",
+ "sr-storage",
+ "tantivy",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "utoipa",
 ]
 
 [[package]]
