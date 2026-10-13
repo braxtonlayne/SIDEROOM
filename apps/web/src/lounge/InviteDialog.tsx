@@ -4,12 +4,21 @@ import { ApiError } from '../api/client';
 import { rest } from '../store';
 import { isTextLike } from './channels';
 import { useChannels, useGuild } from './data';
-import { EXPIRY_OPTIONS, expiryLabel, inviteUrl, USES_OPTIONS } from './inviteFlow';
+import {
+  EXPIRY_OPTIONS,
+  EXTERNAL_MAX_AGE,
+  EXTERNAL_MAX_USES,
+  expiryLabel,
+  inviteUrl,
+  USES_OPTIONS,
+} from './inviteFlow';
 import { useLoungeRoute } from './nav';
 import { InviteFriends } from './shell/InviteFriends';
 
 /**
  * "Invite people": create an invite (max_age / max_uses), copy the link, list and revoke existing ones.
+ * "Copy link" makes an external invite (single use, 7 days; D-022, D-182) and "Invite friends" DMs use the
+ * server defaults (7 days, unlimited). The pickers override either once the person touches them.
  * Listing needs MANAGE_GUILD (guild-wide) or MANAGE_CHANNELS (per channel); others only create.
  */
 export function InviteDialog({
@@ -31,8 +40,10 @@ export function InviteDialog({
       textChannels[0]?.id ??
       '',
   );
-  const [maxAge, setMaxAge] = useState(86400);
-  const [maxUses, setMaxUses] = useState(1);
+  // The pickers start on the external defaults; until touched, requests send no explicit limits.
+  const [maxAge, setMaxAge] = useState(EXTERNAL_MAX_AGE);
+  const [maxUses, setMaxUses] = useState(EXTERNAL_MAX_USES);
+  const [edited, setEdited] = useState(false);
   const [created, setCreated] = useState<rest.Invite | null>(null);
   const [invites, setInvites] = useState<rest.Invite[]>([]);
   const [listError, setListError] = useState<string | null>(null);
@@ -67,14 +78,19 @@ export function InviteDialog({
   // Client-side hiding is a convenience; the server enforces CREATE_INSTANT_INVITE.
   if (!guild?.permissions.createInvite) return null;
 
+  const explicit: rest.CreateInviteOptions | undefined = edited
+    ? { max_age: maxAge, max_uses: maxUses }
+    : undefined;
+
   const generate = async () => {
     if (!channelId) return setError('Pick a channel to invite people to.');
     setBusy(true);
     setError(null);
     try {
-      const inv = await rest.createInvite(channelId, { max_age: maxAge, max_uses: maxUses });
+      const inv = await rest.createInvite(channelId, { external: true, ...explicit });
       setCreated(inv);
       setInvites((l) => [inv, ...l.filter((x) => x.code !== inv.code)]);
+      await copy(inv.code);
     } catch (err) {
       setError(
         err instanceof ApiError && err.status === 403
@@ -123,11 +139,17 @@ export function InviteDialog({
             ))}
           </select>
         </label>
-        {channelId && <InviteFriends channelId={channelId} />}
+        {channelId && <InviteFriends channelId={channelId} options={explicit} />}
         <div className="lng-field-row">
           <label className="lng-field">
             <span>Expire after</span>
-            <select value={maxAge} onChange={(e) => setMaxAge(Number(e.target.value))}>
+            <select
+              value={maxAge}
+              onChange={(e) => {
+                setMaxAge(Number(e.target.value));
+                setEdited(true);
+              }}
+            >
               {EXPIRY_OPTIONS.map((o) => (
                 <option key={o.seconds} value={o.seconds}>
                   {o.label}
@@ -137,7 +159,13 @@ export function InviteDialog({
           </label>
           <label className="lng-field">
             <span>Max number of uses</span>
-            <select value={maxUses} onChange={(e) => setMaxUses(Number(e.target.value))}>
+            <select
+              value={maxUses}
+              onChange={(e) => {
+                setMaxUses(Number(e.target.value));
+                setEdited(true);
+              }}
+            >
               {USES_OPTIONS.map((o) => (
                 <option key={o.uses} value={o.uses}>
                   {o.label}
@@ -153,7 +181,7 @@ export function InviteDialog({
         )}
         <div className="lng-form-actions">
           <Button loading={busy} onClick={() => void generate()}>
-            Generate invite link
+            Copy link
           </Button>
         </div>
         {created && (
@@ -168,6 +196,17 @@ export function InviteDialog({
               {copied === created.code ? 'Copied!' : 'Copy'}
             </Button>
           </div>
+        )}
+        {created && (
+          <p className="lng-muted" data-testid="invite-note">
+            {created.max_uses === 1
+              ? 'This link can be used once'
+              : created.max_uses
+                ? `This link can be used ${created.max_uses} times`
+                : 'This link can be used any number of times'}
+            {' · '}
+            {expiryLabel(created.expires_at)}
+          </p>
         )}
         {canList && (
           <section aria-label="Active invites">

@@ -48,6 +48,10 @@ export const EXPIRY_OPTIONS: { label: string; seconds: number }[] = [
   { label: 'Never', seconds: 0 },
 ];
 
+/** What `external: true` invites default to on the server (single use, 7 days; D-022, D-182). */
+export const EXTERNAL_MAX_AGE = 604800;
+export const EXTERNAL_MAX_USES = 1;
+
 export const USES_OPTIONS: { label: string; uses: number }[] = [
   { label: 'No limit', uses: 0 },
   { label: '1 use', uses: 1 },
