@@ -8,7 +8,10 @@ Remove an entry when it is decided, and record the decision in [01-decisions-log
 
 For each of these, the recommended answer was adopted as the default and is being implemented. The owner confirms it or overrides it.
 
-None open. The 2026-10-13 owner confirmations (age gate, font, door image, token calibration) are recorded in [open-question-answers.md](open-question-answers.md).
+1. **UnRAR licence for RAR/CBR reading.** (D-170) The `unrar` crate vendors RARLAB's UnRAR source (crate `unrar_sys`), whose manifest says `MIT OR Apache-2.0` but whose actual licence (`vendor/unrar/license.txt` in the crate) is the RARLAB freeware licence: free to use "in any software to handle RAR archives without limitations", not usable to build a RAR-compatible archiver, and modified UnRAR source distributed with other software must carry its licence paragraph. SIDEROOM only decompresses, so it fits a self-hosted deployment and RAR reading is implemented and on by default. The default adopted: keep it on behind `library.ingest.rar_enabled`, and include the UnRAR licence text in release notices. `cargo deny` cannot see this (it trusts the manifest). The owner confirms, or switches RAR off for good by deleting the `unrar` dependency (7z and ZIP are unaffected). — [crates/sr-library/Cargo.toml](../crates/sr-library/Cargo.toml)
+2. **PDF page rasterization (LIB-ING-004).** ADR-0005 names `pdfium-render`, which needs a native pdfium library shipped beside the binary (no pure-Rust rasterizer is practical). Not implemented: PDFs are validated and kept as originals only. Default: ship the original for download and defer image-mode PDFs until the owner approves bundling a pdfium build (a download, so not done by agents).
+
+Earlier confirmations (age gate, font, door image, token calibration) are recorded in [open-question-answers.md](open-question-answers.md).
 
 ## Human actions (not decisions)
 

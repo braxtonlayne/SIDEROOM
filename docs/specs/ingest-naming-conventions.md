@@ -49,12 +49,12 @@ Video: MKV, MP4, M4V, MOV, AVI, WebM, TS, MPEG, WMV (anything FFmpeg can decode)
     Chapter <NNN>[ - <Chapter Title>]/
       page_001.jpg  page_002.png  page_003.webp …
 ```
-- Page files: `page_<N>.<jpg|jpeg|png|webp|avif|gif>` (D-084). Also accepted: bare numbers (`001.jpg`) and any natural-sorted names (with a warning). Double-page spreads: suffix `_spread` or width > 1.3 × height is auto-detected.
+- Page files: `page_<N>.<jpg|jpeg|png|webp|gif>` (D-084). AVIF pages are not accepted (D-169): an archive containing an `.avif` file (or a file whose content is AVIF) is rejected, and the error lists the file names; convert them to JPEG, PNG or WebP first. Also accepted: bare numbers (`001.jpg`) and any natural-sorted names (with a warning). Double-page spreads: suffix `_spread` or width > 1.3 × height is auto-detected.
 - Chapter folder alternatives: `Ch.<N>`, `c<N>`, `Chapter <N.5>` (decimals allowed for extras).
-- Everything is converted to WebP on the server (quality 85 default, lossless for PNG line art if smaller), with the original dimensions recorded.
+- Everything is converted to WebP on the server (lossy quality 85 via libwebp, D-168; a PNG source is also encoded lossless and the smaller file is kept, which favours line art), with the original dimensions recorded. libwebp cannot encode a side longer than 16,383 px, so a page taller or wider than that is refused: split very long webtoon strips first.
 
 ### 2.2 Archives
-`<Series> v<NN> c<NNN>[ - <Title>] [<Group>].cbz` (also `.zip`, `.cbr`, `.rar`, `.cb7`, `.7z`). Pages inside follow §2.1. `ComicInfo.xml` inside the archive is read when present (title, number, writer, summary, language, manga direction `Manga=YesAndRightToLeft`).
+`<Series> v<NN> c<NNN>[ - <Title>] [<Group>].cbz` (also `.zip`, `.cbr`, `.rar`, `.cb7`, `.7z`). The format is detected from the file contents, not the extension. ZIP/CBZ and 7z/CB7 are always read; RAR/CBR is read unless the operator turns off the platform setting `library.ingest.rar_enabled` (default on, D-170), in which case a RAR upload is rejected as an unsupported format. Every format is held to the same limits (entry count, per-file size, total uncompressed size, compression ratio, no nested archives, no `..` or absolute names, no encrypted or multi-volume archives; symlinks are skipped). Pages inside follow §2.1. `ComicInfo.xml` inside the archive is read when present (title, number, writer, summary, language, manga direction `Manga=YesAndRightToLeft`).
 
 ### 2.3 Documents
 `.pdf` (rasterized to pages for image-mode reading, with the original kept for download), `.epub` (kept as-is, reflowable reader).

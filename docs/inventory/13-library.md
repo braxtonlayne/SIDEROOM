@@ -11,8 +11,8 @@ Phase 4. Spec: [library-reader](../specs/library-reader.md). Mockup: `library-ho
 - [x] **LIB-DATA-006** [BE] Latest updates feed (global + followed)
 
 ## LIB-ING — Ingest & conversion
-- [ ] **LIB-ING-001** [BE] Image page pipeline: decode JPEG/PNG/WebP/AVIF/GIF → WebP (q85, lossless if smaller) + sized variants 720/1080/1600 + blurhash + dimensions + spread detection *(partial: lossless WebP only, no AVIF; see open-questions 25, 26)*
-- [ ] **LIB-ING-002** [BE] Archive readers: ZIP/CBZ, RAR/CBR, 7z/CB7 (natural sort, ignore junk files like `__MACOSX`, `Thumbs.db`) *(partial: ZIP/CBZ only; see open-questions 27)*
+- [x] **LIB-ING-001** [BE] Image page pipeline: decode JPEG/PNG/WebP/GIF -> lossy WebP q85 (PNG sources also lossless, smaller kept; D-168) + sized variants 720/1080/1600 + blurhash + dimensions + spread detection. AVIF is rejected, not decoded (D-169)
+- [x] **LIB-ING-002** [BE] Archive readers: ZIP/CBZ, 7z/CB7, RAR/CBR (behind `library.ingest.rar_enabled`; D-170) under one set of limits (natural sort, ignore junk files like `__MACOSX`, `Thumbs.db`)
 - [x] **LIB-ING-003** [BE] ComicInfo.xml parser → metadata
 - [ ] **LIB-ING-004** [BE] PDF: keep original + rasterize pages (pdfium) for image mode
 - [ ] **LIB-ING-005** [BE] EPUB: validate, extract metadata/cover, keep as-is
