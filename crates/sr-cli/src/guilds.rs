@@ -65,9 +65,9 @@ fn text_category(channels: &[Channel]) -> Result<ChannelId> {
         .context("blueprint has no Text Channels category")
 }
 
-/// Create the Staff Server owned by `owner` (`is_staff_guild`), with its
-/// default channels and `#alerts` recorded in `guilds.settings`. The default
-/// staff roles are not created yet: their permission bits are not specified.
+/// Create the Staff Server owned by `owner` (`is_staff_guild`), with its default
+/// channels, `#alerts` recorded in `guilds.settings`, and the default staff roles
+/// (D-162, see [`ensure_staff_roles`]).
 pub async fn create_staff_guild(
     pool: &PgPool,
     server: &ServerConfig,
@@ -105,19 +105,44 @@ pub async fn create_staff_guild(
         .await
         .context("recording #alerts on the Staff Server")?;
     }
-    create_staff_roles(pool, &snow, guild, owner).await?;
+    ensure_staff_roles(pool, server, guild, owner).await?;
     Ok(guild)
 }
 
-/// Instantiate the `staff_role_templates` rows as roles of the Staff Server and give
-/// the Owner the Owner role plus an appointment row.
+/// Make sure the Staff Server has every default staff role and that its owner holds
+/// the Owner role and an appointment. Safe to run again: roles are matched by name, so
+/// nothing is duplicated, an edited role keeps its edits, and a template added later
+/// is created. Returns the number of roles created.
+pub async fn ensure_staff_roles(
+    pool: &PgPool,
+    server: &ServerConfig,
+    guild: GuildId,
+    owner: i64,
+) -> Result<usize> {
+    let snow = snowflakes(server)?;
+    create_staff_roles(pool, &snow, guild, owner).await
+}
+
+/// The Staff Server and its owner, if bootstrap created one.
+pub async fn find_staff_guild(pool: &PgPool) -> Result<Option<(GuildId, i64)>> {
+    let row: Option<(i64, i64)> =
+        sqlx::query_as("SELECT id, owner_id FROM guilds WHERE is_staff_guild LIMIT 1")
+            .fetch_optional(pool)
+            .await
+            .context("looking for the Staff Server")?;
+    Ok(row.map(|(id, owner)| (GuildId::new(u64::try_from(id).unwrap_or(0)), owner)))
+}
+
+/// Instantiate the `staff_role_templates` rows as roles of the Staff Server (those not
+/// there yet) and give the Owner the Owner role plus an appointment row.
 async fn create_staff_roles(
     pool: &PgPool,
     snow: &SnowflakeGenerator<SystemClock>,
     guild: GuildId,
     owner: i64,
-) -> Result<()> {
+) -> Result<usize> {
     let g = i64::try_from(guild.get()).unwrap_or(0);
+    let mut created = 0;
     let templates: Vec<(String, i32, i32, i64)> = sqlx::query_as(
         "SELECT name, position, color, platform_permissions FROM staff_role_templates ORDER BY position",
     )
@@ -125,38 +150,54 @@ async fn create_staff_roles(
     .await
     .context("reading staff_role_templates")?;
     for (name, position, color, perms) in templates {
-        let id = i64::try_from(snow.generate().get()).unwrap_or(0);
-        sqlx::query(
-            "INSERT INTO roles (id, guild_id, name, color, position, platform_permissions, hoist, mentionable) \n             VALUES ($1,$2,$3,$4,$5,$6,true,true)",
-        )
-        .bind(id)
-        .bind(g)
-        .bind(&name)
-        .bind(color)
-        .bind(position)
-        .bind(perms)
-        .execute(pool)
-        .await
-        .with_context(|| format!("creating staff role {name}"))?;
-        if name == "Owner" {
-            sqlx::query("INSERT INTO member_roles (guild_id, user_id, role_id) VALUES ($1,$2,$3)")
+        let existing: Option<i64> =
+            sqlx::query_scalar("SELECT id FROM roles WHERE guild_id = $1 AND name = $2 LIMIT 1")
                 .bind(g)
-                .bind(owner)
+                .bind(&name)
+                .fetch_optional(pool)
+                .await
+                .with_context(|| format!("looking for staff role {name}"))?;
+        let id = match existing {
+            Some(id) => id,
+            None => {
+                let id = i64::try_from(snow.generate().get()).unwrap_or(0);
+                sqlx::query(
+                    "INSERT INTO roles (id, guild_id, name, color, position, platform_permissions, hoist, mentionable) \n                     VALUES ($1,$2,$3,$4,$5,$6,true,true)",
+                )
                 .bind(id)
+                .bind(g)
+                .bind(&name)
+                .bind(color)
+                .bind(position)
+                .bind(perms)
                 .execute(pool)
                 .await
-                .context("giving the Owner role")?;
+                .with_context(|| format!("creating staff role {name}"))?;
+                created += 1;
+                id
+            }
+        };
+        if name == "Owner" {
+            sqlx::query(
+                "INSERT INTO member_roles (guild_id, user_id, role_id) VALUES ($1,$2,$3) \n                 ON CONFLICT DO NOTHING",
+            )
+            .bind(g)
+            .bind(owner)
+            .bind(id)
+            .execute(pool)
+            .await
+            .context("giving the Owner role")?;
         }
     }
     sqlx::query(
-        "INSERT INTO staff_appointments (id, account_id, appointed_by, reason) VALUES ($1,$2,$2,'Owner')",
+        "INSERT INTO staff_appointments (id, account_id, appointed_by, reason) VALUES ($1,$2,$2,'Owner') \n         ON CONFLICT DO NOTHING",
     )
     .bind(i64::try_from(snow.generate().get()).unwrap_or(0))
     .bind(owner)
     .execute(pool)
     .await
     .context("appointing the Owner")?;
-    Ok(())
+    Ok(created)
 }
 
 /// Markdown samples cycled through the seeded messages.
@@ -258,4 +299,125 @@ pub async fn seed_dev_guild(
             .map_err(|e| anyhow::anyhow!("seeding a message: {e}"))?;
     }
     Ok(guild)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn pool() -> PgPool {
+        let url = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL must be set");
+        let pool = sr_db::connect(&sr_db::DbConfig::new(url))
+            .await
+            .expect("connect");
+        sr_db::migrate(&pool).await.expect("migrate");
+        pool
+    }
+
+    async fn account(pool: &PgPool, snow: &SnowflakeGenerator<SystemClock>) -> i64 {
+        let person = i64::try_from(snow.generate().get()).unwrap();
+        let id = i64::try_from(snow.generate().get()).unwrap();
+        sqlx::query("INSERT INTO persons (id) VALUES ($1)")
+            .bind(person)
+            .execute(pool)
+            .await
+            .unwrap();
+        let name = format!("o{id}");
+        sqlx::query(
+            "INSERT INTO accounts (id, person_id, username, email, password_hash) \n             VALUES ($1, $2, $3, $4, 'x')",
+        )
+        .bind(id)
+        .bind(person)
+        .bind(&name[..name.len().min(32)])
+        .bind(format!("{name}@example.test"))
+        .execute(pool)
+        .await
+        .unwrap();
+        id
+    }
+
+    /// F-15: the default staff roles come from `staff_role_templates`, the owner holds
+    /// Owner, and running the step again changes nothing (or only repairs).
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn staff_roles_are_created_once_and_repaired_on_rerun() {
+        let pool = pool().await;
+        let server = ServerConfig::default();
+        let snow = snowflakes(&server).unwrap();
+        let owner = account(&pool, &snow).await;
+        // Other tests may have made a Staff Server; this one only inspects its own guild.
+        let guild = create_staff_guild(&pool, &server, owner, 1_800_000_000_000)
+            .await
+            .unwrap();
+        let g = i64::try_from(guild.get()).unwrap();
+        let templates: i64 = sqlx::query_scalar("SELECT count(*) FROM staff_role_templates")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let count = |sql: &'static str| {
+            let pool = pool.clone();
+            async move {
+                sqlx::query_scalar::<_, i64>(sql)
+                    .bind(g)
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap()
+            }
+        };
+        let roles = "SELECT count(*) FROM roles WHERE guild_id = $1 AND platform_permissions <> 0";
+        assert_eq!(count(roles).await, templates);
+        // The Owner role carries the Owner bit (63) and is held by the owner.
+        let owner_roles: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM member_roles mr JOIN roles r ON r.id = mr.role_id \n             WHERE mr.guild_id = $1 AND mr.user_id = $2 AND r.name = 'Owner' \n             AND r.platform_permissions < 0",
+        )
+        .bind(g)
+        .bind(owner)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(owner_roles, 1);
+
+        // Again: nothing new.
+        assert_eq!(
+            ensure_staff_roles(&pool, &server, guild, owner)
+                .await
+                .unwrap(),
+            0
+        );
+        assert_eq!(count(roles).await, templates);
+        let appointments: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM staff_appointments WHERE account_id = $1 AND revoked_at IS NULL",
+        )
+        .bind(owner)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(appointments, 1);
+
+        // A deleted role is recreated; an edited one keeps its edit.
+        sqlx::query("DELETE FROM roles WHERE guild_id = $1 AND name = 'Support'")
+            .bind(g)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE roles SET color = 1 WHERE guild_id = $1 AND name = 'Moderator'")
+            .bind(g)
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            ensure_staff_roles(&pool, &server, guild, owner)
+                .await
+                .unwrap(),
+            1
+        );
+        let color: i32 = sqlx::query_scalar(
+            "SELECT color FROM roles WHERE guild_id = $1 AND name = 'Moderator'",
+        )
+        .bind(g)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(color, 1);
+    }
 }

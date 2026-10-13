@@ -93,6 +93,9 @@ pub enum StaffCmd {
         #[arg(long)]
         reason: String,
     },
+    /// Create any default staff role the Staff Server is missing and make sure its
+    /// owner holds the Owner role. Safe to run again.
+    EnsureRoles,
     /// Hand the Staff Server and the Owner role to another account.
     TransferOwner {
         user: String,
