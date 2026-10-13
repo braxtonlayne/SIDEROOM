@@ -1,0 +1,49 @@
+# coturn for production (XC-OPS-004). Copy to turnserver.prod.conf, replace the CHANGE_ME values.
+#
+# The server hands clients short-lived credentials derived from the shared secret (the TURN REST API
+# convention: username = expiry timestamp, password = base64(hmac-sha1(secret, username))), so no user
+# list lives in coturn. The same secret must be given to sr-server once voice ships (the TURN setting is not in the config yet).
+#
+#   openssl rand -hex 32      # static-auth-secret
+#
+# Ports to open on the firewall: 3478 udp+tcp, 5349 tcp (TLS), and the relay range below (udp).
+listening-port=3478
+tls-listening-port=5349
+min-port=49152
+max-port=49999
+
+# Public address clients reach (the host's public IP). Behind NAT also set relay-ip.
+external-ip=CHANGE_ME_PUBLIC_IP
+realm=chat.example.org
+server-name=chat.example.org
+
+fingerprint
+use-auth-secret
+static-auth-secret=CHANGE_ME
+
+# TLS on 5349 (reuse the certificate Caddy obtained, mounted read-only).
+cert=/etc/coturn/tls/fullchain.pem
+pkey=/etc/coturn/tls/privkey.pem
+no-tlsv1
+no-tlsv1_1
+
+# Never relay into private networks: this is what stops TURN being used as an SSRF/pivot tool.
+no-multicast-peers
+denied-peer-ip=0.0.0.0-0.255.255.255
+denied-peer-ip=10.0.0.0-10.255.255.255
+denied-peer-ip=100.64.0.0-100.127.255.255
+denied-peer-ip=127.0.0.0-127.255.255.255
+denied-peer-ip=169.254.0.0-169.254.255.255
+denied-peer-ip=172.16.0.0-172.31.255.255
+denied-peer-ip=192.168.0.0-192.168.255.255
+denied-peer-ip=::1
+denied-peer-ip=fc00::-fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+
+# Cap abuse.
+total-quota=300
+user-quota=12
+max-bps=2000000
+
+no-cli
+log-file=stdout
+simple-log

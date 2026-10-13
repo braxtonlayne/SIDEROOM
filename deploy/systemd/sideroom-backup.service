@@ -1,0 +1,18 @@
+[Unit]
+Description=SIDE ROOM nightly backup (Postgres dump and object snapshot)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=sideroom
+Group=sideroom
+# SR_DATABASE_URL, SR_BACKUP_DIR, SR_BACKUP_REPOSITORY, RUSTIC_PASSWORD_FILE live here, mode 0600.
+EnvironmentFile=/etc/sideroom/backup.env
+ExecStart=/opt/sideroom/deploy/scripts/backup.sh
+Nice=10
+IOSchedulingClass=idle
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/backups/sideroom
+NoNewPrivileges=true

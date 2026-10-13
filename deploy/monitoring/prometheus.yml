@@ -1,0 +1,13 @@
+# Prometheus scrape config for the monitoring profile of deploy/compose/prod.yml.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 30s
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: sr-server
+    metrics_path: /internal/metrics
+    static_configs:
+      - targets: ["sr-server:9100"]
