@@ -6,15 +6,12 @@ import { ActionStatus, useAction } from '../ui';
 export const PRUNE_DAYS = [1, 7, 30] as const;
 
 /**
- * Copy for the inactivity rule (F-26, D-166). Until the backend tracks last-seen time (F-02) a member counts
- * as inactive when they have not sent a message in the window; after that the wording becomes Discord's
- * ("have not been seen"). Flip `LAST_SEEN_TRACKED` when F-02 ships.
+ * Copy for the inactivity rule (F-26, D-166). The backend tracks last-seen time (F-02), so the wording is
+ * Discord's: members who have not been online in the window.
  */
-export const LAST_SEEN_TRACKED = false;
+export const LAST_SEEN_TRACKED = true;
 export const pruneRule = (days: number) =>
-  LAST_SEEN_TRACKED
-    ? `Members who have not been online for ${days} ${days === 1 ? 'day' : 'days'}`
-    : `Members who have not sent a message in ${days} ${days === 1 ? 'day' : 'days'}`;
+  `Members who have not been online for ${days} ${days === 1 ? 'day' : 'days'}`;
 
 /** Server Settings, Members: preview and run a prune (`GET/POST /guilds/{id}/prune`, KICK_MEMBERS). */
 export function PruneDialog({

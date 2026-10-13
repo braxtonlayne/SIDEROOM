@@ -30,7 +30,7 @@ describe('Members', () => {
     expect(screen.queryByText('carol')).toBeNull();
   });
 
-  it('prunes inactive members: previews the count, then removes (F-26 copy)', async () => {
+  it('prunes inactive members: previews the count, then removes (Discord wording, F-26)', async () => {
     seed({ perms: [MANAGE.kick] });
     const counts: string[] = [];
     const run = capture();
@@ -49,8 +49,9 @@ describe('Members', () => {
     await screen.findByText('3 members');
     await userEvent.click(screen.getByRole('button', { name: 'Prune' }));
     const dialog = await screen.findByRole('dialog', { name: 'Prune members' });
-    // Until last-seen tracking ships the rule is about messages, not presence.
-    expect(dialog).toHaveTextContent(/have not sent a message in 7 days/);
+    // Last-seen tracking shipped (F-02), so the rule is about presence, as on Discord.
+    expect(dialog).toHaveTextContent(/have not been online for 7 days/);
+    expect(dialog).not.toHaveTextContent(/sent a message/);
     expect(await within(dialog).findByText('2 members would be removed.')).toBeInTheDocument();
     await userEvent.selectOptions(within(dialog).getByLabelText('Inactive for'), '30');
     expect(await within(dialog).findByText('4 members would be removed.')).toBeInTheDocument();

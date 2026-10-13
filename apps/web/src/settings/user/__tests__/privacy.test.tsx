@@ -1,5 +1,7 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { resetStore, useStore } from '../../../store';
+import { axeViolations } from '../../../../../../packages/ui/src/test-axe';
 import { http, HttpResponse, server } from '../../../test/server';
 import { openSettings, resetPrefs, signedIn } from './helpers';
 
@@ -12,6 +14,7 @@ const rel = (id: string, type: number, username: string) => ({
 });
 
 beforeEach(() => {
+  resetStore();
   resetPrefs();
   signedIn();
 });
@@ -82,5 +85,54 @@ describe('Privacy and Safety', () => {
     openSettings('privacy');
     expect(await screen.findByText("Couldn't load blocked users")).toBeInTheDocument();
     expect(await screen.findByText("Couldn't load ignored users")).toBeInTheDocument();
+  });
+});
+
+describe('Load remote images automatically', () => {
+  const quietLists = () =>
+    server.use(
+      http.get('*/api/v1/users/@me/relationships', () => HttpResponse.json([])),
+      http.get('*/api/v1/users/@me/ignores', () => HttpResponse.json([])),
+    );
+
+  it('is off by default, saves into the settings blob and shows the new state', async () => {
+    quietLists();
+    const patches: unknown[] = [];
+    server.use(
+      http.patch('*/api/v1/users/@me/settings', async ({ request }) => {
+        const body = (await request.json()) as { settings: Record<string, unknown> };
+        patches.push(body.settings);
+        return HttpResponse.json({ version: 2, settings: body.settings });
+      }),
+    );
+    openSettings('privacy');
+    const sw = await screen.findByRole('switch', { name: /Load remote images automatically/ });
+    expect(sw).not.toBeChecked();
+    expect(await axeViolations(document.body)).toEqual([]);
+    await userEvent.click(sw);
+    await waitFor(() => expect(sw).toBeChecked());
+    expect(patches).toEqual([{ load_remote_images: true }]);
+    expect(useStore.getState().userSettings?.settings.load_remote_images).toBe(true);
+  });
+
+  it('reflects a saved on state and turns it off', async () => {
+    quietLists();
+    server.use(
+      http.get('*/api/v1/users/@me/settings', () =>
+        HttpResponse.json({ version: 3, settings: { load_remote_images: true } }),
+      ),
+      http.patch('*/api/v1/users/@me/settings', async ({ request }) => {
+        const body = (await request.json()) as { settings: Record<string, unknown> };
+        return HttpResponse.json({
+          version: 4,
+          settings: { load_remote_images: body.settings.load_remote_images },
+        });
+      }),
+    );
+    openSettings('privacy');
+    const sw = await screen.findByRole('switch', { name: /Load remote images automatically/ });
+    await waitFor(() => expect(sw).toBeChecked());
+    await userEvent.click(sw);
+    await waitFor(() => expect(sw).not.toBeChecked());
   });
 });
