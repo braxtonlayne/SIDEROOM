@@ -75,6 +75,9 @@ export const resetPassword = (token: string, password: string) =>
 /** ENT-UI-020: `POST /sr/auth/verify-email` (204, or 400 with `errors.token`). */
 export const verifyEmail = (token: string) => apiPost<void>('/sr/auth/verify-email', { token });
 /** Banner resend (session + CSRF). Server answers 429 when asked more than once a minute. */
+/** `POST /sr/auth/email/cancel` (204, or 400 `errors.token`): the "This wasn't me" link of an email change. */
+export const cancelEmailChange = (token: string) =>
+  apiPost<void>('/sr/auth/email/cancel', { token });
 export const resendVerification = () => apiPost<void>('/sr/auth/verify-email/resend');
 
 /** Passkey ceremony: server issues options (JSON form), the browser signs, server verifies. */

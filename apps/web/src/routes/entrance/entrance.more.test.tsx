@@ -82,6 +82,7 @@ describe('verify email (ENT-UI-020)', () => {
     );
     renderVerify('tok9');
     expect(await screen.findByText(/Your email is verified/)).toBeInTheDocument();
+    expect(screen.getByText(/If you were changing your address/)).toBeInTheDocument();
     expect(body).toEqual({ token: 'tok9' });
     expect(calls).toBe(1);
   });
