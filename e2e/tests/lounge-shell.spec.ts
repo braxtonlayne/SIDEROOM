@@ -107,6 +107,62 @@ test.describe('Lounge shell flows', () => {
     ).toBeVisible();
   });
 
+  test('rail folders follow the account into a fresh browser (D-179)', async ({
+    browser,
+    browserName,
+  }) => {
+    test.skip(browserName !== 'chromium', 'Chromium only in this environment.');
+    const stamp = Date.now().toString(36);
+    const user = {
+      username: `railer_${stamp}`,
+      email: `railer_${stamp}@example.test`,
+      password: 'Railer-Passw0rd-9!',
+    };
+    const ctxA = await browser.newContext();
+    const a = await ctxA.newPage();
+    await a.goto('/');
+    await a.locator('#invite-code').fill(createInvite(`rail ${stamp}`));
+    await a.getByRole('button', { name: 'Check invitation' }).click();
+    await expect(a).toHaveURL(/\/register/);
+    await a.getByLabel('Email').fill(user.email);
+    await a.getByLabel('Username').fill(user.username);
+    await a.getByLabel('Password', { exact: true }).fill(user.password);
+    await a.getByLabel('Confirm password').fill(user.password);
+    await a.getByLabel(/house notes/).check();
+    await a.getByRole('button', { name: 'Open the door' }).click();
+    await expect(a).toHaveURL(/\/channels/);
+
+    const first = `Rail A ${stamp}`;
+    const second = `Rail B ${stamp}`;
+    await createServer(a, first);
+    await createServer(a, second);
+    const rail = a.getByRole('navigation', { name: 'Servers' });
+    // The drag writes guild_folders to the account's settings blob (debounced 1 s).
+    const saved = a.waitForResponse(
+      (r) =>
+        r.url().includes('/users/@me/settings') &&
+        r.request().method() === 'PATCH' &&
+        (r.request().postData() ?? '').includes('guild_folders') &&
+        r.ok(),
+    );
+    await rail
+      .getByRole('link', { name: new RegExp(second) })
+      .dragTo(rail.getByRole('link', { name: new RegExp(first) }));
+    await expect(rail.getByRole('button', { name: /folder/ })).toBeVisible();
+    await saved;
+
+    // A browser that never saw this layout (empty localStorage) gets the folder from the server.
+    const ctxB = await browser.newContext();
+    const b = await ctxB.newPage();
+    await login(b, user);
+    await expect(
+      b.getByRole('navigation', { name: 'Servers' }).getByRole('button', { name: /folder/ }),
+    ).toBeVisible();
+
+    await ctxA.close();
+    await ctxB.close();
+  });
+
   test('friends: add by username, accept, message', async ({ browser, browserName }) => {
     test.skip(browserName !== 'chromium', 'Chromium only in this environment.');
     const stamp = Date.now().toString(36);

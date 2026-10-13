@@ -54,7 +54,7 @@ test.describe('Lounge server flows', () => {
     await a.getByTestId('channel-sidebar').getByRole('button', { name: serverName }).click();
     await a.getByRole('menuitem', { name: 'Invite to Server' }).click();
     const dialog = a.getByRole('dialog', { name: /Invite people to/ });
-    await dialog.getByRole('button', { name: 'Generate invite link' }).click();
+    await dialog.getByRole('button', { name: 'Copy link' }).click();
     const link = await dialog.getByLabel('Invite link').inputValue();
     expect(link).toMatch(/\/invite\/[A-Za-z0-9-]+$/);
     await a.keyboard.press('Escape');
