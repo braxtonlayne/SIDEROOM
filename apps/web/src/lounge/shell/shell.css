@@ -356,3 +356,11 @@
 .lng-welcome-text small {
   color: var(--text-muted);
 }
+
+@media (hover: none) {
+  /* Touch: Close DM and the channel actions live in the long-press menu. */
+  .lng-dm-close,
+  .lng-channel-actions {
+    display: none !important;
+  }
+}

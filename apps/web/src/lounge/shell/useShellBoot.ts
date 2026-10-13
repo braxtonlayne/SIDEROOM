@@ -10,7 +10,7 @@ import { useSocial } from './social';
 export function useShellBoot() {
   const mock = useContext(LoungeDataContext);
   const loadRelationships = useSocial((s) => s.loadRelationships);
-  const loadRequests = useSocial((s) => s.loadMessageRequests);
+  const loadRequests = useSocial((s) => s.loadDms);
   const loadNotif = useNotifSettings((s) => s.load);
   useEffect(() => {
     if (mock) return;

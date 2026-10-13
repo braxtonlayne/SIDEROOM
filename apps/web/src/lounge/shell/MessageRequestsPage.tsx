@@ -11,7 +11,7 @@ import { useSocial, wireName } from './social';
 export function MessageRequestsPage() {
   const list = useSocial((s) => s.messageRequests);
   const status = useSocial((s) => s.messageRequestsStatus);
-  const load = useSocial((s) => s.loadMessageRequests);
+  const load = useSocial((s) => s.loadDms);
   const forget = useSocial((s) => s.forgetMessageRequest);
   const goto = useLoungeGoto();
   const [error, setError] = useState<string | null>(null);

@@ -4,6 +4,7 @@
  */
 import { create } from 'zustand';
 import { apiFetch } from '../../api/client';
+import { useStore } from '../../store';
 import { REL, listRelationships, type DmObject, type RelationshipRow } from './api';
 
 export interface SocialState {
@@ -13,7 +14,11 @@ export interface SocialState {
   status: 'idle' | 'loading' | 'ready' | 'error';
   messageRequestsStatus: 'idle' | 'loading' | 'ready' | 'error';
   loadRelationships(): Promise<void>;
-  loadMessageRequests(): Promise<void>;
+  /**
+   * Loads the DM list over REST. READY carries only `recipient_ids` for DMs, so this is what puts the
+   * people (and so the names) into the store; requests are kept apart from the main list.
+   */
+  loadDms(): Promise<void>;
   /** Drop a request locally right after answering it. */
   forgetMessageRequest(channelId: string): void;
   reset(): void;
@@ -34,11 +39,13 @@ export const useSocial = create<SocialState>()((set, get) => ({
       set({ status: 'error' });
     }
   },
-  async loadMessageRequests() {
+  async loadDms() {
     if (get().messageRequestsStatus === 'loading') return;
     set({ messageRequestsStatus: 'loading' });
     try {
       const list = await apiFetch<DmObject[]>('/users/@me/channels', { retries: 0 });
+      const store = useStore.getState();
+      for (const d of list) if (!d.is_message_request) store.applyDispatch('CHANNEL_CREATE', d);
       set({
         messageRequests: list.filter((d) => d.is_message_request),
         messageRequestsStatus: 'ready',

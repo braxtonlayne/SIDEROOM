@@ -318,6 +318,44 @@ describe('DM list', () => {
     quiet([rel(bob, 1)]);
   });
 
+  it('names DMs that READY delivered with recipient ids only', async () => {
+    useStore.setState({
+      channels: {
+        ...useStore.getState().channels,
+        dm2: { id: 'dm2', type: 1, last_message_id: '300' },
+      },
+      channelIdsByGuild: { ...useStore.getState().channelIdsByGuild, '@me': ['dm1', 'dm2'] },
+    });
+    quiet(
+      [rel(bob, 1)],
+      [
+        { id: 'dm1', type: 1, recipients: [bob], last_message_id: '200' },
+        { id: 'dm2', type: 1, recipients: [cat], last_message_id: '300' },
+      ],
+    );
+    at('/channels/@me');
+    const sidebar = await screen.findByTestId('home-sidebar');
+    expect(await within(sidebar).findByRole('link', { name: /^cat/ })).toBeInTheDocument();
+    expect(within(sidebar).getByRole('link', { name: /Bob B/ })).toBeInTheDocument();
+  });
+
+  it('shows a group DM with a member count and an avatar collage', async () => {
+    useStore.setState({
+      channels: {
+        ...useStore.getState().channels,
+        dm3: { id: 'dm3', type: 3, recipients: [bob, cat], last_message_id: '400' },
+      },
+      channelIdsByGuild: { ...useStore.getState().channelIdsByGuild, '@me': ['dm1', 'dm3'] },
+    });
+    at('/channels/@me');
+    const sidebar = await screen.findByTestId('home-sidebar');
+    const row = await within(sidebar).findByRole('link', { name: /Bob B, cat/ });
+    expect(within(row).getByText('3 Members')).toBeInTheDocument();
+    expect(row.querySelector('[role="group"]')).not.toBeNull();
+    expect(within(sidebar).getByRole('button', { name: /Leave group/ })).toBeInTheDocument();
+    expect(await axeViolations(sidebar)).toEqual([]);
+  });
+
   it('closes a DM with the hover close button', async () => {
     let closed = 0;
     server.use(

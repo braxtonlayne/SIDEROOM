@@ -1,5 +1,13 @@
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Avatar, ContextMenu, CounterBadge, Icon, VirtualList, type MenuEntry } from '@sideroom/ui';
+import {
+  Avatar,
+  AvatarStack,
+  ContextMenu,
+  CounterBadge,
+  Icon,
+  VirtualList,
+  type MenuEntry,
+} from '@sideroom/ui';
 import { useStore } from '../store';
 import { dmTitle, HOME } from './channels';
 import {
@@ -99,7 +107,20 @@ function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
           aria-current={selected ? 'page' : undefined}
           aria-label={`${title}${dm.unread ? ', unread' : ''}${muted ? ', muted' : ''}`}
         >
-          <Avatar name={title} size={32} {...(!group && p ? { status: p.status } : {})} />
+          {group ? (
+            <AvatarStack
+              aria-hidden="true"
+              size={24}
+              max={2}
+              items={dm.recipientIds.map((id) => ({
+                id,
+                name: users[id]?.displayName ?? '?',
+                src: users[id]?.avatarUrl ?? null,
+              }))}
+            />
+          ) : (
+            <Avatar name={title} size={32} {...(p ? { status: p.status } : {})} />
+          )}
           <span className="lng-dm-text">
             <span className="lng-dm-name">
               {title}

@@ -10,7 +10,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [x] **LNG-SHL-005** [FE] Remember last channel per guild + last location on reload
 - [x] **LNG-SHL-006** [FE] Quick Switcher (Ctrl/⌘+K): fuzzy search of DMs, channels, servers, users; prefixes `@ # ! *`; recent list
 - [x] **LNG-SHL-007** [FE] Keyboard shortcut system + shortcut sheet modal (Ctrl+/)
-- [ ] **LNG-SHL-008** [FE] Connection state banner ("Connecting…", "Reconnecting…", offline mode)
+- [x] **LNG-SHL-008** [FE] Connection state banner ("Connecting…", "Reconnecting…", offline mode)
 - [ ] **LNG-SHL-009** [FE] App-level notices bar (verify email, update available, platform announcements)
 - [x] **LNG-SHL-010** [FE] Mobile layout: swipeable panes (list ↔ chat ↔ members), bottom tab bar (Home, Notifications, You)
 - [x] **LNG-SHL-011** [FE] Drag-and-drop file overlay on the chat column
@@ -23,10 +23,10 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [x] **LNG-RAIL-004** [FE] Unread pill (small), selected pill (tall), hover pill
 - [x] **LNG-RAIL-005** [FE] Mention count badge (red, 99+)
 - [x] **LNG-RAIL-006** [FE] Tooltip with server name (+ voice/stream indicators)
-- [ ] **LNG-RAIL-007** [FE] Drag to reorder guilds; persist in user settings
-- [ ] **LNG-RAIL-008** [FE] Folders: create by drag-onto, expand/collapse, name, color, folder unread aggregation, folder settings modal
+- [x] **LNG-RAIL-007** [FE] Drag to reorder guilds; persist in user settings *(order is stored on this device; syncing it to the account needs a backend setting)*
+- [x] **LNG-RAIL-008** [FE] Folders: create by drag-onto, expand/collapse, name, color, folder unread aggregation, folder settings modal *(folders are stored on this device; syncing needs a backend setting)*
 - [x] **LNG-RAIL-009** [FE] Staff Server special frame/badge
-- [ ] **LNG-RAIL-010** [FE] "+" Add a Server button → Create Server modal
+- [x] **LNG-RAIL-010** [FE] "+" Add a Server button → Create Server modal
 - [ ] **LNG-RAIL-011** [FE] Discover (compass) button → Server Directory
 - [ ] **LNG-RAIL-012** [FE] Guild context menu: Mark As Read, Invite People, Mute Server ▸ (durations), Notification Settings ▸, Hide Muted Channels, Server Settings ▸ (shortcuts), Privacy Settings, Edit Per-server Profile, Create Channel/Category/Event, Leave Server, Copy Server ID
 - [x] **LNG-RAIL-013** [FE] Voice-connected indicator on guild icon (speaker glyph) and live indicator
@@ -38,16 +38,16 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [x] **LNG-HOME-002** [FE] Friends nav item (pending-count badge)
 - [x] **LNG-HOME-003** [FE] Message Requests nav item (count)
 - [ ] **LNG-HOME-004** [FE] Optional "Support SIDE ROOM" nav item (operator toggle). **No Nitro / Shop / Quests**
-- [ ] **LNG-HOME-005** [FE] "Direct Messages" header + "+" Create DM picker (friend search, multi-select ≤ 9 others, "Create DM/Group DM", copy group invite link)
-- [ ] **LNG-HOME-006** [FE] DM row: avatar + status, name, server-tag chip, activity subline (custom status, game, watching/reading, "Glooping…"), close "×" on hover
-- [ ] **LNG-HOME-007** [FE] Group DM row (icon or avatar collage, member count subline)
-- [ ] **LNG-HOME-008** [FE] DM row context menu: Profile, Call, Add Note, Close DM, Invite to Server ▸, Remove Friend, Ignore, Block, Mute Conversation ▸, Mark as Read, Copy User ID
+- [x] **LNG-HOME-005** [FE] "Direct Messages" header + "+" Create DM picker (friend search, multi-select ≤ 9 others, "Create DM/Group DM", copy group invite link) *(group invite link not built; needs a backend route)*
+- [x] **LNG-HOME-006** [FE] DM row: avatar + status, name, server-tag chip, activity subline (custom status, game, watching/reading, "Glooping…"), close "×" on hover
+- [x] **LNG-HOME-007** [FE] Group DM row (icon or avatar collage, member count subline)
+- [x] **LNG-HOME-008** [FE] DM row context menu: Profile, Call, Add Note, Close DM, Invite to Server ▸, Remove Friend, Ignore, Block, Mute Conversation ▸, Mark as Read, Copy User ID *(Call stays disabled until voice ships)*
 - [x] **LNG-HOME-009** [FE] DM list ordering by last message, virtualized
-- [ ] **LNG-HOME-010** [FE] User panel: avatar w/ status (click → status picker & account switcher popout), name, custom status line
-- [ ] **LNG-HOME-011** [FE] Status picker popout: Online, Idle, Do Not Disturb (with durations), Invisible; Set custom status (emoji + text + clear-after)
+- [x] **LNG-HOME-010** [FE] User panel: avatar w/ status (click → status picker & account switcher popout), name, custom status line *(no account switcher yet)*
+- [x] **LNG-HOME-011** [FE] Status picker popout: Online, Idle, Do Not Disturb (with durations), Invisible; Set custom status (emoji + text + clear-after) *(custom status has text and clear-after, no emoji yet)*
 - [ ] **LNG-HOME-012** [FE] Mic toggle + dropdown (input devices, input volume, "Voice settings")
 - [ ] **LNG-HOME-013** [FE] Headphone toggle + dropdown (output devices, output volume)
-- [ ] **LNG-HOME-014** [FE] Settings gear → User Settings
+- [x] **LNG-HOME-014** [FE] Settings gear → User Settings
 - [x] **LNG-HOME-015** [FE] Copy username on name click (toast "Copied!")
 
 ## LNG-FRD — Friends
@@ -55,16 +55,16 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [x] **LNG-FRD-002** [BE] Relationship API (send by username, accept, ignore, cancel, remove, block, unblock, ignore user) → `/users/@me/relationships` (REST by user id; add-by-username lookup follows with the users directory)
 - [ ] **LNG-FRD-003** [GW] `RELATIONSHIP_ADD/UPDATE/REMOVE` dispatches
 - [x] **LNG-FRD-004** [BE] Friend request privacy enforcement (everyone / friends of friends / server members)
-- [ ] **LNG-FRD-005** [FE] Friends header with tabs Online / All / Pending / Add Friend, New Group DM icon
-- [ ] **LNG-FRD-006** [FE] Dismissible info banner "Looking for accounts you've blocked or ignored? Go to settings"
-- [ ] **LNG-FRD-007** [FE] Friends search box
-- [ ] **LNG-FRD-008** [FE] Section heading "Online — N" / "All friends — N"
-- [ ] **LNG-FRD-009** [FE] Friend row (avatar/status, name, tag chip, activity text, Message button, ⋮ menu: Start Video Call, Start Voice Call, Remove Friend, Ignore, Block)
-- [ ] **LNG-FRD-010** [FE] Pending tab: incoming (accept ✓ / ignore ✕), outgoing (cancel)
-- [ ] **LNG-FRD-011** [FE] Add Friend tab: input, submit, success/error states, empty-state art
-- [ ] **LNG-FRD-012** [FE] Empty states per tab (original illustrations)
+- [x] **LNG-FRD-005** [FE] Friends header with tabs Online / All / Pending / Add Friend, New Group DM icon
+- [x] **LNG-FRD-006** [FE] Dismissible info banner "Looking for accounts you've blocked or ignored? Go to settings"
+- [x] **LNG-FRD-007** [FE] Friends search box
+- [x] **LNG-FRD-008** [FE] Section heading "Online — N" / "All friends — N"
+- [x] **LNG-FRD-009** [FE] Friend row (avatar/status, name, tag chip, activity text, Message button, ⋮ menu: Start Video Call, Start Voice Call, Remove Friend, Ignore, Block) *(video and voice call entries stay disabled until voice ships)*
+- [x] **LNG-FRD-010** [FE] Pending tab: incoming (accept ✓ / ignore ✕), outgoing (cancel)
+- [x] **LNG-FRD-011** [FE] Add Friend tab: input, submit, success/error states, empty-state art *(icon empty states, no custom art)*
+- [x] **LNG-FRD-012** [FE] Empty states per tab (original illustrations) *(icon empty states, no custom illustrations)*
 - [ ] **LNG-FRD-013** [FE] Active Now column: voice-channel card (members avatars, "+N", server), stream card (thumbnail, LIVE, "Sharing their screen"), game card (platform icon), watching/reading card, party card (Join)
-- [ ] **LNG-FRD-014** [FE] Active Now empty state ("It's quiet for now…")
+- [x] **LNG-FRD-014** [FE] Active Now empty state ("It's quiet for now…")
 
 ## LNG-DM — Direct & group messages
 - [x] **LNG-DM-001** [BE] Create/open DM (`POST /users/@me/channels`), group DM create/add/remove recipient/rename/icon/leave/transfer owner
@@ -74,7 +74,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [ ] **LNG-DM-005** [FE] DM welcome header ("This is the beginning of your direct message history with @x", mutual servers, Remove Friend/Block buttons)
 - [ ] **LNG-DM-006** [FE] DM right profile panel (banner, avatar, name, username • pronouns, badges, add-friend & ⋯ buttons, bio, Member Since, mutual friends/servers summary row, View Full Profile)
 - [ ] **LNG-DM-007** [FE] Group DM member list panel + invite link (owner) + group settings (name, icon)
-- [ ] **LNG-DM-008** [FE] Message Requests page (list, preview, accept/ignore/block, spam tab)
+- [x] **LNG-DM-008** [FE] Message Requests page (list, preview, accept/ignore/block, spam tab) *(no message preview and no spam tab: the API has no spam listing)*
 - [ ] **LNG-DM-009** [FE] Blocked-user message collapse ("1 blocked message — Show")
 
 ## LNG-PRF — Profiles
