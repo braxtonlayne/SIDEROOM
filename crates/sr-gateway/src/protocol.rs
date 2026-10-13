@@ -100,6 +100,12 @@ pub mod intents {
             "GUILD_MEMBER_ADD" | "GUILD_MEMBER_REMOVE" | "GUILD_MEMBER_UPDATE" => {
                 Some(GUILD_MEMBERS)
             }
+            "THREAD_CREATE"
+            | "THREAD_UPDATE"
+            | "THREAD_DELETE"
+            | "THREAD_LIST_SYNC"
+            | "THREAD_MEMBER_UPDATE" => Some(GUILDS),
+            "THREAD_MEMBERS_UPDATE" => Some(GUILD_MEMBERS),
             "PRESENCE_UPDATE" => Some(GUILD_PRESENCES),
             "MESSAGE_CREATE" => Some(GUILD_MESSAGES),
             "TYPING_START" => Some(GUILD_MESSAGE_TYPING),
