@@ -8,6 +8,10 @@ use serde_json::{Value, json};
 use tokio::sync::mpsc;
 use tokio::time::{Instant, sleep_until};
 
+/// Metric key of the dispatch size histogram (same string as
+/// `sr_api::observability::names::GATEWAY_DISPATCH_BYTES`).
+pub const DISPATCH_BYTES: &str = "sr_gateway_dispatch_bytes";
+
 use crate::compress::{Compression, zstd_compress};
 use crate::hub::Gateway;
 use crate::protocol::{Identify, Payload, PresenceUpdate, Resume, close, intents, op};
@@ -47,7 +51,12 @@ struct Conn {
     deadline: Instant,
     window_start: Instant,
     window_ops: u32,
+    /// Earliest time a heartbeat may mark the user seen again.
+    next_seen: Instant,
 }
+
+/// A live session refreshes the user's `last_seen_at` at most this often (D-166).
+const SEEN_REFRESH: std::time::Duration = std::time::Duration::from_secs(600);
 
 /// Why the loop ended.
 enum Stop {
@@ -80,6 +89,7 @@ pub async fn run_connection(
         deadline,
         window_start: Instant::now(),
         window_ops: 0,
+        next_seen: Instant::now(),
     };
     let stop = c.run(&mut incoming, &mut session_rx).await;
     if let Stop::Close(code, reason) = stop {
@@ -115,7 +125,10 @@ impl Conn {
             let step = tokio::select! {
                 () = sleep_until(self.deadline) => Err(Stop::Close(close::SESSION_TIMED_OUT, "session timed out")),
                 m = session_rx.recv(), if self.session.is_some() => match m {
-                    Some(Out::Frame(t)) => self.send_text(t.to_string()).await,
+                    Some(Out::Frame(t)) => {
+                        self.record_dispatch_bytes(t.len());
+                        self.send_text(t.to_string()).await
+                    }
                     Some(Out::Reconnect) => {
                         let _ = self.send_text(Payload::new(op::RECONNECT, Value::Null).to_text()).await;
                         Err(Stop::Close(close::UNKNOWN_ERROR, "reconnect"))
@@ -167,6 +180,15 @@ impl Conn {
         self.gw.inner.auth.authenticate_session_cookie(cookie).await
     }
 
+    /// Feed the `sr_gateway_dispatch_bytes` histogram (uncompressed size).
+    fn record_dispatch_bytes(&self, len: usize) {
+        let compression = match self.params.compression {
+            Compression::None => "none",
+            Compression::ZstdStream => "zstd",
+        };
+        metrics::histogram!(DISPATCH_BYTES, "compression" => compression).record(len as f64);
+    }
+
     async fn send_text(&self, text: String) -> Result<(), Stop> {
         let frame = match self.params.compression {
             Compression::None => Frame::Text(text),
@@ -193,6 +215,7 @@ impl Conn {
             op::HEARTBEAT => {
                 let cfg = self.gw.config();
                 self.deadline = Instant::now() + cfg.heartbeat_interval + cfg.heartbeat_grace;
+                self.touch_seen();
                 self.send_payload(op::HEARTBEAT_ACK, Value::Null).await
             }
             op::IDENTIFY => self.identify(p.d).await,
@@ -221,6 +244,18 @@ impl Conn {
                 }
                 Ok(())
             }
+        }
+    }
+
+    /// Mark the session's user seen, at most once per [`SEEN_REFRESH`].
+    fn touch_seen(&mut self) {
+        let now = Instant::now();
+        if now < self.next_seen {
+            return;
+        }
+        if let Some(s) = &self.session {
+            self.gw.mark_seen(s.user);
+            self.next_seen = now + SEEN_REFRESH;
         }
     }
 
@@ -255,6 +290,7 @@ impl Conn {
             .ok_or(Stop::Close(close::UNKNOWN_ERROR, "no session channel"))?;
         let session = self.gw.create_session(&user, wanted, self.id, tx).await;
         self.session = Some(session);
+        self.touch_seen();
         if let Some(p) = id.presence {
             self.gw.set_presence(user.user_id, p).await;
         }
@@ -284,6 +320,7 @@ impl Conn {
                 s.deliver_marker("RESUMED");
                 self.gw.refresh_presence(s.user, false).await;
                 self.session = Some(s);
+                self.touch_seen();
                 Ok(())
             }
             _ => self.send_payload(op::INVALID_SESSION, json!(false)).await,

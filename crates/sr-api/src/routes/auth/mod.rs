@@ -22,6 +22,7 @@ mod identity;
 mod invites;
 mod login;
 mod mfa;
+mod passkeys;
 mod recovery;
 mod register;
 mod sessions;
@@ -43,13 +44,15 @@ pub use store::{
 use crate::state::AppState;
 use axum::{
     Router,
-    routing::{delete, get, post, put},
+    routing::{delete, get, patch, post, put},
 };
 
 /// OpenAPI fragment for the documented auth routes (the signed-in account edits).
 pub fn openapi() -> utoipa::openapi::OpenApi {
     use utoipa::OpenApi;
-    identity::IdentityApiDoc::openapi()
+    let mut doc = identity::IdentityApiDoc::openapi();
+    doc.merge(passkeys::PasskeysApiDoc::openapi());
+    doc
 }
 
 /// The auth routes (relative to `/api/v1`). Handlers need an `AuthService`
@@ -79,12 +82,35 @@ pub fn router() -> Router<AppState> {
         .route("/sr/auth/totp/verify", post(mfa::verify))
         .route("/sr/auth/totp", delete(mfa::disable))
         .route("/sr/auth/recovery-codes", post(recovery::regenerate))
+        .route(
+            "/sr/auth/passkeys/register/begin",
+            post(passkeys::register_begin),
+        )
+        .route(
+            "/sr/auth/passkeys/register/finish",
+            post(passkeys::register_finish),
+        )
+        .route("/sr/auth/passkeys/login/begin", post(passkeys::login_begin))
+        .route(
+            "/sr/auth/passkeys/login/finish",
+            post(passkeys::login_finish),
+        )
+        .route(
+            "/sr/auth/passkeys/verify/begin",
+            post(passkeys::verify_begin),
+        )
+        .route("/sr/auth/passkeys", get(passkeys::list))
+        .route(
+            "/sr/auth/passkeys/{id}",
+            patch(passkeys::rename).delete(passkeys::remove),
+        )
         .route("/sr/auth/forgot", post(account::forgot))
         .route("/sr/auth/reset", post(account::reset))
         .route("/sr/auth/verify-email", post(account::verify_email))
         .route("/sr/auth/password", post(identity::change_password))
         .route("/sr/auth/username", put(identity::change_username))
         .route("/sr/auth/email/change", post(identity::change_email))
+        .route("/sr/auth/email/cancel", post(identity::cancel_change_email))
         .route(
             "/sr/auth/verify-email/resend",
             post(account::resend_verification),

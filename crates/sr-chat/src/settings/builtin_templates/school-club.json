@@ -1,0 +1,72 @@
+{
+  "id": "school-club",
+  "name": "School Club",
+  "description": "Announcements, events and meetings",
+  "serialized_source_guild": {
+    "settings": {
+      "preferred_locale": "en-US",
+      "verification_level": 0,
+      "default_message_notifications": 0,
+      "explicit_content_filter": 0,
+      "system_channel_local_id": 4
+    },
+    "roles": [],
+    "channels": [
+      {
+        "local_id": 1,
+        "kind": 4,
+        "name": "Text Channels",
+        "position": 0
+      },
+      {
+        "local_id": 2,
+        "kind": 4,
+        "name": "Voice Channels",
+        "position": 1
+      },
+      {
+        "local_id": 3,
+        "kind": 4,
+        "name": "Club",
+        "position": 2
+      },
+      {
+        "local_id": 4,
+        "kind": 0,
+        "name": "general",
+        "position": 0,
+        "parent_local_id": 1
+      },
+      {
+        "local_id": 5,
+        "kind": 2,
+        "name": "General",
+        "position": 0,
+        "parent_local_id": 2,
+        "bitrate": 64000
+      },
+      {
+        "local_id": 6,
+        "kind": 0,
+        "name": "announcements",
+        "position": 0,
+        "parent_local_id": 3
+      },
+      {
+        "local_id": 7,
+        "kind": 0,
+        "name": "events",
+        "position": 1,
+        "parent_local_id": 3
+      },
+      {
+        "local_id": 8,
+        "kind": 2,
+        "name": "Meeting Room",
+        "position": 2,
+        "parent_local_id": 3,
+        "bitrate": 64000
+      }
+    ]
+  }
+}

@@ -53,7 +53,7 @@ Status key: **Decided** = owner's explicit answer. **Default** = engineering def
 | D-043 | Attachments are part of the message and live as long as the message. **Exception:** files larger than the 30 MB standard limit ("large attachments," donor-only) **expire 7 days** after upload. The message remains with an "expired" placeholder. | Decided |
 | D-044 | Discord's paid cosmetics (animated avatars, banners, profile themes, custom emoji anywhere, etc.) are **free**. | Default (follows D-070) |
 | D-045 | No noise suppression feature. | Decided |
-| D-046 | Push-to-talk is required. | Decided |
+| D-046 | **Voice input works like Discord: Voice Activity or Push-to-Talk, the user chooses.** Push-to-talk is an option, not a requirement. Each user picks Voice Activity (automatic sensitivity or a manual threshold) or Push-to-Talk (keybind, release delay) in User Settings → Voice & Video. As on Discord, a channel can require push-to-talk by denying the `USE_VAD` permission. Corrected 2026-10-13 by the owner; the earlier row said push-to-talk was required. | Decided |
 
 ## Voice and video
 

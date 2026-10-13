@@ -1891,8 +1891,11 @@ async fn change_email_confirms_through_the_verify_link() {
     h.clock.advance_ms(61_000);
 
     assert_eq!(start("New@X.test", PW).await.status, StatusCode::NO_CONTENT);
-    let mails = h.wait_mail(1).await;
+    let mails = h.wait_mail(2).await;
     assert_eq!(mails[0].to, "new@x.test");
+    // The old address is told right away, with a cancel link (D-167).
+    assert_eq!(mails[1].to, "alice@x.test");
+    assert!(mails[1].text.contains("/email-change/cancel?token="));
     // Nothing changes until the link is used.
     assert_eq!(h.account(1).email, "alice@x.test");
     let token = link_token(&mails[0], "/verify-email/");
@@ -1905,8 +1908,8 @@ async fn change_email_confirms_through_the_verify_link() {
     assert_eq!(acct.email, "new@x.test");
     assert!(acct.email_verified);
     // The old address is told, the link is single use, and the change is audited.
-    let all = h.wait_mail(2).await;
-    assert_eq!(all[1].to, "alice@x.test");
+    let all = h.wait_mail(3).await;
+    assert_eq!(all[2].to, "alice@x.test");
     let again = h
         .post("/api/v1/sr/auth/verify-email", json!({"token": token}))
         .send()
@@ -1958,8 +1961,9 @@ async fn change_email_link_expires_and_loses_races() {
     // An expired link is refused.
     h.clock.advance_ms(61_000);
     assert_eq!(start("later@x.test").await.status, StatusCode::NO_CONTENT);
-    let mails = h.wait_mail(2).await;
-    let token = link_token(&mails[1], "/verify-email/");
+    // Mails: confirm + notice for each start.
+    let mails = h.wait_mail(4).await;
+    let token = link_token(&mails[2], "/verify-email/");
     h.clock.advance_ms(25 * 3_600_000);
     let r = h
         .post("/api/v1/sr/auth/verify-email", json!({"token": token}))
@@ -1967,3 +1971,222 @@ async fn change_email_link_expires_and_loses_races() {
         .await;
     assert_eq!(r.status, StatusCode::BAD_REQUEST);
 }
+
+// ---- email change: second factor and "This wasn't me" (D-167, F-03) ---------
+
+/// The token of the cancel link in a notice mail.
+fn cancel_token(m: &OutgoingMail) -> String {
+    m.text
+        .lines()
+        .find(|l| l.contains("/email-change/cancel?token="))
+        .unwrap()
+        .rsplit("token=")
+        .next()
+        .unwrap()
+        .to_owned()
+}
+
+async fn change_to(h: &H, session: &str, email: &str, mfa: Option<Value>) -> Resp {
+    let mut body = json!({"new_email": email, "password": PW});
+    if let Some(m) = mfa {
+        body["mfa"] = m;
+    }
+    h.post("/api/v1/sr/auth/email/change", body)
+        .session(session)
+        .send()
+        .await
+}
+
+#[tokio::test]
+async fn email_change_needs_a_second_factor_when_two_factor_is_on() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    let s = h.login("alice").await;
+    let (secret, recovery) = enrol_totp(&h, &s).await;
+    h.clock.advance_ms(61_000);
+
+    // No proof, a wrong code and an unknown method are refused; no mail goes out.
+    let none = change_to(&h, &s, "new@x.test", None).await;
+    assert_eq!(none.status, StatusCode::BAD_REQUEST);
+    assert_eq!(none.body["errors"]["mfa"]["_errors"][0]["code"], "required");
+    let wrong = change_to(
+        &h,
+        &s,
+        "new@x.test",
+        Some(json!({"method": "totp", "code": "000000"})),
+    )
+    .await;
+    assert_eq!(wrong.status, StatusCode::BAD_REQUEST);
+    assert_eq!(wrong.body["errors"]["mfa"]["_errors"][0]["code"], "invalid");
+    assert!(h.mailer.sent().is_empty());
+
+    // A valid code starts the change.
+    let code = totp::current_code(&secret, "SIDE ROOM", "alice", h.now()).unwrap();
+    let ok = change_to(
+        &h,
+        &s,
+        "new@x.test",
+        Some(json!({"method": "totp", "code": code})),
+    )
+    .await;
+    assert_eq!(ok.status, StatusCode::NO_CONTENT, "{:?}", ok.body);
+    assert_eq!(h.wait_mail(2).await.len(), 2);
+
+    // The check counts for 15 minutes on this session: no code needed again.
+    h.clock.advance_ms(61_000);
+    assert_eq!(
+        change_to(&h, &s, "newer@x.test", None).await.status,
+        StatusCode::NO_CONTENT
+    );
+    // After that it is stale and a recovery code is accepted instead.
+    h.clock.advance_ms(16 * 60_000);
+    assert_eq!(
+        change_to(&h, &s, "latest@x.test", None).await.status,
+        StatusCode::BAD_REQUEST
+    );
+    let rec = change_to(
+        &h,
+        &s,
+        "latest@x.test",
+        Some(json!({"method": "recovery", "code": recovery[0]})),
+    )
+    .await;
+    assert_eq!(rec.status, StatusCode::NO_CONTENT, "{:?}", rec.body);
+}
+
+#[tokio::test]
+async fn a_login_with_two_factor_counts_as_a_fresh_check() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    let s = h.login("alice").await;
+    let (secret, _) = enrol_totp(&h, &s).await;
+    h.clock.advance_ms(61_000);
+    let mfa = login_expecting_mfa(&h).await;
+    let code = totp::current_code(&secret, "SIDE ROOM", "alice", h.now()).unwrap();
+    let r = h
+        .post("/api/v1/sr/auth/2fa", totp_body(&code))
+        .cookie("sr_mfa", &mfa)
+        .send()
+        .await;
+    let fresh = r.cookie("sr_session").unwrap();
+    assert_eq!(
+        change_to(&h, &fresh, "new@x.test", None).await.status,
+        StatusCode::NO_CONTENT
+    );
+    // The older session, which never passed a check, still has to.
+    h.clock.advance_ms(61_000);
+    assert_eq!(
+        change_to(&h, &s, "other@x.test", None).await.status,
+        StatusCode::BAD_REQUEST
+    );
+}
+
+#[tokio::test]
+async fn email_change_without_two_factor_needs_no_proof() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    let s = h.login("alice").await;
+    assert_eq!(
+        change_to(&h, &s, "new@x.test", None).await.status,
+        StatusCode::NO_CONTENT
+    );
+}
+
+#[tokio::test]
+async fn this_wasnt_me_cancels_a_pending_change() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    let s = h.login("alice").await;
+    assert_eq!(
+        change_to(&h, &s, "new@x.test", None).await.status,
+        StatusCode::NO_CONTENT
+    );
+    let mails = h.wait_mail(2).await;
+    let confirm = link_token(&mails[0], "/verify-email/");
+    let cancel = cancel_token(&mails[1]);
+    let r = h
+        .post("/api/v1/sr/auth/email/cancel", json!({"token": cancel}))
+        .send()
+        .await;
+    assert_eq!(r.status, StatusCode::NO_CONTENT, "{:?}", r.body);
+    // The confirmation link no longer works and the address is unchanged.
+    let late = h
+        .post("/api/v1/sr/auth/verify-email", json!({"token": confirm}))
+        .send()
+        .await;
+    assert_eq!(late.status, StatusCode::BAD_REQUEST);
+    assert_eq!(h.account(1).email, "alice@x.test");
+    // The session survives (nothing had completed) and the link is single use.
+    assert_eq!(
+        h.get("/api/v1/sr/auth/sessions")
+            .session(&s)
+            .send()
+            .await
+            .status,
+        StatusCode::OK
+    );
+    let again = h
+        .post("/api/v1/sr/auth/email/cancel", json!({"token": cancel}))
+        .send()
+        .await;
+    assert_eq!(again.status, StatusCode::BAD_REQUEST);
+    let junk = h
+        .post("/api/v1/sr/auth/email/cancel", json!({"token": "nope"}))
+        .send()
+        .await;
+    assert_eq!(junk.status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn this_wasnt_me_after_completion_revokes_every_session() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    let s = h.login("alice").await;
+    let other = h.login("alice").await;
+    assert_eq!(
+        change_to(&h, &s, "new@x.test", None).await.status,
+        StatusCode::NO_CONTENT
+    );
+    let mails = h.wait_mail(2).await;
+    let confirm = link_token(&mails[0], "/verify-email/");
+    let old_cancel = cancel_token(&mails[1]);
+    let done = h
+        .post("/api/v1/sr/auth/verify-email", json!({"token": confirm}))
+        .send()
+        .await;
+    assert_eq!(done.status, StatusCode::NO_CONTENT);
+    let mails = h.wait_mail(3).await;
+    assert_eq!(mails[2].to, "alice@x.test");
+    // The notice sent with the request was superseded by the one sent on completion.
+    let stale = h
+        .post("/api/v1/sr/auth/email/cancel", json!({"token": old_cancel}))
+        .send()
+        .await;
+    assert_eq!(stale.status, StatusCode::BAD_REQUEST);
+    let r = h
+        .post(
+            "/api/v1/sr/auth/email/cancel",
+            json!({"token": cancel_token(&mails[2])}),
+        )
+        .send()
+        .await;
+    assert_eq!(r.status, StatusCode::NO_CONTENT, "{:?}", r.body);
+    for session in [&s, &other] {
+        assert_eq!(
+            h.get("/api/v1/sr/auth/sessions")
+                .session(session)
+                .send()
+                .await
+                .status,
+            StatusCode::UNAUTHORIZED
+        );
+    }
+    assert!(
+        h.store
+            .audit_rows()
+            .iter()
+            .any(|(_, action, _)| action == "account.email_change_revoked")
+    );
+}
+
+mod passkeys;

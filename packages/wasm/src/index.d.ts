@@ -76,6 +76,23 @@ export interface PermissionsApi {
   ): string;
   /** Administrators bypass. */
   has(have: string, want: string): boolean;
+  /** Full channel permissions: overwrites plus the timeout and implicit rules (browser clock). */
+  compute(input: ComputeChannelInput): string;
+}
+
+/** Input of `PermissionsApi.compute` (mirrors `ComputeIn` in crates/sr-permissions-wasm). */
+export interface ComputeChannelInput {
+  is_owner: boolean;
+  /** The @everyone role's permissions. */
+  everyone: string;
+  /** Permissions of the member's roles (without @everyone). */
+  role_permissions: string[];
+  guild_id: string;
+  member_id: string;
+  member_role_ids: string[];
+  overwrites: PermissionOverwrite[];
+  /** Unix milliseconds the member's timeout ends, or null. */
+  communication_disabled_until_ms: number | null;
 }
 
 /** Optional overrides of where the `.wasm` binaries are loaded from (defaults to `dist/<name>/`). */
@@ -87,7 +104,8 @@ export interface WasmInitOptions {
 
 export function loadTheme(wasmUrl?: string | URL): Promise<ThemeApi>;
 export function loadMarkdown(wasmUrl?: string | URL): Promise<MarkdownApi>;
-export function loadPermissions(wasmUrl?: string | URL): Promise<PermissionsApi>;
+/** `wasmUrl` may also be the module bytes (tests read the `.wasm` from disk). */
+export function loadPermissions(wasmUrl?: string | URL | BufferSource): Promise<PermissionsApi>;
 
 /** Load all modules in parallel. */
 export function initWasm(options?: WasmInitOptions): Promise<{

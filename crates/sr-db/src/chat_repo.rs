@@ -374,23 +374,24 @@ impl GuildRepository for PgChatRepo {
         .await
         .map_err(db)?;
 
-        let e = &bp.everyone_role;
-        sqlx::query(
-            "INSERT INTO roles (id, guild_id, name, color, hoist, position, permissions, \
-             mentionable, managed) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
-        )
-        .bind(i(e.id.get()))
-        .bind(i(e.guild_id.get()))
-        .bind(&e.name)
-        .bind(i32::try_from(e.color).unwrap_or(0))
-        .bind(e.hoist)
-        .bind(e.position)
-        .bind(i(e.permissions.bits()))
-        .bind(e.mentionable)
-        .bind(e.managed)
-        .execute(&mut *tx)
-        .await
-        .map_err(db)?;
+        for e in std::iter::once(&bp.everyone_role).chain(&bp.extra_roles) {
+            sqlx::query(
+                "INSERT INTO roles (id, guild_id, name, color, hoist, position, permissions, \
+                 mentionable, managed) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+            )
+            .bind(i(e.id.get()))
+            .bind(i(e.guild_id.get()))
+            .bind(&e.name)
+            .bind(i32::try_from(e.color).unwrap_or(0))
+            .bind(e.hoist)
+            .bind(e.position)
+            .bind(i(e.permissions.bits()))
+            .bind(e.mentionable)
+            .bind(e.managed)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        }
 
         let m = &bp.owner_member;
         sqlx::query(
@@ -404,11 +405,31 @@ impl GuildRepository for PgChatRepo {
         .await
         .map_err(db)?;
 
-        for c in &bp.channels {
+        // Parents first: a category must exist before the channels under it.
+        let mut ordered: Vec<&Channel> = bp.channels.iter().collect();
+        ordered.sort_by_key(|c| c.parent_id.is_some());
+        for c in ordered {
             bind_channel(sqlx::query(INSERT_CHANNEL), c)
                 .execute(&mut *tx)
                 .await
                 .map_err(db)?;
+        }
+        for (channel, o) in &bp.overwrites {
+            sqlx::query(
+                "INSERT INTO permission_overwrites (channel_id, target_id, target_type, allow, deny) \
+                 VALUES ($1, $2, $3::overwrite_target, $4, $5)",
+            )
+            .bind(i(channel.get()))
+            .bind(i(o.id.get()))
+            .bind(match o.kind {
+                OverwriteKind::Role => "role",
+                OverwriteKind::Member => "member",
+            })
+            .bind(i(o.allow.bits()))
+            .bind(i(o.deny.bits()))
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
         }
         if let Some(sys) = g.system_channel_id {
             sqlx::query("UPDATE guilds SET system_channel_id = $2 WHERE id = $1")
@@ -1102,7 +1123,7 @@ const ATTACHMENT_COLS: &str = "id, channel_id, uploader_id, filename, size_bytes
     declared_content_type, content_type, description, flags, message_id, \
     state::text AS state, (extract(epoch FROM expires_at) * 1000)::bigint AS expires_ms, \
     (extract(epoch FROM created_at) * 1000)::bigint AS created_ms, \
-    round(duration_secs * 1000)::integer AS duration_ms, waveform";
+    round(duration_secs * 1000)::integer AS duration_ms, waveform, width, height, blurhash";
 
 fn attachment_from(r: &PgRow) -> Result<Attachment, sqlx::Error> {
     let message_id: Option<i64> = r.try_get("message_id")?;
@@ -1132,6 +1153,13 @@ fn attachment_from(r: &PgRow) -> Result<Attachment, sqlx::Error> {
             .try_get::<Option<i32>, _>("duration_ms")?
             .and_then(|v| u32::try_from(v).ok()),
         waveform: r.try_get("waveform")?,
+        width: r
+            .try_get::<Option<i32>, _>("width")?
+            .and_then(|v| u32::try_from(v).ok()),
+        height: r
+            .try_get::<Option<i32>, _>("height")?
+            .and_then(|v| u32::try_from(v).ok()),
+        blurhash: r.try_get("blurhash")?,
     })
 }
 
@@ -1378,9 +1406,9 @@ impl MessageStore for PgMessageStore {
         sqlx::query(
             "INSERT INTO attachments (id, channel_id, uploader_id, filename, size_bytes, \
              storage_key, declared_content_type, content_type, description, flags, is_large, \
-             expires_at, state, duration_secs, waveform) \
+             expires_at, state, duration_secs, waveform, width, height, blurhash) \
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, \
-             to_timestamp($12::double precision), $13::attachment_state, $14, $15)",
+             to_timestamp($12::double precision), $13::attachment_state, $14, $15, $16, $17, $18)",
         )
         .bind(i(a.id.get()))
         .bind(i(a.channel_id.get()))
@@ -1401,6 +1429,9 @@ impl MessageStore for PgMessageStore {
         .bind(upload_state_text(a.state))
         .bind(a.duration_ms.map(duration_secs))
         .bind(a.waveform.as_deref())
+        .bind(a.width.and_then(|v| i32::try_from(v).ok()))
+        .bind(a.height.and_then(|v| i32::try_from(v).ok()))
+        .bind(a.blurhash.as_deref())
         .execute(&self.pool)
         .await
         .map_err(sdb)?;

@@ -439,6 +439,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/library/chapters/{chapter_id}/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The latest uploads of a chapter, newest first (`PUBLISH_READING`). */
+        get: operations["admin_library_chapter_uploads"];
+        put?: never;
+        /**
+         * Reserve an upload slot for a chapter's file and get the presigned `PUT` URL (`PUBLISH_READING`).
+         * @description The file's extension must fit the chapter's format (`.cbz .zip .cb7 .7z .cbr .rar` for
+         *     images, `.epub`, `.pdf`). Send the bytes to `upload_url` with `PUT`, then call the
+         *     `complete` endpoint. A slot that is never completed expires after a day.
+         */
+        post: operations["admin_library_begin_upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/library/editions/{edition_id}": {
         parameters: {
             query?: never;
@@ -610,6 +633,46 @@ export interface paths {
         put?: never;
         /** Unpublish a series (`PUBLISH_READING` or `DELETE_CONTENT`). */
         post: operations["admin_library_unpublish_series"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/uploads/{upload_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Poll an upload: `awaiting_upload`, `queued`, `running`, `done`, `failed` or `expired`
+         *     (`PUBLISH_READING`).
+         */
+        get: operations["admin_library_upload"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/uploads/{upload_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The file is uploaded: check it and queue the conversion (`PUBLISH_READING`). Repeating the call
+         *     for a queued or finished upload returns it unchanged.
+         */
+        post: operations["admin_library_complete_upload"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1438,8 +1501,28 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create a guild with `@everyone`, two categories, `#general` and a voice channel. */
+        /**
+         * Create a guild with `@everyone`, two categories, `#general` and a voice channel, or
+         *     from a template (`template`: a built-in id or a template code) in one transaction.
+         */
         post: operations["create_guild"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/templates/builtin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The built-in templates of the Create a Server wizard (any signed-in user). */
+        get: operations["list_builtin_templates"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1456,7 +1539,11 @@ export interface paths {
         /** Preview a template by its code (any signed-in user). */
         get: operations["get_template"];
         put?: never;
-        post?: never;
+        /**
+         * Create a server from a template (a built-in id or a template code) in one
+         *     transaction; the caller owns it. One `GUILD_CREATE`.
+         */
+        post: operations["create_guild_from_template"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2085,6 +2172,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/library/bookmarks/{bookmark_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove one of the caller's bookmarks. */
+        delete: operations["library_delete_bookmark"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/chapters/{chapter_id}/bookmarks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's bookmarks in a chapter. */
+        get: operations["library_chapter_bookmarks"];
+        /** Bookmark a page, or change the note of the bookmark already on it. */
+        put: operations["library_put_bookmark"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/library/chapters/{chapter_id}/pages": {
         parameters: {
             query?: never;
@@ -2107,6 +2229,62 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/library/chapters/{chapter_id}/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's saved progress in a chapter. */
+        get: operations["library_get_progress"];
+        /**
+         * Save reading progress. With `base_updated_at_ms` a newer stored position is kept and returned
+         *     with `applied: false` so the client can ask "continue where?"; repeat with `force` to overwrite.
+         */
+        put: operations["library_put_progress"];
+        post?: never;
+        /** Mark a chapter unread (forget its progress). */
+        delete: operations["library_delete_progress"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/chapters/{chapter_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark a chapter read or unread, and with `up_to` every earlier chapter of its edition. */
+        post: operations["library_mark_read"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/me/bookmarks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** All of the caller's bookmarks with series and chapter titles, newest first. */
+        get: operations["library_my_bookmarks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/library/me/follows": {
         parameters: {
             query?: never;
@@ -2116,6 +2294,23 @@ export interface paths {
         };
         /** The caller's followed series ("My library"), newest follow first. */
         get: operations["library_my_follows"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/me/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Reading history, newest first ("pick up where you left off", the history page). */
+        get: operations["library_my_progress"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2244,6 +2439,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sr/auth/email/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /sr/auth/email/cancel {token}`: the "This wasn't me" link of an email-change
+         *     notice. No login needed. While the change is still pending it is cancelled; once it
+         *     has completed, every session and trusted device is revoked instead. The token works
+         *     once, within 7 days.
+         */
+        post: operations["cancel_change_email"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sr/auth/email/change": {
         parameters: {
             query?: never;
@@ -2254,9 +2471,11 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * `POST /sr/auth/email/change {new_email, password}`: start an email change. A
-         *     confirmation link goes to the new address; the old one stays until it is used.
-         *     One request per minute per account. `204` also when the address belongs to
+         * `POST /sr/auth/email/change {new_email, password, mfa?}`: start an email change. A
+         *     confirmation link goes to the new address; the old one stays until it is used, and
+         *     receives a notice with a "This wasn't me" link. With two-factor authentication on,
+         *     `mfa {method, code}` is required unless this session passed a second-factor check
+         *     in the last 15 minutes. One request per minute per account. `204` also when the address belongs to
          *     someone else, so the endpoint is not an account-existence oracle (the mail is
          *     simply not sent).
          */
@@ -2265,6 +2484,141 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/sr/auth/passkeys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /sr/auth/passkeys`: the account's passkeys, oldest first. */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/auth/passkeys/login/begin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /sr/auth/passkeys/login/begin {second_factor?}`: no login needed. */
+        post: operations["login_begin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/auth/passkeys/login/finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /sr/auth/passkeys/login/finish`: complete a passkey-only login. Sets the
+         *     session cookie and answers `{status: "ok"}`. User verification was required, so no
+         *     further factor is asked.
+         */
+        post: operations["login_finish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/auth/passkeys/register/begin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /sr/auth/passkeys/register/begin {password}`: re-check the password and
+         *     start a registration ceremony for the signed-in account.
+         */
+        post: operations["register_begin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/auth/passkeys/register/finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** `POST /sr/auth/passkeys/register/finish`: verify the new credential and store it. */
+        post: operations["register_finish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/auth/passkeys/verify/begin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /sr/auth/passkeys/verify/begin`: start a second-factor ceremony for the
+         *     signed-in account (the email-change re-prompt). The result goes into
+         *     `mfa: {method: "passkey", code}` as a JSON string of
+         *     `{ceremony_id, credential}`.
+         */
+        post: operations["verify_begin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/auth/passkeys/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * `DELETE /sr/auth/passkeys/{id} {password}`: remove a passkey (password re-check).
+         *     Removing the last second factor also drops the recovery codes.
+         */
+        delete: operations["remove"];
+        options?: never;
+        head?: never;
+        /** `PATCH /sr/auth/passkeys/{id} {name}`: rename. */
+        patch: operations["rename"];
         trace?: never;
     };
     "/sr/auth/password": {
@@ -2929,7 +3283,27 @@ export interface components {
             /** @description Staff Server role ids to start with. */
             role_ids: string[];
         };
+        /** @description The assertion a browser produced for `navigator.credentials.get`. */
+        AssertionCredential: {
+            /** @description base64url credential id. */
+            rawId: string;
+            /** @description The authenticator's response. */
+            response: components["schemas"]["AssertionFields"];
+        };
+        /** @description Assertion response fields (all base64url, no padding). */
+        AssertionFields: {
+            /** @description `authenticatorData`. */
+            authenticatorData: string;
+            /** @description `clientDataJSON`. */
+            clientDataJSON: string;
+            /** @description `signature`. */
+            signature: string;
+            /** @description `userHandle` (present for discoverable credentials). */
+            userHandle?: string | null;
+        };
         AttachmentObject: {
+            /** @description BlurHash placeholder to show until the image loads. */
+            blurhash?: string | null;
             content_type?: string | null;
             description?: string | null;
             /**
@@ -2940,6 +3314,8 @@ export interface components {
             /** @description Set when the attachment is a large file that will expire. */
             expires_at?: string | null;
             filename: string;
+            /** Format: int32 */
+            height?: number | null;
             id: string;
             /** Format: int64 */
             size: number;
@@ -2947,6 +3323,11 @@ export interface components {
             url: string;
             /** @description Voice messages: base64 waveform. */
             waveform?: string | null;
+            /**
+             * Format: int32
+             * @description Pixel size, as declared by the uploader.
+             */
+            width?: number | null;
         };
         /** @description An uploaded file referenced by a new message. */
         AttachmentRef: {
@@ -3031,6 +3412,61 @@ export interface components {
             note: string;
             person_id: string;
         };
+        /** @description Response of every `.../begin` route. */
+        BeginResponse: {
+            /** @description Send back with the finish call. */
+            ceremony_id: string;
+            /**
+             * @description `PublicKeyCredentialCreationOptions` / `RequestOptions` JSON with base64url
+             *     binary fields; pass to `navigator.credentials.create/get({ publicKey })`
+             *     after decoding those fields.
+             */
+            options: unknown;
+        };
+        Bookmark: {
+            chapter_id: string;
+            /** Format: int64 */
+            created_at_ms: number;
+            id: string;
+            note: string;
+            /** Format: int32 */
+            page_index: number;
+            series_id: string;
+        };
+        /** @description A bookmark with the titles the "my bookmarks" list shows. */
+        BookmarkEntry: {
+            bookmark: components["schemas"]["Bookmark"];
+            /** Format: double */
+            chapter_number: number;
+            chapter_title?: string | null;
+            series_title: string;
+        };
+        /** @description Body of `PUT /library/chapters/{id}/bookmarks`. */
+        BookmarkInput: {
+            note?: string | null;
+            /** Format: int32 */
+            page_index: number;
+        };
+        BookmarkList: {
+            bookmarks: components["schemas"]["Bookmark"][];
+        };
+        BookmarkPage: {
+            items: components["schemas"]["BookmarkEntry"][];
+            /** @description Pass back as `before` for the next page; absent at the end. */
+            next_before?: string | null;
+        };
+        /** @description A template shipped with the server. */
+        BuiltinTemplateObject: {
+            description: string;
+            /**
+             * @description Pass as `template` to `POST /guilds`, or as the path code of
+             *     `POST /guilds/templates/{code}`.
+             */
+            id: string;
+            name: string;
+            /** @description The snapshot: `settings`, `roles` and `channels` with local ids. */
+            serialized_source_guild: Record<string, never>;
+        };
         BulkAckBody: {
             read_states: components["schemas"]["BulkAckEntry"][];
         };
@@ -3040,6 +3476,11 @@ export interface components {
         };
         BulkDeleteBody: {
             messages: string[];
+        };
+        /** @description Body for `POST /sr/auth/email/cancel`. */
+        CancelEmailChangeBody: {
+            /** @description The token from the "This wasn't me" link. */
+            token: string;
         };
         /** @description Result of verifying the whole chain. */
         ChainReport: {
@@ -3057,6 +3498,7 @@ export interface components {
         };
         /** @description Body for `POST /sr/auth/email/change`. */
         ChangeEmailBody: {
+            mfa?: null | components["schemas"]["MfaProof"];
             new_email: string;
             /** @description Current password. */
             password: string;
@@ -3186,6 +3628,8 @@ export interface components {
         ChapterList: {
             chapters: components["schemas"]["Chapter"][];
             editions: components["schemas"]["Edition"][];
+            /** @description Pass back as `after` for the next page; absent at the end or when no `limit` was given. */
+            next_cursor?: string | null;
             volumes: components["schemas"]["Volume"][];
         };
         ChapterProgress: {
@@ -3194,6 +3638,11 @@ export interface components {
             page_index: number;
             /** Format: float */
             percent: number;
+            /**
+             * Format: int64
+             * @description When this progress was last saved; send it back as `base_updated_at_ms` when saving.
+             */
+            updated_at_ms: number;
         };
         CommunityObject: {
             age_restricted: boolean;
@@ -3265,6 +3714,11 @@ export interface components {
             /** @description Accepted for compatibility; icon upload arrives with the media pipeline. */
             icon?: string | null;
             name: string;
+            /**
+             * @description A built-in template id (see `GET /guilds/templates/builtin`) or a template code.
+             *     The server is created from it in one step.
+             */
+            template?: string | null;
         };
         /** @description Body of `POST /channels/{id}/invites`. Every field is optional. */
         CreateInviteBody: {
@@ -3522,15 +3976,24 @@ export interface components {
             settings: Record<string, never>;
         };
         FileSpec: {
+            /** @description Images: BlurHash of the picture, shown until it loads. */
+            blurhash?: string | null;
             /** @description What the client believes the type is; verified by sniffing at completion. */
             content_type?: string | null;
             description?: string | null;
             /** Format: int64 */
             file_size: number;
             filename: string;
+            /** Format: int32 */
+            height?: number | null;
             /** @description Client-chosen id, echoed back. */
             id?: string | null;
             spoiler?: boolean | null;
+            /**
+             * Format: int32
+             * @description Images and videos: pixel size (1 to 16384 each, both or neither).
+             */
+            width?: number | null;
         };
         /** @description A followed series with the user's shelf. */
         Follow: {
@@ -3587,6 +4050,13 @@ export interface components {
              */
             default_thread_rate_limit_per_user?: number | null;
         };
+        /** @description Body of `POST /guilds/templates/{code}`. */
+        GuildFromTemplateBody: {
+            /** @description Accepted for compatibility; icon upload arrives with the media pipeline. */
+            icon?: string | null;
+            /** @description 2-100 characters. */
+            name: string;
+        };
         GuildObject: {
             /** @description Voice channel idle members are moved to. */
             afk_channel_id?: string | null;
@@ -3641,6 +4111,17 @@ export interface components {
             suppress_everyone?: boolean | null;
             suppress_highlights?: boolean | null;
             suppress_roles?: boolean | null;
+        };
+        /** @description One row of the reading history. */
+        HistoryItem: {
+            /** @description The chapter, with `progress` set. */
+            chapter: components["schemas"]["Chapter"];
+            series: components["schemas"]["Series"];
+        };
+        HistoryPage: {
+            items: components["schemas"]["HistoryItem"][];
+            /** @description Pass back as `before` for the next page; absent at the end. */
+            next_before?: string | null;
         };
         /** @description Instant-search result. */
         InstantSearch: {
@@ -3779,11 +4260,27 @@ export interface components {
             reason: string;
             ref_id?: string | null;
         };
+        /** @description Body for `POST /sr/auth/passkeys/login/begin`. */
+        LoginBeginBody: {
+            /**
+             * @description Start the second-factor ceremony of the password login waiting on the
+             *     `sr_mfa` cookie (finish through `POST /sr/auth/2fa`, method `passkey`)
+             *     instead of passkey-only login.
+             */
+            second_factor?: boolean;
+        };
         LoginEvent: {
             /** Format: int64 */
             at_ms: number;
             ip?: string | null;
             success: boolean;
+        };
+        /** @description Body for `POST /sr/auth/passkeys/login/finish`. */
+        LoginFinishBody: {
+            /** @description From `login/begin`. */
+            ceremony_id: string;
+            /** @description The result of `navigator.credentials.get`. */
+            credential: components["schemas"]["AssertionCredential"];
         };
         /** @description The caller's own platform standing. */
         Me: {
@@ -3870,6 +4367,17 @@ export interface components {
         MessageRequestBody: {
             /** @description `accepted`, `ignored` or `spam`. */
             state: string;
+        };
+        /** @description A second-factor proof (D-167). */
+        MfaProof: {
+            /** @description The authenticator code or an unused recovery code. */
+            code: string;
+            /**
+             * @description `totp`, `recovery` or `passkey` (then `code` is the JSON text of
+             *     `{ceremony_id, credential}` from `POST /sr/auth/passkeys/verify/begin` and
+             *     `navigator.credentials.get`).
+             */
+            method: string;
         };
         ModifyChannelBody: components["schemas"]["ForumSettingsBody"] & {
             applied_tags?: string[] | null;
@@ -4106,6 +4614,8 @@ export interface components {
             pages: components["schemas"]["PageEntry"][];
             prev_chapter_id?: string | null;
             reading_direction: components["schemas"]["ReadingDirection"];
+            /** @description Signed link to the original file of an EPUB or PDF chapter (such a chapter has no pages). */
+            source_url?: string | null;
         };
         PageVariant: {
             url: string;
@@ -4115,6 +4625,24 @@ export interface components {
         PartialEmoji: {
             id?: string | null;
             name: string;
+        };
+        /** @description A passkey as the settings page shows it. */
+        PasskeyView: {
+            /** @description Synced (multi-device) passkey. */
+            backup_eligible: boolean;
+            /** @description ISO 8601. */
+            created_at: string;
+            /** @description Row id (a snowflake as a string). */
+            id: string;
+            /** @description ISO 8601, null until first used. */
+            last_used_at?: string | null;
+            /** @description Label. */
+            name: string;
+        };
+        /** @description Documentation stand-in for [`PasswordBody`]. */
+        PasswordBodyDoc: {
+            /** @description The current password. */
+            password: string;
         };
         PatchFeatureBody: {
             /** @description Turn the feature on or off at the platform scope. */
@@ -4235,6 +4763,54 @@ export interface components {
             user: components["schemas"]["UserObject"];
             user_profile: components["schemas"]["UserProfileFields"];
         };
+        /** @description A member's progress in one chapter. */
+        Progress: {
+            cfi?: string | null;
+            chapter_id: string;
+            completed: boolean;
+            /** Format: int32 */
+            page_index: number;
+            /** Format: float */
+            percent: number;
+            series_id: string;
+            /** Format: int64 */
+            updated_at_ms: number;
+        };
+        /** @description Body of `PUT /library/chapters/{id}/progress`. */
+        ProgressInput: {
+            /**
+             * Format: int64
+             * @description `updated_at_ms` of the progress this client last saw (`0` for none). When the stored
+             *     progress is newer the write is not applied and the stored one is returned.
+             */
+            base_updated_at_ms?: number | null;
+            /** @description EPUB position. */
+            cfi?: string | null;
+            /** @description Defaults to `percent >= 100`. */
+            completed?: boolean | null;
+            /** @description Write even if the stored progress is newer (the member chose their own position). */
+            force?: boolean | null;
+            /**
+             * Format: int32
+             * @description Page index (images/PDF) or spine item index (EPUB), from 0.
+             */
+            page_index: number;
+            /**
+             * Format: float
+             * @description 0 to 100.
+             */
+            percent: number;
+        };
+        /** @description Answer of a progress save. */
+        ProgressSaved: {
+            /**
+             * @description `false`: the stored progress was newer than `base_updated_at_ms` and was left alone, so
+             *     the client should ask "continue where?" and may repeat the save with `force`.
+             */
+            applied: boolean;
+            /** @description What is stored now. */
+            progress: components["schemas"]["Progress"];
+        };
         PromptDto: {
             id?: string | null;
             in_onboarding?: boolean;
@@ -4269,6 +4845,20 @@ export interface components {
             emoji: components["schemas"]["PartialEmoji"];
             me: boolean;
         };
+        /** @description Body of `POST /library/chapters/{id}/read`. */
+        ReadMarkInput: {
+            /** @description `true` marks read, `false` unread. */
+            read: boolean;
+            /** @description Also mark every earlier chapter of the same edition. */
+            up_to?: boolean | null;
+        };
+        ReadMarkResult: {
+            /**
+             * Format: int64
+             * @description Chapters whose mark changed.
+             */
+            changed: number;
+        };
         ReadStateObject: {
             /** @description The channel id. */
             id: string;
@@ -4293,6 +4883,43 @@ export interface components {
              */
             reason?: string | null;
         };
+        /** @description Body for `POST /sr/auth/passkeys/register/finish`. */
+        RegisterFinishBody: {
+            /** @description From `register/begin`. */
+            ceremony_id: string;
+            /** @description The result of `navigator.credentials.create`. */
+            credential: components["schemas"]["RegistrationCredential"];
+            /** @description Label for the new passkey (default `Passkey`). */
+            name?: string | null;
+        };
+        /** @description Response of `POST /sr/auth/passkeys/register/finish`. */
+        RegisterFinishResponse: {
+            /** @description The stored passkey. */
+            passkey: components["schemas"]["PasskeyView"];
+            /**
+             * @description Present when the account had no unused recovery codes: ten fresh codes, shown
+             *     once. A passkey makes password logins ask for a second factor, so there must
+             *     be a way back in without it.
+             */
+            recovery_codes?: string[] | null;
+        };
+        /**
+         * @description The base64url-encoded credential a browser produced (`PublicKeyCredential`
+         *     serialised by the web app).
+         */
+        RegistrationCredential: {
+            /** @description base64url credential id. */
+            rawId: string;
+            /** @description The authenticator's response. */
+            response: components["schemas"]["RegistrationResponse"];
+        };
+        /** @description Registration response fields (all base64url, no padding). */
+        RegistrationResponse: {
+            /** @description `attestationObject`. */
+            attestationObject: string;
+            /** @description `clientDataJSON`. */
+            clientDataJSON: string;
+        };
         RelationshipObject: {
             /** @description The other user's id. */
             id: string;
@@ -4304,6 +4931,11 @@ export interface components {
              */
             type: number;
             user: components["schemas"]["UserObject"];
+        };
+        /** @description Body for `PATCH /sr/auth/passkeys/{id}`. */
+        RenameBody: {
+            /** @description New label, 1 to 64 characters. */
+            name: string;
         };
         ReorderChannelEntry: {
             id: string;
@@ -4746,6 +5378,49 @@ export interface components {
             /** @description Pass back as `before` for the next page; absent at the end. */
             next_before?: string | null;
         };
+        /** @description An upload as the API shows it (the status the client polls). */
+        Upload: {
+            chapter_id: string;
+            /** Format: int64 */
+            created_at_ms: number;
+            /** @description Why the upload failed, naming the offending page or file. */
+            error?: string | null;
+            filename: string;
+            /** Format: int64 */
+            finished_at_ms?: number | null;
+            id: string;
+            kind: components["schemas"]["UploadKind"];
+            /** @description Title, number, volume, writers and so on read from the file, for the editor to offer. */
+            metadata: unknown;
+            /**
+             * Format: int32
+             * @description Pages stored (archives) or spine items (EPUB).
+             */
+            page_count?: number | null;
+            series_id: string;
+            /** Format: int64 */
+            size_bytes: number;
+            status: components["schemas"]["UploadStatus"];
+            /** Format: int64 */
+            updated_at_ms: number;
+            /** @description Ignored files and unreadable metadata. */
+            warnings: string[];
+        };
+        /**
+         * @description What an uploaded file is expected to be (from the chapter's format).
+         * @enum {string}
+         */
+        UploadKind: "archive" | "epub" | "pdf";
+        UploadList: {
+            uploads: components["schemas"]["Upload"][];
+        };
+        /** @description Body of `POST /admin/library/chapters/{id}/uploads`. */
+        UploadRequest: {
+            /** @description Original file name; its extension must fit the chapter's format. */
+            filename: string;
+            /** Format: int64 */
+            size_bytes: number;
+        };
         UploadSlot: {
             /**
              * Format: int64
@@ -4773,6 +5448,11 @@ export interface components {
         UploadSlotsResponse: {
             attachments: components["schemas"]["UploadSlot"][];
         };
+        /**
+         * @description Where an upload is in its life.
+         * @enum {string}
+         */
+        UploadStatus: "awaiting_upload" | "queued" | "running" | "done" | "failed" | "expired";
         UserGuildSettingsObject: {
             channel_overrides: components["schemas"]["ChannelOverrideObject"][];
             /** @description `null` for the DM scope. */
@@ -6380,6 +7060,119 @@ export interface operations {
             };
         };
     };
+    admin_library_chapter_uploads: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_begin_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UploadRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadSlot"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The chapter already has an upload being converted, or uploads are not available. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     admin_library_update_edition: {
         parameters: {
             query?: never;
@@ -6871,7 +7664,16 @@ export interface operations {
     };
     admin_library_chapters: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Only this edition's chapters. */
+                edition?: string;
+                /** @description Page size, 1 to 500. Without it every chapter is returned. */
+                limit?: number;
+                /** @description Cursor from the previous page's `next_cursor`. */
+                after?: string;
+                /** @description `asc` (default) or `desc`: edition, then chapter number, then id. */
+                order?: string;
+            };
             header?: never;
             path: {
                 /** @description Series snowflake */
@@ -6887,6 +7689,14 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ChapterList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             401: {
@@ -7130,6 +7940,115 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Upload snowflake */
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Upload"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_complete_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Upload snowflake */
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Upload"];
+                };
+            };
+            /** @description The file is missing or over the size limit. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10015,6 +10934,33 @@ export interface operations {
             };
         };
     };
+    list_builtin_templates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BuiltinTemplateObject"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_template: {
         parameters: {
             query?: never;
@@ -10033,6 +10979,49 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TemplateObject"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_guild_from_template: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Built-in template id or template code */
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuildFromTemplateBody"];
+            };
+        };
+        responses: {
+            /** @description The new guild with its roles and channels */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuildObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             404: {
@@ -12815,6 +13804,155 @@ export interface operations {
             };
         };
     };
+    library_delete_bookmark: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Bookmark snowflake */
+                bookmark_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_chapter_bookmarks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookmarkList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_put_bookmark: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookmarkInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bookmark"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The chapter already holds 200 bookmarks. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     library_pages: {
         parameters: {
             query?: never;
@@ -12862,6 +14000,247 @@ export interface operations {
             };
         };
     };
+    library_get_progress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Progress"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age confirmation required (900011). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unknown chapter, or no progress saved yet. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_put_progress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgressInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgressSaved"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age confirmation required (900011). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_delete_progress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_mark_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadMarkInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadMarkResult"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_my_bookmarks: {
+        parameters: {
+            query?: {
+                /** @description Cursor from the previous page\'s `next_before`. */
+                before?: string;
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookmarkPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     library_my_follows: {
         parameters: {
             query?: {
@@ -12882,6 +14261,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FollowPage"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_my_progress: {
+        parameters: {
+            query?: {
+                /** @description Keep only the latest chapter of each series (default true). */
+                per_series?: boolean;
+                /** @description Cursor from the previous page\'s `next_before`. */
+                before?: string;
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             401: {
@@ -13026,6 +14447,12 @@ export interface operations {
             query?: {
                 /** @description Only this edition's chapters. */
                 edition?: string;
+                /** @description Page size, 1 to 500. Without it every chapter is returned. */
+                limit?: number;
+                /** @description Cursor from the previous page's `next_cursor`. */
+                after?: string;
+                /** @description `asc` (default) or `desc`: edition, then chapter number, then id. */
+                order?: string;
             };
             header?: never;
             path: {
@@ -13042,6 +14469,14 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ChapterList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             401: {
@@ -13220,6 +14655,44 @@ export interface operations {
             };
         };
     };
+    cancel_change_email: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelEmailChangeBody"];
+            };
+        };
+        responses: {
+            /** @description Pending change cancelled, or all sessions revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     change_email: {
         parameters: {
             query?: never;
@@ -13257,6 +14730,322 @@ export interface operations {
                 };
             };
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyView"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    login_begin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginBeginBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BeginResponse"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    login_finish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginFinishBody"];
+            };
+        };
+        responses: {
+            /** @description `{status: "ok"}` and a session cookie */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    register_begin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordBodyDoc"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BeginResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    register_finish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterFinishBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegisterFinishResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    verify_begin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BeginResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Passkey id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordBodyDoc"];
+            };
+        };
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    rename: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Passkey id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenameBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

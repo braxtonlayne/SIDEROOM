@@ -29,7 +29,7 @@ use sr_core::{ApiError, ErrorCode};
 /// Copy shown for any failed credential check (no oracle).
 const NO_MATCH: &str = "That doesn't match our list.";
 
-fn no_match() -> AuthRouteError {
+pub(super) fn no_match() -> AuthRouteError {
     ApiError::with_message(ErrorCode::Unauthorized, NO_MATCH).into()
 }
 
@@ -40,8 +40,11 @@ fn invalid_link() -> AuthRouteError {
 }
 
 /// The `methods` a login that needs a second factor offers (open question 83).
-fn second_factor_methods(has_totp: bool) -> Vec<&'static str> {
+fn second_factor_methods(has_totp: bool, has_passkey: bool) -> Vec<&'static str> {
     let mut methods = Vec::new();
+    if has_passkey {
+        methods.push("passkey");
+    }
     if has_totp {
         methods.push("totp");
     }
@@ -142,7 +145,8 @@ pub async fn login(
         .totp_get(account.id)
         .await?
         .is_some_and(|t| t.confirmed);
-    if has_totp && !is_trusted(&svc, &state, &headers, account.id).await? {
+    let has_passkey = svc.has_passkeys(account.id).await?;
+    if (has_totp || has_passkey) && !is_trusted(&svc, &state, &headers, account.id).await? {
         let token = SessionToken::generate()?;
         svc.pending
             .insert(&token.hash(), account.id, now + svc.cfg.mfa_ttl_secs, now);
@@ -151,7 +155,7 @@ pub async fn login(
             AppendHeaders([(header::SET_COOKIE, cookie)]),
             Json(json!({
                 "status": "mfa_required",
-                "methods": second_factor_methods(true),
+                "methods": second_factor_methods(has_totp, has_passkey),
             })),
         ));
     }
@@ -239,6 +243,80 @@ pub struct SecondFactorBody {
     trust_device: bool,
 }
 
+/// Result of [`check_second_factor`].
+pub(super) struct FactorCheck {
+    /// The code was valid (and is now spent).
+    pub ok: bool,
+    /// Recovery codes left after a recovery code was used.
+    pub remaining_recovery: Option<usize>,
+}
+
+/// Check a TOTP, recovery or passkey `code` for `account` and spend it. Used by the login
+/// second step and by sensitive changes that re-prompt (email change, F-03). The
+/// caller owns lockouts. For `passkey`, `code` is the JSON string `{ceremony_id, credential}`.
+pub(super) async fn check_second_factor(
+    svc: &AuthService,
+    account: &super::store::AccountRecord,
+    method: &str,
+    code: &str,
+    now: i64,
+) -> R<FactorCheck> {
+    let mut remaining_recovery = None;
+    let ok = match method {
+        "totp" => {
+            let rec = svc
+                .store
+                .totp_get(account.id)
+                .await?
+                .filter(|t| t.confirmed);
+            match rec {
+                Some(rec) => {
+                    let secret = TotpSecret::from_bytes(&rec.secret)?;
+                    let step = totp::verify(
+                        &secret,
+                        &svc.cfg.issuer,
+                        &account.username,
+                        code,
+                        u64::try_from(now).unwrap_or(0),
+                    )?;
+                    match step {
+                        Some(step) => svc.store.totp_consume_step(account.id, step).await?,
+                        None => false,
+                    }
+                }
+                None => false,
+            }
+        }
+        "recovery" => {
+            let unused = svc.store.recovery_list_unused(account.id).await?;
+            let hashes: Vec<TokenHash> = unused.iter().map(|(_, h)| *h).collect();
+            match recovery::find_match(code, &hashes) {
+                Some(i) => {
+                    let used = svc
+                        .store
+                        .recovery_consume(account.id, unused[i].0, now)
+                        .await?;
+                    if used {
+                        remaining_recovery = Some(unused.len() - 1);
+                    }
+                    used
+                }
+                None => false,
+            }
+        }
+        "passkey" => super::passkeys::check_proof(svc, account.id, code, now).await?,
+        _ => {
+            return Err(ApiError::invalid_form()
+                .field("method", "invalid", "Unknown second-factor method.")
+                .into());
+        }
+    };
+    Ok(FactorCheck {
+        ok,
+        remaining_recovery,
+    })
+}
+
 /// Complete a login that answered `mfa_required`, with a TOTP code or a
 /// recovery code. With `trust_device` the browser also gets the 30-day
 /// `sr_trusted` cookie.
@@ -260,7 +338,12 @@ pub async fn second_factor(
         .check(&lock_key, now)
         .and_then(|()| svc.ip_lock.check(&ip, now))
         .map_err(|retry_after| AuthRouteError::Throttled { retry_after })?;
-    if body.code.len() > 64 {
+    let max_code = if body.method == "passkey" {
+        super::passkeys::MAX_PROOF_LEN
+    } else {
+        64
+    };
+    if body.code.len() > max_code {
         return Err(no_match());
     }
 
@@ -271,55 +354,10 @@ pub async fn second_factor(
         .filter(|a| a.state == AccountState::Active)
         .ok_or_else(no_match)?;
 
-    let mut remaining_recovery = None;
-    let ok = match body.method.as_str() {
-        "totp" => {
-            let rec = svc
-                .store
-                .totp_get(account.id)
-                .await?
-                .filter(|t| t.confirmed);
-            match rec {
-                Some(rec) => {
-                    let secret = TotpSecret::from_bytes(&rec.secret)?;
-                    let step = totp::verify(
-                        &secret,
-                        &svc.cfg.issuer,
-                        &account.username,
-                        &body.code,
-                        u64::try_from(now).unwrap_or(0),
-                    )?;
-                    match step {
-                        Some(step) => svc.store.totp_consume_step(account.id, step).await?,
-                        None => false,
-                    }
-                }
-                None => false,
-            }
-        }
-        "recovery" => {
-            let unused = svc.store.recovery_list_unused(account.id).await?;
-            let hashes: Vec<TokenHash> = unused.iter().map(|(_, h)| *h).collect();
-            match recovery::find_match(&body.code, &hashes) {
-                Some(i) => {
-                    let used = svc
-                        .store
-                        .recovery_consume(account.id, unused[i].0, now)
-                        .await?;
-                    if used {
-                        remaining_recovery = Some(unused.len() - 1);
-                    }
-                    used
-                }
-                None => false,
-            }
-        }
-        _ => {
-            return Err(ApiError::invalid_form()
-                .field("method", "invalid", "Unknown second-factor method.")
-                .into());
-        }
-    };
+    let FactorCheck {
+        ok,
+        remaining_recovery,
+    } = check_second_factor(&svc, &account, body.method.as_str(), &body.code, now).await?;
 
     if !ok {
         svc.pending.fail(&hash, svc.cfg.mfa_max_attempts);
@@ -346,7 +384,7 @@ pub async fn second_factor(
         None
     };
     let (_, cookie) = svc
-        .start_session(&state, account.id, user_agent(&headers))
+        .start_session_mfa(&state, account.id, user_agent(&headers))
         .await?;
     let mut out = json!({ "status": "ok" });
     if let Some(n) = remaining_recovery {

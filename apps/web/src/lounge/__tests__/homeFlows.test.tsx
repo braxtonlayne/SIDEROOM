@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import { axeViolations } from '../../../../../packages/ui/src/test-axe';
@@ -73,12 +73,11 @@ const rel = (u: S.User, type: number) => ({
   user: u,
 });
 
-const quiet = (rels: unknown[] = [rel(bob, 1), rel(cat, 1), rel(dan, 3)], dmList: unknown[] = []) =>
+const quiet = (rels: unknown[] = [rel(bob, 1), rel(cat, 1), rel(dan, 3)]) =>
   server.use(
     http.get('*/api/v1/sr/csrf', () => HttpResponse.json({ token: 't' })),
     http.get('*/api/v1/channels/:cid/messages', () => HttpResponse.json([])),
     http.get('*/api/v1/users/@me/relationships', () => HttpResponse.json(rels)),
-    http.get('*/api/v1/users/@me/channels', () => HttpResponse.json(dmList)),
   );
 
 describe('Friends page', () => {
@@ -122,16 +121,72 @@ describe('Friends page', () => {
     await userEvent.click(tab);
     const incoming = await screen.findByRole('list', { name: 'Incoming friend requests' });
     expect(within(incoming).getByText('Incoming Friend Request')).toBeInTheDocument();
+    let fetches = 0;
     server.use(
-      http.get('*/api/v1/users/@me/relationships', () =>
-        HttpResponse.json([rel(bob, 1), rel(cat, 1), rel(dan, 1)]),
-      ),
+      http.get('*/api/v1/users/@me/relationships', () => {
+        fetches += 1;
+        return HttpResponse.json([rel(bob, 1), rel(cat, 1), rel(dan, 1)]);
+      }),
     );
     await userEvent.click(within(incoming).getByRole('button', { name: 'Accept dan' }));
     await waitFor(() => expect(put).toEqual({ type: 1 }));
+    // The gateway tells us it worked (D-183); the page does not re-fetch.
+    act(() => useStore.getState().applyDispatch('RELATIONSHIP_ADD', rel(dan, 1)));
+    expect(fetches).toBe(0);
     await waitFor(() =>
       expect(screen.getByText(/no pending friend requests/i)).toBeInTheDocument(),
     );
+  });
+
+  it('applies RELATIONSHIP_* dispatches live: a request from another session appears without reload', async () => {
+    at('/channels/@me');
+    const tab = await screen.findByRole('tab', { name: /Pending/ });
+    await userEvent.click(tab);
+    const incoming = await screen.findByRole('list', { name: 'Incoming friend requests' });
+    expect(within(incoming).queryByText('eve')).toBeNull();
+    const eve: S.User = { id: '9', username: 'eve' };
+    act(() => useStore.getState().applyDispatch('RELATIONSHIP_ADD', rel(eve, 3)));
+    expect(await within(incoming).findByText('eve')).toBeInTheDocument();
+    expect(await screen.findByLabelText(/2 pending friend requests/)).toBeInTheDocument();
+    // A nickname change and a removal also land live.
+    act(() =>
+      useStore
+        .getState()
+        .applyDispatch('RELATIONSHIP_UPDATE', { id: '9', type: 3, nickname: 'Evie' }),
+    );
+    act(() => useStore.getState().applyDispatch('RELATIONSHIP_REMOVE', { id: '9', type: 3 }));
+    await waitFor(() => expect(within(incoming).queryByText('eve')).toBeNull());
+    expect(await screen.findByLabelText(/1 pending friend requests/)).toBeInTheDocument();
+  });
+
+  it('a new friend dispatch updates the All tab and a DM request lands in message requests', async () => {
+    at('/channels/@me');
+    await screen.findByRole('list', { name: 'Online' });
+    act(() =>
+      useStore.getState().applyDispatch('CHANNEL_CREATE', {
+        id: 'dm9',
+        type: 1,
+        recipients: [dan],
+        is_message_request: true,
+      }),
+    );
+    // Requests stay out of the DM list...
+    expect(useStore.getState().channels.dm9).toBeUndefined();
+    expect(useSocial.getState().messageRequests.map((d) => d.id)).toEqual(['dm9']);
+    // ...until accepted (the server re-sends CHANNEL_CREATE), and CHANNEL_DELETE closes a DM.
+    act(() =>
+      useStore.getState().applyDispatch('CHANNEL_CREATE', {
+        id: 'dm9',
+        type: 1,
+        recipients: [dan],
+        is_message_request: false,
+      }),
+    );
+    expect(useSocial.getState().messageRequests).toEqual([]);
+    expect(useStore.getState().channels.dm9).toBeDefined();
+    act(() => useStore.getState().applyDispatch('CHANNEL_DELETE', { id: 'dm9', type: 1 }));
+    expect(useStore.getState().channels.dm9).toBeUndefined();
+    expect(useStore.getState().channelIdsByGuild['@me']).toEqual(['dm1']);
   });
 
   it('shows the empty pending state', async () => {
@@ -276,7 +331,8 @@ describe('Message Requests', () => {
 
   beforeEach(() => {
     seed();
-    quiet([rel(bob, 1)], [request]);
+    quiet([rel(bob, 1)]);
+    useStore.setState({ messageRequestDms: [request] });
   });
 
   it('counts requests, lists them and accepts one', async () => {
@@ -318,25 +374,32 @@ describe('DM list', () => {
     quiet([rel(bob, 1)]);
   });
 
-  it('names DMs that READY delivered with recipient ids only', async () => {
-    useStore.setState({
-      channels: {
-        ...useStore.getState().channels,
-        dm2: { id: 'dm2', type: 1, last_message_id: '300' },
-      },
-      channelIdsByGuild: { ...useStore.getState().channelIdsByGuild, '@me': ['dm1', 'dm2'] },
-    });
-    quiet(
-      [rel(bob, 1)],
-      [
+  it('names DMs from the full recipients in READY, without fetching the DM list', async () => {
+    let fetched = 0;
+    server.use(
+      http.get('*/api/v1/users/@me/channels', () => {
+        fetched += 1;
+        return HttpResponse.json([]);
+      }),
+    );
+    useStore.getState().applyDispatch('READY', {
+      user: me,
+      guilds: [{ id: 'g1' }],
+      private_channels: [
         { id: 'dm1', type: 1, recipients: [bob], last_message_id: '200' },
         { id: 'dm2', type: 1, recipients: [cat], last_message_id: '300' },
+        { id: 'dm9', type: 1, recipients: [dan], is_message_request: true },
       ],
-    );
+    });
+    useStore.setState({ connection: 'connected' });
     at('/channels/@me');
     const sidebar = await screen.findByTestId('home-sidebar');
     expect(await within(sidebar).findByRole('link', { name: /^cat/ })).toBeInTheDocument();
     expect(within(sidebar).getByRole('link', { name: /Bob B/ })).toBeInTheDocument();
+    // The request stays out of the DM list and fills Message Requests.
+    expect(within(sidebar).queryByRole('link', { name: /dan/ })).toBeNull();
+    expect(useSocial.getState().messageRequests.map((d) => d.id)).toEqual(['dm9']);
+    expect(fetched).toBe(0);
   });
 
   it('shows a group DM with a member count and an avatar collage', async () => {
@@ -511,10 +574,10 @@ describe('notices bar', () => {
 describe('Home accessibility', () => {
   it('friends page, message requests and the create DM dialog have no axe violations', async () => {
     seed();
-    quiet(
-      [rel(bob, 1), rel(dan, 3)],
-      [{ id: 'dm7', type: 1, recipients: [dan], is_message_request: true }],
-    );
+    quiet([rel(bob, 1), rel(dan, 3)]);
+    useStore.setState({
+      messageRequestDms: [{ id: 'dm7', type: 1, recipients: [dan], is_message_request: true }],
+    });
     at('/channels/@me');
     const list = await screen.findByRole('list', { name: 'Online' });
     const section = list.closest('section')!;

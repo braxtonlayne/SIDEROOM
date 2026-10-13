@@ -44,11 +44,16 @@ pub struct SnapRole {
     /// 0 is `@everyone`.
     pub local_id: u32,
     pub name: String,
+    #[serde(default)]
     pub color: u32,
+    #[serde(default)]
     pub hoist: bool,
+    #[serde(default)]
     pub position: i32,
     pub permissions: u64,
+    #[serde(default)]
     pub mentionable: bool,
+    #[serde(default)]
     pub unicode_emoji: Option<String>,
 }
 
@@ -64,13 +69,21 @@ pub struct SnapChannel {
     pub local_id: u32,
     pub kind: i16,
     pub name: String,
+    #[serde(default)]
     pub topic: Option<String>,
+    #[serde(default)]
     pub position: i32,
+    #[serde(default)]
     pub parent_local_id: Option<u32>,
+    #[serde(default)]
     pub nsfw: bool,
+    #[serde(default)]
     pub rate_limit_per_user: u32,
+    #[serde(default)]
     pub bitrate: Option<u32>,
+    #[serde(default)]
     pub user_limit: Option<u32>,
+    #[serde(default)]
     pub overwrites: Vec<SnapOverwrite>,
 }
 
@@ -88,6 +101,54 @@ pub struct TemplateSnapshot {
     pub settings: SnapSettings,
     pub roles: Vec<SnapRole>,
     pub channels: Vec<SnapChannel>,
+}
+
+/// A template shipped with the server (Create a Server wizard, D-180). The JSON files in
+/// `builtin_templates/` use the same `serialized_source_guild` shape as a template made
+/// from a guild, so one instantiate path serves both.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BuiltinTemplate {
+    /// Stable id, also accepted as `template` when creating a guild.
+    pub id: String,
+    pub name: String,
+    /// The short line under the name in the wizard.
+    pub description: String,
+    #[serde(rename = "serialized_source_guild")]
+    pub snapshot: TemplateSnapshot,
+}
+
+const BUILTIN_JSON: &[&str] = &[
+    include_str!("builtin_templates/gaming.json"),
+    include_str!("builtin_templates/friends.json"),
+    include_str!("builtin_templates/study.json"),
+    include_str!("builtin_templates/school-club.json"),
+    include_str!("builtin_templates/local.json"),
+    include_str!("builtin_templates/creators.json"),
+    include_str!("builtin_templates/watch-club.json"),
+    include_str!("builtin_templates/reading-club.json"),
+];
+
+/// The eight built-in templates, in wizard order. The files are part of the build and
+/// checked by tests, so a parse failure here is a programming error.
+pub fn builtin_templates() -> &'static [BuiltinTemplate] {
+    static ALL: std::sync::OnceLock<Vec<BuiltinTemplate>> = std::sync::OnceLock::new();
+    ALL.get_or_init(|| {
+        BUILTIN_JSON
+            .iter()
+            .filter_map(|j| match serde_json::from_str(j) {
+                Ok(t) => Some(t),
+                Err(e) => {
+                    tracing::error!(error = %e, "built-in template does not parse");
+                    None
+                }
+            })
+            .collect()
+    })
+}
+
+/// A built-in template by id.
+pub fn builtin(id: &str) -> Option<&'static BuiltinTemplate> {
+    builtin_templates().iter().find(|t| t.id == id)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -322,6 +383,52 @@ pub fn instantiate(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_eight_builtin_templates_parse_and_are_consistent() {
+        let all = builtin_templates();
+        let ids: Vec<&str> = all.iter().map(|t| t.id.as_str()).collect();
+        assert_eq!(
+            ids,
+            [
+                "gaming",
+                "friends",
+                "study",
+                "school-club",
+                "local",
+                "creators",
+                "watch-club",
+                "reading-club"
+            ]
+        );
+        for t in all {
+            validate_template_text(&t.name, Some(&t.description)).unwrap();
+            let s = &t.snapshot;
+            let locals: std::collections::HashSet<u32> =
+                s.channels.iter().map(|c| c.local_id).collect();
+            assert_eq!(locals.len(), s.channels.len(), "{}: unique ids", t.id);
+            for c in &s.channels {
+                assert!(ChannelType::from_code(c.kind).is_some(), "{}", t.id);
+                if let Some(p) = c.parent_local_id {
+                    let parent = s.channels.iter().find(|x| x.local_id == p).unwrap();
+                    assert_eq!(parent.kind, 4, "{}: parents are categories", t.id);
+                }
+            }
+            let sys = s.settings.system_channel_local_id.unwrap();
+            let general = s.channels.iter().find(|c| c.local_id == sys).unwrap();
+            assert_eq!(
+                (general.name.as_str(), general.kind),
+                ("general", 0),
+                "{}",
+                t.id
+            );
+            // Every template keeps the default categories, a text and a voice channel.
+            assert!(s.channels.iter().any(|c| c.kind == 2), "{}", t.id);
+            assert!(s.channels.len() <= 12, "{}", t.id);
+        }
+        assert!(builtin("gaming").is_some());
+        assert!(builtin("nope").is_none());
+    }
 
     #[test]
     fn template_codes_are_16_base62() {

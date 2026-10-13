@@ -17,8 +17,8 @@ use sr_auth::{
     },
     session::TokenHash,
     store::{
-        AccountRecord, AccountState, AuthStore, InviteState, RegisterRejection, RegisterTx,
-        Registered, StoreError, StoreResult, TrustedDeviceRecord,
+        AccountRecord, AccountState, AuthStore, InviteState, PasskeyRecord, RegisterRejection,
+        RegisterTx, Registered, StoreError, StoreResult, TrustedDeviceRecord,
     },
 };
 
@@ -89,6 +89,36 @@ fn account_from_row(r: &sqlx::postgres::PgRow) -> StoreResult<AccountRecord> {
         age_confirmed: r.try_get("age_confirmed").map_err(store_err)?,
         locale: r.try_get("locale").map_err(store_err)?,
         flags: r.try_get("flags").map_err(store_err)?,
+    })
+}
+
+macro_rules! passkey_select {
+    ($tail:literal) => {
+        concat!(
+            "SELECT id, account_id, credential_id, cose_key, alg, sign_count, ",
+            "backup_eligible, backup_state, aaguid, name, ",
+            "EXTRACT(EPOCH FROM created_at)::BIGINT AS created_at, ",
+            "EXTRACT(EPOCH FROM last_used_at)::BIGINT AS last_used_at ",
+            $tail
+        )
+    };
+}
+
+fn passkey_from_row(r: &sqlx::postgres::PgRow) -> StoreResult<PasskeyRecord> {
+    let aaguid: Option<Vec<u8>> = r.try_get("aaguid").map_err(store_err)?;
+    Ok(PasskeyRecord {
+        id: r.try_get("id").map_err(store_err)?,
+        account_id: r.try_get("account_id").map_err(store_err)?,
+        credential_id: r.try_get("credential_id").map_err(store_err)?,
+        cose_key: r.try_get("cose_key").map_err(store_err)?,
+        alg: r.try_get("alg").map_err(store_err)?,
+        sign_count: r.try_get("sign_count").map_err(store_err)?,
+        backup_eligible: r.try_get("backup_eligible").map_err(store_err)?,
+        backup_state: r.try_get("backup_state").map_err(store_err)?,
+        aaguid: aaguid.unwrap_or_default(),
+        name: r.try_get("name").map_err(store_err)?,
+        created_at: r.try_get("created_at").map_err(store_err)?,
+        last_used_at: r.try_get("last_used_at").map_err(store_err)?,
     })
 }
 
@@ -329,6 +359,38 @@ impl AuthStore for PgAuthStore {
         .transpose()
     }
 
+    async fn email_change_cancel(&self, user_id: i64) -> StoreResult<bool> {
+        let r = sqlx::query(
+            "DELETE FROM email_tokens WHERE account_id = $1              AND purpose = 'change_email'::email_token_purpose AND used_at IS NULL",
+        )
+        .bind(user_id)
+        .execute(&self.pool)
+        .await
+        .map_err(store_err)?;
+        Ok(r.rows_affected() > 0)
+    }
+
+    async fn session_mfa_verified_at(&self, session_id: i64) -> StoreResult<Option<i64>> {
+        sqlx::query_scalar(
+            "SELECT EXTRACT(EPOCH FROM mfa_verified_at)::BIGINT FROM sessions              WHERE id = $1 AND revoked_at IS NULL",
+        )
+        .bind(session_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map(Option::flatten)
+        .map_err(store_err)
+    }
+
+    async fn session_mark_mfa_verified(&self, session_id: i64, at: i64) -> StoreResult<()> {
+        sqlx::query("UPDATE sessions SET mfa_verified_at = to_timestamp($2::float8) WHERE id = $1")
+            .bind(session_id)
+            .bind(at as f64)
+            .execute(&self.pool)
+            .await
+            .map_err(store_err)?;
+        Ok(())
+    }
+
     async fn set_email(&self, id: i64, email: &str) -> StoreResult<bool> {
         let r = sqlx::query(
             "UPDATE accounts SET email = $2, email_verified_at = now(), updated_at = now() \
@@ -526,6 +588,111 @@ impl AuthStore for PgAuthStore {
         EmailTokenRepository::consume(&self.repo, purpose, hash, now)
             .await
             .map_err(store_err)
+    }
+
+    async fn passkey_user_handle(&self, account_id: i64, candidate: &[u8]) -> StoreResult<Vec<u8>> {
+        sqlx::query_scalar(
+            "UPDATE accounts SET user_handle = COALESCE(user_handle, $2) WHERE id = $1 \
+             RETURNING user_handle",
+        )
+        .bind(account_id)
+        .bind(candidate)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(store_err)
+    }
+
+    async fn passkey_insert(&self, rec: PasskeyRecord) -> StoreResult<bool> {
+        unique_to_false(
+            sqlx::query(
+                "INSERT INTO passkey_credentials (id, account_id, credential_id, cose_key, alg, \
+                 sign_count, backup_eligible, backup_state, aaguid, name, created_at) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, to_timestamp($11::float8))",
+            )
+            .bind(rec.id)
+            .bind(rec.account_id)
+            .bind(&rec.credential_id)
+            .bind(&rec.cose_key)
+            .bind(rec.alg)
+            .bind(rec.sign_count)
+            .bind(rec.backup_eligible)
+            .bind(rec.backup_state)
+            .bind(&rec.aaguid)
+            .bind(&rec.name)
+            .bind(rec.created_at as f64)
+            .execute(&self.pool)
+            .await,
+        )
+    }
+
+    async fn passkey_list(&self, account_id: i64) -> StoreResult<Vec<PasskeyRecord>> {
+        let rows = sqlx::query(passkey_select!(
+            "FROM passkey_credentials WHERE account_id = $1 ORDER BY created_at, id"
+        ))
+        .bind(account_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(store_err)?;
+        rows.iter().map(passkey_from_row).collect()
+    }
+
+    async fn passkey_find(&self, credential_id: &[u8]) -> StoreResult<Option<PasskeyRecord>> {
+        let row = sqlx::query(passkey_select!(
+            "FROM passkey_credentials WHERE credential_id = $1"
+        ))
+        .bind(credential_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(store_err)?;
+        row.as_ref().map(passkey_from_row).transpose()
+    }
+
+    async fn passkey_rename(&self, account_id: i64, id: i64, name: &str) -> StoreResult<bool> {
+        let r = sqlx::query(
+            "UPDATE passkey_credentials SET name = $3, updated_at = now() \
+             WHERE id = $1 AND account_id = $2",
+        )
+        .bind(id)
+        .bind(account_id)
+        .bind(name)
+        .execute(&self.pool)
+        .await
+        .map_err(store_err)?;
+        Ok(r.rows_affected() > 0)
+    }
+
+    async fn passkey_delete(&self, account_id: i64, id: i64) -> StoreResult<bool> {
+        let r = sqlx::query("DELETE FROM passkey_credentials WHERE id = $1 AND account_id = $2")
+            .bind(id)
+            .bind(account_id)
+            .execute(&self.pool)
+            .await
+            .map_err(store_err)?;
+        Ok(r.rows_affected() > 0)
+    }
+
+    async fn passkey_record_use(
+        &self,
+        id: i64,
+        expected_sign_count: i64,
+        sign_count: i64,
+        backup_state: bool,
+        now: i64,
+    ) -> StoreResult<bool> {
+        let r = sqlx::query(
+            "UPDATE passkey_credentials SET sign_count = $3, backup_state = $4, \
+             last_used_at = to_timestamp($5::float8), updated_at = now() \
+             WHERE id = $1 AND sign_count = $2",
+        )
+        .bind(id)
+        .bind(expected_sign_count)
+        .bind(sign_count)
+        .bind(backup_state)
+        .bind(now as f64)
+        .execute(&self.pool)
+        .await
+        .map_err(store_err)?;
+        Ok(r.rows_affected() > 0)
     }
 
     async fn audit(

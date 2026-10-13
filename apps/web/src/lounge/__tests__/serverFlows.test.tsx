@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
+import { axeViolations } from '../../../../../packages/ui/src/test-axe';
 import { createAppRouter } from '../../router';
 import { http, HttpResponse, server } from '../../test/server';
 import { resetStore, useStore } from '../../store';
@@ -466,13 +467,12 @@ describe('Invite people', () => {
 
     await userEvent.selectOptions(within(dialog).getByLabelText('Expire after'), '1 hour');
     await userEvent.selectOptions(within(dialog).getByLabelText('Max number of uses'), '10 uses');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Generate invite link' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Copy link' }));
     const link = (await within(dialog).findByLabelText('Invite link')) as HTMLInputElement;
     expect(link.value).toMatch(/\/invite\/new222$/);
-    expect(body).toEqual({ max_age: 3600, max_uses: 10 });
+    expect(body).toEqual({ external: true, max_age: 3600, max_uses: 10 });
 
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Copy' }));
-    expect(writeText).toHaveBeenCalledWith(link.value);
+    // Copy link copied it already.
     expect(await within(dialog).findByRole('button', { name: 'Copied!' })).toBeInTheDocument();
 
     await userEvent.click(within(dialog).getByRole('button', { name: 'Revoke invite old111' }));
@@ -498,9 +498,35 @@ describe('Invite people', () => {
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Invite to Server' }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).queryByRole('region', { name: 'Active invites' })).toBeNull();
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Generate invite link' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Copy link' }));
     expect(await within(dialog).findByLabelText('Invite link')).toBeInTheDocument();
     expect(listed).toBe(false);
+  });
+
+  it('Copy link makes an external single-use invite and says so (D-182)', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    let body: unknown;
+    server.use(
+      http.get('*/api/v1/guilds/g1/invites', () => HttpResponse.json([])),
+      http.post('*/api/v1/channels/c1/invites', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(inviteObj({ code: 'ext111', max_uses: 1, max_age: 604800 }));
+      }),
+    );
+    at('/channels/g1/c1');
+    const sidebar = await screen.findByTestId('channel-sidebar');
+    await userEvent.click(within(sidebar).getByRole('button', { name: /Store Guild/ }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Invite to Server' }));
+    const dialog = await screen.findByRole('dialog', { name: /Invite people to Store Guild/ });
+    // The pickers start on the external defaults.
+    expect(within(dialog).getByLabelText('Expire after')).toHaveValue('604800');
+    expect(within(dialog).getByLabelText('Max number of uses')).toHaveValue('1');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Copy link' }));
+    expect(await within(dialog).findByText(/This link can be used once/)).toBeInTheDocument();
+    expect(body).toEqual({ external: true });
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('/invite/ext111'));
+    expect(await axeViolations(dialog)).toEqual([]);
   });
 
   it('opens from the rail context menu too', async () => {

@@ -43,7 +43,7 @@ The staff-side record of a real human. It may span several accounts (D-030).
 Unique (provider, provider_user_id) applies **across all accounts, including deleted ones**. That is how a returning user is matched to their Person (D-030).
 
 ### `sessions`, `mfa_totp`, `webauthn_credentials`, `recovery_codes`, `email_tokens`
-Standard. Tokens are stored as SHA-256 hashes.
+Standard. Tokens are stored as SHA-256 hashes. Migration 0180 renames `webauthn_credentials` to `passkey_credentials` (`credential_id` unique, `cose_key`, `alg`, `sign_count`, `backup_eligible`, `backup_state`, `aaguid`, `name` 1 to 64 characters, `last_used_at`) and adds `accounts.user_handle` (32 random bytes, the WebAuthn `user.id`, never the account id).
 
 ### `login_events` (migration 0001)
 Login IP history, kept 180 days (doc 09 §1). Visible to staff with `MANAGE_ACCOUNTS`.
@@ -142,7 +142,7 @@ id, message_id, uploader_id, filename, content_type, size_bytes, width, height, 
 
 `user_privacy` (user_id primary key; booleans `fr_everyone`, `fr_friends_of_friends`, `fr_server_members`, `dm_server_members`, `dm_message_requests`). The server enforces these rules, so they keep typed columns (migration 0020). When the Discord-shaped `user_settings` blob lands, these fields are projected into it on read and written back to this table.
 
-`user_settings` (jsonb blob, versioned like Discord's proto settings), `guild_member_settings` (notification overrides), `presences` (memory only).
+`user_settings` (jsonb blob, versioned like Discord's proto settings; a client-owned merge-patch document, D-179). Keys the web client uses today: `guild_positions` (ordered guild ids for the server rail) and `guild_folders` (`[{id, name, color, guild_ids}]`), both Discord's names; plus `collapsed_categories`, `last_channel_by_guild` (the remembered channel per server) and `panel_widths` for UI state that should follow the member across devices. The client writes a debounced merge patch after a change, applies `SR_USER_SETTINGS_UPDATE` from other sessions, and keeps `localStorage` only as an offline cache and first-paint source. The server never interprets these keys. The Lounge also stores `bookmarks` and `reminders` here, each an object keyed by message id (`{message_id, channel_id, guild_id, preview, author, saved_at}`, plus `due_at` for a reminder), so a merge patch adds or removes one entry; reminders fire in an open client only, there is no push delivery yet. `guild_member_settings` (notification overrides), `presences` (memory only).
 
 ## 5. Expression
 
@@ -186,6 +186,8 @@ id, message_id, uploader_id, filename, content_type, size_bytes, width, height, 
 `reading_series` (id, kind: manga / manhwa / manhua / webtoon / comic / novel / book, title, alt_titles text[], authors, artists, status, year, synopsis, genres, tags, `reading_direction default rtl/ltr/vertical`, age_restricted, cover_key, published), `reading_editions` (series_id, language, edition label e.g. "Official English", "Scanlation X", is_default), `volumes`, `chapters` (edition_id, volume_id null, number numeric, title, page_count, `format: images / pdf / epub`, release_group, published_at), `pages` (chapter_id, index, key (webp), width, height, is_double_spread bool, blurhash), `reading_progress` (user, chapter, page_index, percent, updated_at), `bookmarks`.
 
 As built (migrations 0200 and 0201): the tables carry the `reading_` prefix, `reading_volumes` / `reading_chapters` / `reading_pages` / `reading_bookmarks` / `reading_follows`, and `reading_pages` is keyed `(chapter_id, idx)` with a `variants` jsonb of sized WebP keys (`{"720": key, ...}`). A chapter is readable only when it and its series are `published`; a merged-away series keeps its row with `merged_into` set. `reading_series` also keeps `chapter_count`, `last_chapter_at` and `follower_count`, refreshed in the transaction that changes them. `reading_follows` holds the shelf (reading / plan_to_read / completed / on_hold / dropped) and the notify flag. Pages, covers and variants live under the object key prefix `library/{series}/{chapter}/` and are served through signed `/cdn/library/...` URLs.
+
+Phase 4 adds migrations 0210 and 0211. `reading_gc_keys` (key, chapter_id, queued_at) is the storage collector queue: the repository queues the objects of replaced pages, replaced covers and sources, and deleted chapters, editions, volumes and series in the same transaction as the change, and the `library.gc` job deletes each one once no page, cover, source or live upload references it. `reading_uploads` (id, chapter_id, series_id, user_id, filename, kind archive / epub / pdf, size_bytes, object_key, status awaiting_upload / queued / running / done / failed / expired, error, warnings, page_count, metadata, timestamps) is one row per uploaded chapter file and the status the client polls. Re-ingested pages live under `library/{series}/{chapter}/r{upload}/NNNN.webp` so a replacement never overwrites objects readers still load. `reading_progress.updated_at` doubles as the version of the cross-device conflict check.
 
 ## 12. Donations
 

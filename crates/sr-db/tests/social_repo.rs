@@ -25,9 +25,12 @@ type Ids = SnowflakeGenerator<Arc<dyn Clock>>;
 
 fn service(pool: &PgPool) -> (SocialService<PgSocialRepo>, Ids) {
     let clock: Arc<dyn Clock> = Arc::new(SystemClock);
-    // Distinct worker/process ids keep test-created ids apart from the service's.
-    let svc_ids = SnowflakeGenerator::new(clock.clone(), 5, 5).expect("ids");
-    let test_ids = SnowflakeGenerator::new(clock.clone(), 6, 6).expect("ids");
+    // Distinct worker/process ids keep test-created ids apart from the service's, and
+    // deriving them from the OS pid keeps separate test processes (nextest runs one per
+    // test) from minting the same timestamp+worker id on a reused database.
+    let w = ((std::process::id() % 16) * 2) as u8;
+    let svc_ids = SnowflakeGenerator::new(clock.clone(), w, w).expect("ids");
+    let test_ids = SnowflakeGenerator::new(clock.clone(), w + 1, w + 1).expect("ids");
     (
         SocialService::new(
             PgSocialRepo::new(pool.clone()),

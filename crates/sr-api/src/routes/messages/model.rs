@@ -75,6 +75,14 @@ pub struct AttachmentObject {
     /// Voice messages: base64 waveform.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub waveform: Option<String>,
+    /// Pixel size, as declared by the uploader.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub width: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub height: Option<u32>,
+    /// BlurHash placeholder to show until the image loads.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blurhash: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -224,6 +232,9 @@ pub fn attachment_object(a: &Attachment) -> AttachmentObject {
         expires_at: a.expires_at_ms.map(iso),
         duration_secs: a.duration_ms.map(|d| f64::from(d) / 1000.0),
         waveform: a.waveform.clone(),
+        width: a.width,
+        height: a.height,
+        blurhash: a.blurhash.clone(),
     }
 }
 
@@ -354,6 +365,14 @@ pub struct FileSpec {
     pub description: Option<String>,
     #[serde(default)]
     pub spoiler: Option<bool>,
+    /// Images and videos: pixel size (1 to 16384 each, both or neither).
+    #[serde(default)]
+    pub width: Option<u32>,
+    #[serde(default)]
+    pub height: Option<u32>,
+    /// Images: BlurHash of the picture, shown until it loads.
+    #[serde(default)]
+    pub blurhash: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]

@@ -114,7 +114,10 @@ async fn env_full(
         1,
         1,
     )
-    .unwrap();
+    .unwrap()
+    .with_cdn_signer(sr_storage::cdn::CdnSigner::new(
+        b"messages-test-secret-0123456789ab".to_vec(),
+    ));
     let jobs = Arc::new(rich_tests::RecordingScheduler::default());
     let web = Arc::new(rich_tests::FakeWeb::default());
     let deps = Arc::new(deps.with_rich(super::RichDeps {
@@ -971,6 +974,68 @@ async fn upload_slot_enforces_entitlement_limits() {
 }
 
 #[tokio::test]
+async fn declared_picture_size_and_blurhash_reach_the_attachment() {
+    let e = env().await;
+    let png = png_with_secret();
+    let (s, v) = e
+        .post(
+            "/attachments",
+            "bob",
+            json!({"files": [{
+                "id": "0", "filename": "cat.png", "file_size": png.len(),
+                "content_type": "image/png", "width": 640, "height": 480,
+                "blurhash": "LEHV6nWB2yk8pyo0adR*.7kCMdnj"
+            }]}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let slot = v["attachments"][0].clone();
+    e.storage
+        .put(&slot_key(e.ch, &slot, "cat.png"), Bytes::from(png))
+        .await
+        .unwrap();
+    let msg = json!({
+        "content": "pic",
+        "attachments": [{"id": "0", "uploaded_filename": slot["upload_filename"]}],
+    });
+    let (s, v) = e.post("/messages", "bob", msg).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let a = &v["attachments"][0];
+    assert_eq!(a["width"], 640);
+    assert_eq!(a["height"], 480);
+    assert_eq!(a["blurhash"], "LEHV6nWB2yk8pyo0adR*.7kCMdnj");
+    let (_, list) = e.get("/messages", "bob").await;
+    assert_eq!(list[0]["attachments"][0]["blurhash"], a["blurhash"]);
+}
+
+#[tokio::test]
+async fn bad_picture_size_or_blurhash_is_refused() {
+    let e = env().await;
+    for file in [
+        json!({"filename": "a.png", "file_size": 10, "width": 100}),
+        json!({"filename": "a.png", "file_size": 10, "width": 0, "height": 5}),
+        json!({"filename": "a.png", "file_size": 10, "width": 99999, "height": 5}),
+        json!({"filename": "a.png", "file_size": 10, "blurhash": "short"}),
+        json!({"filename": "a.png", "file_size": 10, "blurhash": "has spaces in it!!!"}),
+        json!({"filename": "a.png", "file_size": 10, "blurhash": "x".repeat(200)}),
+    ] {
+        let r = e
+            .post("/attachments", "bob", json!({"files": [file.clone()]}))
+            .await;
+        assert_eq!(code(&r), (StatusCode::BAD_REQUEST, Some(50035)), "{file}");
+    }
+    // A file without any picture metadata is unaffected.
+    let r = e
+        .post(
+            "/attachments",
+            "bob",
+            json!({"files": [{"filename": "a.txt", "file_size": 10}]}),
+        )
+        .await;
+    assert_eq!(r.0, StatusCode::OK);
+}
+
+#[tokio::test]
 async fn upload_then_message_sniffs_content_type() {
     let e = env().await;
     let png = png_with_secret();
@@ -1037,6 +1102,50 @@ async fn upload_then_message_sniffs_content_type() {
     assert_eq!(list[0]["attachments"][0]["id"], a["id"]);
     let r = e.post("/messages", "bob", msg).await;
     assert_eq!(r.0, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn spoiler_uploads_carry_the_spoiler_prefix() {
+    let e = env().await;
+    let png = png_with_secret();
+    // `spoiler: true` prefixes the name once; an already prefixed name is not doubled
+    // and counts as a spoiler without the flag (Discord's convention, D-177).
+    for (name, spoiler, expected) in [
+        ("cat.png", Some(true), "SPOILER_cat.png"),
+        ("SPOILER_cat.png", Some(true), "SPOILER_cat.png"),
+        ("SPOILER_cat.png", None, "SPOILER_cat.png"),
+        ("cat.png", Some(false), "cat.png"),
+    ] {
+        let mut file = json!({
+            "id": "0", "filename": name, "file_size": png.len(), "content_type": "image/png"
+        });
+        if let Some(s) = spoiler {
+            file["spoiler"] = json!(s);
+        }
+        let (s, v) = e
+            .post("/attachments", "bob", json!({"files": [file]}))
+            .await;
+        assert_eq!(s, StatusCode::OK, "{v}");
+        let slot = v["attachments"][0].clone();
+        assert!(
+            slot["upload_filename"]
+                .as_str()
+                .unwrap()
+                .ends_with(&format!("/{expected}")),
+            "{name}: {slot}"
+        );
+        e.storage
+            .put(&slot_key(e.ch, &slot, expected), Bytes::from(png.clone()))
+            .await
+            .unwrap();
+        let msg = json!({
+            "content": "x",
+            "attachments": [{"id": "0", "uploaded_filename": slot["upload_filename"]}],
+        });
+        let (s, v) = e.post("/messages", "bob", msg).await;
+        assert_eq!(s, StatusCode::OK, "{v}");
+        assert_eq!(v["attachments"][0]["filename"], expected, "{name}");
+    }
 }
 
 #[tokio::test]
@@ -1225,6 +1334,37 @@ async fn embeds_are_stored_and_echoed() {
     assert_eq!(m["embeds"][0]["fields"][0]["name"], "a");
     let (_, list) = e.get("/messages", "bob").await;
     assert_eq!(list[0]["embeds"][0]["title"], "Hello");
+}
+
+#[tokio::test]
+async fn third_party_embed_images_get_a_proxy_url_when_rendered() {
+    let e = env().await;
+    let body = json!({
+        "content": "",
+        "embeds": [{
+            "title": "pic",
+            "image": {"url": "https://img.example/a.png", "proxy_url": "https://evil.example/x"},
+            "author": {"name": "a", "icon_url": "https://img.example/i.png"}
+        }]
+    });
+    let (s, m) = e.post("/messages", "bob", body).await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    for emb in [
+        &m["embeds"][0],
+        &e.get("/messages", "bob").await.1[0]["embeds"][0],
+    ] {
+        // The original URL stays (the client shows it only behind "Load image"); the
+        // proxied form is added, and a client-sent proxy_url never survives.
+        assert_eq!(emb["image"]["url"], "https://img.example/a.png");
+        let p = emb["image"]["proxy_url"].as_str().unwrap();
+        assert!(p.starts_with("/cdn/external/"), "{p}");
+        assert!(
+            emb["author"]["proxy_icon_url"]
+                .as_str()
+                .unwrap()
+                .starts_with("/cdn/external/")
+        );
+    }
 }
 
 #[tokio::test]

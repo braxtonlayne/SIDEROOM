@@ -11,6 +11,7 @@ import type {
   Role,
   TypingEntry,
   User,
+  UserSettingsBlob,
 } from './types';
 
 /** Key used in `channelIdsByGuild` for DM / group DM channels. */
@@ -36,6 +37,13 @@ export interface StoreData {
   readStates: Record<string, ReadState>;
   presences: Record<string, Presence>;
   typing: Record<string, TypingEntry[]>;
+  /** The synced per-user settings blob (D-179); null until loaded or pushed over the gateway. */
+  userSettings: UserSettingsBlob | null;
+  /**
+   * Message-request DMs (`is_message_request`) from READY and CHANNEL_CREATE: kept out of `channels` until
+   * accepted; the social store seeds the Message Requests page from here.
+   */
+  messageRequestDms: Channel[];
 }
 
 export const emptyData = (): StoreData => ({
@@ -54,6 +62,8 @@ export const emptyData = (): StoreData => ({
   readStates: {},
   presences: {},
   typing: {},
+  userSettings: null,
+  messageRequestDms: [],
 });
 
 export const emptyWindow = (): MessageWindow => ({
@@ -110,6 +120,8 @@ function toMember(guildId: string, m: Obj): Member | null {
     nick: (m.nick as string | null | undefined) ?? null,
     roles: (m.roles as string[] | undefined) ?? [],
     joined_at: m.joined_at as string | undefined,
+    communication_disabled_until:
+      (m.communication_disabled_until as string | null | undefined) ?? null,
   };
 }
 
@@ -245,9 +257,12 @@ export function reduceDispatch(
         };
       }
       next = { ...next, guilds, guildOrder: stubs.map((g) => str(g.id)) };
+      const requests: Channel[] = [];
       for (const c of (d.private_channels as Channel[] | undefined) ?? []) {
-        next = { ...next, ...putChannel(next, c) };
+        if (c.is_message_request) requests.push(c);
+        else next = { ...next, ...putChannel(next, c) };
       }
+      next = { ...next, messageRequestDms: requests };
       const rs = d.read_state as { entries?: Obj[] } | Obj[] | undefined;
       const entries = Array.isArray(rs) ? rs : (rs?.entries ?? []);
       const readStates: Record<string, ReadState> = {};
@@ -277,6 +292,7 @@ export function reduceDispatch(
         guildOrder: next.guildOrder,
         channels: next.channels,
         channelIdsByGuild: next.channelIdsByGuild,
+        messageRequestDms: requests,
         readStates,
         presences: putPresences(next, (d.presences as Obj[] | undefined) ?? []),
         windows,
@@ -370,8 +386,21 @@ export function reduceDispatch(
       };
     }
     case 'CHANNEL_CREATE':
-    case 'CHANNEL_UPDATE':
-      return putChannel(s, d as unknown as Channel);
+    case 'CHANNEL_UPDATE': {
+      const c = d as unknown as Channel;
+      // Message-request DMs live in the social store until accepted; an accepted one arrives again.
+      if (!c.guild_id && c.is_message_request) {
+        const others = s.messageRequestDms.filter((r) => r.id !== c.id);
+        return { messageRequestDms: [c, ...others] };
+      }
+      const accepted = s.messageRequestDms.some((r) => r.id === c.id);
+      return {
+        ...putChannel(s, c),
+        ...(accepted
+          ? { messageRequestDms: s.messageRequestDms.filter((r) => r.id !== c.id) }
+          : {}),
+      };
+    }
     case 'CHANNEL_DELETE': {
       const id = str(d.id);
       const c = s.channels[id];
@@ -390,6 +419,9 @@ export function reduceDispatch(
           ...s.channelIdsByGuild,
           [bucket]: (s.channelIdsByGuild[bucket] ?? []).filter((x) => x !== id),
         },
+        ...(s.messageRequestDms.some((r) => r.id === id)
+          ? { messageRequestDms: s.messageRequestDms.filter((r) => r.id !== id) }
+          : {}),
       };
     }
     case 'GUILD_ROLE_CREATE':
@@ -447,6 +479,14 @@ export function reduceDispatch(
           [guildId]: (s.memberIdsByGuild[guildId] ?? []).filter((u) => u !== userId),
         },
       };
+    }
+    case 'SR_USER_SETTINGS_UPDATE': {
+      // Another session (or our own PATCH) saved the blob; older versions never overwrite newer ones.
+      const version = Number(d.version ?? 0);
+      const settings = d.settings as Record<string, unknown> | undefined;
+      if (!settings || typeof settings !== 'object') return {};
+      if (s.userSettings && s.userSettings.version > version) return {};
+      return { userSettings: { version, settings } };
     }
     case 'USER_UPDATE':
       return { users: addUser(s.users, d) };

@@ -197,7 +197,8 @@ pub fn chapter_input(i: &ChapterInput) -> LibraryResult<ChapterInput> {
             check_key("source_key", k)?;
             Some(k.clone())
         }
-        (_, None) => return invalid("pdf and epub chapters need a source_key"),
+        // A draft EPUB/PDF chapter waits for its upload; it cannot be published without a file.
+        (_, None) => None,
     };
     Ok(ChapterInput {
         number: number(i.number)?,
@@ -304,6 +305,46 @@ pub fn decode_cursor(s: &str) -> LibraryResult<(i64, i64)> {
         .ok_or_else(|| LibraryError::Invalid("before is not a valid cursor".into()))
 }
 
+/// Largest chapter list page.
+pub const MAX_CHAPTER_LIMIT: u32 = 500;
+
+/// Chapter number in hundredths, as `NUMERIC(8,2)` stores it.
+pub fn number_cents(number: f64) -> i64 {
+    (number * 100.0).round() as i64
+}
+
+/// Encode the cursor after `last` (edition, number, id).
+pub fn encode_chapter_cursor(last: &ChapterRecord) -> String {
+    format!(
+        "{}_{}_{}",
+        last.edition_id,
+        number_cents(last.number),
+        last.id
+    )
+}
+
+/// Decode a chapter cursor produced by [`encode_chapter_cursor`].
+pub fn decode_chapter_cursor(s: &str) -> LibraryResult<ChapterCursor> {
+    let bad = || LibraryError::Invalid("after is not a valid cursor".into());
+    let mut it = s.split('_');
+    let (Some(e), Some(n), Some(i), None) = (it.next(), it.next(), it.next(), it.next()) else {
+        return Err(bad());
+    };
+    let (edition_id, number_cents, id) = (
+        e.parse::<i64>().map_err(|_| bad())?,
+        n.parse::<i64>().map_err(|_| bad())?,
+        i.parse::<i64>().map_err(|_| bad())?,
+    );
+    if edition_id <= 0 || id <= 0 || !(0..=99_999_999).contains(&number_cents) {
+        return Err(bad());
+    }
+    Ok(ChapterCursor {
+        edition_id,
+        number_cents,
+        id,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -401,7 +442,7 @@ mod tests {
     }
 
     #[test]
-    fn chapters_need_a_source_for_documents() {
+    fn document_chapters_may_wait_for_their_upload() {
         let mut c = ChapterInput {
             number: 1.0,
             title: None,
@@ -410,7 +451,8 @@ mod tests {
             source_key: None,
             release_group: None,
         };
-        assert!(chapter_input(&c).is_err());
+        // A draft without a file is fine (the upload fills it in); publishing is what needs one.
+        assert_eq!(chapter_input(&c).unwrap().source_key, None);
         c.source_key = Some("library/1/2/book.pdf".into());
         assert!(chapter_input(&c).is_ok());
         c.format = ChapterFormat::Images;
@@ -461,6 +503,31 @@ mod tests {
         assert_eq!(decode_cursor(&encode_cursor(123, 45)).unwrap(), (123, 45));
         for bad in ["", "1", "a_b", "1_0", "-1_5", "1_2_3"] {
             assert!(decode_cursor(bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn chapter_cursors_round_trip() {
+        let c = ChapterCursor {
+            edition_id: 3,
+            number_cents: 1250,
+            id: 77,
+        };
+        assert_eq!(decode_chapter_cursor("3_1250_77").unwrap(), c);
+        assert_eq!(number_cents(12.5), 1250);
+        assert_eq!(number_cents(0.1 + 0.2), 30);
+        for bad in [
+            "",
+            "1",
+            "1_2",
+            "a_1_2",
+            "1_-1_2",
+            "0_1_2",
+            "1_1_0",
+            "1_1_2_3",
+            "1_100000000_2",
+        ] {
+            assert!(decode_chapter_cursor(bad).is_err(), "{bad}");
         }
     }
 

@@ -50,6 +50,9 @@ pub enum Command {
     /// Re-encrypt every stored TOTP secret under `server.secret_key`. Run after
     /// moving the old key into `server.secret_key_previous` (open question 40).
     RotateSecretKey,
+    /// Object storage administration.
+    #[command(subcommand)]
+    Storage(StorageCmd),
     /// Insert development data. Refuses non-local instances without --force.
     Seed {
         /// Password for all seeded accounts.
@@ -93,11 +96,26 @@ pub enum StaffCmd {
         #[arg(long)]
         reason: String,
     },
+    /// Create any default staff role the Staff Server is missing and make sure its
+    /// owner holds the Owner role. Safe to run again.
+    EnsureRoles,
     /// Hand the Staff Server and the Owner role to another account.
     TransferOwner {
         user: String,
         #[arg(long)]
         reason: String,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum StorageCmd {
+    /// Apply the bucket CORS rule that browser uploads need (D-175): PUT, GET and
+    /// HEAD from the app origin, `Content-Type` allowed, `ETag` exposed. Safe to
+    /// repeat. Does not need the database.
+    EnsureCors {
+        /// App origin(s). Defaults to `server.public_url` (repeatable).
+        #[arg(long = "origin")]
+        origins: Vec<String>,
     },
 }
 
@@ -165,6 +183,19 @@ mod tests {
             Cli::try_parse_from(["sr-cli", "staff", "appoint", "bob", "--reason", "x"]).is_err()
         );
         assert!(Cli::try_parse_from(["sr-cli", "verify-access-log"]).is_ok());
+        let c = Cli::try_parse_from([
+            "sr-cli",
+            "storage",
+            "ensure-cors",
+            "--origin",
+            "https://chat.example.org",
+        ])
+        .unwrap();
+        assert!(matches!(
+            c.command,
+            Command::Storage(StorageCmd::EnsureCors { ref origins }) if origins.len() == 1
+        ));
+        assert!(Cli::try_parse_from(["sr-cli", "storage", "ensure-cors"]).is_ok());
         assert!(Cli::try_parse_from(["sr-cli", "bootstrap"]).is_err());
     }
 }

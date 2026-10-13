@@ -211,6 +211,11 @@ async fn metrics_record_requests_by_route_pattern() {
     let f = fixture();
     let a = app(&f);
     send(&a, get_req("/api/v1/users/@me")).await; // 401
+    metrics::histogram!(
+        sr_api::observability::names::GATEWAY_DISPATCH_BYTES,
+        "compression" => "none"
+    )
+    .record(70_000.0);
     let (s, h, b) = send(
         &internal_router(f.state.clone()),
         get_req("/internal/metrics"),
@@ -226,6 +231,11 @@ async fn metrics_record_requests_by_route_pattern() {
     let text = String::from_utf8(b).unwrap();
     assert!(text.contains("http_requests_total"), "{text}");
     assert!(text.contains("http_request_duration_seconds"));
+    // F-30: the dispatch size histogram has a 64 KiB bucket bound.
+    assert!(
+        text.contains("sr_gateway_dispatch_bytes_bucket{compression=\"none\",le=\"65536\"}"),
+        "{text}"
+    );
     assert!(text.contains("route=\"/api/v1/users/@me\""), "{text}");
     // not exposed publicly
     let (s, _, _) = send(&a, get_req("/internal/metrics")).await;

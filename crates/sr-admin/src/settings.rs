@@ -176,6 +176,23 @@ pub const CATALOG: &[SettingDef] = &[
         30,
         "Days a deleted message stays readable to high-level staff.",
     ),
+    SettingDef {
+        key: "library.ingest.rar_enabled",
+        group: "library",
+        kind: SettingKind::Boolean,
+        min: 0.0,
+        max: 1.0,
+        default_int: 1,
+        description: "Accept RAR/CBR uploads in Library ingest (decoded by the UnRAR library).",
+    },
+    int(
+        "library.ingest.max_upload_mb",
+        "library",
+        1,
+        4_096,
+        512,
+        "Largest Library chapter upload (archive, EPUB or PDF) in MiB.",
+    ),
     int(
         "retention.large_file_days",
         "retention",

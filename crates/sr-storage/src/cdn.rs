@@ -138,6 +138,73 @@ impl CdnSigner {
     }
 }
 
+/// Longest third-party URL the image proxy signs (matches the unfurler's limit).
+pub const MAX_EXTERNAL_URL_LEN: usize = 2048;
+
+impl CdnSigner {
+    /// Key for the external image proxy, derived from the server secret so a
+    /// signature minted for one purpose can never verify for another.
+    fn external_key(&self) -> Vec<u8> {
+        match HmacSha256::new_from_slice(&self.secret) {
+            Ok(mut m) => {
+                m.update(b"sideroom/external-image/v1");
+                m.finalize().into_bytes().to_vec()
+            }
+            Err(_) => Vec::new(),
+        }
+    }
+
+    fn external_tag(&self, url: &str) -> Vec<u8> {
+        match HmacSha256::new_from_slice(&self.external_key()) {
+            Ok(mut m) => {
+                m.update(url.as_bytes());
+                m.finalize().into_bytes().to_vec()
+            }
+            Err(_) => Vec::new(),
+        }
+    }
+
+    /// Path of the proxied form of a third-party image URL:
+    /// `/cdn/external/{hmac}/{url_b64}`, both parts base64url without padding.
+    /// The link has no expiry, so browsers can cache it. `None` for a URL that is
+    /// not absolute http(s) or is too long.
+    pub fn external_path(&self, url: &str) -> Option<String> {
+        let lower = url.get(..8).map(str::to_ascii_lowercase);
+        let http = lower
+            .as_deref()
+            .is_some_and(|l| l.starts_with("https://") || l.starts_with("http://"));
+        if !http || url.len() > MAX_EXTERNAL_URL_LEN || url.chars().any(char::is_control) {
+            return None;
+        }
+        Some(format!(
+            "/cdn/external/{}/{}",
+            URL_SAFE_NO_PAD.encode(self.external_tag(url)),
+            URL_SAFE_NO_PAD.encode(url.as_bytes())
+        ))
+    }
+
+    /// Check `hmac` against `url_b64` from a proxy path and return the URL it
+    /// names. Constant-time comparison; nothing is fetched before this passes.
+    pub fn verify_external(&self, hmac: &str, url_b64: &str) -> Result<String, VerifyError> {
+        if url_b64.len() > MAX_EXTERNAL_URL_LEN * 2 {
+            return Err(VerifyError::Malformed);
+        }
+        let provided = URL_SAFE_NO_PAD
+            .decode(hmac)
+            .map_err(|_| VerifyError::Malformed)?;
+        let raw = URL_SAFE_NO_PAD
+            .decode(url_b64)
+            .map_err(|_| VerifyError::Malformed)?;
+        let url = String::from_utf8(raw).map_err(|_| VerifyError::Malformed)?;
+        let ok: bool = self.external_tag(&url).as_slice().ct_eq(&provided).into();
+        if ok {
+            Ok(url)
+        } else {
+            Err(VerifyError::BadSignature)
+        }
+    }
+}
+
 /// The string that is signed for an image variant: `path`, then `?size=N` and
 /// `&format=F` for the parameters present (format lower-cased). With neither it
 /// is `path` itself, so URLs signed before resizing existed stay valid.
@@ -329,6 +396,48 @@ mod tests {
         assert_eq!(
             variant_canonical(P, None, Some("PNG")),
             format!("{P}?format=png")
+        );
+    }
+
+    #[test]
+    fn external_links_roundtrip_and_resist_tampering() {
+        let s = CdnSigner::new(b"k".repeat(32));
+        let url = "https://img.example.org/a b/c.png?x=1&y=é";
+        let path = s.external_path(url).unwrap();
+        let rest = path.strip_prefix("/cdn/external/").unwrap();
+        let (sig, b64) = rest.split_once('/').unwrap();
+        assert_eq!(s.verify_external(sig, b64).as_deref(), Ok(url));
+        // Another URL under the same signature, another key, a mangled signature.
+        let other = URL_SAFE_NO_PAD.encode(b"https://evil.example/x.png");
+        assert_eq!(
+            s.verify_external(sig, &other),
+            Err(VerifyError::BadSignature)
+        );
+        let k2 = CdnSigner::new(b"z".repeat(32));
+        assert_eq!(k2.verify_external(sig, b64), Err(VerifyError::BadSignature));
+        assert_eq!(s.verify_external("!!", b64), Err(VerifyError::Malformed));
+        assert_eq!(s.verify_external(sig, "@@"), Err(VerifyError::Malformed));
+        // A CDN signature for the same text does not open the proxy.
+        let cdn_sig = s.sign(url, 0);
+        assert_eq!(
+            s.verify_external(&cdn_sig, b64),
+            Err(VerifyError::BadSignature)
+        );
+        // Stable (cacheable) and restricted to http(s).
+        assert_eq!(s.external_path(url).as_deref(), Some(path.as_str()));
+        for bad in [
+            "ftp://x.test/a.png",
+            "/cdn/attachments/1/2/a.png",
+            "javascript:alert(1)",
+            "data:image/png;base64,AAAA",
+            "https://x.test/
+",
+        ] {
+            assert_eq!(s.external_path(bad), None, "{bad}");
+        }
+        assert_eq!(
+            s.external_path(&format!("https://x.test/{}", "a".repeat(2100))),
+            None
         );
     }
 

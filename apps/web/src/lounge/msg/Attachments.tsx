@@ -1,6 +1,7 @@
 import { Icon, Modal, Tooltip, type IconName } from '@sideroom/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Attachment } from '../data';
+import { decodeBlurhash } from './blurhash';
 import { formatBytes, formatDuration, isHttpUrl } from './format';
 
 const isImage = (a: Attachment) => a.contentType.startsWith('image/');
@@ -59,8 +60,27 @@ export function AttachmentList({ attachments, voice }: AttachmentListProps) {
   );
 }
 
+/** The BlurHash of an image drawn small and stretched behind it until the real picture arrives. */
+export function BlurhashPlaceholder({ hash }: { hash: string }) {
+  const ref = useRef<HTMLCanvasElement | null>(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    try {
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      const pixels = decodeBlurhash(hash, 32, 32);
+      ctx.putImageData(new ImageData(pixels, 32, 32), 0, 0);
+    } catch {
+      /* a bad hash or no canvas support: the tile simply has no placeholder */
+    }
+  }, [hash]);
+  return <canvas ref={ref} className="lng-blurhash" width={32} height={32} aria-hidden="true" />;
+}
+
 function MosaicTile({ a, onOpen }: { a: Attachment; onOpen: () => void }) {
   const [revealed, setRevealed] = useState(!a.spoiler);
+  const [loaded, setLoaded] = useState(false);
   const hidden = !revealed;
   return (
     <div className="lng-tile" data-spoiler={hidden || undefined}>
@@ -70,12 +90,14 @@ function MosaicTile({ a, onOpen }: { a: Attachment; onOpen: () => void }) {
         aria-label={hidden ? 'Reveal spoiler image' : `Open image ${a.filename}`}
         onClick={() => (hidden ? setRevealed(true) : onOpen())}
       >
+        {a.blurhash && !loaded && <BlurhashPlaceholder hash={a.blurhash} />}
         <img
           src={a.url}
           alt={hidden ? '' : (a.description ?? a.filename)}
           width={a.width}
           height={a.height}
           loading="lazy"
+          onLoad={() => setLoaded(true)}
           style={a.width && a.height ? { aspectRatio: `${a.width} / ${a.height}` } : undefined}
         />
         {hidden && <span className="lng-spoiler-chip">SPOILER</span>}

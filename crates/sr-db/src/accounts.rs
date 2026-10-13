@@ -13,6 +13,19 @@ pub const SYSTEM_USER_ID: i64 = 1;
 /// `accounts.flags` bit for the system user (Discord `system: true`; open question 44).
 pub const FLAG_SYSTEM: i64 = 1 << 0;
 
+/// Record that these accounts were seen now (gateway IDENTIFY/RESUME and its 10-minute
+/// refresh; D-166). One statement for the whole batch.
+pub async fn touch_last_seen(pool: &PgPool, ids: &[i64]) -> DbResult<u64> {
+    if ids.is_empty() {
+        return Ok(0);
+    }
+    let r = sqlx::query("UPDATE accounts SET last_seen_at = now() WHERE id = ANY($1)")
+        .bind(ids)
+        .execute(pool)
+        .await?;
+    Ok(r.rows_affected())
+}
+
 /// Fields for a new account (and its Person).
 #[derive(Debug, Clone)]
 pub struct NewAccount<'a> {
@@ -145,7 +158,7 @@ pub async fn reset_2fa_in(tx: &mut sqlx::PgConnection, account_id: i64) -> DbRes
         .execute(&mut *tx)
         .await?
         .rows_affected();
-    let passkeys = sqlx::query("DELETE FROM webauthn_credentials WHERE account_id = $1")
+    let passkeys = sqlx::query("DELETE FROM passkey_credentials WHERE account_id = $1")
         .bind(account_id)
         .execute(&mut *tx)
         .await?

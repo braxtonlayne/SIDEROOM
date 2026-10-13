@@ -12,7 +12,8 @@
 //! `POST /sr/auth/verify-email` accepts both token kinds (see `account.rs`).
 
 use super::{
-    common::{AuthRouteError, R, Svc},
+    common::{AuthRouteError, AuthService, R, Svc},
+    login::check_second_factor,
     mail,
     mfa::{current_account, reauthenticate},
     sessions::session_id,
@@ -213,17 +214,181 @@ pub async fn change_username(
     Ok(Json(json!({ "username": new })))
 }
 
+/// A second-factor proof (D-167).
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct MfaProof {
+    /// `totp`, `recovery` or `passkey` (then `code` is the JSON text of
+    /// `{ceremony_id, credential}` from `POST /sr/auth/passkeys/verify/begin` and
+    /// `navigator.credentials.get`).
+    method: String,
+    /// The authenticator code or an unused recovery code.
+    code: String,
+}
+
 /// Body for `POST /sr/auth/email/change`.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct ChangeEmailBody {
     new_email: String,
     /// Current password.
     password: String,
+    /// Second factor. Required when the account has two-factor authentication on,
+    /// unless this session passed a second-factor check in the last 15 minutes.
+    #[serde(default)]
+    mfa: Option<MfaProof>,
 }
 
-/// `POST /sr/auth/email/change {new_email, password}`: start an email change. A
-/// confirmation link goes to the new address; the old one stays until it is used.
-/// One request per minute per account. `204` also when the address belongs to
+/// A second-factor check counts for this long (D-167).
+const MFA_FRESH_SECS: i64 = 15 * 60;
+
+/// Require a second factor for a sensitive change when the account has one
+/// (TOTP or passkeys). A check on this session within
+/// [`MFA_FRESH_SECS`] counts; otherwise `proof` must be valid, and then the session
+/// is marked verified.
+async fn require_second_factor(
+    svc: &AuthService,
+    now: i64,
+    account: &AccountRecord,
+    session: i64,
+    proof: Option<&MfaProof>,
+) -> R<()> {
+    let has_totp = svc
+        .store
+        .totp_get(account.id)
+        .await?
+        .is_some_and(|t| t.confirmed);
+    if !has_totp && !svc.has_passkeys(account.id).await? {
+        return Ok(());
+    }
+    if let Some(at) = svc.store.session_mfa_verified_at(session).await?
+        && now >= at
+        && now - at < MFA_FRESH_SECS
+    {
+        return Ok(());
+    }
+    let Some(proof) = proof else {
+        return Err(ApiError::invalid_form()
+            .field(
+                "mfa",
+                "required",
+                "Enter a code from your authenticator app, use a passkey, or enter a recovery code.",
+            )
+            .into());
+    };
+    let key = format!("mfa-reauth:{}", account.id);
+    svc.account_lock
+        .check(&key, now)
+        .map_err(|retry_after| AuthRouteError::Throttled { retry_after })?;
+    let max_code = if proof.method == "passkey" {
+        super::passkeys::MAX_PROOF_LEN
+    } else {
+        64
+    };
+    if proof.code.len() > max_code {
+        svc.account_lock.fail(&key, now);
+        return Err(wrong_code());
+    }
+    let check = check_second_factor(svc, account, &proof.method, &proof.code, now).await?;
+    if !check.ok {
+        svc.account_lock.fail(&key, now);
+        return Err(wrong_code());
+    }
+    svc.account_lock.clear(&key);
+    svc.store.session_mark_mfa_verified(session, now).await?;
+    Ok(())
+}
+
+fn wrong_code() -> AuthRouteError {
+    ApiError::invalid_form()
+        .field(
+            "mfa",
+            "invalid",
+            "That code didn't match. Try the next one.",
+        )
+        .into()
+}
+
+fn invalid_link() -> AuthRouteError {
+    ApiError::invalid_form()
+        .field("token", "invalid", "This link is invalid or has expired.")
+        .into()
+}
+
+/// Body for `POST /sr/auth/email/cancel`.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct CancelEmailChangeBody {
+    /// The token from the "This wasn't me" link.
+    token: String,
+}
+
+/// `POST /sr/auth/email/cancel {token}`: the "This wasn't me" link of an email-change
+/// notice. No login needed. While the change is still pending it is cancelled; once it
+/// has completed, every session and trusted device is revoked instead. The token works
+/// once, within 7 days.
+#[utoipa::path(
+    post,
+    path = "/sr/auth/email/cancel",
+    request_body = CancelEmailChangeBody,
+    responses(
+        (status = 204, description = "Pending change cancelled, or all sessions revoked"),
+        (status = 400, body = ErrorBody),
+        (status = 429, body = ErrorBody),
+    )
+)]
+pub async fn cancel_change_email(
+    State(state): State<AppState>,
+    Svc { svc, ip }: Svc,
+    Json(body): Json<CancelEmailChangeBody>,
+) -> R<StatusCode> {
+    let now = state.now_secs();
+    svc.ip_limits
+        .hit(
+            "email-cancel",
+            &ip,
+            now,
+            &[Rule {
+                limit: 20,
+                secs: 600,
+            }],
+        )
+        .map_err(|retry_after| AuthRouteError::Throttled { retry_after })?;
+    let token = EmailToken::parse(EmailTokenPurpose::CancelEmailChange, &body.token)
+        .ok_or_else(invalid_link)?;
+    let user_id = svc
+        .store
+        .email_token_consume(EmailTokenPurpose::CancelEmailChange, &token.hash(), now)
+        .await?
+        .ok_or_else(invalid_link)?;
+    if svc.store.email_change_cancel(user_id).await? {
+        svc.store
+            .audit(
+                user_id,
+                "account.email_change_cancel",
+                Some(user_id),
+                "pending email change cancelled",
+                now,
+            )
+            .await?;
+    } else {
+        svc.store.revoke_sessions_except(user_id, None).await?;
+        svc.store.trusted_devices_revoke_all(user_id).await?;
+        svc.store
+            .audit(
+                user_id,
+                "account.email_change_revoked",
+                Some(user_id),
+                "all sessions revoked from the email-change notice",
+                now,
+            )
+            .await?;
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// `POST /sr/auth/email/change {new_email, password, mfa?}`: start an email change. A
+/// confirmation link goes to the new address; the old one stays until it is used, and
+/// receives a notice with a "This wasn't me" link. With two-factor authentication on,
+/// `mfa {method, code}` is required unless this session passed a second-factor check
+/// in the last 15 minutes. One request per minute per account. `204` also when the address belongs to
 /// someone else, so the endpoint is not an account-existence oracle (the mail is
 /// simply not sent).
 #[utoipa::path(
@@ -244,13 +409,14 @@ pub async fn change_email(
     UserOnly(p): UserOnly,
     Json(body): Json<ChangeEmailBody>,
 ) -> R<StatusCode> {
-    session_id(&p)?;
+    let sid = session_id(&p)?;
     let now = state.now_secs();
     let account = current_account(&svc, p.user_id).await?;
     let new = validate::email(&body.new_email).map_err(|m| {
         AuthRouteError::from(ApiError::invalid_form().field("new_email", "invalid", m))
     })?;
     reauthenticate(&svc, now, &account, &body.password).await?;
+    require_second_factor(&svc, now, &account, sid, body.mfa.as_ref()).await?;
     if new == account.email {
         return Err(ApiError::invalid_form()
             .field("new_email", "unchanged", "That is already your email.")
@@ -284,6 +450,24 @@ pub async fn change_email(
             tracing::warn!("email change mail not sent: {e}");
             AuthRouteError::internal("email change mail")
         })?;
+    // The old address learns of the request and can cancel it (D-167).
+    let cancel = EmailToken::generate(EmailTokenPurpose::CancelEmailChange)?;
+    svc.store
+        .email_token_put(
+            account.id,
+            EmailTokenPurpose::CancelEmailChange,
+            &cancel.hash(),
+            cancel.expires_at(now),
+        )
+        .await?;
+    let notice = mail::change_email_notice(
+        &account.email,
+        &new,
+        &svc.cancel_email_link(cancel.expose()),
+    );
+    if let Err(e) = svc.mailer.send(notice).await {
+        tracing::warn!("email change notice not sent: {e}");
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -308,10 +492,21 @@ pub(super) async fn apply_email_change(
             now,
         )
         .await?;
+    // A fresh token (superseding the one from the request) so the notice's link now
+    // signs every device out.
+    let cancel = EmailToken::generate(EmailTokenPurpose::CancelEmailChange)?;
+    svc.store
+        .email_token_put(
+            user_id,
+            EmailTokenPurpose::CancelEmailChange,
+            &cancel.hash(),
+            cancel.expires_at(now),
+        )
+        .await?;
+    let notice = mail::email_changed(&account.email, &svc.cancel_email_link(cancel.expose()));
     let svc2 = svc.clone();
-    let old = account.email;
     tokio::spawn(async move {
-        if let Err(e) = svc2.mailer.send(mail::email_changed(&old)).await {
+        if let Err(e) = svc2.mailer.send(notice).await {
             tracing::warn!("email change notice not sent: {e}");
         }
     });
@@ -321,7 +516,13 @@ pub(super) async fn apply_email_change(
 /// OpenAPI fragment for the signed-in account edits.
 #[derive(OpenApi)]
 #[openapi(
-    paths(change_password, change_username, change_email),
-    components(schemas(ChangePasswordBody, ChangeUsernameBody, ChangeEmailBody))
+    paths(change_password, change_username, change_email, cancel_change_email),
+    components(schemas(
+        ChangePasswordBody,
+        ChangeUsernameBody,
+        ChangeEmailBody,
+        MfaProof,
+        CancelEmailChangeBody
+    ))
 )]
 pub struct IdentityApiDoc;

@@ -1,6 +1,7 @@
 // REST wrappers used by the shell and sidebar modules (leave, DMs, friends, presence). Mutations use
 // retries: 0 so failures surface to the person instead of being replayed.
 import { apiFetch } from '../../api/client';
+import { useIgnores } from './ignores';
 
 const send = <T>(path: string, method: string, json?: unknown) =>
   apiFetch<T>(path, { method, retries: 0, ...(json !== undefined ? { json } : {}) });
@@ -41,7 +42,9 @@ export const blockUser = (userId: string) =>
 export const removeRelationship = (userId: string) =>
   send<void>(`/users/@me/relationships/${encodeURIComponent(userId)}`, 'DELETE');
 export const ignoreUser = (userId: string) =>
-  send<void>(`/users/@me/ignores/${encodeURIComponent(userId)}`, 'PUT', {});
+  send<void>(`/users/@me/ignores/${encodeURIComponent(userId)}`, 'PUT', {}).then(() =>
+    useIgnores.getState().add(userId),
+  );
 
 export interface DmObject {
   id: string;

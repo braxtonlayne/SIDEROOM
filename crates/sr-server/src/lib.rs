@@ -5,10 +5,12 @@
 pub mod admin_jobs;
 pub mod app;
 pub mod backends;
+pub mod external_jobs;
 pub mod features_store;
 pub mod gateway_pg;
 pub mod jobs;
 pub mod lag_bus;
+pub mod library_jobs;
 pub mod ready;
 pub mod rich_jobs;
 pub mod search_jobs;

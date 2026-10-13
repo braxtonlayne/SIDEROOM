@@ -44,6 +44,13 @@ impl<R: SettingsRepository> SettingsService<R> {
         )))
     }
 
+    /// Count one use of the template (after a guild was created from it) and return it.
+    pub async fn use_template(&self, code: &str) -> SettingsResult<GuildTemplate> {
+        let t = self.template_by_code(code).await?;
+        self.repo.bump_template_usage(code).await?;
+        Ok(t)
+    }
+
     /// Public lookup by code (anyone with the link may preview a template).
     pub async fn template_by_code(&self, code: &str) -> SettingsResult<GuildTemplate> {
         self.repo

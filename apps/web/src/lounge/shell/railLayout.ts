@@ -1,8 +1,8 @@
 /**
  * Server rail ordering and folders (LNG-RAIL-007, LNG-RAIL-008). Pure functions over `RailEntry[]`.
  *
- * The person's layout is stored on this device (lounge UI store). The backend has no per-user layout
- * setting yet, so it does not follow them between devices (see the handoff for the open decision).
+ * The layout lives in the lounge UI store (localStorage, first paint) and is synced to the account's settings
+ * blob as `guild_positions` / `guild_folders` (shell/userSettingsSync.ts, D-179).
  */
 import type { RailEntry, Snowflake } from '../data';
 
@@ -198,7 +198,8 @@ export function updateFolder(
 }
 
 let folderSeq = 0;
-export const newFolderId = () => `folder-${Date.now().toString(36)}${(folderSeq++).toString(36)}`;
+/** Numeric like Discord's folder ids, so `guild_folders` stays portable (older layouts keep string ids). */
+export const newFolderId = () => String(Date.now() * 1000 + (folderSeq++ % 1000));
 
 /** Where a pointer is inside a rail item: top quarter, bottom quarter, or the middle. */
 export function dropZone(offsetY: number, height: number): 'before' | 'into' | 'after' {

@@ -252,17 +252,18 @@ pub async fn merge_series(
 /// Editions, volumes and every chapter of a series, published or not (`PUBLISH_READING`).
 #[utoipa::path(
     get, path = "/admin/library/series/{series_id}/chapters", operation_id = "admin_library_chapters",
-    params(("series_id" = String, Path, description = "Series snowflake")),
-    responses((status = 200, body = ChapterList), (status = 401, body = ErrorBody),
+    params(("series_id" = String, Path, description = "Series snowflake"), super::member::ChapterParams),
+    responses((status = 200, body = ChapterList), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody),
               (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
     security(("session" = []))
 )]
 pub async fn chapters(
     ctx: PublisherCtx,
     Path(series_id): Path<String>,
+    Query(p): Query<super::member::ChapterParams>,
 ) -> ApiResult<Json<ChapterList>> {
     ctx.svc()
-        .admin_chapters(ctx.actor(), id(&series_id, "series")?)
+        .admin_chapters(ctx.actor(), id(&series_id, "series")?, p.into_query()?)
         .await
         .map(Json)
         .map_err(map_err)

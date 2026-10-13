@@ -201,8 +201,8 @@ export function FriendsPage() {
     async run(p, failure) {
       setError(null);
       try {
+        // The gateway (RELATIONSHIP_*) updates the lists; no re-fetch (D-183).
         await p;
-        await load();
       } catch (e) {
         setError(e instanceof ApiError && e.message ? e.message : failure);
       }
@@ -219,7 +219,7 @@ export function FriendsPage() {
   const active = useMemo(() => activeNow(friends, presence), [friends, presence]);
 
   let body: ReactNode;
-  if (tab === 'add') body = <AddFriend onAdded={() => void load()} />;
+  if (tab === 'add') body = <AddFriend />;
   else if (tab === 'pending')
     body =
       incoming.length + outgoing.length === 0 ? (
@@ -399,7 +399,7 @@ export function activeNow(friends: RelationshipRow[], presence: PresenceMap) {
   });
 }
 
-function AddFriend({ onAdded }: { onAdded: () => void }) {
+function AddFriend() {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
@@ -417,7 +417,6 @@ function AddFriend({ onAdded }: { onAdded: () => void }) {
       await addFriendByUsername(username);
       setResult({ ok: true, text: `Success! Your friend request to ${username} was sent.` });
       setName('');
-      onAdded();
     } catch (err) {
       setResult({
         ok: false,

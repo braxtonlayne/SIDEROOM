@@ -1,4 +1,4 @@
-import { Avatar, Button, Notice, Select } from '@sideroom/ui';
+import { Avatar, Button, Notice, Select, Switch } from '@sideroom/ui';
 import { useState } from 'react';
 import {
   errorText,
@@ -9,6 +9,11 @@ import {
   useResource,
   type UserLite,
 } from '../api';
+import {
+  setLoadRemoteImages,
+  useEnsureUserSettings,
+  useLoadRemoteImages,
+} from '../../../lounge/msg/remoteImages';
 import { Card, displayOf, Loaded, SectionTitle, Unavailable } from '../parts';
 
 function UserList({
@@ -102,6 +107,34 @@ function IgnoredCard() {
   );
 }
 
+function RemoteImagesCard() {
+  useEnsureUserSettings();
+  const on = useLoadRemoteImages();
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <Card
+      id="us-remote-images"
+      title="Embeds and images"
+      description="Images in link previews are fetched through this server, which keeps your address private."
+    >
+      <Switch
+        label="Load remote images automatically"
+        description="Show images that are still hosted on other sites without asking first. Those sites can see your IP address."
+        checked={on}
+        onChange={(e) => {
+          setError(null);
+          setLoadRemoteImages(e.target.checked).catch((err: unknown) => setError(errorText(err)));
+        }}
+      />
+      {error && (
+        <Notice variant="danger" title="Couldn't save that">
+          {error}
+        </Notice>
+      )}
+    </Card>
+  );
+}
+
 const WHO = [
   { value: 'everyone', label: 'Everyone' },
   { value: 'friends', label: 'Friends only' },
@@ -128,6 +161,7 @@ export function PrivacySection() {
           changed.
         </Unavailable>
       </Card>
+      <RemoteImagesCard />
       <BlockedCard />
       <IgnoredCard />
     </>

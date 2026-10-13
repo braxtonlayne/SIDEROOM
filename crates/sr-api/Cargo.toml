@@ -21,7 +21,7 @@ serde.workspace = true
 serde_json.workspace = true
 sha2 = "0.11"
 sr-admin = { path = "../sr-admin" }
-sr-auth = { path = "../sr-auth" }
+sr-auth = { path = "../sr-auth", features = ["webauthn"] }
 sr-features = { path = "../sr-features" }
 sr-library = { path = "../sr-library" }
 sr-chat = { path = "../sr-chat" }
@@ -37,6 +37,7 @@ tokio = { workspace = true, features = ["rt", "time", "sync"] }
 tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.6", features = ["trace", "compression-gzip", "compression-br", "timeout", "cors", "request-id", "propagate-header"] }
 tracing = "0.1"
+url = "2"
 oauth2 = "5"
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 utoipa = "5"
@@ -48,3 +49,5 @@ sr-chat = { path = "../sr-chat", features = ["memory"] }
 http-body-util = "0.1"
 image = { version = "0.25", default-features = false, features = ["png", "gif"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "sync"] }
+ciborium = "0.2.2"
+p256 = { version = "0.14.0", features = ["ecdsa"] }

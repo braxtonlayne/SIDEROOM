@@ -22,5 +22,6 @@ sr-auth = { path = "../sr-auth" }
 sr-chat = { path = "../sr-chat" }
 sr-core = { path = "../sr-core" }
 sr-db = { path = "../sr-db" }
+sr-storage = { path = "../sr-storage" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 tracing = "0.1"

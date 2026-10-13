@@ -9,8 +9,8 @@ use sr_auth::{
     repo::{SessionRecord, SessionRepository, TotpRecord},
     session::TokenHash,
     store::{
-        AccountRecord, AccountState, AuthStore, InviteState, RegisterRejection, RegisterTx,
-        Registered, StoreResult, TrustedDeviceRecord,
+        AccountRecord, AccountState, AuthStore, InviteState, PasskeyRecord, RegisterRejection,
+        RegisterTx, Registered, StoreResult, TrustedDeviceRecord,
     },
 };
 use std::{
@@ -58,12 +58,16 @@ struct Inner {
     totp: HashMap<i64, TotpRecord>,
     recovery: HashMap<i64, Vec<MemRecovery>>,
     tokens: Vec<MemToken>,
+    /// Session id to the time of its last second-factor check.
+    mfa_verified: HashMap<i64, i64>,
     trusted: Vec<MemTrusted>,
     /// `(actor, action, target, note)`.
     audit: Vec<(i64, String, Option<i64>, String)>,
     /// Discord user id to account id (external identities).
     discord: HashMap<String, i64>,
     banned_emails: HashSet<String>,
+    passkeys: Vec<PasskeyRecord>,
+    user_handles: HashMap<i64, Vec<u8>>,
     next_row_id: i64,
 }
 
@@ -379,6 +383,24 @@ impl AuthStore for MemoryAuthStore {
         Ok(t.email.clone().map(|e| (t.user_id, e)))
     }
 
+    async fn email_change_cancel(&self, user_id: i64) -> StoreResult<bool> {
+        let mut g = self.lock();
+        let before = g.tokens.len();
+        g.tokens.retain(|t| {
+            !(t.user_id == user_id && t.purpose == EmailTokenPurpose::ChangeEmail && !t.consumed)
+        });
+        Ok(g.tokens.len() != before)
+    }
+
+    async fn session_mfa_verified_at(&self, session_id: i64) -> StoreResult<Option<i64>> {
+        Ok(self.lock().mfa_verified.get(&session_id).copied())
+    }
+
+    async fn session_mark_mfa_verified(&self, session_id: i64, at: i64) -> StoreResult<()> {
+        self.lock().mfa_verified.insert(session_id, at);
+        Ok(())
+    }
+
     async fn set_email(&self, id: i64, email: &str) -> StoreResult<bool> {
         let mut g = self.lock();
         if g.accounts.values().any(|a| a.id != id && a.email == email) {
@@ -608,6 +630,93 @@ impl AuthStore for MemoryAuthStore {
         };
         t.consumed = true;
         Ok(Some(t.user_id))
+    }
+
+    async fn passkey_user_handle(&self, account_id: i64, candidate: &[u8]) -> StoreResult<Vec<u8>> {
+        Ok(self
+            .lock()
+            .user_handles
+            .entry(account_id)
+            .or_insert_with(|| candidate.to_vec())
+            .clone())
+    }
+
+    async fn passkey_insert(&self, rec: PasskeyRecord) -> StoreResult<bool> {
+        let mut g = self.lock();
+        if g.passkeys
+            .iter()
+            .any(|p| p.credential_id == rec.credential_id)
+        {
+            return Ok(false);
+        }
+        g.passkeys.push(rec);
+        Ok(true)
+    }
+
+    async fn passkey_list(&self, account_id: i64) -> StoreResult<Vec<PasskeyRecord>> {
+        Ok(self
+            .lock()
+            .passkeys
+            .iter()
+            .filter(|p| p.account_id == account_id)
+            .cloned()
+            .collect())
+    }
+
+    async fn passkey_find(&self, credential_id: &[u8]) -> StoreResult<Option<PasskeyRecord>> {
+        Ok(self
+            .lock()
+            .passkeys
+            .iter()
+            .find(|p| p.credential_id == credential_id)
+            .cloned())
+    }
+
+    async fn passkey_rename(&self, account_id: i64, id: i64, name: &str) -> StoreResult<bool> {
+        match self
+            .lock()
+            .passkeys
+            .iter_mut()
+            .find(|p| p.id == id && p.account_id == account_id)
+        {
+            Some(p) => {
+                name.clone_into(&mut p.name);
+                Ok(true)
+            }
+            None => Ok(false),
+        }
+    }
+
+    async fn passkey_delete(&self, account_id: i64, id: i64) -> StoreResult<bool> {
+        let mut g = self.lock();
+        let before = g.passkeys.len();
+        g.passkeys
+            .retain(|p| !(p.id == id && p.account_id == account_id));
+        Ok(g.passkeys.len() != before)
+    }
+
+    async fn passkey_record_use(
+        &self,
+        id: i64,
+        expected_sign_count: i64,
+        sign_count: i64,
+        backup_state: bool,
+        now: i64,
+    ) -> StoreResult<bool> {
+        match self
+            .lock()
+            .passkeys
+            .iter_mut()
+            .find(|p| p.id == id && p.sign_count == expected_sign_count)
+        {
+            Some(p) => {
+                p.sign_count = sign_count;
+                p.backup_state = backup_state;
+                p.last_used_at = Some(now);
+                Ok(true)
+            }
+            None => Ok(false),
+        }
     }
 
     async fn audit(

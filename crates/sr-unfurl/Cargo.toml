@@ -21,3 +21,6 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "time", "net", "macros"] }
 tracing = "0.1.44"
 url = "2.5.8"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "time", "net", "macros", "test-util", "io-util"] }

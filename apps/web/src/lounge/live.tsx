@@ -22,10 +22,12 @@ import type {
   SendExtras,
   Snowflake,
 } from './data';
+import { usePermEngine, type PermEngine } from './permEngine';
 import { applyMutes } from './shell/applyMutes';
 import { useNotifSettings } from './shell/notifSettings';
 import {
   basePermissions,
+  computeChannelPermissions,
   isUnread,
   PERM,
   toDmChannel,
@@ -85,6 +87,8 @@ export interface SnapshotInput {
   memberIdsByGuild: Record<string, string[]>;
   presences: Record<string, S.Presence>;
   readStates: Record<string, S.ReadState>;
+  /** Shared Rust permission engine; without it channel permissions fall back to the guild level. */
+  engine?: PermEngine | null;
 }
 
 const byPosition = (a: S.Channel, b: S.Channel) => (a.position ?? 0) - (b.position ?? 0);
@@ -122,7 +126,24 @@ export function buildLiveSnapshot(s: SnapshotInput): LiveSnapshot {
       .map((id) => s.channels[id])
       .filter((c): c is S.Channel => !!c)
       .sort(byPosition)
-      .map((c) => toLoungeChannel(c, gid, s.readStates[c.id], canSend));
+      .map((c) =>
+        toLoungeChannel(
+          c,
+          gid,
+          s.readStates[c.id],
+          canSend,
+          s.engine
+            ? computeChannelPermissions(s.engine, {
+                guildId: gid,
+                ownerId: g.owner_id,
+                viewerId: s.currentUserId ?? '',
+                viewer,
+                roleById,
+                channel: c,
+              })
+            : undefined,
+        ),
+      );
     channelsByGuild[gid] = mapped;
 
     const unread = mapped.some((c) => c.unread && !c.muted);
@@ -178,6 +199,7 @@ export function useLiveSnapshot(): LiveSnapshot {
   const presences = useStore((s) => s.presences);
   const readStates = useStore((s) => s.readStates);
   const mutes = useNotifSettings((s) => s.byGuild);
+  const engine = usePermEngine();
   return useMemo(
     () =>
       applyMutes(
@@ -194,6 +216,7 @@ export function useLiveSnapshot(): LiveSnapshot {
           memberIdsByGuild,
           presences,
           readStates,
+          engine,
         }),
         mutes,
       ),
@@ -211,6 +234,7 @@ export function useLiveSnapshot(): LiveSnapshot {
       presences,
       readStates,
       mutes,
+      engine,
     ],
   );
 }
@@ -309,6 +333,8 @@ export function toPostExtras(x: SendExtras): rest.PostExtras {
       : {}),
     ...(x.mentionRepliedUser === false ? { allow_reply_ping: false } : {}),
     ...(x.flags ? { flags: x.flags } : {}),
+    ...(x.stickerIds?.length ? { sticker_ids: x.stickerIds } : {}),
+    ...(x.tts ? { tts: true } : {}),
   };
 }
 
@@ -355,6 +381,15 @@ export const LIVE_ACTIONS: LoungeActions = {
   },
   loadOlder(channelId) {
     void useStore.getState().loadOlderMessages(channelId);
+  },
+  loadNewer(channelId) {
+    void useStore.getState().loadNewerMessages(channelId);
+  },
+  markUnread(channelId, messageId) {
+    return useStore.getState().markUnread(channelId, messageId);
+  },
+  releaseUnread(channelId) {
+    useStore.getState().releaseAck(channelId);
   },
   markRead(channelId) {
     useStore.getState().ackChannel(channelId);

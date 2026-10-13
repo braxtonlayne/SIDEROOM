@@ -13,6 +13,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use url::{Host, Url};
 
+/// `Accept` header of image proxy requests.
+pub const ACCEPT_IMAGE: &str = "image/png,image/jpeg,image/gif,image/webp;q=0.9";
 /// Value of the `User-Agent` header on every outgoing request.
 pub const USER_AGENT: &str = "SIDEROOM-Unfurl";
 /// Redirects followed before giving up.
@@ -27,6 +29,8 @@ pub const MAX_HTML_BYTES: usize = 2 * 1024 * 1024;
 pub const MAX_IMAGE_BYTES: u64 = 8 * 1024 * 1024;
 /// How much of an image is read to learn its dimensions.
 pub const IMAGE_HEAD_BYTES: usize = 256 * 1024;
+/// Largest image the image proxy downloads (F-09, D-176).
+pub const MAX_PROXY_IMAGE_BYTES: usize = 10 * 1024 * 1024;
 /// Largest oEmbed JSON document read.
 pub const MAX_JSON_BYTES: usize = 256 * 1024;
 
@@ -107,6 +111,10 @@ pub struct HopRequest {
     pub url: Url,
     pub addrs: Vec<SocketAddr>,
     pub accept: &'static str,
+    /// `Some(n)`: read an image body completely, failing with
+    /// [`FetchError::TooLarge`] beyond `n` bytes. `None`: only the head of an
+    /// image is read (enough for its dimensions).
+    pub full_image_cap: Option<usize>,
 }
 
 /// One response, with the body already capped by the transport.
@@ -186,12 +194,33 @@ impl SafeFetcher {
     /// GET `url`, following at most [`MAX_REDIRECTS`] redirects and validating every
     /// hop. The whole call is bounded by [`TOTAL_TIMEOUT`].
     pub async fn fetch(&self, url: &Url, accept: &'static str) -> Result<Fetched, FetchError> {
-        tokio::time::timeout(TOTAL_TIMEOUT, self.fetch_inner(url, accept))
+        tokio::time::timeout(TOTAL_TIMEOUT, self.fetch_inner(url, accept, None))
             .await
             .map_err(|_| FetchError::Timeout)?
     }
 
-    async fn fetch_inner(&self, url: &Url, accept: &'static str) -> Result<Fetched, FetchError> {
+    /// GET an image in full for the image proxy: same address and redirect rules as
+    /// [`Self::fetch`], the whole body (at most `max_bytes`) and only a declared
+    /// image content type. The caller still has to sniff and decode the bytes.
+    pub async fn fetch_image(&self, url: &Url, max_bytes: usize) -> Result<Fetched, FetchError> {
+        let fetched = tokio::time::timeout(
+            TOTAL_TIMEOUT,
+            self.fetch_inner(url, ACCEPT_IMAGE, Some(max_bytes)),
+        )
+        .await
+        .map_err(|_| FetchError::Timeout)??;
+        if fetched.class != BodyClass::Image {
+            return Err(FetchError::UnsupportedType);
+        }
+        Ok(fetched)
+    }
+
+    async fn fetch_inner(
+        &self,
+        url: &Url,
+        accept: &'static str,
+        full_image_cap: Option<usize>,
+    ) -> Result<Fetched, FetchError> {
         let mut current = url.clone();
         let mut redirects = 0;
         loop {
@@ -202,6 +231,7 @@ impl SafeFetcher {
                     url: current.clone(),
                     addrs,
                     accept,
+                    full_image_cap,
                 })
                 .await?;
             if matches!(resp.status, 301 | 302 | 303 | 307 | 308) {
@@ -221,11 +251,14 @@ impl SafeFetcher {
             let cap = match class {
                 BodyClass::Html => MAX_HTML_BYTES,
                 BodyClass::Json => MAX_JSON_BYTES,
-                BodyClass::Image => IMAGE_HEAD_BYTES,
+                BodyClass::Image => full_image_cap.unwrap_or(IMAGE_HEAD_BYTES),
                 BodyClass::Video => 0,
             };
             let mut body = resp.body;
             // A transport must already cap the body; this is the second line of defence.
+            if full_image_cap.is_some() && body.len() > cap {
+                return Err(FetchError::TooLarge);
+            }
             body.truncate(cap);
             return Ok(Fetched {
                 final_url: current,
@@ -301,6 +334,7 @@ pub(crate) mod testing {
 mod tests {
     use super::testing::*;
     use super::*;
+    use std::sync::Mutex;
 
     fn fetcher(
         hosts: &[(&str, &str)],
@@ -480,6 +514,220 @@ mod tests {
             get(&f, "http://a.test/png").await.unwrap().class,
             BodyClass::Image
         );
+    }
+
+    fn png(body: &[u8]) -> HopResponse {
+        HopResponse {
+            status: 200,
+            content_type: Some("image/png".into()),
+            body: body.to_vec(),
+            ..HopResponse::default()
+        }
+    }
+
+    async fn image(f: &SafeFetcher, u: &str) -> Result<Fetched, FetchError> {
+        f.fetch_image(&Url::parse(u).unwrap(), MAX_PROXY_IMAGE_BYTES)
+            .await
+    }
+
+    /// Resolver that answers differently on every call, like a rebinding attacker's DNS.
+    struct RebindingResolver {
+        answers: Mutex<Vec<IpAddr>>,
+    }
+
+    #[async_trait]
+    impl Resolver for RebindingResolver {
+        async fn resolve(&self, _host: &str, _port: u16) -> Result<Vec<IpAddr>, String> {
+            let mut a = self.answers.lock().unwrap();
+            let next = if a.len() > 1 { a.remove(0) } else { a[0] };
+            Ok(vec![next])
+        }
+    }
+
+    #[tokio::test]
+    async fn proxy_refuses_every_spelling_of_a_private_address() {
+        // The URL parser turns decimal, hex, octal and short forms into the real
+        // address before the policy looks at it; IPv6 forms embed IPv4 ones.
+        let (f, t) = fetcher(
+            &[
+                ("localhost", "127.0.0.1"),
+                ("metadata.test", "169.254.169.254"),
+                ("v6loop.test", "::1"),
+                ("mapped.test", "::ffff:10.0.0.1"),
+            ],
+            vec![],
+        );
+        for url in [
+            "http://2130706433/a.png",
+            "http://0x7f000001/a.png",
+            "http://0x7f.0.0.1/a.png",
+            "http://0177.0.0.1/a.png",
+            "http://127.1/a.png",
+            "http://0/a.png",
+            "http://[::]/a.png",
+            "http://[::1]/a.png",
+            "http://[::ffff:127.0.0.1]/a.png",
+            "http://[::ffff:7f00:1]/a.png",
+            "http://[0:0:0:0:0:ffff:a9fe:a9fe]/a.png",
+            "http://[64:ff9b::7f00:1]/a.png",
+            "http://[2002:7f00:1::]/a.png",
+            "http://[fe80::1]/a.png",
+            "http://[fd00:ec2::254]/a.png",
+            "http://169.254.169.254/latest/meta-data/",
+            "http://100.100.100.200/",
+            "http://192.168.1.1/a.png",
+            "http://localhost/a.png",
+            "http://metadata.test/a.png",
+            "http://v6loop.test/a.png",
+            "http://mapped.test/a.png",
+            "http://user:pw@public.test/a.png",
+            "file:///etc/passwd",
+            "gopher://public.test/",
+        ] {
+            let err = image(&f, url).await.expect_err(url);
+            assert!(
+                matches!(err, FetchError::Blocked(_)),
+                "{url} must be blocked, got {err:?}"
+            );
+        }
+        assert!(
+            t.seen.lock().unwrap().is_empty(),
+            "nothing was connected to"
+        );
+    }
+
+    #[tokio::test]
+    async fn proxy_validates_dns_again_on_every_hop() {
+        // First answer is public, the next lookups are private: the hop that would
+        // reach the private address must be refused, and the public one pinned.
+        let resolver = RebindingResolver {
+            answers: Mutex::new(vec![ip("93.184.216.34"), ip("10.0.0.7")]),
+        };
+        let t = Arc::new(ScriptedTransport {
+            routes: [
+                (
+                    "http://rebind.test/a".to_owned(),
+                    redirect("http://rebind.test/b"),
+                ),
+                ("http://rebind.test/b".to_owned(), png(b"x")),
+            ]
+            .into_iter()
+            .collect(),
+            ..ScriptedTransport::default()
+        });
+        let f = SafeFetcher::new(Policy::default(), Arc::new(resolver), t.clone());
+        let err = image(&f, "http://rebind.test/a").await.unwrap_err();
+        assert_eq!(
+            err,
+            FetchError::Blocked(Blocked::PrivateAddress(ip("10.0.0.7")))
+        );
+        let seen = t.seen.lock().unwrap();
+        assert_eq!(seen.len(), 1, "only the public first hop was requested");
+        assert_eq!(
+            seen[0].addrs,
+            vec![SocketAddr::new(ip("93.184.216.34"), 80)]
+        );
+    }
+
+    #[tokio::test]
+    async fn proxy_refuses_redirects_into_the_private_network() {
+        let (f, t) = fetcher(
+            &[("cdn.test", "93.184.216.34"), ("inner.test", "192.168.0.5")],
+            vec![
+                (
+                    "http://cdn.test/ip",
+                    redirect("http://127.0.0.1:8080/secret.png"),
+                ),
+                (
+                    "http://cdn.test/dec",
+                    redirect("http://2130706433/secret.png"),
+                ),
+                (
+                    "http://cdn.test/v6",
+                    redirect("http://[::ffff:7f00:1]/secret.png"),
+                ),
+                (
+                    "http://cdn.test/meta",
+                    redirect("http://169.254.169.254/latest/"),
+                ),
+                (
+                    "http://cdn.test/name",
+                    redirect("http://inner.test/secret.png"),
+                ),
+                ("http://cdn.test/rel", redirect("//127.0.0.1/secret.png")),
+                ("http://cdn.test/scheme", redirect("ftp://cdn.test/x.png")),
+                ("http://cdn.test/ok", redirect("/pic.png")),
+                ("http://cdn.test/pic.png", png(b"fine")),
+            ],
+        );
+        for path in ["ip", "dec", "v6", "meta", "name", "rel", "scheme"] {
+            let url = format!("http://cdn.test/{path}");
+            let err = image(&f, &url).await.expect_err(&url);
+            assert!(matches!(err, FetchError::Blocked(_)), "{url}: {err:?}");
+        }
+        assert_eq!(image(&f, "http://cdn.test/ok").await.unwrap().body, b"fine");
+        for req in t.seen.lock().unwrap().iter() {
+            for a in &req.addrs {
+                assert!(!crate::policy::is_forbidden_ip(a.ip()), "connected to {a}");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn proxy_takes_images_only_and_enforces_the_size_cap() {
+        let big = vec![7u8; 2048];
+        let (f, t) = fetcher(
+            &[("a.test", "93.184.216.34")],
+            vec![
+                ("http://a.test/page", html("<title>x</title>")),
+                ("http://a.test/big.png", png(&big)),
+                ("http://a.test/small.png", png(b"tiny")),
+            ],
+        );
+        let u = |p: &str| Url::parse(&format!("http://a.test/{p}")).unwrap();
+        assert_eq!(
+            f.fetch_image(&u("page"), 1024).await.unwrap_err(),
+            FetchError::UnsupportedType
+        );
+        assert_eq!(
+            f.fetch_image(&u("big.png"), 1024).await.unwrap_err(),
+            FetchError::TooLarge
+        );
+        let ok = f.fetch_image(&u("big.png"), 4096).await.unwrap();
+        assert_eq!(ok.body.len(), 2048, "the whole body, not the 256 KiB head");
+        assert_eq!(
+            f.fetch_image(&u("small.png"), 1024).await.unwrap().body,
+            b"tiny"
+        );
+        // The request told the transport to read the full body.
+        assert!(
+            t.seen
+                .lock()
+                .unwrap()
+                .iter()
+                .all(|r| r.full_image_cap.is_some())
+        );
+    }
+
+    /// A transport that never answers.
+    struct Stall;
+
+    #[async_trait]
+    impl HttpTransport for Stall {
+        async fn get(&self, _req: &HopRequest) -> Result<HopResponse, FetchError> {
+            std::future::pending().await
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn proxy_gives_up_after_ten_seconds() {
+        let mut r = TableResolver::default();
+        r.0.insert("slow.test".into(), vec![ip("93.184.216.34")]);
+        let f = SafeFetcher::new(Policy::default(), Arc::new(r), Arc::new(Stall));
+        let started = tokio::time::Instant::now();
+        let err = image(&f, "http://slow.test/a.png").await.unwrap_err();
+        assert_eq!(err, FetchError::Timeout);
+        assert_eq!(started.elapsed(), TOTAL_TIMEOUT);
     }
 
     #[test]

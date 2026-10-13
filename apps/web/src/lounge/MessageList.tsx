@@ -19,12 +19,16 @@ import {
   type Message,
   type Snowflake,
 } from './data';
-import { MessageItem, type ReplyState } from './MessageItem';
+import { MessageItem, type NameDecor, type ReplyState } from './MessageItem';
 import { DeleteMessageDialog, ForwardDialog, PinMessageDialog } from './msg/MessageDialogs';
 import { ReactorsModal } from './msg/Reactors';
 import { cmpId } from '../store/reducer';
 import { buildRows, estimateRow } from './messageRows';
-import { useLoungeGoto, useLoungeRoute } from './nav';
+import { openProfilePopout } from './profile/popoutStore';
+import { useHiddenAuthors } from './shell/hiddenAuthors';
+import { toSaved, useSaved } from './shell/savedMessages';
+import { useLoungeUi } from './store';
+import { useLoungeGoto, useLoungeGotoMessage, useLoungeGotoThread, useLoungeRoute } from './nav';
 import { formatDividerDate } from './time';
 import './msg/msg.css';
 
@@ -34,6 +38,12 @@ const observeRect = <T extends Element>(
   instance: Virtualizer<T, Element>,
   cb: (rect: Rect) => void,
 ) => observeElementRect(instance, (rect) => cb(rect.height === 0 ? FALLBACK : rect));
+
+/** Reads text aloud with the browser's speech synthesis, when it has one. */
+function speak(text: string) {
+  if (typeof speechSynthesis === 'undefined') return;
+  speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+}
 
 const NEAR_BOTTOM = 80;
 /** Scroll offset of channels the viewer left while reading history (restored when they come back). */
@@ -53,6 +63,8 @@ export interface MessageListProps {
   /** Message being edited in place, if any. */
   editingId?: Snowflake | null | undefined;
   onCancelEdit?: (() => void) | undefined;
+  /** This list is a thread: no nested threads. */
+  inThread?: boolean | undefined;
 }
 
 export function MessageList({
@@ -65,6 +77,7 @@ export function MessageList({
   onEdit,
   editingId,
   onCancelEdit,
+  inThread,
 }: MessageListProps) {
   const { messages, hasMore, loadingOlder, atLatest } = useMessages(channelId);
   const me = useCurrentUser();
@@ -74,9 +87,15 @@ export function MessageList({
   const channels = useChannels(guildId);
   const actions = useLoungeActions();
   const goto = useLoungeGoto();
+  const gotoThread = useLoungeGotoThread();
+  const gotoMessage = useLoungeGotoMessage();
+  const openDialog = useLoungeUi((s) => s.openDialog);
+  const bookmarks = useSaved((s) => s.bookmarks);
   const guild = useGuild(guildId);
-  const canManage = !!guild?.permissions.manageMessages;
-  const canPin = guild ? !!guild.permissions.pinMessages : true;
+  // Channel-level bits (overwrites applied) win over the guild-level fallback (D-178).
+  const chanPerms = channels.find((c) => c.id === channelId)?.permissions;
+  const canManage = chanPerms ? chanPerms.manageMessages : !!guild?.permissions.manageMessages;
+  const canPin = chanPerms ? chanPerms.pinMessages : guild ? !!guild.permissions.pinMessages : true;
   const [deleting, setDeleting] = useState<Message | null>(null);
   const [pinning, setPinning] = useState<Message | null>(null);
   const [forwarding, setForwarding] = useState<Message | null>(null);
@@ -87,24 +106,53 @@ export function MessageList({
   );
   const { messageId: targetId } = useLoungeRoute();
 
+  const canThread =
+    !!guildId && !inThread && (chanPerms ? chanPerms.createThreads !== false : true);
+  // Mark Unread moves the NEW divider before the chosen message without leaving the channel.
+  const [unreadFrom, setUnreadFrom] = useState<Snowflake | null>(null);
+  const hidden = useHiddenAuthors();
+  const [shownRuns, setShownRuns] = useState<ReadonlySet<string>>(() => new Set());
   const rows = useMemo(
-    () => buildRows(messages, { lastReadId, atStart: !hasMore, selfId: me.id }),
-    [messages, lastReadId, hasMore, me.id],
+    () =>
+      buildRows(messages, {
+        lastReadId: unreadFrom ?? lastReadId,
+        atStart: !hasMore,
+        // Mark Unread is the viewer's own choice, so its divider shows even above their own message.
+        ...(unreadFrom ? {} : { selfId: me.id }),
+        hidden,
+        revealed: shownRuns,
+      }),
+    [messages, lastReadId, unreadFrom, hasMore, me.id, hidden, shownRuns],
   );
 
   const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
-  const roleColor = useMemo(() => {
-    const out = new Map<Snowflake, string>();
+  // Name colour of each member's highest coloured role, plus that role's gradient and icon (LNG-MSGUI-002).
+  const roleDecor = useMemo(() => {
+    const out = new Map<Snowflake, NameDecor>();
     const byRole = new Map(roles.map((r) => [r.id, r]));
     for (const mem of members) {
       const best = mem.roleIds
         .map((id) => byRole.get(id))
         .filter((r): r is NonNullable<typeof r> => !!r && !!r.color)
         .sort((a, b) => b.position - a.position)[0];
-      if (best?.color) out.set(mem.user.id, best.color);
+      const iconRole = mem.roleIds
+        .map((id) => byRole.get(id))
+        .filter((r): r is NonNullable<typeof r> => !!r && !!r.emoji)
+        .sort((a, b) => b.position - a.position)[0];
+      if (best?.color || iconRole)
+        out.set(mem.user.id, {
+          ...(best?.color ? { color: best.color } : {}),
+          ...(best?.colorSecondary ? { secondary: best.colorSecondary } : {}),
+          ...(iconRole?.emoji ? { icon: iconRole.emoji, iconName: iconRole.name } : {}),
+        });
     }
     return out;
   }, [members, roles]);
+  const roleColor = useMemo(() => {
+    const out = new Map<Snowflake, string>();
+    for (const [id, d] of roleDecor) if (d.color) out.set(id, d.color);
+    return out;
+  }, [roleDecor]);
 
   const resolvers: Resolvers = useMemo(
     () => ({
@@ -139,13 +187,16 @@ export function MessageList({
 
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const unreadCount = useMemo(() => {
-    const idx = lastReadId ? messages.findIndex((m) => m.id === lastReadId) : -1;
+    const from = unreadFrom ?? lastReadId;
+    const idx = from ? messages.findIndex((m) => m.id === from) : -1;
     return idx < 0 ? 0 : messages.slice(idx + 1).filter((m) => m.author.id !== me.id).length;
-  }, [messages, lastReadId, me.id]);
+  }, [messages, lastReadId, unreadFrom, me.id]);
   const [atBottom, setAtBottom] = useState(true);
   const atBottomRef = useRef(true);
   const lastKey = rows[rows.length - 1]?.key;
   const lastMsg = messages[messages.length - 1];
+  // A jumped-to window is not at the newest message: appended pages must not drag the view to the end.
+  const wasLatest = useRef(atLatest ?? true);
 
   const scrollToEnd = useCallback(() => {
     if (rows.length) v.scrollToIndex(rows.length - 1, { align: 'end' });
@@ -183,12 +234,14 @@ export function MessageList({
     if (
       prevLast.current !== undefined &&
       prevLast.current !== lastKey &&
+      wasLatest.current &&
       (atBottomRef.current || lastMsg?.author.id === me.id)
     ) {
       scrollToEnd();
     }
     prevLast.current = lastKey;
-  }, [lastKey, lastMsg, me.id, scrollToEnd]);
+    wasLatest.current = atLatest ?? true;
+  }, [lastKey, lastMsg, me.id, scrollToEnd, atLatest]);
 
   // History prepended (Q170): keep the reader's place by the measured growth of the scroll height. The
   // recorded height is taken at the end of every commit, so the next prepend sees the pre-prepend height.
@@ -229,7 +282,9 @@ export function MessageList({
     atBottomRef.current = near;
     setAtBottom((prev) => (prev === near ? prev : near));
     if (el.scrollTop < NEAR_TOP && hasMore && !loadingOlder) actions.loadOlder(channelId);
-  }, [actions, channelId, hasMore, loadingOlder]);
+    // Viewing a jumped-to window: reaching the bottom loads the next page (LNG-MSGUI-001).
+    if (near && atLatest === false && !loadingOlder) actions.loadNewer?.(channelId);
+  }, [actions, channelId, hasMore, loadingOlder, atLatest]);
 
   // Short channels never scroll, so onScroll never asks for more history.
   useEffect(() => {
@@ -294,8 +349,18 @@ export function MessageList({
   const onMention = useCallback(
     (t: { kind: 'user' | 'role' | 'channel'; id: Snowflake }) => {
       if (t.kind === 'channel' && guildId) goto(guildId, t.id);
+      // The mention that was just clicked still has focus: the popout opens next to it.
+      else if (t.kind === 'user')
+        openProfilePopout(
+          { userId: t.id, guildId },
+          document.activeElement instanceof HTMLElement ? document.activeElement : null,
+        );
     },
     [goto, guildId],
+  );
+  const onOpenProfile = useCallback(
+    (userId: Snowflake, anchor: HTMLElement) => openProfilePopout({ userId, guildId }, anchor),
+    [guildId],
   );
   const onReact = useCallback(
     (m: Message, e: string) => actions.toggleReaction(m.channelId, m.id, e),
@@ -332,6 +397,53 @@ export function MessageList({
     [actions],
   );
 
+  const onMarkUnread = useCallback(
+    (m: Message) => {
+      void actions.markUnread?.(m.channelId, m.id).then((before) => {
+        setUnreadFrom(before);
+        setBannerDismissed(false);
+      });
+    },
+    [actions],
+  );
+  const onBookmark = useCallback(
+    (m: Message) => useSaved.getState().toggleBookmark(toSaved(m, guildId)),
+    [guildId],
+  );
+  const onRemind = useCallback(
+    (m: Message, ms: number) =>
+      useSaved.getState().addReminder(toSaved(m, guildId), new Date(Date.now() + ms)),
+    [guildId],
+  );
+  const onCreateThread = useCallback(
+    (m: Message) => {
+      if (guildId)
+        openDialog({ kind: 'createThread', guildId, channelId: m.channelId, messageId: m.id });
+    },
+    [guildId, openDialog],
+  );
+  const onOpenThread = useCallback(
+    (m: Message, threadId: Snowflake) => {
+      if (guildId) gotoThread(guildId, m.channelId, threadId);
+    },
+    [guildId, gotoThread],
+  );
+  // Leaving a channel lets automatic read acks resume (Mark Unread holds them while it is open).
+  useEffect(
+    () => () => {
+      actions.releaseUnread?.(channelId);
+    },
+    [actions, channelId],
+  );
+  // /tts messages from other people are read aloud as they arrive in the open channel.
+  const spoken = useRef<string | null>(lastMsg?.id ?? null);
+  useEffect(() => {
+    if (!lastMsg || spoken.current === lastMsg.id) return;
+    spoken.current = lastMsg.id;
+    if (lastMsg.tts && lastMsg.author.id !== me.id && !lastMsg.pending)
+      speak(`${lastMsg.author.displayName} says ${lastMsg.content}`);
+  }, [lastMsg, me.id]);
+
   const oldestId = messages[0]?.id;
   const replyState = (m: Message): ReplyState => {
     if (!m.replyToId) return 'loaded';
@@ -355,6 +467,8 @@ export function MessageList({
           <button
             type="button"
             onClick={() => {
+              actions.releaseUnread?.(channelId);
+              setUnreadFrom(null);
               actions.markRead(channelId);
               setBannerDismissed(true);
             }}
@@ -413,6 +527,26 @@ export function MessageList({
                     <span>NEW</span>
                   </div>
                 )}
+                {row.kind === 'hidden' && (
+                  <div className="lng-hidden-run">
+                    <span>
+                      {row.count}{' '}
+                      {row.blocked && row.ignored
+                        ? 'blocked or ignored'
+                        : row.blocked
+                          ? 'blocked'
+                          : 'ignored'}{' '}
+                      {row.count === 1 ? 'message' : 'messages'}
+                    </span>
+                    <button
+                      type="button"
+                      className="lng-link-btn"
+                      onClick={() => setShownRuns((s) => new Set(s).add(row.key))}
+                    >
+                      Show {row.count === 1 ? 'message' : 'messages'}
+                    </button>
+                  </div>
+                )}
                 {row.kind === 'message' && (
                   <MessageItem
                     message={row.message}
@@ -436,13 +570,24 @@ export function MessageList({
                     onEndPoll={actions.endPoll ? onEndPoll : undefined}
                     onRetry={onRetry}
                     onDiscard={onDiscard}
+                    onMarkUnread={actions.markUnread ? onMarkUnread : undefined}
+                    bookmarked={!!bookmarks[row.message.id]}
+                    onBookmark={onBookmark}
+                    onRemind={onRemind}
+                    onCreateThread={canThread ? onCreateThread : undefined}
+                    onOpenThread={guildId ? onOpenThread : undefined}
+                    onJumpToChannelMessage={
+                      guildId ? (c, id) => gotoMessage(guildId, c, id) : undefined
+                    }
                     nameColor={roleColor.get(row.message.author.id)}
+                    nameDecor={roleDecor.get(row.message.author.id)}
                     resolvers={resolvers}
                     isOwn={row.message.author.id === me.id}
                     onReply={onReply}
                     onEdit={onEdit}
                     onReact={onReact}
                     onMentionClick={onMention}
+                    onOpenProfile={onOpenProfile}
                     onJumpTo={jumpTo}
                   />
                 )}

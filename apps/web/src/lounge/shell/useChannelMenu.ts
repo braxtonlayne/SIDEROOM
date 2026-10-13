@@ -30,7 +30,8 @@ export function useChannelMenu(
   const actions = useLoungeActions();
   const notif = useNotifSettings((s) => s.byGuild[guild.id]);
   const patchChannel = useNotifSettings((s) => s.patchChannel);
-  const manage = guild.permissions.manageChannels;
+  // Channel-level bits (overwrites applied) win over the guild-level fallback (D-178).
+  const manage = channel.permissions?.manageChannels ?? guild.permissions.manageChannels;
   const cat = channel.type === 'category';
   const muted = isMuted(notif?.channels[channel.id]);
   const fail = () => onError('Could not save that change. Try again.');
@@ -148,7 +149,7 @@ export function useChannelMenu(
     { type: 'separator' },
     {
       label: 'Invite People',
-      disabled: !guild.permissions.createInvite,
+      disabled: !(channel.permissions?.createInvite ?? guild.permissions.createInvite),
       onSelect: () => openDialog({ kind: 'invite', guildId: guild.id, channelId: channel.id }),
     },
     edit,

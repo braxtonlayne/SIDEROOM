@@ -12,7 +12,7 @@ Phase 0. Spec: [entry-landing-and-login](../specs/entry-landing-and-login.md), d
 - [x] **ENT-AUTH-007** [BE] Login endpoint (username or email) with generic error + throttling per account/IP
 - [x] **ENT-AUTH-008** [BE] TOTP enrol/verify/disable (`totp-rs`), QR provisioning URI
 - [x] **ENT-AUTH-009** [BE] Recovery codes generate/regenerate/consume
-- [ ] **ENT-AUTH-010** [BE] WebAuthn passkeys: register, list, rename, delete, login (discoverable), 2FA use (`webauthn-rs`)
+- [x] **ENT-AUTH-010** [BE] WebAuthn passkeys: register, list, rename, delete, login (discoverable), 2FA use (pure-Rust verifier in `sr-auth::webauthn` per D-161, migration 0180, `routes/auth/passkeys.rs`; the Playwright run with the CDP virtual authenticator passes; see `docs/dev/handoff/feat-p4-passkeys.md`)
 - [ ] **ENT-AUTH-011** [BE] Discord OAuth2: authorize redirect, callback, state/PKCE, profile fetch, link/unlink
 - [x] **ENT-AUTH-012** [BE] Email verification tokens + send (`lettre`), resend with cooldown
 - [x] **ENT-AUTH-013** [BE] Forgot/reset password flow (30 min single-use token, no account oracle)

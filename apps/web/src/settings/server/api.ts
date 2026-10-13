@@ -107,6 +107,9 @@ export interface ChannelObject {
   rate_limit_per_user: number;
   user_limit?: number;
   bitrate?: number;
+  /** Minutes of inactivity before new threads in this channel archive. */
+  default_auto_archive_duration?: number | null;
+  default_thread_rate_limit_per_user?: number | null;
   permission_overwrites: OverwriteObject[];
 }
 export interface ChannelBody {
@@ -118,6 +121,8 @@ export interface ChannelBody {
   position?: number;
   parent_id?: string | null;
   lock_permissions?: boolean;
+  default_auto_archive_duration?: number;
+  default_thread_rate_limit_per_user?: number;
 }
 export const listChannels = (g: string) =>
   apiFetch<ChannelObject[]>(`/guilds/${g}/channels`, { retries: 0 });
@@ -181,7 +186,7 @@ export const unban = (g: string, u: string) => send<void>(`/guilds/${g}/bans/${u
 
 // ---- invites ----
 
-export { listGuildInvites, revokeInvite, createInvite } from '../../store/rest';
+export { listGuildInvites, listChannelInvites, revokeInvite, createInvite } from '../../store/rest';
 export type { Invite, CreateInviteOptions } from '../../store/rest';
 
 // ---- emoji and stickers ----
@@ -346,6 +351,9 @@ export const listWebhooks = (g: string) =>
 export const createWebhook = (channelId: string, name: string) =>
   send<WebhookObject>(`/channels/${channelId}/webhooks`, 'POST', { name });
 export const deleteWebhook = (id: string) => send<void>(`/webhooks/${id}`, 'DELETE');
+/** Issues a fresh token and URL (shown once) and invalidates the old one (D-164). */
+export const resetWebhookToken = (id: string) =>
+  send<WebhookObject>(`/webhooks/${id}/reset-token`, 'POST', {});
 
 export interface TemplateObject {
   code: string;
@@ -471,3 +479,23 @@ export function errorText(e: unknown, fallback = 'Something went wrong. Try agai
   if (err?.status === 429) return 'You are doing that too quickly. Wait a moment and try again.';
   return err?.message || fallback;
 }
+
+// ---- member prune (LNG-SSET-029) ----
+
+export interface PruneResult {
+  /** Members that would be (preview) or were (run) removed. */
+  pruned: number;
+}
+/** How many members a prune would remove now (`KICK_MEMBERS`). */
+export const pruneCount = (g: string, days: number, includeRoles: string[]) => {
+  const q = new URLSearchParams({ days: String(days) });
+  if (includeRoles.length) q.set('include_roles', includeRoles.join(','));
+  return apiFetch<PruneResult>(`/guilds/${g}/prune?${q}`, { retries: 0 });
+};
+export const pruneMembers = (g: string, days: number, includeRoles: string[], reason?: string) =>
+  send<PruneResult>(
+    `/guilds/${g}/prune`,
+    'POST',
+    { days, include_roles: includeRoles },
+    reasonHeader(reason),
+  );

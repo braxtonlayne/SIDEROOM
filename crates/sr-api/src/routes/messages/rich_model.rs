@@ -70,14 +70,23 @@ fn snapshot_value(deps: &MessagesDeps, f: &ForwardSnapshot) -> Value {
                 expires_at: None,
                 duration_secs: a.duration_ms.map(|d| f64::from(d) / 1000.0),
                 waveform: a.waveform.clone(),
+                width: a.width,
+                height: a.height,
+                blurhash: a.blurhash.clone(),
             };
             serde_json::to_value(o).unwrap_or(Value::Null)
         })
         .collect();
+    let mut embeds: Vec<Value> = f
+        .embeds
+        .iter()
+        .map(|e| serde_json::to_value(e).unwrap_or(Value::Null))
+        .collect();
+    deps.proxy_embed_images(&mut embeds);
     json!({"message": {
         "type": f.kind,
         "content": f.content,
-        "embeds": f.embeds,
+        "embeds": embeds,
         "attachments": attachments,
         "timestamp": iso(f.timestamp_ms),
         "edited_timestamp": f.edited_timestamp_ms.map(iso),

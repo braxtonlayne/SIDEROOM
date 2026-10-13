@@ -24,6 +24,7 @@ import {
   valuesToOverwrite,
 } from '../permissions';
 import type { SectionProps } from '../ServerSettings';
+import { ChannelFeatures, ChannelIntegrations, ChannelInvites } from './ChannelTabs';
 import { ActionStatus, Async, SectionHeader, useAction } from '../ui';
 
 const GROUPS = permissionGroups();
@@ -315,6 +316,25 @@ export function ChannelEditor({
         />
       ),
     },
+    ...(cat
+      ? []
+      : [
+          {
+            id: 'invites',
+            label: 'Invites',
+            content: <ChannelInvites channel={channel} />,
+          },
+          {
+            id: 'integrations',
+            label: 'Integrations',
+            content: <ChannelIntegrations guildId={guildId} channel={channel} />,
+          },
+          {
+            id: 'features',
+            label: 'Features',
+            content: <ChannelFeatures channel={channel} onChanged={onChanged} />,
+          },
+        ]),
   ];
   return (
     <section aria-label={`Edit ${cat ? 'category' : 'channel'} ${channel.name ?? ''}`}>

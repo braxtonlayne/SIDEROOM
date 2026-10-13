@@ -29,9 +29,11 @@ import {
   type TotpEnrollment,
 } from '../api';
 import { Card, Field, fmtDate, Loaded, SectionTitle, Unavailable } from '../parts';
+import { ChangeEmailDialog } from './ChangeEmail';
+import { PasskeysCard } from './Passkeys';
 
 /** Asks for the account password (re-authentication) and runs `onSubmit`; the server error shows inline. */
-function PasswordPrompt({
+export function PasswordPrompt({
   open,
   title,
   description,
@@ -114,7 +116,7 @@ function PasswordPrompt({
 }
 
 /** The ten recovery codes, shown once (copy / download). */
-function RecoveryCodes({ codes, onDone }: { codes: string[]; onDone: () => void }) {
+export function RecoveryCodes({ codes, onDone }: { codes: string[]; onDone: () => void }) {
   const toast = useToast();
   const text = codes.join('\n');
   const copy = async () => {
@@ -412,6 +414,7 @@ function PasswordCard({ me }: { me: Me }) {
 
 function IdentityCard({ me }: { me: Me }) {
   const [reveal, setReveal] = useState(false);
+  const [changing, setChanging] = useState(false);
   const [sent, setSent] = useState<'idle' | 'sending' | 'sent' | 'wait' | 'error'>('idle');
   const resend = async () => {
     setSent('sending');
@@ -441,6 +444,9 @@ function IdentityCard({ me }: { me: Me }) {
             onClick={() => setReveal((r) => !r)}
           >
             {reveal ? 'Hide' : 'Reveal'}
+          </Button>{' '}
+          <Button variant="link" size="sm" onClick={() => setChanging(true)}>
+            Change email
           </Button>
           <span className="us-badge" data-tone={me.verified ? 'good' : 'bad'}>
             {me.verified ? 'Verified' : 'Not verified'}
@@ -465,8 +471,14 @@ function IdentityCard({ me }: { me: Me }) {
         </div>
       )}
       <Unavailable>
-        Changing your username, display name or email isn&apos;t supported by the server yet.
+        Changing your username or display name isn&apos;t supported by the server yet.
       </Unavailable>
+      <ChangeEmailDialog
+        open={changing}
+        mfaEnabled={!!me.mfa_enabled}
+        currentEmail={email}
+        onClose={() => setChanging(false)}
+      />
     </Card>
   );
 }
@@ -638,6 +650,7 @@ export function AccountSection({ me, onSignedOut }: { me: Resource<Me>; onSigned
             <IdentityCard me={m} />
             <PasswordCard me={m} />
             <TwoFactorCard me={m} reload={me.reload} />
+            <PasskeysCard />
             <DiscordCard />
             <TrustedDevicesCard />
             <SessionsCard onSignedOut={onSignedOut} />

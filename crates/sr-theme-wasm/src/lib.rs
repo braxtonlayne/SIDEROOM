@@ -79,3 +79,25 @@ mod tests {
         assert!(compile_json("{").is_err());
     }
 }
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod wasm_tests {
+    use super::*;
+    use wasm_bindgen_test::{wasm_bindgen_test, wasm_bindgen_test_configure};
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    /// The `JsError` path is only constructible on the wasm target.
+    #[wasm_bindgen_test]
+    fn compile_theme_throws_js_error_on_garbage() {
+        assert!(compile_theme("not json").is_err());
+    }
+
+    #[wasm_bindgen_test]
+    fn validate_theme_reports_invalid_json_and_tokens_are_listed() {
+        let out = validate_theme("not json");
+        assert!(out.contains("\"valid\":false"));
+        assert!(out.contains("invalid-json"));
+        assert!(!token_names().is_empty());
+    }
+}

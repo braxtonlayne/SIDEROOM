@@ -1,10 +1,10 @@
 import { Avatar, ContextMenu, Icon, VirtualList, type MenuEntry } from '@sideroom/ui';
-import { useMemo } from 'react';
-import { addMemberRole, removeMemberRole } from '../settings/server/api';
+import { useMemo, useRef } from 'react';
 import { useViewer, type Viewer } from '../settings/server/hooks';
-import { useStore } from '../store';
 import { useCurrentUser, useGuild, useMembers, usePresenceMap, useRoles } from './data';
 import { buildMemberRows, type MemberEntry } from './memberGroups';
+import { openProfilePopout } from './profile/popoutStore';
+import { setMemberRole } from './profile/memberRoles';
 import { useOpenDm } from './shell/dm';
 import { useUserMenuEntries } from './shell/userMenu';
 import { useLoungeUi } from './store';
@@ -22,6 +22,7 @@ function MemberRowView({
   ownerId: string | undefined;
   viewer: Viewer;
 }) {
+  const rowRef = useRef<HTMLButtonElement | null>(null);
   const { member, presence, color } = entry;
   const u = member.user;
   const name = member.nick ?? u.displayName;
@@ -41,17 +42,12 @@ function MemberRowView({
   const canAct = !isSelf && !isOwner && outranks;
 
   const setRole = (roleId: string, on: boolean) => {
-    const req = on ? addMemberRole(guildId, u.id, roleId) : removeMemberRole(guildId, u.id, roleId);
-    void req
-      .then(() =>
-        useStore.getState().applyDispatch('GUILD_MEMBER_UPDATE', {
-          guild_id: guildId,
-          user: { id: u.id },
-          nick: member.nick ?? null,
-          roles: on ? [...member.roleIds, roleId] : member.roleIds.filter((r) => r !== roleId),
-        }),
-      )
-      .catch(() => undefined);
+    void setMemberRole(
+      guildId,
+      { userId: u.id, nick: member.nick, roleIds: member.roleIds },
+      roleId,
+      on,
+    ).catch(() => undefined);
   };
   const assignable = roles.filter((r) => r.id !== guildId && viewer.canManageRole(r.position));
 
@@ -59,7 +55,10 @@ function MemberRowView({
     openDialog({ kind: 'memberAction', action, guildId, userId: u.id });
 
   const menu: MenuEntry[] = [
-    { label: 'Profile', disabled: true },
+    {
+      label: 'Profile',
+      onSelect: () => openProfilePopout({ userId: u.id, guildId }, rowRef.current),
+    },
     { label: 'Mention', onSelect: () => void navigator.clipboard?.writeText(`<@${u.id}>`) },
     {
       label: 'Message',
@@ -97,14 +96,26 @@ function MemberRowView({
     ...(viewer.can('BAN_MEMBERS') && canAct
       ? [{ label: `Ban ${name}`, danger: true, onSelect: act('ban') } as MenuEntry]
       : []),
+    ...(viewer.isOwner && !isSelf && !u.bot
+      ? [
+          {
+            label: 'Transfer Ownership',
+            danger: true,
+            onSelect: () => openDialog({ kind: 'transferOwnership', guildId, userId: u.id }),
+          } as MenuEntry,
+        ]
+      : []),
     { type: 'separator' },
     { label: 'Copy User ID', onSelect: () => void navigator.clipboard?.writeText(u.id) },
   ];
   return (
     <ContextMenu items={menu} label={`${name} actions`}>
       <button
+        ref={rowRef}
         type="button"
         className="lng-member"
+        aria-haspopup="dialog"
+        onClick={(e) => openProfilePopout({ userId: u.id, guildId }, e.currentTarget)}
         data-offline={presence.status === 'offline' || undefined}
         aria-label={`${name}, ${presence.status}${presence.activity ? `, ${presence.activity.text}` : ''}`}
       >

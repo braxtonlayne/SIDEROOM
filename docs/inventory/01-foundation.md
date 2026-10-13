@@ -83,7 +83,7 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 - [ ] **FND-OBS-003** [OPS] Optional Prometheus + Grafana compose profile + dashboards
 
 ## FND-CLI — `sr-cli`
-- [ ] **FND-CLI-001** [BE] `migrate`, `bootstrap` (Owner, Staff Server, system user, one-time login link)
+- [x] **FND-CLI-001** [BE] `migrate`, `bootstrap` (Owner, Staff Server with the default staff roles, system user, one-time login link); `staff ensure-roles` re-runs the role step idempotently
 - [ ] **FND-CLI-002** [BE] `invite create` (operator emergency), `user reset-2fa`, `staff transfer-owner`
 - [ ] **FND-CLI-003** [BE] `backup`, `restore`, `reindex`, `verify-access-log`, `upgrade`
 

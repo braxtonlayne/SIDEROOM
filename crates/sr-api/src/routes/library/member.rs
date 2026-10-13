@@ -116,13 +116,34 @@ pub async fn series(
 pub struct ChapterParams {
     /// Only this edition's chapters.
     pub edition: Option<String>,
+    /// Page size, 1 to 500. Without it every chapter is returned.
+    pub limit: Option<u32>,
+    /// Cursor from the previous page's `next_cursor`.
+    pub after: Option<String>,
+    /// `asc` (default) or `desc`: edition, then chapter number, then id.
+    pub order: Option<String>,
+}
+
+impl ChapterParams {
+    pub(super) fn into_query(self) -> ApiResult<ChapterQuery> {
+        Ok(ChapterQuery {
+            edition: self
+                .edition
+                .as_deref()
+                .map(|e| id(e, "edition"))
+                .transpose()?,
+            after: self.after,
+            limit: self.limit,
+            descending: order(&self.order)?.unwrap_or(false),
+        })
+    }
 }
 
 /// Chapters of a series with volumes, editions and the caller's read marks.
 #[utoipa::path(
     get, path = "/library/series/{series_id}/chapters", operation_id = "library_chapters",
     params(("series_id" = String, Path, description = "Series snowflake"), ChapterParams),
-    responses((status = 200, body = ChapterList), (status = 401, body = ErrorBody), (status = 404, body = ErrorBody)),
+    responses((status = 200, body = ChapterList), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody), (status = 404, body = ErrorBody)),
     security(("session" = []))
 )]
 pub async fn chapters(
@@ -130,10 +151,9 @@ pub async fn chapters(
     Path(series_id): Path<String>,
     Query(p): Query<ChapterParams>,
 ) -> ApiResult<Json<ChapterList>> {
-    let edition = p.edition.as_deref().map(|e| id(e, "edition")).transpose()?;
     ctx.deps
         .service
-        .chapters(ctx.viewer, id(&series_id, "series")?, edition)
+        .chapters(ctx.viewer, id(&series_id, "series")?, p.into_query()?)
         .await
         .map(Json)
         .map_err(map_err)

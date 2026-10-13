@@ -382,12 +382,20 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             "unfurl.allow_private_for_tests is ON: link previews may fetch loopback and private \n             addresses. This is for tests only and lets any user probe the internal network."
         );
     }
+    let unfurl_policy = sr_unfurl::Policy {
+        deny_hosts: cfg.unfurl.deny_hosts.clone(),
+        allow_hosts: cfg.unfurl.allow_hosts.clone(),
+        allow_private_for_tests: cfg.unfurl.allow_private_for_tests,
+    };
     let unfurler = Arc::new(sr_unfurl::production(
-        sr_unfurl::Policy {
-            deny_hosts: cfg.unfurl.deny_hosts.clone(),
-            allow_private_for_tests: cfg.unfurl.allow_private_for_tests,
-        },
+        unfurl_policy.clone(),
         cfg.unfurl.per_host_per_minute.max(1),
+    ));
+    // The image proxy (D-176) fetches under the same SSRF policy and deny list.
+    let external_images = Arc::new(routes::cdn::external::ExternalImageDeps::new(
+        sr_unfurl::production_fetcher(unfurl_policy),
+        storage.clone(),
+        cdn_signer.clone(),
     ));
     let job_ids: crate::search_jobs::JobIds = {
         let ids = ids.clone();
@@ -457,14 +465,26 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         clock.clone(),
         id_src.clone(),
     )
-    .with_index(library_index);
+    .with_index(library_index)
+    .with_events(Arc::new(routes::library::BusLibraryEvents::new(
+        bus.clone(),
+    )))
+    .with_ingest(
+        storage.clone(),
+        Arc::new(crate::library_jobs::PgIngestSettings::new(pool.clone())),
+        Arc::new(crate::library_jobs::PgIngestQueue::new(pool.clone())),
+    )
+    .with_audit(Arc::new(crate::library_jobs::AdminLibraryAudit::new(
+        pool.clone(),
+        id_src.clone(),
+    )));
     let indexed = library_service
         .reindex_all()
         .await
         .map_err(|e| anyhow::anyhow!("indexing the library catalog: {e}"))?;
     tracing::info!(series = indexed, "library search index rebuilt");
     let library_deps = Arc::new(
-        routes::library::LibraryDeps::new(library_service)
+        routes::library::LibraryDeps::new(library_service.clone())
             .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone())))
             .with_prefs(Arc::new(crate::settings_pg::PgLibraryPrefs::new(
                 pool.clone(),
@@ -566,6 +586,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             storage.clone(),
             cdn_signer,
         )))
+        .extension(external_images)
         .readiness(Arc::new(DbReady::new(pool.clone(), readiness_timeout)))
         .readiness(Arc::new(StorageReady::new(storage.clone())))
         .build();
@@ -602,6 +623,25 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         }
     });
 
+    // Last-seen tracking for prune (D-166): the gateway collects users seen on
+    // IDENTIFY/RESUME and the 10-minute refresh; one batched UPDATE per flush.
+    let gw_for_seen = gateway.clone();
+    let seen_pool = pool.clone();
+    let seen_task = tokio::spawn(async move {
+        let mut tick = tokio::time::interval(Duration::from_secs(30));
+        loop {
+            tick.tick().await;
+            let ids: Vec<i64> = gw_for_seen
+                .drain_seen()
+                .into_iter()
+                .filter_map(|u| i64::try_from(u.get()).ok())
+                .collect();
+            if let Err(e) = sr_db::accounts::touch_last_seen(&seen_pool, &ids).await {
+                tracing::warn!(error = %e, "could not record last-seen times");
+            }
+        }
+    });
+
     let (job_tx, job_rx) = watch::channel(false);
     let runner = crate::jobs::register(
         JobRunner::new(pool.clone(), format!("srv-{}", std::process::id())),
@@ -613,12 +653,16 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::search_jobs::register(runner, &pool, indexer);
     let runner = crate::admin_jobs::register(runner, &pool, id_src.clone(), bus.clone());
     let runner = crate::rich_jobs::register(runner, &pool, messages.clone());
+    let runner = crate::external_jobs::register(runner, &pool, storage.clone());
+    let runner = crate::library_jobs::register(runner, &pool, library_service.clone());
     crate::jobs::schedule_recurring(&pool).await?;
     crate::jobs::schedule_audit_purge(&pool).await?;
     crate::jobs::schedule_thread_archive(&pool).await?;
     crate::jobs::schedule_attachment_gc(&pool).await?;
     crate::admin_jobs::schedule(&pool).await?;
     crate::rich_jobs::schedule_poll_sweep(&pool).await?;
+    crate::external_jobs::schedule(&pool).await?;
+    crate::library_jobs::schedule_gc(&pool).await?;
     let jobs_task = tokio::spawn(runner.run(job_rx));
 
     // REST: every feature module, feature-owned routes, and the guild backend.
@@ -658,6 +702,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let _ = job_tx.send(true);
     gateway.shutdown();
     gauge_task.abort();
+    seen_task.abort();
     metrics_task.abort();
     search_consumer.abort();
     if let Some(h) = features_listener {

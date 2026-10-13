@@ -6,6 +6,7 @@ import type {
   Attachment,
   Activity,
   Channel,
+  ChannelPermissions,
   ChannelType,
   DmChannel,
   Guild,
@@ -21,6 +22,7 @@ import type {
 import { cmpId } from '../store/reducer';
 import { canOpenSettingsFromBits } from '../settings/server/permissions';
 import type * as S from '../store/types';
+import type { PermEngine } from './permEngine';
 
 const SNOWFLAKE_EPOCH_MS = 1420070400000n;
 
@@ -37,10 +39,13 @@ export const PERM = {
   MANAGE_CHANNELS: 1n << 4n,
   MANAGE_GUILD: 1n << 5n,
   SEND_MESSAGES: 1n << 11n,
+  VIEW_CHANNEL: 1n << 10n,
   MANAGE_MESSAGES: 1n << 13n,
   MENTION_EVERYONE: 1n << 17n,
   MODERATE_MEMBERS: 1n << 40n,
   PIN_MESSAGES: 1n << 51n,
+  SEND_TTS_MESSAGES: 1n << 12n,
+  CREATE_PUBLIC_THREADS: 1n << 35n,
 } as const;
 
 const ALL_BITS = (1n << 64n) - 1n;
@@ -79,8 +84,68 @@ export function toGuildPermissions(base: bigint): GuildPermissions {
     moderate: has(PERM.MODERATE_MEMBERS),
     manageMessages: has(PERM.MANAGE_MESSAGES),
     mentionEveryone: has(PERM.MENTION_EVERYONE),
-    pinMessages: has(PERM.PIN_MESSAGES) || has(PERM.MANAGE_MESSAGES),
+    pinMessages: has(PERM.PIN_MESSAGES),
     serverSettings: canOpenSettingsFromBits(base),
+  };
+}
+
+/** Inputs for one viewer-in-one-channel computation. */
+export interface ChannelPermInput {
+  guildId: Snowflake;
+  ownerId: Snowflake | undefined;
+  viewerId: Snowflake;
+  viewer: S.Member | undefined;
+  roleById: ReadonlyMap<Snowflake, S.Role>;
+  channel: S.Channel;
+}
+
+/**
+ * The viewer's permissions in one channel via the shared engine (overwrites, timeout, implicit rules).
+ * Returns `undefined` when the viewer's member object is not loaded yet, so callers keep the fallback.
+ */
+export function computeChannelPermissions(
+  engine: PermEngine,
+  i: ChannelPermInput,
+): ChannelPermissions | undefined {
+  const isOwner = !!i.ownerId && i.ownerId === i.viewerId;
+  if (!i.viewer && !isOwner) return undefined;
+  const roleIds = (i.viewer?.roles ?? []).filter((id) => id !== i.guildId);
+  const until = i.viewer?.communication_disabled_until
+    ? Date.parse(i.viewer.communication_disabled_until)
+    : NaN;
+  let bits: bigint;
+  try {
+    bits = BigInt(
+      engine.compute({
+        is_owner: isOwner,
+        everyone: i.roleById.get(i.guildId)?.permissions ?? '0',
+        role_permissions: roleIds.map((id) => i.roleById.get(id)?.permissions ?? '0'),
+        guild_id: i.guildId,
+        member_id: i.viewerId,
+        member_role_ids: roleIds,
+        overwrites: (i.channel.permission_overwrites ?? []).map((o) => ({
+          id: o.id,
+          kind: o.type === 1 ? 'member' : 'role',
+          allow: o.allow,
+          deny: o.deny,
+        })),
+        communication_disabled_until_ms: Number.isFinite(until) ? until : null,
+      }),
+    );
+  } catch {
+    return undefined;
+  }
+  const has = (bit: bigint) => (bits & bit) === bit;
+  return {
+    view: has(PERM.VIEW_CHANNEL),
+    send: has(PERM.SEND_MESSAGES),
+    manageMessages: has(PERM.MANAGE_MESSAGES),
+    pinMessages: has(PERM.PIN_MESSAGES),
+    mentionEveryone: has(PERM.MENTION_EVERYONE),
+    manageChannels: has(PERM.MANAGE_CHANNELS),
+    createInvite: has(PERM.CREATE_INSTANT_INVITE),
+    sendTts: has(PERM.SEND_TTS_MESSAGES),
+    createThreads: has(PERM.CREATE_PUBLIC_THREADS),
   };
 }
 
@@ -118,6 +183,7 @@ export function toLoungeChannel(
   guildId: Snowflake,
   rs: S.ReadState | undefined,
   canSend: boolean,
+  permissions?: ChannelPermissions,
 ): Channel {
   return {
     id: c.id,
@@ -130,7 +196,9 @@ export function toLoungeChannel(
     unread: isUnread(c, rs),
     mentionCount: rs?.mention_count ?? 0,
     lastReadMessageId: rs?.last_message_id ?? null,
-    canSend,
+    canSend: permissions ? permissions.send : canSend,
+    ...(c.nsfw ? { nsfw: true } : {}),
+    ...(permissions ? { permissions } : {}),
     ...(c.rate_limit_per_user ? { slowmodeSeconds: c.rate_limit_per_user } : {}),
   };
 }
@@ -163,13 +231,18 @@ export function toLoungeGuild(
   };
 }
 
+const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
+
 export function toLoungeRole(r: S.Role): Role {
+  const secondary = r.colors?.secondary_color;
   return {
     id: r.id,
     name: r.name,
-    color: r.color ? `#${r.color.toString(16).padStart(6, '0')}` : null,
+    color: r.color ? hex(r.color) : null,
     hoist: !!r.hoist,
     position: r.position,
+    ...(secondary ? { colorSecondary: hex(secondary) } : {}),
+    ...(r.unicode_emoji ? { emoji: r.unicode_emoji } : {}),
   };
 }
 
@@ -226,6 +299,7 @@ export function toLoungeAttachment(a: S.RawAttachment, now = Date.now()): Attach
     url: a.url,
     ...(a.width ? { width: a.width } : {}),
     ...(a.height ? { height: a.height } : {}),
+    ...(a.blurhash ? { blurhash: a.blurhash } : {}),
     // Discord marks spoiler attachments with a filename prefix.
     ...(a.filename.startsWith('SPOILER_') ? { spoiler: true } : {}),
     description: a.description ?? null,
@@ -295,10 +369,34 @@ export function toLoungeMessage(m: S.Message): Message {
     ...(snap
       ? {
           forwarded: {
+            ...(m.message_reference?.channel_id
+              ? {
+                  source: {
+                    channelId: m.message_reference.channel_id,
+                    messageId: m.message_reference.message_id,
+                    ...(m.message_reference.guild_id
+                      ? { guildId: m.message_reference.guild_id }
+                      : {}),
+                  },
+                }
+              : {}),
             content: snap.content ?? '',
             createdAt: snap.timestamp ?? m.timestamp,
             attachments: (snap.attachments ?? []).map((a) => toLoungeAttachment(a)),
             embeds: snap.embeds ?? [],
+          },
+        }
+      : {}),
+    ...(m.message_reference?.channel_id && m.type
+      ? { referenceChannelId: m.message_reference.channel_id }
+      : {}),
+    ...(m.tts ? { tts: true } : {}),
+    ...(m.thread
+      ? {
+          thread: {
+            id: m.thread.id,
+            name: m.thread.name ?? 'Thread',
+            messageCount: m.thread.message_count ?? 0,
           },
         }
       : {}),

@@ -172,3 +172,118 @@ async fn non_member_is_refused() {
         .unwrap_err();
     assert!(matches!(err, ChatError::MissingAccess));
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn guild_from_template_is_created_whole() {
+    use sr_chat::settings::templates::{
+        SnapChannel, SnapOverwrite, SnapRole, SnapSettings, TemplateSnapshot, builtin,
+    };
+    let pool = pool().await;
+    let (svc, ids) = service(&pool);
+    let owner = account(&pool, &ids).await;
+
+    // A built-in template: channels, categories, system channel, owner membership.
+    let gaming = builtin("gaming").unwrap();
+    let bp = svc
+        .create_guild_from_snapshot(owner, "Squad", &gaming.snapshot)
+        .await
+        .unwrap();
+    let gid = bp.guild.id.get() as i64;
+    let names: Vec<String> =
+        sqlx::query_scalar("SELECT name FROM channels WHERE guild_id = $1 ORDER BY position, name")
+            .bind(gid)
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    for want in ["general", "game-chat", "Squad 1", "Games", "Text Channels"] {
+        assert!(names.iter().any(|n| n == want), "{want} in {names:?}");
+    }
+    let (sys, members): (Option<i64>, i64) = sqlx::query_as(
+        "SELECT g.system_channel_id, (SELECT count(*) FROM guild_members WHERE guild_id = g.id) \
+         FROM guilds g WHERE g.id = $1",
+    )
+    .bind(gid)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(sys, bp.guild.system_channel_id.map(|c| c.get() as i64));
+    assert_eq!(members, 1);
+    let parents: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM channels c JOIN channels p ON p.id = c.parent_id \
+         WHERE c.guild_id = $1 AND p.type = 4",
+    )
+    .bind(gid)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        parents, 5,
+        "general, voice General and the three extras sit in categories"
+    );
+
+    // Roles and overwrites come along, in the same transaction.
+    let snap = TemplateSnapshot {
+        settings: SnapSettings {
+            preferred_locale: "en-US".into(),
+            verification_level: 1,
+            default_message_notifications: 0,
+            explicit_content_filter: 0,
+            system_channel_local_id: Some(1),
+        },
+        roles: vec![SnapRole {
+            local_id: 1,
+            name: "Mods".into(),
+            color: 0,
+            hoist: true,
+            position: 1,
+            permissions: 2, // KICK_MEMBERS
+            mentionable: false,
+            unicode_emoji: None,
+        }],
+        channels: vec![SnapChannel {
+            local_id: 1,
+            kind: 0,
+            name: "mods-only".into(),
+            topic: None,
+            position: 0,
+            parent_local_id: None,
+            nsfw: false,
+            rate_limit_per_user: 0,
+            bitrate: None,
+            user_limit: None,
+            overwrites: vec![SnapOverwrite {
+                role_local_id: 1,
+                allow: 1 << 10,
+                deny: 0,
+            }],
+        }],
+    };
+    let bp = svc
+        .create_guild_from_snapshot(owner, "Mods", &snap)
+        .await
+        .unwrap();
+    let gid = bp.guild.id.get() as i64;
+    let roles: i64 = sqlx::query_scalar("SELECT count(*) FROM roles WHERE guild_id = $1")
+        .bind(gid)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(roles, 2, "@everyone and Mods");
+    let ow: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM permission_overwrites o JOIN channels c ON c.id = o.channel_id \
+         WHERE c.guild_id = $1 AND o.allow = $2",
+    )
+    .bind(gid)
+    .bind(1_i64 << 10)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(ow, 1);
+    let level: i16 = sqlx::query_scalar("SELECT verification_level FROM guilds WHERE id = $1")
+        .bind(gid)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(level, 1);
+}

@@ -28,6 +28,8 @@ allow = [
     # (webpki-roots / webpki-root-certs).
     "0BSD",
     "CDLA-Permissive-2.0",
+    # libbz2-rs-sys (7z BZip2 coder): the permissive bzip2 licence.
+    "bzip2-1.0.6",
 ]
 
 # Our own workspace crates are private (publish = false) and carry no licence expression.

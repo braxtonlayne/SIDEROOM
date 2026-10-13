@@ -15,13 +15,21 @@ serde_json.workspace = true
 sr-core = { path = "../sr-core", default-features = false }
 sr-storage = { path = "../sr-storage" }
 tantivy = "0.26"
+tempfile = "3"
 thiserror.workspace = true
-tokio = { workspace = true, features = ["rt", "sync"] }
+tokio = { workspace = true, features = ["rt", "sync", "fs", "io-util"] }
+futures.workspace = true
 tracing = "0.1"
 utoipa = "5"
 zip = { version = "9.0.2", default-features = false, features = ["deflate-flate2"] }
+webp = "0.3.1"
+sevenz-rust2 = { version = "0.24.0", default-features = false, features = ["aes256", "bzip2", "ppmd"] }
+# unrar_sys vendors the UnRAR source under the RARLAB freeware licence (decompression only), though
+# its manifest says MIT OR Apache-2.0; see docs/dev/handoff/feat-p3-library-ingest.md.
+unrar = "0.5.8"
 
 [dev-dependencies]
+sevenz-rust2 = { version = "0.24.0", default-features = false, features = ["aes256", "bzip2", "ppmd", "compress"] }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
 
 [lints]

@@ -19,6 +19,8 @@ import type { Channel, ConnectionStatus, Message, MessageReaction, MessageWindow
 export const ACK_THROTTLE_MS = 1000;
 const ackTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const lastAckAt = new Map<string, number>();
+/** Channels the viewer marked unread: acks stay off until they leave the channel (LNG-MSGUI-026). */
+const heldAcks = new Set<string>();
 
 /** Extras of messages still being delivered, kept so a retry re-sends them. */
 const sentExtras = new Map<string, rest.PostExtras>();
@@ -78,6 +80,8 @@ export interface StoreActions {
   loadMembers: (guildId: string) => Promise<void>;
   loadInitialMessages: (channelId: string) => Promise<void>;
   loadOlderMessages: (channelId: string) => Promise<void>;
+  /** In a jumped-to window: fetch the page after the newest loaded message (LNG-MSGUI-001). */
+  loadNewerMessages: (channelId: string) => Promise<void>;
   /** Optimistic send; `replyToId` makes it a reply. */
   sendMessage: (
     channelId: string,
@@ -104,10 +108,17 @@ export interface StoreActions {
    * channel; a call inside the window is sent once the window ends (trailing).
    */
   ackChannel: (channelId: string) => void;
+  /**
+   * Mark Unread: set the read marker to the message before `messageId` (optimistic) and hold automatic
+   * acks for the channel. Resolves with the id the marker was set to.
+   */
+  markUnread: (channelId: string, messageId: string) => Promise<string>;
+  /** Let automatic acks resume (called when the viewer leaves the channel). */
+  releaseAck: (channelId: string) => void;
   /** Add or remove the signed-in user's reaction (optimistic; rolled back on failure). */
   toggleReaction: (channelId: string, messageId: string, emoji: string) => Promise<void>;
   /** POST /guilds, then hydrate the new guild (channels, roles) into the store. */
-  createGuild: (name: string) => Promise<rest.GuildWithChannels>;
+  createGuild: (name: string, template?: string) => Promise<rest.GuildWithChannels>;
   /** POST /invites/{code}, then load the joined guild. Resolves with the accepted invite. */
   acceptInvite: (code: string) => Promise<rest.Invite>;
   /** POST /guilds/{id}/channels; the channel is added to the store without waiting for the gateway. */
@@ -297,6 +308,40 @@ export const useStore = create<StoreState>()((set, get) => {
       }
     },
 
+    loadNewerMessages: async (channelId) => {
+      const w = get().windows[channelId];
+      const newest = w?.ids.at(-1);
+      if (!w || w.atLatest || w.loading || !newest) return;
+      patchWindow(channelId, { loading: true, error: null });
+      try {
+        const list = await rest.fetchMessages(channelId, { after: newest });
+        set((s) => {
+          const cur = s.windows[channelId] ?? emptyWindow();
+          return {
+            ...ingest(s, list),
+            windows: {
+              ...s.windows,
+              [channelId]: {
+                ...cur,
+                ids: mergeIds(
+                  cur.ids,
+                  list.map((m) => m.id),
+                ),
+                // A short page means the newest message is loaded: live appends resume.
+                atLatest: list.length < rest.PAGE_SIZE,
+                loading: false,
+              },
+            },
+          };
+        });
+      } catch (e) {
+        patchWindow(channelId, {
+          loading: false,
+          error: e instanceof Error ? e.message : 'Failed to load messages',
+        });
+      }
+    },
+
     sendMessage: (channelId, content, replyToId = null, extras) => {
       const s = get();
       const author = s.currentUserId ? s.users[s.currentUserId] : undefined;
@@ -400,7 +445,29 @@ export const useStore = create<StoreState>()((set, get) => {
         return msg;
       }),
 
+    markUnread: async (channelId, messageId) => {
+      const ids = get().windows[channelId]?.ids ?? [];
+      const at = ids.indexOf(messageId);
+      // The loaded window may start at the message: step back one snowflake instead.
+      const before =
+        at > 0 ? ids[at - 1]! : /^\d+$/.test(messageId) ? (BigInt(messageId) - 1n).toString() : '0';
+      heldAcks.add(channelId);
+      set((st) => ({
+        readStates: {
+          ...st.readStates,
+          [channelId]: { channel_id: channelId, last_message_id: before, mention_count: 0 },
+        },
+      }));
+      await rest.markMessageUnread(channelId, before);
+      return before;
+    },
+
+    releaseAck: (channelId) => {
+      heldAcks.delete(channelId);
+    },
+
     ackChannel: (channelId) => {
+      if (heldAcks.has(channelId)) return;
       const fire = () => {
         ackTimers.delete(channelId);
         lastAckAt.set(channelId, Date.now());
@@ -438,8 +505,8 @@ export const useStore = create<StoreState>()((set, get) => {
       }
     },
 
-    createGuild: async (name) => {
-      const guild = await rest.createGuild(name);
+    createGuild: async (name, template) => {
+      const guild = await rest.createGuild(name, template);
       get().applyDispatch('GUILD_CREATE', guild);
       return guild;
     },
@@ -515,5 +582,6 @@ export function resetStore(): void {
   for (const t of ackTimers.values()) clearTimeout(t);
   ackTimers.clear();
   lastAckAt.clear();
+  heldAcks.clear();
   useStore.setState({ ...emptyData(), connection: 'idle' });
 }

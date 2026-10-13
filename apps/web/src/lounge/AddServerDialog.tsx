@@ -1,12 +1,12 @@
 import { useNavigate } from '@tanstack/react-router';
-import { Button, Icon, Modal, TextInput, useToast } from '@sideroom/ui';
-import { useState, type FormEvent } from 'react';
+import { Button, Icon, Modal, TextInput } from '@sideroom/ui';
+import { useEffect, useState, type FormEvent } from 'react';
 import { ApiError } from '../api/client';
 import { useStore } from '../store';
 import type { Channel as StoreChannel } from '../store';
+import { listBuiltinTemplates, type BuiltinTemplate } from '../store/rest';
 import { useCurrentUser } from './data';
 import { inviteErrorMessage, parseInviteCode } from './inviteFlow';
-import { SERVER_TEMPLATES, templateById } from './shell/serverTemplates';
 
 /** Navigate to a guild (and a channel in it when known). */
 export function useGotoGuild() {
@@ -40,9 +40,21 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
   const [link, setLink] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const toast = useToast();
+  // The starter layouts come from the server (GET /guilds/templates/builtin).
+  const [templates, setTemplates] = useState<BuiltinTemplate[] | null>(null);
+  const [templatesFailed, setTemplatesFailed] = useState(false);
+  useEffect(() => {
+    let live = true;
+    listBuiltinTemplates().then(
+      (list) => live && setTemplates(list),
+      () => live && setTemplatesFailed(true),
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
 
-  const template = templateId ? templateById(templateId) : undefined;
+  const template = templateId ? templates?.find((t) => t.id === templateId) : undefined;
 
   const go = (next: Step) => {
     setStep(next);
@@ -56,28 +68,7 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      const store = useStore.getState();
-      const guild = await store.createGuild(trimmed);
-      let failed = false;
-      for (const cat of template?.categories ?? []) {
-        try {
-          const made = await store.createChannel(guild.id, { name: cat.name, type: 4 });
-          for (const ch of cat.channels)
-            await store.createChannel(guild.id, {
-              name: ch.name,
-              type: ch.type,
-              parent_id: made.id,
-            });
-        } catch {
-          failed = true;
-          break;
-        }
-      }
-      if (failed)
-        toast.show({
-          title: 'Server created, but some template channels could not be added.',
-          duration: 6000,
-        });
+      const guild = await useStore.getState().createGuild(trimmed, templateId ?? undefined);
       onClose();
       goto(guild.id, firstText(guild.channels));
     } catch (err) {
@@ -131,26 +122,33 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
             Create My Own
           </Button>
           <h3 className="lng-form-h">Start from a template</h3>
-          <ul className="lng-template-list" aria-label="Templates">
-            {SERVER_TEMPLATES.map((t) => (
-              <li key={t.id}>
-                <button
-                  type="button"
-                  className="lng-template"
-                  onClick={() => {
-                    setTemplateId(t.id);
-                    go('purpose');
-                  }}
-                >
-                  <span className="lng-template-text">
-                    <strong>{t.label}</strong>
-                    <small>{t.blurb}</small>
-                  </span>
-                  <Icon name="chevron-right" size={16} />
-                </button>
-              </li>
-            ))}
-          </ul>
+          {templates && templates.length > 0 && (
+            <ul className="lng-template-list" aria-label="Templates">
+              {templates.map((t) => (
+                <li key={t.id}>
+                  <button
+                    type="button"
+                    className="lng-template"
+                    onClick={() => {
+                      setTemplateId(t.id);
+                      go('purpose');
+                    }}
+                  >
+                    <span className="lng-template-text">
+                      <strong>{t.name}</strong>
+                      <small>{t.description}</small>
+                    </span>
+                    <Icon name="chevron-right" size={16} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {templatesFailed && (
+            <p className="lng-muted" role="status">
+              Templates are unavailable right now. You can still create your own.
+            </p>
+          )}
           <h3 className="lng-form-h">Have an invite already?</h3>
           <Button variant="secondary" fullWidth onClick={() => go('join')}>
             Join a Server
@@ -204,7 +202,7 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
         <form className="lng-form" onSubmit={(e) => void create(e)} noValidate>
           {template && (
             <p className="lng-muted">
-              Starting from the <strong>{template.label}</strong> template
+              Starting from the <strong>{template.name}</strong> template
               {purpose === 'club'
                 ? ' for a community'
                 : purpose === 'friends'

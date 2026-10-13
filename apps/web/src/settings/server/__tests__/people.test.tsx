@@ -30,6 +30,45 @@ describe('Members', () => {
     expect(screen.queryByText('carol')).toBeNull();
   });
 
+  it('prunes inactive members: previews the count, then removes (Discord wording, F-26)', async () => {
+    seed({ perms: [MANAGE.kick] });
+    const counts: string[] = [];
+    const run = capture();
+    server.use(
+      http.get('*/api/v1/guilds/g1/prune', ({ request }) => {
+        const u = new URL(request.url);
+        counts.push(u.search);
+        return HttpResponse.json({ pruned: u.searchParams.get('days') === '30' ? 4 : 2 });
+      }),
+      http.post('*/api/v1/guilds/g1/prune', async ({ request }) => {
+        await run.record(request);
+        return HttpResponse.json({ pruned: 4 });
+      }),
+    );
+    await openSettings('members');
+    await screen.findByText('3 members');
+    await userEvent.click(screen.getByRole('button', { name: 'Prune' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Prune members' });
+    // Last-seen tracking shipped (F-02), so the rule is about presence, as on Discord.
+    expect(dialog).toHaveTextContent(/have not been online for 7 days/);
+    expect(dialog).not.toHaveTextContent(/sent a message/);
+    expect(await within(dialog).findByText('2 members would be removed.')).toBeInTheDocument();
+    await userEvent.selectOptions(within(dialog).getByLabelText('Inactive for'), '30');
+    expect(await within(dialog).findByText('4 members would be removed.')).toBeInTheDocument();
+    expect(counts.at(-1)).toBe('?days=30');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Prune 4 members' }));
+    await waitFor(() => expect(run.calls).toHaveLength(1));
+    expect(run.calls[0]!.body).toEqual({ days: 30, include_roles: [] });
+    expect(await screen.findByText('Pruned 4 members.')).toBeInTheDocument();
+  });
+
+  it('hides Prune without Kick Members', async () => {
+    seed({ perms: [MANAGE.ban] });
+    await openSettings('members');
+    await screen.findByText('3 members');
+    expect(screen.queryByRole('button', { name: 'Prune' })).toBeNull();
+  });
+
   it('kicks with a reason header; hierarchy and self are blocked', async () => {
     seed({ perms: [MANAGE.kick], position: 3 });
     const cap = capture();

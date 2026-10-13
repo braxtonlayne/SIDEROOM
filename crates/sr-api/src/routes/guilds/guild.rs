@@ -2,6 +2,7 @@
 
 use super::dto::{CreateGuildBody, GuildObject, GuildPreviewObject, ModifyGuildBody};
 use super::util::{Api, actor, ce, id};
+use crate::routes::settings::deps::{SettingsDeps, se};
 use crate::routes::{MaybeExt, media::MediaDeps};
 use crate::{AuthKind, Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
 use axum::{
@@ -11,6 +12,9 @@ use axum::{
     routing::{delete, get},
 };
 use sr_chat::admin_rules::GuildPatch;
+use sr_chat::guild_rules::GuildBlueprint;
+use sr_chat::settings::error::SettingsError;
+use sr_chat::settings::templates::{self, TemplateSnapshot};
 use sr_core::{ChannelId, GuildId, UserId};
 use sr_storage::media::MediaKind;
 
@@ -26,7 +30,8 @@ pub fn routes() -> Router<AppState> {
         .route("/users/@me/guilds/{guild_id}", delete(leave_guild))
 }
 
-/// Create a guild with `@everyone`, two categories, `#general` and a voice channel.
+/// Create a guild with `@everyone`, two categories, `#general` and a voice channel, or
+/// from a template (`template`: a built-in id or a template code) in one transaction.
 #[utoipa::path(
     post,
     path = "/guilds",
@@ -40,20 +45,75 @@ pub fn routes() -> Router<AppState> {
 pub async fn create_guild(
     p: Principal,
     Api(api): Api,
+    MaybeExt(settings): MaybeExt<SettingsDeps>,
     Json(body): Json<CreateGuildBody>,
 ) -> ApiResult<(StatusCode, Json<GuildObject>)> {
     let owner = actor(&p)?;
-    let bp = api.create_guild(owner, &body.name).await.map_err(ce)?;
+    let key = body
+        .template
+        .as_deref()
+        .map(str::trim)
+        .filter(|t| !t.is_empty());
+    let Some(key) = key else {
+        let bp = api.create_guild(owner, &body.name).await.map_err(ce)?;
+        return Ok(created(&bp));
+    };
+    let (snapshot, used_code) = resolve_template(settings.as_deref(), key).await?;
+    let bp = api
+        .create_guild_from_snapshot(owner, &body.name, &snapshot)
+        .await
+        .map_err(ce)?;
+    count_template_use(settings.as_deref(), used_code).await;
+    Ok(created(&bp))
+}
+
+/// The snapshot behind `key`: a built-in template id, else a template code. The second
+/// value is the code to count a use against (built-ins are not counted).
+pub(crate) async fn resolve_template(
+    settings: Option<&SettingsDeps>,
+    key: &str,
+) -> ApiResult<(TemplateSnapshot, Option<String>)> {
+    if let Some(b) = templates::builtin(key) {
+        return Ok((b.snapshot.clone(), None));
+    }
+    let Some(settings) = settings else {
+        return Err(se(SettingsError::UnknownTemplate));
+    };
+    let t = settings.service.template_by_code(key).await.map_err(se)?;
+    Ok((t.snapshot, Some(t.code)))
+}
+
+/// Count a use of a user template; a failing counter never fails the creation.
+pub(crate) async fn count_template_use(settings: Option<&SettingsDeps>, code: Option<String>) {
+    if let (Some(settings), Some(code)) = (settings, code)
+        && let Err(e) = settings.service.use_template(&code).await
+    {
+        tracing::warn!(error = %e, "could not count a template use");
+    }
+}
+
+/// The `201` answer for a new guild, with its roles and channels (and their overwrites).
+pub(crate) fn created(bp: &GuildBlueprint) -> (StatusCode, Json<GuildObject>) {
     let channels: Vec<_> = bp
         .channels
         .iter()
-        .map(|c| super::dto::ChannelObject::new(c, &[]))
+        .map(|c| {
+            let ow: Vec<_> = bp
+                .overwrites
+                .iter()
+                .filter(|(ch, _)| *ch == c.id)
+                .map(|(_, o)| *o)
+                .collect();
+            super::dto::ChannelObject::new(c, &ow)
+        })
         .collect();
-    let roles = [bp.everyone_role.clone()];
-    Ok((
+    let roles: Vec<_> = std::iter::once(bp.everyone_role.clone())
+        .chain(bp.extra_roles.iter().cloned())
+        .collect();
+    (
         StatusCode::CREATED,
         Json(GuildObject::new(&bp.guild, Some(&roles), Some(&channels))),
-    ))
+    )
 }
 
 /// Get a guild (members only).

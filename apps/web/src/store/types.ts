@@ -33,6 +33,12 @@ export interface Channel {
   rate_limit_per_user?: number;
   /** DM / group DM participants. */
   recipients?: User[];
+  /** DM from a non-friend awaiting acceptance; such channels stay out of the DM list. */
+  is_message_request?: boolean | null;
+  /** Age-restricted channel (the Lounge asks the viewer to confirm they are 18 or older). */
+  nsfw?: boolean;
+  /** Per-channel role/member overwrites (type 0 role, 1 member; allow/deny are decimal strings). */
+  permission_overwrites?: { id: string; type: number; allow: string; deny: string }[];
 }
 
 export interface Role {
@@ -44,6 +50,14 @@ export interface Role {
   /** Permission bitfield as a decimal string. */
   permissions: string;
   hoist?: boolean;
+  /** Role icon emoji (shown next to the name in messages). */
+  unicode_emoji?: string | null;
+  /** Discord gradient roles: secondary and tertiary colours (integers). Not sent by the server yet. */
+  colors?: {
+    primary_color?: number;
+    secondary_color?: number | null;
+    tertiary_color?: number | null;
+  };
 }
 
 export interface Member {
@@ -52,6 +66,8 @@ export interface Member {
   nick?: string | null;
   roles: string[];
   joined_at?: string;
+  /** ISO end of the member's timeout, when timed out. */
+  communication_disabled_until?: string | null;
 }
 
 export interface Message {
@@ -85,6 +101,10 @@ export interface Message {
   poll?: RawPoll | null;
   components?: RawComponent[];
   message_snapshots?: { message: Partial<Message> }[];
+  /** Text-to-speech message (needs SEND_TTS_MESSAGES). */
+  tts?: boolean;
+  /** The thread started from this message (its id is the message id). */
+  thread?: { id: string; name?: string | null; message_count?: number | null } | null;
   /** Client-only: set while the message is optimistic. Absent on server messages. */
   local?: LocalState;
 }
@@ -114,6 +134,8 @@ export interface RawAttachment {
   duration_secs?: number | null;
   /** Base64 amplitude bytes (voice messages). */
   waveform?: string | null;
+  /** BlurHash placeholder (images), declared by the uploader. */
+  blurhash?: string | null;
   expires_at?: string | null;
 }
 
@@ -124,12 +146,16 @@ export interface RawEmbed {
   url?: string;
   color?: number;
   timestamp?: string;
-  footer?: { text: string; icon_url?: string };
-  image?: { url?: string; width?: number; height?: number };
-  thumbnail?: { url?: string; width?: number; height?: number };
-  video?: { url?: string; width?: number; height?: number };
+  footer?: { text: string; icon_url?: string; proxy_icon_url?: string };
+  /**
+   * `proxy_url` (a same-origin `/cdn/external/...` path, D-176) is the only form of a third-party
+   * image the client loads without a click; `url` is the original on the other site.
+   */
+  image?: { url?: string; proxy_url?: string; width?: number; height?: number };
+  thumbnail?: { url?: string; proxy_url?: string; width?: number; height?: number };
+  video?: { url?: string; proxy_url?: string; width?: number; height?: number };
   provider?: { name?: string; url?: string };
-  author?: { name: string; url?: string; icon_url?: string };
+  author?: { name: string; url?: string; icon_url?: string; proxy_icon_url?: string };
   fields?: { name: string; value: string; inline?: boolean }[];
 }
 
@@ -195,3 +221,9 @@ export interface MessageWindow {
 }
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'closed';
+
+/** The synced per-user settings blob (`/users/@me/settings`): a client-owned JSON object plus its version. */
+export interface UserSettingsBlob {
+  version: number;
+  settings: Record<string, unknown>;
+}

@@ -6,6 +6,7 @@ import { createAppRouter } from '../../router';
 import { resetStore, useStore } from '../../store';
 import { http, HttpResponse, server } from '../../test/server';
 import { useLoungeUi } from '../store';
+import { neighborsOf, resetHitContext } from '../searchContext';
 import {
   applyFilterOption,
   currentToken,
@@ -200,6 +201,50 @@ describe('search box UI', () => {
     await userEvent.click(within(panel).getByRole('button', { name: 'Next' }));
     await waitFor(() => expect(params.at(-1)!.get('offset')).toBe('25'));
     expect(await within(panel).findByText('Page 2 of 3')).toBeInTheDocument();
+    expect(await axeViolations(panel)).toEqual([]);
+  });
+
+  it('shows the message before and after each result (LNG-SRC-005)', async () => {
+    resetHitContext();
+    const asked: string[] = [];
+    server.use(
+      http.get('*/api/v1/channels/c1/messages', ({ request }) => {
+        const p = new URL(request.url).searchParams;
+        asked.push(`${p.get('around')}:${p.get('limit')}`);
+        const id = p.get('around')!;
+        // Newest first, like the server: one after, the hit, one before.
+        const n = BigInt(id);
+        return HttpResponse.json(
+          [n + 1n, n, n - 1n].map((i) => ({
+            id: String(i),
+            channel_id: 'c1',
+            author: i === n ? bob : me,
+            content: i === n ? 'the hit' : i > n ? 'came after' : 'came before',
+            timestamp: '2026-01-01T00:00:00Z',
+          })),
+        );
+      }),
+      http.get('*/api/v1/guilds/g1/messages/search', () =>
+        HttpResponse.json({
+          total_results: 2,
+          messages: [
+            [hit('1000000000000000010', 'c1', 'first')],
+            [hit('1000000000000000020', 'c1', 'second')],
+          ],
+        }),
+      ),
+    );
+    const { box } = await open();
+    await userEvent.type(box, 'x{Enter}');
+    const panel = await screen.findByRole('region', { name: 'Search results' });
+    expect(await within(panel).findAllByText(/came before/)).toHaveLength(2);
+    expect(within(panel).getAllByText(/came after/)).toHaveLength(2);
+    expect(asked.filter((a) => !a.startsWith('null')).every((a) => a.endsWith(':3'))).toBe(true);
+    expect(neighborsOf([{ id: '5' }, { id: '4', content: 'a' }], '4')).toEqual({
+      before: null,
+      after: { id: '5', author: 'Someone', text: '' },
+    });
+    expect(neighborsOf([{ id: '5' }], '9')).toEqual({ before: null, after: null });
     expect(await axeViolations(panel)).toEqual([]);
   });
 

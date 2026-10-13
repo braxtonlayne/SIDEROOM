@@ -2303,6 +2303,169 @@
         ]
       }
     },
+    "/admin/library/chapters/{chapter_id}/uploads": {
+      "get": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "The latest uploads of a chapter, newest first (`PUBLISH_READING`).",
+        "operationId": "admin_library_chapter_uploads",
+        "parameters": [
+          {
+            "name": "chapter_id",
+            "in": "path",
+            "description": "Chapter snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Reserve an upload slot for a chapter's file and get the presigned `PUT` URL (`PUBLISH_READING`).",
+        "description": "The file's extension must fit the chapter's format (`.cbz .zip .cb7 .7z .cbr .rar` for\nimages, `.epub`, `.pdf`). Send the bytes to `upload_url` with `PUT`, then call the\n`complete` endpoint. A slot that is never completed expires after a day.",
+        "operationId": "admin_library_begin_upload",
+        "parameters": [
+          {
+            "name": "chapter_id",
+            "in": "path",
+            "description": "Chapter snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadSlot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The chapter already has an upload being converted, or uploads are not available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/library/editions/{edition_id}": {
       "put": {
         "tags": [
@@ -3087,6 +3250,44 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "edition",
+            "in": "query",
+            "description": "Only this edition's chapters.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1 to 500. Without it every chapter is returned.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "description": "Cursor from the previous page's `next_cursor`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "description": "`asc` (default) or `desc`: edition, then chapter number, then id.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -3096,6 +3297,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ChapterList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -3449,6 +3660,160 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/library/uploads/{upload_id}": {
+      "get": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Poll an upload: `awaiting_upload`, `queued`, `running`, `done`, `failed` or `expired`\n(`PUBLISH_READING`).",
+        "operationId": "admin_library_upload",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "description": "Upload snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Upload"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/library/uploads/{upload_id}/complete": {
+      "post": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "The file is uploaded: check it and queue the conversion (`PUBLISH_READING`). Repeating the call\nfor a queued or finished upload returns it unchanged.",
+        "operationId": "admin_library_complete_upload",
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "description": "Upload snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Upload"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The file is missing or over the size limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
             "description": "",
             "content": {
               "application/json": {
@@ -8070,7 +8435,7 @@
         "tags": [
           "guild"
         ],
-        "summary": "Create a guild with `@everyone`, two categories, `#general` and a voice channel.",
+        "summary": "Create a guild with `@everyone`, two categories, `#general` and a voice channel, or\nfrom a template (`template`: a built-in id or a template code) in one transaction.",
         "operationId": "create_guild",
         "requestBody": {
           "content": {
@@ -8094,6 +8459,48 @@
             }
           },
           "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/templates/builtin": {
+      "get": {
+        "tags": [
+          "templates"
+        ],
+        "summary": "The built-in templates of the Create a Server wizard (any signed-in user).",
+        "operationId": "list_builtin_templates",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BuiltinTemplateObject"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
             "description": "",
             "content": {
               "application/json": {
@@ -8139,6 +8546,74 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TemplateObject"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "templates"
+        ],
+        "summary": "Create a server from a template (a built-in id or a template code) in one\ntransaction; the caller owns it. One `GUILD_CREATE`.",
+        "operationId": "create_guild_from_template",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "description": "Built-in template id or template code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuildFromTemplateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The new guild with its roles and channels",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuildObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -12831,6 +13306,218 @@
         ]
       }
     },
+    "/library/bookmarks/{bookmark_id}": {
+      "delete": {
+        "tags": [
+          "reading"
+        ],
+        "summary": "Remove one of the caller's bookmarks.",
+        "operationId": "library_delete_bookmark",
+        "parameters": [
+          {
+            "name": "bookmark_id",
+            "in": "path",
+            "description": "Bookmark snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/chapters/{chapter_id}/bookmarks": {
+      "get": {
+        "tags": [
+          "reading"
+        ],
+        "summary": "The caller's bookmarks in a chapter.",
+        "operationId": "library_chapter_bookmarks",
+        "parameters": [
+          {
+            "name": "chapter_id",
+            "in": "path",
+            "description": "Chapter snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookmarkList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "reading"
+        ],
+        "summary": "Bookmark a page, or change the note of the bookmark already on it.",
+        "operationId": "library_put_bookmark",
+        "parameters": [
+          {
+            "name": "chapter_id",
+            "in": "path",
+            "description": "Chapter snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookmarkInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Bookmark"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The chapter already holds 200 bookmarks.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/library/chapters/{chapter_id}/pages": {
       "get": {
         "tags": [
@@ -12899,6 +13586,361 @@
         ]
       }
     },
+    "/library/chapters/{chapter_id}/progress": {
+      "get": {
+        "tags": [
+          "reading"
+        ],
+        "summary": "The caller's saved progress in a chapter.",
+        "operationId": "library_get_progress",
+        "parameters": [
+          {
+            "name": "chapter_id",
+            "in": "path",
+            "description": "Chapter snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Progress"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Age confirmation required (900011).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown chapter, or no progress saved yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "reading"
+        ],
+        "summary": "Save reading progress. With `base_updated_at_ms` a newer stored position is kept and returned\nwith `applied: false` so the client can ask \"continue where?\"; repeat with `force` to overwrite.",
+        "operationId": "library_put_progress",
+        "parameters": [
+          {
+            "name": "chapter_id",
+            "in": "path",
+            "description": "Chapter snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProgressInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProgressSaved"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Age confirmation required (900011).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "reading"
+        ],
+        "summary": "Mark a chapter unread (forget its progress).",
+        "operationId": "library_delete_progress",
+        "parameters": [
+          {
+            "name": "chapter_id",
+            "in": "path",
+            "description": "Chapter snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/chapters/{chapter_id}/read": {
+      "post": {
+        "tags": [
+          "reading"
+        ],
+        "summary": "Mark a chapter read or unread, and with `up_to` every earlier chapter of its edition.",
+        "operationId": "library_mark_read",
+        "parameters": [
+          {
+            "name": "chapter_id",
+            "in": "path",
+            "description": "Chapter snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadMarkInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadMarkResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/me/bookmarks": {
+      "get": {
+        "tags": [
+          "reading"
+        ],
+        "summary": "All of the caller's bookmarks with series and chapter titles, newest first.",
+        "operationId": "library_my_bookmarks",
+        "parameters": [
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Cursor from the previous page\\'s `next_before`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 24.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookmarkPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/library/me/follows": {
       "get": {
         "tags": [
@@ -12944,6 +13986,83 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/FollowPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/library/me/progress": {
+      "get": {
+        "tags": [
+          "reading"
+        ],
+        "summary": "Reading history, newest first (\"pick up where you left off\", the history page).",
+        "operationId": "library_my_progress",
+        "parameters": [
+          {
+            "name": "per_series",
+            "in": "query",
+            "description": "Keep only the latest chapter of each series (default true).",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Cursor from the previous page\\'s `next_before`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 24.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -13271,6 +14390,35 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1 to 500. Without it every chapter is returned.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "description": "Cursor from the previous page's `next_cursor`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "description": "`asc` (default) or `desc`: edition, then chapter number, then id.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -13280,6 +14428,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ChapterList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -13556,10 +14714,52 @@
         ]
       }
     },
+    "/sr/auth/email/cancel": {
+      "post": {
+        "tags": [],
+        "summary": "`POST /sr/auth/email/cancel {token}`: the \"This wasn't me\" link of an email-change\nnotice. No login needed. While the change is still pending it is cancelled; once it\nhas completed, every session and trusted device is revoked instead. The token works\nonce, within 7 days.",
+        "operationId": "cancel_change_email",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelEmailChangeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Pending change cancelled, or all sessions revoked"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/sr/auth/email/change": {
       "post": {
         "tags": [],
-        "summary": "`POST /sr/auth/email/change {new_email, password}`: start an email change. A\nconfirmation link goes to the new address; the old one stays until it is used.\nOne request per minute per account. `204` also when the address belongs to\nsomeone else, so the endpoint is not an account-existence oracle (the mail is\nsimply not sent).",
+        "summary": "`POST /sr/auth/email/change {new_email, password, mfa?}`: start an email change. A\nconfirmation link goes to the new address; the old one stays until it is used, and\nreceives a notice with a \"This wasn't me\" link. With two-factor authentication on,\n`mfa {method, code}` is required unless this session passed a second-factor check\nin the last 15 minutes. One request per minute per account. `204` also when the address belongs to\nsomeone else, so the endpoint is not an account-existence oracle (the mail is\nsimply not sent).",
         "operationId": "change_email",
         "requestBody": {
           "content": {
@@ -13596,6 +14796,427 @@
             }
           },
           "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/sr/auth/passkeys": {
+      "get": {
+        "tags": [],
+        "summary": "`GET /sr/auth/passkeys`: the account's passkeys, oldest first.",
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PasskeyView"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/sr/auth/passkeys/login/begin": {
+      "post": {
+        "tags": [],
+        "summary": "`POST /sr/auth/passkeys/login/begin {second_factor?}`: no login needed.",
+        "operationId": "login_begin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginBeginBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BeginResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sr/auth/passkeys/login/finish": {
+      "post": {
+        "tags": [],
+        "summary": "`POST /sr/auth/passkeys/login/finish`: complete a passkey-only login. Sets the\nsession cookie and answers `{status: \"ok\"}`. User verification was required, so no\nfurther factor is asked.",
+        "operationId": "login_finish",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginFinishBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "`{status: \"ok\"}` and a session cookie"
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sr/auth/passkeys/register/begin": {
+      "post": {
+        "tags": [],
+        "summary": "`POST /sr/auth/passkeys/register/begin {password}`: re-check the password and\nstart a registration ceremony for the signed-in account.",
+        "operationId": "register_begin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordBodyDoc"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BeginResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/sr/auth/passkeys/register/finish": {
+      "post": {
+        "tags": [],
+        "summary": "`POST /sr/auth/passkeys/register/finish`: verify the new credential and store it.",
+        "operationId": "register_finish",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterFinishBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterFinishResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/sr/auth/passkeys/verify/begin": {
+      "post": {
+        "tags": [],
+        "summary": "`POST /sr/auth/passkeys/verify/begin`: start a second-factor ceremony for the\nsigned-in account (the email-change re-prompt). The result goes into\n`mfa: {method: \"passkey\", code}` as a JSON string of\n`{ceremony_id, credential}`.",
+        "operationId": "verify_begin",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BeginResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/sr/auth/passkeys/{id}": {
+      "delete": {
+        "tags": [],
+        "summary": "`DELETE /sr/auth/passkeys/{id} {password}`: remove a passkey (password re-check).\nRemoving the last second factor also drops the recovery codes.",
+        "operationId": "remove",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Passkey id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordBodyDoc"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [],
+        "summary": "`PATCH /sr/auth/passkeys/{id} {name}`: rename.",
+        "operationId": "rename",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Passkey id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
             "description": "",
             "content": {
               "application/json": {
@@ -16317,6 +17938,54 @@
           }
         }
       },
+      "AssertionCredential": {
+        "type": "object",
+        "description": "The assertion a browser produced for `navigator.credentials.get`.",
+        "required": [
+          "rawId",
+          "response"
+        ],
+        "properties": {
+          "rawId": {
+            "type": "string",
+            "description": "base64url credential id."
+          },
+          "response": {
+            "$ref": "#/components/schemas/AssertionFields",
+            "description": "The authenticator's response."
+          }
+        }
+      },
+      "AssertionFields": {
+        "type": "object",
+        "description": "Assertion response fields (all base64url, no padding).",
+        "required": [
+          "clientDataJSON",
+          "authenticatorData",
+          "signature"
+        ],
+        "properties": {
+          "authenticatorData": {
+            "type": "string",
+            "description": "`authenticatorData`."
+          },
+          "clientDataJSON": {
+            "type": "string",
+            "description": "`clientDataJSON`."
+          },
+          "signature": {
+            "type": "string",
+            "description": "`signature`."
+          },
+          "userHandle": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`userHandle` (present for discoverable credentials)."
+          }
+        }
+      },
       "AttachmentObject": {
         "type": "object",
         "required": [
@@ -16326,6 +17995,13 @@
           "url"
         ],
         "properties": {
+          "blurhash": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "BlurHash placeholder to show until the image loads."
+          },
           "content_type": {
             "type": [
               "string",
@@ -16356,6 +18032,14 @@
           "filename": {
             "type": "string"
           },
+          "height": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
           "id": {
             "type": "string"
           },
@@ -16374,6 +18058,15 @@
               "null"
             ],
             "description": "Voice messages: base64 waveform."
+          },
+          "width": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Pixel size, as declared by the uploader.",
+            "minimum": 0
           }
         }
       },
@@ -16666,6 +18359,163 @@
           }
         }
       },
+      "BeginResponse": {
+        "type": "object",
+        "description": "Response of every `.../begin` route.",
+        "required": [
+          "ceremony_id",
+          "options"
+        ],
+        "properties": {
+          "ceremony_id": {
+            "type": "string",
+            "description": "Send back with the finish call."
+          },
+          "options": {
+            "description": "`PublicKeyCredentialCreationOptions` / `RequestOptions` JSON with base64url\nbinary fields; pass to `navigator.credentials.create/get({ publicKey })`\nafter decoding those fields."
+          }
+        }
+      },
+      "Bookmark": {
+        "type": "object",
+        "required": [
+          "id",
+          "chapter_id",
+          "series_id",
+          "page_index",
+          "note",
+          "created_at_ms"
+        ],
+        "properties": {
+          "chapter_id": {
+            "type": "string"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "page_index": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "series_id": {
+            "type": "string"
+          }
+        }
+      },
+      "BookmarkEntry": {
+        "type": "object",
+        "description": "A bookmark with the titles the \"my bookmarks\" list shows.",
+        "required": [
+          "bookmark",
+          "series_title",
+          "chapter_number"
+        ],
+        "properties": {
+          "bookmark": {
+            "$ref": "#/components/schemas/Bookmark"
+          },
+          "chapter_number": {
+            "type": "number",
+            "format": "double"
+          },
+          "chapter_title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "series_title": {
+            "type": "string"
+          }
+        }
+      },
+      "BookmarkInput": {
+        "type": "object",
+        "description": "Body of `PUT /library/chapters/{id}/bookmarks`.",
+        "required": [
+          "page_index"
+        ],
+        "properties": {
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "page_index": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "BookmarkList": {
+        "type": "object",
+        "required": [
+          "bookmarks"
+        ],
+        "properties": {
+          "bookmarks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Bookmark"
+            }
+          }
+        }
+      },
+      "BookmarkPage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BookmarkEntry"
+            }
+          },
+          "next_before": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass back as `before` for the next page; absent at the end."
+          }
+        }
+      },
+      "BuiltinTemplateObject": {
+        "type": "object",
+        "description": "A template shipped with the server.",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "serialized_source_guild"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "description": "Pass as `template` to `POST /guilds`, or as the path code of\n`POST /guilds/templates/{code}`."
+          },
+          "name": {
+            "type": "string"
+          },
+          "serialized_source_guild": {
+            "type": "object",
+            "description": "The snapshot: `settings`, `roles` and `channels` with local ids."
+          }
+        }
+      },
       "BulkAckBody": {
         "type": "object",
         "required": [
@@ -16706,6 +18556,19 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "CancelEmailChangeBody": {
+        "type": "object",
+        "description": "Body for `POST /sr/auth/email/cancel`.",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "The token from the \"This wasn't me\" link."
           }
         }
       },
@@ -16755,6 +18618,17 @@
           "password"
         ],
         "properties": {
+          "mfa": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MfaProof",
+                "description": "Second factor. Required when the account has two-factor authentication on,\nunless this session passed a second-factor check in the last 15 minutes."
+              }
+            ]
+          },
           "new_email": {
             "type": "string"
           },
@@ -17211,6 +19085,13 @@
               "$ref": "#/components/schemas/Edition"
             }
           },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass back as `after` for the next page; absent at the end or when no `limit` was given."
+          },
           "volumes": {
             "type": "array",
             "items": {
@@ -17224,7 +19105,8 @@
         "required": [
           "page_index",
           "percent",
-          "completed"
+          "completed",
+          "updated_at_ms"
         ],
         "properties": {
           "completed": {
@@ -17237,6 +19119,11 @@
           "percent": {
             "type": "number",
             "format": "float"
+          },
+          "updated_at_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "When this progress was last saved; send it back as `base_updated_at_ms` when saving."
           }
         }
       },
@@ -17491,6 +19378,13 @@
           },
           "name": {
             "type": "string"
+          },
+          "template": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A built-in template id (see `GET /guilds/templates/builtin`) or a template code.\nThe server is created from it in one step."
           }
         }
       },
@@ -18362,6 +20256,13 @@
           "file_size"
         ],
         "properties": {
+          "blurhash": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Images: BlurHash of the picture, shown until it loads."
+          },
           "content_type": {
             "type": [
               "string",
@@ -18383,6 +20284,14 @@
           "filename": {
             "type": "string"
           },
+          "height": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
           "id": {
             "type": [
               "string",
@@ -18395,6 +20304,15 @@
               "boolean",
               "null"
             ]
+          },
+          "width": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Images and videos: pixel size (1 to 16384 each, both or neither).",
+            "minimum": 0
           }
         }
       },
@@ -18560,6 +20478,26 @@
             "format": "int32",
             "description": "Slowmode (seconds) new posts start with.",
             "minimum": 0
+          }
+        }
+      },
+      "GuildFromTemplateBody": {
+        "type": "object",
+        "description": "Body of `POST /guilds/templates/{code}`.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Accepted for compatibility; icon upload arrives with the media pipeline."
+          },
+          "name": {
+            "type": "string",
+            "description": "2-100 characters."
           }
         }
       },
@@ -18776,6 +20714,44 @@
               "boolean",
               "null"
             ]
+          }
+        }
+      },
+      "HistoryItem": {
+        "type": "object",
+        "description": "One row of the reading history.",
+        "required": [
+          "series",
+          "chapter"
+        ],
+        "properties": {
+          "chapter": {
+            "$ref": "#/components/schemas/Chapter",
+            "description": "The chapter, with `progress` set."
+          },
+          "series": {
+            "$ref": "#/components/schemas/Series"
+          }
+        }
+      },
+      "HistoryPage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HistoryItem"
+            }
+          },
+          "next_before": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass back as `before` for the next page; absent at the end."
           }
         }
       },
@@ -19222,6 +21198,16 @@
           }
         }
       },
+      "LoginBeginBody": {
+        "type": "object",
+        "description": "Body for `POST /sr/auth/passkeys/login/begin`.",
+        "properties": {
+          "second_factor": {
+            "type": "boolean",
+            "description": "Start the second-factor ceremony of the password login waiting on the\n`sr_mfa` cookie (finish through `POST /sr/auth/2fa`, method `passkey`)\ninstead of passkey-only login."
+          }
+        }
+      },
       "LoginEvent": {
         "type": "object",
         "required": [
@@ -19241,6 +21227,24 @@
           },
           "success": {
             "type": "boolean"
+          }
+        }
+      },
+      "LoginFinishBody": {
+        "type": "object",
+        "description": "Body for `POST /sr/auth/passkeys/login/finish`.",
+        "required": [
+          "ceremony_id",
+          "credential"
+        ],
+        "properties": {
+          "ceremony_id": {
+            "type": "string",
+            "description": "From `login/begin`."
+          },
+          "credential": {
+            "$ref": "#/components/schemas/AssertionCredential",
+            "description": "The result of `navigator.credentials.get`."
           }
         }
       },
@@ -19558,6 +21562,24 @@
           "state": {
             "type": "string",
             "description": "`accepted`, `ignored` or `spam`."
+          }
+        }
+      },
+      "MfaProof": {
+        "type": "object",
+        "description": "A second-factor proof (D-167).",
+        "required": [
+          "method",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "The authenticator code or an unused recovery code."
+          },
+          "method": {
+            "type": "string",
+            "description": "`totp`, `recovery` or `passkey` (then `code` is the JSON text of\n`{ceremony_id, credential}` from `POST /sr/auth/passkeys/verify/begin` and\n`navigator.credentials.get`)."
           }
         }
       },
@@ -20412,6 +22434,13 @@
           },
           "reading_direction": {
             "$ref": "#/components/schemas/ReadingDirection"
+          },
+          "source_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Signed link to the original file of an EPUB or PDF chapter (such a chapter has no pages)."
           }
         }
       },
@@ -20446,6 +22475,54 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "PasskeyView": {
+        "type": "object",
+        "description": "A passkey as the settings page shows it.",
+        "required": [
+          "id",
+          "name",
+          "created_at",
+          "backup_eligible"
+        ],
+        "properties": {
+          "backup_eligible": {
+            "type": "boolean",
+            "description": "Synced (multi-device) passkey."
+          },
+          "created_at": {
+            "type": "string",
+            "description": "ISO 8601."
+          },
+          "id": {
+            "type": "string",
+            "description": "Row id (a snowflake as a string)."
+          },
+          "last_used_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO 8601, null until first used."
+          },
+          "name": {
+            "type": "string",
+            "description": "Label."
+          }
+        }
+      },
+      "PasswordBodyDoc": {
+        "type": "object",
+        "description": "Documentation stand-in for [`PasswordBody`].",
+        "required": [
+          "password"
+        ],
+        "properties": {
+          "password": {
+            "type": "string",
+            "description": "The current password."
           }
         }
       },
@@ -20838,6 +22915,114 @@
           }
         }
       },
+      "Progress": {
+        "type": "object",
+        "description": "A member's progress in one chapter.",
+        "required": [
+          "chapter_id",
+          "series_id",
+          "page_index",
+          "percent",
+          "completed",
+          "updated_at_ms"
+        ],
+        "properties": {
+          "cfi": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "chapter_id": {
+            "type": "string"
+          },
+          "completed": {
+            "type": "boolean"
+          },
+          "page_index": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "percent": {
+            "type": "number",
+            "format": "float"
+          },
+          "series_id": {
+            "type": "string"
+          },
+          "updated_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ProgressInput": {
+        "type": "object",
+        "description": "Body of `PUT /library/chapters/{id}/progress`.",
+        "required": [
+          "page_index",
+          "percent"
+        ],
+        "properties": {
+          "base_updated_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "`updated_at_ms` of the progress this client last saw (`0` for none). When the stored\nprogress is newer the write is not applied and the stored one is returned."
+          },
+          "cfi": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "EPUB position."
+          },
+          "completed": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Defaults to `percent >= 100`."
+          },
+          "force": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Write even if the stored progress is newer (the member chose their own position)."
+          },
+          "page_index": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Page index (images/PDF) or spine item index (EPUB), from 0."
+          },
+          "percent": {
+            "type": "number",
+            "format": "float",
+            "description": "0 to 100."
+          }
+        }
+      },
+      "ProgressSaved": {
+        "type": "object",
+        "description": "Answer of a progress save.",
+        "required": [
+          "progress",
+          "applied"
+        ],
+        "properties": {
+          "applied": {
+            "type": "boolean",
+            "description": "`false`: the stored progress was newer than `base_updated_at_ms` and was left alone, so\nthe client should ask \"continue where?\" and may repeat the save with `force`."
+          },
+          "progress": {
+            "$ref": "#/components/schemas/Progress",
+            "description": "What is stored now."
+          }
+        }
+      },
       "PromptDto": {
         "type": "object",
         "required": [
@@ -20939,6 +23124,40 @@
           }
         }
       },
+      "ReadMarkInput": {
+        "type": "object",
+        "description": "Body of `POST /library/chapters/{id}/read`.",
+        "required": [
+          "read"
+        ],
+        "properties": {
+          "read": {
+            "type": "boolean",
+            "description": "`true` marks read, `false` unread."
+          },
+          "up_to": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Also mark every earlier chapter of the same edition."
+          }
+        }
+      },
+      "ReadMarkResult": {
+        "type": "object",
+        "required": [
+          "changed"
+        ],
+        "properties": {
+          "changed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Chapters whose mark changed.",
+            "minimum": 0
+          }
+        }
+      },
       "ReadStateObject": {
         "type": "object",
         "required": [
@@ -21005,6 +23224,90 @@
           }
         }
       },
+      "RegisterFinishBody": {
+        "type": "object",
+        "description": "Body for `POST /sr/auth/passkeys/register/finish`.",
+        "required": [
+          "ceremony_id",
+          "credential"
+        ],
+        "properties": {
+          "ceremony_id": {
+            "type": "string",
+            "description": "From `register/begin`."
+          },
+          "credential": {
+            "$ref": "#/components/schemas/RegistrationCredential",
+            "description": "The result of `navigator.credentials.create`."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Label for the new passkey (default `Passkey`)."
+          }
+        }
+      },
+      "RegisterFinishResponse": {
+        "type": "object",
+        "description": "Response of `POST /sr/auth/passkeys/register/finish`.",
+        "required": [
+          "passkey"
+        ],
+        "properties": {
+          "passkey": {
+            "$ref": "#/components/schemas/PasskeyView",
+            "description": "The stored passkey."
+          },
+          "recovery_codes": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Present when the account had no unused recovery codes: ten fresh codes, shown\nonce. A passkey makes password logins ask for a second factor, so there must\nbe a way back in without it."
+          }
+        }
+      },
+      "RegistrationCredential": {
+        "type": "object",
+        "description": "The base64url-encoded credential a browser produced (`PublicKeyCredential`\nserialised by the web app).",
+        "required": [
+          "rawId",
+          "response"
+        ],
+        "properties": {
+          "rawId": {
+            "type": "string",
+            "description": "base64url credential id."
+          },
+          "response": {
+            "$ref": "#/components/schemas/RegistrationResponse",
+            "description": "The authenticator's response."
+          }
+        }
+      },
+      "RegistrationResponse": {
+        "type": "object",
+        "description": "Registration response fields (all base64url, no padding).",
+        "required": [
+          "clientDataJSON",
+          "attestationObject"
+        ],
+        "properties": {
+          "attestationObject": {
+            "type": "string",
+            "description": "`attestationObject`."
+          },
+          "clientDataJSON": {
+            "type": "string",
+            "description": "`clientDataJSON`."
+          }
+        }
+      },
       "RelationshipObject": {
         "type": "object",
         "required": [
@@ -21034,6 +23337,19 @@
           },
           "user": {
             "$ref": "#/components/schemas/UserObject"
+          }
+        }
+      },
+      "RenameBody": {
+        "type": "object",
+        "description": "Body for `PATCH /sr/auth/passkeys/{id}`.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "New label, 1 to 64 characters."
           }
         }
       },
@@ -22558,6 +24874,129 @@
           }
         }
       },
+      "Upload": {
+        "type": "object",
+        "description": "An upload as the API shows it (the status the client polls).",
+        "required": [
+          "id",
+          "chapter_id",
+          "series_id",
+          "filename",
+          "kind",
+          "size_bytes",
+          "status",
+          "warnings",
+          "metadata",
+          "created_at_ms",
+          "updated_at_ms"
+        ],
+        "properties": {
+          "chapter_id": {
+            "type": "string"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the upload failed, naming the offending page or file."
+          },
+          "filename": {
+            "type": "string"
+          },
+          "finished_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/UploadKind"
+          },
+          "metadata": {
+            "description": "Title, number, volume, writers and so on read from the file, for the editor to offer."
+          },
+          "page_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Pages stored (archives) or spine items (EPUB)."
+          },
+          "series_id": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "$ref": "#/components/schemas/UploadStatus"
+          },
+          "updated_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Ignored files and unreadable metadata."
+          }
+        }
+      },
+      "UploadKind": {
+        "type": "string",
+        "description": "What an uploaded file is expected to be (from the chapter's format).",
+        "enum": [
+          "archive",
+          "epub",
+          "pdf"
+        ]
+      },
+      "UploadList": {
+        "type": "object",
+        "required": [
+          "uploads"
+        ],
+        "properties": {
+          "uploads": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Upload"
+            }
+          }
+        }
+      },
+      "UploadRequest": {
+        "type": "object",
+        "description": "Body of `POST /admin/library/chapters/{id}/uploads`.",
+        "required": [
+          "filename",
+          "size_bytes"
+        ],
+        "properties": {
+          "filename": {
+            "type": "string",
+            "description": "Original file name; its extension must fit the chapter's format."
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "UploadSlot": {
         "type": "object",
         "required": [
@@ -22633,6 +25072,18 @@
             }
           }
         }
+      },
+      "UploadStatus": {
+        "type": "string",
+        "description": "Where an upload is in its life.",
+        "enum": [
+          "awaiting_upload",
+          "queued",
+          "running",
+          "done",
+          "failed",
+          "expired"
+        ]
       },
       "UserGuildSettingsObject": {
         "type": "object",

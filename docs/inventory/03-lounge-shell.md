@@ -14,7 +14,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [ ] **LNG-SHL-009** [FE] App-level notices bar (verify email, update available, platform announcements)
 - [x] **LNG-SHL-010** [FE] Mobile layout: swipeable panes (list ↔ chat ↔ members), bottom tab bar (Home, Notifications, You)
 - [x] **LNG-SHL-011** [FE] Drag-and-drop file overlay on the chat column
-- [ ] **LNG-SHL-012** [FE] Global modals host + context-menu host + popout host (profile popouts)
+- [x] **LNG-SHL-012** [FE] Global modals host + context-menu host + popout host (profile popouts)
 
 ## LNG-RAIL — Server rail
 - [x] **LNG-RAIL-001** [FE] Home button (door mark), unread/mention badge for DMs, selected pill
@@ -23,8 +23,8 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [x] **LNG-RAIL-004** [FE] Unread pill (small), selected pill (tall), hover pill
 - [x] **LNG-RAIL-005** [FE] Mention count badge (red, 99+)
 - [x] **LNG-RAIL-006** [FE] Tooltip with server name (+ voice/stream indicators)
-- [x] **LNG-RAIL-007** [FE] Drag to reorder guilds; persist in user settings *(order is stored on this device; syncing it to the account needs a backend setting)*
-- [x] **LNG-RAIL-008** [FE] Folders: create by drag-onto, expand/collapse, name, color, folder unread aggregation, folder settings modal *(folders are stored on this device; syncing needs a backend setting)*
+- [x] **LNG-RAIL-007** [FE] Drag to reorder guilds; persist in user settings *(`guild_positions` in `/users/@me/settings`, merge patch debounced 1 s, `SR_USER_SETTINGS_UPDATE` applied, localStorage as first paint and offline cache, D-179)*
+- [x] **LNG-RAIL-008** [FE] Folders: create by drag-onto, expand/collapse, name, color, folder unread aggregation, folder settings modal *(folders sync as `guild_folders` in the user settings blob, D-179)*
 - [x] **LNG-RAIL-009** [FE] Staff Server special frame/badge
 - [x] **LNG-RAIL-010** [FE] "+" Add a Server button → Create Server modal
 - [ ] **LNG-RAIL-011** [FE] Discover (compass) button → Server Directory
@@ -53,7 +53,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 ## LNG-FRD — Friends
 - [x] **LNG-FRD-001** [DB] relationships table + migrations
 - [x] **LNG-FRD-002** [BE] Relationship API (send by username, accept, ignore, cancel, remove, block, unblock, ignore user) → `/users/@me/relationships` (REST by user id; add-by-username lookup follows with the users directory)
-- [ ] **LNG-FRD-003** [GW] `RELATIONSHIP_ADD/UPDATE/REMOVE` dispatches
+- [x] **LNG-FRD-003** [GW] `RELATIONSHIP_ADD/UPDATE/REMOVE` dispatches *(the backend already dispatches them; the web store applies them and DM `CHANNEL_CREATE/DELETE`, with no re-fetch after Friends actions, D-183)*
 - [x] **LNG-FRD-004** [BE] Friend request privacy enforcement (everyone / friends of friends / server members)
 - [x] **LNG-FRD-005** [FE] Friends header with tabs Online / All / Pending / Add Friend, New Group DM icon
 - [x] **LNG-FRD-006** [FE] Dismissible info banner "Looking for accounts you've blocked or ignored? Go to settings"

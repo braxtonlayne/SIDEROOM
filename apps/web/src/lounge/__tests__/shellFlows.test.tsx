@@ -460,11 +460,18 @@ describe('Create a Server wizard', () => {
     seed('1');
   });
 
-  it('builds a template server: guild first, then its categories and channels', async () => {
-    const posted: Record<string, unknown>[] = [];
+  const templates = [
+    { id: 'gaming', name: 'Gaming', description: 'Squads, clips and voice lobbies' },
+    { id: 'friends', name: 'Friends', description: 'A hangout for your close circle' },
+  ];
+
+  it('lists the templates the server offers and creates from one in a single POST /guilds', async () => {
+    let posted: unknown;
     server.use(
-      http.post('*/api/v1/guilds', () =>
-        HttpResponse.json(
+      http.get('*/api/v1/guilds/templates/builtin', () => HttpResponse.json(templates)),
+      http.post('*/api/v1/guilds', async ({ request }) => {
+        posted = await request.json();
+        return HttpResponse.json(
           {
             id: 'g5',
             name: 'Raid Night',
@@ -473,25 +480,15 @@ describe('Create a Server wizard', () => {
             roles: [],
           },
           { status: 201 },
-        ),
-      ),
-      http.post('*/api/v1/guilds/g5/channels', async ({ request }) => {
-        const body = (await request.json()) as Record<string, unknown>;
-        posted.push(body);
-        return HttpResponse.json(
-          {
-            id: `n${posted.length}`,
-            guild_id: 'g5',
-            position: posted.length,
-            ...body,
-          },
-          { status: 201 },
         );
       }),
     );
     const router = at('/channels/g1/c1');
     await userEvent.click(await screen.findByRole('button', { name: 'Add a Server' }));
     const dialog = await screen.findByRole('dialog', { name: 'Create a Server' });
+    const list = await within(dialog).findByRole('list', { name: 'Templates' });
+    expect(within(list).getByText('Squads, clips and voice lobbies')).toBeInTheDocument();
+    expect(await axeViolations(dialog)).toEqual([]);
     await userEvent.click(within(dialog).getByRole('button', { name: /Gaming/ }));
     await userEvent.click(await screen.findByRole('button', { name: 'For me and my friends' }));
     expect(screen.getByText(/Gaming/, { selector: 'strong' })).toBeInTheDocument();
@@ -500,12 +497,31 @@ describe('Create a Server wizard', () => {
     await userEvent.type(name, 'Raid Night');
     await userEvent.click(screen.getByRole('button', { name: 'Create' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/channels/g5/k2'));
-    expect(posted.map((p) => [p.name, p.type, p.parent_id ?? null])).toEqual([
-      ['Games', 4, null],
-      ['game-chat', 0, 'n1'],
-      ['clips-and-highlights', 0, 'n1'],
-      ['Squad 1', 2, 'n1'],
-    ]);
+    // One request: the server builds the layout, the client no longer replays channels.
+    expect(posted).toEqual({ name: 'Raid Night', template: 'gaming' });
+  });
+
+  it('creates a plain server without a template field, and copes with the list failing', async () => {
+    let posted: unknown;
+    server.use(
+      http.get('*/api/v1/guilds/templates/builtin', () => new HttpResponse(null, { status: 500 })),
+      http.post('*/api/v1/guilds', async ({ request }) => {
+        posted = await request.json();
+        return HttpResponse.json(
+          { id: 'g6', name: 'Mine', owner_id: '1', channels: [], roles: [] },
+          { status: 201 },
+        );
+      }),
+    );
+    at('/channels/g1/c1');
+    await userEvent.click(await screen.findByRole('button', { name: 'Add a Server' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Create a Server' });
+    expect(await within(dialog).findByText(/Templates are unavailable/)).toBeInTheDocument();
+    expect(within(dialog).queryByRole('list', { name: 'Templates' })).toBeNull();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Create My Own' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'skip this question' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(posted).toEqual({ name: "Me Myself's server" }));
   });
 
   it('goes back through the steps and lists the invite examples on Join', async () => {
@@ -523,9 +539,17 @@ describe('Create a Server wizard', () => {
   });
 
   it('the wizard steps have no axe violations', async () => {
+    server.use(
+      http.get('*/api/v1/guilds/templates/builtin', () =>
+        HttpResponse.json([
+          { id: 'study', name: 'Study Group', description: 'Notes and quiet rooms' },
+        ]),
+      ),
+    );
     at('/channels/g1/c1');
     await userEvent.click(await screen.findByRole('button', { name: 'Add a Server' }));
     const dialog = await screen.findByRole('dialog', { name: 'Create a Server' });
+    await within(dialog).findByRole('list', { name: 'Templates' });
     expect(await axeViolations(dialog)).toEqual([]);
     await userEvent.click(within(dialog).getByRole('button', { name: /Study Group/ }));
     expect(await axeViolations(screen.getByRole('dialog'))).toEqual([]);
@@ -737,7 +761,7 @@ describe('invite friends', () => {
     useSocial.getState().reset();
   });
 
-  it('sends each friend their own single-use invite as a DM', async () => {
+  it('sends each friend their own invite as a DM, with the server defaults (D-182)', async () => {
     const calls: string[] = [];
     let inviteBody: unknown;
     let message: Record<string, unknown> = {};
@@ -788,7 +812,8 @@ describe('invite friends', () => {
       expect(within(dialog).getByRole('button', { name: 'Invite bob' })).toHaveTextContent('Sent'),
     );
     expect(calls).toEqual(['invite', 'dm', 'message']);
-    expect(inviteBody).toEqual({ max_age: 86400, max_uses: 1 });
+    // In-platform invite: no explicit limits and not external, so the server defaults apply.
+    expect(inviteBody).toEqual({});
     expect(String(message.content)).toMatch(/\/invite\/abc123$/);
     expect(await axeViolations(dialog)).toEqual([]);
   });

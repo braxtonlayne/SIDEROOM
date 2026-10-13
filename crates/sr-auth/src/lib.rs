@@ -22,3 +22,5 @@ pub mod tokens;
 pub mod totp;
 
 pub use error::AuthError;
+#[cfg(feature = "webauthn")]
+pub mod webauthn;

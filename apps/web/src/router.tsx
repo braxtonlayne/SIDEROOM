@@ -5,9 +5,11 @@ import {
   Outlet,
   type RouterHistory,
 } from '@tanstack/react-router';
+import { createLibraryRoutes } from './library/routes';
 import { createLoungeRoutes } from './routes/lounge';
 import { createUserSettingsRoutes } from './settings/user/routes';
 import { createServerSettingsRoutes } from './routes/settingsServer';
+import { createAdminRoutes } from './admin/routes';
 import * as P from './routes/pages';
 import { Landing } from './routes/entrance/Landing';
 import { Login } from './routes/entrance/Login';
@@ -19,6 +21,7 @@ import { HouseNotes, NoInvitation } from './routes/entrance/Static';
 import { TwoFactor } from './routes/entrance/TwoFactor';
 import { DiscordCallback } from './routes/entrance/DiscordCallback';
 import { VerifyEmail } from './routes/entrance/VerifyEmail';
+import { EmailChangeCancel } from './routes/entrance/EmailChangeCancel';
 
 const root = createRootRoute({ component: Outlet });
 const r = <P extends string>(path: P, component: () => React.JSX.Element | null) =>
@@ -48,6 +51,13 @@ const loginLinkRoute = createRoute({
   validateSearch: (s: Record<string, unknown>): { token?: string } =>
     typeof s.token === 'string' ? { token: s.token } : {},
 });
+const emailChangeCancelRoute = createRoute({
+  getParentRoute: () => root,
+  path: '/email-change/cancel',
+  component: EmailChangeCancel,
+  validateSearch: (s: Record<string, unknown>): { token?: string } =>
+    typeof s.token === 'string' ? { token: s.token } : {},
+});
 const joinRoute = createRoute({
   getParentRoute: () => root,
   path: '/join/$code',
@@ -62,6 +72,7 @@ const routeTree = root.addChildren([
   loginRoute,
   twoFactorRoute,
   loginLinkRoute,
+  emailChangeCancelRoute,
   joinRoute,
   r('/register', Register),
   r('/forgot', Forgot),
@@ -75,8 +86,8 @@ const routeTree = root.addChildren([
   ...createUserSettingsRoutes(root),
   ...createServerSettingsRoutes(root),
   r('/cinema', P.Cinema),
-  r('/library', P.Library),
-  r('/admin', P.Admin),
+  createLibraryRoutes(root),
+  ...createAdminRoutes(root),
   r('/developers', P.Developers),
   r('/support', P.Support),
 ]);

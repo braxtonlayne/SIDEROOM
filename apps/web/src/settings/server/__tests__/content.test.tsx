@@ -223,6 +223,40 @@ describe('Integrations', () => {
     expect(screen.getByRole('button', { name: 'Copy webhook URL' })).toBeInTheDocument();
   });
 
+  it('existing webhooks have no Copy URL; Reset URL shows the new URL once (D-164)', async () => {
+    seed({ perms: [MANAGE.webhooks] });
+    const cap = capture();
+    const hook = {
+      id: 'w1',
+      type: 1,
+      guild_id: 'g1',
+      channel_id: 'c1',
+      name: 'Deploys',
+      avatar: null,
+    };
+    server.use(
+      http.get('*/api/v1/guilds/g1/webhooks', () => HttpResponse.json([hook])),
+      http.post('*/api/v1/webhooks/w1/reset-token', async ({ request }) => {
+        await cap.record(request);
+        return HttpResponse.json({ ...hook, token: 'fresh', url: '/api/v1/webhooks/w1/fresh' });
+      }),
+    );
+    await openSettings('integrations');
+    await screen.findByRole('list', { name: 'Webhooks' });
+    expect(screen.queryByRole('button', { name: /Copy URL/ })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Reset URL for Deploys' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Reset URL for Deploys' });
+    expect(cap.calls).toHaveLength(0);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Reset URL' }));
+    expect(await screen.findByText(/\/api\/v1\/webhooks\/w1\/fresh/)).toBeInTheDocument();
+    expect(cap.calls).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Copy webhook URL' })).toBeInTheDocument();
+    // Dismissing hides it for good; the list never shows a URL.
+    await userEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByText(/\/api\/v1\/webhooks\/w1\/fresh/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Copy webhook URL' })).toBeNull();
+  });
+
   it('deletes a webhook; hides the templates tab without Manage Server', async () => {
     seed({ perms: [MANAGE.webhooks] });
     let gone = false;

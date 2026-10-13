@@ -40,6 +40,22 @@ pub fn sanitize_filename(raw: &str) -> String {
     }
 }
 
+/// Discord's filename marker for spoiler attachments (D-177).
+pub const SPOILER_PREFIX: &str = "SPOILER_";
+
+/// The stored filename of a spoiler attachment: `SPOILER_` once in front, still at
+/// most 255 bytes. A name that already carries the prefix is kept as is.
+pub fn spoiler_filename(name: &str) -> String {
+    if name.starts_with(SPOILER_PREFIX) {
+        return name.to_owned();
+    }
+    let mut out = format!("{SPOILER_PREFIX}{name}");
+    while out.len() > 255 {
+        out.pop();
+    }
+    out
+}
+
 /// `{upload_id}/{filename}`, what the client passes back as `uploaded_filename`.
 pub fn upload_filename(a: &Attachment) -> String {
     format!("{}/{}", a.id, a.filename)
@@ -94,6 +110,7 @@ pub async fn request_slots(
     // Validate everything before issuing any slot.
     let mut decisions = Vec::with_capacity(body.files.len());
     for (i, f) in body.files.iter().enumerate() {
+        check_image_meta(i, f)?;
         match deps.size_policy.check(f.file_size, entitled) {
             Ok(d) => decisions.push(d),
             Err(SizeError::Empty) => {
@@ -115,7 +132,15 @@ pub async fn request_slots(
     let mut slots = Vec::with_capacity(body.files.len());
     for (f, d) in body.files.iter().zip(decisions) {
         let id = deps.next_attachment_id();
-        let filename = sanitize_filename(&f.filename);
+        // Discord's convention: a `SPOILER_` name is a spoiler, and `spoiler: true`
+        // adds the prefix (D-177), so `AttachmentObject.filename` carries it.
+        let name = sanitize_filename(&f.filename);
+        let spoiler = f.spoiler.unwrap_or(false) || name.starts_with(SPOILER_PREFIX);
+        let filename = if spoiler {
+            spoiler_filename(&name)
+        } else {
+            name
+        };
         let att = Attachment {
             id,
             channel_id,
@@ -126,7 +151,7 @@ pub async fn request_slots(
             declared_content_type: f.content_type.clone(),
             content_type: None,
             description: f.description.clone().filter(|d| d.chars().count() <= 1024),
-            spoiler: f.spoiler.unwrap_or(false),
+            spoiler,
             state: UploadState::Pending,
             message_id: None,
             expires_at_ms: d
@@ -135,6 +160,9 @@ pub async fn request_slots(
             created_at_ms: now,
             duration_ms: None,
             waveform: None,
+            width: f.width,
+            height: f.height,
+            blurhash: f.blurhash.clone(),
         };
         let url = deps
             .storage
@@ -232,6 +260,32 @@ pub async fn finalize(deps: &MessagesDeps, att: &mut Attachment) -> MsgResult<()
     Ok(())
 }
 
+/// The client-declared picture size and BlurHash: both sides or neither, in range, and a plausible hash.
+fn check_image_meta(i: usize, f: &super::model::FileSpec) -> MsgResult<()> {
+    let side_ok = |n: u32| (1..=sr_chat::repo::MAX_IMAGE_SIDE).contains(&n);
+    match (f.width, f.height) {
+        (None, None) => {}
+        (Some(w), Some(h)) if side_ok(w) && side_ok(h) => {}
+        _ => {
+            return Err(invalid(
+                &format!("files.{i}.width"),
+                "NUMBER_TYPE_RANGE",
+                "Width and height must both be given, between 1 and 16384.",
+            ));
+        }
+    }
+    if let Some(h) = &f.blurhash
+        && !sr_chat::repo::valid_blurhash(h)
+    {
+        return Err(invalid(
+            &format!("files.{i}.blurhash"),
+            "BASE_TYPE_BAD_FORMAT",
+            "Not a valid BlurHash.",
+        ));
+    }
+    Ok(())
+}
+
 /// Mark an uploaded file complete and learn its verified content type.
 #[utoipa::path(
     post,
@@ -280,7 +334,21 @@ pub async fn load_upload(
 
 #[cfg(test)]
 mod tests {
-    use super::sanitize_filename;
+    use super::{sanitize_filename, spoiler_filename};
+
+    #[test]
+    fn spoiler_prefix_is_added_once_and_bounded() {
+        assert_eq!(spoiler_filename("cat.png"), "SPOILER_cat.png");
+        assert_eq!(spoiler_filename("SPOILER_cat.png"), "SPOILER_cat.png");
+        // Only the exact marker counts; it is not a case-folded match.
+        assert_eq!(
+            spoiler_filename("spoiler_cat.png"),
+            "SPOILER_spoiler_cat.png"
+        );
+        let long = spoiler_filename(&"x".repeat(255));
+        assert_eq!(long.len(), 255);
+        assert!(long.starts_with("SPOILER_x"));
+    }
 
     #[test]
     fn filenames_are_sanitized() {

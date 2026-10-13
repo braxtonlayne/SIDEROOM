@@ -106,6 +106,8 @@ pub(crate) struct Inner {
     bus: Arc<dyn EventBus>,
     state: Mutex<State>,
     next_conn: AtomicU64,
+    /// Users seen since the last [`Gateway::drain_seen`] (D-166).
+    seen: Mutex<HashSet<UserId>>,
 }
 
 /// Cheap-to-clone handle; mount [`crate::ws::routes`] with it as router state.
@@ -478,6 +480,7 @@ impl Gateway {
                 bus,
                 state: Mutex::new(State::default()),
                 next_conn: AtomicU64::new(1),
+                seen: Mutex::new(HashSet::new()),
             }),
         }
     }
@@ -529,6 +532,22 @@ impl Gateway {
 
     pub(crate) fn next_conn_id(&self) -> u64 {
         self.inner.next_conn.fetch_add(1, Ordering::Relaxed)
+    }
+
+    /// Note that `user` was seen now (IDENTIFY, RESUME, or the 10-minute refresh of a
+    /// live session). The embedder writes the batch with [`Gateway::drain_seen`].
+    pub(crate) fn mark_seen(&self, user: UserId) {
+        self.inner
+            .seen
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .insert(user);
+    }
+
+    /// Take the users seen since the last call, for one batched `last_seen_at` write.
+    pub fn drain_seen(&self) -> Vec<UserId> {
+        let mut seen = self.inner.seen.lock().unwrap_or_else(|p| p.into_inner());
+        seen.drain().collect()
     }
 
     pub fn session_count(&self) -> usize {

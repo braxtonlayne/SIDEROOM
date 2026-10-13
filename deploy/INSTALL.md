@@ -89,6 +89,14 @@ Limits that are product settings (upload size, invite caps) are stored in the da
 
    Known gap: bootstrap creates the Staff Server but not its default roles yet (see the open questions).
 
+   Then give the bucket its CORS rule. Chat uploads are presigned `PUT`s from the browser straight to the bucket (D-175), so without the rule the browser blocks them. The command reads the `[storage]` settings and does not need the database. It is safe to run again, because the rule is replaced, not appended:
+
+   ```
+   sr-cli storage ensure-cors --origin https://chat.example.org
+   ```
+
+   The rule allows `PUT`, `GET` and `HEAD` from the origin, allows the `Content-Type` request header and exposes `ETag`. Without `--origin` it uses `server.public_url`. If the web app is also served from another origin (a second hostname, a dev URL), repeat `--origin`.
+
 5. **Start the server.** `sr-server` (or `sr-server serve`) reads `SR_CONFIG`. Check `GET /healthz` (liveness) and `GET /readyz` (checks Postgres and object storage).
 
 6. **Put the reverse proxy in front.** Forward `/api/*`, `/gateway` and `/cdn/*` to `server.bind`. Do not forward `/internal/*`, and keep `metrics_bind` on loopback.

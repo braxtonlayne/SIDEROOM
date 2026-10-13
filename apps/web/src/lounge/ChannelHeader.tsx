@@ -1,6 +1,7 @@
 import { Avatar, Icon, Modal, Tooltip, type IconName } from '@sideroom/ui';
 import { useState } from 'react';
 import { SearchBox } from './SearchBox';
+import { ThreadsButton } from './threads/ThreadsButton';
 
 export interface ChannelHeaderProps {
   icon: IconName;
@@ -81,7 +82,7 @@ export function ChannelHeader({
         </>
       )}
       <div className="lng-header-tools">
-        {!isDm && <Soon icon="list" label="Threads" />}
+        {!isDm && guildId && channelId && <ThreadsButton guildId={guildId} channelId={channelId} />}
         <Soon icon="bell" label="Notification Settings" />
         <Soon icon="pin" label="Pinned Messages" />
         <Tooltip content={membersOpen ? 'Hide Member List' : 'Show Member List'}>

@@ -1,7 +1,8 @@
 // REST calls feeding the store (docs/05 section 4). Thin wrappers over apiFetch.
 import { apiFetch } from '../api/client';
 import { cmpId } from './reducer';
-import type { Channel, Guild, Message, Role, User } from './types';
+import type { Channel, Guild, Message, Role, User, UserSettingsBlob } from './types';
+export type { UserSettingsBlob };
 
 export const PAGE_SIZE = 50;
 
@@ -24,12 +25,13 @@ export const fetchMembers = (guildId: string, limit = 1000) =>
 /** The server returns newest first; this returns oldest first. */
 export async function fetchMessages(
   channelId: string,
-  opts: { before?: string; limit?: number } = {},
+  opts: { before?: string; after?: string; limit?: number } = {},
 ): Promise<Message[]> {
   const q = new URLSearchParams({ limit: String(opts.limit ?? PAGE_SIZE) });
   if (opts.before) q.set('before', opts.before);
+  if (opts.after) q.set('after', opts.after);
   const list = await apiFetch<Message[]>(`/channels/${channelId}/messages?${q}`);
-  return [...list].reverse();
+  return opts.after ? [...list].sort((a, b) => cmpId(a.id, b.id)) : [...list].reverse();
 }
 
 /** Optional parts of a new message (uploaded files, a poll, reply ping control). */
@@ -49,6 +51,8 @@ export interface PostExtras {
   };
   allow_reply_ping?: boolean;
   flags?: number;
+  sticker_ids?: string[];
+  tts?: boolean;
 }
 
 export const postMessage = (
@@ -70,6 +74,8 @@ export const postMessage = (
       ...(extras.attachments?.length ? { attachments: extras.attachments } : {}),
       ...(extras.poll ? { poll: extras.poll } : {}),
       ...(extras.flags ? { flags: extras.flags } : {}),
+      ...(extras.sticker_ids?.length ? { sticker_ids: extras.sticker_ids } : {}),
+      ...(extras.tts ? { tts: true } : {}),
       ...(replyToId && extras.allow_reply_ping === false
         ? { allowed_mentions: { replied_user: false, parse: ['users', 'roles', 'everyone'] } }
         : {}),
@@ -142,6 +148,14 @@ export const ackMessage = (channelId: string, messageId: string) =>
     retries: 0,
   });
 
+/** "Mark as unread": the read marker is set to exactly `messageId` (the message before the unread one). */
+export const markMessageUnread = (channelId: string, messageId: string) =>
+  apiFetch<void>(`/channels/${channelId}/messages/${messageId}/ack`, {
+    method: 'POST',
+    json: { manual: true, mention_count: 0 },
+    retries: 0,
+  });
+
 const reactionPath = (channelId: string, messageId: string, emoji: string) =>
   `/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}/@me`;
 
@@ -177,6 +191,8 @@ export interface CreateInviteOptions {
   max_age?: number;
   /** 0 (unlimited) to 100. */
   max_uses?: number;
+  /** "Copy link": the invite leaves the platform, so the server defaults to a single use (D-022). */
+  external?: boolean;
 }
 
 export interface CreateChannelBody {
@@ -190,8 +206,23 @@ export interface CreateChannelBody {
 
 export type GuildWithChannels = Guild & { channels?: Channel[]; roles?: Role[] };
 
-export const createGuild = (name: string) =>
-  apiFetch<GuildWithChannels>('/guilds', { method: 'POST', json: { name }, retries: 0 });
+/** `template` is a built-in template id or a template code; the server builds the whole layout in one go. */
+export const createGuild = (name: string, template?: string) =>
+  apiFetch<GuildWithChannels>('/guilds', {
+    method: 'POST',
+    json: template ? { name, template } : { name },
+    retries: 0,
+  });
+
+/** A starter layout shipped with the server (Create a Server wizard, LNG-GLD-015). */
+export interface BuiltinTemplate {
+  id: string;
+  name: string;
+  /** One line shown under the name. */
+  description: string;
+}
+export const listBuiltinTemplates = () =>
+  apiFetch<BuiltinTemplate[]>('/guilds/templates/builtin', { retries: 0 });
 
 export const getInvite = (code: string) =>
   apiFetch<Invite>(`/invites/${encodeURIComponent(code)}?with_counts=true`, { retries: 0 });
@@ -256,3 +287,13 @@ export const searchChannelMessages = (
     `/channels/${channelId}/messages/search?${searchParams(q, typeof o === 'number' ? { offset: o } : o)}`,
     { retries: 0 },
   );
+
+/** The synced per-user settings blob (`GET/PATCH /users/@me/settings`, RFC 7386 merge patch). */
+export const fetchUserSettings = () =>
+  apiFetch<UserSettingsBlob>('/users/@me/settings', { retries: 0 });
+export const patchUserSettings = (settings: Record<string, unknown>) =>
+  apiFetch<UserSettingsBlob>('/users/@me/settings', {
+    method: 'PATCH',
+    json: { settings },
+    retries: 0,
+  });

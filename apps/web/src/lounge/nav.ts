@@ -28,6 +28,32 @@ export function useLoungeRoute(): LoungeRoute {
   };
 }
 
+/** Open a thread beside its parent channel (`/channels/:guild/:channel/threads/:thread`). */
+export function useLoungeGotoThread() {
+  const navigate = useNavigate();
+  return useCallback(
+    (guildId: Snowflake, channelId: Snowflake, threadId: Snowflake) =>
+      void navigate({
+        to: '/channels/$guildId/$channelId/threads/$threadId',
+        params: { guildId, channelId, threadId },
+      }),
+    [navigate],
+  );
+}
+
+/** Jump to a message that may be in another channel (`/channels/:guild/:channel/:message`). */
+export function useLoungeGotoMessage() {
+  const navigate = useNavigate();
+  return useCallback(
+    (guildId: Snowflake, channelId: Snowflake, messageId: Snowflake) =>
+      void navigate({
+        to: '/channels/$guildId/$channelId/$messageId',
+        params: { guildId, channelId, messageId },
+      }),
+    [navigate],
+  );
+}
+
 export function useLoungeGoto() {
   const navigate = useNavigate();
   return useCallback(

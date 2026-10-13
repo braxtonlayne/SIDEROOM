@@ -75,6 +75,11 @@ pub struct AuthConfig {
     pub login_link_ttl_secs: i64,
     /// "Trust this device" lifetime in seconds (open question 144).
     pub trusted_device_secs: i64,
+    /// WebAuthn RP id; default: the host of `public_url`.
+    pub webauthn_rp_id: Option<String>,
+    /// Extra exact origins allowed for passkey ceremonies (besides `public_url`),
+    /// for example a dev server on another port.
+    pub webauthn_origins: Vec<String>,
 }
 
 impl Default for AuthConfig {
@@ -98,6 +103,8 @@ impl Default for AuthConfig {
             verify_ttl_secs: 24 * 3600,
             login_link_ttl_secs: 3600,
             trusted_device_secs: 30 * 86_400,
+            webauthn_rp_id: None,
+            webauthn_origins: Vec::new(),
         }
     }
 }
@@ -125,6 +132,8 @@ pub struct AuthService {
     pub(super) account_lock: Lockout,
     pub(super) ip_lock: Lockout,
     pub(super) pending: PendingMfaTable,
+    /// Pending passkey ceremonies (single node, like `pending`).
+    pub(super) ceremonies: super::passkeys::Ceremonies,
     /// Discord OAuth client; `None` when `[discord]` has no client id.
     pub(super) discord: Option<DiscordOAuth>,
     /// Started Discord flows, keyed by OAuth `state`.
@@ -166,6 +175,7 @@ impl AuthService {
             cfg,
             ip_limits: WindowLimiter::default(),
             pending: PendingMfaTable::default(),
+            ceremonies: super::passkeys::Ceremonies::default(),
             discord: None,
             discord_flows: Pending::default(),
             discord_links: Pending::default(),
@@ -271,6 +281,29 @@ impl AuthService {
         user_id: i64,
         user_agent: Option<&str>,
     ) -> Result<(SessionToken, String), AuthRouteError> {
+        self.start_session_inner(state, user_id, user_agent, false)
+            .await
+    }
+
+    /// Like [`Self::start_session`] for a login that just passed a second-factor
+    /// check, so the session counts as freshly verified (F-03, 15 minutes).
+    pub(super) async fn start_session_mfa(
+        &self,
+        state: &AppState,
+        user_id: i64,
+        user_agent: Option<&str>,
+    ) -> Result<(SessionToken, String), AuthRouteError> {
+        self.start_session_inner(state, user_id, user_agent, true)
+            .await
+    }
+
+    async fn start_session_inner(
+        &self,
+        state: &AppState,
+        user_id: i64,
+        user_agent: Option<&str>,
+        mfa_verified: bool,
+    ) -> Result<(SessionToken, String), AuthRouteError> {
         let now = state.now_secs();
         let token = SessionToken::generate()?;
         let policy: &SessionPolicy = state.session_policy();
@@ -283,13 +316,28 @@ impl AuthService {
             expires_at: policy.expiry(now, now),
             device_name: super::validate::device_name(user_agent),
         };
+        let session_id = rec.id;
         self.store.create_session(rec).await?;
+        if mfa_verified {
+            self.store
+                .session_mark_mfa_verified(session_id, now)
+                .await?;
+        }
         let cookie = session_cookie(
             &token,
             state.settings().secure_cookies,
             policy.absolute_ttl_secs,
         );
         Ok((token, cookie))
+    }
+
+    /// Render the "This wasn't me" link of an email-change notice (the web page
+    /// `/email-change/cancel?token=`, F-24).
+    pub(super) fn cancel_email_link(&self, token: &str) -> String {
+        format!(
+            "{}/email-change/cancel?token={token}",
+            self.cfg.public_url.trim_end_matches('/')
+        )
     }
 
     /// Render a verification/reset link.
