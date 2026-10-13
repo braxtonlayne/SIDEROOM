@@ -1,0 +1,65 @@
+# Production reverse proxy (XC-OPS-001, XC-SEC-001). TLS via ACME is automatic.
+#
+#   SR_DOMAIN      public hostname, e.g. chat.example.org
+#   SR_WEB_ROOT    directory holding the built web app (apps/web/dist), default /srv/web
+#   SR_UPSTREAM    sr-server public listener, default 127.0.0.1:8080
+#
+# The Content-Security-Policy on the app shell is the one built by
+# apps/web/src/security/csp.ts; csp.test.ts fails if the two drift apart. If you enable
+# activities, append `https://*.activities.<domain>` to frame-src below and to the web build's
+# SR_CSP_FRAME env (docs/12 section 1).
+{
+	servers {
+		protocols h1 h2 h3
+	}
+}
+
+{$SR_DOMAIN} {
+	encode zstd gzip
+
+	# Applied to every response; sr-server adds its own stricter API headers on /api, /cdn and /gateway.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "accelerometer=(), geolocation=(), gyroscope=(), magnetometer=(), payment=(), usb=(), interest-cohort=(), camera=(self), microphone=(self), display-capture=(self), fullscreen=(self), clipboard-write=(self)"
+		Cross-Origin-Opener-Policy "same-origin"
+		-Server
+	}
+
+	# Internal endpoints are never public.
+	handle /internal/* {
+		respond 404
+	}
+
+	handle /api/* {
+		reverse_proxy {$SR_UPSTREAM:127.0.0.1:8080}
+	}
+	handle /gateway* {
+		reverse_proxy {$SR_UPSTREAM:127.0.0.1:8080}
+	}
+	handle /cdn/* {
+		reverse_proxy {$SR_UPSTREAM:127.0.0.1:8080}
+	}
+	handle /healthz {
+		reverse_proxy {$SR_UPSTREAM:127.0.0.1:8080}
+	}
+	handle /developers/* {
+		reverse_proxy {$SR_UPSTREAM:127.0.0.1:8080}
+	}
+
+	# The single-page app.
+	handle {
+		root * {$SR_WEB_ROOT:/srv/web}
+		header Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+
+		# Hashed build output never changes; the shell, service worker and manifest must revalidate.
+		@hashed path /assets/* /fonts/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		@revalidate path /sw.js /index.html /manifest.webmanifest /offline.html
+		header @revalidate Cache-Control "no-cache"
+
+		try_files {path} /index.html
+		file_server
+	}
+}
