@@ -164,7 +164,7 @@ function Main({ isMobile, onBack }: { isMobile: boolean; onBack: () => void }) {
   }, [guildId, channelId, channels, remembered, navigate, isMobile]);
 
   if (!guildId) return null;
-  if (!channelId) return guildId === HOME ? <HomeFriends /> : <PickChannel />;
+  if (!channelId) return guildId === HOME ? <HomeFriends /> : <PickChannel guildId={guildId} />;
   return (
     <ChannelView
       key={channelId}

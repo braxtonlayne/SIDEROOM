@@ -1,5 +1,7 @@
 import { Avatar, EmptyState } from '@sideroom/ui';
-import { useDms, usePresence, useUsers } from './data';
+import { isTextLike } from './channels';
+import { useChannels, useDms, usePresence, useUsers } from './data';
+import { ServerWelcome } from './shell/ServerWelcome';
 import { FriendsPage } from './shell/FriendsPage';
 import { MessageRequestsPage } from './shell/MessageRequestsPage';
 import { useLoungeUi } from './store';
@@ -47,7 +49,10 @@ export function HomeFriends() {
   return view === 'requests' ? <MessageRequestsPage /> : <FriendsPage />;
 }
 
-export function PickChannel() {
+export function PickChannel({ guildId }: { guildId?: string }) {
+  const channels = useChannels(guildId);
+  // A server with nowhere to talk yet shows the welcome checklist instead of an empty prompt.
+  if (guildId && !channels.some(isTextLike)) return <ServerWelcome guildId={guildId} />;
   return (
     <section className="lng-channel-view" aria-label="No channel selected">
       <EmptyState

@@ -10,6 +10,7 @@ import { CustomStatusDialog } from './shell/CustomStatusDialog';
 import { DeleteChannelDialog } from './shell/DeleteChannelDialog';
 import { EditChannelDialog } from './shell/EditChannelDialog';
 import { FolderDialog } from './shell/FolderDialog';
+import { MemberActionDialog } from './shell/MemberDialogs';
 import { LeaveServerDialog } from './shell/LeaveServerDialog';
 import { NotificationDialog } from './shell/NotificationDialog';
 import { useLoungeUi } from './store';
@@ -42,6 +43,15 @@ export function LoungeDialogs() {
         <DeleteChannelDialog
           guildId={dialog.guildId}
           channelId={dialog.channelId}
+          onClose={close}
+        />
+      );
+    case 'memberAction':
+      return (
+        <MemberActionDialog
+          action={dialog.action}
+          guildId={dialog.guildId}
+          userId={dialog.userId}
           onClose={close}
         />
       );

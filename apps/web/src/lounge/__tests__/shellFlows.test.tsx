@@ -8,6 +8,7 @@ import { resetStore, useStore } from '../../store';
 import type * as S from '../../store/types';
 import { useLoungeUi } from '../store';
 import { useNotifSettings } from '../shell/notifSettings';
+import { useSocial } from '../shell/social';
 
 vi.mock('../../store/connect', () => ({
   connectGateway: vi.fn(),
@@ -610,5 +611,256 @@ describe('Create Channel types and private picker', () => {
       { id: 'r1', type: 0, allow: '1024', deny: '0' },
       { id: '2', type: 1, allow: '1024', deny: '0' },
     ]);
+  });
+});
+
+describe('member actions', () => {
+  beforeEach(() => {
+    quiet();
+    seed('1');
+    useStore.setState({
+      roles: {
+        g1: {
+          id: 'g1',
+          guild_id: 'g1',
+          name: '@everyone',
+          color: 0,
+          position: 0,
+          permissions: EVERYONE,
+        },
+        r1: { id: 'r1', guild_id: 'g1', name: 'Mods', color: 0, position: 1, permissions: '0' },
+      },
+      roleIdsByGuild: { g1: ['g1', 'r1'] },
+    });
+  });
+
+  async function rightClickBob() {
+    const members = await screen.findByRole('list', { name: 'Members' });
+    await userEvent.pointer({
+      keys: '[MouseRight]',
+      target: await within(members).findByRole('button', { name: /^bob,/ }),
+    });
+  }
+
+  it('kicks a member after a reason and removes them from the list', async () => {
+    let reason: string | null = null;
+    server.use(
+      http.delete('*/api/v1/guilds/g1/members/2', ({ request }) => {
+        reason = request.headers.get('x-audit-log-reason');
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    at('/channels/g1/c1');
+    await rightClickBob();
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Kick bob' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Kick bob' });
+    await userEvent.type(within(dialog).getByLabelText('Reason (optional)'), 'spam');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Kick' }));
+    await waitFor(() => expect(reason).toBe('spam'));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Kick bob' })).toBeNull());
+    expect(useStore.getState().memberIdsByGuild.g1).toEqual(['1']);
+  });
+
+  it('bans with a history window', async () => {
+    let body: unknown;
+    server.use(
+      http.put('*/api/v1/guilds/g1/bans/2', async ({ request }) => {
+        body = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    at('/channels/g1/c1');
+    await rightClickBob();
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Ban bob' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Ban bob' });
+    await userEvent.selectOptions(
+      within(dialog).getByLabelText('Delete message history'),
+      'Previous 24 hours',
+    );
+    await userEvent.type(within(dialog).getByLabelText('Reason (optional)'), 'raid');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Ban' }));
+    await waitFor(() => expect(body).toEqual({ delete_message_seconds: 86400, reason: 'raid' }));
+  });
+
+  it('times a member out for an hour and shows the refusal copy on 403', async () => {
+    let until = '';
+    server.use(
+      http.patch('*/api/v1/guilds/g1/members/2', async ({ request }) => {
+        until = ((await request.json()) as { communication_disabled_until: string })
+          .communication_disabled_until;
+        return HttpResponse.json({ message: 'Missing Permissions' }, { status: 403 });
+      }),
+    );
+    at('/channels/g1/c1');
+    await rightClickBob();
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Timeout' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Timeout bob' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Timeout' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(/do not have permission/);
+    const ms = Date.parse(until) - Date.now();
+    expect(ms).toBeGreaterThan(3500 * 1000);
+    expect(ms).toBeLessThan(3700 * 1000);
+    expect(await axeViolations(dialog)).toEqual([]);
+  });
+
+  it('toggles a role from the Roles submenu', async () => {
+    let put = 0;
+    server.use(
+      http.put('*/api/v1/guilds/g1/members/2/roles/r1', () => {
+        put += 1;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    at('/channels/g1/c1');
+    await rightClickBob();
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Roles' }));
+    await userEvent.click(await screen.findByRole('menuitemcheckbox', { name: 'Mods' }));
+    await waitFor(() => expect(put).toBe(1));
+    await waitFor(() => expect(useStore.getState().members['g1:2']?.roles).toEqual(['r1']));
+  });
+
+  it('offers no moderation to people without the permissions, or on themselves', async () => {
+    seed('2');
+    at('/channels/g1/c1');
+    await rightClickBob();
+    expect(await screen.findByRole('menuitem', { name: 'Copy User ID' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /^Kick/ })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /^Ban/ })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Timeout' })).toBeNull();
+  });
+});
+
+describe('invite friends', () => {
+  beforeEach(() => {
+    quiet();
+    seed('1');
+    useSocial.getState().reset();
+  });
+
+  it('sends each friend their own single-use invite as a DM', async () => {
+    const calls: string[] = [];
+    let inviteBody: unknown;
+    let message: Record<string, unknown> = {};
+    server.use(
+      http.get('*/api/v1/users/@me/relationships', () =>
+        HttpResponse.json([
+          { id: '2', type: 1, since: '2026-01-01T00:00:00Z', user: { id: '2', username: 'bob' } },
+        ]),
+      ),
+      http.post('*/api/v1/channels/c1/invites', async ({ request }) => {
+        calls.push('invite');
+        inviteBody = await request.json();
+        return HttpResponse.json({
+          code: 'abc123',
+          guild: { id: 'g1', name: 'Alpha Guild' },
+          channel: { id: 'c1', name: 'general', type: 0 },
+          uses: 0,
+          max_uses: 1,
+          max_age: 86400,
+          created_at: '2026-01-01T00:00:00Z',
+        });
+      }),
+      http.post('*/api/v1/users/@me/channels', () => {
+        calls.push('dm');
+        return HttpResponse.json({
+          id: 'dm1',
+          type: 1,
+          recipients: [{ id: '2', username: 'bob' }],
+        });
+      }),
+      http.post('*/api/v1/channels/dm1/messages', async ({ request }) => {
+        calls.push('message');
+        message = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({
+          id: '500',
+          channel_id: 'dm1',
+          author: { id: '1', username: 'me' },
+          content: message.content,
+          timestamp: '2026-01-01T00:00:00Z',
+        });
+      }),
+    );
+    at('/channels/g1/c1');
+    useLoungeUi.getState().openDialog({ kind: 'invite', guildId: 'g1' });
+    const dialog = await screen.findByRole('dialog', { name: /Invite people to/ });
+    await userEvent.click(await within(dialog).findByRole('button', { name: 'Invite bob' }));
+    await waitFor(() =>
+      expect(within(dialog).getByRole('button', { name: 'Invite bob' })).toHaveTextContent('Sent'),
+    );
+    expect(calls).toEqual(['invite', 'dm', 'message']);
+    expect(inviteBody).toEqual({ max_age: 86400, max_uses: 1 });
+    expect(String(message.content)).toMatch(/\/invite\/abc123$/);
+    expect(await axeViolations(dialog)).toEqual([]);
+  });
+
+  it('shows Retry when sending fails', async () => {
+    server.use(
+      http.get('*/api/v1/users/@me/relationships', () =>
+        HttpResponse.json([
+          { id: '2', type: 1, since: '2026-01-01T00:00:00Z', user: { id: '2', username: 'bob' } },
+        ]),
+      ),
+      http.post('*/api/v1/channels/c1/invites', () =>
+        HttpResponse.json({ message: 'no' }, { status: 403 }),
+      ),
+    );
+    at('/channels/g1/c1');
+    useLoungeUi.getState().openDialog({ kind: 'invite', guildId: 'g1' });
+    const dialog = await screen.findByRole('dialog', { name: /Invite people to/ });
+    await userEvent.click(await within(dialog).findByRole('button', { name: 'Invite bob' }));
+    expect(await within(dialog).findByText('Could not send the invite.')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Invite bob' })).toHaveTextContent('Retry');
+  });
+});
+
+describe('server welcome screen', () => {
+  beforeEach(() => {
+    quiet();
+    seed('1');
+    useStore.setState({
+      guilds: {
+        g1: { id: 'g1', name: 'Alpha Guild', owner_id: '1' },
+        g3: { id: 'g3', name: 'Empty Hall', owner_id: '1' },
+      },
+      guildOrder: ['g1', 'g3'],
+      channelIdsByGuild: { g1: ['cat', 'c1', 'c2'], g2: ['d1'], g3: [] },
+      roles: {
+        g1: {
+          id: 'g1',
+          guild_id: 'g1',
+          name: '@everyone',
+          color: 0,
+          position: 0,
+          permissions: EVERYONE,
+        },
+        g3: {
+          id: 'g3',
+          guild_id: 'g3',
+          name: '@everyone',
+          color: 0,
+          position: 0,
+          permissions: EVERYONE,
+        },
+      },
+      roleIdsByGuild: { g1: ['g1'], g3: ['g3'] },
+      memberIdsByGuild: { g1: ['1', '2'], g3: ['1'] },
+      members: {
+        'g1:1': { guild_id: 'g1', user_id: '1', roles: [] },
+        'g3:1': { guild_id: 'g3', user_id: '1', roles: [] },
+      },
+    });
+  });
+
+  it('greets a server with no channels and opens the invite dialog from its checklist', async () => {
+    at('/channels/g3');
+    const welcome = await screen.findByRole('region', { name: 'Welcome to Empty Hall' });
+    const cards = within(welcome).getByRole('list', { name: 'Getting started' });
+    expect(within(cards).getByRole('button', { name: /Send your first message/ })).toBeDisabled();
+    await userEvent.click(within(cards).getByRole('button', { name: /Invite your friends/ }));
+    expect(
+      await screen.findByRole('dialog', { name: /Invite people to Empty Hall/ }),
+    ).toBeInTheDocument();
+    expect(useLoungeUi.getState().welcomeDone['g3:invite']).toBe(true);
+    expect(await axeViolations(welcome)).toEqual([]);
   });
 });

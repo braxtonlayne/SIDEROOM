@@ -1,18 +1,93 @@
 import { Avatar, ContextMenu, Icon, VirtualList, type MenuEntry } from '@sideroom/ui';
 import { useMemo } from 'react';
-import { useGuild, useMembers, usePresenceMap, useRoles } from './data';
+import { addMemberRole, removeMemberRole } from '../settings/server/api';
+import { useViewer, type Viewer } from '../settings/server/hooks';
+import { useStore } from '../store';
+import { useCurrentUser, useGuild, useMembers, usePresenceMap, useRoles } from './data';
 import { buildMemberRows, type MemberEntry } from './memberGroups';
+import { useOpenDm } from './shell/dm';
+import { useLoungeUi } from './store';
 
 const OFFLINE_HIDE_THRESHOLD = 1000;
 
-function MemberRowView({ entry, ownerId }: { entry: MemberEntry; ownerId: string | undefined }) {
+function MemberRowView({
+  entry,
+  guildId,
+  ownerId,
+  viewer,
+}: {
+  entry: MemberEntry;
+  guildId: string;
+  ownerId: string | undefined;
+  viewer: Viewer;
+}) {
   const { member, presence, color } = entry;
   const u = member.user;
   const name = member.nick ?? u.displayName;
+  const me = useCurrentUser();
+  const roles = useRoles(guildId);
+  const openDm = useOpenDm();
+  const openDialog = useLoungeUi((s) => s.openDialog);
+  const isSelf = u.id === me.id;
+  const isOwner = ownerId === u.id;
+  // The server enforces the hierarchy; these only hide what would certainly be refused.
+  const targetTop = Math.max(
+    -1,
+    ...member.roleIds.map((id) => roles.find((r) => r.id === id)?.position ?? -1),
+  );
+  const outranks = viewer.isOwner || viewer.topPosition > targetTop;
+  const canAct = !isSelf && !isOwner && outranks;
+
+  const setRole = (roleId: string, on: boolean) => {
+    const req = on ? addMemberRole(guildId, u.id, roleId) : removeMemberRole(guildId, u.id, roleId);
+    void req
+      .then(() =>
+        useStore.getState().applyDispatch('GUILD_MEMBER_UPDATE', {
+          guild_id: guildId,
+          user: { id: u.id },
+          nick: member.nick ?? null,
+          roles: on ? [...member.roleIds, roleId] : member.roleIds.filter((r) => r !== roleId),
+        }),
+      )
+      .catch(() => undefined);
+  };
+  const assignable = roles.filter((r) => r.id !== guildId && viewer.canManageRole(r.position));
+
+  const act = (action: 'timeout' | 'kick' | 'ban') => () =>
+    openDialog({ kind: 'memberAction', action, guildId, userId: u.id });
+
   const menu: MenuEntry[] = [
-    { label: 'Profile' },
+    { label: 'Profile', disabled: true },
     { label: 'Mention', onSelect: () => void navigator.clipboard?.writeText(`<@${u.id}>`) },
-    { label: 'Message' },
+    {
+      label: 'Message',
+      disabled: isSelf || !!u.bot,
+      onSelect: () => void openDm([u.id]).catch(() => undefined),
+    },
+    { type: 'separator' },
+    ...(assignable.length > 0 && !isOwner
+      ? [
+          {
+            type: 'submenu',
+            label: 'Roles',
+            items: assignable.map((r): MenuEntry => ({
+              type: 'checkbox',
+              label: r.name,
+              checked: member.roleIds.includes(r.id),
+              onCheckedChange: (on) => setRole(r.id, on),
+            })),
+          } as MenuEntry,
+        ]
+      : []),
+    ...(viewer.can('MODERATE_MEMBERS') && canAct
+      ? [{ label: 'Timeout', onSelect: act('timeout') } as MenuEntry]
+      : []),
+    ...(viewer.can('KICK_MEMBERS') && canAct
+      ? [{ label: `Kick ${name}`, danger: true, onSelect: act('kick') } as MenuEntry]
+      : []),
+    ...(viewer.can('BAN_MEMBERS') && canAct
+      ? [{ label: `Ban ${name}`, danger: true, onSelect: act('ban') } as MenuEntry]
+      : []),
     { type: 'separator' },
     { label: 'Copy User ID', onSelect: () => void navigator.clipboard?.writeText(u.id) },
   ];
@@ -44,6 +119,7 @@ export function MemberList({ guildId }: { guildId: string }) {
   const members = useMembers(guildId);
   const roles = useRoles(guildId);
   const presence = usePresenceMap();
+  const viewer = useViewer(guildId);
   const rows = useMemo(
     () =>
       buildMemberRows(members, roles, presence, {
@@ -67,7 +143,12 @@ export function MemberList({ guildId }: { guildId: string }) {
             {r.label} — {r.count}
           </h3>
         ) : (
-          <MemberRowView entry={r.entry} ownerId={guild?.ownerId} />
+          <MemberRowView
+            entry={r.entry}
+            guildId={guildId}
+            ownerId={guild?.ownerId}
+            viewer={viewer}
+          />
         );
       }}
     />

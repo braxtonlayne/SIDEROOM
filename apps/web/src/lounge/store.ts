@@ -48,6 +48,7 @@ export type LoungeDialog =
   | { kind: 'folder'; folderId: string }
   | { kind: 'createDm' }
   | { kind: 'customStatus' }
+  | { kind: 'memberAction'; action: 'timeout' | 'kick' | 'ban'; guildId: string; userId: string }
   | { kind: 'editChannel'; guildId: string; channelId: string }
   | { kind: 'deleteChannel'; guildId: string; channelId: string }
   | { kind: 'notifications'; guildId: string; channelId?: string | undefined };
@@ -67,6 +68,8 @@ export interface LoungeUiState {
   recentSwitcher: string[];
   /** Info banners the person dismissed, by id. */
   dismissedBanners: Record<string, boolean>;
+  /** Welcome checklist steps done, keyed `guildId:step`. */
+  welcomeDone: Record<string, boolean>;
   // Not persisted:
   /** What Home shows when no conversation is open. */
   homeView: 'friends' | 'requests';
@@ -76,6 +79,7 @@ export interface LoungeUiState {
   dialog: LoungeDialog | null;
 
   dismissBanner(id: string): void;
+  markWelcomeDone(key: string): void;
   setHomeView(v: 'friends' | 'requests'): void;
   openDialog(d: LoungeDialog): void;
   closeDialog(): void;
@@ -110,6 +114,7 @@ export const useLoungeUi = create<LoungeUiState>()(
       rightPanelWidth: 240,
       recentSwitcher: [],
       dismissedBanners: {},
+      welcomeDone: {},
       homeView: 'friends',
       voice: null,
       micMuted: false,
@@ -118,6 +123,7 @@ export const useLoungeUi = create<LoungeUiState>()(
 
       dismissBanner: (id) =>
         set((s) => ({ dismissedBanners: { ...s.dismissedBanners, [id]: true } })),
+      markWelcomeDone: (key) => set((s) => ({ welcomeDone: { ...s.welcomeDone, [key]: true } })),
       setHomeView: (homeView) => set({ homeView }),
       openDialog: (dialog) => set({ dialog }),
       closeDialog: () => set({ dialog: null }),
@@ -166,6 +172,7 @@ export const useLoungeUi = create<LoungeUiState>()(
         rightPanelWidth: s.rightPanelWidth,
         recentSwitcher: s.recentSwitcher,
         dismissedBanners: s.dismissedBanners,
+        welcomeDone: s.welcomeDone,
       }),
     },
   ),

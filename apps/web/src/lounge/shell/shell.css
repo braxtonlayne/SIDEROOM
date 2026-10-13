@@ -303,3 +303,53 @@
   color: var(--text-muted);
   font-size: 13px;
 }
+
+/* Server welcome */
+.lng-welcome-body {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 48px 16px;
+}
+.lng-welcome-title {
+  margin: 0 0 8px;
+  font-size: 28px;
+}
+.lng-welcome-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.lng-welcome-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background: var(--bg-base-low);
+  color: var(--text-normal);
+  text-align: left;
+  cursor: pointer;
+}
+.lng-welcome-card:hover:not(:disabled) {
+  background: var(--bg-base-lowest);
+}
+.lng-welcome-card:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.lng-welcome-card[data-done] {
+  border-color: var(--success, #3ba55d);
+}
+.lng-welcome-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+.lng-welcome-text small {
+  color: var(--text-muted);
+}

@@ -6,6 +6,7 @@ import { isTextLike } from './channels';
 import { useChannels, useGuild } from './data';
 import { EXPIRY_OPTIONS, expiryLabel, inviteUrl, USES_OPTIONS } from './inviteFlow';
 import { useLoungeRoute } from './nav';
+import { InviteFriends } from './shell/InviteFriends';
 
 /**
  * "Invite people": create an invite (max_age / max_uses), copy the link, list and revoke existing ones.
@@ -122,6 +123,7 @@ export function InviteDialog({
             ))}
           </select>
         </label>
+        {channelId && <InviteFriends channelId={channelId} />}
         <div className="lng-field-row">
           <label className="lng-field">
             <span>Expire after</span>
