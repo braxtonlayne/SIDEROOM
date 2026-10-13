@@ -45,7 +45,7 @@ fn gif(w: u32, h: u32, n: u32) -> Vec<u8> {
         let mut enc = GifEncoder::new(&mut out);
         for i in 0..n {
             let img = RgbaImage::from_fn(w, h, |x, _| {
-                if (x + i) % 2 == 0 {
+                if (x + i).is_multiple_of(2) {
                     Rgba([255, 0, 0, 255])
                 } else {
                     Rgba([0, 0, 255, 255])

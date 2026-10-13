@@ -38,7 +38,7 @@ fn animated_gif(w: u32, h: u32, n: usize) -> Vec<u8> {
         enc.set_repeat(Repeat::Infinite).unwrap();
         for i in 0..n {
             let img = RgbaImage::from_fn(w, h, |x, _| {
-                if (x as usize / 4 + i) % 2 == 0 {
+                if (x as usize / 4 + i).is_multiple_of(2) {
                     Rgba([255, 0, 0, 255])
                 } else {
                     Rgba([0, 0, 255, 255])

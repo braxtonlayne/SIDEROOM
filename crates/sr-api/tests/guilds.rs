@@ -1004,7 +1004,10 @@ async fn guild_icon_banner_splash_upload_replace_remove() {
     )
     .await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
-    let before = f.storage.list("icons/").await.unwrap().len();
+    let before = sr_storage::ObjectStorage::list(&*f.storage, "icons/")
+        .await
+        .unwrap()
+        .len();
     let (s, _) = patch(
         &f,
         &format!("/guilds/{gid}"),
@@ -1013,5 +1016,11 @@ async fn guild_icon_banner_splash_upload_replace_remove() {
     )
     .await;
     assert_eq!(s, StatusCode::FORBIDDEN);
-    assert_eq!(f.storage.list("icons/").await.unwrap().len(), before);
+    assert_eq!(
+        sr_storage::ObjectStorage::list(&*f.storage, "icons/")
+            .await
+            .unwrap()
+            .len(),
+        before
+    );
 }
