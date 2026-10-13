@@ -16,9 +16,9 @@ Phase 3. Spec: [admin-staff-server](../specs/admin-staff-server.md), docs 06, 07
 - [ ] **ADM-STF-011** [FE] "Platform Admin" entry in Staff Server dropdown and user menu
 
 ## ADM-UI — Admin pages shell
-- [ ] **ADM-UI-001** [FE] `/admin` full-screen layout with grouped nav filtered by platform permissions
+- [x] **ADM-UI-001** [FE] `/admin` full-screen layout with grouped nav filtered by platform permissions
 - [ ] **ADM-UI-002** [FE] Shared admin table component (server-side pagination, filters, column chooser, CSV export)
-- [ ] **ADM-UI-003** [FE] Reason-required action modal pattern + audit toast
+- [x] **ADM-UI-003** [FE] Reason-required action modal pattern + audit toast
 
 ## ADM-DASH — Overview
 - [ ] **ADM-DASH-001** [FE] Dashboard tiles: accounts vs cap gauge, online now, voice rooms + egress, storage used, job backlog, review queue counts, donations vs hosting cost, recent alerts
@@ -32,7 +32,7 @@ Phase 3. Spec: [admin-staff-server](../specs/admin-staff-server.md), docs 06, 07
 - [ ] **ADM-PPL-004** [FE] Persons view: account chain timeline, link/unlink accounts, notes, suspicion level with history
 - [x] **ADM-PPL-005** [BE] Platform bans (reason category serious/standard, note) applied to Person, unban
 - [x] **ADM-PPL-006** [BE] Inviter suspicion propagation on serious bans + thresholds (freeze, escalate) + clear
-- [ ] **ADM-PPL-007** [FE] Platform Bans page
+- [x] **ADM-PPL-007** [FE] Platform Bans page
 - [ ] **ADM-PPL-008** [FE] Staff page (list, roles, appointed by/at, appoint modal, revoke, delegations (Owner))
 
 ## ADM-GRAPH — Invite graph
@@ -64,7 +64,7 @@ Phase 3. Spec: [admin-staff-server](../specs/admin-staff-server.md), docs 06, 07
 - [ ] **ADM-PLT-005** [FE] Email & Integrations (SMTP + test send, Discord OAuth app id/secret, GIF provider key, metadata provider keys, unfurl allow/deny lists)
 - [ ] **ADM-PLT-006** [FE] System page (health, versions, backups last run/verify, disk, Garage status, coturn status)
 - [ ] **ADM-PLT-007** [FE] Platform Audit Log viewer
-- [ ] **ADM-PLT-008** [FE] Access Log viewer + chain verification status
+- [x] **ADM-PLT-008** [FE] Access Log viewer + chain verification status
 - [ ] **ADM-PLT-009** [BE] Platform announcements (banner to all users, optional DM from system user)
 
 ## ADM-ALR — Alerts
