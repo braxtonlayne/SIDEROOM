@@ -22,3 +22,5 @@ export type { StoreState, StoreActions } from './store';
 export { connectGateway, disconnectGateway, getGateway } from './connect';
 export { DM_GUILD } from './reducer';
 export * as rest from './rest';
+export { cdnUrl, cdnSize, isAnimatedHash } from './cdn';
+export type { CdnKind, CdnFormat, CdnUrlOptions } from './cdn';

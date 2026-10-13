@@ -28,7 +28,8 @@ export const USER_BANNED = 40007;
 export function inviteErrorMessage(e: unknown): string {
   if (e instanceof ApiError) {
     const code = e.body?.code;
-    if (e.status === 404 || code === UNKNOWN_INVITE) return 'This invite is invalid or has expired.';
+    if (e.status === 404 || code === UNKNOWN_INVITE)
+      return 'This invite is invalid or has expired.';
     if (code === USER_BANNED) return 'You are banned from this server.';
     if (e.status === 403) return 'Invites to this server are paused right now. Try again later.';
     if (e.status === 429) return 'Too many tries. Take a breath and try again in a moment.';

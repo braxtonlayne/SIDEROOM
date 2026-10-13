@@ -47,6 +47,8 @@ export interface GuildPermissions {
   manageChannels: boolean;
   createInvite: boolean;
   moderate: boolean;
+  /** Any permission that opens Server Settings (Manage Server/Roles/Channels, Ban Members, View Audit Log, ...). */
+  serverSettings?: boolean;
 }
 
 export interface Guild {

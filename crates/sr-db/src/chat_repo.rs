@@ -19,6 +19,7 @@ use sr_chat::repo::{
     Page, ReactionSummary, RepoResult, StoreError, StoreResult, UploadState, UserLookup,
     UserSummary,
 };
+use sr_chat::threads::model::{ForumConfig, ThreadInfo};
 use sr_core::permissions::{Overwrite, OverwriteKind, Permissions};
 use sr_core::{AttachmentId, ChannelId, GuildId, MessageId, RoleId, Snowflake, UserId};
 use std::collections::HashMap;
@@ -68,8 +69,8 @@ fn vis_parse(s: &str) -> RepoResult<Visibility> {
     })
 }
 
-pub(crate) const GUILD_COLS: &str = "id, name, description, icon_key, owner_id, is_staff_guild, \
-    system_channel_id, verification_level, default_message_notifications, \
+pub(crate) const GUILD_COLS: &str = "id, name, description, icon_key, banner_key, splash_key, \
+    owner_id, is_staff_guild, system_channel_id, verification_level, default_message_notifications, \
     explicit_content_filter, preferred_locale";
 
 pub(crate) fn guild_from(r: &PgRow) -> Result<Guild, sqlx::Error> {
@@ -78,6 +79,8 @@ pub(crate) fn guild_from(r: &PgRow) -> Result<Guild, sqlx::Error> {
         name: r.try_get("name")?,
         description: r.try_get("description")?,
         icon_key: r.try_get("icon_key")?,
+        banner_key: r.try_get("banner_key")?,
+        splash_key: r.try_get("splash_key")?,
         owner_id: UserId::new(u(r.try_get("owner_id")?)),
         is_staff_guild: r.try_get("is_staff_guild")?,
         system_channel_id: r
@@ -113,13 +116,60 @@ fn role_from(r: &PgRow) -> Result<Role, sqlx::Error> {
     })
 }
 
-const CHANNEL_COLS: &str = "id, guild_id, type, name, topic, position, parent_id, nsfw, \
-    rate_limit_per_user, bitrate, user_limit, last_message_id, owner_id";
+/// `SELECT` list and joins for a [`Channel`]; append a `WHERE`. Thread rows join
+/// `thread_metadata` and count their members.
+pub(crate) const CHANNEL_SELECT: &str = "SELECT c.id, c.guild_id, c.type, c.name, c.topic, \
+    c.position, c.parent_id, c.nsfw, c.rate_limit_per_user, c.bitrate, c.user_limit, \
+    c.last_message_id, c.owner_id, c.flags, c.available_tags, c.default_reaction_emoji, \
+    c.default_sort_order, c.default_forum_layout, c.default_thread_rate_limit, \
+    c.default_auto_archive_duration, \
+    tm.archived AS t_archived, tm.auto_archive_duration AS t_auto_archive, \
+    (extract(epoch FROM tm.archive_timestamp) * 1000)::bigint AS t_archive_ms, \
+    tm.locked AS t_locked, tm.invitable AS t_invitable, \
+    (extract(epoch FROM tm.create_timestamp) * 1000)::bigint AS t_create_ms, \
+    (extract(epoch FROM tm.last_activity_at) * 1000)::bigint AS t_activity_ms, \
+    tm.message_count AS t_messages, tm.total_message_sent AS t_total, \
+    tm.applied_tags AS t_tags, \
+    (SELECT count(*) FROM thread_members m WHERE m.channel_id = c.id) AS t_members \
+    FROM channels c LEFT JOIN thread_metadata tm ON tm.channel_id = c.id";
 
-fn channel_from(r: &PgRow) -> RepoResult<Channel> {
+fn json_opt<T: for<'de> serde::Deserialize<'de>>(r: &PgRow, name: &str) -> RepoResult<Option<T>> {
+    let v: Option<serde_json::Value> = r.try_get(name).map_err(db)?;
+    Ok(v.and_then(|v| serde_json::from_value(v).ok()))
+}
+
+pub(crate) fn channel_from(r: &PgRow) -> RepoResult<Channel> {
     let kind = ChannelType::from_code(r.try_get("type").map_err(db)?).ok_or_else(|| bad("type"))?;
     let opt = |name: &str| -> RepoResult<Option<u64>> {
         Ok(r.try_get::<Option<i64>, _>(name).map_err(db)?.map(u))
+    };
+    let small = |name: &str| -> RepoResult<Option<u32>> {
+        Ok(r.try_get::<Option<i32>, _>(name)
+            .map_err(db)?
+            .and_then(|v| u32::try_from(v).ok()))
+    };
+    let thread = match r.try_get::<Option<bool>, _>("t_archived").map_err(db)? {
+        None => None,
+        Some(archived) => Some(ThreadInfo {
+            archived,
+            auto_archive_duration: small("t_auto_archive")?.unwrap_or(1440),
+            archive_timestamp_ms: r.try_get("t_archive_ms").map_err(db)?,
+            locked: r.try_get("t_locked").map_err(db)?,
+            invitable: r.try_get("t_invitable").map_err(db)?,
+            create_timestamp_ms: r.try_get("t_create_ms").map_err(db)?,
+            last_activity_ms: r.try_get("t_activity_ms").map_err(db)?,
+            message_count: small("t_messages")?.unwrap_or(0),
+            total_message_sent: small("t_total")?.unwrap_or(0),
+            member_count: u32::try_from(r.try_get::<i64, _>("t_members").map_err(db)?)
+                .unwrap_or(u32::MAX),
+            applied_tags: r
+                .try_get::<Option<Vec<i64>>, _>("t_tags")
+                .map_err(db)?
+                .unwrap_or_default()
+                .into_iter()
+                .map(u)
+                .collect(),
+        }),
     };
     Ok(Channel {
         id: ChannelId::new(u(r.try_get("id").map_err(db)?)),
@@ -142,6 +192,22 @@ fn channel_from(r: &PgRow) -> RepoResult<Channel> {
             .and_then(|v| u32::try_from(v).ok()),
         last_message_id: opt("last_message_id")?.map(MessageId::new),
         owner_id: opt("owner_id")?.map(UserId::new),
+        flags: u32::try_from(r.try_get::<i32, _>("flags").map_err(db)?).unwrap_or(0),
+        thread,
+        forum: ForumConfig {
+            available_tags: json_opt(r, "available_tags")?.unwrap_or_default(),
+            default_reaction_emoji: json_opt(r, "default_reaction_emoji")?,
+            default_sort_order: r
+                .try_get::<Option<i16>, _>("default_sort_order")
+                .map_err(db)?
+                .and_then(|v| u8::try_from(v).ok()),
+            default_forum_layout: r
+                .try_get::<Option<i16>, _>("default_forum_layout")
+                .map_err(db)?
+                .and_then(|v| u8::try_from(v).ok()),
+            default_thread_rate_limit: small("default_thread_rate_limit")?,
+            default_auto_archive_duration: small("default_auto_archive_duration")?,
+        },
     })
 }
 
@@ -178,6 +244,9 @@ fn message_from(r: &PgRow) -> RepoResult<Message> {
             Some(MessageReference {
                 message_id: MessageId::new(m),
                 channel_id: ChannelId::new(c),
+                forward: v
+                    .get("snapshot")
+                    .and_then(|s| serde_json::from_value(s.clone()).ok()),
             })
         });
     Ok(Message {
@@ -229,11 +298,29 @@ fn ids_i64<T: Copy>(v: &[T], f: impl Fn(T) -> u64) -> Vec<i64> {
     v.iter().map(|x| i(f(*x))).collect()
 }
 
-const INSERT_CHANNEL: &str = "INSERT INTO channels (id, guild_id, type, name, topic, position, \
-    parent_id, nsfw, rate_limit_per_user, bitrate, user_limit, owner_id) \
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)";
+pub(crate) const INSERT_CHANNEL: &str = "INSERT INTO channels (id, guild_id, type, name, topic, position, \
+    parent_id, nsfw, rate_limit_per_user, bitrate, user_limit, owner_id, flags, available_tags, \
+    default_reaction_emoji, default_sort_order, default_forum_layout, default_thread_rate_limit, \
+    default_auto_archive_duration) \
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)";
 
-fn bind_channel<'q>(
+fn tags_json(c: &Channel) -> Option<serde_json::Value> {
+    (!c.forum.available_tags.is_empty())
+        .then(|| serde_json::to_value(&c.forum.available_tags).unwrap_or_default())
+}
+
+fn reaction_json(c: &Channel) -> Option<serde_json::Value> {
+    c.forum
+        .default_reaction_emoji
+        .as_ref()
+        .and_then(|r| serde_json::to_value(r).ok())
+}
+
+fn opt_i32(v: Option<u32>) -> Option<i32> {
+    v.and_then(|v| i32::try_from(v).ok())
+}
+
+pub(crate) fn bind_channel<'q>(
     q: sqlx::query::Query<'q, sqlx::Postgres, sqlx::postgres::PgArguments>,
     c: &'q Channel,
 ) -> sqlx::query::Query<'q, sqlx::Postgres, sqlx::postgres::PgArguments> {
@@ -249,6 +336,13 @@ fn bind_channel<'q>(
         .bind(c.bitrate.and_then(|v| i32::try_from(v).ok()))
         .bind(c.user_limit.and_then(|v| i32::try_from(v).ok()))
         .bind(c.owner_id.map(|o| i(o.get())))
+        .bind(i32::try_from(c.flags).unwrap_or(0))
+        .bind(tags_json(c))
+        .bind(reaction_json(c))
+        .bind(c.forum.default_sort_order.map(i16::from))
+        .bind(c.forum.default_forum_layout.map(i16::from))
+        .bind(opt_i32(c.forum.default_thread_rate_limit))
+        .bind(opt_i32(c.forum.default_auto_archive_duration))
 }
 
 #[async_trait]
@@ -497,7 +591,7 @@ impl GuildRepository for PgChatRepo {
 impl ChannelRepository for PgChatRepo {
     async fn get_channel(&self, id: ChannelId) -> RepoResult<Option<Channel>> {
         let row = sqlx::query(sqlx::AssertSqlSafe(format!(
-            "SELECT {CHANNEL_COLS} FROM channels WHERE id = $1"
+            "{CHANNEL_SELECT} WHERE c.id = $1"
         )))
         .bind(i(id.get()))
         .fetch_optional(&self.pool)
@@ -508,9 +602,34 @@ impl ChannelRepository for PgChatRepo {
 
     async fn list_guild_channels(&self, guild: GuildId) -> RepoResult<Vec<Channel>> {
         let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
-            "SELECT {CHANNEL_COLS} FROM channels WHERE guild_id = $1 ORDER BY position, id"
+            "{CHANNEL_SELECT} WHERE c.guild_id = $1 AND c.type NOT IN (10, 11, 12) ORDER BY c.position, c.id"
         )))
         .bind(i(guild.get()))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter().map(channel_from).collect()
+    }
+
+    async fn list_guild_threads(&self, guild: GuildId) -> RepoResult<Vec<Channel>> {
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "{CHANNEL_SELECT} WHERE c.guild_id = $1 AND c.type IN (10, 11, 12) ORDER BY c.id"
+        )))
+        .bind(i(guild.get()))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter().map(channel_from).collect()
+    }
+
+    async fn get_threads(&self, ids: &[ChannelId]) -> RepoResult<Vec<Channel>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "{CHANNEL_SELECT} WHERE c.id = ANY($1) AND c.type IN (10, 11, 12)"
+        )))
+        .bind(ids.iter().map(|c| i(c.get())).collect::<Vec<_>>())
         .fetch_all(&self.pool)
         .await
         .map_err(db)?;
@@ -570,9 +689,13 @@ impl ChannelRepository for PgChatRepo {
     }
 
     async fn update_channel(&self, c: &Channel) -> RepoResult<()> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
         sqlx::query(
             "UPDATE channels SET name = $2, topic = $3, position = $4, parent_id = $5, nsfw = $6, \
-             rate_limit_per_user = $7, bitrate = $8, user_limit = $9, updated_at = now() WHERE id = $1",
+             rate_limit_per_user = $7, bitrate = $8, user_limit = $9, flags = $10, \
+             available_tags = $11, default_reaction_emoji = $12, default_sort_order = $13, \
+             default_forum_layout = $14, default_thread_rate_limit = $15, \
+             default_auto_archive_duration = $16, updated_at = now() WHERE id = $1",
         )
         .bind(i(c.id.get()))
         .bind(c.name.as_deref())
@@ -583,20 +706,79 @@ impl ChannelRepository for PgChatRepo {
         .bind(i32::try_from(c.rate_limit_per_user).unwrap_or(0))
         .bind(c.bitrate.and_then(|v| i32::try_from(v).ok()))
         .bind(c.user_limit.and_then(|v| i32::try_from(v).ok()))
-        .execute(&self.pool)
+        .bind(i32::try_from(c.flags).unwrap_or(0))
+        .bind(tags_json(c))
+        .bind(reaction_json(c))
+        .bind(c.forum.default_sort_order.map(i16::from))
+        .bind(c.forum.default_forum_layout.map(i16::from))
+        .bind(opt_i32(c.forum.default_thread_rate_limit))
+        .bind(opt_i32(c.forum.default_auto_archive_duration))
+        .execute(&mut *tx)
         .await
         .map_err(db)?;
-        Ok(())
+        if c.kind.is_forum_like() {
+            // Posts lose the tags the forum no longer offers.
+            let keep: Vec<i64> = c.forum.available_tags.iter().map(|t| i(t.id)).collect();
+            sqlx::query(
+                "UPDATE thread_metadata tm SET applied_tags = COALESCE(( \
+                     SELECT array_agg(t) FROM unnest(tm.applied_tags) t WHERE t = ANY($2)), '{}') \
+                 FROM channels th \
+                 WHERE th.id = tm.channel_id AND th.parent_id = $1 AND cardinality(tm.applied_tags) > 0",
+            )
+            .bind(i(c.id.get()))
+            .bind(keep)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        }
+        tx.commit().await.map_err(db)
     }
 
     async fn delete_channel(&self, id: ChannelId) -> RepoResult<()> {
-        // parent_id is ON DELETE SET NULL, so category children are orphaned.
-        sqlx::query("DELETE FROM channels WHERE id = $1")
+        // Threads die with their parent (channels.parent_id is only SET NULL);
+        // category children are orphaned, not deleted.
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        sqlx::query("DELETE FROM channels WHERE parent_id = $1 AND type IN (10, 11, 12)")
             .bind(i(id.get()))
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await
             .map_err(db)?;
-        Ok(())
+        sqlx::query("DELETE FROM channels WHERE id = $1")
+            .bind(i(id.get()))
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        tx.commit().await.map_err(db)
+    }
+
+    async fn is_thread_member(&self, channel: ChannelId, user: UserId) -> RepoResult<bool> {
+        sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM thread_members WHERE channel_id = $1 AND user_id = $2)",
+        )
+        .bind(i(channel.get()))
+        .bind(i(user.get()))
+        .fetch_one(&self.pool)
+        .await
+        .map_err(db)
+    }
+
+    async fn list_thread_member_ids(
+        &self,
+        channel: ChannelId,
+        after: Option<UserId>,
+        limit: usize,
+    ) -> RepoResult<Vec<UserId>> {
+        let rows: Vec<i64> = sqlx::query_scalar(
+            "SELECT user_id FROM thread_members WHERE channel_id = $1 AND user_id > $2 \
+             ORDER BY user_id LIMIT $3",
+        )
+        .bind(i(channel.get()))
+        .bind(after.map_or(0, |a| i(a.get())))
+        .bind(i64::try_from(limit).unwrap_or(i64::MAX))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(rows.into_iter().map(|v| UserId::new(u(v))).collect())
     }
 
     async fn is_recipient(&self, channel: ChannelId, user: UserId) -> RepoResult<bool> {
@@ -654,11 +836,24 @@ impl MessageRepository for PgChatRepo {
 
     async fn insert_message(&self, m: &Message) -> RepoResult<()> {
         let reference = m.reference.as_ref().map(|r| {
-            serde_json::json!({
+            let mut v = serde_json::json!({
                 "message_id": r.message_id.to_string(),
                 "channel_id": r.channel_id.to_string(),
-            })
+            });
+            // A forward keeps the copy it was made from (`message_reference.type = 1`).
+            if let Some(f) = &r.forward
+                && let Ok(s) = serde_json::to_value(f)
+            {
+                v["type"] = serde_json::json!(1);
+                v["snapshot"] = s;
+            }
+            v
         });
+        let poll_expires_ms = m
+            .poll
+            .as_ref()
+            .filter(|p| !p.finalized)
+            .and_then(|p| p.expiry_ms);
         let embeds = serde_json::to_value(&m.embeds).map_err(|e| RepoError(e.to_string()))?;
         let components =
             serde_json::to_value(&m.components).map_err(|e| RepoError(e.to_string()))?;
@@ -672,8 +867,9 @@ impl MessageRepository for PgChatRepo {
         sqlx::query(
             "INSERT INTO messages (id, channel_id, guild_id, author_id, type, content, flags, \
              reference, embeds, components, sticker_ids, poll, mention_everyone, \
-             mention_user_ids, mention_role_ids, mention_channel_ids, pinned) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)",
+             mention_user_ids, mention_role_ids, mention_channel_ids, pinned, poll_expires_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, \
+             to_timestamp($18::double precision / 1000.0))",
         )
         .bind(i(m.id.get()))
         .bind(i(m.channel_id.get()))
@@ -692,6 +888,7 @@ impl MessageRepository for PgChatRepo {
         .bind(ids_i64(&m.mention_role_ids, RoleId::get))
         .bind(ids_i64(&m.mention_channel_ids, ChannelId::get))
         .bind(m.pinned)
+        .bind(poll_expires_ms.map(|ms| ms as f64))
         .execute(&mut *tx)
         .await
         .map_err(db)?;
@@ -750,6 +947,18 @@ impl MessageRepository for PgChatRepo {
     }
 
     async fn apply_delete(&self, plan: &DeletePlan) -> RepoResult<()> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        // A deleted message stops counting towards its thread (checked before the
+        // visibility changes).
+        sqlx::query(
+            "UPDATE thread_metadata SET message_count = GREATEST(message_count - 1, 0) \
+             WHERE channel_id = (SELECT channel_id FROM messages \
+                                 WHERE id = $1 AND visibility = 'visible')",
+        )
+        .bind(i(plan.message_id.get()))
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
         sqlx::query(
             "UPDATE messages SET visibility = $2::message_visibility, \
              deleted_at = to_timestamp($3::double precision / 1000.0), \
@@ -760,10 +969,10 @@ impl MessageRepository for PgChatRepo {
         .bind(vis_str(plan.visibility))
         .bind(plan.deleted_at_ms)
         .bind(plan.purge_after_ms)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await
         .map_err(db)?;
-        Ok(())
+        tx.commit().await.map_err(db)
     }
 
     async fn last_sent_ms(&self, channel: ChannelId, user: UserId) -> RepoResult<Option<i64>> {
@@ -888,7 +1097,8 @@ pub const ATTACHMENT_SPOILER_FLAG: i32 = 1 << 3;
 const ATTACHMENT_COLS: &str = "id, channel_id, uploader_id, filename, size_bytes, storage_key, \
     declared_content_type, content_type, description, flags, message_id, \
     state::text AS state, (extract(epoch FROM expires_at) * 1000)::bigint AS expires_ms, \
-    (extract(epoch FROM created_at) * 1000)::bigint AS created_ms";
+    (extract(epoch FROM created_at) * 1000)::bigint AS created_ms, \
+    round(duration_secs * 1000)::integer AS duration_ms, waveform";
 
 fn attachment_from(r: &PgRow) -> Result<Attachment, sqlx::Error> {
     let message_id: Option<i64> = r.try_get("message_id")?;
@@ -914,7 +1124,16 @@ fn attachment_from(r: &PgRow) -> Result<Attachment, sqlx::Error> {
         message_id: message_id.map(|m| MessageId::new(u(m))),
         expires_at_ms: r.try_get("expires_ms")?,
         created_at_ms: r.try_get("created_ms")?,
+        duration_ms: r
+            .try_get::<Option<i32>, _>("duration_ms")?
+            .and_then(|v| u32::try_from(v).ok()),
+        waveform: r.try_get("waveform")?,
     })
+}
+
+/// Milliseconds as the `attachments.duration_secs` REAL column.
+fn duration_secs(ms: u32) -> f32 {
+    ms as f32 / 1000.0
 }
 
 fn sdb(e: sqlx::Error) -> StoreError {
@@ -1155,9 +1374,9 @@ impl MessageStore for PgMessageStore {
         sqlx::query(
             "INSERT INTO attachments (id, channel_id, uploader_id, filename, size_bytes, \
              storage_key, declared_content_type, content_type, description, flags, is_large, \
-             expires_at, state) \
+             expires_at, state, duration_secs, waveform) \
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, \
-             to_timestamp($12::double precision), $13::attachment_state)",
+             to_timestamp($12::double precision), $13::attachment_state, $14, $15)",
         )
         .bind(i(a.id.get()))
         .bind(i(a.channel_id.get()))
@@ -1176,6 +1395,8 @@ impl MessageStore for PgMessageStore {
         .bind(a.expires_at_ms.is_some())
         .bind(expires_secs)
         .bind(upload_state_text(a.state))
+        .bind(a.duration_ms.map(duration_secs))
+        .bind(a.waveform.as_deref())
         .execute(&self.pool)
         .await
         .map_err(sdb)?;
@@ -1202,7 +1423,7 @@ impl MessageStore for PgMessageStore {
             "UPDATE attachments SET message_id = $2, state = $3::attachment_state, \
              description = $4, content_type = $5, flags = $6, \
              expires_at = to_timestamp($7::double precision), size_bytes = $8, \
-             updated_at = now() \
+             duration_secs = $9, waveform = $10, updated_at = now() \
              WHERE id = $1",
         )
         .bind(i(a.id.get()))
@@ -1218,6 +1439,8 @@ impl MessageStore for PgMessageStore {
         .bind(expires_secs)
         // The EXIF/metadata strip rewrites the object, so the stored size must follow it.
         .bind(i(a.size))
+        .bind(a.duration_ms.map(duration_secs))
+        .bind(a.waveform.as_deref())
         .execute(&self.pool)
         .await
         .map_err(sdb)?;
@@ -1252,8 +1475,8 @@ impl UserLookup for PgChatRepo {
     async fn users(&self, ids: &[UserId]) -> RepoResult<Vec<UserSummary>> {
         let ids: Vec<i64> = ids.iter().map(|u| i(u.get())).collect();
         let rows = sqlx::query(
-            "SELECT id, username::text AS username, display_name, avatar_key \
-             FROM accounts WHERE id = ANY($1)",
+            "SELECT id, username::text AS username, display_name, avatar_key, \
+             banner_key FROM accounts WHERE id = ANY($1)",
         )
         .bind(ids)
         .fetch_all(&self.pool)
@@ -1266,6 +1489,7 @@ impl UserLookup for PgChatRepo {
                 username: r.try_get("username").map_err(db)?,
                 display_name: r.try_get("display_name").map_err(db)?,
                 avatar_key: r.try_get("avatar_key").map_err(db)?,
+                banner_key: r.try_get("banner_key").map_err(db)?,
             });
         }
         Ok(out)

@@ -67,6 +67,7 @@ pub mod intents {
     pub const GUILD_MESSAGES: u64 = 1 << 9;
     pub const GUILD_MESSAGE_REACTIONS: u64 = 1 << 10;
     pub const GUILD_MESSAGE_TYPING: u64 = 1 << 11;
+    pub const GUILD_MESSAGE_POLLS: u64 = 1 << 24;
     pub const MESSAGE_CONTENT: u64 = 1 << 15;
     pub const AUTO_MODERATION_CONFIGURATION: u64 = 1 << 20;
     pub const AUTO_MODERATION_EXECUTION: u64 = 1 << 21;
@@ -100,7 +101,14 @@ pub mod intents {
             "GUILD_MEMBER_ADD" | "GUILD_MEMBER_REMOVE" | "GUILD_MEMBER_UPDATE" => {
                 Some(GUILD_MEMBERS)
             }
+            "THREAD_CREATE"
+            | "THREAD_UPDATE"
+            | "THREAD_DELETE"
+            | "THREAD_LIST_SYNC"
+            | "THREAD_MEMBER_UPDATE" => Some(GUILDS),
+            "THREAD_MEMBERS_UPDATE" => Some(GUILD_MEMBERS),
             "PRESENCE_UPDATE" => Some(GUILD_PRESENCES),
+            "MESSAGE_POLL_VOTE_ADD" | "MESSAGE_POLL_VOTE_REMOVE" => Some(GUILD_MESSAGE_POLLS),
             "MESSAGE_CREATE" => Some(GUILD_MESSAGES),
             "TYPING_START" => Some(GUILD_MESSAGE_TYPING),
             _ => None,

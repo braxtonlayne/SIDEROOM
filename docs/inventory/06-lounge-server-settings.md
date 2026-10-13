@@ -3,16 +3,16 @@
 Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.md) §11. The sidebar order follows the reference screenshot.
 
 ## Shell
-- [ ] **LNG-SSET-001** [FE] Settings sidebar with group headers (`<SERVER NAME>`, EXPRESSION, PEOPLE, APPS, SIDE ROOM, MODERATION), permission-filtered items, Delete Server at bottom with trash icon
-- [ ] **LNG-SSET-002** [FE] ESC close button, unsaved-changes bar ("Careful — you have unsaved changes!" Reset / Save Changes), shake on navigation attempt
+- [x] **LNG-SSET-001** [FE] Settings sidebar with group headers (`<SERVER NAME>`, EXPRESSION, PEOPLE, APPS, SIDE ROOM, MODERATION), permission-filtered items, Delete Server at bottom with trash icon
+- [x] **LNG-SSET-002** [FE] ESC close button, unsaved-changes bar ("Careful — you have unsaved changes!" Reset / Save Changes), shake on navigation attempt
 
 ## Server Profile
 - [ ] **LNG-SSET-003** [FE] Header text "Customize how your server appears in invite links and, if enabled, in Server Discovery and Announcement Channel messages"
-- [ ] **LNG-SSET-004** [FE] Name input
+- [x] **LNG-SSET-004** [FE] Name input
 - [ ] **LNG-SSET-005** [FE] Icon: "We recommend an image of at least 512x512." + Change Server Icon (crop modal, GIF allowed free), Remove
 - [ ] **LNG-SSET-006** [FE] Banner: 10 preset gradient swatches (dark, pink, red, orange, yellow, purple, blue, teal, green, black) + custom image upload (free)
 - [ ] **LNG-SSET-007** [FE] Traits: 5 slots (emoji + short text)
-- [ ] **LNG-SSET-008** [FE] Description textarea ("How did your server get started? Why should people join?")
+- [x] **LNG-SSET-008** [FE] Description textarea ("How did your server get started? Why should people join?")
 - [ ] **LNG-SSET-009** [FE] Live preview card (banner, icon, name, "● N Online ● N Members", "Est. <Mon YYYY>")
 - [ ] **LNG-SSET-010** [FE] Invite splash background (free)
 
@@ -22,7 +22,7 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 
 ## Engagement
 - [ ] **LNG-SSET-013** [FE] System Messages channel + toggles (random welcome message, sticker reply button, support contribution messages, setup tips)
-- [ ] **LNG-SSET-014** [FE] Default Notification Settings (All / Only @mentions)
+- [x] **LNG-SSET-014** [FE] Default Notification Settings (All / Only @mentions)
 - [ ] **LNG-SSET-015** [FE] Inactive channel (AFK) + timeout
 - [ ] **LNG-SSET-016** [FE] Activity feed / widget settings (server widget JSON toggle)
 
@@ -33,8 +33,8 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 - [ ] **LNG-SSET-020** [FE] Contributors list (respecting anonymity), "Your contributions" history
 
 ## Emoji
-- [ ] **LNG-SSET-021** [FE] Upload requirements copy, Upload Emoji button (multi-file), slots counters (static/animated)
-- [ ] **LNG-SSET-022** [FE] Emoji table (image, editable name, uploader avatar, role restriction, delete)
+- [x] **LNG-SSET-021** [FE] Upload requirements copy, Upload Emoji button (multi-file), slots counters (static/animated)
+- [x] **LNG-SSET-022** [FE] Emoji table (image, editable name, uploader avatar, role restriction, delete)
 
 ## Stickers
 - [ ] **LNG-SSET-023** [FE] Sticker slots grid, Upload modal (preview, name, related emoji, description, file)
@@ -51,16 +51,16 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 - [ ] **LNG-SSET-030** [FE] Member detail side drawer (roles, timeout, audit history for this member)
 
 ## Roles
-- [ ] **LNG-SSET-031** [FE] Roles list (drag reorder, member counts, search, Create Role, "Default permissions" @everyone row)
+- [x] **LNG-SSET-031** [FE] Roles list (drag reorder, member counts, search, Create Role, "Default permissions" @everyone row)
 - [ ] **LNG-SSET-032** [FE] Role editor tab Display: name, color (swatches + custom + gradient two-color free), role icon (image or unicode emoji, free), hoist toggle, mentionable toggle
-- [ ] **LNG-SSET-033** [FE] Role editor tab Permissions: grouped permission list with descriptions (General, Membership, Text, Voice, Apps, Events, Stage, Advanced, **SIDE ROOM**), search, Clear permissions, Administrator warning
+- [x] **LNG-SSET-033** [FE] Role editor tab Permissions: grouped permission list with descriptions (General, Membership, Text, Voice, Apps, Events, Stage, Advanced, **SIDE ROOM**), search, Clear permissions, Administrator warning
 - [ ] **LNG-SSET-034** [FE] Role editor tab Links (linked roles: placeholder for app role connections, Phase 6)
-- [ ] **LNG-SSET-035** [FE] Role editor tab Manage Members (search, add members modal, remove)
+- [x] **LNG-SSET-035** [FE] Role editor tab Manage Members (search, add members modal, remove)
 - [ ] **LNG-SSET-036** [FE] "View Server As Role" preview mode with exit banner
-- [ ] **LNG-SSET-037** [FE] Delete role confirm; hierarchy lock icons
+- [x] **LNG-SSET-037** [FE] Delete role confirm; hierarchy lock icons
 
 ## Invites
-- [ ] **LNG-SSET-038** [FE] Invites table (inviter, code, uses, expires, channel), revoke on hover, Pause Invites toggle
+- [x] **LNG-SSET-038** [FE] Invites table (inviter, code, uses, expires, channel), revoke on hover, Pause Invites toggle
 
 ## Access
 - [ ] **LNG-SSET-039** [FE] Access mode (invite-only / apply to join / Directory-listed if approved)
@@ -89,15 +89,15 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 
 ## Audit Log
 - [ ] **LNG-SSET-056** [BE] Audit log entry writing for all guild mutations (Discord action types) + X-Audit-Log-Reason
-- [ ] **LNG-SSET-057** [FE] Audit log list (filter by user and action, expandable diff rows, icons per action)
+- [x] **LNG-SSET-057** [FE] Audit log list (filter by user and action, expandable diff rows, icons per action)
 
 ## Bans
-- [ ] **LNG-SSET-058** [FE] Ban list (search, reason, Revoke Ban modal)
+- [x] **LNG-SSET-058** [FE] Ban list (search, reason, Revoke Ban modal)
 
 ## AutoMod
 - [x] **LNG-SSET-059** [BE] AutoMod engine (keyword lists w/ wildcards, regex (Rust `regex`), allow list, preset lists, mention spam, spam heuristic, member profile names) with actions block/custom message/alert channel/timeout
 - [ ] **LNG-SSET-060** [GW] AUTO_MODERATION_RULE_*, AUTO_MODERATION_ACTION_EXECUTION
-- [ ] **LNG-SSET-061** [FE] AutoMod page: rule cards (Block Custom Words ×N, Block Mention Spam, Block Spam Content, Flag words in profiles), rule editor (keywords, regex tester, exemptions roles/channels, actions)
+- [x] **LNG-SSET-061** [FE] AutoMod page: rule cards (Block Custom Words ×N, Block Mention Spam, Block Spam Content, Flag words in profiles), rule editor (keywords, regex tester, exemptions roles/channels, actions)
 - [ ] **LNG-SSET-062** [FE] AutoMod alert message renderer in alert channel (actions: delete, timeout, kick, ban)
 
 ## Community

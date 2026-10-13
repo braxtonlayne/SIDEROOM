@@ -9,6 +9,8 @@ import { MOBILE_QUERY, useMediaQuery } from '@sideroom/ui';
 import { ResizeHandle } from '@sideroom/ui';
 import { ComingSoon } from '@sideroom/ui';
 import { firstTextChannel, HOME, navigableChannels, step } from './channels';
+import { useOpenUserSettings } from '../settings/user/nav';
+import { useAppliedTheme } from '../settings/user/prefs';
 import { loadMarkdownEngine } from './markdown';
 import {
   useAllChannels,
@@ -41,7 +43,11 @@ function isEditable(t: EventTarget | null) {
 }
 
 /** Keyboard shortcut dispatcher; definitions live in shortcuts.ts. */
-function useLoungeShortcuts(h: { openSwitcher: () => void; toggleSheet: () => void }) {
+function useLoungeShortcuts(h: {
+  openSwitcher: () => void;
+  toggleSheet: () => void;
+  openSettings: () => void;
+}) {
   const { guildId, channelId } = useLoungeRoute();
   const channelsByGuild = useAllChannels();
   const rail = useRail();
@@ -74,6 +80,9 @@ function useLoungeShortcuts(h: { openSwitcher: () => void; toggleSheet: () => vo
           return;
         case 'shortcutSheet':
           c.h.toggleSheet();
+          return;
+        case 'userSettings':
+          c.h.openSettings();
           return;
         case 'prevChannel':
         case 'nextChannel':
@@ -181,9 +190,12 @@ function Shell() {
   const [tab, setTab] = useState<'home' | 'notifications' | 'you'>('home');
   const [coming, setComing] = useState(false);
 
+  const openSettings = useOpenUserSettings();
+  const theme = useAppliedTheme();
   useLoungeShortcuts({
     openSwitcher: () => setSwitcher(true),
     toggleSheet: () => setSheet((s) => !s),
+    openSettings,
   });
 
   useEffect(() => {
@@ -218,6 +230,10 @@ function Shell() {
     <ThemeProvider
       section="lounge"
       serverAccent={guild?.accent ?? null}
+      userGlobal={theme.userGlobal}
+      appearance={theme.appearance}
+      style={theme.style}
+      data-message-display={theme.messageDisplay}
       className="lng-root"
       data-mobile={isMobile || undefined}
       data-pane={isMobile ? pane : undefined}

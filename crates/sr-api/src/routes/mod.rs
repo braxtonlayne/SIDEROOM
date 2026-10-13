@@ -13,6 +13,7 @@
 //!   branch delegates to the DM service) and `/users/@me/guilds*`.
 //! * `messages`: `/channels/{id}/{messages,pins,typing,attachments}*`.
 //! * `auth`: `/sr/*` entrance routes.
+//! * `admin`: `/admin/*` platform admin (staff sessions only; permissions checked per call).
 //! * `cdn`: `GET|HEAD /cdn/{*path}` signed media delivery. Not part of [`all`]: it lives
 //!   outside `/api/v1`; the composition root merges [`cdn::layered`] at the top level.
 //! * `social`: relationships, ignores, notes, DMs (`/users/@me/channels*`, `/channels/{id}/recipients/*`),
@@ -24,13 +25,16 @@ use axum::{Router, extract::FromRequestParts, http::request::Parts};
 use sr_core::ErrorCode;
 use std::{any::type_name, sync::Arc};
 
+pub mod admin;
 pub mod auth;
 pub mod cdn;
 pub mod guilds;
+pub mod media;
 pub mod messages;
 pub mod search;
 pub mod settings;
 pub mod social;
+pub mod threads;
 
 /// Extractor for a service registered on [`AppState`]. A missing service is a
 /// server misconfiguration: it logs once per request and answers 500
@@ -76,12 +80,14 @@ impl<T: Send + Sync + 'static> FromRequestParts<AppState> for MaybeExt<T> {
 /// an overlapping method and path, so this doubles as the startup check.
 pub fn all() -> Router<AppState> {
     Router::new()
+        .merge(admin::router())
         .merge(auth::router())
         .merge(messages::router())
         .merge(guilds::router())
         .merge(social::router())
         .merge(settings::router())
         .merge(search::router())
+        .merge(threads::router())
 }
 
 /// Feature-owned routers (`Feature::routes()`), nested under
@@ -98,11 +104,13 @@ where
 /// The full OpenAPI document: [`crate::openapi::base`] plus each module's paths.
 pub fn openapi() -> utoipa::openapi::OpenApi {
     let mut doc = openapi::base();
+    doc.merge(admin::openapi());
     doc.merge(messages::openapi());
     doc.merge(guilds::openapi());
     doc.merge(social::openapi());
     doc.merge(settings::openapi());
     doc.merge(search::openapi());
+    doc.merge(threads::openapi());
     doc
 }
 

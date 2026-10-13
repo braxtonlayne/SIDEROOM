@@ -148,6 +148,8 @@ async fn update_attachment_persists_the_new_size() {
         message_id: None,
         expires_at_ms: None,
         created_at_ms: clock.now_unix_ms(),
+        duration_ms: None,
+        waveform: None,
     };
     store.insert_attachment(&att).await.unwrap();
 

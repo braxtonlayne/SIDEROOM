@@ -2,6 +2,7 @@
 //!
 //! Timestamps are Unix milliseconds so the logic stays clock-injectable and wasm-clean.
 
+use crate::threads::model::{ForumConfig, ThreadInfo};
 use sr_core::permissions::{Overwrite, Permissions};
 use sr_core::{AttachmentId, ChannelId, GuildId, MessageId, RoleId, UserId};
 
@@ -100,6 +101,16 @@ impl ChannelType {
         )
     }
 
+    /// Forum and media channels: posts are threads.
+    pub const fn is_forum_like(self) -> bool {
+        matches!(self, Self::Forum | Self::Media)
+    }
+
+    /// Parents that hold ordinary threads (started from a message or on their own).
+    pub const fn hosts_threads(self) -> bool {
+        matches!(self, Self::Text | Self::Announcement)
+    }
+
     pub const fn is_voice_like(self) -> bool {
         matches!(self, Self::Voice | Self::Stage)
     }
@@ -111,6 +122,10 @@ pub struct Guild {
     pub name: String,
     pub description: Option<String>,
     pub icon_key: Option<String>,
+    /// Banner hash (`/cdn/icons/{guild}/{hash}.png`).
+    pub banner_key: Option<String>,
+    /// Invite splash hash.
+    pub splash_key: Option<String>,
     pub owner_id: UserId,
     pub is_staff_guild: bool,
     pub system_channel_id: Option<ChannelId>,
@@ -177,6 +192,12 @@ pub struct Channel {
     pub user_limit: Option<u32>,
     pub last_message_id: Option<MessageId>,
     pub owner_id: Option<UserId>,
+    /// Discord channel flags (`PINNED`, `REQUIRE_TAG`, ...; see [`crate::threads::model::channel_flags`]).
+    pub flags: u32,
+    /// Present for thread channels (types 10/11/12).
+    pub thread: Option<ThreadInfo>,
+    /// Forum/media settings and thread defaults.
+    pub forum: ForumConfig,
 }
 
 impl Channel {
@@ -195,6 +216,9 @@ impl Channel {
             user_limit: None,
             last_message_id: None,
             owner_id: None,
+            flags: 0,
+            thread: None,
+            forum: ForumConfig::default(),
         }
     }
 }
@@ -309,6 +333,8 @@ pub enum Visibility {
 pub struct MessageReference {
     pub message_id: MessageId,
     pub channel_id: ChannelId,
+    /// Present for forwards (`message_reference.type = 1`): the copy taken at forward time.
+    pub forward: Option<crate::message::ForwardSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

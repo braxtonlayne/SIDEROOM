@@ -54,6 +54,15 @@ pub trait GuildRepository: Send + Sync {
 pub trait ChannelRepository: Send + Sync {
     async fn get_channel(&self, id: ChannelId) -> RepoResult<Option<Channel>>;
     async fn list_guild_channels(&self, guild: GuildId) -> RepoResult<Vec<Channel>>;
+    /// Every thread of the guild, archived ones included (search and read states cover
+    /// them; `list_guild_channels` leaves them out). Default: none.
+    async fn list_guild_threads(&self, _guild: GuildId) -> RepoResult<Vec<Channel>> {
+        Ok(Vec::new())
+    }
+    /// The threads among `ids` (a message that has a thread shares its id). Default: none.
+    async fn get_threads(&self, _ids: &[ChannelId]) -> RepoResult<Vec<Channel>> {
+        Ok(Vec::new())
+    }
     async fn get_overwrites(&self, channel: ChannelId) -> RepoResult<Vec<Overwrite>>;
     async fn insert_channel(&self, channel: &Channel, overwrites: &[Overwrite]) -> RepoResult<()>;
     async fn update_channel(&self, channel: &Channel) -> RepoResult<()>;
@@ -63,6 +72,21 @@ pub trait ChannelRepository: Send + Sync {
     async fn is_recipient(&self, channel: ChannelId, user: UserId) -> RepoResult<bool>;
     /// Every recipient of a DM or group DM, hidden or not (open question 50).
     async fn list_recipients(&self, channel: ChannelId) -> RepoResult<Vec<UserId>>;
+    /// Whether `user` joined the thread `channel` (private threads gate access on this).
+    /// Stores without thread support keep the default.
+    async fn is_thread_member(&self, _channel: ChannelId, _user: UserId) -> RepoResult<bool> {
+        Ok(false)
+    }
+    /// Member ids of a thread ordered by id, strictly after `after` (mention gating for
+    /// private threads). Stores without thread support keep the default.
+    async fn list_thread_member_ids(
+        &self,
+        _channel: ChannelId,
+        _after: Option<UserId>,
+        _limit: usize,
+    ) -> RepoResult<Vec<UserId>> {
+        Ok(Vec::new())
+    }
 }
 
 #[async_trait]
@@ -118,6 +142,8 @@ pub struct UserSummary {
     pub username: String,
     pub display_name: Option<String>,
     pub avatar_key: Option<String>,
+    /// Profile banner hash, when one is set.
+    pub banner_key: Option<String>,
 }
 
 /// Looks up the user fields that Discord embeds in member, ban and message
@@ -233,6 +259,10 @@ pub struct Attachment {
     /// Large files (above the standard limit) expire; `None` lives with the message.
     pub expires_at_ms: Option<i64>,
     pub created_at_ms: i64,
+    /// Voice messages: length in milliseconds, as declared by the client.
+    pub duration_ms: Option<u32>,
+    /// Voice messages: base64 waveform (up to 256 amplitude samples).
+    pub waveform: Option<String>,
 }
 
 #[async_trait]

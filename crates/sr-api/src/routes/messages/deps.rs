@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use moka::future::Cache;
 use sr_chat::message_hooks::MessageHooks;
 use sr_chat::message_rules::{DeletePlan, EditMessageInput, EditPlan};
-use sr_chat::perms::{channel_permissions, dm_permissions};
+use sr_chat::perms::dm_permissions;
 use sr_chat::repo::{ChatRepository, UserLookup};
 use sr_chat::{
     Channel, ChatError, ChatLimits, ChatResult, ChatService, Message, Role, SendMessage,
@@ -161,6 +161,8 @@ pub struct MessagesDeps {
     /// How long a nonce keeps deduplicating (Discord: a few minutes).
     pub nonce_window_ms: i64,
     pub upload_url_ttl: Duration,
+    /// Polls, stickers and link previews (see [`super::rich`]).
+    pub rich: super::rich::RichDeps,
 }
 
 impl MessagesDeps {
@@ -206,6 +208,7 @@ impl MessagesDeps {
             size_policy: SizePolicy::default(),
             nonce_window_ms: i64::try_from(NONCE_WINDOW.as_millis()).unwrap_or(i64::MAX),
             upload_url_ttl: Duration::from_secs(15 * 60),
+            rich: super::rich::RichDeps::default(),
         })
     }
 
@@ -369,8 +372,16 @@ impl MessagesDeps {
             .await?
             .ok_or(ChatError::MissingAccess)?;
         let roles = self.repo.list_roles(gid).await?;
-        let overwrites = self.repo.get_overwrites(channel.id).await?;
-        let perms = channel_permissions(&guild, &member, &roles, &overwrites, self.now_ms());
+        // Threads inherit the parent channel's overwrites; private ones need membership.
+        let perms = sr_chat::threads::access::guild_channel_permissions(
+            &*self.repo,
+            &guild,
+            &member,
+            &roles,
+            &channel,
+            self.now_ms(),
+        )
+        .await?;
         Ok(Access {
             channel,
             perms,

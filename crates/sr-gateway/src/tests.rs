@@ -29,6 +29,7 @@ struct FakeDir {
     staff: Mutex<Vec<UserId>>,
     perms: Mutex<HashMap<(UserId, GuildId), Permissions>>,
     friends: Mutex<HashMap<UserId, Vec<UserId>>>,
+    sync: Mutex<HashMap<(UserId, GuildId), Value>>,
 }
 
 #[async_trait]
@@ -40,6 +41,9 @@ impl GuildDirectory for FakeDir {
             .get(&user)
             .cloned()
             .unwrap_or_default()
+    }
+    async fn thread_list_sync(&self, user: UserId, g: GuildId) -> Option<Value> {
+        self.sync.lock().unwrap().get(&(user, g)).cloned()
     }
     async fn staff_users(&self) -> Vec<UserId> {
         self.staff.lock().unwrap().clone()
@@ -1450,4 +1454,179 @@ async fn user_update_reaches_guild_members_but_not_the_changed_user_twice() {
     // The changed user gets the self-scoped copy instead; strangers get nothing.
     a.silent().await;
     stranger.silent().await;
+}
+
+// ---- threads (LNG-THR-003) ----------------------------------------------------
+
+const THREAD: ChannelId = ChannelId::new(12);
+
+fn thread_payload() -> Value {
+    json!({ "id": "12", "guild_id": "1", "parent_id": "10", "type": 11, "name": "t" })
+}
+
+#[tokio::test]
+async fn thread_events_reach_only_members_who_can_view_the_thread() {
+    let e = env();
+    // User 2 cannot see the (private) thread.
+    e.dir.hidden.lock().unwrap().insert((u(2), THREAD));
+    let mut a = connect(&e);
+    a.identify("bot:1", intents::GUILDS, 1).await;
+    let mut b = connect(&e);
+    b.identify("bot:2", intents::GUILDS, 1).await;
+    settle().await;
+    emit(
+        &e.bus,
+        DomainEvent::ThreadCreated {
+            guild: G1,
+            thread: THREAD,
+            payload: thread_payload(),
+        },
+    )
+    .await;
+    emit(
+        &e.bus,
+        DomainEvent::ThreadUpdated {
+            guild: G1,
+            thread: THREAD,
+            payload: thread_payload(),
+        },
+    )
+    .await;
+    let created = a.expect_event("THREAD_CREATE").await;
+    assert_eq!(created["d"]["id"], "12");
+    a.expect_event("THREAD_UPDATE").await;
+    b.silent().await;
+}
+
+#[tokio::test]
+async fn thread_delete_goes_to_the_precomputed_audience() {
+    let e = env();
+    let mut a = connect(&e);
+    a.identify("bot:1", intents::GUILDS, 1).await;
+    let mut b = connect(&e);
+    b.identify("bot:2", intents::GUILDS, 1).await;
+    settle().await;
+    emit(
+        &e.bus,
+        DomainEvent::ThreadDeleted {
+            guild: G1,
+            thread: THREAD,
+            payload: json!({ "id": "12", "guild_id": "1", "parent_id": "10", "type": 11 }),
+            viewers: vec![u(1)],
+        },
+    )
+    .await;
+    assert_eq!(
+        a.expect_event("THREAD_DELETE").await["d"]["parent_id"],
+        "10"
+    );
+    b.silent().await;
+}
+
+#[tokio::test]
+async fn thread_members_update_needs_the_members_intent() {
+    let e = env();
+    let mut plain = connect(&e);
+    plain.identify("bot:1", intents::GUILDS, 1).await;
+    let mut privileged = connect(&e);
+    privileged
+        .identify(
+            &format!("bot:2:{}", intents::GUILD_MEMBERS),
+            intents::GUILDS | intents::GUILD_MEMBERS,
+            1,
+        )
+        .await;
+    settle().await;
+    emit(
+        &e.bus,
+        DomainEvent::ThreadMembersUpdated {
+            guild: G1,
+            thread: THREAD,
+            payload: json!({ "id": "12", "guild_id": "1", "member_count": 2,
+                             "added_members": [{ "user_id": "7" }] }),
+            also: vec![],
+        },
+    )
+    .await;
+    let v = privileged.expect_event("THREAD_MEMBERS_UPDATE").await;
+    assert_eq!(v["d"]["member_count"], 2);
+    plain.silent().await;
+}
+
+#[tokio::test]
+async fn removed_members_still_hear_about_their_removal() {
+    let e = env();
+    // User 2 lost access with the removal, but is named in `also`.
+    e.dir.hidden.lock().unwrap().insert((u(2), THREAD));
+    let mut gone = connect(&e);
+    gone.identify(
+        &format!("bot:2:{}", intents::GUILD_MEMBERS),
+        intents::GUILDS | intents::GUILD_MEMBERS,
+        1,
+    )
+    .await;
+    settle().await;
+    emit(
+        &e.bus,
+        DomainEvent::ThreadMembersUpdated {
+            guild: G1,
+            thread: THREAD,
+            payload: json!({ "id": "12", "guild_id": "1", "member_count": 1,
+                             "removed_member_ids": ["2"] }),
+            also: vec![u(2)],
+        },
+    )
+    .await;
+    let v = gone.expect_event("THREAD_MEMBERS_UPDATE").await;
+    assert_eq!(v["d"]["removed_member_ids"], json!(["2"]));
+    gone.silent().await;
+}
+
+#[tokio::test]
+async fn thread_member_update_is_a_self_event() {
+    let e = env();
+    let mut a = connect(&e);
+    a.identify("bot:1", intents::GUILDS, 1).await;
+    let mut b = connect(&e);
+    b.identify("bot:2", intents::GUILDS, 1).await;
+    settle().await;
+    emit(
+        &e.bus,
+        DomainEvent::ThreadMemberUpdated {
+            user: u(1),
+            payload: json!({ "id": "12", "user_id": "1", "guild_id": "1", "flags": 0 }),
+        },
+    )
+    .await;
+    assert_eq!(
+        a.expect_event("THREAD_MEMBER_UPDATE").await["d"]["user_id"],
+        "1"
+    );
+    b.silent().await;
+}
+
+#[tokio::test]
+async fn thread_list_sync_follows_guild_create() {
+    let e = env();
+    e.dir.sync.lock().unwrap().insert(
+        (u(1), G1),
+        json!({ "guild_id": "1", "threads": [thread_payload()], "members": [] }),
+    );
+    let mut c = connect(&e);
+    let hello = c.recv().await;
+    assert_eq!(hello["op"], 10);
+    c.send(json!({"op": 2, "d": {"token": "bot:1", "intents": intents::GUILDS, "properties": {}}}))
+        .await;
+    c.expect_event("READY").await;
+    c.expect_event("GUILD_CREATE").await;
+    let sync = c.expect_event("THREAD_LIST_SYNC").await;
+    assert_eq!(sync["d"]["threads"][0]["id"], "12");
+    // A session without the GUILDS intent gets neither.
+    let mut d = connect(&e);
+    d.recv().await;
+    d.send(json!({"op": 2, "d": {"token": "bot:1", "intents": intents::GUILD_MESSAGES, "properties": {}}}))
+        .await;
+    d.expect_event("READY").await;
+    d.expect_event("GUILD_CREATE").await;
+    d.silent().await;
 }

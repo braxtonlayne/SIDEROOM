@@ -269,7 +269,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
 
     // Feature crates register into the registry before it is shared (none
     // exist yet). Their routes are mounted below from `Feature::routes()`.
-    let registry = Arc::new(FeatureRegistry::new());
+    let mut registry = FeatureRegistry::new();
+    registry
+        .register(crate::rich_jobs::UnfurlFeature)
+        .context("registering the unfurl feature")?;
+    let registry = Arc::new(registry);
     let features = FeatureService::new(
         registry.clone(),
         Arc::new(PgSettingsStore::new(pool.clone(), ids.clone())),
@@ -333,6 +337,27 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             social_ids,
             sr_chat::social::SocialLimits::default(),
         ));
+    // Threads: their own snowflake worker (process id + 5). The activity hook keeps
+    // counters, reopens archived threads and auto-joins posters; it runs after the
+    // social hooks on every stored message.
+    let threads_deps = Arc::new(routes::threads::ThreadsDeps::new(
+        sr_chat::threads::ThreadService::new(
+            PgChatRepo::new(pool.clone()),
+            clock.clone(),
+            SnowflakeGenerator::new(
+                clock.clone(),
+                cfg.server.worker_id,
+                (cfg.server.process_id + 5) % 32,
+            )
+            .context("thread snowflake generator")?,
+        ),
+        bus.clone(),
+    ));
+    let message_hooks: Arc<dyn sr_chat::message_hooks::MessageHooks> =
+        Arc::new(sr_chat::threads::hooks::HookChain(vec![
+            social,
+            threads_deps.activity_hook(),
+        ]));
     let cdn_signer =
         sr_storage::cdn::CdnSigner::new(secret_key(cfg.server.secret_key.expose())?.to_vec());
     let messages = routes::messages::MessagesDeps::new(
@@ -344,13 +369,41 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             sr_storage::upload::SizePolicy::default().standard_limit,
         )),
         Arc::new(PgChatRepo::new(pool.clone())),
-        Some(social),
+        Some(message_hooks),
         clock.clone(),
         cfg.server.worker_id,
         cfg.server.process_id,
     )
     .context("message snowflake generator")?
     .with_cdn_signer(cdn_signer.clone());
+    // Rich messages: polls, stickers and link previews (LNG-MSG-010, LNG-MSG-014).
+    if cfg.unfurl.allow_private_for_tests {
+        tracing::warn!(
+            "unfurl.allow_private_for_tests is ON: link previews may fetch loopback and private \n             addresses. This is for tests only and lets any user probe the internal network."
+        );
+    }
+    let unfurler = Arc::new(sr_unfurl::production(
+        sr_unfurl::Policy {
+            deny_hosts: cfg.unfurl.deny_hosts.clone(),
+            allow_private_for_tests: cfg.unfurl.allow_private_for_tests,
+        },
+        cfg.unfurl.per_host_per_minute.max(1),
+    ));
+    let job_ids: crate::search_jobs::JobIds = {
+        let ids = ids.clone();
+        Arc::new(move || ids.generate().get() as i64)
+    };
+    let messages = messages.with_rich(routes::messages::RichDeps {
+        store: Some(Arc::new(sr_db::rich_repo::PgRichStore::new(pool.clone()))),
+        scheduler: Some(Arc::new(crate::rich_jobs::PgJobScheduler {
+            pool: pool.clone(),
+            ids: job_ids,
+        })),
+        unfurler: Some(unfurler),
+        gate: Some(Arc::new(crate::rich_jobs::FeatureUnfurlGate(
+            features.clone(),
+        ))),
+    });
 
     // Server settings and message search (open questions 131-138). The settings
     // service runs over Postgres on its own snowflake worker (process id + 3) and
@@ -440,7 +493,23 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // The first message of a DM (or the first after Close DM) announces the channel to
     // each recipient before the message itself.
     let social_api = Arc::new(social_api);
-    let messages = messages.with_dm_announcer(social_api.clone());
+    let messages = Arc::new(messages.with_dm_announcer(social_api.clone()));
+
+    // Platform admin API: permissions are resolved per request from the Staff Server; every
+    // action is written to the hash-chained access log. Feature toggles go through the shared
+    // feature service and the System page reports the live gateway session count.
+    let admin = routes::admin::AdminDeps::new(
+        sr_admin::AdminService::new(Arc::new(sr_db::admin_repo::PgAdminRepo::new(
+            pool.clone(),
+            id_src.clone(),
+        )))
+        .with_bus(bus.clone()),
+    )
+    .with_features(features.clone())
+    .with_gateway_sessions({
+        let gw = gateway.clone();
+        Arc::new(move || gw.session_count())
+    });
 
     let settings = ApiSettings {
         trust_forwarded_for: cfg.server.trust_forwarded_for,
@@ -452,16 +521,19 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .clock(clock)
         .session_policy(auth_cfg.session_policy())
         .extension(auth_service)
+        .extension(Arc::new(admin))
         .sessions(Arc::new(auth_repo))
         .bots(Arc::new(NoBots))
         .bearers(Arc::new(NoBearers))
         .openapi(routes::openapi())
         .extension(Arc::new(guilds.clone()))
-        .extension(Arc::new(messages))
+        .extension(messages.clone())
+        .extension(threads_deps.clone())
         .extension(social_api)
         .extension(settings_deps.clone())
         .extension(Arc::new(AutoModGateHandle(settings_deps)))
         .extension(search_deps)
+        .extension(Arc::new(routes::media::MediaDeps::new(storage.clone())))
         .extension(Arc::new(routes::cdn::CdnDeps::new(
             storage.clone(),
             cdn_signer,
@@ -509,10 +581,16 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     );
     let runner = crate::jobs::register_attachment_gc(runner, &pool, storage.clone());
     let runner = crate::jobs::register_audit_purge(runner, &pool);
+    let runner = crate::jobs::register_thread_archive(runner, &pool, threads_deps.clone());
     let runner = crate::search_jobs::register(runner, &pool, indexer);
+    let runner = crate::admin_jobs::register(runner, &pool, id_src.clone(), bus.clone());
+    let runner = crate::rich_jobs::register(runner, &pool, messages.clone());
     crate::jobs::schedule_recurring(&pool).await?;
     crate::jobs::schedule_audit_purge(&pool).await?;
+    crate::jobs::schedule_thread_archive(&pool).await?;
     crate::jobs::schedule_attachment_gc(&pool).await?;
+    crate::admin_jobs::schedule(&pool).await?;
+    crate::rich_jobs::schedule_poll_sweep(&pool).await?;
     let jobs_task = tokio::spawn(runner.run(job_rx));
 
     // REST: every feature module, feature-owned routes, and the guild backend.

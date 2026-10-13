@@ -1,6 +1,6 @@
 //! The `/cdn/{*path}` handler.
 
-use super::{CdnDeps, MAX_CACHE, content, path};
+use super::{CdnDeps, MAX_CACHE, content, path, variant};
 use crate::{rate_limit::Decision, state::AppState};
 use axum::{
     body::Body,
@@ -97,10 +97,16 @@ pub(super) async fn serve(State(state): State<AppState>, req: Request) -> Respon
         Err(path::PathError::Invalid) => return plain(StatusCode::BAD_REQUEST, "bad path"),
     };
 
-    // The signature is the credential; nothing below runs without it.
+    // The signature is the credential; nothing below runs without it. Public
+    // kinds (avatars, icons) are addressed by an unguessable content hash and
+    // may omit it, but a signature that is present must still be valid.
     let now = u64::try_from(state.now_secs()).unwrap_or(0);
     let query = req.uri().query().unwrap_or("");
-    if let Err(e) = deps.signer.verify_query(&parsed.canonical, query, now) {
+    let has_sig = query
+        .split('&')
+        .any(|p| p.starts_with("sig=") || p.starts_with("ex="));
+    let unsigned_public = parsed.public && !has_sig;
+    if !unsigned_public && let Err(e) = deps.signer.verify_query(&parsed.canonical, query, now) {
         return match e {
             VerifyError::Expired => plain(StatusCode::GONE, "link expired"),
             VerifyError::Malformed | VerifyError::BadSignature => {
@@ -108,11 +114,37 @@ pub(super) async fn serve(State(state): State<AppState>, req: Request) -> Respon
             }
         };
     }
+    let params = match variant::Params::parse(query) {
+        Ok(p) => p,
+        Err(m) => return plain(StatusCode::BAD_REQUEST, m),
+    };
     let expires_at = query
         .split('&')
         .find_map(|p| p.strip_prefix("ex=").and_then(|v| v.parse::<u64>().ok()))
         .unwrap_or(now);
     let max_age = expires_at.saturating_sub(now).min(MAX_CACHE.as_secs());
+    // Hash-addressed objects never change: cache them for a year.
+    let cache_control = if unsigned_public {
+        "public, max-age=31536000, immutable".to_owned()
+    } else {
+        format!("private, max-age={max_age}")
+    };
+
+    if !params.is_empty() || parsed.format_hint.is_some() {
+        match variant::serve(
+            deps.as_ref(),
+            &parsed,
+            params,
+            req.headers(),
+            head_only,
+            &cache_control,
+        )
+        .await
+        {
+            variant::Outcome::Done(r) => return r,
+            variant::Outcome::Original => {}
+        }
+    }
 
     let info = match deps.storage.head(&parsed.key).await {
         Ok(i) => i,
@@ -126,11 +158,7 @@ pub(super) async fn serve(State(state): State<AppState>, req: Request) -> Respon
 
     let mut headers = HeaderMap::new();
     put(&mut headers, header::ETAG, &tag);
-    put(
-        &mut headers,
-        header::CACHE_CONTROL,
-        &format!("private, max-age={max_age}"),
-    );
+    put(&mut headers, header::CACHE_CONTROL, &cache_control);
     put(&mut headers, header::ACCEPT_RANGES, "bytes");
     put(&mut headers, header::VARY, "Origin");
 

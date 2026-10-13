@@ -197,6 +197,8 @@ fn redact_for(session: &Session, name: &str, data: &Value) -> Option<Value> {
     let mut v = data.clone();
     if let Some(o) = v.as_object_mut() {
         o.insert("content".into(), json!(""));
+        o.remove("message_snapshots");
+        o.remove("sticker_items");
         for k in ["embeds", "attachments", "components"] {
             o.insert(k.into(), json!([]));
         }
@@ -309,6 +311,36 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
             channel: Some(*channel),
             audience: None,
         },
+        DomainEvent::PollVoteAdded {
+            guild,
+            channel,
+            message_id,
+            user,
+            answer_id,
+        } => Dispatch {
+            name: "MESSAGE_POLL_VOTE_ADD",
+            data: json!({
+                "user_id": user, "channel_id": channel, "message_id": message_id.to_string(),
+                "guild_id": guild, "answer_id": answer_id,
+            }),
+            channel: Some(*channel),
+            audience: None,
+        },
+        DomainEvent::PollVoteRemoved {
+            guild,
+            channel,
+            message_id,
+            user,
+            answer_id,
+        } => Dispatch {
+            name: "MESSAGE_POLL_VOTE_REMOVE",
+            data: json!({
+                "user_id": user, "channel_id": channel, "message_id": message_id.to_string(),
+                "guild_id": guild, "answer_id": answer_id,
+            }),
+            channel: Some(*channel),
+            audience: None,
+        },
         DomainEvent::ChannelPinsUpdated {
             guild,
             channel,
@@ -335,6 +367,25 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
             channel: Some(*channel),
             audience: None,
         },
+        DomainEvent::ThreadCreated {
+            thread, payload, ..
+        } => passthrough("THREAD_CREATE", payload, Some(*thread)),
+        DomainEvent::ThreadUpdated {
+            thread, payload, ..
+        } => passthrough("THREAD_UPDATE", payload, Some(*thread)),
+        // The thread is gone, so the producer carries who could see it.
+        DomainEvent::ThreadDeleted {
+            payload, viewers, ..
+        } => Dispatch {
+            audience: Some(viewers.iter().copied().collect()),
+            ..passthrough("THREAD_DELETE", payload, None)
+        },
+        DomainEvent::ThreadMembersUpdated {
+            thread, payload, ..
+        } => passthrough("THREAD_MEMBERS_UPDATE", payload, Some(*thread)),
+        DomainEvent::ThreadMemberUpdated { payload, .. } => {
+            passthrough("THREAD_MEMBER_UPDATE", payload, None)
+        }
         DomainEvent::MemberJoined { payload, .. } => passthrough("GUILD_MEMBER_ADD", payload, None),
         DomainEvent::MemberLeft { guild, user } => Dispatch {
             name: "GUILD_MEMBER_REMOVE",
@@ -510,9 +561,11 @@ impl Gateway {
     ) -> Arc<Session> {
         let cfg = &self.inner.cfg;
         let guilds = self.inner.dir.guilds_for_user(user.user_id).await;
+        let mut syncs = Vec::new();
         let mut payloads = Vec::with_capacity(guilds.len());
         for g in &guilds {
             payloads.push(self.guild_create_body(user.user_id, *g).await);
+            syncs.push(self.inner.dir.thread_list_sync(user.user_id, *g).await);
         }
         let extras = self.inner.dir.ready_extras(user.user_id).await;
         let session = Arc::new(Session::new(
@@ -544,8 +597,13 @@ impl Gateway {
             }
         }
         session.deliver("READY", ready);
-        for p in payloads {
+        for (p, sync) in payloads.into_iter().zip(syncs) {
             session.deliver("GUILD_CREATE", p);
+            if let Some(s) = sync
+                && session.wants("THREAD_LIST_SYNC")
+            {
+                session.deliver("THREAD_LIST_SYNC", s);
+            }
         }
         for g in &guilds {
             session.add_guild(*g);
@@ -642,6 +700,11 @@ impl Gateway {
             // The changed user's own sessions hear about it as a self event.
             if let DomainEvent::UserUpdated { user, .. } = &ev {
                 d.audience = Some(self.guild_users(guild, Some(*user)));
+            }
+            if let DomainEvent::ThreadMembersUpdated { also, .. } = &ev {
+                for u in also {
+                    self.dispatch_user(*u, d.name, d.data.clone()).await;
+                }
             }
             self.dispatch_guild(guild, d.name, d.data, d.channel, d.audience.as_ref())
                 .await;
@@ -842,10 +905,16 @@ impl Gateway {
             return;
         }
         let payload = self.guild_create_body(user, guild).await;
+        let sync = self.inner.dir.thread_list_sync(user, guild).await;
         let mut st = self.st();
         for s in sessions {
             if s.add_guild(guild) {
                 s.deliver("GUILD_CREATE", payload.clone());
+                if let Some(sy) = &sync
+                    && s.wants("THREAD_LIST_SYNC")
+                {
+                    s.deliver("THREAD_LIST_SYNC", sy.clone());
+                }
                 st.by_guild.entry(guild).or_default().insert(s.id.clone());
             }
         }

@@ -20,11 +20,15 @@ metrics-exporter-prometheus = { version = "0.16", default-features = false }
 serde.workspace = true
 serde_json.workspace = true
 sha2 = "0.11"
+sr-admin = { path = "../sr-admin" }
 sr-auth = { path = "../sr-auth" }
+sr-features = { path = "../sr-features" }
 sr-chat = { path = "../sr-chat" }
 sr-core = { path = "../sr-core" }
 sr-events = { path = "../sr-events" }
+sr-markdown = { path = "../sr-markdown" }
 sr-search = { path = "../sr-search" }
+sr-unfurl = { path = "../sr-unfurl" }
 sr-storage = { path = "../sr-storage" }
 subtle = "2"
 thiserror.workspace = true
@@ -41,4 +45,5 @@ moka.workspace = true
 [dev-dependencies]
 sr-chat = { path = "../sr-chat", features = ["memory"] }
 http-body-util = "0.1"
+image = { version = "0.25", default-features = false, features = ["png", "gif"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "sync"] }

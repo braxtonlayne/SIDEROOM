@@ -10,6 +10,7 @@ mod ast;
 mod block;
 mod emoji;
 mod inline;
+mod links;
 mod util;
 
 pub use ast::{LinkKind, Node, TimestampStyle};
@@ -17,6 +18,7 @@ pub use emoji::{
     JUMBO_MAX, count_emoji_only, emoji_only_count, expand_shortcodes, is_jumbo, shortcode_count,
     shortcode_to_emoji,
 };
+pub use links::extract_preview_links;
 pub use util::{
     DEFAULT_MAX_CHARS, DEFAULT_MAX_MENTIONS, EXTENDED_MAX_CHARS, LimitError, Limits, Mentions,
     NoResolver, Resolver, char_count, check_limits, extract_mentions, to_plain_text,

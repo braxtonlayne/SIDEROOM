@@ -183,11 +183,12 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
         &self,
         actor: UserId,
         id: ChannelId,
-        patch: ChannelPatch,
+        mut patch: ChannelPatch,
         mv: ChannelMove,
     ) -> ChatResult<ChannelWithOverwrites> {
         let (channel, gid) = self.guild_channel(id).await?;
         let c = self.ctx(actor, gid).await?;
+        patch.forum.assign_tag_ids(|| self.ids.generate().get());
         let planned = channel_rules::plan_edit_channel(&c.actor, &channel, patch)?;
         let mut all = self.repo.list_guild_channels(gid).await?;
         all.retain(|x| x.id != id);

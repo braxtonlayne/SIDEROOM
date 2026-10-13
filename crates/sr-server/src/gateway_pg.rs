@@ -7,13 +7,14 @@ use sr_api::routes::guilds::dto::{ChannelObject, GuildObject, MemberObject, iso8
 use sr_auth::{repo::SessionRepository, session::SessionPolicy, session::SessionToken};
 use sr_chat::repo::UserLookup;
 use sr_chat::{
-    perms::channel_permissions,
     repo::{ChannelRepository, GuildRepository},
     social::{
         dm::DmKind,
         relationships::RelationshipKind,
         repo::{DmRepository, ReadStateRepository, RelationshipRepository},
     },
+    threads::access::guild_channel_permissions,
+    threads::repo::ThreadRepository,
 };
 use sr_core::{ChannelId, Clock, GuildId, Permissions, UserId};
 use sr_db::{auth_repo::PgAuthRepo, chat_repo::PgChatRepo, social_repo::PgSocialRepo};
@@ -115,7 +116,7 @@ impl PgGuildDirectory {
     /// GUILD_CREATE body: guild object, `channels`, `roles`, `threads`, and `members`
     /// when the guild is at most the default large threshold. The hub adds
     /// `presences` for guilds small enough to carry them.
-    async fn build_guild_create(&self, guild: GuildId) -> BuildResult<Value> {
+    async fn build_guild_create(&self, user: UserId, guild: GuildId) -> BuildResult<Value> {
         let Some(g) = self.chat.get_guild(guild).await? else {
             return Ok(json!({ "id": guild, "unavailable": true }));
         };
@@ -139,7 +140,10 @@ impl PgGuildDirectory {
         .fetch_all(&self.pool)
         .await?;
         if let Some(obj) = body.as_object_mut() {
-            obj.insert("threads".into(), json!([]));
+            obj.insert(
+                "threads".into(),
+                json!(self.visible_threads(user, guild).await?.0),
+            );
             if member_ids.len() as u64 <= LARGE_THRESHOLD_DEFAULT {
                 let mut found = Vec::with_capacity(member_ids.len());
                 for id in member_ids {
@@ -165,6 +169,49 @@ impl PgGuildDirectory {
             }
         }
         Ok(body)
+    }
+
+    /// Active threads `user` can see in `guild` as channel objects (with their own
+    /// `member`), and their membership rows.
+    async fn visible_threads(
+        &self,
+        user: UserId,
+        guild: GuildId,
+    ) -> BuildResult<(Vec<Value>, Vec<Value>)> {
+        let (Some(g), Some(member)) = (
+            self.chat.get_guild(guild).await?,
+            self.chat.get_member(guild, user).await?,
+        ) else {
+            return Ok((Vec::new(), Vec::new()));
+        };
+        let roles = self.chat.list_roles(guild).await?;
+        let now = self.clock.now_unix_ms();
+        let mut seen = Vec::new();
+        for t in self.chat.list_active_threads(guild).await? {
+            let perms = guild_channel_permissions(&self.chat, &g, &member, &roles, &t, now).await?;
+            if perms.contains(Permissions::VIEW_CHANNEL) {
+                seen.push(t);
+            }
+        }
+        let ids: Vec<ChannelId> = seen.iter().map(|t| t.id).collect();
+        let memberships = self.chat.thread_memberships(user, &ids).await?;
+        let threads = seen
+            .iter()
+            .map(|t| {
+                let me = memberships.iter().find(|m| m.thread_id == t.id);
+                json!(ChannelObject::new(t, &[]).with_member(me))
+            })
+            .collect();
+        let members = memberships
+            .iter()
+            .map(|m| {
+                json!({
+                    "id": m.thread_id, "user_id": m.user_id, "flags": m.flags,
+                    "join_timestamp": iso8601(m.joined_at_ms), "guild_id": guild,
+                })
+            })
+            .collect();
+        Ok((threads, members))
     }
 
     /// READY extras from the social repositories: DM `private_channels`,
@@ -276,9 +323,16 @@ impl GuildDirectory for PgGuildDirectory {
                 return Ok(false);
             };
             let roles = self.chat.list_roles(guild).await?;
-            let overwrites = self.chat.get_overwrites(channel).await?;
-            let perms =
-                channel_permissions(&g, &member, &roles, &overwrites, self.clock.now_unix_ms());
+            // Threads inherit the parent's overwrites; private ones need membership.
+            let perms = guild_channel_permissions(
+                &self.chat,
+                &g,
+                &member,
+                &roles,
+                &ch,
+                self.clock.now_unix_ms(),
+            )
+            .await?;
             Ok(perms.contains(Permissions::VIEW_CHANNEL))
         }
         .await;
@@ -328,10 +382,25 @@ impl GuildDirectory for PgGuildDirectory {
     }
 
     async fn guild_payload(&self, _user: UserId, guild: GuildId) -> Value {
-        self.build_guild_create(guild).await.unwrap_or_else(|e| {
-            tracing::error!(error = %e, "guild_payload failed");
-            json!({ "id": guild, "unavailable": true })
-        })
+        self.build_guild_create(_user, guild)
+            .await
+            .unwrap_or_else(|e| {
+                tracing::error!(error = %e, "guild_payload failed");
+                json!({ "id": guild, "unavailable": true })
+            })
+    }
+
+    async fn thread_list_sync(&self, user: UserId, guild: GuildId) -> Option<Value> {
+        match self.visible_threads(user, guild).await {
+            Ok((threads, members)) if !threads.is_empty() => Some(json!({
+                "guild_id": guild, "threads": threads, "members": members,
+            })),
+            Ok(_) => None,
+            Err(e) => {
+                tracing::error!(error = %e, "thread_list_sync failed");
+                None
+            }
+        }
     }
 
     async fn ready_extras(&self, user: UserId) -> Value {

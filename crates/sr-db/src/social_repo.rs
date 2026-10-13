@@ -978,13 +978,14 @@ impl ProfileRepository for PgSocialRepo {
     async fn put_profile(&self, p: &Profile) -> RepoResult<()> {
         sqlx::query(
             "UPDATE accounts SET banner_key = $2, accent_color = $3, bio = $4, pronouns = $5, \
-             updated_at = now() WHERE id = $1",
+             avatar_key = $6, updated_at = now() WHERE id = $1",
         )
         .bind(i(p.user.get()))
         .bind(p.banner_key.as_deref())
         .bind(p.accent_color.map(|c| c as i32))
         .bind(p.bio.as_deref())
         .bind(p.pronouns.as_deref())
+        .bind(p.avatar_key.as_deref())
         .execute(&self.pool)
         .await
         .map_err(db)?;

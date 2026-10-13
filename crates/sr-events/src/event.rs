@@ -31,12 +31,24 @@ pub enum Topic {
 pub enum StaffAlertKind {
     /// A registration was refused because the Person is banned.
     BannedPersonAttempt,
+    /// A serious ban raised suspicion on the banned account's inviter (D-031).
+    InviterSuspicion,
+    /// An inviter's suspicion reached the escalation threshold.
+    InviterEscalated,
+    /// A staff appointment was revoked.
+    StaffRevoked,
+    /// The staff access-log hash chain failed verification.
+    AccessLogChainBroken,
 }
 
 impl StaffAlertKind {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::BannedPersonAttempt => "banned_person_attempt",
+            Self::InviterSuspicion => "inviter_suspicion",
+            Self::InviterEscalated => "inviter_escalated",
+            Self::StaffRevoked => "staff_revoked",
+            Self::AccessLogChainBroken => "access_log_chain_broken",
         }
     }
 }
@@ -194,6 +206,42 @@ pub enum DomainEvent {
         /// Unix ms of the most recent pin, if any remain.
         last_pin_ms: Option<i64>,
     },
+    /// `THREAD_CREATE`; `payload` is the thread channel object. Delivered to members
+    /// who can view the thread (private threads: members and moderators).
+    ThreadCreated {
+        guild: GuildId,
+        thread: ChannelId,
+        payload: Value,
+    },
+    /// `THREAD_UPDATE`; as [`Self::ThreadCreated`].
+    ThreadUpdated {
+        guild: GuildId,
+        thread: ChannelId,
+        payload: Value,
+    },
+    /// `THREAD_DELETE`; `payload` is `{id, guild_id, parent_id, type}`. `viewers` is
+    /// the audience computed before the delete.
+    ThreadDeleted {
+        guild: GuildId,
+        thread: ChannelId,
+        payload: Value,
+        viewers: Vec<UserId>,
+    },
+    /// `THREAD_MEMBERS_UPDATE`; `payload` is `{id, guild_id, member_count,
+    /// added_members?, removed_member_ids?}`. `also` must receive it even if they can
+    /// no longer view the thread (just removed).
+    ThreadMembersUpdated {
+        guild: GuildId,
+        thread: ChannelId,
+        payload: Value,
+        also: Vec<UserId>,
+    },
+    /// `THREAD_MEMBER_UPDATE` for the user's own sessions; `payload` is the thread
+    /// member object plus `guild_id`.
+    ThreadMemberUpdated {
+        user: UserId,
+        payload: Value,
+    },
     /// A staff-facing alert (`SR_STAFF_ALERT`), published on `Topic::Platform`
     /// (open question 142).
     StaffAlert {
@@ -286,6 +334,24 @@ pub enum DomainEvent {
         guild: GuildId,
         payload: Value,
     },
+    // --- rich messages: polls (LNG-MSG-010) ---
+    /// `MESSAGE_POLL_VOTE_ADD`.
+    PollVoteAdded {
+        guild: Option<GuildId>,
+        channel: ChannelId,
+        message_id: u64,
+        user: UserId,
+        answer_id: u32,
+    },
+    /// `MESSAGE_POLL_VOTE_REMOVE`.
+    PollVoteRemoved {
+        guild: Option<GuildId>,
+        channel: ChannelId,
+        message_id: u64,
+        user: UserId,
+        answer_id: u32,
+    },
+    // --- end rich messages ---
     /// `TYPING_START` triggered by `POST /channels/{id}/typing`.
     TypingStarted {
         guild: Option<GuildId>,
@@ -342,6 +408,16 @@ impl DomainEvent {
                 channel,
                 ..
             }
+            | Self::PollVoteAdded {
+                guild: None,
+                channel,
+                ..
+            }
+            | Self::PollVoteRemoved {
+                guild: None,
+                channel,
+                ..
+            }
             | Self::ChannelPinsUpdated {
                 guild: None,
                 channel,
@@ -394,6 +470,8 @@ impl DomainEvent {
             | Self::ReactionRemoved { guild, channel, .. }
             | Self::ReactionsCleared { guild, channel, .. }
             | Self::ReactionEmojiCleared { guild, channel, .. }
+            | Self::PollVoteAdded { guild, channel, .. }
+            | Self::PollVoteRemoved { guild, channel, .. }
             | Self::ChannelPinsUpdated { guild, channel, .. }
             | Self::TypingStarted { guild, channel, .. } => {
                 let mut t = vec![Topic::Channel(*channel)];
@@ -402,6 +480,13 @@ impl DomainEvent {
                 }
                 t
             }
+            Self::ThreadCreated { guild, thread, .. }
+            | Self::ThreadUpdated { guild, thread, .. }
+            | Self::ThreadDeleted { guild, thread, .. }
+            | Self::ThreadMembersUpdated { guild, thread, .. } => {
+                vec![Topic::Guild(*guild), Topic::Channel(*thread)]
+            }
+            Self::ThreadMemberUpdated { user, .. } => vec![Topic::User(*user)],
             Self::UserScoped { users, .. } => users.iter().map(|u| Topic::User(*u)).collect(),
             Self::PresenceChanged { user, .. } => vec![Topic::User(*user)],
             Self::FeatureSettingsChanged { .. } | Self::StaffAlert { .. } => vec![Topic::Platform],
@@ -601,6 +686,45 @@ mod tests {
         }
     }
 
+    #[test]
+    fn thread_events_route_and_roundtrip() {
+        let g = GuildId::new(1);
+        let t = ChannelId::new(2);
+        let p = serde_json::json!({ "id": "2" });
+        for e in [
+            DomainEvent::ThreadCreated {
+                guild: g,
+                thread: t,
+                payload: p.clone(),
+            },
+            DomainEvent::ThreadUpdated {
+                guild: g,
+                thread: t,
+                payload: p.clone(),
+            },
+            DomainEvent::ThreadDeleted {
+                guild: g,
+                thread: t,
+                payload: p.clone(),
+                viewers: vec![UserId::new(3)],
+            },
+            DomainEvent::ThreadMembersUpdated {
+                guild: g,
+                thread: t,
+                payload: p.clone(),
+                also: vec![],
+            },
+        ] {
+            assert_eq!(e.topics(), vec![Topic::Guild(g), Topic::Channel(t)]);
+            let s = serde_json::to_string(&e).unwrap();
+            assert_eq!(serde_json::from_str::<DomainEvent>(&s).unwrap(), e);
+        }
+        let m = DomainEvent::ThreadMemberUpdated {
+            user: UserId::new(9),
+            payload: p,
+        };
+        assert_eq!(m.topics(), vec![Topic::User(UserId::new(9))]);
+    }
     #[test]
     fn serde_roundtrip() {
         let e = DomainEvent::GuildDeleted {

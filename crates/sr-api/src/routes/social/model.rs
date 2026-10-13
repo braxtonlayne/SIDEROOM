@@ -29,8 +29,10 @@ pub struct UserObject {
     pub username: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub global_name: Option<String>,
-    /// Avatar key, when one is set.
+    /// Avatar hash (`/cdn/avatars/{id}/{hash}.png`), when one is set.
     pub avatar: Option<String>,
+    /// Profile banner hash (`/cdn/avatars/{id}/{hash}.png`), when one is set.
+    pub banner: Option<String>,
 }
 
 impl UserObject {
@@ -41,12 +43,14 @@ impl UserObject {
                 username: Some(u.username.clone()),
                 global_name: u.display_name.clone(),
                 avatar: u.avatar_key.clone(),
+                banner: u.banner_key.clone(),
             },
             None => Self {
                 id: id.to_string(),
                 username: None,
                 global_name: None,
                 avatar: None,
+                banner: None,
             },
         }
     }
@@ -460,7 +464,13 @@ pub struct EditSelfBody {
     #[serde(default, deserialize_with = "nullable")]
     #[schema(value_type = Option<String>)]
     pub pronouns: Option<Option<String>>,
-    /// Banner key from the media pipeline; `null` removes it.
+    /// New avatar as a `data:image/{png,jpeg,gif,webp};base64,...` URI (8 MiB at
+    /// most; cropped to a centred square, EXIF stripped); `null` removes it.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub avatar: Option<Option<String>>,
+    /// New profile banner as an image data URI (aspect ratio kept, at most
+    /// 1920x1080); `null` removes it.
     #[serde(default, deserialize_with = "nullable")]
     #[schema(value_type = Option<String>)]
     pub banner: Option<Option<String>>,

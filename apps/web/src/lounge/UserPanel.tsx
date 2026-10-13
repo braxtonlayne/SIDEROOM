@@ -1,6 +1,5 @@
 import { Avatar, Icon, Tooltip, useToast } from '@sideroom/ui';
-import { useState } from 'react';
-import { ComingSoon } from '@sideroom/ui';
+import { useOpenUserSettings } from '../settings/user/nav';
 import { useCurrentUser, usePresence } from './data';
 import { useLoungeUi } from './store';
 
@@ -14,7 +13,7 @@ export function UserPanel() {
   const deafened = useLoungeUi((s) => s.deafened);
   const toggleMic = useLoungeUi((s) => s.toggleMic);
   const toggleDeafen = useLoungeUi((s) => s.toggleDeafen);
-  const [settings, setSettings] = useState(false);
+  const openSettings = useOpenUserSettings();
 
   const copy = () => {
     void navigator.clipboard?.writeText(me.username);
@@ -87,15 +86,12 @@ export function UserPanel() {
             type="button"
             className="lng-icon-btn"
             aria-label="User Settings"
-            onClick={() => setSettings(true)}
+            onClick={() => openSettings()}
           >
             <Icon name="settings" size={20} />
           </button>
         </Tooltip>
       </div>
-      <ComingSoon open={settings} onClose={() => setSettings(false)} title="User Settings">
-        <p>User Settings is built under the settings inventory items.</p>
-      </ComingSoon>
     </div>
   );
 }

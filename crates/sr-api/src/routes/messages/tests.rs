@@ -56,6 +56,9 @@ struct Env {
     storage: Arc<ObjectStoreStorage>,
     guild: GuildId,
     ch: ChannelId,
+    deps: Arc<MessagesDeps>,
+    jobs: Arc<rich_tests::RecordingScheduler>,
+    web: Arc<rich_tests::FakeWeb>,
 }
 
 async fn env_with(entitlements: Arc<dyn UploadEntitlements>) -> Env {
@@ -112,11 +115,19 @@ async fn env_full(
         1,
     )
     .unwrap();
+    let jobs = Arc::new(rich_tests::RecordingScheduler::default());
+    let web = Arc::new(rich_tests::FakeWeb::default());
+    let deps = Arc::new(deps.with_rich(super::RichDeps {
+        store: Some(Arc::new(backend.clone())),
+        scheduler: Some(jobs.clone()),
+        unfurler: Some(Arc::new(web.unfurler())),
+        gate: None,
+    }));
     let mut state = AppState::builder()
         .bots(bots)
         .clock(dyn_clock)
         .settings(settings)
-        .extension(Arc::new(deps));
+        .extension(deps.clone());
     if let Some(g) = gate {
         state = state.extension(Arc::new(g));
     }
@@ -130,6 +141,9 @@ async fn env_full(
         storage,
         guild,
         ch,
+        deps,
+        jobs,
+        web,
     }
 }
 
@@ -1358,3 +1372,5 @@ async fn messages_work_without_a_registered_gate() {
     let e = env().await;
     e.say("bob", "a badword here").await;
 }
+
+mod rich_tests;

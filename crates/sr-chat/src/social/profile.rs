@@ -1,5 +1,6 @@
 //! User profiles: bio, pronouns, banner, accent colour, connections placeholder
-//! (LNG-PRF-001/002). Avatar upload and decorations belong to other modules.
+//! (LNG-PRF-001/002). The avatar and banner are content hashes minted by the media
+//! pipeline (`sr_storage::media`); decorations belong to other modules.
 
 use super::{SocialError, SocialLimits, SocialResult, clean_text};
 use sr_core::UserId;
@@ -33,6 +34,7 @@ pub struct Connection {
 /// Partial profile update. Outer `None` = leave alone, inner `None` = clear.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProfileEdit {
+    pub avatar_key: Option<Option<String>>,
     pub banner_key: Option<Option<String>>,
     pub accent_color: Option<Option<u32>>,
     pub bio: Option<Option<String>>,
@@ -60,6 +62,9 @@ pub fn apply_edit(
             ));
         }
         current.accent_color = color;
+    }
+    if let Some(key) = &edit.avatar_key {
+        current.avatar_key = clean_text("avatar", key.as_deref(), 256)?;
     }
     if let Some(key) = &edit.banner_key {
         current.banner_key = clean_text("banner", key.as_deref(), 256)?;

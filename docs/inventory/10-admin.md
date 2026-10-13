@@ -4,13 +4,13 @@ Phase 3. Spec: [admin-staff-server](../specs/admin-staff-server.md), docs 06, 07
 
 ## ADM-STF — Staff mechanics
 - [ ] **ADM-STF-001** [DB] `is_staff_guild` partial unique index, `roles.platform_permissions`, staff_appointments, appointment_delegations, staff_access_log, platform_audit_log
-- [ ] **ADM-STF-002** [BE] Platform permission resolver (active appointment ∧ staff-guild member ∧ role bits; Owner = all)
+- [x] **ADM-STF-002** [BE] Platform permission resolver (active appointment ∧ staff-guild member ∧ role bits; Owner = all)
 - [ ] **ADM-STF-003** [BE] Block server invites to the staff guild; hide Invite to Server there
 - [ ] **ADM-STF-004** [BE] Appointment API (appoint, accept/decline via system DM, revoke, delegate)
 - [ ] **ADM-STF-005** [BE] Instant revocation on leave/kick (drop staff claims, close admin WS subscriptions)
-- [ ] **ADM-STF-006** [BE] Staff-guild seed (channels, roles) in bootstrap
+- [x] **ADM-STF-006** [BE] Staff-guild seed (channels, roles) in bootstrap
 - [ ] **ADM-STF-007** [BE] System user + bot-style card poster for staff channels (components with action handlers)
-- [ ] **ADM-STF-008** [BE] Hash-chained access log writer + nightly verifier job + alert
+- [x] **ADM-STF-008** [BE] Hash-chained access log writer + nightly verifier job + alert
 - [ ] **ADM-STF-009** [BE] Re-auth (2FA within 15 min) middleware for sensitive admin routes
 - [ ] **ADM-STF-010** [FE] Staff Server rail frame, "SIDE ROOM Staff" profile badge
 - [ ] **ADM-STF-011** [FE] "Platform Admin" entry in Staff Server dropdown and user menu
@@ -30,13 +30,13 @@ Phase 3. Spec: [admin-staff-server](../specs/admin-staff-server.md), docs 06, 07
 - [ ] **ADM-PPL-002** [FE] Account drawer: profile, state, Person link, sessions, IP history, invited by, invites issued, servers, entitlements, flags, audit trail
 - [ ] **ADM-PPL-003** [BE] Account actions: deactivate, reactivate (cap check), force password reset, reset 2FA, rename, change email, badges, force logout
 - [ ] **ADM-PPL-004** [FE] Persons view: account chain timeline, link/unlink accounts, notes, suspicion level with history
-- [ ] **ADM-PPL-005** [BE] Platform bans (reason category serious/standard, note) applied to Person, unban
-- [ ] **ADM-PPL-006** [BE] Inviter suspicion propagation on serious bans + thresholds (freeze, escalate) + clear
+- [x] **ADM-PPL-005** [BE] Platform bans (reason category serious/standard, note) applied to Person, unban
+- [x] **ADM-PPL-006** [BE] Inviter suspicion propagation on serious bans + thresholds (freeze, escalate) + clear
 - [ ] **ADM-PPL-007** [FE] Platform Bans page
 - [ ] **ADM-PPL-008** [FE] Staff page (list, roles, appointed by/at, appoint modal, revoke, delegations (Owner))
 
 ## ADM-GRAPH — Invite graph
-- [ ] **ADM-GRAPH-001** [BE] Graph API (subtree, ancestors path, stats per node, search)
+- [x] **ADM-GRAPH-001** [BE] Graph API (subtree, ancestors path, stats per node, search)
 - [ ] **ADM-GRAPH-002** [WASM] Force-directed layout for large graphs (Rust, Barnes–Hut) → positions
 - [ ] **ADM-GRAPH-003** [FE] WebGL graph renderer (pan/zoom, collapse subtrees, node colors by state, suspicion halo, banned marker)
 - [ ] **ADM-GRAPH-004** [FE] Node side panel (account summary, open codes, credits ledger, grant/revoke credit, freeze invites, clear suspicion)

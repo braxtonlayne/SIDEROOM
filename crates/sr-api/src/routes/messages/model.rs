@@ -69,6 +69,12 @@ pub struct AttachmentObject {
     pub description: Option<String>,
     /// Set when the attachment is a large file that will expire.
     pub expires_at: Option<String>,
+    /// Voice messages: length in seconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_secs: Option<f64>,
+    /// Voice messages: base64 waveform.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub waveform: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -86,6 +92,9 @@ pub struct ReactionObject {
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct MessageReferenceObject {
+    /// 0 reply, 1 forward.
+    #[serde(rename = "type")]
+    pub kind: u8,
     pub message_id: String,
     pub channel_id: String,
     pub guild_id: Option<String>,
@@ -117,6 +126,21 @@ pub struct MessageObject {
     pub flags: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message_reference: Option<MessageReferenceObject>,
+    /// The thread started from this message (a thread has its starter's id).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<Object>)]
+    pub thread: Option<serde_json::Value>,
+    /// Poll definition with live results (`results.answer_counts`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<Object>)]
+    pub poll: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[schema(value_type = Vec<Object>)]
+    pub sticker_items: Vec<serde_json::Value>,
+    /// Forwarded messages: the copy taken at forward time.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[schema(value_type = Vec<Object>)]
+    pub message_snapshots: Vec<serde_json::Value>,
 }
 
 impl MessageObject {
@@ -166,10 +190,18 @@ impl MessageObject {
             kind: m.kind.code(),
             flags: m.flags,
             message_reference: m.reference.as_ref().map(|r| MessageReferenceObject {
+                kind: u8::from(r.forward.is_some()),
                 message_id: r.message_id.to_string(),
                 channel_id: r.channel_id.to_string(),
-                guild_id: gid,
+                guild_id: r
+                    .forward
+                    .as_ref()
+                    .map_or(gid, |f| f.source_guild_id.map(|g| g.to_string())),
             }),
+            thread: None,
+            poll: None,
+            sticker_items: Vec::new(),
+            message_snapshots: Vec::new(),
         }
     }
 
@@ -190,6 +222,8 @@ pub fn attachment_object(a: &Attachment) -> AttachmentObject {
         content_type: a.content_type.clone(),
         description: a.description.clone(),
         expires_at: a.expires_at_ms.map(iso),
+        duration_secs: a.duration_ms.map(|d| f64::from(d) / 1000.0),
+        waveform: a.waveform.clone(),
     }
 }
 
@@ -216,6 +250,12 @@ pub struct MessageReferenceIn {
     /// sent without a reply.
     #[serde(default)]
     pub fail_if_not_exists: Option<bool>,
+    /// 0 (default) replies, 1 forwards the referenced message into this channel.
+    #[serde(default, rename = "type")]
+    pub kind: Option<u8>,
+    /// Source channel of a forward (a reply stays in this channel).
+    #[serde(default)]
+    pub channel_id: Option<String>,
 }
 
 /// An uploaded file referenced by a new message.
@@ -226,6 +266,12 @@ pub struct AttachmentRef {
     /// `upload_filename` returned by the upload-slot call.
     pub uploaded_filename: Option<String>,
     pub description: Option<String>,
+    /// Voice messages: length in seconds (at most 120).
+    #[serde(default)]
+    pub duration_secs: Option<f64>,
+    /// Voice messages: base64 waveform of up to 256 amplitude bytes.
+    #[serde(default)]
+    pub waveform: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, ToSchema)]

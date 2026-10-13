@@ -16,3 +16,6 @@
 .combo { display: inline-flex; align-items: center; gap: 4px; }
 .part { display: inline-flex; align-items: center; gap: 4px; }
 .plus { color: var(--ui-text-faint); font-size: 0.75rem; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--ui-border); }
+.action { margin: 0; color: var(--ui-text); }
+.keys { margin: 0; }

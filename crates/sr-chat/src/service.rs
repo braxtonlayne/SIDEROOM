@@ -43,6 +43,17 @@ pub struct SendMessage {
     pub flags: u32,
     /// `None` means Discord's default: every parsed mention may ping.
     pub allowed_mentions: Option<AllowedMentions>,
+    /// Set for a forward: the source message and the copy of it (LNG-MSG-007). The
+    /// caller has already checked the forwarder may read the source.
+    pub forward: Option<ForwardRequest>,
+}
+
+/// What a forward points at and carries.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ForwardRequest {
+    pub source_message: MessageId,
+    pub source_channel: ChannelId,
+    pub snapshot: crate::message::ForwardSnapshot,
 }
 
 /// Resolved view of a channel for one user.
@@ -114,8 +125,15 @@ impl<R: ChatRepository> ChatService<R> {
             Some(gid) => {
                 let guild = self.guild(gid).await?;
                 let (member, roles) = self.guild_actor(&guild, user).await?;
-                let overwrites = self.repo.get_overwrites(channel.id).await?;
-                let perms = channel_permissions(&guild, &member, &roles, &overwrites, self.now());
+                let perms = crate::threads::access::guild_channel_permissions(
+                    &self.repo,
+                    &guild,
+                    &member,
+                    &roles,
+                    &channel,
+                    self.now(),
+                )
+                .await?;
                 Ok(Access {
                     channel,
                     perms,
@@ -178,11 +196,12 @@ impl<R: ChatRepository> ChatService<R> {
         &self,
         actor: UserId,
         guild_id: GuildId,
-        input: NewChannel,
+        mut input: NewChannel,
     ) -> ChatResult<Channel> {
         let guild = self.guild(guild_id).await?;
         let (member, roles) = self.guild_actor(&guild, actor).await?;
         let a = GuildActor::new(&guild, &member, &roles);
+        input.forum.assign_tag_ids(|| self.ids.generate().get());
         let existing = self.repo.list_guild_channels(guild_id).await?;
         let parent = input
             .parent_id
@@ -223,9 +242,11 @@ impl<R: ChatRepository> ChatService<R> {
                 Some(g) => match self.repo.get_member(g.id, u).await? {
                     Some(member) => {
                         let roles = self.repo.list_roles(g.id).await?;
-                        let overwrites = self.repo.get_overwrites(channel.id).await?;
-                        channel_permissions(g, &member, &roles, &overwrites, now)
-                            .has(Permissions::VIEW_CHANNEL)
+                        crate::threads::access::guild_channel_permissions(
+                            &self.repo, g, &member, &roles, channel, now,
+                        )
+                        .await?
+                        .has(Permissions::VIEW_CHANNEL)
                     }
                     None => false,
                 },
@@ -248,17 +269,40 @@ impl<R: ChatRepository> ChatService<R> {
         const PAGE: usize = 1000;
         const MAX_PAGES: usize = 100;
         let roles = self.repo.list_roles(guild.id).await?;
-        let overwrites = self.repo.get_overwrites(channel.id).await?;
+        let overwrites = match crate::threads::access::overwrite_source(channel) {
+            Some(src) => self.repo.get_overwrites(src).await?,
+            None => return Ok(Vec::new()),
+        };
+        let private_members: Option<Vec<UserId>> =
+            if channel.kind == crate::domain::ChannelType::PrivateThread {
+                let mut all = Vec::new();
+                let mut cursor = None;
+                loop {
+                    let page = self
+                        .repo
+                        .list_thread_member_ids(channel.id, cursor, 1000)
+                        .await?;
+                    all.extend(page.iter().copied());
+                    match page.last() {
+                        Some(last) if page.len() == 1000 => cursor = Some(*last),
+                        _ => break,
+                    }
+                }
+                Some(all)
+            } else {
+                None
+            };
         let now = self.now();
         let mut out = Vec::new();
         let mut after = None;
         for _ in 0..MAX_PAGES {
             let page = self.repo.page_members(guild.id, after, PAGE).await?;
             for m in &page {
-                if pick(m)
-                    && channel_permissions(guild, m, &roles, &overwrites, now)
-                        .has(Permissions::VIEW_CHANNEL)
-                {
+                let perms = channel_permissions(guild, m, &roles, &overwrites, now);
+                let gate = private_members.as_ref().is_none_or(|ms| {
+                    ms.contains(&m.user_id) || perms.has(Permissions::MANAGE_THREADS)
+                });
+                if pick(m) && gate && perms.has(Permissions::VIEW_CHANNEL) {
                     out.push(m.user_id);
                 }
             }
@@ -314,6 +358,9 @@ impl<R: ChatRepository> ChatService<R> {
         req: SendMessage,
     ) -> ChatResult<Message> {
         let acc = self.access(author, channel_id).await?;
+        if acc.channel.kind.is_thread() {
+            crate::threads::rules::check_can_send(&acc.channel, acc.perms)?;
+        }
         let reply_target = match req.reply_to {
             Some(id) => self.repo.get_message(channel_id, id).await?,
             None => None,
@@ -331,6 +378,7 @@ impl<R: ChatRepository> ChatService<R> {
             embed_count: req.embeds.len(),
             sticker_ids: req.sticker_ids.clone(),
             has_poll: req.poll.is_some(),
+            has_forward: req.forward.is_some(),
             flags: req.flags,
         };
         let now = self.now();
@@ -379,7 +427,14 @@ impl<R: ChatRepository> ChatService<R> {
             content: v.content,
             flags: v.flags,
             edited_at_ms: None,
-            reference: v.reference,
+            reference: match req.forward {
+                Some(f) => Some(crate::domain::MessageReference {
+                    message_id: f.source_message,
+                    channel_id: f.source_channel,
+                    forward: Some(f.snapshot),
+                }),
+                None => v.reference,
+            },
             attachment_ids: req.attachment_ids,
             embeds: req.embeds,
             components: req.components,

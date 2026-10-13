@@ -98,6 +98,7 @@ describe('buildLiveSnapshot', () => {
       manageChannels: false,
       createInvite: false,
       moderate: false,
+      serverSettings: false,
     });
     // Without SEND_MESSAGES (1 << 11) in the viewer's base permissions the composer is locked.
     const locked = buildLiveSnapshot(

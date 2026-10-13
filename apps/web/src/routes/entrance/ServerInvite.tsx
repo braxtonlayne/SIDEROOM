@@ -102,7 +102,11 @@ export function ServerInvite() {
             {counts(state.invite)}
             {state.signedIn ? (
               <>
-                <Button className="ent-invite-cta" loading={accepting} onClick={() => void accept()}>
+                <Button
+                  className="ent-invite-cta"
+                  loading={accepting}
+                  onClick={() => void accept()}
+                >
                   Accept invite
                 </Button>
                 {error && <p role="alert">{error}</p>}

@@ -152,6 +152,11 @@ pub trait AuthStore: Send + Sync {
     async fn invite_state(&self, code: &InviteCode) -> StoreResult<Option<InviteState>>;
     /// Number of counted (`active`) accounts.
     async fn counted_accounts(&self) -> StoreResult<u64>;
+    /// The account cap set by staff in `platform_settings` (`accounts.cap`), if any. It wins
+    /// over the configured cap so Admin -> Limits applies without a restart.
+    async fn account_cap_override(&self) -> StoreResult<Option<u64>> {
+        Ok(None)
+    }
     /// One transaction: lock the invite row and require `open`; take the cap
     /// advisory lock and reject at the cap; require issuer credit >= 1;
     /// match or create the Person and reject banned Persons; create the

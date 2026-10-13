@@ -6,6 +6,7 @@
 //! `SR_TEST_DATABASE_URL`.
 
 pub mod accounts;
+pub mod admin_repo;
 pub mod auth_repo;
 pub mod auth_store;
 pub mod chat_repo;
@@ -17,9 +18,11 @@ pub mod lock;
 pub mod partitions;
 mod pool;
 pub mod registration;
+pub mod rich_repo;
 pub mod runner;
 pub mod settings_repo;
 pub mod social_repo;
+pub mod thread_repo;
 mod tx;
 
 pub use error::{DbError, DbResult};

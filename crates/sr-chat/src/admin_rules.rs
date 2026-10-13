@@ -28,6 +28,10 @@ pub struct GuildPatch {
     pub explicit_content_filter: Option<u8>,
     pub preferred_locale: Option<String>,
     pub owner_id: Option<UserId>,
+    /// Content hashes from the media pipeline; `Some(None)` removes the image.
+    pub icon_key: Option<Option<String>>,
+    pub banner_key: Option<Option<String>>,
+    pub splash_key: Option<Option<String>>,
 }
 
 impl GuildPatch {
@@ -39,6 +43,9 @@ impl GuildPatch {
             && self.default_message_notifications.is_none()
             && self.explicit_content_filter.is_none()
             && self.preferred_locale.is_none()
+            && self.icon_key.is_none()
+            && self.banner_key.is_none()
+            && self.splash_key.is_none()
     }
 }
 
@@ -109,6 +116,15 @@ pub fn plan_edit_guild(
     }
     if let Some(v) = patch.explicit_content_filter {
         out.explicit_content_filter = range_u8("explicit_content_filter", v, 2)?;
+    }
+    if let Some(k) = patch.icon_key {
+        out.icon_key = k;
+    }
+    if let Some(k) = patch.banner_key {
+        out.banner_key = k;
+    }
+    if let Some(k) = patch.splash_key {
+        out.splash_key = k;
     }
     if let Some(l) = patch.preferred_locale {
         let l = l.trim();

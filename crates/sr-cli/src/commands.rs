@@ -19,7 +19,9 @@ use sr_db::{
     auth_store::PgAuthStore,
 };
 
-use crate::{Cli, Command, InviteCmd, UserCmd, guilds};
+use crate::{Cli, Command, InviteCmd, StaffCmd, UserCmd, guilds};
+use sr_admin::{AdminService, Caller, SYSTEM_USER_ID as ADMIN_SYSTEM_USER};
+use sr_db::admin_repo::PgAdminRepo;
 
 /// Initial invite credits per account (config `invites.initial_credits`, doc 06 5.3).
 const INITIAL_CREDITS: i32 = 5;
@@ -62,6 +64,8 @@ pub async fn run(cli: Cli) -> Result<()> {
             invite_create(&pool, &cfg, ids, issuer, note).await?
         }
         Command::User(UserCmd::Reset2fa { user }) => reset_2fa(&pool, &cfg, ids, &user).await?,
+        Command::Staff(cmd) => staff(&pool, ids, cmd).await?,
+        Command::VerifyAccessLog => verify_access_log(&pool, ids).await?,
         Command::RotateSecretKey => rotate_secret_key(&pool, &cfg, ids).await?,
         Command::Seed { password, force } => seed(&pool, &cfg, ids, &password, force).await?,
     }
@@ -203,7 +207,7 @@ async fn bootstrap(
     }
 
     let staff = guilds::create_staff_guild(pool, &cfg.server, owner_id, now_ms()).await?;
-    println!("Staff Server created (guild {staff}); default staff roles are not created yet.");
+    println!("Staff Server created (guild {staff}); default staff roles created.");
 
     let link = login_link(pool, cfg, ids, owner_id).await?;
     println!("Owner '{username}' created (id {owner_id}).");
@@ -329,6 +333,105 @@ async fn reset_2fa(pool: &PgPool, cfg: &Config, ids: IdSource, user: &str) -> Re
         r.totp, r.recovery_codes, r.passkeys, r.trusted_devices, r.sessions_revoked
     );
     Ok(())
+}
+
+fn admin_service(pool: &PgPool, ids: IdSource) -> AdminService {
+    AdminService::new(Arc::new(PgAdminRepo::new(pool.clone(), ids)))
+}
+
+async fn account_by_name(pool: &PgPool, who: &str) -> Result<i64> {
+    accounts::find_account_id(pool, &who.to_lowercase())
+        .await?
+        .with_context(|| format!("no account '{who}'"))
+}
+
+/// Staff commands run as the operator (the system user acting as Owner): shell access is the
+/// authorisation, and every action still lands in the audit logs.
+async fn staff(pool: &PgPool, ids: IdSource, cmd: StaffCmd) -> Result<()> {
+    let svc = admin_service(pool, ids);
+    let op = Caller::operator(ADMIN_SYSTEM_USER);
+    match cmd {
+        StaffCmd::List => {
+            for m in svc
+                .list_staff(&op)
+                .await
+                .map_err(|e| anyhow::anyhow!("{e}"))?
+            {
+                let roles: Vec<_> = m.roles.iter().map(|r| r.name.as_str()).collect();
+                println!(
+                    "{}	{}	{}{}",
+                    m.account_id,
+                    m.username,
+                    roles.join(","),
+                    if m.is_owner { "	(owner)" } else { "" }
+                );
+            }
+        }
+        StaffCmd::Appoint {
+            user,
+            roles,
+            reason,
+        } => {
+            let id = account_by_name(pool, &user).await?;
+            let all = svc
+                .staff_roles(&op)
+                .await
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            let mut role_ids = Vec::new();
+            for r in &roles {
+                let found = all
+                    .iter()
+                    .find(|x| x.name.eq_ignore_ascii_case(r))
+                    .with_context(|| format!("no staff role '{r}'"))?;
+                role_ids.push(found.id);
+            }
+            let m = svc
+                .appoint(&op, id, &role_ids, Some(&reason))
+                .await
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            println!("appointed {} as {}", m.username, roles.join(", "));
+        }
+        StaffCmd::Revoke { user, reason } => {
+            let id = account_by_name(pool, &user).await?;
+            svc.revoke_staff(&op, id, Some(&reason))
+                .await
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            println!("revoked staff access of {user}");
+        }
+        StaffCmd::TransferOwner { user, reason } => {
+            let id = account_by_name(pool, &user).await?;
+            svc.transfer_owner(&op, id, Some(&reason))
+                .await
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            println!(
+                "{user} now owns the Staff Server; the previous Owner stays on as Senior Staff"
+            );
+        }
+    }
+    Ok(())
+}
+
+/// FND-CLI-003: verify the hash chain; exit code 1 when broken.
+async fn verify_access_log(pool: &PgPool, ids: IdSource) -> Result<()> {
+    let r = admin_service(pool, ids)
+        .verify_and_alert()
+        .await
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    if r.ok {
+        println!(
+            "access log OK: {} rows, head {}",
+            r.rows_checked,
+            r.head_hash.unwrap_or_else(|| "(empty)".into())
+        );
+        Ok(())
+    } else {
+        eprintln!(
+            "ACCESS LOG BROKEN at row {}: {}",
+            r.first_bad_seq.unwrap_or(0),
+            r.problem.unwrap_or_default()
+        );
+        std::process::exit(1);
+    }
 }
 
 /// Re-encrypt every TOTP secret under `server.secret_key` (open question 40).

@@ -206,6 +206,10 @@ async fn env_with(opts: Opts) -> Env {
         .extension(deps.clone())
         .extension(Arc::new(AutoModGateHandle(deps.clone())))
         .extension(Arc::new(msgs))
+        .extension(Arc::new(crate::routes::cdn::CdnDeps::new(
+            storage.clone(),
+            sr_storage::cdn::CdnSigner::new(b"emoji-url-test-secret-0123456789".to_vec()),
+        )))
         .build();
     let app = build_router(state, router().merge(messages::router()));
     Env {
@@ -2117,4 +2121,59 @@ async fn invite_counts_omit_presence_without_a_presence_source() {
     assert_eq!(s, StatusCode::OK, "{counted}");
     assert_eq!(counted["approximate_member_count"], 3);
     assert!(counted.get("approximate_presence_count").is_none());
+}
+
+// ---- signed emoji and sticker URLs ----------------------------------------------
+
+#[tokio::test]
+async fn emoji_url_endpoint_mints_signed_variants() {
+    let e = env().await;
+    let (_, emoji) = e
+        .post(
+            &e.g("/emojis"),
+            "mod",
+            json!({"name": "party", "image": png_uri(8)}),
+        )
+        .await;
+    let id = emoji["id"].as_str().unwrap().to_owned();
+    let url = format!("{}/{id}/url", e.g("/emojis"));
+    let signer = sr_storage::cdn::CdnSigner::new(b"emoji-url-test-secret-0123456789".to_vec());
+    let now = u64::try_from(T0 / 1000).unwrap();
+
+    // Plain: a signed URL for the stored object.
+    let (s, v) = e.get(&url, "bob").await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let u = v["url"].as_str().unwrap();
+    let (path, query) = u.split_once('?').unwrap();
+    // The object key uses its own id, not the emoji id.
+    assert!(
+        path.starts_with(&format!("/cdn/emoji/{}/", e.guild)) && path.ends_with(".png"),
+        "{path}"
+    );
+    assert_eq!(signer.verify_query(path, query, now), Ok(()));
+    assert!(v["expires_at"].as_u64().unwrap() > now);
+
+    // With size and format: both are covered by the signature.
+    let (s, v) = e.get(&format!("{url}?size=64&format=WebP"), "bob").await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let (path, query) = v["url"].as_str().unwrap().split_once('?').unwrap();
+    assert!(query.starts_with("size=64&format=webp&ex="), "{query}");
+    assert_eq!(signer.verify_query(path, query, now), Ok(()));
+    assert!(
+        signer
+            .verify_query(path, &query.replace("size=64", "size=128"), now)
+            .is_err()
+    );
+
+    // Bad parameters and access.
+    for bad in ["?size=100", "?size=8192", "?format=avif"] {
+        assert_eq!(
+            e.get(&format!("{url}{bad}"), "bob").await.0,
+            StatusCode::BAD_REQUEST,
+            "{bad}"
+        );
+    }
+    assert_eq!(e.get(&url, "carol").await.0, StatusCode::FORBIDDEN);
+    let missing = format!("{}/1/url", e.g("/emojis"));
+    assert_eq!(e.get(&missing, "bob").await.0, StatusCode::NOT_FOUND);
 }

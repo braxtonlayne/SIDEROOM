@@ -277,11 +277,17 @@ async fn profile_and_presence() {
                 pronouns: Some(Some("she/her".into())),
                 accent_color: Some(Some(0x00FF_8800)),
                 banner_key: Some(Some("banners/x".into())),
+                avatar_key: Some(Some("0123456789abcdef0123456789abcdef".into())),
             },
         )
         .await
         .unwrap();
     assert_eq!(p.accent_color, Some(0x00FF_8800));
+    // The avatar hash is persisted and read back with the profile.
+    assert_eq!(
+        svc.get_profile(a, a).await.unwrap().avatar_key.as_deref(),
+        Some("0123456789abcdef0123456789abcdef")
+    );
     let seen = svc.get_profile(b, a).await.unwrap();
     assert_eq!(seen.bio.as_deref(), Some("hi there"));
     for (name, visible) in [("pub", true), ("priv", false)] {

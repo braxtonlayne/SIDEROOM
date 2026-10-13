@@ -10,6 +10,7 @@ pub mod admin_rules;
 pub mod admin_service;
 pub mod channel_rules;
 pub mod domain;
+pub mod embed_rules;
 pub mod error;
 pub mod guild_rules;
 pub mod limits;
@@ -17,11 +18,14 @@ pub mod message;
 pub mod message_hooks;
 pub mod message_rules;
 pub mod perms;
+pub mod poll_rules;
 pub mod repo;
+pub mod rich_repo;
 pub mod role_rules;
 pub mod service;
 pub mod settings;
 pub mod social;
+pub mod threads;
 
 #[cfg(test)]
 mod admin_tests;
@@ -34,4 +38,4 @@ pub use admin_repo::{Ban, GuildAdminRepository};
 pub use domain::*;
 pub use error::{ChatError, ChatResult, RepoError};
 pub use limits::ChatLimits;
-pub use service::{ChatService, SendMessage};
+pub use service::{ChatService, ForwardRequest, SendMessage};
