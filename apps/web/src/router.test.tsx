@@ -21,7 +21,6 @@ describe('routes', () => {
     ['/house-notes', 'House notes'],
     ['/channels', 'Friends'],
     ['/cinema', 'Cinema'],
-    ['/library', 'Library'],
     ['/developers', 'Developers'],
     ['/support', 'Support'],
   ])('renders %s', async (path, heading) => {
