@@ -1,0 +1,127 @@
+/* Shell, sidebar and modal modules added in feat/p2-lounge-shell. Kept apart from lounge.css. */
+.lng-select {
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: 4px;
+  background: var(--bg-base-lowest);
+  color: var(--text-normal);
+  font-size: 14px;
+  text-transform: none;
+  font-weight: 400;
+}
+.lng-field-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Rail drag and drop, folders, muted servers */
+.lng-rail-item[data-dragging] {
+  opacity: 0.4;
+}
+.lng-rail-item[data-drop='before']::before,
+.lng-rail-item[data-drop='after']::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--brand);
+}
+.lng-rail-item[data-drop='before']::before {
+  top: -4px;
+}
+.lng-rail-item[data-drop='after']::after {
+  bottom: -4px;
+}
+.lng-rail-item[data-drop='into'] .lng-guild {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.lng-rail-item[data-muted] .lng-guild {
+  opacity: 0.5;
+}
+.lng-swatches {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.lng-swatch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.lng-swatch {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+}
+.lng-swatch input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.lng-swatch:has(input:checked) {
+  outline: 3px solid var(--text-normal);
+  outline-offset: 2px;
+}
+.lng-swatch:has(input:focus-visible) {
+  outline: 3px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* Channel list: hover actions, drag and drop, muted categories */
+.lng-channel-item {
+  position: relative;
+}
+.lng-channel-actions {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  display: none;
+  gap: 2px;
+}
+.lng-channel-item:hover > .lng-channel-actions,
+.lng-channel-item:focus-within > .lng-channel-actions {
+  display: flex;
+}
+.lng-channel-item[data-dragging],
+.lng-category-head[data-dragging] {
+  opacity: 0.4;
+}
+.lng-channel-item[data-drop='before']::before,
+.lng-category-head[data-drop='before']::before,
+.lng-channel-item[data-drop='after']::after,
+.lng-category-head[data-drop='after']::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  background: var(--brand);
+}
+.lng-channel-item[data-drop='before']::before,
+.lng-category-head[data-drop='before']::before {
+  top: 0;
+}
+.lng-channel-item[data-drop='after']::after,
+.lng-category-head[data-drop='after']::after {
+  bottom: 0;
+}
+.lng-category-head {
+  position: relative;
+}
+.lng-category-head[data-drop='into'] {
+  outline: 2px solid var(--brand);
+  border-radius: 4px;
+}
+.lng-category-head[data-muted] .lng-category-btn {
+  opacity: 0.5;
+}

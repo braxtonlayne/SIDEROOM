@@ -4,6 +4,7 @@
  */
 import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
+import type { RailEntry } from './data';
 
 const safeStorage: StateStorage = {
   getItem: (k) => {
@@ -42,7 +43,12 @@ export interface VoiceConnection {
 export type LoungeDialog =
   | { kind: 'addServer' }
   | { kind: 'createChannel'; guildId: string; parentId?: string | undefined; category?: boolean }
-  | { kind: 'invite'; guildId: string; channelId?: string | undefined };
+  | { kind: 'invite'; guildId: string; channelId?: string | undefined }
+  | { kind: 'leaveServer'; guildId: string }
+  | { kind: 'folder'; folderId: string }
+  | { kind: 'editChannel'; guildId: string; channelId: string }
+  | { kind: 'deleteChannel'; guildId: string; channelId: string }
+  | { kind: 'notifications'; guildId: string; channelId?: string | undefined };
 
 export interface LoungeUiState {
   /** Where to land on `/channels` after a reload (LNG-SHL-005). */
@@ -50,6 +56,8 @@ export interface LoungeUiState {
   lastChannelByGuild: Record<string, string>;
   collapsedCategories: Record<string, boolean>;
   openFolders: Record<string, boolean>;
+  /** Server rail order and folders chosen by the person (device-local); null = server order. */
+  railLayout: RailEntry[] | null;
   showSectionBar: boolean;
   memberListOpen: boolean;
   hideMutedChannels: Record<string, boolean>;
@@ -66,6 +74,7 @@ export interface LoungeUiState {
   setLocation(guildId: string, channelId?: string): void;
   toggleCategory(id: string): void;
   toggleFolder(id: string): void;
+  setRailLayout(layout: RailEntry[] | null): void;
   setShowSectionBar(v: boolean): void;
   setMemberListOpen(v: boolean): void;
   toggleHideMuted(guildId: string): void;
@@ -86,6 +95,7 @@ export const useLoungeUi = create<LoungeUiState>()(
       lastChannelByGuild: {},
       collapsedCategories: {},
       openFolders: {},
+      railLayout: null,
       showSectionBar: true,
       memberListOpen: true,
       hideMutedChannels: {},
@@ -111,6 +121,7 @@ export const useLoungeUi = create<LoungeUiState>()(
         })),
       toggleFolder: (id) =>
         set((s) => ({ openFolders: { ...s.openFolders, [id]: !s.openFolders[id] } })),
+      setRailLayout: (railLayout) => set({ railLayout }),
       setShowSectionBar: (showSectionBar) => set({ showSectionBar }),
       setMemberListOpen: (memberListOpen) => set({ memberListOpen }),
       toggleHideMuted: (guildId) =>
@@ -135,6 +146,7 @@ export const useLoungeUi = create<LoungeUiState>()(
         lastChannelByGuild: s.lastChannelByGuild,
         collapsedCategories: s.collapsedCategories,
         openFolders: s.openFolders,
+        railLayout: s.railLayout,
         showSectionBar: s.showSectionBar,
         memberListOpen: s.memberListOpen,
         hideMutedChannels: s.hideMutedChannels,

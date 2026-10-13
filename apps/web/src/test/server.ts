@@ -7,6 +7,17 @@ export const server = setupServer(
     HttpResponse.json({ message: 'Unauthorized' }, { status: 401 }),
   ),
   http.get('*/api/v1/sr/auth/discord/pending', () => HttpResponse.json(null)),
+  // The Lounge loads notification settings for every server; default to "nothing muted".
+  http.get('*/api/v1/users/@me/guilds/:id/settings', () =>
+    HttpResponse.json({
+      muted: false,
+      mute_config: null,
+      message_notifications: null,
+      suppress_everyone: false,
+      suppress_roles: false,
+      channel_overrides: [],
+    }),
+  ),
 );
 
 export { http, HttpResponse };

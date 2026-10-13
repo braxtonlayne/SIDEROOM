@@ -252,7 +252,7 @@ interface ChannelFields {
   parent_id: string;
 }
 
-function ChannelEditor({
+export function ChannelEditor({
   guildId,
   viewer,
   channel,

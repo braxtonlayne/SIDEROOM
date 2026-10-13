@@ -8,7 +8,7 @@
  *
  * Ids are decimal-string snowflakes, like everywhere else on the wire.
  */
-import { createContext, useContext } from 'react';
+import { createContext, useContext, useMemo } from 'react';
 import {
   LIVE_ACTIONS,
   useEnsureGuild,
@@ -18,6 +18,8 @@ import {
   useLiveTypingIds,
   type LiveSnapshot,
 } from './live';
+import { applyRailLayout } from './shell/railLayout';
+import { useLoungeUi } from './store';
 
 export type Snowflake = string;
 export type PresenceStatus = 'online' | 'idle' | 'dnd' | 'offline';
@@ -59,6 +61,8 @@ export interface Guild {
   /** Any non-muted channel unread. */
   unread: boolean;
   mentionCount: number;
+  /** The viewer muted this server (no unread pill or mention badge). */
+  muted?: boolean;
   /** Staff Server gets a special frame (LNG-RAIL-009). */
   isStaff?: boolean;
   /** User is connected to a voice channel here (LNG-RAIL-013). */
@@ -250,7 +254,9 @@ export function useGuilds(): Guild[] {
 }
 export function useRail(): RailEntry[] {
   const { mock, live } = useSource();
-  return mock ? mock.rail : live.rail;
+  const layout = useLoungeUi((s) => s.railLayout);
+  const base = mock ? mock.rail : live.rail;
+  return useMemo(() => applyRailLayout(base, layout), [base, layout]);
 }
 export function useGuild(guildId: Snowflake | undefined) {
   const { mock, live } = useSource();
