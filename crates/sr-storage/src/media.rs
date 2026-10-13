@@ -31,13 +31,18 @@ pub enum MediaKind {
     GuildIcon,
     GuildBanner,
     GuildSplash,
+    /// Avatar of a webhook; the owner is the webhook id (`avatars/<webhook_id>/<hash>`).
+    WebhookAvatar,
+    /// Image icon of a role; the owner is the guild (`icons/<guild_id>/<hash>`).
+    RoleIcon,
 }
 
 impl MediaKind {
     /// Square crop vs aspect-preserving bound, and the largest stored size.
     pub const fn fit(self) -> Fit {
         match self {
-            Self::UserAvatar | Self::GuildIcon => Fit::Square { max: 1024 },
+            Self::UserAvatar | Self::GuildIcon | Self::WebhookAvatar => Fit::Square { max: 1024 },
+            Self::RoleIcon => Fit::Square { max: 256 },
             Self::UserBanner | Self::GuildBanner | Self::GuildSplash => {
                 Fit::Bound { w: 1920, h: 1080 }
             }
@@ -51,21 +56,25 @@ impl MediaKind {
             Self::GuildIcon => "icon",
             Self::GuildBanner => "guild-banner",
             Self::GuildSplash => "splash",
+            Self::WebhookAvatar => "webhook-avatar",
+            Self::RoleIcon => "role-icon",
         }
     }
 
     /// First path segment under `/cdn` and prefix in object storage.
     pub const fn namespace(self) -> &'static str {
         match self {
-            Self::UserAvatar | Self::UserBanner => "avatars",
-            Self::GuildIcon | Self::GuildBanner | Self::GuildSplash => "icons",
+            Self::UserAvatar | Self::UserBanner | Self::WebhookAvatar => "avatars",
+            Self::GuildIcon | Self::GuildBanner | Self::GuildSplash | Self::RoleIcon => "icons",
         }
     }
 
     /// Field name used in error trees.
     pub const fn field(self) -> &'static str {
         match self {
-            Self::UserAvatar | Self::GuildIcon => "icon_or_avatar",
+            Self::UserAvatar | Self::GuildIcon | Self::WebhookAvatar | Self::RoleIcon => {
+                "icon_or_avatar"
+            }
             Self::UserBanner | Self::GuildBanner => "banner",
             Self::GuildSplash => "splash",
         }

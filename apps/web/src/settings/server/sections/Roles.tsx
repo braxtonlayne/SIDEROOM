@@ -11,7 +11,7 @@ import {
   type TriState,
 } from '@sideroom/ui';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useMembers, useStore } from '../../../store';
+import { cdnUrl, useMembers, useStore } from '../../../store';
 import * as api from '../api';
 import {
   hexFromInt,
@@ -25,6 +25,7 @@ import {
 import { PERM, bitsToValues, has, permissionGroups, toBig } from '../permissions';
 import type { SectionProps } from '../ServerSettings';
 import { ActionStatus, Async, ColorDot, SectionHeader, useAction } from '../ui';
+import { ImageField } from './ImageField';
 
 const GROUPS = permissionGroups();
 
@@ -217,6 +218,7 @@ function RolesEditor({
                 onDragEnd={() => setDragId(null)}
               >
                 <ColorDot color={r.color} />
+                <RoleBadge role={r} guildId={guildId} />
                 <button
                   type="button"
                   className="ss-grow ss-name ss-link"
@@ -296,6 +298,10 @@ interface RoleFields {
   hoist: boolean;
   mentionable: boolean;
   permissions: string;
+  /** One emoji, or empty. */
+  unicode_emoji: string;
+  /** Stored hash, a data URI picked now, or null. */
+  icon: string | null;
 }
 
 function RoleEditor({
@@ -323,6 +329,8 @@ function RoleEditor({
       hoist: role.hoist,
       mentionable: role.mentionable,
       permissions: role.permissions,
+      unicode_emoji: role.unicode_emoji ?? '',
+      icon: role.icon ?? null,
     }),
     [role, isEveryone],
   );
@@ -344,6 +352,8 @@ function RoleEditor({
     if (c.hoist !== undefined) body.hoist = c.hoist;
     if (c.mentionable !== undefined) body.mentionable = c.mentionable;
     if (c.permissions !== undefined) body.permissions = c.permissions;
+    if (c.unicode_emoji !== undefined) body.unicode_emoji = c.unicode_emoji.trim() || null;
+    if (c.icon !== undefined) body.icon = c.icon;
     const next = await action.run(() => api.modifyRole(guildId, role.id, body), 'Role saved.');
     if (next) {
       draft.reset();
@@ -416,6 +426,29 @@ function RoleEditor({
                     Use default color
                   </Button>
                 </div>
+                <ImageField
+                  label="Role icon"
+                  hint="Shown next to the role name in the member list and on messages. Replaces the emoji."
+                  ownerId={guildId}
+                  shape="square"
+                  value={draft.value.icon}
+                  disabled={locked}
+                  onChange={(v) => {
+                    draft.set('icon', v);
+                    if (v && draft.value.unicode_emoji) draft.set('unicode_emoji', '');
+                  }}
+                />
+                <TextInput
+                  label="Role emoji"
+                  hint="Or use one emoji instead of an image."
+                  value={draft.value.unicode_emoji}
+                  maxLength={16}
+                  disabled={locked}
+                  onChange={(e) => {
+                    draft.set('unicode_emoji', e.target.value);
+                    if (e.target.value && draft.value.icon) draft.set('icon', null);
+                  }}
+                />
                 <Switch
                   label="Display role members separately from online members"
                   checked={draft.value.hoist}
@@ -600,4 +633,22 @@ function RoleMembers({
       {shown.length === 0 && <p className="ss-na">No members have this role.</p>}
     </div>
   );
+}
+
+/** The role's emoji or icon image beside its name (decorative: the name is next to it). */
+function RoleBadge({ role, guildId }: { role: api.RoleObject; guildId: string }) {
+  if (role.icon) {
+    return (
+      <img
+        className="ss-role-icon"
+        alt=""
+        src={cdnUrl('icons', guildId, role.icon, { size: 32 }) ?? undefined}
+      />
+    );
+  }
+  return role.unicode_emoji ? (
+    <span aria-hidden="true" className="ss-role-icon">
+      {role.unicode_emoji}
+    </span>
+  ) : null;
 }

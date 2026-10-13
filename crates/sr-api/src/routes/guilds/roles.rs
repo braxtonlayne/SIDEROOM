@@ -2,6 +2,7 @@
 
 use super::dto::{CreateRoleBody, MemberObject, ModifyRoleBody, ReorderRoleEntry, RoleObject};
 use super::util::{Api, actor, ce, id, permissions, users_for};
+use crate::routes::{MaybeExt, media::MediaDeps};
 use crate::{Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
 use axum::{
     Json, Router,
@@ -11,6 +12,7 @@ use axum::{
 };
 use sr_chat::role_rules::{NewRole, RolePatch};
 use sr_core::{GuildId, RoleId, UserId};
+use sr_storage::media::MediaKind;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -124,12 +126,41 @@ pub async fn reorder_roles(
 pub async fn modify_role(
     p: Principal,
     Api(api): Api,
+    MaybeExt(media): MaybeExt<MediaDeps>,
     Path((guild_id, role_id)): Path<(String, String)>,
     Json(body): Json<ModifyRoleBody>,
 ) -> ApiResult<Json<RoleObject>> {
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
     let rid: RoleId = id("role_id", &role_id)?;
+    // The image is stored first (a bad upload fails the edit), the old one is removed after
+    // the edit committed, and a refused edit removes the new one again.
+    let mut new_icon: Option<Option<String>> = None;
+    let mut old_icon: Option<String> = None;
+    if body.icon.is_some() || body.unicode_emoji.as_ref().is_some_and(Option::is_some) {
+        // An emoji also clears the stored image, so its object must go too.
+        old_icon = api
+            .get_guild(user, gid)
+            .await
+            .map_err(ce)?
+            .1
+            .into_iter()
+            .find(|r| r.id == rid)
+            .and_then(|r| r.icon_key);
+    }
+    if let Some(icon) = body.icon {
+        if icon.is_some() && media.is_none() {
+            tracing::error!("role icon edit needs MediaDeps registered on AppState");
+            return Err(sr_core::ErrorCode::SrInternal.into());
+        }
+        new_icon = Some(match (icon, &media) {
+            (Some(uri), Some(m)) => {
+                Some(m.store(MediaKind::RoleIcon, gid.get(), "icon", uri).await?)
+            }
+            _ => None,
+        });
+    }
+    let stored_new = new_icon.clone().flatten();
     let patch = RolePatch {
         name: body.name,
         permissions: body
@@ -140,8 +171,23 @@ pub async fn modify_role(
         color: body.color,
         hoist: body.hoist,
         mentionable: body.mentionable,
+        unicode_emoji: body.unicode_emoji,
+        icon_key: new_icon,
     };
-    let role = api.edit_role(user, gid, rid, patch).await.map_err(ce)?;
+    let role = match api.edit_role(user, gid, rid, patch).await {
+        Ok(r) => r,
+        Err(e) => {
+            if let (Some(m), Some(h)) = (&media, &stored_new) {
+                m.remove(MediaKind::RoleIcon, gid.get(), h).await;
+            }
+            return Err(ce(e));
+        }
+    };
+    if let (Some(m), Some(old)) = (&media, &old_icon)
+        && role.icon_key.as_ref() != Some(old)
+    {
+        m.remove(MediaKind::RoleIcon, gid.get(), old).await;
+    }
     Ok(Json(RoleObject::from(&role)))
 }
 

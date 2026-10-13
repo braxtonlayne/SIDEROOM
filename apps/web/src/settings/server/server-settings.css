@@ -370,3 +370,14 @@
   font-weight: 700;
   flex: none;
 }
+
+.ss-role-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: cover;
+  border-radius: 3px;
+  font-size: 14px;
+  line-height: 16px;
+  text-align: center;
+  flex: none;
+}

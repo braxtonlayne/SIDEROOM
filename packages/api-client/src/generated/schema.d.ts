@@ -3788,6 +3788,11 @@ export interface components {
             name: string;
         };
         CreateWebhookBody: {
+            /**
+             * @description Avatar image data URI (PNG, JPEG, GIF or WebP, 8 MiB at most; cropped to a square).
+             *     Served at `/cdn/avatars/{webhook_id}/{hash}.png`.
+             */
+            avatar?: string | null;
             /** @description 1-80 characters, no `@everyone`/`@here`. */
             name: string;
         };
@@ -4465,9 +4470,16 @@ export interface components {
             /** Format: int32 */
             color?: number | null;
             hoist?: boolean | null;
+            /**
+             * @description Image data URI for the role icon (PNG, JPEG, GIF or WebP, cropped to a square);
+             *     `null` removes it. Replaces the emoji. Served at `/cdn/icons/{guild_id}/{hash}.png`.
+             */
+            icon?: string | null;
             mentionable?: boolean | null;
             name?: string | null;
             permissions?: string | null;
+            /** @description A single emoji shown beside the role; `null` clears it. Replaces an image icon. */
+            unicode_emoji?: string | null;
         };
         ModifyStickerBody: {
             description?: string | null;
@@ -4479,6 +4491,8 @@ export interface components {
             name?: string | null;
         };
         ModifyWebhookBody: {
+            /** @description Avatar image data URI; `null` removes it. */
+            avatar?: string | null;
             /** @description Move to another channel of the same server (management endpoint only). */
             channel_id?: string | null;
             name?: string | null;

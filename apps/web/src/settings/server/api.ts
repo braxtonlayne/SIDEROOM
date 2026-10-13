@@ -85,6 +85,10 @@ export interface RoleObject {
   unicode_emoji?: string | null;
 }
 export interface RoleBody {
+  /** One emoji, or null to clear. Replaces an image icon. */
+  unicode_emoji?: string | null;
+  /** Image data URI, or null to remove. Replaces the emoji. */
+  icon?: string | null;
   name?: string;
   permissions?: string;
   color?: number;
@@ -367,8 +371,17 @@ export interface WebhookObject {
 }
 export const listWebhooks = (g: string) =>
   apiFetch<WebhookObject[]>(`/guilds/${g}/webhooks`, { retries: 0 });
-export const createWebhook = (channelId: string, name: string) =>
-  send<WebhookObject>(`/channels/${channelId}/webhooks`, 'POST', { name });
+/** `avatar` is an image data URI. */
+export const createWebhook = (channelId: string, name: string, avatar?: string) =>
+  send<WebhookObject>(`/channels/${channelId}/webhooks`, 'POST', {
+    name,
+    ...(avatar ? { avatar } : {}),
+  });
+/** `avatar`: data URI to set, null to remove. */
+export const modifyWebhook = (
+  id: string,
+  body: { name?: string; channel_id?: string; avatar?: string | null },
+) => send<WebhookObject>(`/webhooks/${id}`, 'PATCH', body);
 export const deleteWebhook = (id: string) => send<void>(`/webhooks/${id}`, 'DELETE');
 /** Issues a fresh token and URL (shown once) and invalidates the old one (D-164). */
 export const resetWebhookToken = (id: string) =>

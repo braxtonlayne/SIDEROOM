@@ -19632,6 +19632,13 @@
           "name"
         ],
         "properties": {
+          "avatar": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Avatar image data URI (PNG, JPEG, GIF or WebP, 8 MiB at most; cropped to a square).\nServed at `/cdn/avatars/{webhook_id}/{hash}.png`."
+          },
           "name": {
             "type": "string",
             "description": "1-80 characters, no `@everyone`/`@here`."
@@ -21938,6 +21945,13 @@
               "null"
             ]
           },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Image data URI for the role icon (PNG, JPEG, GIF or WebP, cropped to a square);\n`null` removes it. Replaces the emoji. Served at `/cdn/icons/{guild_id}/{hash}.png`."
+          },
           "mentionable": {
             "type": [
               "boolean",
@@ -21955,6 +21969,13 @@
               "string",
               "null"
             ]
+          },
+          "unicode_emoji": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A single emoji shown beside the role; `null` clears it. Replaces an image icon."
           }
         }
       },
@@ -22001,6 +22022,13 @@
       "ModifyWebhookBody": {
         "type": "object",
         "properties": {
+          "avatar": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Avatar image data URI; `null` removes it."
+          },
           "channel_id": {
             "type": [
               "string",
