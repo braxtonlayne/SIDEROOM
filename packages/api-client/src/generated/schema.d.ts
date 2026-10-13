@@ -4,6 +4,590 @@
  */
 
 export interface paths {
+    "/admin/access-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Page through the staff access log, newest first (`VIEW_ACCESS_LOG`). */
+        get: operations["access_log"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/access-log/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Verify the whole hash chain (`VIEW_ACCESS_LOG`). A break raises a staff alert. */
+        get: operations["verify_access_log"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search accounts (`MANAGE_ACCOUNTS`), paginated by id. */
+        get: operations["search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/accounts/{account_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Account drawer (`MANAGE_ACCOUNTS`). The read is logged. */
+        get: operations["detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/accounts/{account_id}/ban": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Platform-ban the Person behind an account (`PLATFORM_BAN`). */
+        post: operations["ban_account"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/accounts/{account_id}/credits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Credit balance and ledger (newest first). */
+        get: operations["ledger"];
+        put?: never;
+        /** Grant or revoke invite credits with a reason. */
+        post: operations["adjust"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/accounts/{account_id}/delete-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record an account deletion request (stub: nothing is deleted) (`MANAGE_ACCOUNTS`). */
+        post: operations["delete_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/accounts/{account_id}/force-logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke every session of an account (`MANAGE_ACCOUNTS`). */
+        post: operations["force_logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/accounts/{account_id}/invite-descendants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Accounts invited, directly or not, up to `depth` hops (at most 500 nodes). */
+        get: operations["descendants"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/accounts/{account_id}/invite-tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Inviter chain (root first) and stats of an account. The read is logged. */
+        get: operations["tree"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/accounts/{account_id}/reset-2fa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Remove TOTP, recovery codes and passkeys and end all sessions (`MANAGE_ACCOUNTS`). */
+        post: operations["reset_2fa"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/accounts/{account_id}/suspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Suspend (deactivate) an account; its sessions end (`MANAGE_ACCOUNTS`). */
+        post: operations["suspend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/accounts/{account_id}/unsuspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reactivate a suspended account if the account cap allows (`MANAGE_ACCOUNTS`). */
+        post: operations["unsuspend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/bans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List platform bans, newest first (`PLATFORM_BAN`). */
+        get: operations["bans"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/features": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the registered feature modules with their platform state (`MANAGE_FEATURES`).
+         *     The registry may be sparse: only registered features appear.
+         */
+        get: operations["features"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/features/{feature_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Enable, disable or configure a feature at the platform scope (`MANAGE_FEATURES`). */
+        patch: operations["patch_feature"];
+        trace?: never;
+    };
+    "/admin/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List platform invites, newest first. */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/invites/{invite_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke an open invite. */
+        delete: operations["revoke"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List jobs, newest first (`MANAGE_TRANSCODE`). */
+        get: operations["jobs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a dead job (`MANAGE_TRANSCODE`). */
+        delete: operations["delete_job"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/jobs/{job_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Re-queue a dead job (`MANAGE_TRANSCODE`). */
+        post: operations["retry_job"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /admin/me`: the caller's platform permissions (any staff member). */
+        get: operations["me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/persons/{person_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A Person and its accounts (`MANAGE_ACCOUNTS`). The read is logged. */
+        get: operations["person"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/persons/{person_id}/ban": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Platform-ban a Person (`PLATFORM_BAN`). */
+        post: operations["ban_person"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/persons/{person_id}/clear-suspicion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Clear a Person's suspicion level (reason required). */
+        post: operations["clear_suspicion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/persons/{person_id}/unban": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Lift a Person's ban; accounts return while the cap allows (`PLATFORM_BAN`). */
+        post: operations["unban_person"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every editable platform setting with its current value (`MANAGE_FEATURES`). */
+        get: operations["settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change platform settings and limits without a restart (`MANAGE_FEATURES`). */
+        patch: operations["patch_settings"];
+        trace?: never;
+    };
+    "/admin/staff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List staff (`APPOINT_STAFF`). */
+        get: operations["list"];
+        put?: never;
+        /** Appoint an account: adds it to the Staff Server with the roles (`APPOINT_STAFF`). */
+        post: operations["appoint"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/staff/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Staff Server roles that can be assigned (`APPOINT_STAFF`). */
+        get: operations["roles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/staff/{account_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke an appointment (`APPOINT_STAFF`). The Owner cannot be revoked. */
+        delete: operations["revoke"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/staff/{account_id}/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace a staff member's roles (`APPOINT_STAFF`). */
+        put: operations["set_roles"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Dashboard counts (`STAFF_BASIC`). */
+        get: operations["stats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/suspicion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Persons with suspicion above zero, highest first. */
+        get: operations["suspects"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/system": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** System status: version, readiness probes, gateway sessions, queue depth (`OPERATOR`). */
+        get: operations["system"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/channels/{channel_id}": {
         parameters: {
             query?: never;
@@ -753,6 +1337,26 @@ export interface paths {
         patch: operations["modify_emoji"];
         trace?: never;
     };
+    "/guilds/{guild_id}/emojis/{emoji_id}/url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mint a short-lived signed CDN URL for an emoji image (any member). Emoji
+         *     objects carry no URL, so clients ask here and may request `size`/`format`.
+         */
+        get: operations["emoji_url"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/invites": {
         parameters: {
             query?: never;
@@ -959,6 +1563,23 @@ export interface paths {
         patch: operations["modify_sticker"];
         trace?: never;
     };
+    "/guilds/{guild_id}/stickers/{sticker_id}/url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Mint a short-lived signed CDN URL for a sticker image (any member). */
+        get: operations["sticker_url"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/templates": {
         parameters: {
             query?: never;
@@ -1129,8 +1750,10 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Edit the caller's profile: `bio` (190), `pronouns` (40), `banner`, `accent_color`
-         *     and `custom_status`. Absent fields stay, `null` clears.
+         * Edit the caller's profile: `avatar` and `banner` (image data URIs, stored by the
+         *     media pipeline), `bio` (190), `pronouns` (40), `accent_color` and
+         *     `custom_status`. Absent fields stay, `null` clears (and deletes the stored
+         *     image). Publishes `USER_UPDATE`.
          */
         patch: operations["edit_self"];
         trace?: never;
@@ -1469,6 +2092,90 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * @description Why an access-log row exists.
+         * @enum {string}
+         */
+        AccessKind: "admin_action" | "read" | "private_read" | "denied";
+        /** @description A stored, chained access-log row. */
+        AccessLogEntry: {
+            action: string;
+            actor_id: string;
+            /**
+             * Format: int64
+             * @description Microseconds since the Unix epoch.
+             */
+            at_us: number;
+            detail: string;
+            /** @description Hex of `sha256(prev_hash || canonical row)`. */
+            hash: string;
+            ip?: string | null;
+            kind: components["schemas"]["AccessKind"];
+            /** @description Hex of the previous row's hash (all zeros for the first row). */
+            prev_hash: string;
+            reason: string;
+            /** Format: int64 */
+            seq: number;
+            target_id?: string | null;
+            target_kind?: string | null;
+        };
+        /** @description Page of access-log rows. */
+        AccessLogPage: {
+            items: components["schemas"]["AccessLogEntry"][];
+            /**
+             * Format: int64
+             * @description Pass as `before` to get the next (older) page.
+             */
+            next_before?: number | null;
+        };
+        /** @description Everything the account drawer shows. */
+        AccountDetail: {
+            account: components["schemas"]["AccountSummary"];
+            /** Format: int64 */
+            credit_balance: number;
+            invited_by?: null | components["schemas"]["AccountRef"];
+            /** Format: int64 */
+            invites_issued: number;
+            /** Format: int64 */
+            invites_redeemed: number;
+            mfa_enabled: boolean;
+            person_banned: boolean;
+            recent_logins: components["schemas"]["LoginEvent"][];
+            /** Format: int64 */
+            sessions_active: number;
+            /** Format: int32 */
+            suspicion_level: number;
+        };
+        /** @description A page of accounts; `next_after` is the cursor for the following page. */
+        AccountPage: {
+            items: components["schemas"]["AccountSummary"][];
+            next_after?: string | null;
+        };
+        AccountRef: {
+            id: string;
+            username: string;
+        };
+        /**
+         * @description `accounts.state`.
+         * @enum {string}
+         */
+        AccountState: "active" | "deactivated" | "deleted" | "platform_banned";
+        /** @description Account row for lists. */
+        AccountSummary: {
+            /** Format: int64 */
+            created_at_ms: number;
+            display_name?: string | null;
+            email: string;
+            email_verified: boolean;
+            /** Format: int64 */
+            flags: number;
+            id: string;
+            person_id: string;
+            state: components["schemas"]["AccountState"];
+            /** Format: int64 */
+            state_changed_at_ms: number;
+            username: string;
+        };
         AckBody: {
             /** @description "Mark as unread": move the marker to exactly this message. */
             manual?: boolean | null;
@@ -1503,6 +2210,19 @@ export interface components {
              */
             username: string;
         };
+        AdjustBody: {
+            /**
+             * Format: int32
+             * @description Positive grants credits, negative revokes them (-1000..1000, not 0).
+             */
+            delta: number;
+            /** @description Required. */
+            reason?: string | null;
+        };
+        AdjustResult: {
+            /** Format: int64 */
+            balance: number;
+        };
         /**
          * @description Discord's `allowed_mentions` object. `parse` may hold `users`, `roles` and
          *     `everyone`; listed `users`/`roles` ids may ping even when their kind is not parsed.
@@ -1512,6 +2232,13 @@ export interface components {
             replied_user?: boolean;
             roles?: string[];
             users?: string[];
+        };
+        AppointBody: {
+            /** @description Account to appoint. */
+            account_id: string;
+            reason?: string | null;
+            /** @description Staff Server role ids to start with. */
+            role_ids: string[];
         };
         AttachmentObject: {
             content_type?: string | null;
@@ -1561,23 +2288,45 @@ export interface components {
             users: components["schemas"]["UserRef"][];
             webhooks: Record<string, never>[];
         };
+        /** @description Ban body: the reason is the ban note. */
         BanBody: {
-            /**
-             * Format: int32
-             * @description Deprecated Discord field, 0 to 7.
-             */
-            delete_message_days?: number | null;
-            /**
-             * Format: int32
-             * @description Seconds of message history to delete, 0 to 604800.
-             */
-            delete_message_seconds?: number | null;
-            /** @description Convenience; Discord carries the reason in `X-Audit-Log-Reason`. */
+            /** @description `serious` raises suspicion on the inviter (D-031); `standard` does not. */
+            category: components["schemas"]["BanCategory"];
             reason?: string | null;
         };
+        /**
+         * @description Reason category of a platform ban (doc 06 section 5.4, doc 09). Only
+         *     `Serious` bans raise suspicion on the banned account's inviter (D-031).
+         * @enum {string}
+         */
+        BanCategory: "serious" | "standard";
         BanObject: {
             reason?: string | null;
             user: components["schemas"]["UserRef"];
+        };
+        /** @description Outcome of banning a Person. */
+        BanOutcome: {
+            /** Format: int64 */
+            accounts_banned: number;
+            ban: components["schemas"]["BanRecord"];
+            inviter_suspicion?: null | components["schemas"]["SuspicionChange"];
+            /** Format: int64 */
+            sessions_revoked: number;
+        };
+        BanPage: {
+            items: components["schemas"]["BanRecord"][];
+            next_after?: string | null;
+        };
+        BanRecord: {
+            banned_by: string;
+            category: components["schemas"]["BanCategory"];
+            /** Format: int64 */
+            created_at_ms: number;
+            id: string;
+            /** Format: int64 */
+            lifted_at_ms?: number | null;
+            note: string;
+            person_id: string;
         };
         BulkAckBody: {
             read_states: components["schemas"]["BulkAckEntry"][];
@@ -1588,6 +2337,20 @@ export interface components {
         };
         BulkDeleteBody: {
             messages: string[];
+        };
+        /** @description Result of verifying the whole chain. */
+        ChainReport: {
+            /**
+             * Format: int64
+             * @description First sequence number that failed verification.
+             */
+            first_bad_seq?: number | null;
+            /** @description Hash of the newest verified row; record it elsewhere to detect truncation. */
+            head_hash?: string | null;
+            ok: boolean;
+            problem?: string | null;
+            /** Format: int64 */
+            rows_checked: number;
         };
         ChannelObject: {
             /** @description Forum tag ids applied to a post. */
@@ -1802,6 +2565,11 @@ export interface components {
             /** @description 1-80 characters, no `@everyone`/`@here`. */
             name: string;
         };
+        CreditLedger: {
+            /** Format: int64 */
+            balance: number;
+            entries: components["schemas"]["LedgerEntry"][];
+        };
         /** @description Body of `GET /sr/csrf`. */
         CsrfToken: {
             /** @description Value for the `X-SR-CSRF` header. */
@@ -1815,8 +2583,10 @@ export interface components {
         CurrentUser: {
             /** @description `session`, `bot` or `bearer` (SIDE ROOM addition). */
             auth: string;
-            /** @description Avatar hash; always null until avatars land. */
+            /** @description Avatar hash; the image is at `/cdn/avatars/{id}/{hash}.png`. */
             avatar?: string | null;
+            /** @description Profile banner hash, served like the avatar. */
+            banner?: string | null;
             /** @description True for bot callers. */
             bot: boolean;
             /** @description Always `"0"` (no discriminators). */
@@ -1859,6 +2629,13 @@ export interface components {
             emoji_id?: string | null;
             emoji_name?: string | null;
         };
+        DeleteRequest: {
+            account_id: string;
+            /** Format: int64 */
+            created_at_ms: number;
+            id: string;
+            state: string;
+        };
         DmChannelObject: {
             icon?: string | null;
             id: string;
@@ -1890,7 +2667,15 @@ export interface components {
         EditSelfBody: {
             /** Format: int32 */
             accent_color?: number | null;
-            /** @description Banner key from the media pipeline; `null` removes it. */
+            /**
+             * @description New avatar as a `data:image/{png,jpeg,gif,webp};base64,...` URI (8 MiB at
+             *     most; cropped to a centred square, EXIF stripped); `null` removes it.
+             */
+            avatar?: string | null;
+            /**
+             * @description New profile banner as an image data URI (aspect ratio kept, at most
+             *     1920x1080); `null` removes it.
+             */
             banner?: string | null;
             bio?: string | null;
             custom_status?: null | components["schemas"]["CustomStatusBody"];
@@ -1929,6 +2714,22 @@ export interface components {
             /** @description Accepted; see the module docs (TODO(webhook-author)). */
             username?: string | null;
         };
+        FeatureView: {
+            default_enabled: boolean;
+            description: string;
+            /** @description Whether the feature is on at the platform scope (a platform-off is a kill switch). */
+            enabled: boolean;
+            id: string;
+            name: string;
+            /** Format: int32 */
+            phase: number;
+            /** @description Settings schema for auto-rendered forms. */
+            schema: Record<string, never>;
+            scopes: string[];
+            section: string;
+            /** @description Effective settings at the platform scope. */
+            settings: Record<string, never>;
+        };
         FileSpec: {
             /** @description What the client believes the type is; verified by sniffing at completion. */
             content_type?: string | null;
@@ -1939,6 +2740,11 @@ export interface components {
             /** @description Client-chosen id, echoed back. */
             id?: string | null;
             spoiler?: boolean | null;
+        };
+        /** @description Result of a forced logout. */
+        ForceLogoutResult: {
+            /** Format: int64 */
+            sessions_revoked: number;
         };
         /** @description Forum and media settings, plus the thread defaults of text channels. */
         ForumSettingsBody: {
@@ -1966,6 +2772,8 @@ export interface components {
             default_thread_rate_limit_per_user?: number | null;
         };
         GuildObject: {
+            /** @description Banner hash, same URL shape as the icon. */
+            banner?: string | null;
             channels?: components["schemas"]["ChannelObject"][] | null;
             /** Format: int32 */
             default_message_notifications: number;
@@ -1973,12 +2781,15 @@ export interface components {
             /** Format: int32 */
             explicit_content_filter: number;
             features: string[];
+            /** @description Icon hash: `/cdn/icons/{id}/{hash}.png` (`a_` prefix = animated). */
             icon?: string | null;
             id: string;
             name: string;
             owner_id: string;
             preferred_locale: string;
             roles?: components["schemas"]["RoleObject"][] | null;
+            /** @description Invite splash hash, same URL shape as the icon. */
+            splash?: string | null;
             system_channel_id?: string | null;
             /** Format: int32 */
             verification_level: number;
@@ -2014,10 +2825,31 @@ export interface components {
             /** Format: int32 */
             type: number;
         };
+        InviteDescendants: {
+            nodes: components["schemas"]["InviteNode"][];
+            /** @description True when the node cap cut the result short. */
+            truncated: boolean;
+        };
         InviteGuild: {
             icon?: string | null;
             id: string;
             name: string;
+        };
+        /** @description A node of the invite graph. */
+        InviteNode: {
+            account_id: string;
+            /**
+             * Format: int32
+             * @description Hops from the requested account (0 = itself, negative = ancestors).
+             */
+            depth: number;
+            /** @description The inviter's account id (`None` for the root: the Owner). */
+            parent_id?: string | null;
+            person_id: string;
+            state: components["schemas"]["AccountState"];
+            /** Format: int32 */
+            suspicion_level: number;
+            username: string;
         };
         /** @description Discord-shaped invite object. */
         InviteObject: {
@@ -2053,6 +2885,82 @@ export interface components {
             type: number;
             /** Format: int32 */
             uses: number;
+        };
+        InvitePage: {
+            items: components["schemas"]["InviteRow"][];
+            next_after?: string | null;
+        };
+        InviteRow: {
+            code: string;
+            /** Format: int64 */
+            created_at_ms: number;
+            emergency: boolean;
+            id: string;
+            issuer_account_id: string;
+            note: string;
+            redeemed_by_account_id?: string | null;
+            state: string;
+        };
+        InviteStats: {
+            /** Format: int64 */
+            banned_descendants: number;
+            /** Format: int64 */
+            descendants: number;
+            /** Format: int64 */
+            issued: number;
+            /** Format: int64 */
+            open: number;
+            /** Format: int64 */
+            redeemed: number;
+            /** Format: int64 */
+            revoked: number;
+        };
+        /** @description The inviter chain of an account plus its stats. */
+        InviteTree: {
+            account: components["schemas"]["InviteNode"];
+            /** @description Root first, ending with the account's direct inviter. */
+            ancestors: components["schemas"]["InviteNode"][];
+            stats: components["schemas"]["InviteStats"];
+        };
+        JobPage: {
+            items: components["schemas"]["JobRow"][];
+            next_after?: string | null;
+        };
+        JobRow: {
+            /** Format: int32 */
+            attempts: number;
+            /** Format: int64 */
+            finished_at_ms?: number | null;
+            id: string;
+            kind: string;
+            last_error?: string | null;
+            /** Format: int32 */
+            max_attempts: number;
+            /** Format: int64 */
+            run_at_ms: number;
+            state: string;
+        };
+        LedgerEntry: {
+            /** Format: int64 */
+            created_at_ms: number;
+            /** Format: int32 */
+            delta: number;
+            id: string;
+            reason: string;
+            ref_id?: string | null;
+        };
+        LoginEvent: {
+            /** Format: int64 */
+            at_ms: number;
+            ip?: string | null;
+            success: boolean;
+        };
+        /** @description The caller's own platform standing. */
+        Me: {
+            is_owner: boolean;
+            /** @description `PlatformPermissions` bits as a decimal string (`OWNER` is bit 63). */
+            platform_permissions: string;
+            user_id: string;
         };
         MemberObject: {
             avatar?: string | null;
@@ -2159,17 +3067,24 @@ export interface components {
             roles?: string[] | null;
         };
         ModifyGuildBody: {
+            /** @description Banner image data URI (aspect ratio kept, at most 1920x1080); `null` removes it. */
+            banner?: string | null;
             /** Format: int32 */
             default_message_notifications?: number | null;
             description?: string | null;
             /** Format: int32 */
             explicit_content_filter?: number | null;
-            /** @description Accepted and ignored for now. */
+            /**
+             * @description Image data URI (PNG, JPEG, GIF or WebP, 8 MiB at most; cropped to a square);
+             *     `null` removes the icon.
+             */
             icon?: string | null;
             name?: string | null;
             /** @description Transfers ownership (owner only). */
             owner_id?: string | null;
             preferred_locale?: string | null;
+            /** @description Invite splash image data URI; `null` removes it. */
+            splash?: string | null;
             system_channel_id?: string | null;
             /** Format: int32 */
             verification_level?: number | null;
@@ -2289,6 +3204,35 @@ export interface components {
             id?: string | null;
             name: string;
         };
+        PatchFeatureBody: {
+            /** @description Turn the feature on or off at the platform scope. */
+            enabled?: boolean | null;
+            reason?: string | null;
+            /** @description Drop the explicit platform flag so the feature default applies again. */
+            reset_enabled?: boolean;
+            /** @description Replace the platform-scope setting overrides (validated against the feature schema). */
+            settings?: Record<string, never> | null;
+        };
+        PatchSettingsBody: {
+            reason?: string | null;
+            /** @description Setting key to new value; unknown keys or out-of-range values reject the whole patch. */
+            values: Record<string, never>;
+        };
+        PersonBanBody: {
+            category: components["schemas"]["BanCategory"];
+            reason?: string | null;
+            /** @description The account the ban is about; a serious ban raises suspicion on its inviter. */
+            source_account_id?: string | null;
+        };
+        /** @description A Person and its accounts. */
+        PersonDetail: {
+            accounts: components["schemas"]["AccountSummary"][];
+            ban?: null | components["schemas"]["BanRecord"];
+            id: string;
+            notes: string;
+            /** Format: int32 */
+            suspicion_level: number;
+        };
         PinEntry: {
             message: components["schemas"]["MessageObject"];
             pinned_at: string;
@@ -2312,6 +3256,11 @@ export interface components {
             /** @description `online`, `idle`, `dnd` or `invisible`. */
             status: string;
             status_expires_at?: string | null;
+        };
+        ProbeView: {
+            error?: string | null;
+            name: string;
+            ok: boolean;
         };
         ProfileObject: {
             connected_accounts: components["schemas"]["ConnectionObject"][];
@@ -2364,6 +3313,14 @@ export interface components {
         ReadStatesResponse: {
             entries: components["schemas"]["ReadStateObject"][];
         };
+        /** @description Body of actions that only need a reason. */
+        ReasonBody: {
+            /**
+             * @description Why. Required for account, Person, invite and staff actions; also accepted in the
+             *     `X-Audit-Log-Reason` header.
+             */
+            reason?: string | null;
+        };
         RelationshipObject: {
             /** @description The other user's id. */
             id: string;
@@ -2388,6 +3345,19 @@ export interface components {
             /** Format: int32 */
             position: number;
         };
+        /** @description What `reset 2FA` removed. */
+        Reset2faReport: {
+            /** Format: int64 */
+            passkeys: number;
+            /** Format: int64 */
+            recovery_codes: number;
+            /** Format: int64 */
+            sessions_revoked: number;
+            /** Format: int64 */
+            totp: number;
+            /** Format: int64 */
+            trusted_devices: number;
+        };
         RoleObject: {
             /** Format: int32 */
             color: number;
@@ -2404,6 +3374,10 @@ export interface components {
             /** Format: int32 */
             position: number;
             unicode_emoji?: string | null;
+        };
+        RolesBody: {
+            reason?: string | null;
+            role_ids: string[];
         };
         /**
          * @description Body of create (all of `name`, `event_type`, `trigger_type`, `actions` required)
@@ -2465,6 +3439,57 @@ export interface components {
             pronouns?: string | null;
             user: components["schemas"]["UserObject"];
         };
+        /** @enum {string} */
+        SettingKind: "integer" | "number" | "boolean" | "text";
+        /** @description One platform setting with its current value, for Admin -> Limits. */
+        SettingView: {
+            default: unknown;
+            description: string;
+            group: string;
+            is_default: boolean;
+            key: string;
+            kind: components["schemas"]["SettingKind"];
+            /** Format: double */
+            max: number;
+            /** Format: double */
+            min: number;
+            /** Format: int64 */
+            updated_at_ms?: number | null;
+            value: unknown;
+        };
+        /** @description A short-lived signed CDN URL. */
+        SignedUrlObject: {
+            /**
+             * Format: int64
+             * @description Unix seconds.
+             */
+            expires_at: number;
+            /** @description Relative to the public origin: `/cdn/...?size=..&ex=..&sig=..`. */
+            url: string;
+        };
+        /** @description A current staff member. */
+        StaffMember: {
+            account_id: string;
+            /** Format: int64 */
+            appointed_at_ms: number;
+            appointed_by?: string | null;
+            display_name?: string | null;
+            is_owner: boolean;
+            /** @description Union of the roles' platform bits (`OWNER` for the Owner), decimal string. */
+            platform_permissions: string;
+            reason: string;
+            roles: components["schemas"]["StaffRole"][];
+            username: string;
+        };
+        /** @description A staff role of the Staff Server. */
+        StaffRole: {
+            id: string;
+            name: string;
+            /** @description `PlatformPermissions` bits as a decimal string. */
+            platform_permissions: string;
+            /** Format: int32 */
+            position: number;
+        };
         /** @description `POST /channels/{id}/messages/{id}/threads`. */
         StartFromMessageBody: {
             /**
@@ -2518,6 +3543,52 @@ export interface components {
              */
             type: number;
             user: components["schemas"]["UserRef"];
+        };
+        SuspectPerson: {
+            accounts: components["schemas"]["AccountRef"][];
+            frozen: boolean;
+            person_id: string;
+            /** Format: int32 */
+            suspicion_level: number;
+        };
+        SuspicionChange: {
+            /** @description Level reached the escalation threshold. */
+            escalated: boolean;
+            /** @description Level reached the freeze threshold: the Person's invite creation is frozen. */
+            frozen: boolean;
+            inviter_account_id: string;
+            /** Format: int32 */
+            level: number;
+            person_id: string;
+        };
+        /** @description Counts for the dashboard and system page. */
+        SystemCounts: {
+            /** Format: int64 */
+            accounts_active: number;
+            /** Format: int64 */
+            accounts_banned: number;
+            /** Format: int64 */
+            accounts_deactivated: number;
+            /** Format: int64 */
+            accounts_deleted: number;
+            /** Format: int64 */
+            jobs_dead: number;
+            /** Format: int64 */
+            jobs_queued: number;
+            /** Format: int64 */
+            jobs_running: number;
+            /** Format: int64 */
+            sessions_active: number;
+            /** Format: int64 */
+            staff: number;
+        };
+        SystemView: {
+            counts: components["schemas"]["SystemCounts"];
+            /** @description Open gateway sessions, when the gateway is attached. */
+            gateway_sessions?: number | null;
+            /** @description Readiness probes (database, object storage). */
+            probes: components["schemas"]["ProbeView"][];
+            version: string;
         };
         /** @description A forum tag as sent by clients; the server assigns an id when absent. */
         TagBody: {
@@ -2585,6 +3656,15 @@ export interface components {
             presets?: number[];
             regex_patterns?: string[];
         };
+        UnbanOutcome: {
+            /**
+             * Format: int64
+             * @description Accounts left deactivated because the account cap was reached.
+             */
+            accounts_left_deactivated: number;
+            /** Format: int64 */
+            accounts_reactivated: number;
+        };
         UploadSlot: {
             /**
              * Format: int64
@@ -2633,8 +3713,10 @@ export interface components {
             id: string;
         };
         UserObject: {
-            /** @description Avatar key, when one is set. */
+            /** @description Avatar hash (`/cdn/avatars/{id}/{hash}.png`), when one is set. */
             avatar?: string | null;
+            /** @description Profile banner hash (`/cdn/avatars/{id}/{hash}.png`), when one is set. */
+            banner?: string | null;
             global_name?: string | null;
             id: string;
             username?: string | null;
@@ -2691,6 +3773,1888 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    access_log: {
+        parameters: {
+            query?: {
+                /** @description Only this actor */
+                actor_id?: string;
+                /** @description Only this target */
+                target_id?: string;
+                /** @description Exact action, e.g. account.suspend */
+                action?: string;
+                /** @description admin_action, read, private_read, denied */
+                kind?: string;
+                /** @description Cursor */
+                before?: number;
+                /** @description 1-100, default 50 */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessLogPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    verify_access_log: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChainReport"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    search: {
+        parameters: {
+            query?: {
+                /** @description Username, display name, email fragment or exact id */
+                q?: string;
+                /** @description active, deactivated, deleted, platform_banned */
+                state?: string;
+                /** @description Only accounts of this Person */
+                person_id?: string;
+                /** @description Cursor */
+                after?: string;
+                /** @description 1-100, default 50 */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountDetail"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    ban_account: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BanBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BanOutcome"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    ledger: {
+        parameters: {
+            query?: {
+                /** @description 1-100, default 50 */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditLedger"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    adjust: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdjustBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdjustResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        /** @description Reason (or X-Audit-Log-Reason header) */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteRequest"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    force_logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        /** @description Reason */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForceLogoutResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    descendants: {
+        parameters: {
+            query?: {
+                /** @description 1-20, default 3 */
+                depth?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteDescendants"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tree: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteTree"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    reset_2fa: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        /** @description Reason (or X-Audit-Log-Reason header) */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Reset2faReport"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    suspend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        /** @description Reason (or X-Audit-Log-Reason header) */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountSummary"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    unsuspend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        /** @description Reason (or X-Audit-Log-Reason header) */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountSummary"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    bans: {
+        parameters: {
+            query?: {
+                /** @description Only bans not lifted */
+                active_only?: boolean;
+                /** @description Cursor */
+                after?: string;
+                /** @description 1-100, default 50 */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BanPage"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    features: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeatureView"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_feature: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Feature id, e.g. lounge.slowmode_plus */
+                feature_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchFeatureBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeatureView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                /** @description Only this issuer */
+                issuer_id?: string;
+                /** @description open, revoked, redeemed */
+                state?: string;
+                /** @description Cursor */
+                after?: string;
+                /** @description 1-100, default 50 */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitePage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    revoke: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invite snowflake */
+                invite_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteRow"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    jobs: {
+        parameters: {
+            query?: {
+                /** @description queued, running, succeeded, dead */
+                state?: string;
+                /** @description Cursor */
+                after?: string;
+                /** @description 1-100, default 50 */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_job: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Job snowflake */
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    retry_job: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Job snowflake */
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    person: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Person snowflake */
+                person_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonDetail"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    ban_person: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Person snowflake */
+                person_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonBanBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BanOutcome"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    clear_suspicion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Person snowflake */
+                person_id: string;
+            };
+            cookie?: never;
+        };
+        /** @description Reason */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    unban_person: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Person snowflake */
+                person_id: string;
+            };
+            cookie?: never;
+        };
+        /** @description Reason */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnbanOutcome"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingView"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchSettingsBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingView"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffMember"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    appoint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppointBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffMember"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    roles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffRole"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    revoke: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_roles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RolesBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffMember"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    stats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemCounts"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    suspects: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuspectPerson"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    system: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_channel: {
         parameters: {
             query?: never;
@@ -5621,6 +8585,59 @@ export interface operations {
             };
         };
     };
+    emoji_url: {
+        parameters: {
+            query?: {
+                /** @description Power of two, 16 to 4096 */
+                size?: number;
+                /** @description png, jpg, webp or gif */
+                format?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Emoji snowflake */
+                emoji_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignedUrlObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_guild_invites: {
         parameters: {
             query?: never;
@@ -6590,6 +9607,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StickerObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    sticker_url: {
+        parameters: {
+            query?: {
+                /** @description Power of two, 16 to 4096 */
+                size?: number;
+                /** @description png, jpg, webp or gif */
+                format?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Sticker snowflake */
+                sticker_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignedUrlObject"];
                 };
             };
             400: {
