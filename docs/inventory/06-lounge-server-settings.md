@@ -71,7 +71,7 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 
 ## Integrations
 - [ ] **LNG-SSET-044** [FE] Overview: Webhooks count, Channels Followed count, Bots and Apps list
-- [ ] **LNG-SSET-045** [FE] Webhooks manager (create, avatar, name, channel, URL shown once + Reset URL, delete) *(done except avatar; existing webhooks have no Copy URL because tokens are stored hashed, D-164)*
+- [ ] **LNG-SSET-045** [FE] Webhooks manager (create, avatar, name, channel, URL shown once + Reset URL, delete) *(done except avatar: the webhook create and modify bodies take no avatar and there is no webhook media kind in `sr-storage`, so it needs a backend change first; existing webhooks have no Copy URL because tokens are stored hashed, D-164)*
 - [ ] **LNG-SSET-046** [FE] Followed channels list (unfollow)
 - [ ] **LNG-SSET-047** [FE] App detail: permissions, command permissions overrides (per role/channel), remove app
 - [ ] **LNG-SSET-048** [FE] App Directory ↗ link (opens Developer App Directory, Phase 6)
