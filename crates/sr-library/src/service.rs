@@ -290,7 +290,7 @@ impl LibraryService {
             && list.len() > l as usize
         {
             list.truncate(l as usize);
-            next_cursor = list.last().map(|c| rules::encode_chapter_cursor(c));
+            next_cursor = list.last().map(rules::encode_chapter_cursor);
         }
         Ok(ChapterList {
             editions: self.repo.list_editions(series).await?,

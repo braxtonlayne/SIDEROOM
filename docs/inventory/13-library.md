@@ -14,11 +14,11 @@ Phase 4. Spec: [library-reader](../specs/library-reader.md). Mockup: `library-ho
 - [x] **LIB-ING-001** [BE] Image page pipeline: decode JPEG/PNG/WebP/GIF -> lossy WebP q85 (PNG sources also lossless, smaller kept; D-168) + sized variants 720/1080/1600 + blurhash + dimensions + spread detection. AVIF is rejected, not decoded (D-169)
 - [x] **LIB-ING-002** [BE] Archive readers: ZIP/CBZ, 7z/CB7, RAR/CBR (behind `library.ingest.rar_enabled`; D-170) under one set of limits (natural sort, ignore junk files like `__MACOSX`, `Thumbs.db`)
 - [x] **LIB-ING-003** [BE] ComicInfo.xml parser → metadata
-- [ ] **LIB-ING-004** [BE] PDF: keep original + rasterize pages (pdfium) for image mode *(partial: `ingest::pdf::validate` accepts or refuses the original; rasterization is not implemented, see open-questions 2)*
+- [ ] **LIB-ING-004** [BE] PDF: keep original + rasterize pages (pdfium) for image mode *(partial: `ingest::pdf::validate` accepts or refuses the original; rasterization is not implemented, see open-questions 2; the HTTP upload and job keep the original as the chapter source since phase 4)*
 - [x] **LIB-ING-005** [BE] EPUB: validate, extract metadata/cover, keep as-is (`ingest::epub::inspect`)
 - [x] **LIB-ING-006** [BE] series.json parser
 - [ ] **LIB-ING-007** [BE] Auto-crop border detection data (optional per page)
-- [ ] **LIB-ING-008** [BE] Library `SubmissionKind` impls (series, items) with publish actions
+- [ ] **LIB-ING-008** [BE] Library `SubmissionKind` impls (series, items) with publish actions *(not possible yet: `sr-review` is an empty crate and there is no `submissions` table. Phase 4 delivered the publish half the kinds will call: staff upload via `/admin/library/chapters/{id}/uploads`, the `library.ingest` job, publish routes and the access-log entries; see library-reader spec section 6.6)*
 - [ ] **LIB-ING-009** [WASM] Client-side pre-checks (image validity, sizes) before upload
 
 ## LIB-UI — Section chrome
@@ -63,8 +63,8 @@ Phase 4. Spec: [library-reader](../specs/library-reader.md). Mockup: `library-ho
 - [ ] **LIB-RDR-009** [FE] Reader settings panel (mode, direction, background, gap, crop borders, smoothing, brightness) + per-series override
 - [ ] **LIB-RDR-010** [FE] EPUB reader (foliate-js): font, size, line height, margins, theme, TOC, CFI progress
 - [ ] **LIB-RDR-011** [FE] PDF reader (image mode default, pdf.js native option)
-- [ ] **LIB-RDR-012** [BE] Progress API (page index / CFI, percent) + `SR_LIBRARY_UPDATE` cross-device sync + "continue where?" conflict prompt
-- [ ] **LIB-RDR-013** [FE] Bookmarks (add with note, panel, jump)
+- [x] **LIB-RDR-012** [BE] Progress API (page index / CFI, percent) + `SR_LIBRARY_UPDATE` cross-device sync + "continue where?" conflict prompt *(phase 4: `/library/chapters/{id}/progress`, read marks, history, `SR_LIBRARY_UPDATE`; see library-reader spec section 6)*
+- [ ] **LIB-RDR-013** [FE] Bookmarks (add with note, panel, jump) *(backend done in phase 4: `/library/chapters/{id}/bookmarks`, `/library/me/bookmarks`; the UI is open)*
 - [ ] **LIB-RDR-014** [FE] Chapter comments drawer (spoilers, replies)
 - [ ] **LIB-RDR-015** [FE] PWA offline cache for current + next chapter (Workbox runtime caching rules, quota handling)
 - [ ] **LIB-RDR-016** [BE] Patron downloads: CBZ/PDF/EPUB export job, signed single-user link, daily limit
@@ -77,7 +77,7 @@ Phase 4. Spec: [library-reader](../specs/library-reader.md). Mockup: `library-ho
 - [ ] **LIB-SOC-004** [BE] Trending score job (global hourly) + on-demand scoped trending (10-min per-user cache)
 - [ ] **LIB-SOC-005** [BE] Recommendations ("Because you read X": tag similarity + co-reading among known)
 - [ ] **LIB-SOC-006** [BE] Lists (CRUD, order, visibility, share) + featured lists
-- [ ] **LIB-SOC-007** [BE] Follow + new-chapter notifications (in-app, push, Lounge feed module)
+- [ ] **LIB-SOC-007** [BE] Follow + new-chapter notifications (in-app, push, Lounge feed module) *(partial, phase 4: publishing a chapter dispatches `SR_LIBRARY_UPDATE` `chapter_published` to followers with the bell on, and follow changes sync across devices; no stored notification list, push or Lounge feed yet)*
 - [ ] **LIB-SOC-008** [FE] My library page (status shelves: Reading, Plan to read, Completed, On hold, Dropped; unread counts; sort)
 - [ ] **LIB-SOC-009** [FE] Reading history page (timeline, remove, pause)
 - [ ] **LIB-SOC-010** [FE] Reading lists pages (mine, featured, list detail, editor)

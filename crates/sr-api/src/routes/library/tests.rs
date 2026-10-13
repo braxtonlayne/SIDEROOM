@@ -486,6 +486,20 @@ struct Env {
     admin: Arc<MemoryAdminRepo>,
     age: Arc<Confirmed>,
     tokens: HashMap<i64, String>,
+    storage: Arc<sr_storage::ObjectStoreStorage>,
+    queue: Arc<RecordingQueue>,
+}
+
+/// Remembers which uploads were queued for conversion.
+#[derive(Default)]
+struct RecordingQueue(Mutex<Vec<i64>>);
+
+#[async_trait]
+impl sr_library::IngestQueue for RecordingQueue {
+    async fn enqueue(&self, upload_id: i64) -> Result<(), String> {
+        self.0.lock().unwrap().push(upload_id);
+        Ok(())
+    }
 }
 
 async fn env_with(library: bool) -> Env {
@@ -556,13 +570,22 @@ async fn env_with(library: bool) -> Env {
     );
 
     let stub = Arc::new(Stub::default());
+    let storage = Arc::new(sr_storage::ObjectStoreStorage::in_memory());
+    let queue = Arc::new(RecordingQueue::default());
     let service = LibraryService::new(
         stub.clone(),
         CdnSigner::new(vec![3u8; 32]),
         Arc::new(SystemClock),
         Arc::new(|| 4242),
     )
-    .with_index(Arc::new(SeriesIndex::in_ram().unwrap()));
+    .with_index(Arc::new(SeriesIndex::in_ram().unwrap()))
+    .with_ingest(
+        storage.clone(),
+        Arc::new(sr_library::StaticIngestSettings(
+            sr_library::IngestSettingsSnapshot::default(),
+        )),
+        queue.clone(),
+    );
     let age = Arc::new(Confirmed(Mutex::new(HashSet::from([
         UserId::new(ADULT as u64),
         UserId::new(HIDER as u64),
@@ -587,6 +610,8 @@ async fn env_with(library: bool) -> Env {
         admin,
         age,
         tokens,
+        storage,
+        queue,
     }
 }
 
@@ -1011,4 +1036,420 @@ fn openapi_lists_every_library_path() {
     }
     assert!(doc["components"]["schemas"]["PageManifest"].is_object());
     assert!(paths["/library/chapters/{chapter_id}/pages"]["get"]["responses"]["403"].is_object());
+}
+
+fn new_member_routes() -> Vec<(Method, &'static str, Option<Value>)> {
+    vec![
+        (Method::GET, "/library/chapters/70/progress", None),
+        (
+            Method::PUT,
+            "/library/chapters/70/progress",
+            Some(json!({ "page_index": 0, "percent": 1 })),
+        ),
+        (Method::DELETE, "/library/chapters/70/progress", None),
+        (
+            Method::POST,
+            "/library/chapters/70/read",
+            Some(json!({ "read": true })),
+        ),
+        (Method::GET, "/library/me/progress", None),
+        (Method::GET, "/library/chapters/70/bookmarks", None),
+        (
+            Method::PUT,
+            "/library/chapters/70/bookmarks",
+            Some(json!({ "page_index": 0 })),
+        ),
+        (Method::DELETE, "/library/bookmarks/5", None),
+        (Method::GET, "/library/me/bookmarks", None),
+    ]
+}
+
+fn new_admin_routes() -> Vec<(Method, &'static str, Option<Value>)> {
+    vec![
+        (
+            Method::POST,
+            "/admin/library/chapters/70/uploads",
+            Some(json!({ "filename": "a.cbz", "size_bytes": 10 })),
+        ),
+        (Method::GET, "/admin/library/chapters/70/uploads", None),
+        (Method::GET, "/admin/library/uploads/5", None),
+        (Method::POST, "/admin/library/uploads/5/complete", None),
+    ]
+}
+
+#[tokio::test]
+async fn the_new_routes_keep_the_auth_matrices() {
+    let e = env().await;
+    for (m, p, b) in new_member_routes() {
+        let (s, _) = e.call(None, m.clone(), p, b.clone()).await;
+        assert_eq!(s, StatusCode::UNAUTHORIZED, "{m} {p}");
+    }
+    for (m, p, b) in new_admin_routes() {
+        let (s, _) = e.call(None, m.clone(), p, b.clone()).await;
+        assert_eq!(s, StatusCode::UNAUTHORIZED, "anonymous {m} {p}");
+        let (s, body) = e.call(Some(MEMBER), m.clone(), p, b.clone()).await;
+        assert_eq!(s, StatusCode::FORBIDDEN, "member {m} {p}");
+        assert_eq!(body["code"], 900002, "{m} {p}");
+        let (s, body) = e.call(Some(BASIC), m.clone(), p, b.clone()).await;
+        assert_eq!(s, StatusCode::FORBIDDEN, "basic {m} {p}");
+        assert_eq!(body["code"], 50013, "{m} {p}");
+    }
+}
+
+#[tokio::test]
+async fn progress_round_trip_with_conflict() {
+    let e = env().await;
+    let path = "/library/chapters/70/progress";
+    let (s, _) = e.call(Some(MEMBER), Method::GET, path, None).await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    let (s, _) = e.call(Some(MEMBER), Method::DELETE, path, None).await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+
+    let (s, body) = e
+        .call(
+            Some(MEMBER),
+            Method::PUT,
+            path,
+            Some(json!({ "page_index": 2, "percent": 33.5, "base_updated_at_ms": 0 })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    assert_eq!(body["applied"], true);
+    assert_eq!(body["progress"]["chapter_id"], "70");
+    assert_eq!(body["progress"]["series_id"], "7");
+    let at = body["progress"]["updated_at_ms"].as_i64().unwrap();
+
+    // Another device still holds an older base: the stored position wins, and says so.
+    let (s, body) = e
+        .call(
+            Some(MEMBER),
+            Method::PUT,
+            path,
+            Some(json!({ "page_index": 0, "percent": 0, "base_updated_at_ms": at - 1 })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(body["applied"], false);
+    assert_eq!(body["progress"]["page_index"], 2);
+    // `force` overwrites.
+    let (_, body) = e
+        .call(
+            Some(MEMBER),
+            Method::PUT,
+            path,
+            Some(json!({ "page_index": 0, "percent": 0, "base_updated_at_ms": at - 1, "force": true })),
+        )
+        .await;
+    assert_eq!(body["applied"], true);
+    assert_eq!(body["progress"]["page_index"], 0);
+
+    // Progress is per account.
+    let (s, _) = e.call(Some(ADULT), Method::GET, path, None).await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    let (s, body) = e.call(Some(MEMBER), Method::GET, path, None).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(body["percent"], 0.0);
+
+    // Bad bodies are client errors, never 500s.
+    for b in [
+        json!({ "page_index": -1, "percent": 1 }),
+        json!({ "page_index": 0, "percent": 101 }),
+        json!({ "page_index": 0, "percent": 5, "cfi": "x".repeat(3000) }),
+        json!({ "percent": 5 }),
+    ] {
+        let (s, _) = e
+            .call(Some(MEMBER), Method::PUT, path, Some(b.clone()))
+            .await;
+        assert!(s.is_client_error(), "{b}: {s}");
+    }
+    let (s, _) = e.call(Some(MEMBER), Method::DELETE, path, None).await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    // Unknown chapter, malformed id.
+    for p in [
+        "/library/chapters/5/progress",
+        "/library/chapters/abc/progress",
+    ] {
+        let (s, _) = e.call(Some(MEMBER), Method::GET, p, None).await;
+        assert_eq!(s, StatusCode::NOT_FOUND, "{p}");
+    }
+}
+
+#[tokio::test]
+async fn reading_state_of_a_restricted_chapter_needs_age_confirmation() {
+    let e = env().await;
+    for (m, p, b) in [
+        (
+            Method::PUT,
+            "/library/chapters/90/progress",
+            Some(json!({ "page_index": 0, "percent": 1 })),
+        ),
+        (
+            Method::PUT,
+            "/library/chapters/90/bookmarks",
+            Some(json!({ "page_index": 0 })),
+        ),
+        (Method::GET, "/library/chapters/90/bookmarks", None),
+        (
+            Method::POST,
+            "/library/chapters/90/read",
+            Some(json!({ "read": true })),
+        ),
+    ] {
+        let (s, body) = e.call(Some(MEMBER), m.clone(), p, b.clone()).await;
+        assert_eq!(s, StatusCode::FORBIDDEN, "{m} {p}");
+        assert_eq!(body["code"], 900011, "{m} {p}");
+        let (s, body) = e.call(Some(ADULT), m.clone(), p, b.clone()).await;
+        assert_eq!(s, StatusCode::OK, "adult {m} {p}: {body}");
+    }
+}
+
+#[tokio::test]
+async fn read_marks_history_and_bookmarks_round_trip() {
+    let e = env().await;
+    let (s, body) = e
+        .call(
+            Some(MEMBER),
+            Method::POST,
+            "/library/chapters/70/read",
+            Some(json!({ "read": true, "up_to": true })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    assert_eq!(body["changed"], 3);
+    let (s, body) = e
+        .call(Some(MEMBER), Method::GET, "/library/me/progress", None)
+        .await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    assert_eq!(body["items"], json!([]));
+    let (s, _) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            "/library/me/progress?before=zzz",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+
+    let (s, body) = e
+        .call(
+            Some(MEMBER),
+            Method::PUT,
+            "/library/chapters/70/bookmarks",
+            Some(json!({ "page_index": 3, "note": "  fav " })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    assert_eq!(body["id"], "4242");
+    assert_eq!(body["note"], "fav");
+    assert_eq!(body["chapter_id"], "70");
+    let (_, list) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            "/library/chapters/70/bookmarks",
+            None,
+        )
+        .await;
+    assert_eq!(list["bookmarks"].as_array().unwrap().len(), 1);
+    let (_, other) = e
+        .call(
+            Some(ADULT),
+            Method::GET,
+            "/library/chapters/70/bookmarks",
+            None,
+        )
+        .await;
+    assert_eq!(other["bookmarks"], json!([]));
+    // A bookmark belongs to its owner.
+    let (s, _) = e
+        .call(Some(ADULT), Method::DELETE, "/library/bookmarks/4242", None)
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    let (s, _) = e
+        .call(
+            Some(MEMBER),
+            Method::DELETE,
+            "/library/bookmarks/4242",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    let (s, _) = e
+        .call(
+            Some(MEMBER),
+            Method::PUT,
+            "/library/chapters/70/bookmarks",
+            Some(json!({ "page_index": 0, "note": "x".repeat(1001) })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, body) = e
+        .call(Some(MEMBER), Method::GET, "/library/me/bookmarks", None)
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(body["items"], json!([]));
+}
+
+#[tokio::test]
+async fn chapter_list_paging_parameters_are_checked() {
+    let e = env().await;
+    for p in [
+        "/library/series/7/chapters?after=garbage",
+        "/library/series/7/chapters?order=sideways",
+        "/library/series/7/chapters?limit=2&after=1_2",
+    ] {
+        let (s, _) = e.call(Some(MEMBER), Method::GET, p, None).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{p}");
+    }
+    let (s, body) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            "/library/series/7/chapters?limit=50&after=1_100_9&order=desc",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    assert!(body["next_cursor"].is_null());
+    let (s, _) = e
+        .call(
+            Some(CURATOR),
+            Method::GET,
+            "/admin/library/series/7/chapters?limit=5&order=asc",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn the_upload_flow_is_logged_and_validated() {
+    use sr_storage::ObjectStorage;
+    let e = env().await;
+    let begin = |name: &str, size: u64| json!({ "filename": name, "size_bytes": size });
+    let uploads = "/admin/library/chapters/70/uploads";
+    // Wrong extension for an image chapter, empty and oversized files: 400s.
+    for b in [
+        begin("a.pdf", 10),
+        begin("a.cbz", 0),
+        begin("a.cbz", 600 * 1024 * 1024),
+    ] {
+        let (s, _) = e
+            .call(Some(CURATOR), Method::POST, uploads, Some(b.clone()))
+            .await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{b}");
+    }
+    let (s, _) = e
+        .call(
+            Some(CURATOR),
+            Method::POST,
+            "/admin/library/chapters/5/uploads",
+            Some(begin("a.cbz", 10)),
+        )
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+
+    let (s, slot) = e
+        .call(
+            Some(CURATOR),
+            Method::POST,
+            uploads,
+            Some(begin("Ch 1.cbz", 12)),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{slot}");
+    assert_eq!(slot["upload"]["id"], "4242");
+    assert_eq!(slot["upload"]["status"], "awaiting_upload");
+    assert_eq!(slot["upload_method"], "PUT");
+    assert_eq!(slot["max_bytes"], 512 * 1024 * 1024);
+    let url = slot["upload_url"].as_str().unwrap();
+    assert!(url.contains("library/7/70/src-4242.cbz"), "{url}");
+
+    // Completing before the bytes arrive is a 400 with a reason.
+    let complete = "/admin/library/uploads/4242/complete";
+    let (s, body) = e.call(Some(CURATOR), Method::POST, complete, None).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{body}");
+    e.storage
+        .put(
+            "library/7/70/src-4242.cbz",
+            bytes::Bytes::from_static(b"hello world!"),
+        )
+        .await
+        .unwrap();
+    let (s, body) = e.call(Some(CURATOR), Method::POST, complete, None).await;
+    assert_eq!(s, StatusCode::ACCEPTED, "{body}");
+    assert_eq!(body["status"], "queued");
+    assert_eq!(e.queue.0.lock().unwrap().as_slice(), [4242]);
+    // Completing twice is harmless and does not queue twice.
+    let (s, _) = e.call(Some(CURATOR), Method::POST, complete, None).await;
+    assert_eq!(s, StatusCode::ACCEPTED);
+    assert_eq!(e.queue.0.lock().unwrap().len(), 1);
+
+    let (s, body) = e
+        .call(
+            Some(CURATOR),
+            Method::GET,
+            "/admin/library/uploads/4242",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(body["filename"], "Ch 1.cbz");
+    let (s, list) = e.call(Some(CURATOR), Method::GET, uploads, None).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(list["uploads"].as_array().unwrap().len(), 1);
+    let (s, _) = e
+        .call(
+            Some(CURATOR),
+            Method::GET,
+            "/admin/library/uploads/999",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+
+    let actions: Vec<String> = e
+        .admin
+        .log_rows()
+        .iter()
+        .map(|r| r.action.clone())
+        .collect();
+    assert!(
+        actions.contains(&"library.upload.begin".to_owned()),
+        "{actions:?}"
+    );
+    assert!(
+        actions.contains(&"library.upload.complete".to_owned()),
+        "{actions:?}"
+    );
+}
+
+#[test]
+fn openapi_lists_the_phase_4_paths() {
+    let doc = serde_json::to_value(super::openapi()).unwrap();
+    let paths = doc["paths"].as_object().unwrap();
+    for p in [
+        "/library/chapters/{chapter_id}/progress",
+        "/library/chapters/{chapter_id}/read",
+        "/library/chapters/{chapter_id}/bookmarks",
+        "/library/bookmarks/{bookmark_id}",
+        "/library/me/progress",
+        "/library/me/bookmarks",
+        "/admin/library/chapters/{chapter_id}/uploads",
+        "/admin/library/uploads/{upload_id}",
+        "/admin/library/uploads/{upload_id}/complete",
+    ] {
+        assert!(paths.contains_key(p), "{p}");
+    }
+    for s in [
+        "ProgressSaved",
+        "Bookmark",
+        "UploadSlot",
+        "Upload",
+        "HistoryPage",
+    ] {
+        assert!(doc["components"]["schemas"][s].is_object(), "{s}");
+    }
+    assert!(doc["components"]["schemas"]["ChapterList"]["properties"]["next_cursor"].is_object());
 }

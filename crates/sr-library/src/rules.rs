@@ -197,7 +197,8 @@ pub fn chapter_input(i: &ChapterInput) -> LibraryResult<ChapterInput> {
             check_key("source_key", k)?;
             Some(k.clone())
         }
-        (_, None) => return invalid("pdf and epub chapters need a source_key"),
+        // A draft EPUB/PDF chapter waits for its upload; it cannot be published without a file.
+        (_, None) => None,
     };
     Ok(ChapterInput {
         number: number(i.number)?,
@@ -441,7 +442,7 @@ mod tests {
     }
 
     #[test]
-    fn chapters_need_a_source_for_documents() {
+    fn document_chapters_may_wait_for_their_upload() {
         let mut c = ChapterInput {
             number: 1.0,
             title: None,
@@ -450,7 +451,8 @@ mod tests {
             source_key: None,
             release_group: None,
         };
-        assert!(chapter_input(&c).is_err());
+        // A draft without a file is fine (the upload fills it in); publishing is what needs one.
+        assert_eq!(chapter_input(&c).unwrap().source_key, None);
         c.source_key = Some("library/1/2/book.pdf".into());
         assert!(chapter_input(&c).is_ok());
         c.format = ChapterFormat::Images;

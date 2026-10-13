@@ -565,7 +565,8 @@ impl LibraryService {
                     self.discard_object(&rec.object_key, Some(rec.chapter_id))
                         .await;
                 }
-                match self
+                // `None`: the chapter was deleted meanwhile.
+                if let Some(done) = self
                     .repo
                     .finish_upload(
                         id,
@@ -577,21 +578,18 @@ impl LibraryService {
                     )
                     .await?
                 {
-                    Some(done) => {
-                        self.audit_upload(
-                            &done,
-                            "library.chapter.ingest",
-                            json!({
-                                "upload": done.id.to_string(),
-                                "kind": done.kind.as_str(),
-                                "pages": done.page_count,
-                                "series": done.series_id.to_string(),
-                            }),
-                        )
-                        .await;
-                        self.notify_upload(&done).await;
-                    }
-                    None => {} // the chapter was deleted meanwhile
+                    self.audit_upload(
+                        &done,
+                        "library.chapter.ingest",
+                        json!({
+                            "upload": done.id.to_string(),
+                            "kind": done.kind.as_str(),
+                            "pages": done.page_count,
+                            "series": done.series_id.to_string(),
+                        }),
+                    )
+                    .await;
+                    self.notify_upload(&done).await;
                 }
                 Ok(())
             }
@@ -729,7 +727,9 @@ impl LibraryService {
             .await?
         {
             report.uploads_expired += 1;
-            self.repo.queue_gc(&[u.object_key.clone()], None).await?;
+            self.repo
+                .queue_gc(std::slice::from_ref(&u.object_key), None)
+                .await?;
         }
         let keys = self.repo.gc_due(now - GC_GRACE_MS, GC_BATCH).await?;
         let mut done = Vec::with_capacity(keys.len());

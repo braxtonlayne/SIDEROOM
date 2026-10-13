@@ -524,7 +524,7 @@ impl UploadRepository for PgLibraryRepo {
         let row = dynq(format!(
             "UPDATE reading_uploads SET status = $2, error = $3, warnings = $4, page_count = $5, \
                metadata = $6, updated_at = now(), finished_at = now() \
-             WHERE id = $1 AND status IN ('queued', 'running') RETURNING {}",
+             WHERE id = $1 AND status IN ('awaiting_upload', 'queued', 'running') RETURNING {}",
             upload_cols()
         ))
         .bind(id)

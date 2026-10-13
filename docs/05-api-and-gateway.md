@@ -203,6 +203,8 @@ Discord's intent bits, including privileged `GUILD_MEMBERS`, `GUILD_PRESENCES`, 
 All Discord events relevant to implemented features use the same names and payloads (`READY`, `GUILD_CREATE`, `MESSAGE_CREATE`, `MESSAGE_UPDATE`, `MESSAGE_DELETE`, `MESSAGE_REACTION_ADD`, `TYPING_START`, `PRESENCE_UPDATE`, `VOICE_STATE_UPDATE`, `VOICE_SERVER_UPDATE`, `THREAD_*`, `GUILD_MEMBER_*`, `INTERACTION_CREATE`, …). SIDE ROOM additions are prefixed `SR_`:
 `SR_ENTITLEMENT_UPDATE`, `SR_INVITE_CREDITS_UPDATE`, `SR_PARTY_STATE`, `SR_SUBMISSION_UPDATE`, `SR_LIBRARY_UPDATE` (followed series got a chapter/episode), `SR_ACTIVITY_UPDATE` (watching/reading presence), `SR_STAFF_ALERT`.
 
+`SR_LIBRARY_UPDATE` is addressed to one account's own sessions (it is a user-scoped dispatch, like `RELATIONSHIP_ADD`): `d` is a flat object whose `type` says what changed, ids are strings. Types: `progress` (`chapter_id`, `series_id`, `page_index`, `percent`, `cfi`, `completed`, `updated_at_ms`), `progress_cleared`, `read_marks` (`series_id`, `chapter_id`, `read`, `up_to`), `bookmark_set` / `bookmark_removed` (the bookmark), `follow` (`series_id`, `shelf`, `notify`) / `unfollow`, `upload` (the upload object, to the publisher who started it) and `chapter_published` (`series_id`, `series_title`, `chapter_id`, `chapter_number`, `chapter_title`, `published_at_ms`, to followers with the bell on). Clients treat it as a hint and fall back to the REST reads; see `docs/specs/library-reader.md` section 6.
+
 Rich presence for watching/reading uses standard `activities` on `PRESENCE_UPDATE` (type 3 "Watching", plus a custom type for "Reading"), so it renders like Discord's activity cards.
 
 ### 6.4 Session lifecycle
