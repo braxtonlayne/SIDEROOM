@@ -1,18 +1,23 @@
 import { Avatar, Button, TextInput } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
-import { rest } from '../../store';
-import { inviteUrl } from '../inviteFlow';
-import { createDm } from './api';
-import { rememberDm } from './dm';
+import type { rest } from '../../store';
+import { sendServerInvite } from './userMenu';
 import { friendsOf, useSocial, wireName } from './social';
 
 type Sent = 'sending' | 'sent' | 'error';
 
 /**
- * Friend list with an Invite button each (LNG-INV-007). Every friend gets their own single-use invite,
- * delivered as a direct message.
+ * Friend list with an Invite button each (LNG-INV-007). Every friend gets their own invite, delivered as a
+ * direct message. The invite stays on the platform, so it uses the server defaults unless the dialog's
+ * pickers were edited (`options`, D-182).
  */
-export function InviteFriends({ channelId }: { channelId: string }) {
+export function InviteFriends({
+  channelId,
+  options,
+}: {
+  channelId: string;
+  options?: rest.CreateInviteOptions | undefined;
+}) {
   const rows = useSocial((s) => s.relationships);
   const load = useSocial((s) => s.loadRelationships);
   const [query, setQuery] = useState('');
@@ -34,10 +39,7 @@ export function InviteFriends({ channelId }: { channelId: string }) {
     if (!channelId) return;
     setSent((s) => ({ ...s, [id]: 'sending' }));
     try {
-      const inv = await rest.createInvite(channelId, { max_age: 86400, max_uses: 1 });
-      const dm = await createDm([id]);
-      rememberDm(dm);
-      await rest.postMessage(dm.id, inviteUrl(inv.code), `inv${Date.now().toString(36)}${id}`);
+      await sendServerInvite(channelId, id, options);
       setSent((s) => ({ ...s, [id]: 'sent' }));
     } catch {
       setSent((s) => ({ ...s, [id]: 'error' }));

@@ -90,6 +90,6 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 - [ ] **LNG-INV-004** [BE] Vanity URL (free) + invite splash
 - [ ] **LNG-INV-005** [BE] Temporary membership removal on disconnect without roles
 - [ ] **LNG-INV-006** [GW] INVITE_CREATE/DELETE
-- [x] **LNG-INV-007** [FE] Invite modal: friend list with "Invite" buttons + search, link field with Copy, "Edit invite link" (expire after, max uses, temporary), default single-use for copy *(no temporary-membership toggle yet; the link default is single use per D-022)*
+- [x] **LNG-INV-007** [FE] Invite modal: friend list with "Invite" buttons + search, link field with Copy, "Edit invite link" (expire after, max uses, temporary), default single-use for copy *("Copy link" creates an `external` invite, single use for 7 days, and says so; "Invite friends" DMs use the server defaults of 7 days and unlimited uses, D-182; the pickers edit either; no temporary-membership toggle yet)*
 - [ ] **LNG-INV-008** [FE] Invite embed in chat (server card with Join/Joined, expired state)
 - [ ] **LNG-INV-009** [FE] `/invite/:code` page (logged-out: only "Log in to accept"; logged-in: Accept)

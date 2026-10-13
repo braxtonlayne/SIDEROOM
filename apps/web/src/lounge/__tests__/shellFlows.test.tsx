@@ -737,7 +737,7 @@ describe('invite friends', () => {
     useSocial.getState().reset();
   });
 
-  it('sends each friend their own single-use invite as a DM', async () => {
+  it('sends each friend their own invite as a DM, with the server defaults (D-182)', async () => {
     const calls: string[] = [];
     let inviteBody: unknown;
     let message: Record<string, unknown> = {};
@@ -788,7 +788,8 @@ describe('invite friends', () => {
       expect(within(dialog).getByRole('button', { name: 'Invite bob' })).toHaveTextContent('Sent'),
     );
     expect(calls).toEqual(['invite', 'dm', 'message']);
-    expect(inviteBody).toEqual({ max_age: 86400, max_uses: 1 });
+    // In-platform invite: no explicit limits and not external, so the server defaults apply.
+    expect(inviteBody).toEqual({});
     expect(String(message.content)).toMatch(/\/invite\/abc123$/);
     expect(await axeViolations(dialog)).toEqual([]);
   });

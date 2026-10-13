@@ -72,7 +72,6 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [ ] **LNG-MSGUI-034** [FE] Speak Message (Web Speech API TTS) + /tts permission
 
 ## LNG-CMP — Composer
-- [ ] **LNG-CMP-001** [FE] Rich editor (Lexical/Slate) with inline tokens for mentions, emoji, channels, timestamps
 - [x] **LNG-CMP-002** [FE] Enter to send / Shift+Enter newline, markdown shortcuts, paste plain-text rules
 - [x] **LNG-CMP-003** [FE] Autocomplete: `@` users/roles/everyone, `#` channels, `:` emoji (fuzzy), `/` commands (built-in + apps), keyboard navigation
 - [ ] **LNG-CMP-004** [FE] "+" menu: Upload a File, Create Thread, Create Poll, Use Apps, Share from Cinema, Share from Library
@@ -88,6 +87,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [x] **LNG-CMP-014** [FE] Up-arrow to edit last message
 - [ ] **LNG-CMP-015** [FE] Built-in slash commands: /shrug, /tableflip, /unflip, /me, /spoiler, /nick, /tts, /thread, /msg, /giphy-equivalent (GIF provider), /remind (feature), /poll
 - [ ] **LNG-CMP-016** [FE] Composer icons row: GIF, sticker, emoji (gift icon **removed**)
+- [ ] **LNG-CMP-001** [FE] Rich composer on Lexical (inline tokens for mentions, emoji, channels, timestamps) *(scheduled after the LNG-MSGUI gaps; the composer stays a textarea through Phase 2, D-174)*
 
 ## LNG-EXP — Expression (emoji, stickers, GIFs, soundboard data)
 - [ ] **LNG-EXP-001** [DB] emojis, stickers, sticker_packs, soundboard_sounds

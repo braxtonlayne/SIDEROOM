@@ -129,8 +129,16 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
         channelId={channelId}
         guildId={isDm ? undefined : guildId}
         slowmodeSeconds={channel?.slowmodeSeconds}
-        bypassSlowmode={!!(guild?.permissions.manageMessages || guild?.permissions.manageChannels)}
-        canMentionEveryone={isDm ? false : (guild?.permissions.mentionEveryone ?? false)}
+        bypassSlowmode={
+          channel?.permissions
+            ? channel.permissions.manageMessages || channel.permissions.manageChannels
+            : !!(guild?.permissions.manageMessages || guild?.permissions.manageChannels)
+        }
+        canMentionEveryone={
+          isDm
+            ? false
+            : (channel?.permissions?.mentionEveryone ?? guild?.permissions.mentionEveryone ?? false)
+        }
         target={target}
         canSend={channel ? channel.canSend : true}
         replyTo={replyTo}

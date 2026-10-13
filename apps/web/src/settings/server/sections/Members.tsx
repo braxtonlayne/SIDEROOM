@@ -2,6 +2,7 @@ import { Avatar, Button, Checkbox, Modal, TextArea, TextInput } from '@sideroom/
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGuild } from '../../../store';
 import { onDispatch } from '../../../store/events';
+import { PruneDialog } from './PruneDialog';
 import * as api from '../api';
 import type { Viewer } from '../hooks';
 import type { SectionProps } from '../ServerSettings';
@@ -45,6 +46,8 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(0);
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [pruning, setPruning] = useState(false);
+  const [pruned, setPruned] = useState<number | null>(null);
   const pages = useRef(0);
   const busy = useRef(false);
 
@@ -167,7 +170,17 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
             }}
           />
         </div>
+        {viewer.can('KICK_MEMBERS') && (
+          <Button variant="secondary" onClick={() => setPruning(true)}>
+            Prune
+          </Button>
+        )}
       </div>
+      {pruned !== null && (
+        <p role="status" className="ss-sub">
+          Pruned {pruned} {pruned === 1 ? 'member' : 'members'}.
+        </p>
+      )}
       {error && <LoadError message={error} onRetry={() => void loadNext()} />}
       {loading && members.length === 0 && !error && <Loading label="Loading members" />}
       {members.length > 0 && (
@@ -226,6 +239,23 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
             )}
           </div>
         </>
+      )}
+      {pruning && (
+        <PruneDialog
+          guildId={guildId}
+          roles={roles}
+          onClose={() => setPruning(false)}
+          onDone={(n) => {
+            setPruning(false);
+            setPruned(n);
+            // The gateway removes each pruned member from the list; reload covers a missed event.
+            setMembers([]);
+            membersRef.current = [];
+            setDone(false);
+            pages.current = 0;
+            void loadNext();
+          }}
+        />
       )}
       {dialog?.kind === 'kick' && (
         <KickDialog

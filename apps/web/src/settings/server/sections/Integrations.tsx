@@ -65,7 +65,9 @@ function Webhooks({ guildId }: { guildId: string }) {
   const res = useResource(`webhooks:${guildId}`, () => api.listWebhooks(guildId));
   const channels = useChannels(guildId).filter((c) => c.type === 0 || c.type === 5);
   const [creating, setCreating] = useState(false);
-  const [created, setCreated] = useState<api.WebhookObject | null>(null);
+  // The one place a webhook URL is ever shown: right after creating or resetting it (D-164).
+  const [reveal, setReveal] = useState<{ hook: api.WebhookObject; reset: boolean } | null>(null);
+  const [toReset, setToReset] = useState<api.WebhookObject | null>(null);
   const [toDelete, setToDelete] = useState<api.WebhookObject | null>(null);
   const [copied, setCopied] = useState(false);
   const action = useAction();
@@ -82,24 +84,37 @@ function Webhooks({ guildId }: { guildId: string }) {
     }
   };
 
+  const resetUrl = async () => {
+    if (!toReset) return;
+    const hook = await action.run(() => api.resetWebhookToken(toReset.id));
+    if (hook) {
+      setReveal({ hook: { ...toReset, ...hook }, reset: true });
+      setCopied(false);
+      setToReset(null);
+    }
+  };
+
   return (
     <div className="ss-form" style={{ maxWidth: 'none' }}>
       <div className="ss-actions">
         <Button onClick={() => setCreating(true)}>Create webhook</Button>
       </div>
       <ActionStatus error={action.error} />
-      {created?.url && (
+      {reveal?.hook.url && (
         <div className="ss-card" role="status">
-          <h2>Webhook created: {created.name}</h2>
+          <h2>
+            {reveal.reset ? 'New webhook URL' : 'Webhook created'}: {reveal.hook.name}
+          </h2>
           <p className="ss-sub">
             Copy the URL now. It contains the secret token and is only shown once.
+            {reveal.reset ? ' The old URL no longer works.' : ''}
           </p>
-          <code className="ss-pre">{`${origin()}${created.url}`}</code>
+          <code className="ss-pre">{`${origin()}${reveal.hook.url}`}</code>
           <div className="ss-actions">
             <Button
               size="sm"
               onClick={() =>
-                void copyText(`${origin()}${created.url}`).then((ok) => {
+                void copyText(`${origin()}${reveal.hook.url}`).then((ok) => {
                   setCopied(ok);
                   if (!ok)
                     action.setError(
@@ -110,7 +125,7 @@ function Webhooks({ guildId }: { guildId: string }) {
             >
               {copied ? 'Copied!' : 'Copy webhook URL'}
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => setCreated(null)}>
+            <Button size="sm" variant="ghost" onClick={() => setReveal(null)}>
               Dismiss
             </Button>
           </div>
@@ -137,11 +152,11 @@ function Webhooks({ guildId }: { guildId: string }) {
                   <Button
                     size="sm"
                     variant="secondary"
-                    disabled
-                    title="The URL is only shown once, when the webhook is created."
-                    aria-label={`Copy URL for ${w.name}`}
+                    aria-label={`Reset URL for ${w.name}`}
+                    title="URLs are only shown once. Reset issues a new one."
+                    onClick={() => setToReset(w)}
                   >
-                    Copy URL
+                    Reset URL
                   </Button>
                   <Button
                     size="sm"
@@ -163,12 +178,22 @@ function Webhooks({ guildId }: { guildId: string }) {
           onClose={() => setCreating(false)}
           onCreated={async (w) => {
             setCreating(false);
-            setCreated(w);
+            setReveal({ hook: w, reset: false });
             setCopied(false);
             await res.reload();
           }}
         />
       )}
+      <ConfirmDialog
+        open={!!toReset}
+        danger
+        title={`Reset URL for ${toReset?.name ?? 'webhook'}`}
+        description="A new URL is created and shown once. The current URL stops working immediately."
+        confirmLabel="Reset URL"
+        loading={action.busy}
+        onConfirm={() => void resetUrl()}
+        onCancel={() => setToReset(null)}
+      />
       <ConfirmDialog
         open={!!toDelete}
         danger

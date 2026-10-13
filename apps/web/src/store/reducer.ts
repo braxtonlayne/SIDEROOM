@@ -11,6 +11,7 @@ import type {
   Role,
   TypingEntry,
   User,
+  UserSettingsBlob,
 } from './types';
 
 /** Key used in `channelIdsByGuild` for DM / group DM channels. */
@@ -36,6 +37,8 @@ export interface StoreData {
   readStates: Record<string, ReadState>;
   presences: Record<string, Presence>;
   typing: Record<string, TypingEntry[]>;
+  /** The synced per-user settings blob (D-179); null until loaded or pushed over the gateway. */
+  userSettings: UserSettingsBlob | null;
 }
 
 export const emptyData = (): StoreData => ({
@@ -54,6 +57,7 @@ export const emptyData = (): StoreData => ({
   readStates: {},
   presences: {},
   typing: {},
+  userSettings: null,
 });
 
 export const emptyWindow = (): MessageWindow => ({
@@ -110,6 +114,8 @@ function toMember(guildId: string, m: Obj): Member | null {
     nick: (m.nick as string | null | undefined) ?? null,
     roles: (m.roles as string[] | undefined) ?? [],
     joined_at: m.joined_at as string | undefined,
+    communication_disabled_until:
+      (m.communication_disabled_until as string | null | undefined) ?? null,
   };
 }
 
@@ -370,8 +376,12 @@ export function reduceDispatch(
       };
     }
     case 'CHANNEL_CREATE':
-    case 'CHANNEL_UPDATE':
-      return putChannel(s, d as unknown as Channel);
+    case 'CHANNEL_UPDATE': {
+      const c = d as unknown as Channel;
+      // Message-request DMs live in the social store until accepted; an accepted one arrives again.
+      if (!c.guild_id && c.is_message_request) return {};
+      return putChannel(s, c);
+    }
     case 'CHANNEL_DELETE': {
       const id = str(d.id);
       const c = s.channels[id];
@@ -447,6 +457,14 @@ export function reduceDispatch(
           [guildId]: (s.memberIdsByGuild[guildId] ?? []).filter((u) => u !== userId),
         },
       };
+    }
+    case 'SR_USER_SETTINGS_UPDATE': {
+      // Another session (or our own PATCH) saved the blob; older versions never overwrite newer ones.
+      const version = Number(d.version ?? 0);
+      const settings = d.settings as Record<string, unknown> | undefined;
+      if (!settings || typeof settings !== 'object') return {};
+      if (s.userSettings && s.userSettings.version > version) return {};
+      return { userSettings: { version, settings } };
     }
     case 'USER_UPDATE':
       return { users: addUser(s.users, d) };

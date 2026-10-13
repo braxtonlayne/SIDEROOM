@@ -1,10 +1,12 @@
 /**
- * Friends, requests and message requests for the Home screen. The server has no relationship gateway events
- * yet (LNG-FRD-003), so this store loads over REST and every action refreshes the affected list.
+ * Friends, requests and message requests for the Home screen. The lists load over REST once; after that the
+ * gateway keeps them current: `RELATIONSHIP_ADD/UPDATE/REMOVE` and DM `CHANNEL_CREATE/DELETE` are applied by
+ * `startSocialLive` (D-183, LNG-FRD-003), so actions no longer re-fetch.
  */
 import { create } from 'zustand';
 import { apiFetch } from '../../api/client';
 import { useStore } from '../../store';
+import { onDispatch } from '../../store/events';
 import { REL, listRelationships, type DmObject, type RelationshipRow } from './api';
 
 export interface SocialState {
@@ -21,6 +23,8 @@ export interface SocialState {
   loadDms(): Promise<void>;
   /** Drop a request locally right after answering it. */
   forgetMessageRequest(channelId: string): void;
+  /** Apply one gateway dispatch (RELATIONSHIP_*, DM CHANNEL_CREATE/DELETE). */
+  applyEvent(event: string, data: unknown): void;
   reset(): void;
 }
 
@@ -54,6 +58,16 @@ export const useSocial = create<SocialState>()((set, get) => ({
       set({ messageRequestsStatus: 'error' });
     }
   },
+  applyEvent(event, data) {
+    set((s) => {
+      if (event.startsWith('RELATIONSHIP_')) {
+        const relationships = applyRelationshipEvent(s.relationships, event, data);
+        return relationships === s.relationships ? s : { relationships };
+      }
+      const messageRequests = applyDmEvent(s.messageRequests, event, data);
+      return messageRequests === s.messageRequests ? s : { messageRequests };
+    });
+  },
   forgetMessageRequest: (channelId) =>
     set((s) => ({ messageRequests: s.messageRequests.filter((d) => d.id !== channelId) })),
   reset: () =>
@@ -64,6 +78,95 @@ export const useSocial = create<SocialState>()((set, get) => ({
       messageRequestsStatus: 'idle',
     }),
 }));
+
+type Obj = Record<string, unknown>;
+
+/**
+ * Pure: one RELATIONSHIP_ADD / UPDATE / REMOVE dispatch applied to the relationship rows. ADD upserts the
+ * whole row (new request, accepted friend, block); UPDATE changes the nickname (and the type when sent);
+ * REMOVE drops the row. Unknown ids and malformed payloads leave the list as it was.
+ */
+export function applyRelationshipEvent(
+  rows: RelationshipRow[],
+  event: string,
+  data: unknown,
+): RelationshipRow[] {
+  const d = (data ?? {}) as Obj;
+  const id = typeof d.id === 'string' ? d.id : '';
+  if (!id) return rows;
+  switch (event) {
+    case 'RELATIONSHIP_ADD': {
+      const user = d.user as RelationshipRow['user'] | undefined;
+      const prev = rows.find((r) => r.id === id);
+      const u = user ?? prev?.user;
+      if (!u || typeof d.type !== 'number') return rows;
+      const row: RelationshipRow = {
+        id,
+        type: d.type,
+        nickname: (d.nickname as string | null | undefined) ?? null,
+        since: typeof d.since === 'string' ? d.since : (prev?.since ?? ''),
+        user: u,
+      };
+      return prev ? rows.map((r) => (r.id === id ? row : r)) : [...rows, row];
+    }
+    case 'RELATIONSHIP_UPDATE': {
+      if (!rows.some((r) => r.id === id)) return rows;
+      return rows.map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              ...(typeof d.type === 'number' ? { type: d.type } : {}),
+              ...('nickname' in d ? { nickname: (d.nickname as string | null) ?? null } : {}),
+            }
+          : r,
+      );
+    }
+    case 'RELATIONSHIP_REMOVE':
+      return rows.some((r) => r.id === id) ? rows.filter((r) => r.id !== id) : rows;
+    default:
+      return rows;
+  }
+}
+
+/**
+ * Pure: DM CHANNEL_CREATE / CHANNEL_DELETE applied to the message-request list. A request DM joins it, an
+ * accepted one (CHANNEL_CREATE with `is_message_request` false) or a deleted one leaves it. The main DM list
+ * is the store reducer's job.
+ */
+export function applyDmEvent(requests: DmObject[], event: string, data: unknown): DmObject[] {
+  const d = (data ?? {}) as Partial<DmObject>;
+  if (typeof d.id !== 'string' || (d.type !== 1 && d.type !== 3 && event !== 'CHANNEL_DELETE'))
+    return requests;
+  const has = requests.some((r) => r.id === d.id);
+  if (event === 'CHANNEL_DELETE') return has ? requests.filter((r) => r.id !== d.id) : requests;
+  if (event !== 'CHANNEL_CREATE') return requests;
+  if (d.is_message_request) {
+    const dm = d as DmObject;
+    return has ? requests.map((r) => (r.id === dm.id ? dm : r)) : [dm, ...requests];
+  }
+  return has ? requests.filter((r) => r.id !== d.id) : requests;
+}
+
+/**
+ * Keeps the social store current from the gateway for as long as the shell is mounted. A fresh READY
+ * (reconnect) reloads the lists that were already loaded, since events may have been missed.
+ */
+export function startSocialLive(): () => void {
+  return onDispatch((event, data) => {
+    if (event === 'READY') {
+      const s = useSocial.getState();
+      if (s.status === 'ready') void s.loadRelationships();
+      if (s.messageRequestsStatus === 'ready') void s.loadDms();
+      return;
+    }
+    if (
+      event.startsWith('RELATIONSHIP_') ||
+      event === 'CHANNEL_CREATE' ||
+      event === 'CHANNEL_DELETE'
+    )
+      useSocial.getState().applyEvent(event, data);
+  });
+}
 
 export const friendsOf = (rows: readonly RelationshipRow[]) =>
   rows.filter((r) => r.type === REL.FRIEND);
