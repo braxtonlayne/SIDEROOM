@@ -1,6 +1,6 @@
 # Open question answers
 
-> Historical record: this file keeps the full answer to every original open question. The live list of questions that still need a human is in [open-questions.md](open-questions.md).
+> Historical record: this file keeps the full answer to every original open question. The live list of questions that still need a human is in [open-questions.md](open-questions.md). The Phase 2 round of answers (entries OQ-1 to OQ-34 and the handoff decisions P2-A to P2-J) is appended at the end under "Phase 2 answers (2026-10-13)".
 
 Answers to every entry in [open-questions.md](open-questions.md) (171 questions, same numbering, state as of `integration/phase0` at `a21ac26`). Rules applied: [01-decisions-log.md](01-decisions-log.md) wins over everything; Discord parity by default (AGENTS.md §3.3); Rust first (D-150); no telemetry; product-level limits live in the database, infrastructure in config (doc 12 §3).
 
@@ -960,3 +960,219 @@ Status: `DEFAULT`
 Decision: drafts persist per channel in `localStorage` (Discord keeps drafts local too), not module memory; remembered channel per guild, collapsed categories and panel width move to server-side `user_settings` when the settings API lands (LNG-RAIL-007); `localStorage` stays as the offline cache.
 Rationale: Discord parity (drafts local; guild folders/collapsed categories in user settings).
 Status: `DEFAULT`
+
+---
+
+# Phase 2 answers (2026-10-13)
+
+Answers to the 34 entries that were live in [open-questions.md](open-questions.md) after the `integration/phase2` merges (`e6e1f66`), plus the decisions the Phase 2 handoff notes asked for ([feat-p2-lounge-messages](dev/handoff/feat-p2-lounge-messages.md), [feat-p2-lounge-shell](dev/handoff/feat-p2-lounge-shell.md)). Entry numbers `OQ-n` are the numbers that file used; `P2-x` are the handoff decisions. The same rules apply as above: the decisions log wins; Discord parity by default (AGENTS.md §3.3); Rust first (D-150) with doc 03 §4 as the list of allowed non-Rust components; privacy per doc 09; "guild" in code, "server" in copy (doc 14). Adopted answers are recorded as D-157 to D-183 in [01-decisions-log.md](01-decisions-log.md); the implementation follow-ups are in [dev/answers-followups.md](dev/answers-followups.md).
+
+## Summary
+
+| Status | Count |
+|---|---|
+| DEFAULT | 29 |
+| OWNER | 4 |
+| NO-CODE | 8 |
+| DONE | 3 |
+
+OWNER (recommendation adopted as the default, owner confirms or overrides): OQ-12 (Lounge sans font), OQ-13 (token calibration), OQ-14 (door image), OQ-32 (age-restricted titles shown by default to confirmed adults).
+NO-CODE: OQ-8, OQ-10, OQ-11, OQ-15, OQ-16, OQ-17, OQ-18, OQ-19 (and the accepted-as-is notes OQ-20, OQ-22, OQ-23, OQ-24, counted under DEFAULT because nothing is pending).
+DONE: OQ-7 (local run), OQ-9, OQ-21.
+
+## Owner confirmations (OQ-1 to OQ-4, OQ-25 to OQ-28)
+
+**OQ-1 (Q46). Emergency operator invites.**
+Decision: adopted as implemented. `sr-cli invite create` consumes no credit and writes no `invite_credits_ledger` row; the invite is flagged emergency (migration 0090) so redemption spends nothing; a `platform_audit_log` row `invite.emergency_create` is written with actor = system user 1 and target = the recorded issuer (the named account or the oldest Staff Server owner). No second audit trail and no credit requirement.
+Rationale: D-024 governs the per-user credit economy, not operator actions; shell access on the host is the authorisation (D-131); the issuer stored on the invite keeps the invite graph complete (D-023); `platform_audit_log` is the operator trail doc 04 §7 prescribes.
+Status: `DEFAULT` (D-157)
+
+**OQ-2 (Q133). Guild audit-log retention.**
+Decision: 45 days for `audit_log_entries`, from the platform setting `moderation.audit_retention_days` (`0` = forever), purged by the existing `audit.purge` job (`crates/sr-server/src/jobs.rs`). `platform_audit_log` and `staff_access_log` are kept forever. The setting is shown in Admin → Limits.
+Rationale: Discord keeps 45 days; doc 09 §1 is explicit only for the staff log (forever) and silent for guild logs; an operator-configurable number needs no owner input.
+Status: `DEFAULT` (D-158)
+
+**OQ-3 (Q136). AutoMod preset word lists.**
+Decision: SIDE ROOM ships no built-in word lists. `KeywordPreset` triggers resolve against operator-curated lists edited in Admin → Features → AutoMod (`PresetLists`); a preset with an empty operator list matches nothing and the rule editor says so. If the owner ever wants shipped lists, that is a separate, opt-in decision with its own licence review; nothing blocks on it.
+Rationale: content lists are an editorial and legal stance; the empty default is the only one that commits the project to nothing. D-041 (AutoMod parity) is met by the engine, not by the lists.
+Status: `DEFAULT` (D-159)
+
+**OQ-4 (Q161). Hidden channels in the channel list.**
+Decision: `GET /guilds/{id}/channels` keeps returning only channels the caller can `VIEW_CHANNEL`; owners, `ADMINISTRATOR` and bots with `ADMINISTRATOR` see everything. Add the difference to the porting checklist in doc 05 §7 (new item 5: "channel listings are permission-filtered; a bot needs `VIEW_CHANNEL` or `ADMINISTRATOR` to see a channel").
+Rationale: AGENTS.md §5 (the server is the security boundary); D-125 (private content is private); the stricter behaviour cannot break a bot that has the permissions it needs, so parity loss is limited to enumeration.
+Status: `DEFAULT` (D-160)
+
+**OQ-25. Webhook URLs cannot be copied later.**
+Decision: adopted: tokens stay SHA-256 hashes; `GET /webhooks/{id}` never returns the token; `POST /webhooks/{id}/reset-token` issues a fresh URL (shown once) and kills the old one, with an audit entry without the value. No `token_sealed` column. The web Integrations tab shows the URL once at creation and after a reset, with "Reset URL" where Discord has "Copy URL".
+Rationale: doc 09 §2 ("tokens are stored as SHA-256 hashes") settles it; a sealed column would make a database dump plus the server key able to post as any webhook (D-125 spirit). The only loss is convenience.
+Status: `DEFAULT` (D-164)
+
+**OQ-26. Global default notification level outranks the server default.**
+Decision: adopted: channel → category → the user's per-server choice → the user's global default (`/users/@me/notification-defaults`) → the server owner's `default_message_notifications`. Servers only; DMs keep their own scope.
+Rationale: an explicit choice by the member beats a suggestion by the server owner; the global default is a SIDE ROOM addition (Discord has none), so no parity rule is broken; the server default still applies to everyone who never set one.
+Status: `DEFAULT` (D-165)
+
+**OQ-27. Prune counts messages only.**
+Decision: add last-seen tracking and use it. `accounts.last_seen_at` is updated by the gateway on IDENTIFY/RESUME and at most once per 10 minutes per session while connected (also on REST login). Prune "inactive for N days" then means: joined more than N days ago, `last_seen_at` older than N days (or null), no message in the guild within N days, and only roles in `include_roles`. Until the column lands the messages-only rule stays and the prune dialog copy says "members who have not sent a message in N days".
+Rationale: Discord prunes on last-online, so voice-only and read-only members are not kicked; a single coarse timestamp is cheap, not sensitive (it is never exposed in user objects; it only shapes a count that `KICK_MEMBERS` holders can already approximate), and keeps doc 09 §1 unchanged.
+Status: `DEFAULT` (D-166)
+
+**OQ-28. Email change is confirmed by link only.**
+Decision: when the account has any second factor enabled, `POST /sr/auth/email/change` also requires a fresh second-factor proof: the request carries `mfa: {method, code}` (TOTP, recovery code or, when they exist, a passkey assertion), or a 2FA re-prompt satisfied within the last 15 minutes (same window as doc 07 §5). Password re-auth and the link to the new address stay; the old address keeps getting the notice after the swap, now with a "This wasn't me" link that invalidates the pending change for 24 hours while it is pending and revokes all sessions after it completed.
+Rationale: Discord asks for the 2FA code before changing the email of a 2FA account; the email address is the recovery root, so a stolen session plus the password must not be enough to move it (doc 06 §4).
+Status: `DEFAULT` (D-167)
+
+## Decisions needed before building (OQ-5, OQ-6)
+
+**OQ-5. Passkeys need an ADR.**
+Decision: (b) first, (a) as the fallback, in that order, inside ENT-AUTH-010:
+1. A time-boxed spike (two days) on pure-Rust relying-party code: `webauthn-rp` (pure-Rust RP crate) and the `passkey-types` family for CBOR/COSE parsing, verifying registration with `none` attestation and assertions for ES256, EdDSA and RS256 with RustCrypto (`p256`, `ed25519-dalek`, `rsa`), tested against the spec test vectors and Chrome's virtual authenticator in Playwright (Q83). SIDE ROOM never verifies attestation statements (it does not gate on authenticator models), which removes most of what pulls OpenSSL into `webauthn-rs`.
+2. If no maintained crate passes, write ADR-0009 "webauthn-rs with openssl" accepting the C dependency (`openssl` with `vendored` so the musl release build stays static, Q109), and add the row to doc 03 §4. The owner approves at PR review, which is how every ADR is approved.
+Until one of the two lands, passkeys stay deferred and the Entrance keeps hiding the passkey buttons behind the `methods` array (Q83). Fix doc 03 §2: the `webauthn-rs` row is "⚠️ C (openssl)" today.
+Rationale: D-150 ("if a good Rust implementation exists, prefer it") requires the evaluation before the exception; doc 03 §4 requires the ADR for the exception; D-028 keeps passkeys in scope, so (c) is not an end state.
+Status: `DEFAULT` (D-161)
+
+**OQ-6. Default staff role permission bits.**
+Decision: adopt the table in doc 07 §4 (migration 0130 `staff_role_templates`, `sr_admin::rules::default_staff_roles`) as the default: Support 10241, App Reviewer 769, Library Curator 85, Media Curator 203, Moderator 7169, Senior Staff 1818623, Owner bit 63, with the grant rules under it (only the Owner grants `READ_PRIVATE_CONTENT`, `APPOINT_STAFF`, `VIEW_ACCESS_LOG`, `OPERATOR`; a delegate grants only bits they hold; the Owner role is never assignable). Remove the "owner to confirm" sentence from doc 07 §4 and tick the bootstrap item once `bootstrap` creates the roles.
+Rationale: the bits follow doc 07 §3's own grant descriptions; the roles are ordinary editable roles after bootstrap (doc 07 §4), so the owner can reshape them in the product without a migration; nothing in the table reaches past D-132.
+Status: `DEFAULT` (D-162)
+
+## Needs a database run (OQ-7)
+
+**OQ-7. The real Postgres has never run any SQL.**
+Decision: resolved locally: the settings-gaps and library-core branches ran every `#[ignore]` test against a local Postgres 17 (59 green on a fresh database, plus the 10 `library_repo` tests). What remains is CI: `rust.yml` already has a `postgres:17` service container but only runs `cargo nextest run --workspace`; add `SR_TEST_DATABASE_URL` and a second step `cargo nextest run --workspace --run-ignored only -j1`. `admin_repo::suspend_revokes_sessions_and_reactivation_respects_the_cap` must create its own scratch database (or set the cap relative to the current count) so it passes on a reused database.
+Rationale: AGENTS.md §4 (PRs must pass tests); the service container exists, so the cost is one step.
+Status: `DONE` locally, `DEFAULT` for CI (D-163)
+
+## Library catalog decisions (OQ-29 to OQ-34)
+
+**OQ-29. WebP is lossless only.**
+Decision: (b), and no new ADR is needed: ADR-0005 already accepts libwebp ("Lossy WebP encoding via `webp` (libwebp bindings), because pure-Rust WebP encoders are lossless-only") and doc 03 §4 lists it. Encode pages with the `webp` crate at quality 85; for PNG sources also encode lossless and keep whichever is smaller (the ingest spec rule); JPEG/WebP/GIF sources are lossy only. The 720/1080/1600 variants follow the same rule. Lossless pages already stored are left as they are (they are valid WebP); the next re-ingest replaces them.
+Rationale: ingest-naming-conventions §2.1 and LIB-ING-001 ask for q85; D-084 fixes the format; ADR-0005 fixes the library; `cargo deny` already allows BSD-3 (libwebp).
+Status: `DEFAULT` (D-168)
+
+**OQ-30. AVIF pages are refused.**
+Decision: keep AVIF out for now. Archives with `.avif` pages are rejected at ingest with a message that names the files ("convert to JPEG, PNG or WebP"), instead of being silently skipped; the naming spec and LIB-ING-001 drop `avif` from the accepted list. Revisit through a short evaluation of `rav1d` (the Rust port of dav1d) once it exposes a stable still-image decode path; `dav1d` (C) is not on the doc 03 §4 list and would need an ADR nobody has asked for.
+Rationale: D-084 names JPEG, PNG and WebP as the inbound formats; a skipped page corrupts a chapter silently, a refusal does not; D-150.
+Status: `DEFAULT` (D-169)
+
+**OQ-31. RAR/CBR and 7z/CB7 are not read.**
+Decision: (b) and (c) without a new ADR: ADR-0005 and doc 03 §4 already accept `unrar` bindings for RAR. Add 7z/CB7 through `sevenz-rust2` (pure Rust) behind the same `ArchiveLimits` as ZIP (entry count, per-entry size, total budget, no nested archives, path traversal rejected, solid-block size capped). Add RAR/CBR through the `unrar` crate behind the same limits, gated by the platform setting `library.ingest.rar_enabled` (default on) so an operator can switch the one C parser off; extraction runs inside the ingest job, never in a request handler. Uploaders of other formats are asked to convert. The unrar licence forbids building a RAR *creator* from its source; reading is what every open-source reader does.
+Rationale: ingest-naming-conventions §2.2 lists `.cbr/.rar/.cb7/.7z`; ADR-0005 is the accepted exception; limits reuse the hardened ZIP design (LIB-ING-002).
+Status: `DEFAULT` (D-170)
+
+**OQ-32. Age-restricted series need an opt-in even for adults.**
+Decision (recommended): show age-restricted series by default to accounts with `age_confirmed_at`: the default `AgeFilter` for confirmed adults becomes `include`, with `hide` and `only` as the filter options; the browse filter chip is "Age-restricted: shown / hidden / only". Unconfirmed accounts keep `hide` and 404 everywhere, unchanged. A user setting `library.show_age_restricted` (settings blob, default on) and the platform setting `library.age_restricted_default_visible` (default true) let a member or the operator flip the default without code.
+Rationale: D-032 is a one-time dialog whose answer is "remembered permanently"; asking confirmed adults to opt in on every list contradicts that. Discord parity: after the age gate, NSFW channels simply appear. The activity-privacy toggle "Hide age-restricted titles from my activity" (doc 09 §3) is separate and stays default on. This is the one entry here that touches taste and legal exposure, so the owner confirms it; the setting makes the override free.
+Status: `OWNER` (recommendation adopted as D-171)
+
+**OQ-33. Publisher permissions.**
+Decision: confirmed as implemented: `PUBLISH_READING` for create, edit, publish and page changes; `DELETE_CONTENT` for delete (series, edition, chapter, volume); merge needs both; unpublish accepts either. A Library Curator (`PUBLISH_READING`, no `DELETE_CONTENT`) can unpublish but not delete, which is the intended split: unpublish is reversible, delete is not.
+Rationale: doc 07 §3 wording; the role table of OQ-6; D-121's spirit (destructive actions sit with higher-level staff).
+Status: `DEFAULT` (D-172)
+
+**OQ-34. Browse sorts.**
+Decision: confirmed: the API accepts `updated`, `newest`, `title`, `followers` and returns 400 for anything else; the Library UI offers only those four ("Recently updated", "Newest", "A–Z", "Most followed"). `rating` and `trending` are added by LIB-SOC-001 and LIB-SOC-004 and are not aliased to `followers` in the meantime.
+Rationale: an honest stand-in beats a mislabelled one; the spec's sort list (library-reader §3.2) is reached when the social items land.
+Status: `DEFAULT` (D-173)
+
+## Needs a human outside the code (OQ-8 to OQ-16)
+
+**OQ-8 (Q8). Permission fixtures are hand-derived.**
+Decision: unchanged; captured in Phase 6 by `crates/sr-compat-tests`. Removed from the live list and tracked as a follow-up.
+Status: `NO-CODE`
+
+**OQ-9 (Q26). Presigned URLs untested against Garage.**
+Decision: resolved: `.github/workflows/storage.yml` runs `cargo test -p sr-storage --test s3_live -- --ignored` against Garage from `deploy/compose/dev.yml` ([docs/dev/storage-live-test.md](dev/storage-live-test.md)).
+Status: `DONE`
+
+**OQ-10 (Q20, Q21). Pinned ops versions and bootstrap flags.**
+Decision: the tags in `deploy/compose/dev.yml` (`postgres:17`, `dxflrs/garage:v1.0.1`, `axllent/mailpit:v1.21`, `caddy:2`, `coturn/coturn:4.6`) are validated by `storage.yml` and `e2e.yml`, which start them in CI. `deploy/compose/README.md` does not exist yet: a follow-up creates it with the table of pinned tags and the `bootstrap.sh` flag check.
+Status: `NO-CODE` (follow-up for the README)
+
+**OQ-11 (Q19). pnpm is not installed on the agent machines.**
+Decision: unchanged (`corepack enable && corepack prepare pnpm@10.12.1 --activate`); until then agents keep using `npx pnpm@10.12.1` with `npm_config_manage_package_manager_versions=false`, never npm, for lockfile changes. Stays in the live list as a human action.
+Status: `NO-CODE`
+
+**OQ-12 (Q33). Font files are missing.**
+Decision (recommended): the Side Room families are fixed by doc 10 §2 (Newsreader, Hanken Grotesk, IBM Plex Mono, all OFL). For the Lounge sans, use **Inter** (OFL) as the gg sans stand-in: closest metrics to Discord's UI at 14–16 px, variable WOFF2, well-hinted. The owner picks or confirms the family and drops the WOFF2 files plus `OFL.txt` under `apps/web/public/fonts/<family>/`; `fonts.ts` already expects the paths. Downloading fonts is an owner action under the working agreements.
+Status: `OWNER` (asset and taste)
+
+**OQ-13 (Q34). Token values are not calibrated against the mockups.**
+Decision: unchanged: the owner (or someone with the mockups open) does the 1440/1704/<900 px pass; adjustments land as token-only PRs. Recommendation: do it after OQ-12, since type metrics move the spacing.
+Status: `OWNER` (visual judgement)
+
+**OQ-14 (Q81). The door image is missing.**
+Decision: unchanged: the owner supplies `apps/web/public/entrance/door.jpg` (recommended ≥ 1704 px wide, ≤ 400 KiB, no EXIF); the Admin → Entrance upload replaces the file later. Until then `Door.tsx` keeps its gradient placeholder.
+Status: `OWNER` (asset)
+
+**OQ-15 (Q85). Markdown corpus has not been reviewed against Discord.**
+Decision: unchanged: a human with a Discord account reviews a stratified 100-case sample after Q31/Q89/Q90 are in; mismatches become hand-written expectations. Stays in the live list.
+Status: `NO-CODE`
+
+**OQ-16 (Q108). The CI workflows have not had a green run.**
+Decision: unchanged: `release.yml`, `openapi.yml`, `storage.yml` and `e2e.yml` need a first green run on GitHub; FND-CI-004 stays unticked until `e2e.yml` passes. Pushing is the owner's call (working agreements). Stays in the live list.
+Status: `NO-CODE`
+
+## Informational (OQ-17 to OQ-24)
+
+**OQ-17 (Q102). Bot and OAuth bearer backends reject every token.** Correct until Phase 6 (Q56). Follow-up recorded under Phase 6. Status: `NO-CODE`
+**OQ-18 (Q122). Browser zstd decoding is deferred.** Revisit trigger made concrete: when the p95 gateway payload exceeds 64 KiB or mobile users report data use; then `ruzstd` in `packages/wasm`. Status: `NO-CODE`
+**OQ-19 (Q124). Member lists use REST, not op 102.** Arrives with the member-list inventory item (lazy ranges); no change. Status: `NO-CODE`
+**OQ-20 (Q126). Fresh READY clears message windows; RESUME refetches nothing.** Accepted, parity. Status: `DEFAULT`
+**OQ-21 (Q127). No `around` window.** Resolved: `fetchMessagesAround` and `loadAroundMessage` exist (`apps/web/src/store/{rest,store}.ts`); "load newer" from a jumped-to window is LNG-MSGUI-001's remaining half. Status: `DONE`
+**OQ-22 (Q130). Search filters take ids, not names.** Accepted; negation (`-from:`) is a later item. Status: `DEFAULT`
+**OQ-23 (Q69). `*-wasm` crates build natively as well.** Accepted; `sr-markdown-wasm` has its `wasm_bindgen_test`; the other two get one in the wasm follow-up. Status: `DEFAULT`
+**OQ-24 (Q168). Placeholder UI looks real.** Tracked per item in inventory 03-lounge-shell; the open-questions entry is retired. Status: `DEFAULT`
+
+## Decisions from the Phase 2 handoff notes
+
+**P2-A. Rich editor (Lexical) vs textarea for the composer (LNG-CMP-001).**
+Decision: the textarea stays through Phase 2. Mentions, channels, emoji and timestamps are readable text mapped to wire tokens at send (the current design), which meets every acceptance criterion in lounge-chat §6.4 except inline token rendering. LNG-CMP-001 is re-scoped to "rich composer on **Lexical**" and scheduled after the LNG-MSGUI gaps, so the autocomplete, slash-command and upload code is not rewritten twice. Lexical over Slate: maintained by Meta, React-first, better accessibility story, MIT.
+Rationale: the spec allows either library; parity of function before parity of feel; no backend impact.
+Status: `DEFAULT` (D-174)
+
+**P2-B. Presigned PUT uploads: bucket CORS and the Content-Type header.**
+Decision: uploads stay presigned PUTs to Garage (doc 02 §4.5). Two fixes: (1) the bucket gets a CORS rule (AllowedOrigins = `server.public_url`, methods `PUT, GET, HEAD`, headers `Content-Type`, expose `ETag`, max age 3600) applied by a new `sr-cli storage ensure-cors` command that sends S3 `PutBucketCors` with the SigV4 signer planned for multipart (Q23); `deploy/compose/garage/bootstrap.sh` and `deploy/INSTALL.md` call it. (2) The presigner (`object_store` `signed_url`) signs method and path only, so the header is not part of the signature; the client keeps sending `Content-Type`, the server stores it as `declared_content_type` and sniffs the real type on finalize (unchanged). No upload proxy through `sr-server`.
+Rationale: doc 02 §4.5 and Q153 chose presigned PUT; a CORS rule is the missing deployment step, not a design change; D-150 keeps the tooling in Rust.
+Status: `DEFAULT` (D-175)
+
+**P2-C. Remote embed images and the missing image proxy (LNG-MSG-014).**
+Decision: the client never loads a third-party URL into an `<img>`. Until the proxy exists, embeds render their text parts (title, description, provider, fields) and show "Load image" per embed, which fetches with `referrerPolicy="no-referrer"` only on click; the user setting "Load remote images automatically" is off and hidden until the proxy ships. The proxy (LNG-MSG-014) serves `/cdn/external/{hmac}/{url-b64}`: SSRF-safe fetch, 10 MiB and 10 s limits, re-encoded to WebP/JPEG with EXIF stripped, cached in Garage under `external/` for 30 days, operator allow/deny lists. Once it exists, the unfurler fills `proxy_url` on `embed.image`, `embed.thumbnail`, `embed.video` and author/footer icons, and the client loads `proxy_url` only. Avatars, stickers and attachments are first-party already.
+Rationale: Discord proxies every embed image (`media.discordapp.net`), so direct loads are both a parity gap and a privacy leak of viewer IPs; AGENTS.md §3.5's "never phones home" extends to members' browsers; doc 09 §3.
+Status: `DEFAULT` (D-176)
+
+**P2-D. Spoiler attachments.**
+Decision: Discord parity: a spoiler attachment is one whose filename starts with `SPOILER_`. The upload-slot `spoiler: true` field is kept as the ergonomic input; the server prefixes the stored filename (once) when it is set, so `AttachmentObject.filename` carries the marker and no extra field is needed. The client keeps reading the prefix; the `spoiler` column stays as the query-friendly mirror.
+Rationale: Discord's attachment object has no spoiler flag; bots and clients ported from Discord expect the prefix (D-060).
+Status: `DEFAULT` (D-177)
+
+**P2-E. Pin permission ignores channel overwrites.**
+Decision: the client computes **channel-level** permissions with the shared `sr-permissions-wasm` `compute` (roles, channel overwrites, timeout rule, Q6/Q7) and stores them per channel (`channel.permissions`), replacing the base-guild `GuildPermissions` for every per-channel capability: pin, delete others' messages, manage, send, attach, embed, mention everyone, bypass slowmode. Pin = `PIN_MESSAGES` (Q95); `MANAGE_MESSAGES` no longer implies it in the client once the one-time grant migration (0061) is the source of truth. The server already enforces per channel; this removes wrong greying-out.
+Rationale: AGENTS.md §3.2 (the same permission computation on both sides, from one Rust crate); AGENTS.md §5.
+Status: `DEFAULT` (D-178)
+
+**P2-F. Where rail order and folders persist (LNG-RAIL-007/008).**
+Decision: in the user settings blob (`GET/PATCH /users/@me/settings`, migration 0140) under Discord's own key names and shapes: `guild_positions: [guild_id…]` and `guild_folders: [{id, name, color, guild_ids}]`. The client writes them as a merge patch after a drag ends (debounced 1 s), applies `SR_USER_SETTINGS_UPDATE` from other sessions, and keeps `localStorage` as the offline cache and first paint. The same blob takes `collapsed_categories`, remembered channel per guild and panel width (Q171). No dedicated endpoint.
+Rationale: Q171 already pointed here; the blob now exists (settings-gaps gap 3); Discord stores both in user settings, so ported clients find them where they expect.
+Status: `DEFAULT` (D-179)
+
+**P2-G. Atomic create-from-template (LNG-GLD-003).**
+Decision: the server owns it. `POST /guilds/templates/{code}` (Discord's route, `{name, icon?}`) instantiates a template in one transaction using `sr_chat::settings::templates::instantiate` (Q138), and `POST /guilds` accepts `template: "<built-in id>"`. The eight built-in templates (Gaming, Friends, Study Group, School Club, Local Community, Artists & Creators, Watch Club, Reading Club) move from `apps/web/src/lounge/shell/serverTemplates.ts` to Rust as Discord-compatible template JSON in `crates/sr-chat/src/settings/builtin_templates/`, served by `GET /guilds/templates/builtin` so the wizard lists them from the server. The client's sequential POSTs are deleted once the endpoint exists; partial failure becomes impossible.
+Rationale: D-041 (server templates), D-060 (Discord routes); one source of truth for the built-ins (AGENTS.md §3.2).
+Status: `DEFAULT` (D-180)
+
+**P2-H. READY should carry full `recipients` for DM channels.**
+Decision: yes. `build_ready_extras` (`crates/sr-server/src/gateway_pg.rs`) emits `private_channels[].recipients` as full user objects through the `UserLookup` of Q157, and drops the private `recipient_ids`. The shell's boot-time `GET /users/@me/channels` (`shell/social.ts`) is removed once the gateway change ships; `CHANNEL_CREATE` for DMs carries the same shape.
+Rationale: Discord's READY carries `recipients`; one boot round-trip less; D-060.
+Status: `DEFAULT` (D-181)
+
+**P2-I. Invite dialog defaults to single use.**
+Decision: keep Q134's split. "Copy link" and anything that produces a URL to paste elsewhere creates the invite with `external: true` (single use, 7 days) because it is intended to leave the platform (D-022). "Invite friends" (a DM to a member) uses the server's defaults (7 days, unlimited uses) because it never leaves the platform; the dialog's expiry and use-count pickers edit either. The dialog copy says "This link can be used once" on the external one.
+Rationale: D-022 is about links that leave the platform; in-platform recipients are already accountable members (D-020), so a per-recipient single-use code adds friction without a security gain.
+Status: `DEFAULT` (D-182)
+
+**P2-J. Friends use REST polling; no `RELATIONSHIP_*` gateway events.**
+Decision: the backend already dispatches `RELATIONSHIP_ADD/UPDATE/REMOVE` as `DomainEvent::UserScoped` to each addressed user's topic (`crates/sr-api/src/routes/social/relationships.rs`, `events.rs`); the gap is the client. The reducer applies the three dispatches (and `CHANNEL_CREATE/DELETE` for DMs) to the social store; the Friends page stops re-fetching after each action and only loads on boot. Tick LNG-FRD-003 after the reducer test proves another session's request appears live.
+Rationale: parity (Discord updates friends live); the events exist, so polling is duplicate work.
+Status: `DEFAULT` (D-183)
