@@ -121,7 +121,7 @@ export function buildSearchQuery(
   const parts: string[] = [];
   const re = /(\S*"[^"]*"\S*|\S+)/g;
   for (const tok of raw.match(re) ?? []) {
-    const m = /^(from|in):(.*)$/i.exec(tok);
+    const m = /^(from|in|mentions):(.*)$/i.exec(tok);
     if (!m) {
       parts.push(tok);
       continue;
@@ -132,11 +132,11 @@ export function buildSearchQuery(
       parts.push(`${key}:${value}`);
       continue;
     }
-    if (!value) return { error: `Add a ${key === 'from' ? 'person' : 'channel'} after ${key}:` };
-    if (key === 'from') {
+    if (!value) return { error: `Add a ${key === 'in' ? 'channel' : 'person'} after ${key}:` };
+    if (key === 'from' || key === 'mentions') {
       const u = lookups.users.find((x) => x.names.some((n) => n.toLowerCase() === value));
       if (!u) return { error: `No one called "${m[2]}" found.` };
-      parts.push(`from:${u.id}`);
+      parts.push(`${key}:${u.id}`);
     } else {
       const c = lookups.channels.find((x) => x.name.toLowerCase() === value);
       if (!c) return { error: `No channel called "${m[2]}" found.` };

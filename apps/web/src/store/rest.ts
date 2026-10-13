@@ -223,11 +223,21 @@ export interface SearchResults {
   /** Each result is a one-message group. */
   messages: SearchHit[][];
 }
-export const searchGuildMessages = (guildId: string, q: string, offset = 0) => {
-  const params = new URLSearchParams({ q, limit: '25' });
-  if (offset) params.set('offset', String(offset));
-  return apiFetch<SearchResults>(`/guilds/${guildId}/messages/search?${params}`, { retries: 0 });
+export interface SearchOptions {
+  offset?: number;
+  /** Extra query params, e.g. sort_by / sort_order. */
+  extra?: Record<string, string>;
+}
+const searchParams = (q: string, o: SearchOptions) => {
+  const params = new URLSearchParams({ q, limit: '25', ...o.extra });
+  if (o.offset) params.set('offset', String(o.offset));
+  return params;
 };
+export const searchGuildMessages = (guildId: string, q: string, o: SearchOptions | number = {}) =>
+  apiFetch<SearchResults>(
+    `/guilds/${guildId}/messages/search?${searchParams(q, typeof o === 'number' ? { offset: o } : o)}`,
+    { retries: 0 },
+  );
 
 /** Messages around one id (jump to message). Oldest first. */
 export async function fetchMessagesAround(channelId: string, messageId: string, limit = PAGE_SIZE) {
@@ -237,10 +247,12 @@ export async function fetchMessagesAround(channelId: string, messageId: string, 
   return [...list].sort((a, b) => cmpId(a.id, b.id));
 }
 
-export const searchChannelMessages = (channelId: string, q: string, offset = 0) => {
-  const params = new URLSearchParams({ q, limit: '25' });
-  if (offset) params.set('offset', String(offset));
-  return apiFetch<SearchResults>(`/channels/${channelId}/messages/search?${params}`, {
-    retries: 0,
-  });
-};
+export const searchChannelMessages = (
+  channelId: string,
+  q: string,
+  o: SearchOptions | number = {},
+) =>
+  apiFetch<SearchResults>(
+    `/channels/${channelId}/messages/search?${searchParams(q, typeof o === 'number' ? { offset: o } : o)}`,
+    { retries: 0 },
+  );
