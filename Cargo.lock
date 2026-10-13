@@ -4335,6 +4335,7 @@ dependencies = [
  "serde_json",
  "sr-core",
  "wasm-bindgen",
+ "wasm-bindgen-test",
 ]
 
 [[package]]
@@ -4427,6 +4428,7 @@ dependencies = [
  "serde_json",
  "sr-theme",
  "wasm-bindgen",
+ "wasm-bindgen-test",
 ]
 
 [[package]]

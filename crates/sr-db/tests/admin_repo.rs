@@ -440,16 +440,31 @@ async fn suspend_revokes_sessions_and_reactivation_respects_the_cap() {
         .await
         .unwrap();
     assert!(none.is_empty());
-    // LIKE wildcards in the search term are literal.
+    // LIKE wildcards in the search term are literal. Other tests may leave accounts whose
+    // names contain a literal `%`, so a bare `%` may match those (and only those); a
+    // username followed by `%` must match nothing.
     let wild = r
         .search_accounts(&AccountQuery {
-            q: Some("%".into()),
+            q: Some(format!("{}%", s.username)),
             limit: 5,
             ..Default::default()
         })
         .await
         .unwrap();
     assert!(wild.is_empty());
+    let bare = r
+        .search_accounts(&AccountQuery {
+            q: Some("%".into()),
+            limit: 50,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert!(bare.iter().all(|h| {
+        h.username.contains('%')
+            || h.email.contains('%')
+            || h.display_name.as_deref().is_some_and(|d| d.contains('%'))
+    }));
 
     // 2FA reset runs the existing sr-db function inside the audited transaction.
     sqlx::query("INSERT INTO mfa_totp (id, account_id, secret_enc, confirmed_at) VALUES ($1,$2,'\\x00',now())")

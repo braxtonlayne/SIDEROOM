@@ -4,7 +4,7 @@ Work implied by the adopted answers in [open-question-answers.md](../open-questi
 
 ## Backend (Rust)
 
-- [ ] **F-01 (D-163) Run the Postgres-backed tests in CI.** Add `SR_TEST_DATABASE_URL=postgres://sideroom:sideroom_ci@localhost:5432/sideroom` to `.github/workflows/rust.yml` and a step `cargo nextest run --workspace --run-ignored only -j1` after the normal run. Fix `crates/sr-db/tests/admin_repo.rs::suspend_revokes_sessions_and_reactivation_respects_the_cap` to create its own scratch database (or compute the cap from the current count) so it passes on a reused database. Size: S.
+- [x] **F-01 (D-163) Run the Postgres-backed tests in CI.** Add `SR_TEST_DATABASE_URL=postgres://sideroom:sideroom_ci@localhost:5432/sideroom` to `.github/workflows/rust.yml` and a step `cargo nextest run --workspace --run-ignored only -j1` after the normal run. Fix `crates/sr-db/tests/admin_repo.rs::suspend_revokes_sessions_and_reactivation_respects_the_cap` to create its own scratch database (or compute the cap from the current count) so it passes on a reused database. Size: S.
 - [ ] **F-02 (D-166) Last-seen tracking for prune.** Migration `015x_accounts_last_seen.sql` adding `accounts.last_seen_at timestamptz`; `crates/sr-gateway` + `crates/sr-server/src/gateway_pg.rs` update it on IDENTIFY/RESUME and at most every 10 minutes per session (batched through one `UPDATE … WHERE id = ANY($1)`); `crates/sr-auth` login path updates it too. `PruneCriteria` (`crates/sr-chat/src/admin_repo.rs`) gains `seen_before_ms`; `prune_candidates` in `crates/sr-db/src/guild_admin_repo.rs` adds `AND (a.last_seen_at IS NULL OR a.last_seen_at < …)`. Never serialise the column in user objects. Postgres test. Size: M.
 - [ ] **F-03 (D-167) Second factor on email change.** `crates/sr-api/src/routes/auth/identity.rs::change_email`: when `mfa_totp` or passkeys exist, require `mfa: {method, code}` in `ChangeEmailBody` (reuse the verification in `routes/auth/mfa.rs`) unless a re-prompt succeeded within 15 minutes (store `mfa_verified_at` on the session row, migration if missing). Add a `cancel_change_email` token purpose and `POST /sr/auth/email/cancel {token}` used by the "This wasn't me" link in `mail::change_email_notice` (cancel while pending; revoke all sessions after completion). Update doc 05 §5.1 table. Tests: with and without 2FA, stale re-prompt, cancel link. Size: M.
 - [ ] **F-04 (D-168) Lossy WebP for manga pages.** `crates/sr-library/src/ingest/image.rs`: add the `webp` crate (libwebp bindings, ADR-0005), encode q85, and for PNG sources also encode lossless and keep the smaller; variants follow. Keep the pure-Rust decoder. Check `deny.toml` allows BSD-3-Clause and that the musl release build (`cargo-zigbuild`, Q109) links `libwebp-sys`. Unit tests on size ordering. Tick the WebP half of LIB-ING-001. Size: M.
@@ -19,7 +19,7 @@ Work implied by the adopted answers in [open-question-answers.md](../open-questi
 - [ ] **F-13 (D-158) Audit purge visible in Admin → Limits.** Confirm `moderation.audit_retention_days` is declared in the feature registry schema (`crates/sr-features`) so the Admin → Limits page renders it; add it if only the job reads it. Size: S.
 - [ ] **F-14 (D-161) Passkey relying-party spike (ENT-AUTH-010 step 1).** Two-day time box in `crates/sr-auth/src/webauthn.rs` behind a feature flag: pure-Rust RP (`webauthn-rp`, `passkey-types`) for `none`-attestation registration and assertion (ES256, EdDSA, RS256), tested against the spec vectors and the CDP virtual authenticator (Q83). Outcome recorded as a note in the PR: either proceed with step 2 (routes from Q78) or write `docs/adr/0009-webauthn-rs-openssl.md` and add the doc 03 §4 row. Size: M (spike) then L (routes + web).
 - [ ] **F-15 (D-162) Bootstrap creates the default staff roles.** `crates/sr-cli` `bootstrap`: instantiate `staff_role_templates` into the Staff Server (idempotent on re-run), assign Owner; tick the bootstrap item in inventory 01/10. Size: S.
-- [ ] **F-16 (D-160) Porting-guide note.** Add item 5 to doc 05 §7 (permission-filtered channel listings) and the matching case to the Phase 6 `sr-compat-tests` plan. Size: S (docs only, listed here because it is API-visible).
+- [x] **F-16 (D-160) Porting-guide note.** Add item 5 to doc 05 §7 (permission-filtered channel listings) and the matching case to the Phase 6 `sr-compat-tests` plan. Size: S (docs only, listed here because it is API-visible).
 
 ## Web (TypeScript)
 
@@ -36,16 +36,16 @@ Work implied by the adopted answers in [open-question-answers.md](../open-questi
 
 ## Tests, tooling and ops
 
-- [ ] **F-27 (OQ-10) `deploy/compose/README.md`.** Create it with the pinned tags from `deploy/compose/dev.yml` (`postgres:17`, `dxflrs/garage:v1.0.1`, `axllent/mailpit:v1.21`, `caddy:2`, `coturn/coturn:4.6`), the `bootstrap.sh` flags as checked against `garage --help`, and how `storage.yml`/`e2e.yml` validate them. Size: S.
-- [ ] **F-28 (OQ-23) `wasm_bindgen_test` for the other two wasm crates.** Add one JsError-path test each to `crates/sr-permissions-wasm` and `crates/sr-theme-wasm` so `wasm.yml` exercises them (Q68). Size: S.
+- [x] **F-27 (OQ-10) `deploy/compose/README.md`.** Create it with the pinned tags from `deploy/compose/dev.yml` (`postgres:17`, `dxflrs/garage:v1.0.1`, `axllent/mailpit:v1.21`, `caddy:2`, `coturn/coturn:4.6`), the `bootstrap.sh` flags as checked against `garage --help`, and how `storage.yml`/`e2e.yml` validate them. Size: S.
+- [x] **F-28 (OQ-23) `wasm_bindgen_test` for the other two wasm crates.** Add one JsError-path test each to `crates/sr-permissions-wasm` and `crates/sr-theme-wasm` so `wasm.yml` exercises them (Q68). Size: S.
 - [ ] **F-29 (OQ-8, OQ-17) Phase 6 reminders.** When `crates/sr-compat-tests` is created: capture real permission fixtures from a test guild (Q8) and switch `NoBots`/`NoBearers` (`crates/sr-server/src/backends.rs`) to the `bot_tokens`/OAuth stores (Q56). Size: part of Phase 6.
 - [ ] **F-30 (OQ-18) zstd trigger.** Add a gauge for gateway payload size (`sr_gateway_dispatch_bytes` histogram) so the "p95 > 64 KiB" trigger for browser zstd (Q122) is measurable. Size: S.
 
 ## Docs only
 
-- [ ] **F-31 (D-162) doc 07 §4.** Remove "proposed defaults, owner to confirm"; state the table is the default (D-162). Size: S.
-- [ ] **F-32 (D-161) doc 03 §2.** Mark the `webauthn-rs` row "⚠️ C (openssl) — see D-161"; add the ADR-0009 row to §4 only if the fallback is taken. Size: S.
+- [x] **F-31 (D-162) doc 07 §4.** Remove "proposed defaults, owner to confirm"; state the table is the default (D-162). Size: S.
+- [x] **F-32 (D-161) doc 03 §2.** Mark the `webauthn-rs` row "⚠️ C (openssl) — see D-161"; add the ADR-0009 row to §4 only if the fallback is taken. Size: S.
 - [ ] **F-33 (D-169, D-170) Ingest naming spec.** `docs/specs/ingest-naming-conventions.md` §2.1: drop `avif` from the page extensions and say AVIF archives are rejected; §2.2: note the RAR operator switch. Inventory 13 LIB-ING-001/002 captions updated. Size: S.
-- [ ] **F-34 (D-175, D-176, D-177, D-181) doc 05 and doc 02.** Doc 02 §4.5: the bucket CORS requirement; doc 05 §3: `SPOILER_` prefix rule, `proxy_url` semantics, READY `recipients`; doc 05 §6.4 READY shape. Size: S.
-- [ ] **F-35 (D-179, D-180) doc 04 and doc 05.** Doc 04 §4: the `user_settings` keys the client uses (`guild_positions`, `guild_folders`, `collapsed_categories`, …); doc 05 §4: the template routes. Size: S.
-- [ ] **F-36 (D-165, D-166, D-167) Settings and prune prose.** Lounge-chat spec §12 (notification precedence sentence), doc 06 §4 (email change rule), admin spec prune wording. Size: S.
+- [x] **F-34 (D-175, D-176, D-177, D-181) doc 05 and doc 02.** Doc 02 §4.5: the bucket CORS requirement; doc 05 §3: `SPOILER_` prefix rule, `proxy_url` semantics, READY `recipients`; doc 05 §6.4 READY shape. Size: S.
+- [x] **F-35 (D-179, D-180) doc 04 and doc 05.** Doc 04 §4: the `user_settings` keys the client uses (`guild_positions`, `guild_folders`, `collapsed_categories`, …); doc 05 §4: the template routes. Size: S.
+- [x] **F-36 (D-165, D-166, D-167) Settings and prune prose.** Lounge-chat spec §12 (notification precedence sentence), doc 06 §4 (email change rule), admin spec prune wording. Size: S.

@@ -57,6 +57,7 @@ Decisions: D-013, D-014, D-020–D-032.
 - Failed login throttling: per account (exponential back-off after 5) and per IP.
 - Sessions list in User Settings → Devices, with revoke.
 - Forgot password: email link (single use, 30 minutes). Accounts with 2FA still need 2FA after reset.
+- Changing the email address (D-167) needs the current password plus, when 2FA is enabled (TOTP, recovery code, or a passkey once they exist), a fresh second-factor proof; a successful re-prompt within the last 15 minutes counts. The verification link goes to the new address, the old address gets a notice with a "This wasn't me" link that cancels a pending change, or revokes all sessions if the change already completed. The address only changes once the new one is verified.
 
 ## 5. Platform invites
 

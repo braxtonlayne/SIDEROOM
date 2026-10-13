@@ -6,6 +6,8 @@ env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
   DATABASE_URL: postgres://sideroom:sideroom_ci@localhost:5432/sideroom
+  # The Postgres-backed suites (#[ignore]d unless this is set) run in their own step below.
+  SR_TEST_DATABASE_URL: postgres://sideroom:sideroom_ci@localhost:5432/sideroom
 concurrency:
   group: rust-${{ github.ref }}
   cancel-in-progress: true
@@ -39,4 +41,8 @@ jobs:
       - name: sqlx offline metadata check (no-op by design)
         run: echo "no compile-time-checked queries; nothing to prepare"
       - run: cargo nextest run --workspace
+      # D-163 / F-01: the #[ignore]d Postgres suites (sr-db). Single-threaded because the tests
+      # share one database; sr-storage's live S3 suite has its own workflow (storage.yml).
+      - name: Postgres-backed tests (ignored suite)
+        run: cargo nextest run --workspace --exclude sr-storage --run-ignored only -j1
       - run: cargo deny check

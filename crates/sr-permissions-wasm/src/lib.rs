@@ -251,3 +251,27 @@ mod tests {
         assert!(has(&big, &big).expect("ok"));
     }
 }
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod wasm_tests {
+    use super::*;
+    use wasm_bindgen_test::{wasm_bindgen_test, wasm_bindgen_test_configure};
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    /// The `JsError` path is only constructible on the wasm target.
+    #[wasm_bindgen_test]
+    fn malformed_input_throws_js_error() {
+        assert!(has_permission("not-a-number", "1").is_err());
+        assert!(compute_base_js(false, "oops", vec![]).is_err());
+        assert!(compute_js("{}").is_err());
+    }
+
+    #[wasm_bindgen_test]
+    fn valid_input_round_trips_through_the_exports() {
+        // ADMINISTRATOR (bit 3) bypasses every check.
+        assert!(has_permission("8", "2048").unwrap());
+        assert!(!has_permission("0", "2048").unwrap());
+        assert_eq!(compute_base_js(false, "3", vec![]).unwrap(), "3");
+    }
+}

@@ -106,6 +106,7 @@ The TypeScript side:
 ### 4.5 Uploads
 - Chat attachments: client requests an upload slot (`POST /channels/{id}/attachments`). Server checks the per-user limit (30 MB / 500 MB) and returns a presigned S3 PUT (multipart for > 64 MB). Client uploads, then posts the message referencing the upload IDs.
 - Library submissions: resumable multipart uploads into a `pending/` prefix, any size. Processing jobs run, and the item lands in the review queue (see the submissions spec).
+- Bucket CORS: browsers PUT straight to the bucket, so it must carry a CORS rule for the app origin (`server.public_url`): methods `PUT, GET, HEAD`, allowed header `Content-Type`, exposed header `ETag`. `sr-cli storage ensure-cors --origin <server.public_url>` applies it idempotently and is called from bootstrap and install (D-175). The presigner signs method and path only, so the client's `Content-Type` is advisory and the server sniffs the real type on finalize.
 
 ## 5. Events and scale-out
 
