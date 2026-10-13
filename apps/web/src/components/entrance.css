@@ -87,11 +87,14 @@
 .ent-door-art {
   position: absolute;
   inset: 0;
-  background-image: var(--ent-door-image, none);
+  background-image: var(--ent-door-image, url("/entrance/door.jpg"));
   background-size: cover;
-  background-position: center;
+  /* Lands the photographed door where the CSS stand-in was drawn (left 18%). */
+  background-position: 93% center;
 }
+/* The CSS-drawn leaf and light are only a stand-in for when the photograph is removed. */
 .ent-door-leaf {
+  display: none;
   position: absolute;
   top: 6%;
   bottom: 0;
@@ -101,6 +104,7 @@
   box-shadow: inset -8px 0 18px #0008;
 }
 .ent-door-light {
+  display: none;
   position: absolute;
   top: 6%;
   bottom: 0;

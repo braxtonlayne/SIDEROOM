@@ -1,6 +1,6 @@
 /**
- * CSS-drawn stand-in for the door-ajar photograph. Operators replace it by
- * setting `--ent-door-image` (a CSS url()) on :root; see entrance.css.
+ * The door-ajar photograph (`public/entrance/door.jpg`). Operators replace the file, or set
+ * `--ent-door-image` (a CSS url()) on :root; see entrance.css.
  */
 export function Door({ className }: { className?: string }) {
   return (
