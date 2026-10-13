@@ -4781,6 +4781,16 @@ version = "0.0.0"
 [[package]]
 name = "sr-review"
 version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "serde",
+ "serde_json",
+ "sr-core",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "utoipa",
+]
 
 [[package]]
 name = "sr-sdk"
