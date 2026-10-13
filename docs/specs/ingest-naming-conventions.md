@@ -57,7 +57,7 @@ Video: MKV, MP4, M4V, MOV, AVI, WebM, TS, MPEG, WMV (anything FFmpeg can decode)
 `<Series> v<NN> c<NNN>[ - <Title>] [<Group>].cbz` (also `.zip`, `.cbr`, `.rar`, `.cb7`, `.7z`). The format is detected from the file contents, not the extension. ZIP/CBZ and 7z/CB7 are always read; RAR/CBR is read unless the operator turns off the platform setting `library.ingest.rar_enabled` (default on, D-170), in which case a RAR upload is rejected as an unsupported format. Every format is held to the same limits (entry count, per-file size, total uncompressed size, compression ratio, no nested archives, no `..` or absolute names, no encrypted or multi-volume archives; symlinks are skipped). Pages inside follow §2.1. `ComicInfo.xml` inside the archive is read when present (title, number, writer, summary, language, manga direction `Manga=YesAndRightToLeft`).
 
 ### 2.3 Documents
-`.pdf` (rasterized to pages for image-mode reading, with the original kept for download), `.epub` (kept as-is, reflowable reader).
+`.pdf` (the original is kept for download; rasterizing pages for image-mode reading waits for an approved pdfium build, see open-questions), `.epub` (validated, title/authors/language/cover read from the package document, kept as-is for the reflowable reader). Encrypted PDFs and EPUBs are refused.
 
 ### 2.4 Series metadata file (optional)
 `series.json` at the series root:

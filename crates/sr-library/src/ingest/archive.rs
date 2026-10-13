@@ -191,7 +191,7 @@ fn is_junk(name: &str) -> bool {
 }
 
 /// Normalise an entry name and refuse anything that could escape its directory.
-fn safe_name(raw: &str) -> Result<String, IngestError> {
+pub(super) fn safe_name(raw: &str) -> Result<String, IngestError> {
     let unsafe_name = || IngestError::UnsafePath(raw.chars().take(200).collect());
     if raw.is_empty() || raw.contains('\0') {
         return Err(unsafe_name());

@@ -5,6 +5,8 @@
 //! * [`archive`]: a hardened ZIP/CBZ, 7z/CB7 and RAR/CBR reader with natural page order and junk
 //!   filtering (LIB-ING-002).
 //! * [`comicinfo`] and [`series_json`]: metadata files (LIB-ING-003, LIB-ING-006).
+//! * [`epub`] and [`pdf`]: validate and describe EPUB and PDF uploads, which are kept as
+//!   uploaded (LIB-ING-005, LIB-ING-004).
 //! * [`pipeline`]: archive in, uploaded pages out.
 //!
 //! Everything here treats its input as hostile: size, entry-count, compression
@@ -13,7 +15,9 @@
 
 pub mod archive;
 pub mod comicinfo;
+pub mod epub;
 pub mod image;
+pub mod pdf;
 pub mod pipeline;
 pub mod series_json;
 

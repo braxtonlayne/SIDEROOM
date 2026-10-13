@@ -14,8 +14,8 @@ Phase 4. Spec: [library-reader](../specs/library-reader.md). Mockup: `library-ho
 - [x] **LIB-ING-001** [BE] Image page pipeline: decode JPEG/PNG/WebP/GIF -> lossy WebP q85 (PNG sources also lossless, smaller kept; D-168) + sized variants 720/1080/1600 + blurhash + dimensions + spread detection. AVIF is rejected, not decoded (D-169)
 - [x] **LIB-ING-002** [BE] Archive readers: ZIP/CBZ, 7z/CB7, RAR/CBR (behind `library.ingest.rar_enabled`; D-170) under one set of limits (natural sort, ignore junk files like `__MACOSX`, `Thumbs.db`)
 - [x] **LIB-ING-003** [BE] ComicInfo.xml parser → metadata
-- [ ] **LIB-ING-004** [BE] PDF: keep original + rasterize pages (pdfium) for image mode
-- [ ] **LIB-ING-005** [BE] EPUB: validate, extract metadata/cover, keep as-is
+- [ ] **LIB-ING-004** [BE] PDF: keep original + rasterize pages (pdfium) for image mode *(partial: `ingest::pdf::validate` accepts or refuses the original; rasterization is not implemented, see open-questions 2)*
+- [x] **LIB-ING-005** [BE] EPUB: validate, extract metadata/cover, keep as-is (`ingest::epub::inspect`)
 - [x] **LIB-ING-006** [BE] series.json parser
 - [ ] **LIB-ING-007** [BE] Auto-crop border detection data (optional per page)
 - [ ] **LIB-ING-008** [BE] Library `SubmissionKind` impls (series, items) with publish actions
