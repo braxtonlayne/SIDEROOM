@@ -1161,3 +1161,66 @@ async fn prune_preview_and_execute_are_permission_gated_dispatched_and_audited()
     assert_eq!(v["pruned"], 0);
     assert_eq!(rec.0.lock().unwrap().len(), 1);
 }
+
+#[tokio::test]
+async fn afk_channel_and_timeout_are_validated_and_returned() {
+    let f = fixture();
+    let (gid, created) = guild(&f).await;
+    let uri = format!("/guilds/{gid}");
+    // Defaults: no AFK channel, five minutes.
+    assert!(created["afk_channel_id"].is_null());
+    assert_eq!(created["afk_timeout"], 300);
+
+    let text = created["channels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["type"] == 0)
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let (s, voice) = post(
+        &f,
+        &format!("{uri}/channels"),
+        "owner",
+        json!({ "name": "afk-lounge", "type": 2 }),
+    )
+    .await;
+    assert_eq!(s, StatusCode::CREATED, "{voice}");
+    let voice = voice["id"].as_str().unwrap().to_owned();
+
+    // Only a voice channel of this guild qualifies.
+    for bad in [text.as_str(), "4242"] {
+        let (s, e) = patch(&f, &uri, "owner", json!({ "afk_channel_id": bad })).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{bad}: {e}");
+    }
+    let (s, _) = patch(&f, &uri, "owner", json!({ "afk_timeout": 1234 })).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    // MANAGE_GUILD only.
+    let (s, _) = patch(&f, &uri, "bob", json!({ "afk_timeout": 60 })).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+
+    let (s, g) = patch(
+        &f,
+        &uri,
+        "owner",
+        json!({ "afk_channel_id": voice, "afk_timeout": 900 }),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{g}");
+    assert_eq!(g["afk_channel_id"], voice.as_str());
+    assert_eq!(g["afk_timeout"], 900);
+    let (_, g) = get(&f, &uri, "bob").await;
+    assert_eq!(
+        (g["afk_channel_id"].as_str(), g["afk_timeout"].as_u64()),
+        (Some(voice.as_str()), Some(900))
+    );
+
+    // An unrelated edit keeps them; null clears the channel.
+    let (_, g) = patch(&f, &uri, "owner", json!({ "name": "Still AFK" })).await;
+    assert_eq!(g["afk_channel_id"], voice.as_str());
+    let (_, g) = patch(&f, &uri, "owner", json!({ "afk_channel_id": null })).await;
+    assert!(g["afk_channel_id"].is_null());
+    assert_eq!(g["afk_timeout"], 900);
+}

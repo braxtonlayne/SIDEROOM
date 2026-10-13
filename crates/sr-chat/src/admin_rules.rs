@@ -16,6 +16,10 @@ use sr_core::{ChannelId, GuildId, RoleId, UserId};
 pub const NICK_MAX: usize = 32;
 pub const GUILD_DESCRIPTION_MAX: usize = 120;
 pub const BAN_REASON_MAX: usize = 512;
+/// Allowed voice AFK timeouts in seconds (Discord: 1, 5, 15, 30 and 60 minutes).
+pub const AFK_TIMEOUTS: [u32; 5] = [60, 300, 900, 1800, 3600];
+/// Discord's default AFK timeout (5 minutes).
+pub const DEFAULT_AFK_TIMEOUT: u32 = 300;
 /// Upper bound for one bulk reorder request.
 pub const MAX_REORDER_ENTRIES: usize = 500;
 
@@ -24,6 +28,10 @@ pub struct GuildPatch {
     pub name: Option<String>,
     pub description: Option<Option<String>>,
     pub system_channel_id: Option<Option<ChannelId>>,
+    /// A voice channel of the guild; `Some(None)` clears it.
+    pub afk_channel_id: Option<Option<ChannelId>>,
+    /// One of [`AFK_TIMEOUTS`].
+    pub afk_timeout: Option<u32>,
     pub verification_level: Option<u8>,
     pub default_message_notifications: Option<u8>,
     pub explicit_content_filter: Option<u8>,
@@ -40,6 +48,8 @@ impl GuildPatch {
         self.name.is_none()
             && self.description.is_none()
             && self.system_channel_id.is_none()
+            && self.afk_channel_id.is_none()
+            && self.afk_timeout.is_none()
             && self.verification_level.is_none()
             && self.default_message_notifications.is_none()
             && self.explicit_content_filter.is_none()
@@ -71,6 +81,7 @@ pub fn plan_edit_guild(
     patch: GuildPatch,
     new_owner: Option<&Member>,
     system_channel_ok: bool,
+    afk_channel_ok: bool,
 ) -> ChatResult<Guild> {
     let changes_owner = patch.owner_id.is_some_and(|o| o != guild.owner_id);
     // A bare ownership transfer only needs ownership (checked below).
@@ -108,6 +119,26 @@ pub fn plan_edit_guild(
             ));
         }
         out.system_channel_id = s;
+    }
+    if let Some(a) = patch.afk_channel_id {
+        if a.is_some() && !afk_channel_ok {
+            return Err(ChatError::invalid(
+                "afk_channel_id",
+                "CHANNEL_INVALID",
+                "Must be a voice channel in this server.",
+            ));
+        }
+        out.afk_channel_id = a;
+    }
+    if let Some(t) = patch.afk_timeout {
+        if !AFK_TIMEOUTS.contains(&t) {
+            return Err(ChatError::invalid(
+                "afk_timeout",
+                "ENUM_TYPE_BASE_TYPE_BAD_VALUE",
+                "Must be 60, 300, 900, 1800 or 3600 seconds.",
+            ));
+        }
+        out.afk_timeout = t;
     }
     if let Some(v) = patch.verification_level {
         out.verification_level = range_u8("verification_level", v, 4)?;
@@ -489,6 +520,7 @@ mod tests {
             },
             None,
             false,
+            false,
         )
         .unwrap();
         assert_eq!((out.name.as_str(), out.verification_level), ("New Name", 3));
@@ -497,12 +529,12 @@ mod tests {
             name: Some("zzz".into()),
             ..Default::default()
         };
-        assert!(plan_edit_guild(UserId::new(5), &plain, &g, rename, None, false).is_err());
+        assert!(plan_edit_guild(UserId::new(5), &plain, &g, rename, None, false, false).is_err());
         let bad = GuildPatch {
             verification_level: Some(9),
             ..Default::default()
         };
-        assert!(plan_edit_guild(UserId::new(5), &manager, &g, bad, None, false).is_err());
+        assert!(plan_edit_guild(UserId::new(5), &manager, &g, bad, None, false, false).is_err());
         // Ownership: only the owner, and only to a member.
         let owner = GuildActor {
             is_owner: true,
@@ -514,11 +546,30 @@ mod tests {
             owner_id: Some(to.user_id),
             ..Default::default()
         };
-        let out =
-            plan_edit_guild(UserId::new(OWNER), &owner, &g, t.clone(), Some(&to), false).unwrap();
+        let out = plan_edit_guild(
+            UserId::new(OWNER),
+            &owner,
+            &g,
+            t.clone(),
+            Some(&to),
+            false,
+            false,
+        )
+        .unwrap();
         assert_eq!(out.owner_id, to.user_id);
-        assert!(plan_edit_guild(UserId::new(OWNER), &owner, &g, t.clone(), None, false).is_err());
-        assert!(plan_edit_guild(UserId::new(9), &manager, &g, t, Some(&to), false).is_err());
+        assert!(
+            plan_edit_guild(
+                UserId::new(OWNER),
+                &owner,
+                &g,
+                t.clone(),
+                None,
+                false,
+                false
+            )
+            .is_err()
+        );
+        assert!(plan_edit_guild(UserId::new(9), &manager, &g, t, Some(&to), false, false).is_err());
     }
 
     #[test]
@@ -648,6 +699,67 @@ mod tests {
         assert_eq!(validate_ban_reason(Some("  ".into())).unwrap(), None);
         assert!(validate_ban_reason(Some("x".repeat(513))).is_err());
     }
+    #[test]
+    fn afk_channel_and_timeout_rules() {
+        let g = guild();
+        let manager = actor_with(Permissions::MANAGE_GUILD, 1);
+        let edit = |patch: GuildPatch, afk_ok: bool| {
+            plan_edit_guild(UserId::new(5), &manager, &g, patch, None, false, afk_ok)
+        };
+        assert_eq!(
+            (g.afk_channel_id, g.afk_timeout),
+            (None, DEFAULT_AFK_TIMEOUT)
+        );
+        let set = GuildPatch {
+            afk_channel_id: Some(Some(ChannelId::new(77))),
+            afk_timeout: Some(900),
+            ..Default::default()
+        };
+        let out = edit(set.clone(), true).unwrap();
+        assert_eq!(
+            (out.afk_channel_id, out.afk_timeout),
+            (Some(ChannelId::new(77)), 900)
+        );
+        // Not a voice channel of this guild.
+        assert!(edit(set, false).is_err());
+        // Clearing never needs a channel; unset fields stay.
+        let cleared = plan_edit_guild(
+            UserId::new(5),
+            &manager,
+            &out,
+            GuildPatch {
+                afk_channel_id: Some(None),
+                ..Default::default()
+            },
+            None,
+            false,
+            false,
+        )
+        .unwrap();
+        assert_eq!((cleared.afk_channel_id, cleared.afk_timeout), (None, 900));
+        for bad in [0, 30, 301, 7200] {
+            let p = GuildPatch {
+                afk_timeout: Some(bad),
+                ..Default::default()
+            };
+            assert!(edit(p, true).is_err(), "{bad}");
+        }
+        for ok in AFK_TIMEOUTS {
+            let p = GuildPatch {
+                afk_timeout: Some(ok),
+                ..Default::default()
+            };
+            assert_eq!(edit(p, true).unwrap().afk_timeout, ok);
+        }
+        // The setting needs MANAGE_GUILD like the rest, and is not an owner-only transfer.
+        let plain = actor_with(Permissions::empty(), 1);
+        let p = GuildPatch {
+            afk_timeout: Some(60),
+            ..Default::default()
+        };
+        assert!(plan_edit_guild(UserId::new(5), &plain, &g, p, None, false, true).is_err());
+    }
+
     #[test]
     fn member_filter_and_prune_plan_validate() {
         let roles = [everyone(), role(200, 1, Permissions::empty())];

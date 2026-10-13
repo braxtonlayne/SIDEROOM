@@ -98,6 +98,14 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
                 .is_some_and(|ch| ch.guild_id == Some(id) && ch.kind == ChannelType::Text),
             None => true,
         };
+        let afk_ok = match patch.afk_channel_id.flatten() {
+            Some(cid) => self
+                .repo
+                .get_channel(cid)
+                .await?
+                .is_some_and(|ch| ch.guild_id == Some(id) && ch.kind == ChannelType::Voice),
+            None => true,
+        };
         let updated = plan_edit_guild(
             actor,
             &c.actor,
@@ -105,6 +113,7 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
             patch,
             new_owner.as_ref(),
             system_ok,
+            afk_ok,
         )?;
         self.repo.update_guild(&updated).await?;
         Ok(updated)

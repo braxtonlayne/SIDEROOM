@@ -347,3 +347,59 @@ async fn member_search_role_filter_and_prune() {
     // Removing nobody is fine.
     assert_eq!(svc.prune(owner, gid, 7, &[]).await.unwrap(), vec![]);
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn afk_settings_persist_and_clear_when_the_channel_is_deleted() {
+    use sr_chat::channel_rules::NewChannel;
+    use sr_chat::domain::ChannelType;
+    let pool = pool().await;
+    let (svc, ids) = service(&pool);
+    let owner = account(&pool, &ids).await;
+    let bp = svc.create_guild(owner, "Afk Test").await.unwrap();
+    let gid = bp.guild.id;
+    assert_eq!((bp.guild.afk_channel_id, bp.guild.afk_timeout), (None, 300));
+
+    let voice = svc
+        .create_channel(
+            owner,
+            gid,
+            NewChannel::new(ChannelType::Voice, "afk-lounge"),
+        )
+        .await
+        .unwrap();
+    let edited = svc
+        .edit_guild(
+            owner,
+            gid,
+            GuildPatch {
+                afk_channel_id: Some(Some(voice.id)),
+                afk_timeout: Some(1800),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(edited.afk_channel_id, Some(voice.id));
+    let (g, _) = svc.get_guild(owner, gid).await.unwrap();
+    assert_eq!((g.afk_channel_id, g.afk_timeout), (Some(voice.id), 1800));
+
+    // A text channel is refused.
+    let text = bp.channels[2].id;
+    assert!(
+        svc.edit_guild(
+            owner,
+            gid,
+            GuildPatch {
+                afk_channel_id: Some(Some(text)),
+                ..Default::default()
+            }
+        )
+        .await
+        .is_err()
+    );
+    // Deleting the channel clears the setting (FK ON DELETE SET NULL); the timeout stays.
+    svc.delete_channel(owner, voice.id).await.unwrap();
+    let (g, _) = svc.get_guild(owner, gid).await.unwrap();
+    assert_eq!((g.afk_channel_id, g.afk_timeout), (None, 1800));
+}
