@@ -23,4 +23,5 @@ mod tests;
 pub use error::{AdminError, AdminResult};
 pub use model::*;
 pub use repo::AdminRepository;
-pub use service::{AdminService, SYSTEM_USER_ID};
+pub use service::{AdminService, SYSTEM_USER_ID, SettingView};
+pub use settings::SettingKind;

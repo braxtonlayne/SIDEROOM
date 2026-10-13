@@ -442,6 +442,22 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let social_api = Arc::new(social_api);
     let messages = messages.with_dm_announcer(social_api.clone());
 
+    // Platform admin API: permissions are resolved per request from the Staff Server; every
+    // action is written to the hash-chained access log. Feature toggles go through the shared
+    // feature service and the System page reports the live gateway session count.
+    let admin = routes::admin::AdminDeps::new(
+        sr_admin::AdminService::new(Arc::new(sr_db::admin_repo::PgAdminRepo::new(
+            pool.clone(),
+            id_src.clone(),
+        )))
+        .with_bus(bus.clone()),
+    )
+    .with_features(features.clone())
+    .with_gateway_sessions({
+        let gw = gateway.clone();
+        Arc::new(move || gw.session_count())
+    });
+
     let settings = ApiSettings {
         trust_forwarded_for: cfg.server.trust_forwarded_for,
         ..ApiSettings::for_public_url(&cfg.server.public_url)
@@ -452,6 +468,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .clock(clock)
         .session_policy(auth_cfg.session_policy())
         .extension(auth_service)
+        .extension(Arc::new(admin))
         .sessions(Arc::new(auth_repo))
         .bots(Arc::new(NoBots))
         .bearers(Arc::new(NoBearers))
@@ -510,9 +527,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::jobs::register_attachment_gc(runner, &pool, storage.clone());
     let runner = crate::jobs::register_audit_purge(runner, &pool);
     let runner = crate::search_jobs::register(runner, &pool, indexer);
+    let runner = crate::admin_jobs::register(runner, &pool, id_src.clone(), bus.clone());
     crate::jobs::schedule_recurring(&pool).await?;
     crate::jobs::schedule_audit_purge(&pool).await?;
     crate::jobs::schedule_attachment_gc(&pool).await?;
+    crate::admin_jobs::schedule(&pool).await?;
     let jobs_task = tokio::spawn(runner.run(job_rx));
 
     // REST: every feature module, feature-owned routes, and the guild backend.

@@ -548,6 +548,24 @@ impl AdminService {
         Ok(d)
     }
 
+    /// Ban the Person behind `account_id`; the account is the source for inviter suspicion.
+    pub async fn ban_account(
+        &self,
+        c: &Caller,
+        account_id: i64,
+        category: BanCategory,
+        note: Option<&str>,
+    ) -> AdminResult<BanOutcome> {
+        self.require(c, P::PLATFORM_BAN, "person.ban").await?;
+        let a = self
+            .repo
+            .account_detail(account_id)
+            .await?
+            .ok_or(AdminError::NotFound("account"))?;
+        self.ban_person(c, a.account.person_id, Some(account_id), category, note)
+            .await
+    }
+
     /// Ban the Person (all its live accounts). `source_account` is the account the staff
     /// member acted on; a serious ban raises suspicion on that account's inviter.
     pub async fn ban_person(

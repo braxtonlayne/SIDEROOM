@@ -222,6 +222,15 @@ impl AuthService {
         self
     }
 
+    /// The account cap in force: the staff-set `accounts.cap` setting, else the configured one.
+    pub(super) async fn account_cap(&self) -> Result<u64, sr_auth::store::StoreError> {
+        Ok(self
+            .store
+            .account_cap_override()
+            .await?
+            .unwrap_or(self.cfg.account_cap))
+    }
+
     pub(super) fn next_id(&self) -> i64 {
         (self.ids)()
     }

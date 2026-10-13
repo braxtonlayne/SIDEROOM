@@ -41,7 +41,7 @@ pub async fn check_invite(
         .hit("invite-check", &ip, state.now_secs(), &INVITE_RULES)
         .map_err(|retry_after| AuthRouteError::Throttled { retry_after })?;
 
-    if svc.store.counted_accounts().await? >= svc.cfg.account_cap {
+    if svc.store.counted_accounts().await? >= svc.account_cap().await? {
         return Ok(Json(json!({ "valid": false, "reason": "closed" })));
     }
     let valid = match InviteCode::parse(&code) {

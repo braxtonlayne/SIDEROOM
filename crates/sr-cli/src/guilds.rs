@@ -105,7 +105,58 @@ pub async fn create_staff_guild(
         .await
         .context("recording #alerts on the Staff Server")?;
     }
+    create_staff_roles(pool, &snow, guild, owner).await?;
     Ok(guild)
+}
+
+/// Instantiate the `staff_role_templates` rows as roles of the Staff Server and give
+/// the Owner the Owner role plus an appointment row.
+async fn create_staff_roles(
+    pool: &PgPool,
+    snow: &SnowflakeGenerator<SystemClock>,
+    guild: GuildId,
+    owner: i64,
+) -> Result<()> {
+    let g = i64::try_from(guild.get()).unwrap_or(0);
+    let templates: Vec<(String, i32, i32, i64)> = sqlx::query_as(
+        "SELECT name, position, color, platform_permissions FROM staff_role_templates ORDER BY position",
+    )
+    .fetch_all(pool)
+    .await
+    .context("reading staff_role_templates")?;
+    for (name, position, color, perms) in templates {
+        let id = i64::try_from(snow.generate().get()).unwrap_or(0);
+        sqlx::query(
+            "INSERT INTO roles (id, guild_id, name, color, position, platform_permissions, hoist, mentionable) \n             VALUES ($1,$2,$3,$4,$5,$6,true,true)",
+        )
+        .bind(id)
+        .bind(g)
+        .bind(&name)
+        .bind(color)
+        .bind(position)
+        .bind(perms)
+        .execute(pool)
+        .await
+        .with_context(|| format!("creating staff role {name}"))?;
+        if name == "Owner" {
+            sqlx::query("INSERT INTO member_roles (guild_id, user_id, role_id) VALUES ($1,$2,$3)")
+                .bind(g)
+                .bind(owner)
+                .bind(id)
+                .execute(pool)
+                .await
+                .context("giving the Owner role")?;
+        }
+    }
+    sqlx::query(
+        "INSERT INTO staff_appointments (id, account_id, appointed_by, reason) VALUES ($1,$2,$2,'Owner')",
+    )
+    .bind(i64::try_from(snow.generate().get()).unwrap_or(0))
+    .bind(owner)
+    .execute(pool)
+    .await
+    .context("appointing the Owner")?;
+    Ok(())
 }
 
 /// Markdown samples cycled through the seeded messages.
