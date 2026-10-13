@@ -7,7 +7,7 @@ import { A, chapter, DONE, renderAt, series, seriesPage, useLibraryApi } from '.
 
 beforeEach(() => {
   localStorage.clear();
-  setProgressApi(null);
+  setProgressApi(localProgress);
 });
 
 describe('Library home', () => {

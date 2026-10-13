@@ -64,6 +64,7 @@ export interface ChapterProgress {
   page_index: number;
   percent: number;
   completed: boolean;
+  updated_at_ms?: number;
 }
 
 export interface Chapter {

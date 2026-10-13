@@ -18,7 +18,7 @@ const shown = () =>
 beforeEach(() => {
   localStorage.clear();
   useReaderPrefsStore.setState({ global: {}, series: {} });
-  setProgressApi(null);
+  setProgressApi(localProgress);
 });
 
 describe('reader', () => {

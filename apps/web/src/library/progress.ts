@@ -1,23 +1,25 @@
 // Reading progress and bookmarks: the one place the Library UI talks to those (LIB-RDR-012/013).
 //
-// The server endpoints are being added by feat/p4-library-wiring, so this layer has two implementations behind
-// one interface:
-//   - `httpProgress`: the documented routes (shapes below);
-//   - `localProgress`: localStorage, so the reader already remembers where you were.
-// Wiring is a one-line switch: set USE_SERVER_PROGRESS to true. Nothing else in the UI imports either one.
+// Two implementations sit behind one interface:
+//   - `httpProgress`: the server routes (docs/specs/library-reader.md section 6), used by default so progress follows
+//     the account across devices;
+//   - `localProgress`: localStorage, kept for tests and as a fallback.
+// Nothing else in the UI imports either one.
 //
-// Assumed server shapes (adjust the http functions only if the real ones differ):
-//   PUT    /library/chapters/{id}/progress        {page_index, percent, completed}   -> ChapterProgress
-//   GET    /library/chapters/{id}/progress        -> ChapterProgress
-//   GET    /library/me/progress?limit=            -> {items: [{series: Series, chapter: Chapter}]}   (newest first;
-//                                                    chapter.progress is set)
-//   GET    /library/chapters/{id}/bookmarks       -> {items: [{id, page_index, note, created_at_ms}]}
-//   POST   /library/chapters/{id}/bookmarks       {page_index, note?}  -> the bookmark
-//   DELETE /library/chapters/{id}/bookmarks/{bid}
+// Routes used (the OpenAPI document is the contract):
+//   PUT    /library/chapters/{id}/progress   {page_index, percent, completed}   -> {progress, applied}
+//   GET    /library/chapters/{id}/progress   -> Progress (404 when none)
+//   GET    /library/me/progress?limit=       -> {items: [{series, chapter}], next_before}
+//   GET    /library/chapters/{id}/bookmarks  -> {bookmarks: [Bookmark]}
+//   PUT    /library/chapters/{id}/bookmarks  {page_index, note?} -> Bookmark (one per page)
+//   DELETE /library/bookmarks/{id}
+//
+// The server also supports a conflict prompt (base_updated_at_ms / applied: false). The reader does not use it yet,
+// so a save always applies.
 import { apiFetch } from '../api/client';
 import type { Chapter, ChapterProgress, Series } from './types';
 
-export const USE_SERVER_PROGRESS = false;
+export const USE_SERVER_PROGRESS = true;
 
 /** What the reader reports for a chapter. The meta fields feed "Pick up where you left off" in local mode. */
 export interface ProgressInput {
@@ -61,6 +63,7 @@ export interface ProgressApi {
 
 interface WireBookmark {
   id: string;
+  chapter_id: string;
   page_index: number;
   note?: string | null;
   created_at_ms: number;
@@ -98,7 +101,7 @@ export const httpProgress: ProgressApi = {
               pageIndex: chapter.progress.page_index,
               percent: chapter.progress.percent,
               completed: chapter.progress.completed,
-              updatedAtMs: 0,
+              updatedAtMs: chapter.progress.updated_at_ms ?? 0,
             },
           ]
         : [],
@@ -116,23 +119,23 @@ export const httpProgress: ProgressApi = {
     }
   },
   async bookmarks(chapterId) {
-    const r = await apiFetch<{ items: WireBookmark[] }>(
+    const r = await apiFetch<{ bookmarks: WireBookmark[] }>(
       `/library/chapters/${encodeURIComponent(chapterId)}/bookmarks`,
     );
-    return r.items.map((b) => fromWire(chapterId, b));
+    return r.bookmarks.map((b) => fromWire(chapterId, b));
   },
   async addBookmark(chapterId, pageIndex, note) {
     const b = await apiFetch<WireBookmark>(
       `/library/chapters/${encodeURIComponent(chapterId)}/bookmarks`,
-      { method: 'POST', json: { page_index: pageIndex, note: note || undefined }, retries: 0 },
+      { method: 'PUT', json: { page_index: pageIndex, note: note || undefined }, retries: 0 },
     );
     return fromWire(chapterId, b);
   },
-  async removeBookmark(chapterId, id) {
-    await apiFetch(
-      `/library/chapters/${encodeURIComponent(chapterId)}/bookmarks/${encodeURIComponent(id)}`,
-      { method: 'DELETE', retries: 0 },
-    );
+  async removeBookmark(_chapterId, id) {
+    await apiFetch(`/library/bookmarks/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      retries: 0,
+    });
   },
 };
 
