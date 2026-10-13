@@ -356,11 +356,11 @@ async fn a_member_series_is_uploaded_reviewed_and_published() {
     assert_eq!(chs.chapters.len(), 1);
     assert!(chs.chapters[0].published);
     // The submitter was told.
-    let sent = w.sink.0.lock().unwrap();
-    assert!(sent.iter().all(|(u, _)| u == &vec![w.member]));
-    assert!(sent.iter().any(|(_, p)| p["type"] == "published"));
-    // The final state is stored.
-    drop(sent);
+    {
+        let sent = w.sink.0.lock().unwrap();
+        assert!(sent.iter().all(|(u, _)| u == &vec![w.member]));
+        assert!(sent.iter().any(|(_, p)| p["type"] == "published"));
+    }
     assert_eq!(w.state(s.id).await, rm::SubmissionState::Published);
 }
 
@@ -927,14 +927,15 @@ async fn requests_are_voted_and_fulfilled_by_a_published_submission() {
         .unwrap();
     assert_eq!(done.status, rm::RequestStatus::Fulfilled);
     assert_eq!(done.submission_id, Some(s.id));
-    let sent = w.sink.0.lock().unwrap();
-    assert_eq!(sent.len(), 1);
-    let mut users = sent[0].0.clone();
-    users.sort();
-    let mut want = vec![w.member, w.other];
-    want.sort();
-    assert_eq!(users, want);
-    drop(sent);
+    {
+        let sent = w.sink.0.lock().unwrap();
+        assert_eq!(sent.len(), 1);
+        let mut users = sent[0].0.clone();
+        users.sort();
+        let mut want = vec![w.member, w.other];
+        want.sort();
+        assert_eq!(users, want);
+    }
     // Closed requests take no votes; the board count query still works.
     assert!(
         w.review
