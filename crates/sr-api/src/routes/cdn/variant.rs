@@ -208,7 +208,7 @@ pub(super) async fn serve(
         Err(StorageError::NotFound(_)) => {
             match render_and_cache(deps, &parsed.key, &vkey, params.size, fmt).await {
                 Ok(b) => b,
-                Err(r) => return Outcome::Done(r),
+                Err(r) => return Outcome::Done(*r),
             }
         }
         Err(e) => return Outcome::Done(storage_err(&e)),
@@ -228,18 +228,22 @@ async fn render_and_cache(
     vkey: &str,
     size: Option<u32>,
     fmt: ImgFormat,
-) -> Result<Bytes, Response> {
-    let src = deps.storage.get(key).await.map_err(|e| storage_err(&e))?;
+) -> Result<Bytes, Box<Response>> {
+    let src = deps
+        .storage
+        .get(key)
+        .await
+        .map_err(|e| Box::new(storage_err(&e)))?;
     let _permit = deps
         .render_permits
         .acquire()
         .await
-        .map_err(|_| plain(StatusCode::SERVICE_UNAVAILABLE, "busy"))?;
+        .map_err(|_| Box::new(plain(StatusCode::SERVICE_UNAVAILABLE, "busy")))?;
     let limits = deps.limits;
     let rendered = tokio::task::spawn_blocking(move || img::render(&src, size, fmt, &limits))
         .await
-        .map_err(|_| plain(StatusCode::INTERNAL_SERVER_ERROR, "render failed"))?
-        .map_err(img_err)?;
+        .map_err(|_| Box::new(plain(StatusCode::INTERNAL_SERVER_ERROR, "render failed")))?
+        .map_err(|e| Box::new(img_err(e)))?;
     let bytes = Bytes::from(rendered.bytes);
     // Best effort: a failed write only means the next request renders again.
     if let Err(e) = deps.storage.put(vkey, bytes.clone()).await {

@@ -106,10 +106,10 @@ impl MediaDeps {
         match self.storage.list(&dir).await {
             Ok(objects) => {
                 for o in objects {
-                    if o.key == key || o.key.starts_with(&format!("{key}@")) {
-                        if let Err(e) = self.storage.delete(&o.key).await {
-                            tracing::warn!(error = %e, key = %o.key, "deleting an image failed");
-                        }
+                    if (o.key == key || o.key.starts_with(&format!("{key}@")))
+                        && let Err(e) = self.storage.delete(&o.key).await
+                    {
+                        tracing::warn!(error = %e, key = %o.key, "deleting an image failed");
                     }
                 }
             }
