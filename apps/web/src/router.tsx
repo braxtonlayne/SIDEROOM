@@ -5,6 +5,7 @@ import {
   Outlet,
   type RouterHistory,
 } from '@tanstack/react-router';
+import { createLibraryRoutes } from './library/routes';
 import { createLoungeRoutes } from './routes/lounge';
 import { createUserSettingsRoutes } from './settings/user/routes';
 import { createServerSettingsRoutes } from './routes/settingsServer';
@@ -75,7 +76,7 @@ const routeTree = root.addChildren([
   ...createUserSettingsRoutes(root),
   ...createServerSettingsRoutes(root),
   r('/cinema', P.Cinema),
-  r('/library', P.Library),
+  createLibraryRoutes(root),
   r('/admin', P.Admin),
   r('/developers', P.Developers),
   r('/support', P.Support),

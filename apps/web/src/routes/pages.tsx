@@ -10,7 +10,6 @@ function Page({ title, children }: { title: string; children?: ReactNode }) {
 }
 
 export const Cinema = () => <Page title="Cinema" />;
-export const Library = () => <Page title="Library" />;
 export const Admin = () => <Page title="Admin" />;
 export const Developers = () => <Page title="Developers" />;
 export const Support = () => <Page title="Support" />;
