@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { LiveRegions } from './a11y/announcer';
 import { initLocale } from './i18n';
 import { PwaHost } from './pwa/PwaHost';
 import { registerServiceWorker } from './pwa/register';
@@ -20,6 +21,7 @@ void initLocale().finally(() => {
       <QueryClientProvider client={queryClient}>
         <RouterProvider router={router} />
         <PwaHost />
+        <LiveRegions />
       </QueryClientProvider>
     </StrictMode>,
   );
