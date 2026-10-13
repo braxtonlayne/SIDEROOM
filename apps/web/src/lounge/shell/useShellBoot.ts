@@ -1,8 +1,10 @@
 import { useContext, useEffect } from 'react';
 import { LoungeDataContext } from '../data';
+import { useIgnores } from './ignores';
 import { useNotifSettings } from './notifSettings';
 import { startSocialLive, useSocial } from './social';
 import { useUserSettingsSync } from './userSettingsSync';
+import { startThreadsLive } from '../threads/threadStore';
 
 /**
  * Loads what the Home screen and sidebars need beyond the gateway snapshot: friends and pending requests,
@@ -13,12 +15,15 @@ export function useShellBoot() {
   const loadRelationships = useSocial((s) => s.loadRelationships);
   const loadRequests = useSocial((s) => s.loadDms);
   const loadNotif = useNotifSettings((s) => s.load);
+  const loadIgnores = useIgnores((s) => s.load);
   useUserSettingsSync(!mock);
   useEffect(() => (mock ? undefined : startSocialLive()), [mock]);
+  useEffect(() => (mock ? undefined : startThreadsLive()), [mock]);
   useEffect(() => {
     if (mock) return;
     void loadRelationships();
     void loadRequests();
     void loadNotif('@me');
-  }, [mock, loadRelationships, loadRequests, loadNotif]);
+    void loadIgnores();
+  }, [mock, loadRelationships, loadRequests, loadNotif, loadIgnores]);
 }

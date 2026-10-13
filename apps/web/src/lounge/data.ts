@@ -99,6 +99,10 @@ export interface ChannelPermissions {
   mentionEveryone: boolean;
   manageChannels: boolean;
   createInvite: boolean;
+  /** SEND_TTS_MESSAGES: the /tts command. */
+  sendTts?: boolean;
+  /** CREATE_PUBLIC_THREADS. */
+  createThreads?: boolean;
 }
 
 export interface Channel {
@@ -150,6 +154,10 @@ export interface Role {
   /** Hoisted roles get their own member-list group. */
   hoist: boolean;
   position: number;
+  /** Second colour of a gradient role (CSS hex). */
+  colorSecondary?: string | null;
+  /** Emoji shown as the role icon next to the name. */
+  emoji?: string | null;
 }
 
 export interface Member {
@@ -274,6 +282,12 @@ export interface Message {
   suppressEmbeds?: boolean;
   /** Buttons and selects on app messages. */
   components?: import('../store/types').RawComponent[];
+  /** `message_reference.channel_id`: the thread of a thread-created row, the origin of a thread's first row. */
+  referenceChannelId?: Snowflake | null;
+  /** Text-to-speech message. */
+  tts?: boolean;
+  /** The thread started from this message. */
+  thread?: { id: Snowflake; name: string; messageCount: number } | null;
 }
 
 export interface MessagesState {
@@ -310,7 +324,13 @@ export interface LoungeActions {
   retryMessage?(channelId: Snowflake, messageId: Snowflake): void;
   discardMessage?(channelId: Snowflake, messageId: Snowflake): void;
   loadOlder(channelId: Snowflake): void;
+  /** Jumped-to window: load the page after the newest loaded message. */
+  loadNewer?(channelId: Snowflake): void;
   markRead(channelId: Snowflake): void;
+  /** Mark Unread from a message; resolves with the id of the last message still counted as read. */
+  markUnread?(channelId: Snowflake, messageId: Snowflake): Promise<Snowflake>;
+  /** The viewer left the channel: automatic read acks resume. */
+  releaseUnread?(channelId: Snowflake): void;
   markGuildRead(guildId: Snowflake): void;
   toggleReaction(channelId: Snowflake, messageId: Snowflake, emoji: string): void;
   /** Throttled "I am typing" signal. */

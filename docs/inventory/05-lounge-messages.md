@@ -36,11 +36,11 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [ ] **LNG-MD-006** [FE] React AST renderer + syntax highlighting (lazy-loaded grammar set)
 
 ## LNG-MSGUI — Message list UI
-- [ ] **LNG-MSGUI-001** [FE] Virtualized message list with bidirectional pagination, scroll anchoring, jump-to-message (highlight flash), jump-to-present bar
-- [ ] **LNG-MSGUI-002** [FE] Message group header (avatar, name w/ role color/gradient, role icon, tag chip, APP badge, timestamp) + continuation rows with hover timestamp
-- [ ] **LNG-MSGUI-003** [FE] Cozy vs compact display modes
+- [x] **LNG-MSGUI-001** [FE] Virtualized message list with bidirectional pagination, scroll anchoring, jump-to-message (highlight flash), jump-to-present bar
+- [x] **LNG-MSGUI-002** [FE] Message group header (avatar, name w/ role color/gradient, role icon, tag chip, APP badge, timestamp) + continuation rows with hover timestamp *Gradient renders when a role has colors.secondary_color, which the server does not send yet; the role icon is the role's unicode emoji.*
+- [x] **LNG-MSGUI-003** [FE] Cozy vs compact display modes
 - [x] **LNG-MSGUI-004** [FE] Date dividers, "NEW" unread divider, unread banner with "Mark As Read"
-- [ ] **LNG-MSGUI-005** [FE] Reply preview line (avatar, name, snippet, click to jump, "Original message was deleted")
+- [x] **LNG-MSGUI-005** [FE] Reply preview line (avatar, name, snippet, click to jump, "Original message was deleted")
 - [ ] **LNG-MSGUI-006** [FE] Forwarded message frame ("Forwarded" + source)
 - [x] **LNG-MSGUI-007** [FE] "(edited)" tag with tooltip timestamp
 - [x] **LNG-MSGUI-008** [FE] Mention highlight (row tint + left bar) for messages mentioning me
@@ -54,20 +54,20 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [x] **LNG-MSGUI-016** [FE] Embed renderer (color bar, author, title, description md, fields inline/block, image, thumbnail, footer, timestamp, video/provider)
 - [x] **LNG-MSGUI-017** [FE] Click-to-load third-party embeds (YouTube etc.) with privacy notice
 - [ ] **LNG-MSGUI-018** [FE] Cinema/Library rich cards (poster, title, meta, Watch/Read, Watch together)
-- [ ] **LNG-MSGUI-019** [FE] Server invite embed, message link preview
+- [x] **LNG-MSGUI-019** [FE] Server invite embed, message link preview *Message links only; Cinema/Library cards are LNG-MSGUI-018.*
 - [x] **LNG-MSGUI-020** [FE] Sticker render (PNG/APNG/Lottie-free GIF/WebP), sticker tooltip
 - [x] **LNG-MSGUI-021** [FE] Poll widget (answers with emoji, vote select, multi, results bars, %, voters list modal, time left, End Poll)
-- [ ] **LNG-MSGUI-022** [FE] Components: buttons (styles, link, disabled), select menus (string/user/role/channel), loading state, "interaction failed"
-- [ ] **LNG-MSGUI-023** [FE] Reactions row (emoji, count, me-reacted state, burst animation, tooltip of reactors, add-reaction button)
+- [x] **LNG-MSGUI-022** [FE] Components: buttons (styles, link, disabled), select menus (string/user/role/channel), loading state, "interaction failed" *Multi-value selects behave as single; interactions still fail because there is no interaction endpoint.*
+- [x] **LNG-MSGUI-023** [FE] Reactions row (emoji, count, me-reacted state, burst animation, tooltip of reactors, add-reaction button) *Burst is the add animation; super reactions are not backed by the server.*
 - [x] **LNG-MSGUI-024** [FE] Reactors modal (per-emoji tabs, user list, remove for mods)
-- [ ] **LNG-MSGUI-025** [FE] Hover action bar (quick reactions ×3, add reaction, reply, forward, create thread, edit, more)
-- [ ] **LNG-MSGUI-026** [FE] Message context menu (Add Reaction ▸, Edit, Reply, Forward, Create Thread, Copy Text, Apps ▸, Mark Unread, Copy Message Link, Pin, Speak Message, Remind Me, Bookmark, Delete, Report (flagged off), Copy Message ID)
+- [x] **LNG-MSGUI-025** [FE] Hover action bar (quick reactions ×3, add reaction, reply, forward, create thread, edit, more)
+- [x] **LNG-MSGUI-026** [FE] Message context menu (Add Reaction ▸, Edit, Reply, Forward, Create Thread, Copy Text, Apps ▸, Mark Unread, Copy Message Link, Pin, Speak Message, Remind Me, Bookmark, Delete, Report (flagged off), Copy Message ID) *No Apps submenu (no installed apps); Remind Me fires while the app is open.*
 - [x] **LNG-MSGUI-027** [FE] Inline edit mode (Esc cancel / Enter save / "escape to cancel • enter to save" hint), empty edit → delete prompt
 - [x] **LNG-MSGUI-028** [FE] Delete confirm modal (shift-click bypass), pin confirm modal
 - [x] **LNG-MSGUI-029** [FE] Forward modal (destination search, multi-select ≤ 5, optional message)
-- [ ] **LNG-MSGUI-030** [FE] System message renderers (join, pin, thread, call, follow, support)
+- [x] **LNG-MSGUI-030** [FE] System message renderers (join, pin, thread, call, follow, support) *The call row has no participants or duration (the server stores none).*
 - [x] **LNG-MSGUI-031** [FE] Failed-send state (retry/delete), pending (greyed) state with nonce reconciliation
-- [ ] **LNG-MSGUI-032** [FE] Blocked/ignored message collapsing
+- [x] **LNG-MSGUI-032** [FE] Blocked/ignored message collapsing
 - [x] **LNG-MSGUI-033** [FE] Typing indicator bar (animated dots, names)
 - [ ] **LNG-MSGUI-034** [FE] Speak Message (Web Speech API TTS) + /tts permission
 

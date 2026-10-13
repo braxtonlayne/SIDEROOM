@@ -380,6 +380,15 @@ export const LIVE_ACTIONS: LoungeActions = {
   loadOlder(channelId) {
     void useStore.getState().loadOlderMessages(channelId);
   },
+  loadNewer(channelId) {
+    void useStore.getState().loadNewerMessages(channelId);
+  },
+  markUnread(channelId, messageId) {
+    return useStore.getState().markUnread(channelId, messageId);
+  },
+  releaseUnread(channelId) {
+    useStore.getState().releaseAck(channelId);
+  },
   markRead(channelId) {
     useStore.getState().ackChannel(channelId);
   },

@@ -847,3 +847,121 @@
   align-items: center;
   border-left-color: var(--brand);
 }
+.lng-cselect-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.lng-msglink {
+  border-left-color: var(--ui-border);
+}
+.lng-msglink-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+.lng-msglink-text {
+  margin-bottom: 4px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* LNG-MSGUI-002 / 003 / 005 / 032 */
+.lng-msg-author[data-gradient] {
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+.lng-role-icon {
+  font-size: 0.9em;
+  line-height: 1;
+}
+.lng-reply-avatar {
+  flex: none;
+}
+.lng-msg[data-compact] .lng-msg-hover-time {
+  visibility: visible;
+  width: auto;
+  padding-right: 8px;
+}
+.lng-msg[data-compact] .lng-msg-head {
+  display: inline-flex;
+  float: left;
+  margin-right: 6px;
+}
+.lng-msg[data-compact] .lng-msg-head::after {
+  content: ':';
+  color: var(--text-muted);
+}
+.lng-msg[data-compact] .lng-msg-content {
+  display: block;
+}
+.lng-hidden-run {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 16px 0 72px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 13px;
+  background: var(--ui-bg-hover);
+}
+
+/* LNG-MSGUI-023: burst on add, inline add-reaction button */
+.lng-reaction {
+  position: relative;
+}
+.lng-reaction[data-burst] .lng-reaction-emoji {
+  display: inline-block;
+  animation: lng-reaction-pop 0.45s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+.lng-reaction[data-burst]::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 10px;
+  border: 2px solid var(--brand);
+  pointer-events: none;
+  animation: lng-reaction-ring 0.6s ease-out forwards;
+}
+.lng-reaction-add {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+  opacity: 0;
+}
+.lng-msg:hover .lng-reaction-add,
+.lng-msg:focus-within .lng-reaction-add,
+.lng-reaction-add[aria-expanded='true'] {
+  opacity: 1;
+}
+@keyframes lng-reaction-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.6) rotate(-8deg);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes lng-reaction-ring {
+  0% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lng-reaction[data-burst] .lng-reaction-emoji,
+  .lng-reaction[data-burst]::after {
+    animation: none;
+  }
+}

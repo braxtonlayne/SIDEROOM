@@ -1,0 +1,109 @@
+/* Thread pane, threads popover, thread chip (LNG-THR UI) */
+.lng-thread-pane {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  width: min(420px, 40%);
+  min-width: 300px;
+  min-height: 0;
+  border-left: 1px solid var(--ui-border);
+  background: var(--bg-base-low);
+}
+.lng-root[data-mobile] .lng-thread-pane {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  width: auto;
+}
+.lng-thread-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  height: 48px;
+  border-bottom: 1px solid var(--ui-border);
+}
+.lng-thread-title {
+  flex: 1;
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 16px;
+}
+.lng-thread-note {
+  margin: 0;
+  padding: 8px 16px;
+}
+.lng-threads-pop {
+  width: 320px;
+  max-height: 420px;
+  overflow: auto;
+  padding: 8px;
+}
+.lng-threads-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.lng-threads-tabs button {
+  flex: 1;
+  padding: 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 600;
+  cursor: pointer;
+}
+.lng-threads-tabs button[aria-selected='true'] {
+  background: var(--ui-bg-hover);
+  color: var(--text-normal);
+}
+.lng-threads-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.lng-threads-list button {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 2px;
+  padding: 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-normal);
+  text-align: left;
+  cursor: pointer;
+}
+.lng-threads-list button:hover,
+.lng-threads-list button:focus-visible {
+  background: var(--ui-bg-hover);
+}
+.lng-thread-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background: var(--bg-base-lower);
+  color: var(--text-normal);
+  font-size: 13px;
+  cursor: pointer;
+}
+.lng-thread-chip:hover {
+  border-color: var(--brand);
+}
+.lng-field-label {
+  display: block;
+  margin: 8px 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}

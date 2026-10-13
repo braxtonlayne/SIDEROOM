@@ -25,12 +25,13 @@ export const fetchMembers = (guildId: string, limit = 1000) =>
 /** The server returns newest first; this returns oldest first. */
 export async function fetchMessages(
   channelId: string,
-  opts: { before?: string; limit?: number } = {},
+  opts: { before?: string; after?: string; limit?: number } = {},
 ): Promise<Message[]> {
   const q = new URLSearchParams({ limit: String(opts.limit ?? PAGE_SIZE) });
   if (opts.before) q.set('before', opts.before);
+  if (opts.after) q.set('after', opts.after);
   const list = await apiFetch<Message[]>(`/channels/${channelId}/messages?${q}`);
-  return [...list].reverse();
+  return opts.after ? [...list].sort((a, b) => cmpId(a.id, b.id)) : [...list].reverse();
 }
 
 /** Optional parts of a new message (uploaded files, a poll, reply ping control). */
@@ -140,6 +141,14 @@ export const ackMessage = (channelId: string, messageId: string) =>
   apiFetch<void>(`/channels/${channelId}/messages/${messageId}/ack`, {
     method: 'POST',
     json: {},
+    retries: 0,
+  });
+
+/** "Mark as unread": the read marker is set to exactly `messageId` (the message before the unread one). */
+export const markMessageUnread = (channelId: string, messageId: string) =>
+  apiFetch<void>(`/channels/${channelId}/messages/${messageId}/ack`, {
+    method: 'POST',
+    json: { manual: true, mention_count: 0 },
     retries: 0,
   });
 

@@ -10,6 +10,7 @@ export const server = setupServer(
   // Home screen loads: nobody to befriend, no DMs, online with no custom status.
   http.get('*/api/v1/users/@me/relationships', () => HttpResponse.json([])),
   http.get('*/api/v1/users/@me/channels', () => HttpResponse.json([])),
+  http.get('*/api/v1/users/@me/ignores', () => HttpResponse.json([])),
   http.get('*/api/v1/users/@me/presence', () =>
     HttpResponse.json({ status: 'online', custom_status: null }),
   ),

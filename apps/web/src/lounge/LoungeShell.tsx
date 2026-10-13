@@ -30,6 +30,8 @@ import { useLoungeGoto, useLoungeRoute } from './nav';
 import { DmProfilePanel, HomeFriends, PickChannel } from './Panels';
 import { QuickSwitcher } from './QuickSwitcher';
 import { ConnectionBanner, NoticesBar } from './shell/Banners';
+import { ReminderTicker } from './shell/ReminderTicker';
+import { ThreadPane } from './threads/ThreadPane';
 import { useShellBoot } from './shell/useShellBoot';
 import { ShortcutSheet } from './ShortcutSheet';
 import { matchShortcut } from './shortcuts';
@@ -147,7 +149,7 @@ function useSwipe(order: Pane[], pane: Pane, setPane: (p: Pane) => void) {
 }
 
 function Main({ isMobile, onBack }: { isMobile: boolean; onBack: () => void }) {
-  const { guildId, channelId } = useLoungeRoute();
+  const { guildId, channelId, threadId } = useLoungeRoute();
   const channels = useChannels(guildId && guildId !== HOME ? guildId : undefined);
   const navigate = useNavigate();
   const remembered = useLoungeUi((s) => (guildId ? s.lastChannelByGuild[guildId] : undefined));
@@ -167,12 +169,17 @@ function Main({ isMobile, onBack }: { isMobile: boolean; onBack: () => void }) {
   if (!guildId) return null;
   if (!channelId) return guildId === HOME ? <HomeFriends /> : <PickChannel guildId={guildId} />;
   return (
-    <ChannelView
-      key={channelId}
-      guildId={guildId}
-      channelId={channelId}
-      onBack={isMobile ? onBack : undefined}
-    />
+    <>
+      <ChannelView
+        key={channelId}
+        guildId={guildId}
+        channelId={channelId}
+        onBack={isMobile ? onBack : undefined}
+      />
+      {threadId && guildId !== HOME && (
+        <ThreadPane key={threadId} guildId={guildId} parentId={channelId} threadId={threadId} />
+      )}
+    </>
   );
 }
 
@@ -336,6 +343,7 @@ function Shell() {
           <p>The inbox ships with the notifications inventory items.</p>
         </ComingSoon>
         <LoungeDialogs />
+        <ReminderTicker />
         <QuickSwitcher open={switcher} onClose={() => setSwitcher(false)} />
         <ShortcutSheet open={sheet} onClose={() => setSheet(false)} />
       </ToastProvider>
