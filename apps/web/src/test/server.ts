@@ -7,6 +7,7 @@ export const server = setupServer(
     HttpResponse.json({ message: 'Unauthorized' }, { status: 401 }),
   ),
   http.get('*/api/v1/sr/auth/discord/pending', () => HttpResponse.json(null)),
+  http.get('*/api/v1/sr/auth/passkeys', () => HttpResponse.json([])),
   // Home screen loads: nobody to befriend, no DMs, online with no custom status.
   http.get('*/api/v1/users/@me/relationships', () => HttpResponse.json([])),
   http.get('*/api/v1/users/@me/channels', () => HttpResponse.json([])),

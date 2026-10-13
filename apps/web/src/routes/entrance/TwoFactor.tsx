@@ -77,9 +77,10 @@ export function TwoFactor() {
   // Q83: only the methods the server offered at the password step are shown.
   const [methods] = useState(readMfaMethods);
   const hasTotp = methods.includes('totp');
-  const hasRecovery = methods.includes('recovery');
-  const hasPasskey = methods.includes('webauthn');
-  const [mode, setMode] = useState<'totp' | 'recovery'>(hasTotp ? 'totp' : 'recovery');
+  const hasPasskey = methods.includes('passkey');
+  const [mode, setMode] = useState<'totp' | 'recovery' | 'passkey'>(
+    hasTotp ? 'totp' : hasPasskey ? 'passkey' : 'recovery',
+  );
   const [code, setCode] = useState('');
   const [recovery, setRecovery] = useState('');
   const [trust, setTrust] = useState(false);
@@ -136,16 +137,20 @@ export function TwoFactor() {
     >
       <FormHead
         eyebrow="Two-step check"
-        title={mode === 'totp' ? 'Your code.' : 'Recovery code.'}
+        title={
+          mode === 'totp' ? 'Your code.' : mode === 'passkey' ? 'Your passkey.' : 'Recovery code.'
+        }
         sub={
           mode === 'totp'
             ? 'Enter the six-digit code from your authenticator app.'
-            : 'Enter one of the recovery codes you saved. Each works once.'
+            : mode === 'passkey'
+              ? 'Use the passkey on this device or a security key.'
+              : 'Enter one of the recovery codes you saved. Each works once.'
         }
       />
       <form className="ent-form" onSubmit={onSubmit} noValidate>
         <FormError>{error}</FormError>
-        {mode === 'totp' ? (
+        {mode === 'passkey' ? null : mode === 'totp' ? (
           <OtpInput
             value={code}
             disabled={busy}
@@ -168,22 +173,34 @@ export function TwoFactor() {
           checked={trust}
           onChange={(e) => setTrust(e.target.checked)}
         />
-        <GoldButton type="submit" arrow disabled={busy} aria-busy={busy}>
-          {busy ? 'Checking…' : 'Step inside'}
-        </GoldButton>
-        {hasPasskey && <PasskeyButton onDone={finish} onError={setError} />}
-        {hasTotp && hasRecovery && (
-          <button
-            type="button"
-            className="ent-linkbtn"
-            onClick={() => {
-              setMode(mode === 'totp' ? 'recovery' : 'totp');
-              setError(null);
-            }}
-          >
-            {mode === 'totp' ? 'Use a recovery code' : 'Use an authenticator code'}
-          </button>
+        {mode !== 'passkey' && (
+          <GoldButton type="submit" arrow disabled={busy} aria-busy={busy}>
+            {busy ? 'Checking…' : 'Step inside'}
+          </GoldButton>
         )}
+        {hasPasskey && (
+          <PasskeyButton
+            secondFactor={{ trustDevice: trust }}
+            label={mode === 'passkey' ? 'Use your passkey' : 'Use a passkey instead'}
+            onDone={finish}
+            onError={setError}
+          />
+        )}
+        {(['totp', 'recovery'] as const)
+          .filter((m) => m !== mode && methods.includes(m))
+          .map((m) => (
+            <button
+              key={m}
+              type="button"
+              className="ent-linkbtn"
+              onClick={() => {
+                setMode(m);
+                setError(null);
+              }}
+            >
+              {m === 'totp' ? 'Use an authenticator code' : 'Use a recovery code'}
+            </button>
+          ))}
         <Link to="/login" className="ent-linkbtn">
           Back to sign in
         </Link>

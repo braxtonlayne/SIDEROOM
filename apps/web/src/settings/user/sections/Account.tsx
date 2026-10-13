@@ -29,9 +29,10 @@ import {
   type TotpEnrollment,
 } from '../api';
 import { Card, Field, fmtDate, Loaded, SectionTitle, Unavailable } from '../parts';
+import { PasskeysCard } from './Passkeys';
 
 /** Asks for the account password (re-authentication) and runs `onSubmit`; the server error shows inline. */
-function PasswordPrompt({
+export function PasswordPrompt({
   open,
   title,
   description,
@@ -114,7 +115,7 @@ function PasswordPrompt({
 }
 
 /** The ten recovery codes, shown once (copy / download). */
-function RecoveryCodes({ codes, onDone }: { codes: string[]; onDone: () => void }) {
+export function RecoveryCodes({ codes, onDone }: { codes: string[]; onDone: () => void }) {
   const toast = useToast();
   const text = codes.join('\n');
   const copy = async () => {
@@ -638,6 +639,7 @@ export function AccountSection({ me, onSignedOut }: { me: Resource<Me>; onSigned
             <IdentityCard me={m} />
             <PasswordCard me={m} />
             <TwoFactorCard me={m} reload={me.reload} />
+            <PasskeysCard />
             <DiscordCard />
             <TrustedDevicesCard />
             <SessionsCard onSignedOut={onSignedOut} />
