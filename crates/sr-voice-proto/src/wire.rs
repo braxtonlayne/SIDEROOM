@@ -50,6 +50,8 @@ pub mod close {
     pub const ALREADY_AUTHENTICATED: u16 = 4005;
     /// RESUME for an unknown or expired session: rejoin through the gateway.
     pub const SESSION_INVALID: u16 = 4006;
+    /// More than 200 client messages in 10 s.
+    pub const RATE_LIMITED: u16 = 4008;
     pub const HEARTBEAT_TIMEOUT: u16 = 4009;
     /// Removed from the call (disconnected by a moderator, moved, left, channel deleted). Do not reconnect.
     pub const DISCONNECTED: u16 = 4014;
