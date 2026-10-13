@@ -2,6 +2,7 @@ import { OutlineButton } from '@sideroom/ui';
 import { useState } from 'react';
 import { ApiError } from '../api/client';
 import { resendVerification } from '../api/entrance';
+import { useT } from '../i18n/react';
 
 type Sent = 'idle' | 'sending' | 'sent' | 'wait' | 'error';
 
@@ -10,6 +11,7 @@ type Sent = 'idle' | 'sending' | 'sent' | 'wait' | 'error';
  * The caller decides `verified` (from the account); the banner renders nothing once it is true.
  */
 export function VerifyEmailBanner({ verified }: { verified: boolean }) {
+  const t = useT();
   const [state, setState] = useState<Sent>('idle');
   if (verified) return null;
 
@@ -24,11 +26,11 @@ export function VerifyEmailBanner({ verified }: { verified: boolean }) {
   };
 
   const message = {
-    idle: 'Verify your email to keep your account safe.',
-    sending: 'Sending a fresh link…',
-    sent: 'Check your inbox for the link.',
-    wait: 'A link was sent a moment ago. Try again in a minute.',
-    error: "We couldn't send the link. Try again in a moment.",
+    idle: t('entrance.verify.idle'),
+    sending: t('entrance.verify.sending'),
+    sent: t('entrance.verify.sent'),
+    wait: t('entrance.verify.wait'),
+    error: t('entrance.verify.error'),
   }[state];
 
   return (
@@ -36,7 +38,7 @@ export function VerifyEmailBanner({ verified }: { verified: boolean }) {
       <span>{message}</span>
       {state !== 'sent' && state !== 'sending' && (
         <OutlineButton type="button" onClick={() => void resend()}>
-          Resend link
+          {t('entrance.verify.resend')}
         </OutlineButton>
       )}
     </div>

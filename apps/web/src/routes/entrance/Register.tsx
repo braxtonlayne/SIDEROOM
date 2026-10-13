@@ -12,6 +12,7 @@ import {
 } from '../../api/entrance';
 import { AuthSplit, FormHead } from '../../components/AuthSplit';
 import { Divider, DiscordButton, FormError } from '../../components/FormParts';
+import { useT } from '../../i18n/react';
 import { clearInviteCode, heldInviteCode } from '../../lib/inviteCode';
 import {
   USERNAME_HINT,
@@ -33,6 +34,7 @@ function fieldErrorsFrom(e: ApiError): Partial<Record<Field, string>> {
 }
 
 export function Register() {
+  const t = useT();
   const router = useRouter();
   const [code] = useState(() => heldInviteCode());
   const [email, setEmail] = useState('');
@@ -83,14 +85,14 @@ export function Register() {
     }
     setUnameState('checking');
     let live = true;
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       checkUsername(username)
         .then((r) => live && setUnameState(r.available ? 'free' : 'taken'))
         .catch(() => live && setUnameState('idle'));
     }, 400);
     return () => {
       live = false;
-      clearTimeout(t);
+      clearTimeout(timer);
     };
   }, [username]);
 
@@ -102,8 +104,8 @@ export function Register() {
     if (un) e.username = un;
     const pw = validatePassword(password);
     if (pw) e.password = pw;
-    if (confirm !== password) e.confirm = "Those passwords don't match.";
-    if (!rules) e.rules = 'Please confirm you have read the house notes.';
+    if (confirm !== password) e.confirm = t('entrance.register.mismatch');
+    if (!rules) e.rules = t('entrance.register.rulesRequired');
     return e;
   };
 
@@ -120,7 +122,7 @@ export function Register() {
       setUnameState(taken ? 'taken' : 'free');
     }
     const e = validate();
-    if (taken) e.username = 'That username is taken.';
+    if (taken) e.username = t('entrance.register.nameTaken');
     setErrors(e);
     setFormError(null);
     if (Object.keys(e).length) return;
@@ -140,14 +142,14 @@ export function Register() {
       if (err instanceof ApiError) {
         const fe = fieldErrorsFrom(err);
         setErrors(fe);
-        if (err.status === 429) setFormError('Too many tries. Take a breath and try again later.');
+        if (err.status === 429) setFormError(t('entrance.register.tooMany'));
         else if (!Object.keys(fe).length)
           setFormError(
             err.status === 403 || err.status === 404
-              ? "That invitation doesn't open this door."
-              : "We couldn't open the door. Check the details and try again.",
+              ? t('entrance.register.badInvite')
+              : t('entrance.register.failed'),
           );
-      } else setFormError("We couldn't reach the door. Check your connection and try again.");
+      } else setFormError(t('entrance.register.unreachable'));
       setBusy(false);
     }
   };
@@ -155,23 +157,31 @@ export function Register() {
   if (!code) return null;
 
   const unameHint =
-    unameState === 'checking' ? 'Checking…' : unameState === 'free' ? 'Available.' : USERNAME_HINT;
+    unameState === 'checking'
+      ? t('entrance.register.checkingName')
+      : unameState === 'free'
+        ? t('entrance.register.nameFree')
+        : USERNAME_HINT;
 
   return (
     <AuthSplit
-      eyebrow="Your invitation worked."
-      heading="Make yourself"
-      accent="at home."
-      copy="A few details and the door is yours."
-      footLabel="Member entrance / 00"
+      eyebrow={t('entrance.register.eyebrow')}
+      heading={t('entrance.register.heading')}
+      accent={t('entrance.register.headingAccent')}
+      copy={t('entrance.register.copy')}
+      footLabel={t('entrance.register.footLabel')}
     >
-      <FormHead eyebrow="Almost inside" title="Open the door." sub="Create your account." />
+      <FormHead
+        eyebrow={t('entrance.register.formEyebrow')}
+        title={t('entrance.register.title')}
+        sub={t('entrance.register.sub')}
+      />
       {discord ? (
         <p className="ent-chip">
-          Linked to Discord as @{discord.username}
+          {t('entrance.register.discordLinked', { username: discord.username })}
           <button
             type="button"
-            aria-label="Unlink Discord"
+            aria-label={t('entrance.register.discordUnlink')}
             onClick={() => {
               void unlinkPendingDiscord().catch(() => {});
               setDiscord(null);
@@ -182,14 +192,16 @@ export function Register() {
         </p>
       ) : (
         <>
-          <DiscordButton href={discordStartUrl('register')}>Continue with Discord</DiscordButton>
-          <Divider>or start fresh</Divider>
+          <DiscordButton href={discordStartUrl('register')}>
+            {t('entrance.login.discord')}
+          </DiscordButton>
+          <Divider>{t('entrance.register.divider')}</Divider>
         </>
       )}
       <form className="ent-form" onSubmit={onSubmit} noValidate>
         <FormError>{formError}</FormError>
         <TextInput
-          label="Email"
+          label={t('entrance.register.email')}
           type="email"
           autoComplete="email"
           value={email}
@@ -197,7 +209,7 @@ export function Register() {
           error={errors.email}
         />
         <TextInput
-          label="Username"
+          label={t('entrance.register.username')}
           autoComplete="username"
           autoCapitalize="none"
           spellCheck={false}
@@ -210,23 +222,23 @@ export function Register() {
           error={errors.username}
         />
         <TextInput
-          label="Display name (optional)"
+          label={t('entrance.register.displayName')}
           autoComplete="nickname"
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
           error={errors.display_name}
         />
         <PasswordInput
-          label="Password"
+          label={t('entrance.register.password')}
           showStrength
           autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          hint="At least 10 characters."
+          hint={t('entrance.register.passwordHint')}
           error={errors.password}
         />
         <PasswordInput
-          label="Confirm password"
+          label={t('entrance.register.confirm')}
           autoComplete="new-password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
@@ -236,7 +248,8 @@ export function Register() {
           <Checkbox
             label={
               <>
-                I’ve read the <Link to="/house-notes">house notes</Link>.
+                {t('entrance.register.rulesBefore')}{' '}
+                <Link to="/house-notes">{t('entrance.register.rulesLink')}</Link>.
               </>
             }
             checked={rules}
@@ -249,9 +262,9 @@ export function Register() {
           )}
         </div>
         <GoldButton type="submit" arrow disabled={busy} aria-busy={busy}>
-          {busy ? 'Opening…' : 'Open the door'}
+          {busy ? t('entrance.register.submitting') : t('entrance.register.submit')}
         </GoldButton>
-        <p className="ent-footnote">Your invitation is single-use. Once you’re in, it’s spent.</p>
+        <p className="ent-footnote">{t('entrance.register.footnote')}</p>
       </form>
     </AuthSplit>
   );

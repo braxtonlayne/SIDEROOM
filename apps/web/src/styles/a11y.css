@@ -1,0 +1,54 @@
+/* Accessibility baseline (XC-A11Y). Uses the existing tokens; defines none. */
+
+.sr-skip-link {
+  position: absolute;
+  left: 8px;
+  top: -64px;
+  z-index: 10000;
+  padding: 10px 16px;
+  background: var(--sr-bg-1, #161613);
+  color: var(--sr-text, #ece6d6);
+  border: 1px solid var(--sr-gold, #c2b08f);
+  border-radius: var(--sr-radius, 2px);
+  text-decoration: none;
+}
+.sr-skip-link:focus {
+  top: 8px;
+}
+
+/* A programmatically focused landmark (skip link target) needs no ring. */
+main:focus,
+[role='main']:focus {
+  outline: none;
+}
+
+/* Honour the OS setting even where a component forgot to: animations collapse to a single frame. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Windows high contrast / forced colors: keep focus visible with system colours. */
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+  .sr-skip-link {
+    border-color: ButtonText;
+  }
+}
+
+/* "Increase contrast": stronger focus ring and hairlines. */
+@media (prefers-contrast: more) {
+  :focus-visible {
+    outline: 3px solid currentColor;
+    outline-offset: 2px;
+  }
+}
