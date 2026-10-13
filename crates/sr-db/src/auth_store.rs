@@ -56,6 +56,15 @@ impl PgAuthStore {
     }
 }
 
+/// `true` when a write changed a row, `false` on a unique violation (the value
+/// is taken), an error otherwise.
+fn unique_to_false(r: Result<sqlx::postgres::PgQueryResult, sqlx::Error>) -> StoreResult<bool> {
+    match r {
+        Ok(done) => Ok(done.rows_affected() > 0),
+        Err(sqlx::Error::Database(e)) if e.is_unique_violation() => Ok(false),
+        Err(e) => Err(store_err(e)),
+    }
+}
 const ACCOUNT_COLS: &str = "id, person_id, username::text AS username, display_name, \
     email::text AS email, email_verified_at IS NOT NULL AS email_verified, password_hash, \
     state::text AS state, age_confirmed, locale, flags";
@@ -245,6 +254,92 @@ impl AuthStore for PgAuthStore {
         Ok(())
     }
 
+    async fn set_display_name(&self, id: i64, display_name: Option<&str>) -> StoreResult<()> {
+        sqlx::query("UPDATE accounts SET display_name = $2, updated_at = now() WHERE id = $1")
+            .bind(id)
+            .bind(display_name)
+            .execute(&self.pool)
+            .await
+            .map_err(store_err)?;
+        Ok(())
+    }
+
+    async fn set_username(&self, id: i64, username: &str) -> StoreResult<bool> {
+        let r = sqlx::query("UPDATE accounts SET username = $2, updated_at = now() WHERE id = $1")
+            .bind(id)
+            .bind(username)
+            .execute(&self.pool)
+            .await;
+        unique_to_false(r)
+    }
+
+    async fn email_change_put(
+        &self,
+        user_id: i64,
+        new_email: &str,
+        hash: &TokenHash,
+        expires_at: i64,
+    ) -> StoreResult<()> {
+        let mut tx = self.pool.begin().await.map_err(store_err)?;
+        sqlx::query(
+            "DELETE FROM email_tokens WHERE account_id = $1 \
+             AND purpose = 'change_email'::email_token_purpose AND used_at IS NULL",
+        )
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(store_err)?;
+        sqlx::query(
+            "INSERT INTO email_tokens (id, account_id, purpose, email, token_hash, expires_at) \
+             VALUES ($1, $2, 'change_email'::email_token_purpose, $3, $4, to_timestamp($5::float8))",
+        )
+        .bind(self.next_id())
+        .bind(user_id)
+        .bind(new_email)
+        .bind(hash.as_bytes().as_slice())
+        .bind(expires_at as f64)
+        .execute(&mut *tx)
+        .await
+        .map_err(store_err)?;
+        tx.commit().await.map_err(store_err)
+    }
+
+    async fn email_change_consume(
+        &self,
+        hash: &TokenHash,
+        now: i64,
+    ) -> StoreResult<Option<(i64, String)>> {
+        let row = sqlx::query(
+            "UPDATE email_tokens SET used_at = to_timestamp($2::float8), updated_at = now() \
+             WHERE token_hash = $1 AND purpose = 'change_email'::email_token_purpose \
+             AND used_at IS NULL AND expires_at > to_timestamp($2::float8) \
+             RETURNING account_id, email::text AS email",
+        )
+        .bind(hash.as_bytes().as_slice())
+        .bind(now as f64)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(store_err)?;
+        row.map(|r| {
+            Ok((
+                r.try_get("account_id").map_err(store_err)?,
+                r.try_get("email").map_err(store_err)?,
+            ))
+        })
+        .transpose()
+    }
+
+    async fn set_email(&self, id: i64, email: &str) -> StoreResult<bool> {
+        let r = sqlx::query(
+            "UPDATE accounts SET email = $2, email_verified_at = now(), updated_at = now() \
+             WHERE id = $1",
+        )
+        .bind(id)
+        .bind(email)
+        .execute(&self.pool)
+        .await;
+        unique_to_false(r)
+    }
     async fn create_session(&self, rec: SessionRecord) -> StoreResult<()> {
         SessionRepository::create(&self.repo, rec)
             .await

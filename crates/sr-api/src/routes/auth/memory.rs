@@ -29,6 +29,8 @@ struct MemToken {
     hash: TokenHash,
     expires_at: i64,
     consumed: bool,
+    /// Pending address of a `ChangeEmail` token.
+    email: Option<String>,
 }
 
 struct MemRecovery {
@@ -316,6 +318,78 @@ impl AuthStore for MemoryAuthStore {
         Ok(())
     }
 
+    async fn set_display_name(&self, id: i64, display_name: Option<&str>) -> StoreResult<()> {
+        if let Some(a) = self.lock().accounts.get_mut(&id) {
+            a.display_name = display_name.map(str::to_owned);
+        }
+        Ok(())
+    }
+
+    async fn set_username(&self, id: i64, username: &str) -> StoreResult<bool> {
+        let mut g = self.lock();
+        if g.accounts
+            .values()
+            .any(|a| a.id != id && a.username == username)
+        {
+            return Ok(false);
+        }
+        if let Some(a) = g.accounts.get_mut(&id) {
+            username.clone_into(&mut a.username);
+        }
+        Ok(true)
+    }
+
+    async fn email_change_put(
+        &self,
+        user_id: i64,
+        new_email: &str,
+        hash: &TokenHash,
+        expires_at: i64,
+    ) -> StoreResult<()> {
+        let purpose = EmailTokenPurpose::ChangeEmail;
+        let mut g = self.lock();
+        g.tokens
+            .retain(|t| !(t.user_id == user_id && t.purpose == purpose && !t.consumed));
+        g.tokens.push(MemToken {
+            user_id,
+            purpose,
+            hash: *hash,
+            expires_at,
+            consumed: false,
+            email: Some(new_email.to_owned()),
+        });
+        Ok(())
+    }
+
+    async fn email_change_consume(
+        &self,
+        hash: &TokenHash,
+        now: i64,
+    ) -> StoreResult<Option<(i64, String)>> {
+        let mut g = self.lock();
+        let Some(t) = g.tokens.iter_mut().find(|t| {
+            t.purpose == EmailTokenPurpose::ChangeEmail
+                && t.hash.ct_eq(hash)
+                && !t.consumed
+                && t.expires_at > now
+        }) else {
+            return Ok(None);
+        };
+        t.consumed = true;
+        Ok(t.email.clone().map(|e| (t.user_id, e)))
+    }
+
+    async fn set_email(&self, id: i64, email: &str) -> StoreResult<bool> {
+        let mut g = self.lock();
+        if g.accounts.values().any(|a| a.id != id && a.email == email) {
+            return Ok(false);
+        }
+        if let Some(a) = g.accounts.get_mut(&id) {
+            email.clone_into(&mut a.email);
+            a.email_verified = true;
+        }
+        Ok(true)
+    }
     async fn create_session(&self, rec: SessionRecord) -> StoreResult<()> {
         infallible(self.sessions.create(rec).await)
     }
@@ -515,6 +589,7 @@ impl AuthStore for MemoryAuthStore {
             hash: *hash,
             expires_at,
             consumed: false,
+            email: None,
         });
         Ok(())
     }

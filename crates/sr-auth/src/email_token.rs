@@ -18,6 +18,9 @@ pub enum EmailTokenPurpose {
     /// One-time Owner login link from `sr-cli bootstrap` (1 hour, open
     /// question 43). Logs in but never resets the password.
     LoginLink,
+    /// Confirm a new address for a signed-in account (24 hours). The pending
+    /// address is stored beside the token, not on the account, until confirmed.
+    ChangeEmail,
 }
 
 impl EmailTokenPurpose {
@@ -26,13 +29,14 @@ impl EmailTokenPurpose {
             Self::VerifyEmail => "sideroom/email-token/verify/v1",
             Self::ResetPassword => "sideroom/email-token/reset/v1",
             Self::LoginLink => "sideroom/email-token/login-link/v1",
+            Self::ChangeEmail => "sideroom/email-token/change-email/v1",
         }
     }
 
     /// Default lifetime in seconds: reset 30 min, verify 24 h, login link 1 h.
     pub fn default_ttl_secs(self) -> i64 {
         match self {
-            Self::VerifyEmail => 24 * 3600,
+            Self::VerifyEmail | Self::ChangeEmail => 24 * 3600,
             Self::ResetPassword => 30 * 60,
             Self::LoginLink => 3600,
         }

@@ -375,3 +375,103 @@ fn batch(n: usize) -> Vec<sr_auth::session::TokenHash> {
         .take(n)
         .collect()
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn account_identity_edits_enforce_uniqueness_and_email_change_tokens() {
+    use sr_auth::store::AuthStore;
+    let pool = pool().await;
+    let store = sr_db::auth_store::PgAuthStore::new(pool.clone(), repo(&pool), Arc::new(uid));
+    let (a, b) = (account(&pool).await, account(&pool).await);
+    let a_rec = store.find_by_id(a).await.unwrap().unwrap();
+    let b_rec = store.find_by_id(b).await.unwrap().unwrap();
+
+    // Display name: set, clear.
+    store.set_display_name(a, Some("Ada L.")).await.unwrap();
+    assert_eq!(
+        store
+            .find_by_id(a)
+            .await
+            .unwrap()
+            .unwrap()
+            .display_name
+            .as_deref(),
+        Some("Ada L.")
+    );
+    store.set_display_name(a, None).await.unwrap();
+    assert_eq!(
+        store.find_by_id(a).await.unwrap().unwrap().display_name,
+        None
+    );
+
+    // Username: unique, case-insensitive (citext).
+    assert!(!store.set_username(a, &b_rec.username).await.unwrap());
+    assert!(
+        !store
+            .set_username(a, &b_rec.username.to_uppercase())
+            .await
+            .unwrap()
+    );
+    let fresh = format!("n{}", uid());
+    let fresh = &fresh[..fresh.len().min(32)];
+    assert!(store.set_username(a, fresh).await.unwrap());
+    assert_eq!(store.find_by_id(a).await.unwrap().unwrap().username, fresh);
+    assert!(store.username_exists(fresh).await.unwrap());
+
+    // Email change: the token remembers the new address; single use; supersedes.
+    let t = now();
+    let first = EmailToken::generate(EmailTokenPurpose::ChangeEmail).unwrap();
+    let second = EmailToken::generate(EmailTokenPurpose::ChangeEmail).unwrap();
+    let new_email = format!("new{}@example.test", uid());
+    store
+        .email_change_put(a, "stale@example.test", &first.hash(), t + 100)
+        .await
+        .unwrap();
+    store
+        .email_change_put(a, &new_email, &second.hash(), t + 100)
+        .await
+        .unwrap();
+    assert_eq!(
+        store.email_change_consume(&first.hash(), t).await.unwrap(),
+        None
+    );
+    // A verify-email token is not a change token.
+    let verify = EmailToken::generate(EmailTokenPurpose::VerifyEmail).unwrap();
+    store
+        .email_token_put(a, EmailTokenPurpose::VerifyEmail, &verify.hash(), t + 100)
+        .await
+        .unwrap();
+    assert_eq!(
+        store.email_change_consume(&verify.hash(), t).await.unwrap(),
+        None
+    );
+    assert_eq!(
+        store.email_change_consume(&second.hash(), t).await.unwrap(),
+        Some((a, new_email.clone()))
+    );
+    assert_eq!(
+        store.email_change_consume(&second.hash(), t).await.unwrap(),
+        None
+    );
+    // Expired.
+    let third = EmailToken::generate(EmailTokenPurpose::ChangeEmail).unwrap();
+    store
+        .email_change_put(a, "late@example.test", &third.hash(), t + 10)
+        .await
+        .unwrap();
+    assert_eq!(
+        store
+            .email_change_consume(&third.hash(), t + 11)
+            .await
+            .unwrap(),
+        None
+    );
+
+    // Applying it: taken addresses are refused, free ones become verified.
+    assert!(!store.set_email(a, &b_rec.email).await.unwrap());
+    assert!(store.set_email(a, &new_email).await.unwrap());
+    let after = store.find_by_id(a).await.unwrap().unwrap();
+    assert_eq!(after.email, new_email);
+    assert!(after.email_verified);
+    assert_ne!(after.email, a_rec.email);
+}

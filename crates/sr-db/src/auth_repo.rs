@@ -507,6 +507,7 @@ fn purpose_sql(p: EmailTokenPurpose) -> &'static str {
         EmailTokenPurpose::VerifyEmail => "verify_email",
         EmailTokenPurpose::ResetPassword => "reset_password",
         EmailTokenPurpose::LoginLink => "login_link",
+        EmailTokenPurpose::ChangeEmail => "change_email",
     }
 }
 

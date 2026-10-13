@@ -18,6 +18,7 @@
 mod account;
 mod common;
 mod discord;
+mod identity;
 mod invites;
 mod login;
 mod mfa;
@@ -42,7 +43,7 @@ pub use store::{
 use crate::state::AppState;
 use axum::{
     Router,
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
 };
 
 /// The auth routes (relative to `/api/v1`). Handlers need an `AuthService`
@@ -75,6 +76,9 @@ pub fn router() -> Router<AppState> {
         .route("/sr/auth/forgot", post(account::forgot))
         .route("/sr/auth/reset", post(account::reset))
         .route("/sr/auth/verify-email", post(account::verify_email))
+        .route("/sr/auth/password", post(identity::change_password))
+        .route("/sr/auth/username", put(identity::change_username))
+        .route("/sr/auth/email/change", post(identity::change_email))
         .route(
             "/sr/auth/verify-email/resend",
             post(account::resend_verification),
