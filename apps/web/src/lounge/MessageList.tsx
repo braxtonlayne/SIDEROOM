@@ -10,6 +10,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import {
   useChannels,
   useCurrentUser,
+  useGuild,
   useLoungeActions,
   useMembers,
   useMessages,
@@ -18,10 +19,14 @@ import {
   type Message,
   type Snowflake,
 } from './data';
-import { MessageItem } from './MessageItem';
+import { MessageItem, type ReplyState } from './MessageItem';
+import { DeleteMessageDialog, ForwardDialog, PinMessageDialog } from './msg/MessageDialogs';
+import { ReactorsModal } from './msg/Reactors';
+import { cmpId } from '../store/reducer';
 import { buildRows, estimateRow } from './messageRows';
 import { useLoungeGoto, useLoungeRoute } from './nav';
 import { formatDividerDate } from './time';
+import './msg/msg.css';
 
 /** Reports `fallback` while the scroll element has no layout (jsdom, first paint) so rows still render. */
 const FALLBACK: Rect = { width: 600, height: 800 };
@@ -31,6 +36,8 @@ const observeRect = <T extends Element>(
 ) => observeElementRect(instance, (rect) => cb(rect.height === 0 ? FALLBACK : rect));
 
 const NEAR_BOTTOM = 80;
+/** Scroll offset of channels the viewer left while reading history (restored when they come back). */
+const savedScroll = new Map<string, number>();
 const NEAR_TOP = 240;
 
 export interface MessageListProps {
@@ -43,6 +50,9 @@ export interface MessageListProps {
   lastReadId?: Snowflake | null | undefined;
   onReply: (m: Message) => void;
   onEdit: (m: Message) => void;
+  /** Message being edited in place, if any. */
+  editingId?: Snowflake | null | undefined;
+  onCancelEdit?: (() => void) | undefined;
 }
 
 export function MessageList({
@@ -53,6 +63,8 @@ export function MessageList({
   lastReadId,
   onReply,
   onEdit,
+  editingId,
+  onCancelEdit,
 }: MessageListProps) {
   const { messages, hasMore, loadingOlder, atLatest } = useMessages(channelId);
   const me = useCurrentUser();
@@ -62,6 +74,17 @@ export function MessageList({
   const channels = useChannels(guildId);
   const actions = useLoungeActions();
   const goto = useLoungeGoto();
+  const guild = useGuild(guildId);
+  const canManage = !!guild?.permissions.manageMessages;
+  const canPin = guild ? !!guild.permissions.pinMessages : true;
+  const [deleting, setDeleting] = useState<Message | null>(null);
+  const [pinning, setPinning] = useState<Message | null>(null);
+  const [forwarding, setForwarding] = useState<Message | null>(null);
+  const [reactors, setReactors] = useState<{ m: Message; emoji?: string } | null>(null);
+  const myRoleIds = useMemo(
+    () => members.find((mem) => mem.user.id === me.id)?.roleIds ?? [],
+    [members, me.id],
+  );
   const { messageId: targetId } = useLoungeRoute();
 
   const rows = useMemo(
@@ -114,6 +137,11 @@ export function MessageList({
     observeElementRect: observeRect,
   });
 
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const unreadCount = useMemo(() => {
+    const idx = lastReadId ? messages.findIndex((m) => m.id === lastReadId) : -1;
+    return idx < 0 ? 0 : messages.slice(idx + 1).filter((m) => m.author.id !== me.id).length;
+  }, [messages, lastReadId, me.id]);
   const [atBottom, setAtBottom] = useState(true);
   const atBottomRef = useRef(true);
   const lastKey = rows[rows.length - 1]?.key;
@@ -128,10 +156,26 @@ export function MessageList({
   useLayoutEffect(() => {
     if (mountedChannel.current === channelId) return;
     mountedChannel.current = channelId;
+    const saved = savedScroll.get(channelId);
+    if (saved !== undefined && !targetId) {
+      atBottomRef.current = false;
+      setAtBottom(false);
+      v.scrollToOffset(saved);
+      return;
+    }
     atBottomRef.current = true;
     setAtBottom(true);
     scrollToEnd();
-  }, [channelId, scrollToEnd]);
+  }, [channelId, scrollToEnd, v, targetId]);
+  useEffect(() => {
+    const el = scroller.current;
+    return () => {
+      if (!el) return;
+      const away = el.scrollHeight - el.scrollTop - el.clientHeight >= NEAR_BOTTOM;
+      if (away) savedScroll.set(channelId, el.scrollTop);
+      else savedScroll.delete(channelId);
+    };
+  }, [channelId]);
 
   // New message at the end: follow if the viewer is at the bottom, or it is their own.
   const prevLast = useRef<string | undefined>(undefined);
@@ -194,13 +238,37 @@ export function MessageList({
       actions.loadOlder(channelId);
   }, [actions, channelId, hasMore, loadingOlder, messages.length]);
 
+  const flash = useCallback((id: Snowflake) => {
+    setTimeout(() => {
+      const el = scroller.current?.querySelector(`[data-message-id="${id}"]`);
+      el?.setAttribute('data-flash', '');
+      setTimeout(() => el?.removeAttribute('data-flash'), 2000);
+    }, 120);
+  }, []);
+
+  // A reply preview or pin notice pointing outside the loaded window: load around it, then scroll.
+  const [wanted, setWanted] = useState<Snowflake | null>(null);
   const jumpTo = useCallback(
     (id: Snowflake) => {
       const idx = rows.findIndex((r) => r.kind === 'message' && r.message.id === id);
-      if (idx >= 0) v.scrollToIndex(idx, { align: 'center' });
+      if (idx >= 0) {
+        v.scrollToIndex(idx, { align: 'center' });
+        flash(id);
+      } else if (actions.revealMessage) {
+        setWanted(id);
+        actions.revealMessage(channelId, id);
+      }
     },
-    [rows, v],
+    [rows, v, flash, actions, channelId],
   );
+  useEffect(() => {
+    if (!wanted || !byId.has(wanted)) return;
+    const idx = rows.findIndex((r) => r.kind === 'message' && r.message.id === wanted);
+    if (idx < 0) return;
+    setWanted(null);
+    v.scrollToIndex(idx, { align: 'center' });
+    flash(wanted);
+  }, [wanted, byId, rows, v, flash]);
 
   // /channels/:guild/:channel/:message (search "jump"): load the page around it if needed, scroll to it
   // once and flash it.
@@ -220,12 +288,8 @@ export function MessageList({
     const idx = rows.findIndex((r) => r.kind === 'message' && r.message.id === targetId);
     if (idx < 0) return;
     v.scrollToIndex(idx, { align: 'center' });
-    setTimeout(() => {
-      const el = scroller.current?.querySelector(`[data-message-id="${targetId}"]`);
-      el?.setAttribute('data-flash', '');
-      setTimeout(() => el?.removeAttribute('data-flash'), 2000);
-    }, 120);
-  }, [channelId, targetId, hasTarget, rows, v]);
+    flash(targetId);
+  }, [channelId, targetId, hasTarget, rows, v, flash]);
 
   const onMention = useCallback(
     (t: { kind: 'user' | 'role' | 'channel'; id: Snowflake }) => {
@@ -237,9 +301,68 @@ export function MessageList({
     (m: Message, e: string) => actions.toggleReaction(m.channelId, m.id, e),
     [actions],
   );
+  const onDelete = useCallback(
+    (m: Message, skipConfirm: boolean) => {
+      if (skipConfirm) actions.deleteMessage?.(m.channelId, m.id);
+      else setDeleting(m);
+    },
+    [actions],
+  );
+  const onPin = useCallback((m: Message) => setPinning(m), []);
+  const onForward = useCallback((m: Message) => setForwarding(m), []);
+  const onViewReactions = useCallback((m: Message, emoji?: string) => {
+    setReactors(emoji ? { m, emoji } : { m });
+  }, []);
+  const onSaveEdit = useCallback(
+    (m: Message, content: string) => {
+      actions.editMessage(m.channelId, m.id, content);
+      onCancelEdit?.();
+    },
+    [actions, onCancelEdit],
+  );
+  const onVote = useCallback(
+    (m: Message, answerId: number, add: boolean) =>
+      actions.votePoll?.(m.channelId, m.id, answerId, add),
+    [actions],
+  );
+  const onEndPoll = useCallback((m: Message) => actions.endPoll?.(m.channelId, m.id), [actions]);
+  const onRetry = useCallback((m: Message) => actions.retryMessage?.(m.channelId, m.id), [actions]);
+  const onDiscard = useCallback(
+    (m: Message) => actions.discardMessage?.(m.channelId, m.id),
+    [actions],
+  );
+
+  const oldestId = messages[0]?.id;
+  const replyState = (m: Message): ReplyState => {
+    if (!m.replyToId) return 'loaded';
+    if (byId.has(m.replyToId)) return 'loaded';
+    // Inside the loaded range but absent: the original was deleted.
+    return oldestId && cmpId(m.replyToId, oldestId) > 0 ? 'deleted' : 'unloaded';
+  };
+  const mentionsMe = (m: Message) =>
+    m.author.id !== me.id &&
+    (!!m.mentionIds?.includes(me.id) ||
+      !!m.mentionEveryone ||
+      !!m.mentionRoleIds?.some((r) => myRoleIds.includes(r)));
 
   return (
     <div className="lng-messages-wrap">
+      {unreadCount > 0 && !bannerDismissed && !atBottom && (
+        <div className="lng-unread-banner" role="status">
+          <span>
+            {unreadCount >= 50 ? '50+' : unreadCount} new message{unreadCount === 1 ? '' : 's'}
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              actions.markRead(channelId);
+              setBannerDismissed(true);
+            }}
+          >
+            Mark As Read
+          </button>
+        </div>
+      )}
       <div
         ref={scroller}
         className="lng-messages"
@@ -297,6 +420,22 @@ export function MessageList({
                     replyTarget={
                       row.message.replyToId ? byId.get(row.message.replyToId) : undefined
                     }
+                    replyState={replyState(row.message)}
+                    guildId={guildId}
+                    mentionsMe={mentionsMe(row.message)}
+                    canManage={canManage}
+                    canPin={canPin}
+                    editing={editingId === row.message.id}
+                    onDelete={actions.deleteMessage ? onDelete : undefined}
+                    onPin={actions.pinMessage ? onPin : undefined}
+                    onForward={actions.forwardMessage ? onForward : undefined}
+                    onViewReactions={onViewReactions}
+                    onSaveEdit={onSaveEdit}
+                    onCancelEdit={onCancelEdit}
+                    onVote={onVote}
+                    onEndPoll={actions.endPoll ? onEndPoll : undefined}
+                    onRetry={onRetry}
+                    onDiscard={onDiscard}
                     nameColor={roleColor.get(row.message.author.id)}
                     resolvers={resolvers}
                     isOwn={row.message.author.id === me.id}
@@ -335,6 +474,46 @@ export function MessageList({
           </span>
         </button>
       )}
+      <DeleteMessageDialog
+        message={deleting}
+        onCancel={() => setDeleting(null)}
+        onConfirm={() => {
+          if (deleting) actions.deleteMessage?.(deleting.channelId, deleting.id);
+          if (deleting?.id === editingId) onCancelEdit?.();
+          setDeleting(null);
+        }}
+      />
+      <PinMessageDialog
+        message={pinning}
+        pinned={!!pinning?.pinned}
+        onCancel={() => setPinning(null)}
+        onConfirm={() => {
+          if (pinning) actions.pinMessage?.(pinning.channelId, pinning.id, !pinning.pinned);
+          setPinning(null);
+        }}
+      />
+      <ForwardDialog
+        message={forwarding}
+        onClose={() => setForwarding(null)}
+        onForward={(targets, note) => {
+          if (forwarding)
+            actions.forwardMessage?.(
+              {
+                channelId: forwarding.channelId,
+                messageId: forwarding.id,
+                ...(guildId ? { guildId } : {}),
+              },
+              targets,
+              note,
+            );
+        }}
+      />
+      <ReactorsModal
+        message={reactors ? (byId.get(reactors.m.id) ?? reactors.m) : null}
+        initialEmoji={reactors?.emoji}
+        canManage={canManage}
+        onClose={() => setReactors(null)}
+      />
     </div>
   );
 }
