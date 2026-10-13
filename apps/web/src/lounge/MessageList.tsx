@@ -117,7 +117,8 @@ export function MessageList({
       buildRows(messages, {
         lastReadId: unreadFrom ?? lastReadId,
         atStart: !hasMore,
-        selfId: me.id,
+        // Mark Unread is the viewer's own choice, so its divider shows even above their own message.
+        ...(unreadFrom ? {} : { selfId: me.id }),
         hidden,
         revealed: shownRuns,
       }),

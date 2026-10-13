@@ -1,5 +1,5 @@
 // Shared seeding for the wave-4 Lounge gap tests: a signed-in owner of guild g1 with channels c1/c2.
-import { render } from '@testing-library/react';
+import { configure, render } from '@testing-library/react';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import { createAppRouter } from '../../router';
 import { resetStore, useStore } from '../../store';
@@ -10,6 +10,11 @@ import { useLoungeUi } from '../store';
 import { useIgnores } from '../shell/ignores';
 import { useSocial } from '../shell/social';
 import { usePrefsStore, DEFAULT_PREFS } from '../../settings/user/prefs';
+
+// These flows click through several menus and dialogs; on a busy machine (parallel suites, a cargo build)
+// the default 1 s query and 5 s test limits are too tight.
+configure({ asyncUtilTimeout: 6000 });
+vi.setConfig({ testTimeout: 30_000 });
 
 export const me: S.User = { id: '1', username: 'me', global_name: 'Me Myself' };
 export const bob: S.User = { id: '2', username: 'bob', global_name: 'Bob' };

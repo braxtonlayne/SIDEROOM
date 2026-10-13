@@ -114,7 +114,11 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
       />
       {gate.state !== 'open' ? (
         <div className="lng-agegate-wrap">
-          {gate.state === 'ask' ? (
+          {gate.state === 'wait' ? (
+            <p role="status" className="lng-muted">
+              Checking…
+            </p>
+          ) : gate.state === 'ask' ? (
             <AgeConfirmPrompt
               title={`#${title} is age-restricted`}
               busy={gate.busy}

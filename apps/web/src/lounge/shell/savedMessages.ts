@@ -69,6 +69,8 @@ export function parseSaved<T extends SavedMessage>(
 export interface SavedState {
   bookmarks: Record<string, SavedMessage>;
   reminders: Record<string, Reminder>;
+  /** Entries changed on this device whose save has not come back yet; a settings blob must not undo them. */
+  pending: { bookmarks: Record<string, true>; reminders: Record<string, true> };
   /** Replace both maps from a settings blob. */
   adopt(settings: Record<string, unknown>): void;
   toggleBookmark(entry: SavedMessage): void;
@@ -77,47 +79,77 @@ export interface SavedState {
   reset(): void;
 }
 
-const push = (key: 'bookmarks' | 'reminders', id: string, value: unknown) => {
-  rest.patchUserSettings({ [key]: { [id]: value } }).catch(() => {
-    /* offline: the local copy stays until the next visit; a failed save is not surfaced */
-  });
-};
+/** Server entries, except that anything still being saved from this device keeps its local state. */
+function merged<T>(
+  server: Record<string, T>,
+  local: Record<string, T>,
+  pending: Record<string, true>,
+): Record<string, T> {
+  const out = { ...server };
+  for (const id of Object.keys(pending)) {
+    if (id in local) out[id] = local[id]!;
+    else delete out[id];
+  }
+  return out;
+}
 
-export const useSaved = create<SavedState>()((set, get) => ({
-  bookmarks: {},
-  reminders: {},
-  adopt: (settings) =>
-    set({
-      bookmarks: parseSaved<SavedMessage>(settings.bookmarks),
-      reminders: parseSaved<Reminder>(settings.reminders, 'due_at'),
-    }),
-  toggleBookmark: (entry) => {
-    const id = entry.message_id;
-    const had = id in get().bookmarks;
-    set((s) => {
-      const next = { ...s.bookmarks };
-      if (had) delete next[id];
-      else next[id] = entry;
-      return { bookmarks: next };
-    });
-    push('bookmarks', id, had ? null : entry);
-  },
-  addReminder: (entry, dueAt) => {
-    const reminder: Reminder = { ...entry, due_at: dueAt.toISOString() };
-    const id = entry.message_id;
-    set((s) => ({ reminders: { ...s.reminders, [id]: reminder } }));
-    push('reminders', id, reminder);
-  },
-  dismissReminder: (id) => {
-    set((s) => {
-      const next = { ...s.reminders };
-      delete next[id];
-      return { reminders: next };
-    });
-    push('reminders', id, null);
-  },
-  reset: () => set({ bookmarks: {}, reminders: {} }),
-}));
+export const useSaved = create<SavedState>()((set, get) => {
+  const push = (key: 'bookmarks' | 'reminders', id: string, value: unknown) => {
+    set((s) => ({ pending: { ...s.pending, [key]: { ...s.pending[key], [id]: true } } }));
+    const settle = () =>
+      set((s) => {
+        const rest = { ...s.pending[key] };
+        delete rest[id];
+        return { pending: { ...s.pending, [key]: rest } };
+      });
+    // Offline or refused: the local copy stays for this visit; a failed save is not surfaced.
+    rest.patchUserSettings({ [key]: { [id]: value } }).then(settle, settle);
+  };
+  return {
+    bookmarks: {},
+    reminders: {},
+    pending: { bookmarks: {}, reminders: {} },
+    adopt: (settings) =>
+      set((s) => ({
+        bookmarks: merged(
+          parseSaved<SavedMessage>(settings.bookmarks),
+          s.bookmarks,
+          s.pending.bookmarks,
+        ),
+        reminders: merged(
+          parseSaved<Reminder>(settings.reminders, 'due_at'),
+          s.reminders,
+          s.pending.reminders,
+        ),
+      })),
+    toggleBookmark: (entry) => {
+      const id = entry.message_id;
+      const had = id in get().bookmarks;
+      set((s) => {
+        const next = { ...s.bookmarks };
+        if (had) delete next[id];
+        else next[id] = entry;
+        return { bookmarks: next };
+      });
+      push('bookmarks', id, had ? null : entry);
+    },
+    addReminder: (entry, dueAt) => {
+      const reminder: Reminder = { ...entry, due_at: dueAt.toISOString() };
+      const id = entry.message_id;
+      set((s) => ({ reminders: { ...s.reminders, [id]: reminder } }));
+      push('reminders', id, reminder);
+    },
+    dismissReminder: (id) => {
+      set((s) => {
+        const next = { ...s.reminders };
+        delete next[id];
+        return { reminders: next };
+      });
+      push('reminders', id, null);
+    },
+    reset: () => set({ bookmarks: {}, reminders: {}, pending: { bookmarks: {}, reminders: {} } }),
+  };
+});
 
 /** Reminders whose time has come, oldest first. */
 export function dueReminders(reminders: Record<string, Reminder>, now = Date.now()): Reminder[] {

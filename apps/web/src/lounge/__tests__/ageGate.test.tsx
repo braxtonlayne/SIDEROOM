@@ -1,6 +1,7 @@
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axeViolations } from '../../../../../packages/ui/src/test-axe';
+import { useStore } from '../../store';
 import { http, HttpResponse, server } from '../../test/server';
 import { useAgeAnswers } from '../AgeGate';
 import { at, baseHandlers, calls, msg, record, seedLounge } from './gapsHelpers';
@@ -84,6 +85,15 @@ describe('age-restricted channel interstitial (LNG-CHN-022)', () => {
     expect(await screen.findByText('Could not save your answer. Try again.')).toBeInTheDocument();
     expect(screen.queryByRole('log')).not.toBeInTheDocument();
     expect(localStorage.getItem('sr.age.answer:1')).toBeNull();
+  });
+
+  it('waits for the account to be known before asking (a reload shows the channel first)', async () => {
+    useStore.setState({ currentUserId: null });
+    at('/channels/g1/c1');
+    expect(await screen.findByText('Checking…')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Yes, I am 18/ })).not.toBeInTheDocument();
+    act(() => useStore.setState({ currentUserId: '1' }));
+    expect(await screen.findByRole('button', { name: /Yes, I am 18/ })).toBeInTheDocument();
   });
 
   it('does not gate channels that are not restricted', async () => {

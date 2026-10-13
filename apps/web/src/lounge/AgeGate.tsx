@@ -85,7 +85,7 @@ export function useAgeCleared(): boolean {
   return useAgeAnswers((s) => s.answers[userId ?? ''] ?? readAgeAnswer(userId)) === 'yes';
 }
 
-export type GateState = 'open' | 'ask' | 'blocked';
+export type GateState = 'open' | 'ask' | 'blocked' | 'wait';
 
 /**
  * Whether a restricted channel may be shown. `open` for channels that are not restricted or after a yes,
@@ -117,7 +117,16 @@ export function useAgeGate(restricted: boolean | undefined) {
     [userId],
   );
 
-  const state: GateState =
-    !restricted || answer === 'yes' ? 'open' : answer === 'no' ? 'blocked' : 'ask';
+  // The saved answer is keyed by account, so a restricted channel waits until the account is known (a page
+  // reload shows the channel from REST before the gateway says who is signed in).
+  const state: GateState = !restricted
+    ? 'open'
+    : userId === null
+      ? 'wait'
+      : answer === 'yes'
+        ? 'open'
+        : answer === 'no'
+          ? 'blocked'
+          : 'ask';
   return { state, busy, error, submit };
 }
