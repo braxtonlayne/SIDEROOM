@@ -223,7 +223,6 @@ function EmojiRow({
   onDelete: () => void;
 }) {
   const [name, setName] = useState(emoji.name);
-  const [imgOk, setImgOk] = useState(true);
   const action = useAction();
   const valid = validEmojiName(name);
   const dirty = name !== emoji.name;
@@ -237,16 +236,8 @@ function EmojiRow({
   return (
     <tr>
       <td>
-        {imgOk ? (
-          <img
-            className="ss-emoji-img"
-            alt=""
-            src={`/cdn/emoji/${guildId}/${emoji.id}.${emoji.animated ? 'gif' : 'png'}`}
-            onError={() => setImgOk(false)}
-          />
-        ) : (
-          <span className="ss-emoji-img" aria-hidden="true" />
-        )}
+        {/* The image key uses a separate id, so the CDN URL cannot be derived from the emoji id. */}
+        <span className="ss-emoji-img" aria-hidden="true" />
         {emoji.animated && <Badge variant="accent">GIF</Badge>}
       </td>
       <td>
@@ -420,12 +411,7 @@ function StickerTab({
         <ul className="ss-list" aria-label="Stickers">
           {list.map((s) => (
             <li key={s.id} className="ss-row">
-              <img
-                className="ss-emoji-img"
-                alt=""
-                src={`/cdn/stickers/${guildId}/${s.id}.png`}
-                onError={(e) => ((e.target as HTMLImageElement).style.visibility = 'hidden')}
-              />
+              <span className="ss-emoji-img" aria-hidden="true" />
               <div className="ss-grow">
                 <div className="ss-name">{s.name}</div>
                 <div className="ss-meta">
