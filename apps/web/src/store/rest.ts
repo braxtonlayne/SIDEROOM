@@ -120,7 +120,11 @@ export const createGuild = (name: string) =>
 export const getInvite = (code: string) =>
   apiFetch<Invite>(`/invites/${encodeURIComponent(code)}?with_counts=true`, { retries: 0 });
 export const acceptInvite = (code: string) =>
-  apiFetch<Invite>(`/invites/${encodeURIComponent(code)}`, { method: 'POST', json: {}, retries: 0 });
+  apiFetch<Invite>(`/invites/${encodeURIComponent(code)}`, {
+    method: 'POST',
+    json: {},
+    retries: 0,
+  });
 export const createInvite = (channelId: string, opts: CreateInviteOptions = {}) =>
   apiFetch<Invite>(`/channels/${channelId}/invites`, { method: 'POST', json: opts, retries: 0 });
 export const listGuildInvites = (guildId: string) =>

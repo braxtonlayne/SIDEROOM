@@ -1,0 +1,237 @@
+/* User Settings (LNG-USET-*). Tokens only (--ui-*); layout chrome comes from SettingsLayout. */
+.us-title {
+  margin: 0 0 20px;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+.us-muted {
+  margin: 4px 0 0;
+  color: var(--ui-text-muted);
+  font-size: 0.875rem;
+}
+.us-card {
+  margin: 0 0 20px;
+  padding: 16px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+  background: var(--ui-bg-raised);
+}
+.us-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.us-card-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.us-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.us-field {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+}
+.us-field dt {
+  color: var(--ui-text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.us-field dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+.us-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.us-gap {
+  margin: 8px 0;
+}
+.us-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.us-list > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--ui-border);
+}
+.us-list > li:first-child {
+  border-top: 0;
+}
+.us-row-main {
+  min-width: 0;
+}
+.us-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--ui-bg-hover);
+  color: var(--ui-text-muted);
+  font-size: 0.75rem;
+}
+.us-badge[data-tone='good'] {
+  background: var(--ui-success);
+  color: #0b0b0a;
+}
+.us-badge[data-tone='bad'] {
+  background: var(--ui-danger);
+  color: #fff;
+}
+.us-counter {
+  text-align: right;
+  font-size: 0.75rem;
+  color: var(--ui-text-muted);
+}
+.us-counter[data-over] {
+  color: var(--ui-danger);
+}
+.us-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 960px) {
+  .us-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.us-preview {
+  overflow: hidden;
+  border-radius: var(--ui-radius-lg, 8px);
+  background: var(--ui-bg-overlay);
+  border: 1px solid var(--ui-border);
+}
+.us-preview-banner {
+  height: 72px;
+  background: var(--ui-accent);
+}
+.us-preview-body {
+  padding: 0 16px 16px;
+}
+.us-preview-avatar {
+  margin-top: -32px;
+  margin-bottom: 8px;
+}
+.us-preview-name {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+.us-preview-sub {
+  margin: 2px 0 0;
+  color: var(--ui-text-muted);
+  font-size: 0.875rem;
+}
+.us-preview h3 {
+  margin: 12px 0 4px;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ui-text-muted);
+}
+.us-preview p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.us-themes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+.us-theme {
+  display: block;
+  padding: 0;
+  border: 2px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+}
+.us-theme[aria-pressed='true'] {
+  border-color: var(--ui-accent);
+}
+.us-theme:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+.us-theme-swatch {
+  display: flex;
+  height: 44px;
+}
+.us-theme-swatch > span {
+  flex: 1;
+}
+.us-theme-name {
+  display: block;
+  padding: 6px 10px;
+  font-size: 0.875rem;
+}
+.us-codes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 16px;
+  margin: 12px 0;
+  padding: 12px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg);
+  font-family: var(--ui-font-mono);
+  list-style: none;
+}
+.us-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.us-key {
+  font-family: var(--ui-font-mono);
+  letter-spacing: 0.08em;
+  overflow-wrap: anywhere;
+}
+.us-compact-sample {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg);
+}
+.us-compact-sample[data-compact] .us-sample-line {
+  display: inline;
+}
+.us-keys {
+  margin: 0;
+}
+.us-logout {
+  width: 100%;
+}
+.us-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

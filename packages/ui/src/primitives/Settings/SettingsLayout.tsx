@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { cx } from "../../util/cx";
 import styles from "./Settings.module.css";
 
@@ -25,6 +25,8 @@ export interface SettingsLayoutProps {
   /** Render in flow instead of covering the viewport (stories, tests, embedding). */
   inline?: boolean;
   className?: string;
+  /** Pinned under the section list (log out, version). */
+  sidebarFooter?: ReactNode;
   children: ReactNode;
 }
 
@@ -41,8 +43,10 @@ export function SettingsLayout({
   saving,
   inline,
   className,
+  sidebarFooter,
   children,
 }: SettingsLayoutProps) {
+  const navRef = useRef<HTMLElement>(null);
   const [nudge, setNudge] = useState(0);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -66,10 +70,27 @@ export function SettingsLayout({
     else groups.push({ name: s.group, items: [s] });
   }
   const active = sections.find((s) => s.id === activeId);
+  // Roving tabindex: one tab stop in the nav (the active section); arrows, Home and End move focus.
+  const onNavKey = (e: ReactKeyboardEvent<HTMLElement>) => {
+    const keys = ["ArrowDown", "ArrowUp", "Home", "End"];
+    if (!keys.includes(e.key)) return;
+    const items = Array.from(navRef.current?.querySelectorAll<HTMLButtonElement>("button[data-nav-item]") ?? []);
+    if (!items.length) return;
+    const at = items.indexOf(document.activeElement as HTMLButtonElement);
+    let next = at;
+    if (e.key === "ArrowDown") next = (at + 1) % items.length;
+    else if (e.key === "ArrowUp") next = (at - 1 + items.length) % items.length;
+    else if (e.key === "Home") next = 0;
+    else next = items.length - 1;
+    e.preventDefault();
+    items[next]?.focus();
+  };
 
   return (
     <div role="dialog" aria-modal={inline ? undefined : true} aria-label={title} className={cx(styles.root, inline && styles.inline, className)}>
-      <nav className={styles.sidebar} aria-label={title}>
+      {/* Key handling is delegated from the buttons inside; the nav itself is not interactive. */}
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
+      <nav ref={navRef} className={styles.sidebar} aria-label={title} onKeyDown={onNavKey}>
         {groups.map((g, gi) => (
           <div key={`${g.name ?? "g"}-${gi}`} className={styles.group}>
             {g.name && <p className={styles.groupName}>{g.name}</p>}
@@ -79,6 +100,8 @@ export function SettingsLayout({
                   <button
                     type="button"
                     className={cx(styles.navItem, s.danger && styles.danger)}
+                    data-nav-item=""
+                    tabIndex={s.id === activeId || !active ? 0 : -1}
                     aria-current={s.id === activeId ? "page" : undefined}
                     onClick={() => onSelect(s.id)}
                   >
@@ -89,6 +112,7 @@ export function SettingsLayout({
             </ul>
           </div>
         ))}
+        {sidebarFooter && <div className={styles.footer}>{sidebarFooter}</div>}
       </nav>
       <div className={styles.main}>
         <div className={styles.topline}>

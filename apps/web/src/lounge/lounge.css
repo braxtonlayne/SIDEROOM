@@ -1547,3 +1547,11 @@
   background: color-mix(in srgb, var(--brand) 18%, transparent);
   transition: background 0.4s;
 }
+
+/* Compact message display (User Settings > Appearance): tighter spacing between message groups. */
+.lng-root[data-message-display='compact'] {
+  --lounge-message-gutter: 56px;
+}
+.lng-root[data-message-display='compact'] .lng-msg:not([data-grouped]) {
+  margin-top: 6px;
+}

@@ -3,6 +3,7 @@
 export type ShortcutId =
   | 'quickSwitcher'
   | 'shortcutSheet'
+  | 'userSettings'
   | 'prevChannel'
   | 'nextChannel'
   | 'prevUnread'
@@ -32,6 +33,12 @@ export const SHORTCUTS: readonly ShortcutDef[] = [
     group: 'Navigation',
     description: 'Show keyboard shortcuts',
     keys: ['Mod', '/'],
+  },
+  {
+    id: 'userSettings',
+    group: 'Navigation',
+    description: 'Open user settings',
+    keys: ['Mod', ','],
   },
   { id: 'prevChannel', group: 'Navigation', description: 'Previous channel', keys: ['Alt', '↑'] },
   { id: 'nextChannel', group: 'Navigation', description: 'Next channel', keys: ['Alt', '↓'] },
@@ -71,6 +78,7 @@ export function matchShortcut(
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   if (mod && !e.altKey && !e.shiftKey && k === 'k') return 'quickSwitcher';
   if (mod && !e.altKey && !e.shiftKey && k === '/') return 'shortcutSheet';
+  if (mod && !e.altKey && !e.shiftKey && k === ',') return 'userSettings';
   if (k === 'ArrowUp' || k === 'ArrowDown') {
     const up = k === 'ArrowUp';
     if (mod && e.altKey && !e.shiftKey) return up ? 'prevGuild' : 'nextGuild';

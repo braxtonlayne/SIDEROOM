@@ -181,7 +181,8 @@ export function InviteDialog({
                     <code>{inv.code}</code>
                     <small>
                       {inv.uses}
-                      {inv.max_uses ? ` / ${inv.max_uses}` : ''} uses · {expiryLabel(inv.expires_at)}
+                      {inv.max_uses ? ` / ${inv.max_uses}` : ''} uses ·{' '}
+                      {expiryLabel(inv.expires_at)}
                       {inv.channel.name ? ` · #${inv.channel.name}` : ''}
                     </small>
                   </div>
