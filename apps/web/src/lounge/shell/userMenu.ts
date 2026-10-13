@@ -8,9 +8,16 @@ import { blockUser, createDm, ignoreUser, removeRelationship } from './api';
 import { rememberDm } from './dm';
 import { friendsOf, useSocial } from './social';
 
-/** DM a single-use invite to a channel's server to one person. */
-export async function sendServerInvite(channelId: string, userId: string): Promise<void> {
-  const inv = await rest.createInvite(channelId, { max_age: 86400, max_uses: 1 });
+/**
+ * DM an invite to a channel's server to one person. The invite never leaves the platform, so it uses the
+ * server defaults (7 days, unlimited) unless the caller passes options (D-182).
+ */
+export async function sendServerInvite(
+  channelId: string,
+  userId: string,
+  opts: rest.CreateInviteOptions = {},
+): Promise<void> {
+  const inv = await rest.createInvite(channelId, opts);
   const dm = await createDm([userId]);
   rememberDm(dm);
   await rest.postMessage(dm.id, inviteUrl(inv.code), `inv${Date.now().toString(36)}${userId}`);
@@ -24,12 +31,11 @@ export function useUserMenuEntries(user: { id: string; name: string } | undefine
   const guilds = useGuilds();
   const channelsByGuild = useAllChannels();
   const relationships = useSocial((s) => s.relationships);
-  const loadRelationships = useSocial((s) => s.loadRelationships);
   const openDialog = useLoungeUi((s) => s.openDialog);
   if (!user) return { note: null, invite: null, relationship: [] as MenuEntry[] };
   const isFriend = friendsOf(relationships).some((r) => r.id === user.id);
-  const after = (req: Promise<unknown>) =>
-    void req.then(() => loadRelationships()).catch(() => undefined);
+  // The gateway (RELATIONSHIP_*) updates the friend lists, so nothing is re-fetched here (D-183).
+  const after = (req: Promise<unknown>) => void req.catch(() => undefined);
 
   const targets = guilds
     .filter((g) => g.permissions.createInvite)
