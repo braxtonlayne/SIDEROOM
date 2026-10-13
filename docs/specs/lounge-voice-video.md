@@ -23,12 +23,81 @@ Phase 2 · Decisions: D-045, D-046, D-050–D-053 · ADRs 0003, 0004 · Doc 08 (
 - Viewers per stream cap (doc 08). The next viewer sees "This stream is full."
 - Limits are re-evaluated on `SR_ENTITLEMENT_UPDATE`. Lowering a level never kicks existing streams. It only blocks new ones.
 
-## 4. SFU (`sr-voice`)
-- str0m-based. One UDP port range plus ICE-TCP fallback. DTLS-SRTP transport. Rooms keyed by channel id and pinned to a node.
-- **Signaling:** through the gateway (`VOICE_STATE_UPDATE` → `VOICE_SERVER_UPDATE` with endpoint + token), then a small WebSocket to `sr-voice` for SDP/ICE (`sr-voice-proto`, Discord-voice-gateway-like opcodes: IDENTIFY, SELECT_PROTOCOL, READY, SESSION_DESCRIPTION, SPEAKING, HEARTBEAT, CLIENT_CONNECT/DISCONNECT, VIDEO, plus MLS ops via the main gateway op 101).
-- Forwarding: simulcast layer selection per subscriber based on their viewport (tile size), bandwidth estimate (TWCC/REMB), and the **egress governor** (doc 08 §3). Keyframe request (PLI/FIR) coalescing. Speaker detection from RTP audio-level header extension (works under E2EE, since the header isn't encrypted).
-- Metrics: rooms, participants, egress Mbps, packet loss, per-room bitrate.
-- **Load target (exit gate):** a single AX42-class box forwards 300 Mbps of egress at < 50% CPU.
+## 4. SFU (`sr-voice`) and the signalling contract
+
+Status: **audio is implemented** (wave 5, `feat/p5-voice-sfu`). Video, simulcast, screen share, E2EE and stage channels are later work; the places they plug in are marked `reserved` below. Rust types for everything here live in `crates/sr-voice-proto`.
+
+### 4.1 Architecture
+- str0m-based, sans-IO (ADR-0003). The SFU is **ICE-lite**: it advertises fixed host candidates (UDP range, plus an ICE-TCP passive port when configured) and never gathers. Clients are full ICE agents. DTLS-SRTP, Opus only for now.
+- Rooms are keyed by channel id and pinned to one SFU node (`sr_voice_proto::select::select_endpoint`, rendezvous hashing over `voice.endpoints`). A room exists from the first join to the last leave.
+- v1 runs the SFU **in the `sr-server` process** (WebSocket route `GET /voice/ws` on the public listener, media on the UDP range). The standalone `sr-voice` binary serves the same routes. The gateway enforces permissions and owns voice state; it tells the SFU about changes through `VoiceRelay` (server mute, disconnect). A relay to SFU nodes in other processes is a documented TODO.
+
+### 4.2 Join flow
+1. Client sends gateway op 4 `VOICE_STATE_UPDATE` (docs/05 section 6.5) with `channel_id`.
+2. The gateway checks permissions and dispatches `VOICE_STATE_UPDATE` (to guild members who can see the channel) and, to the joining session only, `VOICE_SERVER_UPDATE`:
+   ```json
+   {"guild_id": "1", "channel_id": "2",
+    "endpoint": "wss://chat.example.org/voice/ws",
+    "token": "v1.<claims>.<mac>",
+    "ice_servers": [{"urls": ["stun:turn.example.org:3478"]},
+                    {"urls": ["turn:turn.example.org:3478?transport=udp"],
+                     "username": "1760000000:42", "credential": "<base64>"}]}
+   ```
+   `endpoint` is a full `ws(s)://` URL (Discord sends a bare host; ours may carry a path behind Caddy). `token` is valid for 60 s and is single purpose (join this channel as this user). `ice_servers` is a ready `RTCConfiguration.iceServers` list; TURN credentials are ephemeral (section 6) and the list is empty when no STUN/TURN is configured.
+3. Client opens the WebSocket at `endpoint` and sends `IDENTIFY`. The server answers `READY`.
+4. Client creates its `RTCPeerConnection` (`iceServers` from step 2), adds its microphone track (`sendrecv` or `sendonly` audio transceiver), and sends `SDP_OFFER`. The server answers `SDP_ANSWER` (ICE-lite, `a=ice-lite`, host candidates included, `a=setup:passive`).
+5. ICE and DTLS complete; Opus RTP flows. As other participants exist or arrive, the server sends `SDP_OFFER`s that add one `sendonly` audio m-line per remote participant (see 4.4); the client answers each with `SDP_ANSWER`.
+
+### 4.3 Wire format
+Text WebSocket frames, one JSON object: `{"op": <int>, "d": <object>}`. Ids are decimal strings. One connection per voice session. Close codes are in 4.7.
+
+| Op | Name | Dir | `d` |
+|---|---|---|---|
+| 0 | IDENTIFY | C→S | `{token}`. Must be the first message, within 10 s. |
+| 1 | READY | S→C | `{session_id, resume_token, heartbeat_interval, user_id, channel_id, guild_id?, participants: [{user_id, speaking, muted, deafened}]}` |
+| 2 | HEARTBEAT | C→S | `{t}` (any JSON value; echoed). |
+| 3 | HEARTBEAT_ACK | S→C | `{t}` |
+| 4 | SDP_OFFER | both | `{sdp}` |
+| 5 | SDP_ANSWER | both | `{sdp}` |
+| 6 | ICE_CANDIDATE | C→S | `{candidate: string \| null, sdp_mid, sdp_mline_index}`; `null` = end of candidates. Optional: candidates already inside the offer need no trickle. S→C is reserved. |
+| 7 | SPEAKING | both | C→S `{speaking}`; S→C `{user_id, speaking, audio_level?}` |
+| 8 | RESUME | C→S | `{session_id, resume_token}` |
+| 9 | RESUMED | S→C | Same shape as READY (current participants). |
+| 10 | CLIENT_CONNECT | S→C | `{user_id}` |
+| 11 | CLIENT_DISCONNECT | S→C | `{user_id}` |
+| 12 | VIDEO | | reserved (publish/subscribe video, simulcast layers, screen share) |
+| 13 | QUALITY | | reserved (egress governor notices, doc 08 section 3) |
+
+- **Heartbeat.** Send `HEARTBEAT` every `heartbeat_interval` ms (13 750). The server closes with 4009 after 2.5 intervals of silence. Heartbeats are about the WebSocket only; media liveness is ICE/DTLS.
+- **SPEAKING.** `speaking` is a bitmask: `1` microphone, `2` soundshare (reserved), `4` priority speaker. Client→server: the client reports its own state. It **must** send `1` while push-to-talk is held and `0` when released (after its release delay), because when the channel denies `USE_VAD` the SFU forwards a user's audio only while the last reported value is non-zero (300 ms grace). With voice activity the client may send it or not; the server detects speech itself from the RTP audio-level header extension (`urn:ietf:params:rtp-hdrext:ssrc-audio-level`, works under E2EE). Server→client: sent on transitions only, for **every other** participant (and not echoed to the speaker). `speaking` is `0` when they stop. `4` is OR-ed in for members with `PRIORITY_SPEAKER`; clients duck other voices while a priority bit is set. `audio_level` is dBov (-127 quiet to 0 loud) when known.
+- **CLIENT_CONNECT / CLIENT_DISCONNECT.** Sent to the others when a participant's voice session starts or ends. The gateway's `VOICE_STATE_UPDATE` remains the source of truth for who is in the channel; these tell the client which remote audio lines to expect.
+- **Muting is enforced on the server.** A participant without `SPEAK`, or server muted, has their audio dropped by the SFU. A deafened participant (server or self) receives no audio. Self mute is a client concern (the client stops sending or sends silence); report it on the gateway so others see the icon.
+
+### 4.4 SDP negotiation (who offers, glare, mapping)
+- The client sends the **first** offer. After that either side may offer.
+- The **server offers** whenever the room's membership changes (a remote participant starts or stops, or on join to add the existing participants): it adds or stops one `sendonly` audio m-line per remote participant. The m-line's `a=msid` stream id is the participant's **user id** (decimal). The client maps tracks to users with `event.streams[0].id`. Do not rely on mid ordering; mids are recycled.
+- **Glare.** The server never offers while its own offer is unanswered, and defers its offer while it has an unanswered client offer outstanding. The client is the **polite peer**: if it receives a server `SDP_OFFER` while its own offer is pending, it rolls back (`setLocalDescription({type: "rollback"})`), applies the server's offer, sends the answer, and re-sends its own offer afterwards if it still has changes. The server drops a client offer that arrives while the server's offer is pending and reprocesses nothing; the client simply re-offers after the answer.
+- **ICE restart / network change.** The client calls `restartIce()` and sends a new `SDP_OFFER` (fresh ufrag/pwd). The server accepts it on the existing WebSocket and the existing participant. If the WebSocket is also gone, reconnect it first and use `RESUME`.
+- Codec: Opus (payload type from the client's offer), `usedtx=1;useinbandfec=1;stereo=0`. DTX is allowed; the audio-level header extension must be negotiated (browsers do by default).
+- Bitrate: advertise the channel's bitrate (kbps) through `RTCRtpSender.setParameters({encodings: [{maxBitrate}]})`; the server does not transcode and trusts but does not enforce it in v1. TODO(bitrate-cap): enforce `min(channel bitrate, server level cap)` in the SFU.
+
+### 4.5 Resume
+- If only the WebSocket drops, media keeps flowing. The SFU keeps the participant for **20 s** after a socket loss. Reconnect to the same `endpoint`, send `RESUME` (not `IDENTIFY`), receive `RESUMED` with the current participants, and carry on (answer any new server offer). `RESUME` needs the `resume_token` from `READY`, not a new join token.
+- After 20 s, or after any close with 4006/4014, the session is gone: rejoin through the gateway (op 4 again) to get a fresh token.
+- If the gateway session is lost (it detached and did not resume within 20 s), the gateway removes the voice state and tells the SFU to drop the participant.
+- A second `IDENTIFY` for the same user closes the older connection with 4016.
+
+### 4.6 What the gateway tells the client
+`VOICE_STATE_UPDATE` (gateway op 4 and dispatch), `VOICE_SERVER_UPDATE`, `SR_VOICE_ERROR` and the REST routes are specified in docs/05 section 6.5. A voice state change from a moderator (server mute, deafen, move, disconnect) arrives as a `VOICE_STATE_UPDATE` for the affected user; for a disconnect or move, the voice WebSocket is closed with 4014 (a move is followed by a new `VOICE_SERVER_UPDATE`). Clients must close their `RTCPeerConnection` on 4014.
+
+### 4.7 Close codes
+`4001` unknown opcode, `4002` decode error, `4003` not authenticated, `4004` authentication failed (bad or expired token: rejoin via gateway), `4005` already authenticated, `4006` session invalid (RESUME failed: rejoin), `4009` heartbeat timeout (reconnect and `RESUME`), `4014` removed from the call (do not reconnect), `4015` SFU restarting (reconnect and `RESUME`, else rejoin), `4016` replaced by a newer connection of the same user, `4017` SFU full.
+
+### 4.8 Forwarding, metrics, targets
+- Forwarding: Opus is forwarded as-is to every subscriber in the room (no mixing, no decoding), preserving the sender's timing. Later: simulcast layer selection per subscriber from viewport, bandwidth estimate (TWCC/REMB) and the **egress governor** (doc 08 section 3); keyframe request (PLI/FIR) coalescing. Speaker detection from the audio-level header (section 4.3).
+- Metrics (Prometheus, node level): `sr_voice_rooms`, `sr_voice_participants`, `sr_voice_egress_bits_per_second`, `sr_voice_ingress_bits_per_second`, `sr_voice_packet_loss_ratio` (gauges, from RTCP receiver reports as seen by the SFU) and `sr_voice_forwarded_packets_total`.
+- **Load target (exit gate):** a single AX42-class box forwards 300 Mbps of egress at < 50% CPU. Not yet measured (VOX-SFU-011).
+- Deployment: one UDP port range (`voice.udp_port_min..voice.udp_port_max`, one socket per port, rooms hashed to ports) and optionally one ICE-TCP port; open both in the firewall and set `voice.announce_ips` to the node's public addresses.
 
 ## 5. End-to-end encryption (D-053)
 Modeled on Discord's DAVE:

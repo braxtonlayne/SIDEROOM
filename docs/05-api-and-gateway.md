@@ -219,6 +219,29 @@ Rich presence for watching/reading uses standard `activities` on `PRESENCE_UPDAT
 ### 6.4 Session lifecycle
 `HELLO(heartbeat_interval=41250)` → `IDENTIFY(token, intents, properties)` → `READY(session_id, resume_gateway_url, user, guilds (unavailable stubs), private_channels, relationships, read_state, user_settings, sessions)`. `private_channels` entries carry full `recipients` user objects (everyone but the viewer), the same shape as `GET /users/@me/channels` and the DM `CHANNEL_CREATE` (D-181); a conversation in the viewer's Message Requests also carries `is_message_request: true`. The gateway records every frame size in the `sr_gateway_dispatch_bytes` histogram (`/internal/metrics`) so the "p95 above 64 KiB" trigger for browser zstd is measurable → `GUILD_CREATE` per guild. Resume buffers are kept in memory per session for 2 minutes or 5,000 events.
 
+### 6.5 Voice (gateway ops, dispatches, REST)
+The media signalling (voice WebSocket) is in `docs/specs/lounge-voice-video.md` section 4. This section is the gateway and REST side.
+
+**Op 4 `VOICE_STATE_UPDATE` (client→gateway).** `{guild_id, channel_id, self_mute, self_deaf, self_video?, self_stream?}`; `channel_id: null` leaves voice. Sending the current channel again with different `self_mute`/`self_deaf` only updates those flags. A different `channel_id` in the same guild moves; a channel in another guild first leaves the old one (a user has one voice connection at a time, as on Discord). The gateway stores voice state **in memory on the node** that holds the session (lost on restart; see the spec, section 4.1).
+
+**Dispatch `VOICE_STATE_UPDATE`.** Discord's voice state object: `{guild_id, channel_id, user_id, member?, session_id, deaf, mute, self_deaf, self_mute, self_video, self_stream, suppress, request_to_speak_timestamp}`; `channel_id: null` means the user left. Sent to every session in the guild that holds `VIEW_CHANNEL` on the old or the new channel (intent `GUILD_VOICE_STATES`, bit 7; user clients get it always) and always to the affected user's own sessions. `GUILD_CREATE` carries `voice_states` (same objects without `guild_id`, only channels the recipient can see).
+
+**Dispatch `VOICE_SERVER_UPDATE`** (to the joining session only; also after a move): `{token, guild_id, channel_id, endpoint, ice_servers}`. See the spec, section 4.2.
+
+**Dispatch `SR_VOICE_ERROR`** (to the session that sent op 4, when the join or update was refused): `{guild_id, channel_id, code, message}`. Codes: `unknown_channel`, `not_voice_channel`, `not_member`, `missing_permission` (no `VIEW_CHANNEL`/`CONNECT`), `channel_full`, `stage_unsupported`, `voice_unavailable` (no SFU configured), `bad_request`. Discord stays silent here; the code lets the client show a reason.
+
+**Permissions.** Join: `VIEW_CHANNEL` and `CONNECT` on the channel (timed-out members lose `CONNECT`); a channel with `user_limit` rejects further joiners with `channel_full` unless they hold `MOVE_MEMBERS`, `MANAGE_CHANNELS` or `ADMINISTRATOR`. Speak: `SPEAK`, no server mute. Voice activity: without `USE_VAD` the member must use push-to-talk and the SFU enforces it (D-046). `PRIORITY_SPEAKER` sets the priority speaking bit.
+
+**REST.** `PATCH /guilds/{guild_id}/voice-states/{user_id}` with `{channel_id?: string|null, mute?: bool, deaf?: bool, reason?: string}` (also `X-Audit-Log-Reason`):
+- `mute` needs `MUTE_MEMBERS` on the user's current channel, `deaf` needs `DEAFEN_MEMBERS`;
+- `channel_id: "<id>"` moves the user and needs `MOVE_MEMBERS` on the current channel and on the target (plus `CONNECT` on the target for the actor), the target must be a voice channel in the same guild;
+- `channel_id: null` disconnects and needs `MOVE_MEMBERS`;
+- the target must be in voice (otherwise 400 `Target user is not connected to voice`, Discord code 40032). `@me` as `user_id` is accepted for the actor's own mute/deaf only.
+Each change is written to the guild audit log (`MEMBER_MOVE` 26 with `channel_id`/`count`, `MEMBER_DISCONNECT` 27 with `count`, `MEMBER_UPDATE` 24 with `mute`/`deaf` changes) and dispatched as `VOICE_STATE_UPDATE`. Server mute and deafen survive moves inside the voice session and are cleared when the user leaves voice (in-memory state; persistence is a follow-up).
+
+`GET /sr/voice/turn` returns coturn ephemeral credentials `{username, password, ttl, uris}` (HMAC-SHA1, TTL 1 h, `503` when TURN is not configured). `ice_servers` in `VOICE_SERVER_UPDATE` carries the same credentials.
+
+
 ## 7. Bot compatibility checklist (porting guide)
 
 Published at `docs/developers/porting-from-discord.md` (Phase 6):

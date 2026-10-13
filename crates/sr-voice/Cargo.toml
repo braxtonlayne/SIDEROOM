@@ -6,3 +6,6 @@ publish.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+str0m = { version = "0.24.1", default-features = false, features = ["rust-crypto"] }
