@@ -29,6 +29,8 @@ export interface Channel {
   parent_id?: string | null;
   position?: number;
   last_message_id?: string | null;
+  /** Slowmode seconds. */
+  rate_limit_per_user?: number;
   /** DM / group DM participants. */
   recipients?: User[];
 }
@@ -64,10 +66,85 @@ export interface Message {
   nonce?: string | number | null;
   mentions?: User[];
   mention_everyone?: boolean;
-  message_reference?: { message_id: string; channel_id?: string; guild_id?: string } | null;
+  mention_roles?: string[];
+  message_reference?: {
+    message_id: string;
+    channel_id?: string;
+    guild_id?: string;
+    /** 0 reply, 1 forward. */
+    type?: number;
+  } | null;
   reactions?: MessageReaction[];
+  /** 0 default, 6 pin notice, 19 reply (Discord message types). */
+  type?: number;
+  /** 4 suppress embeds, 8192 voice message. */
+  flags?: number;
+  attachments?: RawAttachment[];
+  embeds?: RawEmbed[];
+  sticker_items?: { id: string; name: string; format_type: number }[];
+  poll?: RawPoll | null;
+  components?: RawComponent[];
+  message_snapshots?: { message: Partial<Message> }[];
   /** Client-only: set while the message is optimistic. Absent on server messages. */
   local?: LocalState;
+}
+
+/** Message components as stored (Discord shape). Interactions are not supported by the server yet. */
+export interface RawComponent {
+  type: number;
+  style?: number;
+  label?: string;
+  url?: string;
+  disabled?: boolean;
+  custom_id?: string;
+  placeholder?: string;
+  options?: { label: string; value: string; description?: string }[];
+  components?: RawComponent[];
+}
+
+export interface RawAttachment {
+  id: string;
+  filename: string;
+  size: number;
+  url: string;
+  content_type?: string | null;
+  description?: string | null;
+  width?: number | null;
+  height?: number | null;
+  duration_secs?: number | null;
+  /** Base64 amplitude bytes (voice messages). */
+  waveform?: string | null;
+  expires_at?: string | null;
+}
+
+export interface RawEmbed {
+  type?: string;
+  title?: string;
+  description?: string;
+  url?: string;
+  color?: number;
+  timestamp?: string;
+  footer?: { text: string; icon_url?: string };
+  image?: { url?: string; width?: number; height?: number };
+  thumbnail?: { url?: string; width?: number; height?: number };
+  video?: { url?: string; width?: number; height?: number };
+  provider?: { name?: string; url?: string };
+  author?: { name: string; url?: string; icon_url?: string };
+  fields?: { name: string; value: string; inline?: boolean }[];
+}
+
+export interface RawPoll {
+  question: { text?: string };
+  answers: {
+    answer_id: number;
+    poll_media: { text?: string; emoji?: { id?: string | null; name?: string | null } };
+  }[];
+  expiry?: string | null;
+  allow_multiselect?: boolean;
+  results?: {
+    is_finalized: boolean;
+    answer_counts: { id: number; count: number; me_voted: boolean }[];
+  };
 }
 
 export interface MessageReaction {

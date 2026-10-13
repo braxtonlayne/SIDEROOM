@@ -2,6 +2,7 @@
 import { create } from 'zustand';
 import {
   type StoreData,
+  removeFromWindowState,
   cmpId,
   emptyData,
   emptyWindow,
@@ -19,6 +20,9 @@ export const ACK_THROTTLE_MS = 1000;
 const ackTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const lastAckAt = new Map<string, number>();
 
+/** Extras of messages still being delivered, kept so a retry re-sends them. */
+const sentExtras = new Map<string, rest.PostExtras>();
+
 const reactionKey = (r: MessageReaction) => r.emoji.name ?? r.emoji.id ?? '';
 
 /** In-flight de-duplication for keyed loads (the promise is shared until it settles). */
@@ -29,6 +33,22 @@ function once(key: string, run: () => Promise<void>): Promise<void> {
   const p = run().finally(() => inflight.delete(key));
   inflight.set(key, p);
   return p;
+}
+
+/** Optimistic poll vote: single-choice polls move the vote, multi-choice add or remove one answer. */
+function withVote(m: Message, answerId: number, add: boolean): Message {
+  const poll = m.poll;
+  if (!poll?.results) return m;
+  const counts = poll.results.answer_counts.map((c) => {
+    if (c.id === answerId) {
+      return { ...c, count: Math.max(0, c.count + (add ? 1 : -1)), me_voted: add };
+    }
+    if (add && !poll.allow_multiselect && c.me_voted) {
+      return { ...c, count: Math.max(0, c.count - 1), me_voted: false };
+    }
+    return c;
+  });
+  return { ...m, poll: { ...poll, results: { ...poll.results, answer_counts: counts } } };
 }
 
 /** Optimistic reaction change; the server result is not needed to render the toggle. */
@@ -59,10 +79,26 @@ export interface StoreActions {
   loadInitialMessages: (channelId: string) => Promise<void>;
   loadOlderMessages: (channelId: string) => Promise<void>;
   /** Optimistic send; `replyToId` makes it a reply. */
-  sendMessage: (channelId: string, content: string, replyToId?: string | null) => Promise<Message>;
+  sendMessage: (
+    channelId: string,
+    content: string,
+    replyToId?: string | null,
+    extras?: rest.PostExtras,
+  ) => Promise<Message>;
   retryMessage: (channelId: string, nonce: string) => Promise<Message>;
   discardMessage: (channelId: string, nonce: string) => void;
   editMessage: (channelId: string, messageId: string, content: string) => Promise<Message>;
+  /** DELETE the message; it leaves the window at once (rolled back on failure). */
+  deleteMessage: (channelId: string, messageId: string) => Promise<void>;
+  pinMessage: (channelId: string, messageId: string, pinned: boolean) => Promise<void>;
+  /** Cast or withdraw the viewer's poll vote (optimistic). */
+  votePoll: (channelId: string, messageId: string, answerId: number, add: boolean) => Promise<void>;
+  endPoll: (channelId: string, messageId: string) => Promise<void>;
+  /** Forward a message to another channel. */
+  forwardMessage: (
+    targetChannelId: string,
+    source: { channelId: string; messageId: string; guildId?: string },
+  ) => Promise<Message>;
   /**
    * Mark the channel read up to its newest loaded message. Throttled to one POST per second per
    * channel; a call inside the window is sent once the window ends (trailing).
@@ -113,10 +149,13 @@ export const useStore = create<StoreState>()((set, get) => {
     content: string,
     nonce: string,
     replyToId: string | null,
+    extras?: rest.PostExtras,
   ): Promise<Message> => {
     const pid = pendingId(nonce);
+    if (extras) sentExtras.set(nonce, extras);
     try {
-      const msg = await rest.postMessage(channelId, content, nonce, replyToId);
+      const msg = await rest.postMessage(channelId, content, nonce, replyToId, extras);
+      sentExtras.delete(nonce);
       // The gateway may already have reconciled; putServerMessage is idempotent.
       set((s) => {
         const w = s.windows[channelId];
@@ -258,7 +297,7 @@ export const useStore = create<StoreState>()((set, get) => {
       }
     },
 
-    sendMessage: (channelId, content, replyToId = null) => {
+    sendMessage: (channelId, content, replyToId = null, extras) => {
       const s = get();
       const author = s.currentUserId ? s.users[s.currentUserId] : undefined;
       if (!author) return Promise.reject(new Error('Not signed in'));
@@ -283,7 +322,7 @@ export const useStore = create<StoreState>()((set, get) => {
           windows: { ...st.windows, [channelId]: { ...w, pending: [...w.pending, pid] } },
         };
       });
-      return deliver(channelId, content, nonce, replyToId);
+      return deliver(channelId, content, nonce, replyToId, extras);
     },
 
     retryMessage: (channelId, nonce) => {
@@ -292,7 +331,13 @@ export const useStore = create<StoreState>()((set, get) => {
       set((st) => ({
         messages: { ...st.messages, [m.id]: { ...m, local: { status: 'sending', nonce } } },
       }));
-      return deliver(channelId, m.content, nonce, m.message_reference?.message_id ?? null);
+      return deliver(
+        channelId,
+        m.content,
+        nonce,
+        m.message_reference?.message_id ?? null,
+        sentExtras.get(nonce),
+      );
     },
 
     editMessage: async (channelId, messageId, content) => {
@@ -300,6 +345,60 @@ export const useStore = create<StoreState>()((set, get) => {
       set((s) => putServerMessage(s, msg));
       return msg;
     },
+
+    deleteMessage: async (channelId, messageId) => {
+      const before = get().messages[messageId];
+      const win = get().windows[channelId];
+      set((s) => removeFromWindowState(s, channelId, messageId));
+      try {
+        await rest.deleteMessage(channelId, messageId);
+      } catch (e) {
+        if (before)
+          set((s) => ({
+            messages: { ...s.messages, [messageId]: before },
+            windows: win ? { ...s.windows, [channelId]: win } : s.windows,
+          }));
+        throw e;
+      }
+    },
+
+    pinMessage: async (channelId, messageId, pinned) => {
+      const before = get().messages[messageId];
+      if (!before) return;
+      set((s) => ({ messages: { ...s.messages, [messageId]: { ...before, pinned } } }));
+      try {
+        if (pinned) await rest.pinMessage(channelId, messageId);
+        else await rest.unpinMessage(channelId, messageId);
+      } catch (e) {
+        set((s) => ({ messages: { ...s.messages, [messageId]: before } }));
+        throw e;
+      }
+    },
+
+    votePoll: async (channelId, messageId, answerId, add) => {
+      const before = get().messages[messageId];
+      if (!before?.poll) return;
+      set((s) => ({
+        messages: { ...s.messages, [messageId]: withVote(before, answerId, add) },
+      }));
+      try {
+        if (add) await rest.votePoll(channelId, messageId, answerId);
+        else await rest.unvotePoll(channelId, messageId, answerId);
+      } catch (e) {
+        set((s) => ({ messages: { ...s.messages, [messageId]: before } }));
+        throw e;
+      }
+    },
+
+    endPoll: async (channelId, messageId) => {
+      await rest.endPoll(channelId, messageId);
+    },
+
+    forwardMessage: (targetChannelId, source) =>
+      rest.forwardMessage(targetChannelId, source, newNonce()).then((msg) => {
+        set((s) => putServerMessage(s, msg));
+        return msg;
+      }),
 
     ackChannel: (channelId) => {
       const fire = () => {
