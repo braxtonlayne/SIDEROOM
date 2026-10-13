@@ -19,6 +19,7 @@ const ROUTES = [
   '/verify-email/sometoken',
   '/no-invitation',
   '/house-notes',
+  '/support',
   '/login/2fa',
 ];
 

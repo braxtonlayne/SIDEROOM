@@ -142,9 +142,56 @@ export const en = {
   'entrance.static.noInvitation.title': 'No invitation?',
   'entrance.static.noInvitation.body':
     'SIDE ROOM is invitation-only. Ask someone you know who’s a member.',
-  'entrance.static.houseNotes.title': 'House notes',
-  'entrance.static.houseNotes.body':
+
+  // House notes (the page the Library footer and the registration form link to)
+  'entrance.houseNotes.title': 'House notes',
+  'entrance.houseNotes.intro':
     'SIDE ROOM is a small, private place for people who know each other. Be kind, keep what’s said here here, and look after the room.',
+  'entrance.houseNotes.rules.title': 'The house rules',
+  'entrance.houseNotes.rules.1': 'Be kind. Disagree without being cruel.',
+  'entrance.houseNotes.rules.2':
+    'What is said here stays here. Do not share other members’ messages or details outside.',
+  'entrance.houseNotes.rules.3':
+    'Your invitation is your word. Invite people you would be happy to vouch for.',
+  'entrance.houseNotes.rules.4':
+    'Respect age ratings and content settings, and keep adult material where it belongs.',
+  'entrance.houseNotes.rules.5':
+    'Do not post anything illegal, and do not harass, spam or impersonate anyone.',
+  'entrance.houseNotes.privacy.title': 'Privacy',
+  'entrance.houseNotes.privacy.body1':
+    'Messages are kept until they are deleted. A deleted message disappears from view at once and is purged after 30 days; until then only senior staff can see it.',
+  'entrance.houseNotes.privacy.body2':
+    'Voice and video are encrypted end to end and are never recorded. Passwords are stored hashed, and nothing is sent to advertisers or analytics services.',
+  'entrance.houseNotes.privacy.body3':
+    'You can export your data from Settings, and you decide whether your watching and reading activity is shared.',
+  'entrance.houseNotes.terms.title': 'Terms',
+  'entrance.houseNotes.terms.body':
+    'This place is run by its operator for their community, and access is by invitation. The operator may remove content or accounts that break the house rules. Your operator can replace this page with their own terms.',
+  'entrance.houseNotes.credits.title': 'Image credits',
+  'entrance.houseNotes.credits.door':
+    'The door photograph on the entrance pages was supplied by the owner.',
+  'entrance.houseNotes.credits.fonts':
+    'Typefaces: Newsreader, Hanken Grotesk, Inter and IBM Plex Mono, used under the SIL Open Font License.',
+  'entrance.houseNotes.credits.licences': 'Font licences',
+
+  // Support (the Help link in the Library footer)
+  'entrance.support.title': 'Help',
+  'entrance.support.intro':
+    'The common ways to get unstuck. If none of these fit, ask the person who invited you.',
+  'entrance.support.signin.title': 'I cannot sign in',
+  'entrance.support.signin.body': 'Reset your password with the link on the sign-in page.',
+  'entrance.support.signin.link': 'Reset my password',
+  'entrance.support.twofa.title': 'I lost my second factor',
+  'entrance.support.twofa.body':
+    'Use one of your recovery codes on the second step of signing in. Without one, a staff member can reset it for you after confirming who you are.',
+  'entrance.support.invite.title': 'I do not have an invitation',
+  'entrance.support.invite.body':
+    'SIDE ROOM is invitation-only. Ask someone you know who is a member.',
+  'entrance.support.invite.link': 'More about invitations',
+  'entrance.support.rules.title': 'Something is wrong here',
+  'entrance.support.rules.body':
+    'Report it to a server moderator, or read the house notes for what is and is not allowed.',
+  'entrance.support.rules.link': 'House notes',
 
   // Settings shell (adopted by the user and server settings screens)
   'settings.close': 'Close settings',
