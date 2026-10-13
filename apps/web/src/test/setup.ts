@@ -32,3 +32,17 @@ afterEach(() => {
   sessionStorage.clear();
 });
 afterAll(() => server.close());
+
+// TEMP-DEBUG(node24): surface the underlying cause of "fetch failed".
+if (process.env.SR_DEBUG_FETCH) {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (...args: Parameters<typeof fetch>) => {
+    try {
+      return await realFetch(...args);
+    } catch (e) {
+      const c = (e as { cause?: unknown }).cause as { name?: string; message?: string; stack?: string };
+      process.stderr.write(`FETCHDBG ${String(args[0] instanceof Request ? args[0].url : args[0])} :: ${c?.name}: ${c?.message}\n${String(c?.stack).split('\n').slice(0, 6).join('\n')}\n`);
+      throw e;
+    }
+  }) as typeof fetch;
+}
