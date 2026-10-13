@@ -152,7 +152,11 @@ pub async fn create_message(
     // Replies may tolerate a missing target.
     let mut reply_to = None;
     let mut forward = None;
-    if let Some(r) = body.message_reference.as_ref().filter(|r| r.kind == Some(1)) {
+    if let Some(r) = body
+        .message_reference
+        .as_ref()
+        .filter(|r| r.kind == Some(1))
+    {
         forward = Some(super::rich_create::plan_forward(&deps, author, r).await?);
     } else if let Some(r) = &body.message_reference {
         let id: MessageId = r.message_id.parse().map_err(|_| {

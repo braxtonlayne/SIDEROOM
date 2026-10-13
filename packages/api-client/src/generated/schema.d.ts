@@ -333,6 +333,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/channels/{channel_id}/polls/{message_id}/answers/{answer_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Users who voted for an answer, ascending by id. */
+        get: operations["voters"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/polls/{message_id}/answers/{answer_id}/voters/@me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Vote for an answer. A single-choice poll moves the caller's earlier vote. */
+        put: operations["vote"];
+        post?: never;
+        /** Withdraw the caller's vote for an answer. */
+        delete: operations["unvote"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/polls/{message_id}/expire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** End a poll now. Only the author can; the final results go out as `MESSAGE_UPDATE`. */
+        post: operations["expire"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/channels/{channel_id}/recipients/{user_id}": {
         parameters: {
             query?: never;
@@ -1366,6 +1418,11 @@ export interface components {
         AttachmentObject: {
             content_type?: string | null;
             description?: string | null;
+            /**
+             * Format: double
+             * @description Voice messages: length in seconds.
+             */
+            duration_secs?: number | null;
             /** @description Set when the attachment is a large file that will expire. */
             expires_at?: string | null;
             filename: string;
@@ -1374,14 +1431,23 @@ export interface components {
             size: number;
             /** @description Relative CDN path (`/cdn/attachments/...`); signing happens at the edge. */
             url: string;
+            /** @description Voice messages: base64 waveform. */
+            waveform?: string | null;
         };
         /** @description An uploaded file referenced by a new message. */
         AttachmentRef: {
             description?: string | null;
+            /**
+             * Format: double
+             * @description Voice messages: length in seconds (at most 120).
+             */
+            duration_secs?: number | null;
             /** @description The `id` returned by the upload-slot call (client id echo or upload id). */
             id?: string | null;
             /** @description `upload_filename` returned by the upload-slot call. */
             uploaded_filename?: string | null;
+            /** @description Voice messages: base64 waveform of up to 256 amplitude bytes. */
+            waveform?: string | null;
         };
         AuditChangeObject: {
             key: string;
@@ -1869,26 +1935,43 @@ export interface components {
             mention_roles: string[];
             mentions: components["schemas"]["UserRef"][];
             message_reference?: null | components["schemas"]["MessageReferenceObject"];
+            /** @description Forwarded messages: the copy taken at forward time. */
+            message_snapshots?: Record<string, never>[];
             nonce?: string | null;
             pinned: boolean;
+            /** @description Poll definition with live results (`results.answer_counts`). */
+            poll?: Record<string, never> | null;
             reactions?: components["schemas"]["ReactionObject"][];
+            sticker_items?: Record<string, never>[];
             timestamp: string;
             tts: boolean;
             /** Format: int32 */
             type: number;
         };
         MessageReferenceIn: {
+            /** @description Source channel of a forward (a reply stays in this channel). */
+            channel_id?: string | null;
             /**
              * @description Default true: a missing target is an error. When false the message is
              *     sent without a reply.
              */
             fail_if_not_exists?: boolean | null;
             message_id: string;
+            /**
+             * Format: int32
+             * @description 0 (default) replies, 1 forwards the referenced message into this channel.
+             */
+            type?: number | null;
         };
         MessageReferenceObject: {
             channel_id: string;
             guild_id?: string | null;
             message_id: string;
+            /**
+             * Format: int32
+             * @description 0 reply, 1 forward.
+             */
+            type: number;
         };
         MessageRequestBody: {
             /** @description `accepted`, `ignored` or `spam`. */
@@ -2067,6 +2150,10 @@ export interface components {
         PinsPage: {
             has_more: boolean;
             items: components["schemas"]["PinEntry"][];
+        };
+        /** @description Users who picked one answer. */
+        PollVoters: {
+            users: components["schemas"]["UserRef"][];
         };
         PresenceBody: {
             custom_status?: null | components["schemas"]["CustomStatusBody"];
@@ -3625,6 +3712,207 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    voters: {
+        parameters: {
+            query?: {
+                /** @description 1-100, default 25 */
+                limit?: number;
+                /** @description User id to start after */
+                after?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Poll message snowflake */
+                message_id: string;
+                /** @description Answer id */
+                answer_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PollVoters"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    vote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Poll message snowflake */
+                message_id: string;
+                /** @description Answer id */
+                answer_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown answer or the poll has ended */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    unvote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Poll message snowflake */
+                message_id: string;
+                /** @description Answer id */
+                answer_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    expire: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description Poll message snowflake */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageObject"];
+                };
+            };
+            /** @description The poll has already ended */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
             };
             403: {
                 headers: {

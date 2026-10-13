@@ -80,8 +80,8 @@ impl MessagesDeps {
         if self.rich.unfurler.is_none() || msg.guild_id.is_none() {
             return;
         }
-        let has_links = !sr_markdown::extract_preview_links(&sr_markdown::parse(&msg.content))
-            .is_empty();
+        let has_links =
+            !sr_markdown::extract_preview_links(&sr_markdown::parse(&msg.content)).is_empty();
         let had_previews = msg.embeds.iter().any(sr_chat::message::Embed::is_unfurled);
         if !has_links && !had_previews {
             return;

@@ -84,10 +84,7 @@ fn is_timestamp(s: &str) -> bool {
         && hour < 24
         && min < 60
         && sec < 61
-        && (s.ends_with('Z')
-            || s.ends_with('z')
-            || s[19..].contains('+')
-            || s[19..].contains('-'))
+        && (s.ends_with('Z') || s.ends_with('z') || s[19..].contains('+') || s[19..].contains('-'))
 }
 
 /// Validate `embeds` in place and return the total number of counted characters.
@@ -279,30 +276,60 @@ mod tests {
     fn length_limits_table() {
         let long = |n: usize| "x".repeat(n);
         let cases: Vec<(&str, Embed)> = vec![
-            ("embeds.0.title", Embed { title: Some(long(257)), ..embed() }),
-            ("embeds.0.description", Embed { description: Some(long(4097)), ..embed() }),
+            (
+                "embeds.0.title",
+                Embed {
+                    title: Some(long(257)),
+                    ..embed()
+                },
+            ),
+            (
+                "embeds.0.description",
+                Embed {
+                    description: Some(long(4097)),
+                    ..embed()
+                },
+            ),
             (
                 "embeds.0.fields.0.name",
                 Embed {
-                    fields: vec![EmbedField { name: long(257), value: "v".into(), inline: false }],
+                    fields: vec![EmbedField {
+                        name: long(257),
+                        value: "v".into(),
+                        inline: false,
+                    }],
                     ..embed()
                 },
             ),
             (
                 "embeds.0.fields.0.value",
                 Embed {
-                    fields: vec![EmbedField { name: "n".into(), value: long(1025), inline: false }],
+                    fields: vec![EmbedField {
+                        name: "n".into(),
+                        value: long(1025),
+                        inline: false,
+                    }],
                     ..embed()
                 },
             ),
             (
                 "embeds.0.footer.text",
-                Embed { footer: Some(EmbedFooter { text: long(2049), icon_url: None }), ..embed() },
+                Embed {
+                    footer: Some(EmbedFooter {
+                        text: long(2049),
+                        icon_url: None,
+                    }),
+                    ..embed()
+                },
             ),
             (
                 "embeds.0.author.name",
                 Embed {
-                    author: Some(EmbedAuthor { name: long(257), url: None, icon_url: None }),
+                    author: Some(EmbedAuthor {
+                        name: long(257),
+                        url: None,
+                        icon_url: None,
+                    }),
                     ..embed()
                 },
             ),
@@ -311,8 +338,16 @@ mod tests {
             assert_eq!(field_of(validate_embeds(&mut [e])), want);
         }
         // Boundaries pass.
-        let mut ok = Embed { title: Some(long(256)), description: Some(long(4096)), ..Embed::default() };
-        ok.fields = vec![EmbedField { name: long(256), value: long(1024), inline: true }];
+        let mut ok = Embed {
+            title: Some(long(256)),
+            description: Some(long(4096)),
+            ..Embed::default()
+        };
+        ok.fields = vec![EmbedField {
+            name: long(256),
+            value: long(1024),
+            inline: true,
+        }];
         // 256 + 4096 + 1280 = 5632 <= 6000
         assert_eq!(validate_embeds(&mut [ok]).unwrap(), 5632);
     }
@@ -320,8 +355,14 @@ mod tests {
     #[test]
     fn total_size_is_capped_across_embeds() {
         let mut v = vec![
-            Embed { description: Some("x".repeat(4000)), ..Embed::default() },
-            Embed { description: Some("y".repeat(2001)), ..Embed::default() },
+            Embed {
+                description: Some("x".repeat(4000)),
+                ..Embed::default()
+            },
+            Embed {
+                description: Some("y".repeat(2001)),
+                ..Embed::default()
+            },
         ];
         assert_eq!(field_of(validate_embeds(&mut v)), "embeds");
         v[1].description = Some("y".repeat(2000));
@@ -330,20 +371,44 @@ mod tests {
 
     #[test]
     fn urls_timestamps_and_colors() {
-        for bad in ["javascript:alert(1)", "data:text/html,x", "ftp://x.test", "//x.test", "https://a b.test"] {
-            let e = Embed { url: Some(bad.into()), ..embed() };
+        for bad in [
+            "javascript:alert(1)",
+            "data:text/html,x",
+            "ftp://x.test",
+            "//x.test",
+            "https://a b.test",
+        ] {
+            let e = Embed {
+                url: Some(bad.into()),
+                ..embed()
+            };
             assert_eq!(field_of(validate_embeds(&mut [e])), "embeds.0.url", "{bad}");
         }
         let e = Embed {
-            thumbnail: Some(EmbedMedia { url: Some("javascript:x".into()), ..EmbedMedia::default() }),
+            thumbnail: Some(EmbedMedia {
+                url: Some("javascript:x".into()),
+                ..EmbedMedia::default()
+            }),
             ..embed()
         };
-        assert_eq!(field_of(validate_embeds(&mut [e])), "embeds.0.thumbnail.url");
-        let e = Embed { timestamp: Some("yesterday".into()), ..embed() };
+        assert_eq!(
+            field_of(validate_embeds(&mut [e])),
+            "embeds.0.thumbnail.url"
+        );
+        let e = Embed {
+            timestamp: Some("yesterday".into()),
+            ..embed()
+        };
         assert_eq!(field_of(validate_embeds(&mut [e])), "embeds.0.timestamp");
-        let e = Embed { timestamp: Some("2026-13-40T25:61:00Z".into()), ..embed() };
+        let e = Embed {
+            timestamp: Some("2026-13-40T25:61:00Z".into()),
+            ..embed()
+        };
         assert_eq!(field_of(validate_embeds(&mut [e])), "embeds.0.timestamp");
-        let e = Embed { color: 0x0100_0000, ..embed() };
+        let e = Embed {
+            color: 0x0100_0000,
+            ..embed()
+        };
         assert_eq!(field_of(validate_embeds(&mut [e])), "embeds.0.color");
         let mut e = embed();
         e.timestamp = Some("2026-01-02T03:04:05+02:00".into());
@@ -353,11 +418,21 @@ mod tests {
     #[test]
     fn required_subfields() {
         let e = Embed {
-            fields: vec![EmbedField { name: " ".into(), value: "v".into(), inline: false }],
+            fields: vec![EmbedField {
+                name: " ".into(),
+                value: "v".into(),
+                inline: false,
+            }],
             ..embed()
         };
-        assert_eq!(field_of(validate_embeds(&mut [e])), "embeds.0.fields.0.name");
-        let e = Embed { footer: Some(EmbedFooter::default()), ..embed() };
+        assert_eq!(
+            field_of(validate_embeds(&mut [e])),
+            "embeds.0.fields.0.name"
+        );
+        let e = Embed {
+            footer: Some(EmbedFooter::default()),
+            ..embed()
+        };
         assert_eq!(field_of(validate_embeds(&mut [e])), "embeds.0.footer.text");
     }
 }

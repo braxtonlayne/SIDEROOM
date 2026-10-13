@@ -27,7 +27,9 @@ impl PollTally {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VoteResult {
     /// Recorded. `replaced` lists the answers dropped because the poll is single choice.
-    Added { replaced: Vec<u32> },
+    Added {
+        replaced: Vec<u32>,
+    },
     AlreadyVoted,
     /// The poll no longer accepts votes (expired or finalised).
     Closed,
@@ -104,7 +106,11 @@ pub trait RichStore: Send + Sync {
     async fn finalize_poll(&self, message: MessageId, now_ms: i64) -> StoreResult<bool>;
 
     /// Polls whose expiry has passed but that are not finalised yet.
-    async fn due_polls(&self, now_ms: i64, limit: usize) -> StoreResult<Vec<(ChannelId, MessageId)>>;
+    async fn due_polls(
+        &self,
+        now_ms: i64,
+        limit: usize,
+    ) -> StoreResult<Vec<(ChannelId, MessageId)>>;
 
     /// Sticker rows among `ids` (unknown ids are omitted).
     async fn stickers(&self, ids: &[u64]) -> StoreResult<Vec<StickerRecord>>;

@@ -61,7 +61,13 @@ fn check_emoji(field: &str, e: &PollEmoji) -> ChatResult<()> {
                 return Err(bad(field, "BASE_TYPE_BAD_LENGTH", "Invalid emoji."));
             }
         }
-        (None, None) => return Err(bad(field, "BASE_TYPE_REQUIRED", "Emoji needs an id or a name.")),
+        (None, None) => {
+            return Err(bad(
+                field,
+                "BASE_TYPE_REQUIRED",
+                "Emoji needs an id or a name.",
+            ));
+        }
     }
     Ok(())
 }
@@ -116,7 +122,11 @@ pub fn plan_poll(c: PollCreate, now_ms: i64) -> ChatResult<Poll> {
             .map(str::trim)
             .filter(|t| !t.is_empty());
         if text.is_none() && a.poll_media.emoji.is_none() {
-            return Err(bad(&field, "BASE_TYPE_REQUIRED", "An answer needs text or an emoji."));
+            return Err(bad(
+                &field,
+                "BASE_TYPE_REQUIRED",
+                "An answer needs text or an emoji.",
+            ));
         }
         if text.is_some_and(|t| t.chars().count() > MAX_ANSWER_CHARS) {
             return Err(bad(
@@ -262,9 +272,11 @@ mod tests {
             assert!(plan_poll(create(v), 0).is_err(), "{name} must be rejected");
         }
         let mut eleven = ok_poll();
-        eleven["answers"] = json!((0..11)
-            .map(|i| json!({"poll_media": {"text": format!("a{i}")}}))
-            .collect::<Vec<_>>());
+        eleven["answers"] = json!(
+            (0..11)
+                .map(|i| json!({"poll_media": {"text": format!("a{i}")}}))
+                .collect::<Vec<_>>()
+        );
         assert!(plan_poll(create(eleven), 0).is_err());
     }
 }

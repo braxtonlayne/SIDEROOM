@@ -143,7 +143,13 @@ async fn polls_votes_finalise_and_embeds() {
     );
 
     // Not due yet; early expiry then finalise exactly once.
-    assert!(rich.due_polls(now, 10).await.unwrap().iter().all(|(_, m)| *m != single.id));
+    assert!(
+        rich.due_polls(now, 10)
+            .await
+            .unwrap()
+            .iter()
+            .all(|(_, m)| *m != single.id)
+    );
     assert!(!rich.finalize_poll(single.id, now).await.unwrap());
     assert!(rich.expire_poll_now(single.id, now).await.unwrap());
     assert!(!rich.expire_poll_now(single.id, now).await.unwrap());
@@ -169,7 +175,9 @@ async fn polls_votes_finalise_and_embeds() {
     let done = repo.get_message(general, single.id).await.unwrap().unwrap();
     assert!(done.poll.unwrap().finalized);
     assert_eq!(
-        rich.retract_vote(single.id, 2, owner, now + 1).await.unwrap(),
+        rich.retract_vote(single.id, 2, owner, now + 1)
+            .await
+            .unwrap(),
         RetractResult::Closed
     );
 
@@ -219,7 +227,12 @@ async fn polls_votes_finalise_and_embeds() {
         )
         .await
         .unwrap();
-    assert!(rich.due_polls(now, 100).await.unwrap().contains(&(general, old.id)));
+    assert!(
+        rich.due_polls(now, 100)
+            .await
+            .unwrap()
+            .contains(&(general, old.id))
+    );
     assert!(rich.finalize_poll(old.id, now).await.unwrap());
 
     // Embeds replace the stored list.
@@ -274,7 +287,11 @@ async fn stickers_forwards_and_voice_metadata_round_trip() {
     let found = rich.stickers(&[gs, ss, 1]).await.unwrap();
     assert_eq!(found.len(), 2);
     assert!(found.iter().any(|s| s.id == ss && s.guild_id.is_none()));
-    assert!(found.iter().any(|s| s.id == gs && s.guild_id == Some(guild)));
+    assert!(
+        found
+            .iter()
+            .any(|s| s.id == gs && s.guild_id == Some(guild))
+    );
     let with_stickers = svc
         .send_message(
             owner,

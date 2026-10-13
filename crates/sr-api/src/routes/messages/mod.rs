@@ -19,13 +19,13 @@ pub mod list;
 
 pub mod model;
 pub mod pins;
+pub mod polls;
 pub mod reactions;
 pub mod render;
 pub mod rich;
+pub mod rich_create;
 pub mod rich_jobs;
 pub mod rich_model;
-pub mod polls;
-pub mod rich_create;
 pub mod send;
 pub mod store;
 pub mod typing;
@@ -33,8 +33,8 @@ pub mod typing;
 #[cfg(test)]
 mod tests;
 
-pub use rich::{JobScheduler, RichDeps, UnfurlGate};
 pub use deps::{DmAnnouncer, FixedEntitlements, MessagesDeps, UploadEntitlements};
+pub use rich::{JobScheduler, RichDeps, UnfurlGate};
 
 use crate::{openapi::ErrorBody, state::AppState};
 use axum::{

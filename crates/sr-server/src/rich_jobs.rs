@@ -18,9 +18,7 @@ use sr_core::{ChannelId, GuildId, MessageId};
 use sr_db::jobs::{self, Job, NewJob};
 use sr_db::runner::{HandlerError, JobRunner};
 use sr_db::{DbResult, PgPool};
-use sr_features::{
-    Feature, FeatureMeta, FeatureService, Scope, ScopeRef, SettingsSchema,
-};
+use sr_features::{Feature, FeatureMeta, FeatureService, Scope, ScopeRef, SettingsSchema};
 
 use crate::search_jobs::JobIds;
 

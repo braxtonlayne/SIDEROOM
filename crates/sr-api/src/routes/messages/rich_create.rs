@@ -23,10 +23,7 @@ pub const MAX_WAVEFORM_BYTES: usize = 256;
 pub const MAX_VOICE_BYTES: u64 = 8 * 1024 * 1024;
 
 /// The `poll` field of a create request, validated into a stored poll.
-pub fn plan_poll(
-    deps: &MessagesDeps,
-    raw: Option<&serde_json::Value>,
-) -> MsgResult<Option<Poll>> {
+pub fn plan_poll(deps: &MessagesDeps, raw: Option<&serde_json::Value>) -> MsgResult<Option<Poll>> {
     let Some(raw) = raw else { return Ok(None) };
     deps.rich_store("poll")?;
     let create: PollCreate = serde_json::from_value(raw.clone())
@@ -53,11 +50,13 @@ pub async fn resolve_stickers(
     }
     let mut ids = Vec::with_capacity(raw.len());
     for s in raw {
-        let id = s
-            .parse::<u64>()
-            .ok()
-            .filter(|n| *n != 0)
-            .ok_or_else(|| invalid("sticker_ids", "NUMBER_TYPE_COERCE", "Value is not snowflake."))?;
+        let id = s.parse::<u64>().ok().filter(|n| *n != 0).ok_or_else(|| {
+            invalid(
+                "sticker_ids",
+                "NUMBER_TYPE_COERCE",
+                "Value is not snowflake.",
+            )
+        })?;
         if ids.contains(&id) {
             return Err(invalid("sticker_ids", "DUPLICATE", "Duplicate sticker."));
         }
@@ -132,10 +131,13 @@ pub fn validate_voice(uploads: &[(Attachment, Option<String>)]) -> MsgResult<()>
             ));
         }
     }
-    let wave = att
-        .waveform
-        .as_deref()
-        .ok_or_else(|| invalid("attachments.0.waveform", "BASE_TYPE_REQUIRED", "A voice message needs a waveform."))?;
+    let wave = att.waveform.as_deref().ok_or_else(|| {
+        invalid(
+            "attachments.0.waveform",
+            "BASE_TYPE_REQUIRED",
+            "A voice message needs a waveform.",
+        )
+    })?;
     match BASE64.decode(wave.as_bytes()) {
         Ok(b) if !b.is_empty() && b.len() <= MAX_WAVEFORM_BYTES => Ok(()),
         _ => Err(invalid(
@@ -280,18 +282,58 @@ mod tests {
     #[test]
     fn voice_message_validation_table() {
         let wave = BASE64.encode(&[1u8, 2, 3, 200]);
-        assert!(check(voice(Some("audio/ogg"), Some(5_000), Some(&wave), 1000)));
-        assert!(check(voice(Some("audio/ogg"), Some(120_000), Some(&wave), 1000)));
+        assert!(check(voice(
+            Some("audio/ogg"),
+            Some(5_000),
+            Some(&wave),
+            1000
+        )));
+        assert!(check(voice(
+            Some("audio/ogg"),
+            Some(120_000),
+            Some(&wave),
+            1000
+        )));
         // Wrong type, too long, missing pieces, bad waveform, oversized.
-        assert!(!check(voice(Some("audio/mpeg"), Some(5_000), Some(&wave), 1000)));
+        assert!(!check(voice(
+            Some("audio/mpeg"),
+            Some(5_000),
+            Some(&wave),
+            1000
+        )));
         assert!(!check(voice(None, Some(5_000), Some(&wave), 1000)));
-        assert!(!check(voice(Some("audio/ogg"), Some(120_001), Some(&wave), 1000)));
+        assert!(!check(voice(
+            Some("audio/ogg"),
+            Some(120_001),
+            Some(&wave),
+            1000
+        )));
         assert!(!check(voice(Some("audio/ogg"), None, Some(&wave), 1000)));
         assert!(!check(voice(Some("audio/ogg"), Some(5_000), None, 1000)));
-        assert!(!check(voice(Some("audio/ogg"), Some(5_000), Some("!!not base64"), 1000)));
-        assert!(!check(voice(Some("audio/ogg"), Some(5_000), Some(&BASE64.encode(&[0u8; 257])), 1000)));
-        assert!(!check(voice(Some("audio/ogg"), Some(5_000), Some(""), 1000)));
-        assert!(!check(voice(Some("audio/ogg"), Some(5_000), Some(&wave), MAX_VOICE_BYTES + 1)));
+        assert!(!check(voice(
+            Some("audio/ogg"),
+            Some(5_000),
+            Some("!!not base64"),
+            1000
+        )));
+        assert!(!check(voice(
+            Some("audio/ogg"),
+            Some(5_000),
+            Some(&BASE64.encode(&[0u8; 257])),
+            1000
+        )));
+        assert!(!check(voice(
+            Some("audio/ogg"),
+            Some(5_000),
+            Some(""),
+            1000
+        )));
+        assert!(!check(voice(
+            Some("audio/ogg"),
+            Some(5_000),
+            Some(&wave),
+            MAX_VOICE_BYTES + 1
+        )));
         // Not exactly one attachment.
         let a = voice(Some("audio/ogg"), Some(5_000), Some(&wave), 1000);
         assert!(validate_voice(&[]).is_err());

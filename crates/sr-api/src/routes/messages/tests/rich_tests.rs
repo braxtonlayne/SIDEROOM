@@ -134,7 +134,12 @@ async fn poll_lifecycle_votes_results_events_and_finalise() {
     assert_eq!(m["poll"]["allow_multiselect"], false);
     assert_eq!(m["poll"]["results"]["is_finalized"], false);
     assert_eq!(counts(&m), vec![0, 0, 0]);
-    assert!(m["poll"]["expiry"].as_str().unwrap().starts_with("2027-01-16T08:00:00"));
+    assert!(
+        m["poll"]["expiry"]
+            .as_str()
+            .unwrap()
+            .starts_with("2027-01-16T08:00:00")
+    );
     // The finalise job is queued for the expiry.
     let queued = e.jobs.of_kind("messages.poll_finalize");
     assert_eq!(queued.len(), 1);
@@ -167,8 +172,14 @@ async fn poll_lifecycle_votes_results_events_and_finalise() {
 
     let (_, owner_view) = e.get(&format!("/messages/{id}"), "owner").await;
     assert_eq!(counts(&owner_view), vec![0, 2, 0]);
-    assert_eq!(owner_view["poll"]["results"]["answer_counts"][1]["me_voted"], true);
-    assert_eq!(owner_view["poll"]["results"]["answer_counts"][0]["me_voted"], false);
+    assert_eq!(
+        owner_view["poll"]["results"]["answer_counts"][1]["me_voted"],
+        true
+    );
+    assert_eq!(
+        owner_view["poll"]["results"]["answer_counts"][0]["me_voted"],
+        false
+    );
 
     let (s, voters) = e.get(&format!("/polls/{id}/answers/2"), "bob").await;
     assert_eq!(s, StatusCode::OK);
@@ -179,7 +190,9 @@ async fn poll_lifecycle_votes_results_events_and_finalise() {
         .map(|u| u["id"].as_str().unwrap())
         .collect();
     assert_eq!(ids, vec!["1", "2"]);
-    let (_, after) = e.get(&format!("/polls/{id}/answers/2?after=1&limit=1"), "bob").await;
+    let (_, after) = e
+        .get(&format!("/polls/{id}/answers/2?after=1&limit=1"), "bob")
+        .await;
     assert_eq!(after["users"].as_array().unwrap().len(), 1);
     assert_eq!(after["users"][0]["id"], "2");
 
@@ -200,8 +213,14 @@ async fn poll_lifecycle_votes_results_events_and_finalise() {
 
     // Bad requests.
     let r = e.call(Method::PUT, &vote(9), "bob", None).await;
-    assert_eq!((r.0, r.2["code"].as_u64()), (StatusCode::BAD_REQUEST, Some(50035)));
-    assert_eq!(put(&e, &format!("/polls/{id}/answers/x/voters/@me"), "bob").await, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        (r.0, r.2["code"].as_u64()),
+        (StatusCode::BAD_REQUEST, Some(50035))
+    );
+    assert_eq!(
+        put(&e, &format!("/polls/{id}/answers/x/voters/@me"), "bob").await,
+        StatusCode::BAD_REQUEST
+    );
     let plain = id_of(&e.say("bob", "no poll").await);
     let _ = next_event(&mut ev).await;
     assert_eq!(
@@ -211,12 +230,16 @@ async fn poll_lifecycle_votes_results_events_and_finalise() {
     assert_eq!(put(&e, &vote(1), "carol").await, StatusCode::FORBIDDEN);
     // Only the author ends a poll early.
     assert_eq!(
-        e.post(&format!("/polls/{id}/expire"), "owner", json!({})).await.0,
+        e.post(&format!("/polls/{id}/expire"), "owner", json!({}))
+            .await
+            .0,
         StatusCode::FORBIDDEN
     );
 
     // Expire: results are final, votes refused, MESSAGE_UPDATE announced.
-    let (s, done) = e.post(&format!("/polls/{id}/expire"), "bob", json!({})).await;
+    let (s, done) = e
+        .post(&format!("/polls/{id}/expire"), "bob", json!({}))
+        .await;
     assert_eq!(s, StatusCode::OK, "{done}");
     assert_eq!(done["poll"]["results"]["is_finalized"], true);
     assert_eq!(counts(&done), vec![0, 1, 0]);
@@ -227,13 +250,22 @@ async fn poll_lifecycle_votes_results_events_and_finalise() {
         other => panic!("{other:?}"),
     }
     let r = e.call(Method::PUT, &vote(3), "bob", None).await;
-    assert_eq!((r.0, r.2["errors"]["poll"].is_object()), (StatusCode::BAD_REQUEST, true));
     assert_eq!(
-        e.post(&format!("/polls/{id}/expire"), "bob", json!({})).await.0,
+        (r.0, r.2["errors"]["poll"].is_object()),
+        (StatusCode::BAD_REQUEST, true)
+    );
+    assert_eq!(
+        e.post(&format!("/polls/{id}/expire"), "bob", json!({}))
+            .await
+            .0,
         StatusCode::BAD_REQUEST
     );
     // The scheduled job finds nothing left to do.
-    assert!(!rich_jobs::finalize_poll(&e.deps, e.ch, id.parse().unwrap()).await.unwrap());
+    assert!(
+        !rich_jobs::finalize_poll(&e.deps, e.ch, id.parse().unwrap())
+            .await
+            .unwrap()
+    );
 }
 
 #[tokio::test]
@@ -292,10 +324,13 @@ async fn stickers_are_validated_and_rendered() {
             format_type: 1,
             available,
         };
-        d.sticker_rows.insert(10, mk(10, Some(e.guild), "wave", true));
+        d.sticker_rows
+            .insert(10, mk(10, Some(e.guild), "wave", true));
         d.sticker_rows.insert(11, mk(11, None, "standard", true));
-        d.sticker_rows.insert(12, mk(12, Some(GuildId::new(999)), "foreign", true));
-        d.sticker_rows.insert(13, mk(13, Some(e.guild), "off", false));
+        d.sticker_rows
+            .insert(12, mk(12, Some(GuildId::new(999)), "foreign", true));
+        d.sticker_rows
+            .insert(13, mk(13, Some(e.guild), "off", false));
     }
     let r = e
         .post("/messages", "bob", json!({"sticker_ids": ["10", "11"]}))
@@ -305,8 +340,17 @@ async fn stickers_are_validated_and_rendered() {
     assert_eq!(r.1["sticker_items"][1]["id"], "11");
     let (_, again) = e.get(&format!("/messages/{}", id_of(&r.1)), "owner").await;
     assert_eq!(again["sticker_items"].as_array().unwrap().len(), 2);
-    for ids in [json!(["12"]), json!(["13"]), json!(["999"]), json!(["10", "10"]), json!(["10", "11", "10", "11"]), json!(["x"])] {
-        let r = e.post("/messages", "bob", json!({"sticker_ids": ids})).await;
+    for ids in [
+        json!(["12"]),
+        json!(["13"]),
+        json!(["999"]),
+        json!(["10", "10"]),
+        json!(["10", "11", "10", "11"]),
+        json!(["x"]),
+    ] {
+        let r = e
+            .post("/messages", "bob", json!({"sticker_ids": ids}))
+            .await;
         assert_eq!(code(&r), (StatusCode::BAD_REQUEST, Some(50035)), "{ids}");
     }
 }
@@ -344,9 +388,7 @@ async fn voice_messages_need_ogg_duration_and_waveform() {
             "duration_secs": dur, "waveform": w,
         }])
     };
-    let send = |attachments: Value, content: &str| {
-        json!({"flags": 1 << 13, "attachments": attachments, "content": content})
-    };
+    let send = |attachments: Value, content: &str| json!({"flags": 1 << 13, "attachments": attachments, "content": content});
     // Too long, no waveform, bad waveform, and text alongside are all refused.
     for body in [
         send(att(json!(121.0), json!(wave)), ""),
@@ -401,20 +443,34 @@ async fn voice_messages_need_ogg_duration_and_waveform() {
 async fn embeds_and_allowed_mentions_are_validated() {
     let e = env().await;
     let embeds = |n: usize| json!({"embeds": vec![json!({"title": "t"}); n]});
-    assert_eq!(e.post("/messages", "bob", embeds(10)).await.0, StatusCode::OK);
+    assert_eq!(
+        e.post("/messages", "bob", embeds(10)).await.0,
+        StatusCode::OK
+    );
     let r = e.post("/messages", "bob", embeds(11)).await;
     assert_eq!(code(&r), (StatusCode::BAD_REQUEST, Some(50035)));
     let big = json!({"embeds": [
         {"description": "x".repeat(4000)}, {"description": "y".repeat(2001)}
     ]});
     let r = e.post("/messages", "bob", big).await;
-    assert_eq!(r.1["errors"]["embeds"]["_errors"][0]["code"], "EMBED_SIZE_EXCEEDS_MAXIMUM");
+    assert_eq!(
+        r.1["errors"]["embeds"]["_errors"][0]["code"],
+        "EMBED_SIZE_EXCEEDS_MAXIMUM"
+    );
     let r = e
-        .post("/messages", "bob", json!({"embeds": [{"title": "x".repeat(257)}]}))
+        .post(
+            "/messages",
+            "bob",
+            json!({"embeds": [{"title": "x".repeat(257)}]}),
+        )
         .await;
     assert!(r.1["errors"]["embeds"]["0"]["title"].is_object(), "{}", r.1);
     let r = e
-        .post("/messages", "bob", json!({"embeds": [{"title": "t", "url": "javascript:alert(1)"}]}))
+        .post(
+            "/messages",
+            "bob",
+            json!({"embeds": [{"title": "t", "url": "javascript:alert(1)"}]}),
+        )
         .await;
     assert_eq!(r.0, StatusCode::BAD_REQUEST);
     let fields = vec![json!({"name": "n", "value": "v"}); 26];
@@ -470,17 +526,28 @@ async fn forwards_copy_the_source_and_survive_edits() {
     assert_eq!(fwd["message_reference"]["message_id"], sid.as_str());
     assert_eq!(fwd["type"], 0);
     assert_eq!(fwd["content"], "");
-    assert_eq!(fwd["message_snapshots"][0]["message"]["content"], "original words");
+    assert_eq!(
+        fwd["message_snapshots"][0]["message"]["content"],
+        "original words"
+    );
     assert!(fwd["message_snapshots"][0]["message"]["timestamp"].is_string());
 
     // Editing or deleting the source does not change the forward.
     let (s, _) = e
-        .patch(&format!("/messages/{sid}"), "owner", json!({"content": "changed"}))
+        .patch(
+            &format!("/messages/{sid}"),
+            "owner",
+            json!({"content": "changed"}),
+        )
         .await;
     assert_eq!(s, StatusCode::OK);
-    e.status(Method::DELETE, &format!("/messages/{sid}"), "owner").await;
+    e.status(Method::DELETE, &format!("/messages/{sid}"), "owner")
+        .await;
     let (_, again) = e.get(&format!("/messages/{}", id_of(&fwd)), "bob").await;
-    assert_eq!(again["message_snapshots"][0]["message"]["content"], "original words");
+    assert_eq!(
+        again["message_snapshots"][0]["message"]["content"],
+        "original words"
+    );
 
     // Forwarding the forward keeps the original copy; a deleted source is gone.
     let (s, f2) = e
@@ -493,7 +560,10 @@ async fn forwards_copy_the_source_and_survive_edits() {
         )
         .await;
     assert_eq!(s, StatusCode::OK, "{f2}");
-    assert_eq!(f2["message_snapshots"][0]["message"]["content"], "original words");
+    assert_eq!(
+        f2["message_snapshots"][0]["message"]["content"],
+        "original words"
+    );
     let gone = e
         .post(
             "/messages",
@@ -557,7 +627,9 @@ async fn links_are_previewed_by_a_job_and_announced() {
     assert_eq!(jobs.len(), 1);
     assert_eq!(jobs[0].0["message_id"].as_u64().unwrap().to_string(), id);
 
-    let out = rich_jobs::run_unfurl(&e.deps, e.ch, id.parse().unwrap()).await.unwrap();
+    let out = rich_jobs::run_unfurl(&e.deps, e.ch, id.parse().unwrap())
+        .await
+        .unwrap();
     assert_eq!(out, UnfurlOutcome::Updated);
     match next_event(&mut ev).await {
         DomainEvent::MessageEdited { data, .. } => {
@@ -576,7 +648,9 @@ async fn links_are_previewed_by_a_job_and_announced() {
     assert!(got["edited_timestamp"].is_null());
     // A second pass changes nothing.
     assert_eq!(
-        rich_jobs::run_unfurl(&e.deps, e.ch, id.parse().unwrap()).await.unwrap(),
+        rich_jobs::run_unfurl(&e.deps, e.ch, id.parse().unwrap())
+            .await
+            .unwrap(),
         UnfurlOutcome::Unchanged
     );
     no_event(&mut ev).await;
@@ -595,7 +669,10 @@ async fn previews_keep_bot_embeds_and_honour_suppression() {
         .await;
     let id = id_of(&m);
     let mid: MessageId = id.parse().unwrap();
-    assert_eq!(rich_jobs::run_unfurl(&e.deps, e.ch, mid).await.unwrap(), UnfurlOutcome::Updated);
+    assert_eq!(
+        rich_jobs::run_unfurl(&e.deps, e.ch, mid).await.unwrap(),
+        UnfurlOutcome::Updated
+    );
     let (_, got) = e.get(&format!("/messages/{id}"), "bob").await;
     assert_eq!(got["embeds"].as_array().unwrap().len(), 2);
     assert_eq!(got["embeds"][0]["title"], "mine");
@@ -603,22 +680,40 @@ async fn previews_keep_bot_embeds_and_honour_suppression() {
 
     // Suppressing embeds removes the previews but keeps the author's own embed.
     let before = e.jobs.of_kind("messages.unfurl").len();
-    let (s, _) = e.patch(&format!("/messages/{id}"), "bob", json!({"flags": 4})).await;
+    let (s, _) = e
+        .patch(&format!("/messages/{id}"), "bob", json!({"flags": 4}))
+        .await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(e.jobs.of_kind("messages.unfurl").len(), before + 1);
-    assert_eq!(rich_jobs::run_unfurl(&e.deps, e.ch, mid).await.unwrap(), UnfurlOutcome::Updated);
+    assert_eq!(
+        rich_jobs::run_unfurl(&e.deps, e.ch, mid).await.unwrap(),
+        UnfurlOutcome::Updated
+    );
     let (_, got) = e.get(&format!("/messages/{id}"), "bob").await;
     assert_eq!(got["embeds"].as_array().unwrap().len(), 1);
     assert_eq!(got["embeds"][0]["title"], "mine");
 
     // SUPPRESS_EMBEDS on create queues nothing.
     let before = e.jobs.of_kind("messages.unfurl").len();
-    e.post("/messages", "bob", json!({"content": "https://news.test/a", "flags": 4})).await;
+    e.post(
+        "/messages",
+        "bob",
+        json!({"content": "https://news.test/a", "flags": 4}),
+    )
+    .await;
     assert_eq!(e.jobs.of_kind("messages.unfurl").len(), before);
     // A dead link produces no embed and no error.
-    let (_, dead) = e.post("/messages", "bob", json!({"content": "https://gone.test/x"})).await;
+    let (_, dead) = e
+        .post(
+            "/messages",
+            "bob",
+            json!({"content": "https://gone.test/x"}),
+        )
+        .await;
     assert_eq!(
-        rich_jobs::run_unfurl(&e.deps, e.ch, id_of(&dead).parse().unwrap()).await.unwrap(),
+        rich_jobs::run_unfurl(&e.deps, e.ch, id_of(&dead).parse().unwrap())
+            .await
+            .unwrap(),
         UnfurlOutcome::Unchanged
     );
 }

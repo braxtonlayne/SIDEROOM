@@ -44,14 +44,20 @@ async fn target(
     acc.require(Permissions::READ_MESSAGE_HISTORY)?;
     let message = deps.visible_message(channel, message_id).await?;
     if message.poll.is_none() {
-        return Err(invalid("message_id", "NO_POLL", "This message has no poll."));
+        return Err(invalid(
+            "message_id",
+            "NO_POLL",
+            "This message has no poll.",
+        ));
     }
     let answer = match answer {
-        Some(a) => a
-            .parse::<u32>()
-            .ok()
-            .filter(|n| *n > 0)
-            .ok_or_else(|| invalid("answer_id", "NUMBER_TYPE_COERCE", "Value is not an answer id."))?,
+        Some(a) => a.parse::<u32>().ok().filter(|n| *n > 0).ok_or_else(|| {
+            invalid(
+                "answer_id",
+                "NUMBER_TYPE_COERCE",
+                "Value is not an answer id.",
+            )
+        })?,
         None => 0,
     };
     Ok(Target {
@@ -117,7 +123,11 @@ pub async fn vote(
         VoteResult::AlreadyVoted => {}
         VoteResult::Closed => return Err(closed()),
         VoteResult::UnknownAnswer => {
-            return Err(invalid("answer_id", "UNKNOWN_ANSWER", "Unknown poll answer."));
+            return Err(invalid(
+                "answer_id",
+                "UNKNOWN_ANSWER",
+                "Unknown poll answer.",
+            ));
         }
         VoteResult::NoPoll => return Err(ChatError::UnknownMessage.into()),
     }
@@ -194,7 +204,11 @@ pub async fn voters(
         None => 25,
         Some(l) if (1..=100).contains(&l) => l as usize,
         Some(_) => {
-            return Err(invalid("limit", "NUMBER_TYPE_MAX", "Must be between 1 and 100."));
+            return Err(invalid(
+                "limit",
+                "NUMBER_TYPE_MAX",
+                "Must be between 1 and 100.",
+            ));
         }
     };
     let after = q

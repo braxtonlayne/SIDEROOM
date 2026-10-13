@@ -15,7 +15,11 @@ pub fn extract_preview_links(nodes: &[Node]) -> Vec<String> {
 fn walk(nodes: &[Node], out: &mut Vec<String>) {
     for n in nodes {
         match n {
-            Node::Link { url, kind, children } => {
+            Node::Link {
+                url,
+                kind,
+                children,
+            } => {
                 let eligible = matches!(kind, LinkKind::Auto | LinkKind::Masked)
                     && (url.starts_with("http://") || url.starts_with("https://"));
                 if eligible && !out.iter().any(|u| u == url) {

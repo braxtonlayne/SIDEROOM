@@ -95,7 +95,11 @@ pub async fn decorate(
     msgs: &[Message],
     objs: &mut [MessageObject],
 ) -> MsgResult<()> {
-    let poll_ids: Vec<_> = msgs.iter().filter(|m| m.poll.is_some()).map(|m| m.id).collect();
+    let poll_ids: Vec<_> = msgs
+        .iter()
+        .filter(|m| m.poll.is_some())
+        .map(|m| m.id)
+        .collect();
     let mut sticker_ids: Vec<u64> = msgs.iter().flat_map(|m| m.sticker_ids.clone()).collect();
     sticker_ids.sort_unstable();
     sticker_ids.dedup();

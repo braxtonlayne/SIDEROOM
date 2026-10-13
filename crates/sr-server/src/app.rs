@@ -379,7 +379,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             ids: job_ids,
         })),
         unfurler: Some(unfurler),
-        gate: Some(Arc::new(crate::rich_jobs::FeatureUnfurlGate(features.clone()))),
+        gate: Some(Arc::new(crate::rich_jobs::FeatureUnfurlGate(
+            features.clone(),
+        ))),
     });
 
     // Server settings and message search (open questions 131-138). The settings
