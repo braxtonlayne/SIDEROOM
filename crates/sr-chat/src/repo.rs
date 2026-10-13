@@ -263,6 +263,22 @@ pub struct Attachment {
     pub duration_ms: Option<u32>,
     /// Voice messages: base64 waveform (up to 256 amplitude samples).
     pub waveform: Option<String>,
+    /// Images and videos: pixel size as declared by the client when it asked for the slot.
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    /// Images: BlurHash placeholder as declared by the client (see `valid_blurhash`).
+    pub blurhash: Option<String>,
+}
+
+/// Largest declared image side, in pixels.
+pub const MAX_IMAGE_SIDE: u32 = 16_384;
+
+/// Whether `s` can be a BlurHash: 6 to 128 characters of the base-83 alphabet. The string is only ever
+/// decoded by the viewer's browser into a tiny canvas, so this is a shape check, not a decode.
+pub fn valid_blurhash(s: &str) -> bool {
+    const ALPHABET: &str =
+        "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz#$%*+,-.:;=?@[]^_{|}~";
+    (6..=128).contains(&s.len()) && s.chars().all(|c| ALPHABET.contains(c))
 }
 
 #[async_trait]
@@ -338,5 +354,22 @@ pub trait MessageStore: Send + Sync {
 impl From<RepoError> for StoreError {
     fn from(e: RepoError) -> Self {
         Self(e.0)
+    }
+}
+
+#[cfg(test)]
+mod blurhash_tests {
+    use super::valid_blurhash;
+
+    #[test]
+    fn accepts_real_hashes_and_refuses_junk() {
+        assert!(valid_blurhash("LEHV6nWB2yk8pyo0adR*.7kCMdnj"));
+        assert!(valid_blurhash("L6PZfSi_.AyE_3t7t7R**0o#DgR4"));
+        assert!(!valid_blurhash(""));
+        assert!(!valid_blurhash("short"));
+        assert!(!valid_blurhash("has a space in it"));
+        assert!(!valid_blurhash("quote\"inside-the-hash"));
+        assert!(!valid_blurhash(&"A".repeat(129)));
+        assert!(valid_blurhash(&"A".repeat(128)));
     }
 }

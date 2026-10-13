@@ -974,6 +974,68 @@ async fn upload_slot_enforces_entitlement_limits() {
 }
 
 #[tokio::test]
+async fn declared_picture_size_and_blurhash_reach_the_attachment() {
+    let e = env().await;
+    let png = png_with_secret();
+    let (s, v) = e
+        .post(
+            "/attachments",
+            "bob",
+            json!({"files": [{
+                "id": "0", "filename": "cat.png", "file_size": png.len(),
+                "content_type": "image/png", "width": 640, "height": 480,
+                "blurhash": "LEHV6nWB2yk8pyo0adR*.7kCMdnj"
+            }]}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let slot = v["attachments"][0].clone();
+    e.storage
+        .put(&slot_key(e.ch, &slot, "cat.png"), Bytes::from(png))
+        .await
+        .unwrap();
+    let msg = json!({
+        "content": "pic",
+        "attachments": [{"id": "0", "uploaded_filename": slot["upload_filename"]}],
+    });
+    let (s, v) = e.post("/messages", "bob", msg).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let a = &v["attachments"][0];
+    assert_eq!(a["width"], 640);
+    assert_eq!(a["height"], 480);
+    assert_eq!(a["blurhash"], "LEHV6nWB2yk8pyo0adR*.7kCMdnj");
+    let (_, list) = e.get("/messages", "bob").await;
+    assert_eq!(list[0]["attachments"][0]["blurhash"], a["blurhash"]);
+}
+
+#[tokio::test]
+async fn bad_picture_size_or_blurhash_is_refused() {
+    let e = env().await;
+    for file in [
+        json!({"filename": "a.png", "file_size": 10, "width": 100}),
+        json!({"filename": "a.png", "file_size": 10, "width": 0, "height": 5}),
+        json!({"filename": "a.png", "file_size": 10, "width": 99999, "height": 5}),
+        json!({"filename": "a.png", "file_size": 10, "blurhash": "short"}),
+        json!({"filename": "a.png", "file_size": 10, "blurhash": "has spaces in it!!!"}),
+        json!({"filename": "a.png", "file_size": 10, "blurhash": "x".repeat(200)}),
+    ] {
+        let r = e
+            .post("/attachments", "bob", json!({"files": [file.clone()]}))
+            .await;
+        assert_eq!(code(&r), (StatusCode::BAD_REQUEST, Some(50035)), "{file}");
+    }
+    // A file without any picture metadata is unaffected.
+    let r = e
+        .post(
+            "/attachments",
+            "bob",
+            json!({"files": [{"filename": "a.txt", "file_size": 10}]}),
+        )
+        .await;
+    assert_eq!(r.0, StatusCode::OK);
+}
+
+#[tokio::test]
 async fn upload_then_message_sniffs_content_type() {
     let e = env().await;
     let png = png_with_secret();

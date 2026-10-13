@@ -1123,7 +1123,7 @@ const ATTACHMENT_COLS: &str = "id, channel_id, uploader_id, filename, size_bytes
     declared_content_type, content_type, description, flags, message_id, \
     state::text AS state, (extract(epoch FROM expires_at) * 1000)::bigint AS expires_ms, \
     (extract(epoch FROM created_at) * 1000)::bigint AS created_ms, \
-    round(duration_secs * 1000)::integer AS duration_ms, waveform";
+    round(duration_secs * 1000)::integer AS duration_ms, waveform, width, height, blurhash";
 
 fn attachment_from(r: &PgRow) -> Result<Attachment, sqlx::Error> {
     let message_id: Option<i64> = r.try_get("message_id")?;
@@ -1153,6 +1153,13 @@ fn attachment_from(r: &PgRow) -> Result<Attachment, sqlx::Error> {
             .try_get::<Option<i32>, _>("duration_ms")?
             .and_then(|v| u32::try_from(v).ok()),
         waveform: r.try_get("waveform")?,
+        width: r
+            .try_get::<Option<i32>, _>("width")?
+            .and_then(|v| u32::try_from(v).ok()),
+        height: r
+            .try_get::<Option<i32>, _>("height")?
+            .and_then(|v| u32::try_from(v).ok()),
+        blurhash: r.try_get("blurhash")?,
     })
 }
 
@@ -1399,9 +1406,9 @@ impl MessageStore for PgMessageStore {
         sqlx::query(
             "INSERT INTO attachments (id, channel_id, uploader_id, filename, size_bytes, \
              storage_key, declared_content_type, content_type, description, flags, is_large, \
-             expires_at, state, duration_secs, waveform) \
+             expires_at, state, duration_secs, waveform, width, height, blurhash) \
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, \
-             to_timestamp($12::double precision), $13::attachment_state, $14, $15)",
+             to_timestamp($12::double precision), $13::attachment_state, $14, $15, $16, $17, $18)",
         )
         .bind(i(a.id.get()))
         .bind(i(a.channel_id.get()))
@@ -1422,6 +1429,9 @@ impl MessageStore for PgMessageStore {
         .bind(upload_state_text(a.state))
         .bind(a.duration_ms.map(duration_secs))
         .bind(a.waveform.as_deref())
+        .bind(a.width.and_then(|v| i32::try_from(v).ok()))
+        .bind(a.height.and_then(|v| i32::try_from(v).ok()))
+        .bind(a.blurhash.as_deref())
         .execute(&self.pool)
         .await
         .map_err(sdb)?;
