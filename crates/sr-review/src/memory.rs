@@ -260,6 +260,37 @@ impl SubmissionRepository for MemoryReviewRepo {
         self.items(submission).await
     }
 
+    async fn add_item(&self, submission: i64, id: i64, item: &NewItem) -> ReviewResult<()> {
+        let mut g = self.lock();
+        if let Some(x) = g
+            .items
+            .iter_mut()
+            .find(|i| i.submission_id == submission && i.ref_id == item.ref_id)
+        {
+            x.label = item.label.clone();
+            x.position = item.position;
+        } else {
+            g.items.push(SubmissionItem {
+                id,
+                submission_id: submission,
+                ref_id: item.ref_id,
+                label: item.label.clone(),
+                position: item.position,
+                state: ItemState::Pending,
+                note: None,
+            });
+        }
+        Ok(())
+    }
+
+    async fn remove_item(&self, submission: i64, ref_id: i64) -> ReviewResult<bool> {
+        let mut g = self.lock();
+        let before = g.items.len();
+        g.items
+            .retain(|i| !(i.submission_id == submission && i.ref_id == ref_id));
+        Ok(g.items.len() != before)
+    }
+
     async fn set_item_state(
         &self,
         submission: i64,

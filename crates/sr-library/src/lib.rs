@@ -15,6 +15,7 @@ pub mod repo;
 pub mod rules;
 pub mod search;
 pub mod service;
+pub mod submissions;
 pub mod uploads;
 
 pub use error::{LibraryError, LibraryResult};

@@ -116,6 +116,10 @@ pub trait SubmissionRepository: Send + Sync {
         items: &[(i64, NewItem)],
         reset_rejected: bool,
     ) -> ReviewResult<Vec<SubmissionItem>>;
+    /// Register one item (a chapter the submitter added) without touching the others.
+    async fn add_item(&self, submission: i64, id: i64, item: &NewItem) -> ReviewResult<()>;
+    /// Drop the item for `ref_id`; `false` when there was none.
+    async fn remove_item(&self, submission: i64, ref_id: i64) -> ReviewResult<bool>;
     /// Decide one item. `false` when the item is not part of the submission.
     async fn set_item_state(
         &self,

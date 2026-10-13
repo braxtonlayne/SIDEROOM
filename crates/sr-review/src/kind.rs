@@ -39,7 +39,10 @@ pub trait SubmissionKind: Send + Sync {
     /// Validate the payload and create what the submission works on (a draft series).
     async fn create(&self, submitter: i64, payload: &Value) -> ReviewResult<KindDraft>;
     /// The items under review, in display order.
-    async fn items(&self, s: &Submission) -> ReviewResult<Vec<NewItem>>;
+    /// `current` are the items registered so far (chapters the submitter added); a kind
+    /// that derives its items from the content ignores it.
+    async fn items(&self, s: &Submission, current: &[SubmissionItem])
+    -> ReviewResult<Vec<NewItem>>;
     /// Problems that block submitting; empty when the submission is ready.
     async fn validate(&self, s: &Submission, items: &[NewItem]) -> ReviewResult<Vec<String>>;
     /// The metadata a reviewer sees. Stored with each submit so a resubmit can be diffed.

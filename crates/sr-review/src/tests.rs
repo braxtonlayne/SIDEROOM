@@ -56,7 +56,7 @@ impl SubmissionKind for FakeKind {
             payload: payload.clone(),
         })
     }
-    async fn items(&self, _: &Submission) -> ReviewResult<Vec<NewItem>> {
+    async fn items(&self, _: &Submission, _: &[SubmissionItem]) -> ReviewResult<Vec<NewItem>> {
         Ok(self.items.lock().unwrap().clone())
     }
     async fn validate(&self, _: &Submission, items: &[NewItem]) -> ReviewResult<Vec<String>> {

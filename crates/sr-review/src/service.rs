@@ -309,7 +309,8 @@ impl ReviewService {
         s: &Submission,
         kind: &dyn SubmissionKind,
     ) -> ReviewResult<Vec<NewItem>> {
-        let items = kind.items(s).await?;
+        let current = self.repo.items(s.id).await?;
+        let items = kind.items(s, &current).await?;
         let problems = kind.validate(s, &items).await?;
         if problems.is_empty() {
             Ok(items)
@@ -433,6 +434,42 @@ impl ReviewService {
             None => return Err(self.why_not(id, Action::Withdraw).await),
         };
         self.detail(s, false).await
+    }
+
+    /// The submission when it is the caller's and still with them (draft or changes
+    /// requested). Kind specific edit routes call this before touching the content.
+    pub async fn editable_mine(&self, user: i64, id: i64) -> ReviewResult<Submission> {
+        let s = self.load_own(user, id).await?;
+        if machine::editable(s.state) {
+            Ok(s)
+        } else {
+            Err(ReviewError::Conflict(format!(
+                "a {} submission cannot be edited",
+                s.state.as_str().replace('_', " ")
+            )))
+        }
+    }
+
+    /// The caller's own submission, in any state (for kind specific reads).
+    pub async fn own(&self, user: i64, id: i64) -> ReviewResult<Submission> {
+        self.load_own(user, id).await
+    }
+
+    /// The submission when the caller may review its kind (for kind specific reads).
+    pub async fn reviewable(&self, c: Caller, id: i64) -> ReviewResult<Submission> {
+        Ok(self.load_for_review(c, id).await?.0)
+    }
+
+    /// Register an item the submitter added (a chapter). Only while the submission is editable.
+    pub async fn register_item(&self, user: i64, id: i64, item: NewItem) -> ReviewResult<()> {
+        self.editable_mine(user, id).await?;
+        self.repo.add_item(id, (self.ids)(), &item).await
+    }
+
+    pub async fn unregister_item(&self, user: i64, id: i64, ref_id: i64) -> ReviewResult<()> {
+        self.editable_mine(user, id).await?;
+        self.repo.remove_item(id, ref_id).await?;
+        Ok(())
     }
 
     /// The submitter's view: their own submission without internal notes.
