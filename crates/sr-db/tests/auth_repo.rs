@@ -484,11 +484,11 @@ async fn account_identity_edits_enforce_uniqueness_and_email_change_tokens() {
     assert_ne!(after.email, a_rec.email);
 }
 
-fn passkey(account_id: i64, cred: u8, name: &str) -> sr_auth::store::PasskeyRecord {
+fn passkey(account_id: i64, cred: &[u8], name: &str) -> sr_auth::store::PasskeyRecord {
     sr_auth::store::PasskeyRecord {
         id: uid(),
         account_id,
-        credential_id: vec![cred; 20],
+        credential_id: cred.to_vec(),
         cose_key: vec![0xA5, 1, 2],
         alg: -7,
         sign_count: 0,
@@ -510,18 +510,24 @@ async fn passkey_store_roundtrip_ownership_and_counter_cas() {
     let (a, b) = (account(&pool).await, account(&pool).await);
 
     // The user handle is stable: the first candidate wins.
-    let h1 = store.passkey_user_handle(a, &[1u8; 32]).await.unwrap();
-    let h2 = store.passkey_user_handle(a, &[2u8; 32]).await.unwrap();
-    assert_eq!((h1.clone(), h2), (vec![1u8; 32], vec![1u8; 32]));
-    assert_ne!(store.passkey_user_handle(b, &[3u8; 32]).await.unwrap(), h1);
+    let handle = |n: u8| {
+        let mut h = [n; 32];
+        h[..8].copy_from_slice(&uid().to_be_bytes());
+        h
+    };
+    let (c1, c2, c3) = (handle(1), handle(2), handle(3));
+    let h1 = store.passkey_user_handle(a, &c1).await.unwrap();
+    let h2 = store.passkey_user_handle(a, &c2).await.unwrap();
+    assert_eq!((h1.clone(), h2), (c1.to_vec(), c1.to_vec()));
+    assert_ne!(store.passkey_user_handle(b, &c3).await.unwrap(), h1);
 
-    let tag = u8::try_from(uid() % 200).unwrap();
-    let rec = passkey(a, tag, "Laptop");
+    let tag = uid().to_be_bytes();
+    let rec = passkey(a, &tag, "Laptop");
     assert!(store.passkey_insert(rec.clone()).await.unwrap());
     // Same credential id: refused, whoever asks.
     assert!(
         !store
-            .passkey_insert(passkey(b, tag, "Clone"))
+            .passkey_insert(passkey(b, &tag, "Clone"))
             .await
             .unwrap()
     );
@@ -568,7 +574,7 @@ async fn passkey_store_roundtrip_ownership_and_counter_cas() {
     // Name constraint (1 to 64 characters) holds in the schema too.
     assert!(
         store
-            .passkey_insert(passkey(a, tag.wrapping_add(1), ""))
+            .passkey_insert(passkey(a, &uid().to_be_bytes(), ""))
             .await
             .is_err()
     );
@@ -590,8 +596,13 @@ async fn reset_2fa_removes_passkeys() {
     let pool = pool().await;
     let store = sr_db::auth_store::PgAuthStore::new(pool.clone(), repo(&pool), Arc::new(uid));
     let user = account(&pool).await;
-    let tag = u8::try_from(uid() % 200).unwrap();
-    assert!(store.passkey_insert(passkey(user, tag, "k")).await.unwrap());
+    let tag = uid().to_be_bytes();
+    assert!(
+        store
+            .passkey_insert(passkey(user, &tag, "k"))
+            .await
+            .unwrap()
+    );
     accounts::reset_2fa(&pool, user).await.unwrap();
     assert!(store.passkey_list(user).await.unwrap().is_empty());
 }

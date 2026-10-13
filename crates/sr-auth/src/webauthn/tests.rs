@@ -1039,3 +1039,71 @@ fn assertion_with_corrupt_stored_key_is_refused() {
     cred.cose_key = vec![0xff, 0x00];
     assert_eq!(verify(&a, &cred), Err(WebauthnError::MalformedCbor));
 }
+
+// --- robustness ----------------------------------------------------------------
+
+/// Cheap stand-in for a fuzz target (cargo-fuzz is not part of the toolchain here): both
+/// parsers must reject, never panic on, bit-flipped, truncated and extended input. A flipped
+/// byte in a signed message can never verify.
+#[test]
+fn mutated_input_is_rejected_without_panicking() {
+    let mut seed = 0x9E37_79B9_7F4A_7C15u64;
+    let mut next = move || {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        seed
+    };
+    for auth in [Auth::es256(), Auth::eddsa()] {
+        let reg = register(&auth, Flags::UP | Flags::UV, 0);
+        let cred = finish(&reg).unwrap();
+        let a = assert_with(&auth, &cred, Flags::UP | Flags::UV, 3);
+        assert!(verify(&a, &cred).is_ok());
+        for round in 0..400 {
+            let which = usize::try_from(next() % 4).unwrap();
+            let mutate = |bytes: &[u8], r: &mut dyn FnMut() -> u64| -> Vec<u8> {
+                let mut b = bytes.to_vec();
+                match round % 3 {
+                    0 if !b.is_empty() => {
+                        let i = usize::try_from(r()).unwrap() % b.len();
+                        b[i] ^= 1 << (r() % 8);
+                    }
+                    1 if !b.is_empty() => b.truncate(usize::try_from(r()).unwrap() % b.len()),
+                    _ => b.extend_from_slice(&r().to_le_bytes()),
+                }
+                b
+            };
+            let mut reg2 = Reg {
+                ceremony: reg.ceremony.clone(),
+                cred_id: reg.cred_id.clone(),
+                cdj: reg.cdj.clone(),
+                att: reg.att.clone(),
+            };
+            match which {
+                0 => reg2.att = mutate(&reg.att, &mut next),
+                1 => reg2.cdj = mutate(&reg.cdj, &mut next),
+                _ => {}
+            }
+            if which < 2 {
+                // Any outcome but a panic is fine; an unchanged-meaning mutation may still pass.
+                let _ = finish(&reg2);
+            } else {
+                let mut a2 = Assertion {
+                    ceremony: a.ceremony.clone(),
+                    cdj: a.cdj.clone(),
+                    ad: a.ad.clone(),
+                    sig: a.sig.clone(),
+                };
+                if which == 2 {
+                    a2.ad = mutate(&a.ad, &mut next);
+                } else {
+                    a2.sig = mutate(&a.sig, &mut next);
+                }
+                assert!(
+                    verify(&a2, &cred).is_err(),
+                    "a mutated signed message must not verify"
+                );
+            }
+        }
+    }
+}

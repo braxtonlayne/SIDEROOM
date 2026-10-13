@@ -43,7 +43,7 @@ The staff-side record of a real human. It may span several accounts (D-030).
 Unique (provider, provider_user_id) applies **across all accounts, including deleted ones**. That is how a returning user is matched to their Person (D-030).
 
 ### `sessions`, `mfa_totp`, `webauthn_credentials`, `recovery_codes`, `email_tokens`
-Standard. Tokens are stored as SHA-256 hashes.
+Standard. Tokens are stored as SHA-256 hashes. Migration 0180 renames `webauthn_credentials` to `passkey_credentials` (`credential_id` unique, `cose_key`, `alg`, `sign_count`, `backup_eligible`, `backup_state`, `aaguid`, `name` 1 to 64 characters, `last_used_at`) and adds `accounts.user_handle` (32 random bytes, the WebAuthn `user.id`, never the account id).
 
 ### `login_events` (migration 0001)
 Login IP history, kept 180 days (doc 09 §1). Visible to staff with `MANAGE_ACCOUNTS`.
