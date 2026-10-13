@@ -436,6 +436,25 @@ describe('input modes', () => {
     stop();
   });
 
+  it('plays push-to-talk cues on press and release, unless turned off', async () => {
+    const h = harness();
+    useVoiceSettings.getState().update({ inputMode: 'ptt', pttReleaseMs: 0 });
+    useVoiceSettings.getState().setKeybind('ptt', { code: 'KeyV' });
+    const stop = h.c.start();
+    await connected(h);
+    const tones = () => h.audio.contexts.reduce((n, c) => n + c.oscillators, 0);
+    const base = tones();
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyV', cancelable: true }));
+    expect(tones()).toBe(base + 1);
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyV', cancelable: true }));
+    expect(tones()).toBe(base + 2);
+    useVoiceSettings.getState().update({ soundPtt: false });
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyV', cancelable: true }));
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyV', cancelable: true }));
+    expect(tones()).toBe(base + 2);
+    stop();
+  });
+
   it('a channel that denies USE_VAD forces push to talk even if the user chose voice activity', async () => {
     const h = harness();
     useVoiceSettings

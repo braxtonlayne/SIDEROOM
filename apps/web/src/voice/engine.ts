@@ -395,7 +395,7 @@ export class RtcVoiceEngine implements VoiceEngine {
     const pc = this.deps.createPeer({ iceServers: this.params?.iceServers ?? [] });
     const out = this.mic.outStream;
     const track = this.mic.track;
-    if (track && out) pc.addTransceiver(track, { direction: 'sendrecv', streams: [out] });
+    if (track && out) pc.addTransceiver(track, { direction: 'sendonly', streams: [out] });
     pc.ontrack = (ev) => {
       const stream = ev.streams[0];
       if (!stream || ev.track.kind !== 'audio') return;

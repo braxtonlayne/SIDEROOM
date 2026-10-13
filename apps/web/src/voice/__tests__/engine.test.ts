@@ -82,6 +82,8 @@ describe('RtcVoiceEngine handshake', () => {
     expect(offer.sdp).toContain('usedtx=1');
     expect(offer.sdp).toContain('stereo=0');
     expect(pc.transceivers).toHaveLength(1);
+    // The mic line is sendonly (spec 4.2): sendrecv would add a silent remote track.
+    expect(pc.transceivers[0]!.init).toMatchObject({ direction: 'sendonly' });
     expect(pc.remote[0]).toEqual({ type: 'answer', sdp: 'answer-sdp' });
     expect(engine.status).toBe('connected');
     expect(events.status).toHaveBeenLastCalledWith('connected');

@@ -22,11 +22,30 @@ test.use({
       '--use-fake-ui-for-media-stream',
       // Let two local peers connect without mDNS candidate obfuscation.
       '--disable-features=WebRtcHideLocalIpsWithMdns',
+      // The dev SFU announces 127.0.0.1: let Chromium form loopback ICE candidates.
+      '--allow-loopback-in-peer-connection',
     ],
   },
 });
 
 const state = (): BootstrapState => JSON.parse(readFileSync(STATE_FILE, 'utf8')) as BootstrapState;
+
+/** SR_E2E_VOICE_DEBUG=1 prints console errors and the voice/gateway WebSocket traffic of a page. */
+function debugPage(page: Page, label: string) {
+  if (process.env.SR_E2E_VOICE_DEBUG !== '1') return;
+  page.on('console', (m) => {
+    if (m.type() === 'error' || m.type() === 'warning')
+      console.log(`[${label}] ${m.type()}: ${m.text()}`);
+  });
+  page.on('pageerror', (e) => console.log(`[${label}] pageerror: ${e.message}`));
+  page.on('websocket', (ws) => {
+    console.log(`[${label}] ws open ${ws.url()}`);
+    const short = (d: string | Buffer) => String(d).slice(0, 160);
+    ws.on('framesent', (f) => console.log(`[${label}] > ${short(f.payload)}`));
+    ws.on('framereceived', (f) => console.log(`[${label}] < ${short(f.payload)}`));
+    ws.on('close', () => console.log(`[${label}] ws close ${ws.url()}`));
+  });
+}
 
 /** Record every RTCPeerConnection the page creates so the test can read its stats. */
 async function trackPeerConnections(page: Page) {
@@ -87,6 +106,8 @@ test.describe('Voice live', () => {
     const b = await ctxB.newPage();
     await trackPeerConnections(a);
     await trackPeerConnections(b);
+    debugPage(a, 'A');
+    debugPage(b, 'B');
 
     // --- A: sign in, create a server and a voice channel, make an invite.
     await a.goto('/login');

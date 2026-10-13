@@ -30,6 +30,8 @@ export const VoiceClose = {
   AUTHENTICATION_FAILED: 4004,
   SESSION_INVALID: 4006,
   HEARTBEAT_TIMEOUT: 4009,
+  /** More than 200 messages in 10 s: reconnect and RESUME (handled like any other drop). */
+  RATE_LIMITED: 4008,
   /** Removed from the call (moderator disconnect or move): do not reconnect. */
   DISCONNECTED: 4014,
   /** SFU draining: resume, else rejoin. */
