@@ -75,3 +75,80 @@ See the submissions spec. Library-specific metadata: kind, title, alt titles, au
 - [ ] Trending differs correctly between Friends, Known, and Global for a seeded dataset (integration test).
 - [ ] Non-Patrons have no download endpoint access (403 server-side).
 - [ ] Age-restricted series are visible to everyone, but opening one (reader, page URLs) needs a confirmed 18+ answer: unconfirmed accounts get the "Are you 18 or older?" dialog once (403 `900011`), and the yes is remembered permanently (D-032, D-184).
+
+## 6. HTTP API added in phase 4 (as built)
+
+Ids are decimal strings, times are Unix milliseconds, errors are the usual `{code, message}` body. The OpenAPI document
+(`packages/api-client/openapi.json`) is the exact contract; this section is the reading guide.
+
+### 6.1 Chapter list pagination (keyset)
+
+`GET /library/series/{id}/chapters` and `GET /admin/library/series/{id}/chapters` take `edition`, `limit` (1 to 500) and
+`after` (opaque cursor) and `order=asc|desc` (default `asc`: edition, then chapter number, then id). Without `limit` every
+chapter is returned, as before (`next_cursor` is then null). With `limit`, the response carries `next_cursor`; pass it back
+as `after` for the next page. `editions` and `volumes` are repeated on every page (they are small).
+
+### 6.2 Reading progress and cross-device sync (LIB-RDR-012)
+
+| Route | Meaning |
+|---|---|
+| `GET /library/chapters/{id}/progress` | The caller's progress (`404` when there is none). |
+| `PUT /library/chapters/{id}/progress` | Save progress. Body `{page_index, percent, cfi?, completed?, base_updated_at_ms?, force?}`. |
+| `DELETE /library/chapters/{id}/progress` | Mark unread. |
+| `POST /library/chapters/{id}/read` | Read marks. Body `{read: bool, up_to?: bool}`: mark this chapter read or unread, and with `up_to` every earlier chapter of the same edition ("mark read up to here"). Answers `{changed}`. |
+| `GET /library/me/progress` | Reading history, newest first. `per_series=true` (default) keeps the latest chapter of each series ("pick up where you left off"), `false` lists every chapter. Keyset: `before`, `limit`. |
+
+Opening a restricted series' chapter needs age confirmation here too (`900011`), exactly like the page manifest.
+
+**Conflict prompt.** `PUT` answers `{progress, applied}`. When the client sends `base_updated_at_ms` (the `updated_at_ms` of the
+progress it last saw, `0` for "none") and the stored progress is newer, nothing is written and the answer is
+`{applied: false, progress: <server's>}`: another device read further. The client asks "continue where?" and either jumps to
+the server position or repeats the `PUT` with `force: true`. Without `base_updated_at_ms` the write always applies. Every
+chapter in `ChapterList` carries `progress.updated_at_ms` for use as the base.
+
+**Gateway.** Every change dispatches `SR_LIBRARY_UPDATE` to the account's own sessions (see doc 05, section 4 for the
+frame). Payload `type`: `progress` (the progress object), `progress_cleared`, `read_marks`, `bookmark_set`, `bookmark_removed`,
+`follow`, `unfollow`, `upload` (an ingest finished or failed, for the uploader) and, to followers with the bell on,
+`chapter_published`.
+
+### 6.3 Bookmarks (LIB-RDR-013)
+
+| Route | Meaning |
+|---|---|
+| `GET /library/chapters/{id}/bookmarks` | The caller's bookmarks in this chapter, by page. |
+| `PUT /library/chapters/{id}/bookmarks` | Create or update the bookmark on `page_index` (body `{page_index, note?}`). One per page; 200 per chapter. |
+| `DELETE /library/bookmarks/{bookmark_id}` | Remove one. |
+| `GET /library/me/bookmarks` | All bookmarks with series and chapter titles, newest first (`before`, `limit`). |
+
+### 6.4 Uploads and ingest (staff, `PUBLISH_READING`)
+
+An upload targets an existing chapter (create it first: `POST /admin/library/editions/{id}/chapters` with the `format` it
+will have). The file goes straight to object storage through a presigned URL, then a job converts it off the request path.
+
+1. `POST /admin/library/chapters/{chapter_id}/uploads` with `{filename, size_bytes}`. The extension must fit the chapter's
+   format: `images`: `.cbz .zip .cb7 .7z .cbr .rar`; `epub`: `.epub`; `pdf`: `.pdf`. The size is checked against the operator limit
+   (`library.ingest.max_upload_mb`, default 512). Answers `201 {upload, upload_url, upload_method: "PUT", expires_in_secs, max_bytes}`.
+2. `PUT` the bytes to `upload_url`.
+3. `POST /admin/library/uploads/{upload_id}/complete` checks the object (present, within the limit) and queues the job. `202` with the upload.
+4. Poll `GET /admin/library/uploads/{upload_id}` (or listen for `SR_LIBRARY_UPDATE` `upload`). `status`: `awaiting_upload`,
+   `queued`, `running`, `done`, `failed` (`error` says why, naming the offending page or file), `expired` (never completed within a day).
+   `done` carries `page_count`, `warnings` and `metadata` (title, number, volume, writers and so on read from ComicInfo or the EPUB, for the editor to offer).
+5. `GET /admin/library/chapters/{chapter_id}/uploads` lists the recent uploads of a chapter.
+
+For archives the job replaces the chapter's whole page list (the chapter keeps its published state; publish it as usual). For
+EPUB and PDF the original is kept as the chapter's `source_key` and `GET /library/chapters/{id}/pages` returns `source_url` (a signed link) with no pages.
+Only one upload per chapter may be in flight (`409` otherwise). Each upload and each outcome is written to the staff access log.
+Operator settings (Admin, Limits, group `library`): `library.ingest.rar_enabled` (default on), `library.ingest.max_upload_mb`.
+
+### 6.5 Storage garbage collection
+
+Objects of replaced pages, deleted chapters, editions and series, replaced covers and replaced EPUB/PDF sources are queued
+in the same transaction as the change (`reading_gc_keys`); the recurring job `library.gc` (hourly) deletes each one once no
+page, cover or source references it, and expires abandoned upload slots (and their objects) after 24 hours.
+
+### 6.6 Gaps
+
+* `SubmissionKind` (`reading_series`, `reading_items`) and the review queue are not implemented: `sr-review` is an empty
+  crate and no `submissions` table exists yet. Staff publish through the routes above (LIB-ING-008 stays open).
+* Volume bundles (one archive holding several chapters) are not split automatically; upload one archive per chapter.
+* PDF pages are not rasterized (owner decision pending, open-questions).
