@@ -612,15 +612,22 @@ impl SfuCore {
     }
 
     /// Apply new media-path flags (server mute, deafen, permission change).
-    pub fn set_flags(&mut self, now: Instant, channel: ChannelId, user: UserId, flags: Flags) {
+    /// Returns whether `user` is in `channel` (and so the flags were applied).
+    pub fn set_flags(
+        &mut self,
+        now: Instant,
+        channel: ChannelId,
+        user: UserId,
+        flags: Flags,
+    ) -> bool {
         let Some(pid) = self.by_user.get(&user).copied() else {
-            return;
+            return false;
         };
         let Some(p) = self.parts.get_mut(&pid) else {
-            return;
+            return false;
         };
         if p.channel != channel {
-            return;
+            return false;
         }
         let was_speaking = p.detector.is_speaking();
         p.flags = flags;
@@ -628,6 +635,7 @@ impl SfuCore {
         if !p.may_send(now) && p.detector.reset() && was_speaking {
             self.announce_speaking(pid, false, None);
         }
+        true
     }
 
     // ---- network -----------------------------------------------------------------------------

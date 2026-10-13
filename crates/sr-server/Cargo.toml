@@ -37,6 +37,8 @@ sr-gateway = { path = "../sr-gateway" }
 sr-library = { path = "../sr-library" }
 sr-search = { path = "../sr-search" }
 sr-unfurl = { path = "../sr-unfurl" }
+sr-voice = { path = "../sr-voice" }
+sr-voice-proto = { path = "../sr-voice-proto" }
 sr-storage = { path = "../sr-storage" }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time"] }
 tracing = "0.1"

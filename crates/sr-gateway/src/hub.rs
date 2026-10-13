@@ -19,6 +19,7 @@ use tokio::time::Instant;
 use crate::protocol::{PresenceUpdate, intents};
 use crate::session::{Out, Session};
 use crate::traits::{AuthedUser, Authenticator, GuildDirectory, OpHandler};
+use crate::voice::{VoiceConfig, VoiceState};
 
 /// Discord's default `large_threshold`: guilds at or above it get no initial presences.
 pub const LARGE_THRESHOLD_DEFAULT: u64 = 50;
@@ -48,6 +49,8 @@ pub struct GatewayConfig {
     pub allowed_origins: Vec<String>,
     /// Handlers for client opcodes the gateway does not implement itself.
     pub handlers: Vec<Arc<dyn OpHandler>>,
+    /// Voice (op 4, `VOICE_SERVER_UPDATE`). `None` disables joining voice channels.
+    pub voice: Option<VoiceConfig>,
 }
 
 impl fmt::Debug for GatewayConfig {
@@ -63,6 +66,7 @@ impl fmt::Debug for GatewayConfig {
             .field("large_threshold", &self.large_threshold)
             .field("allowed_origins", &self.allowed_origins)
             .field("handlers", &self.handlers.len())
+            .field("voice", &self.voice.is_some())
             .finish()
     }
 }
@@ -80,13 +84,14 @@ impl Default for GatewayConfig {
             large_threshold: LARGE_THRESHOLD_DEFAULT,
             allowed_origins: Vec::new(),
             handlers: Vec::new(),
+            voice: None,
         }
     }
 }
 
 #[derive(Default)]
-struct State {
-    sessions: HashMap<String, Arc<Session>>,
+pub(crate) struct State {
+    pub(crate) sessions: HashMap<String, Arc<Session>>,
     by_guild: HashMap<GuildId, HashSet<String>>,
     guild_tasks: HashMap<GuildId, JoinHandle<()>>,
     /// One `Topic::User` subscription per connected user (DM and self events).
@@ -96,6 +101,8 @@ struct State {
     /// Users with at least one attached socket.
     online: HashSet<UserId>,
     typing: HashMap<(ChannelId, UserId), Instant>,
+    /// Voice states by user (a user is in one voice channel at a time). In memory, per node.
+    pub(crate) voice: HashMap<UserId, VoiceState>,
     background: Vec<JoinHandle<()>>,
 }
 
@@ -489,7 +496,7 @@ impl Gateway {
         &self.inner.cfg
     }
 
-    fn st(&self) -> MutexGuard<'_, State> {
+    pub(crate) fn st(&self) -> MutexGuard<'_, State> {
         self.inner.state.lock().unwrap_or_else(|p| p.into_inner())
     }
 
@@ -647,6 +654,10 @@ impl Gateway {
     /// guild is below `large_threshold` (Q53).
     async fn guild_create_body(&self, user: UserId, guild: GuildId) -> Value {
         let mut body = self.inner.dir.guild_payload(user, guild).await;
+        let voice_states = self.voice_states_for(user, guild).await;
+        if let Some(obj) = body.as_object_mut() {
+            obj.insert("voice_states".into(), Value::Array(voice_states));
+        }
         let threshold = self.inner.cfg.large_threshold.min(LARGE_THRESHOLD_MAX);
         let members: Vec<UserId> = match body.get("members").and_then(Value::as_array) {
             Some(m) if (m.len() as u64) < threshold => m
@@ -715,6 +726,7 @@ impl Gateway {
 
     async fn on_guild_event(&self, guild: GuildId, ev: DomainEvent) {
         self.note_typing(&ev);
+        self.voice_on_guild_event(guild, &ev).await;
         if let Some(mut d) = to_dispatch(&ev) {
             // The changed user's own sessions hear about it as a self event.
             if let DomainEvent::UserUpdated { user, .. } = &ev {
@@ -728,6 +740,17 @@ impl Gateway {
             self.dispatch_guild(guild, d.name, d.data, d.channel, d.audience.as_ref())
                 .await;
         }
+    }
+
+    /// Every session subscribed to `guild`.
+    pub(crate) fn guild_sessions(&self, guild: GuildId) -> Vec<Arc<Session>> {
+        let st = self.st();
+        st.by_guild
+            .get(&guild)
+            .into_iter()
+            .flatten()
+            .filter_map(|id| st.sessions.get(id).cloned())
+            .collect()
     }
 
     /// Users with a session in `guild`, optionally without `except`.
@@ -827,6 +850,7 @@ impl Gateway {
         for s in expired {
             self.remove_session(&s).await;
         }
+        self.voice_sweep().await;
         let ttl = self.inner.cfg.typing_ttl;
         let now = Instant::now();
         self.st()
@@ -905,8 +929,14 @@ impl Gateway {
         match ev {
             DomainEvent::GuildCreated { guild, owner: user }
             | DomainEvent::MemberJoined { guild, user, .. } => self.join_user(user, guild).await,
-            DomainEvent::MemberLeft { guild, user } => self.leave_user(user, guild),
-            DomainEvent::GuildDeleted { guild } => self.drop_guild(guild),
+            DomainEvent::MemberLeft { guild, user } => {
+                self.leave_user(user, guild);
+                self.voice_member_left(guild, user).await;
+            }
+            DomainEvent::GuildDeleted { guild } => {
+                self.drop_guild(guild);
+                self.voice_guild_deleted(guild).await;
+            }
             DomainEvent::StaffAlert { kind, detail } => {
                 let body = json!({ "kind": kind.as_str(), "detail": detail });
                 for user in self.inner.dir.staff_users().await {

@@ -69,6 +69,7 @@ Prefix `/api/v1/sr/...`. These are first-party-only unless an OAuth scope is gra
 | Cinema | `/sr/cinema/titles`, `/titles/{id}`, `/seasons`, `/episodes`, `/assets/{id}/playback`, `/progress`, `/lists`, `/ratings`, `/reviews`, `/search`, `/trending?scope=friends\|known\|global` |
 | Live TV | `/sr/tv/channels`, `/sr/tv/guide?from&to`, `/sr/tv/channels/{id}/now` |
 | Library | `/sr/library/series`, `/editions`, `/chapters/{id}/pages`, `/progress`, `/bookmarks`, … |
+| Voice | `GET /sr/voice/turn` (ephemeral TURN credentials), `PATCH /guilds/{id}/voice-states/{user_id}` (moderators; section 6.5) |
 | Submissions | `/sr/submissions` (create draft, upload parts, submit, withdraw), `/sr/review/queue`, `/sr/review/{id}/decision` |
 | Watch parties | `/sr/parties` (create, join, control) + gateway events |
 | Admin | `/sr/admin/...` (staff-only, see the admin spec) |
@@ -239,7 +240,7 @@ The media signalling (voice WebSocket) is in `docs/specs/lounge-voice-video.md` 
 - the target must be in voice (otherwise 400 `Target user is not connected to voice`, Discord code 40032). `@me` as `user_id` is accepted for the actor's own mute/deaf only.
 Each change is written to the guild audit log (`MEMBER_MOVE` 26 with `channel_id`/`count`, `MEMBER_DISCONNECT` 27 with `count`, `MEMBER_UPDATE` 24 with `mute`/`deaf` changes) and dispatched as `VOICE_STATE_UPDATE`. Server mute and deafen survive moves inside the voice session and are cleared when the user leaves voice (in-memory state; persistence is a follow-up).
 
-`GET /sr/voice/turn` returns coturn ephemeral credentials `{username, password, ttl, uris}` (HMAC-SHA1, TTL 1 h, `503` when TURN is not configured). `ice_servers` in `VOICE_SERVER_UPDATE` carries the same credentials.
+`GET /sr/voice/turn` returns coturn ephemeral credentials `{username, password, ttl, uris}` (HMAC-SHA1, TTL 1 h, `403` with `SR_FEATURE_DISABLED` (900001) when TURN is not configured). `ice_servers` in `VOICE_SERVER_UPDATE` carries the same credentials.
 
 
 ## 7. Bot compatibility checklist (porting guide)

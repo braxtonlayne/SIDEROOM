@@ -14,6 +14,6 @@ pub mod turn;
 pub mod wire;
 
 pub use control::{VoiceCommand, VoiceRelay};
-pub use token::{JoinClaims, TokenError, TokenSigner};
+pub use token::{JoinClaims, TokenError, TokenSigner, derive_secret};
 pub use turn::{IceServer, TurnConfig, TurnCredentials};
 pub use wire::{Message, close, op};

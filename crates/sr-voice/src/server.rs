@@ -246,6 +246,7 @@ pub async fn start(cfg: SfuConfig) -> Result<SfuHandle, StartError> {
         next_sock: 0,
         draining: false,
         last_forwarded: 0,
+        pending_flags: HashMap::new(),
     };
     tokio::spawn(actor.run(cmd_rx, pkt_rx));
     Ok(handle)
@@ -273,6 +274,9 @@ async fn udp_reader(sock: Arc<UdpSocket>, dst: SocketAddr, tx: mpsc::Sender<Pack
         }
     }
 }
+
+/// How long a flag change for a not-yet-joined participant is remembered (the token lifetime).
+const PENDING_FLAGS_TTL: std::time::Duration = std::time::Duration::from_secs(60);
 
 /// Largest RFC 4571 frame accepted (a WebRTC datagram never exceeds the MTU).
 const TCP_MAX_FRAME: usize = 2048;
@@ -358,6 +362,10 @@ struct Actor {
     next_sock: usize,
     draining: bool,
     last_forwarded: u64,
+    /// Flag changes that arrived before the participant joined (a moderator muted someone
+    /// between `VOICE_SERVER_UPDATE` and their connection). Applied at join, dropped after
+    /// the token lifetime.
+    pending_flags: HashMap<(ChannelId, UserId), (Flags, Instant)>,
 }
 
 fn random_hex() -> String {
@@ -434,6 +442,8 @@ impl Actor {
         let delta = snap.forwarded_packets.saturating_sub(self.last_forwarded);
         self.last_forwarded = snap.forwarded_packets;
         metrics::publish(&snap, delta);
+        self.pending_flags
+            .retain(|_, (_, at)| now.saturating_duration_since(*at) <= PENDING_FLAGS_TTL);
         // Participants whose WebSocket stayed away past the resume window are dropped.
         let expired: Vec<_> = self
             .sessions
@@ -578,6 +588,17 @@ impl Actor {
             return Err(close::SERVER_RESTARTING);
         }
         let candidates = self.candidates();
+        let mut flags = Flags {
+            speak: c.speak,
+            deaf: c.deaf,
+            ptt_required: c.ptt_required,
+            priority: c.priority,
+        };
+        if let Some((f, at)) = self.pending_flags.remove(&(c.channel_id, c.user_id))
+            && now.saturating_duration_since(at) <= PENDING_FLAGS_TTL
+        {
+            flags = f;
+        }
         let pid = self
             .core
             .join(
@@ -586,12 +607,7 @@ impl Actor {
                     user: c.user_id,
                     guild: c.guild_id,
                     channel: c.channel_id,
-                    flags: Flags {
-                        speak: c.speak,
-                        deaf: c.deaf,
-                        ptt_required: c.ptt_required,
-                        priority: c.priority,
-                    },
+                    flags,
                     candidates,
                 },
             )
@@ -688,18 +704,19 @@ impl Actor {
                 deaf,
                 ptt_required,
                 priority,
-            } => self.core.set_flags(
-                now,
-                channel,
-                user,
-                Flags {
+            } => {
+                let flags = Flags {
                     speak,
                     deaf,
                     ptt_required,
                     priority,
-                },
-            ),
+                };
+                if !self.core.set_flags(now, channel, user, flags) {
+                    self.pending_flags.insert((channel, user), (flags, now));
+                }
+            }
             VoiceCommand::Disconnect { channel, user } => {
+                self.pending_flags.remove(&(channel, user));
                 self.core
                     .disconnect_user(channel, user, CloseReason::Disconnected);
             }

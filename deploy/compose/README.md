@@ -13,7 +13,7 @@ in [`../INSTALL.md`](../INSTALL.md).
 | garage | `dxflrs/garage:v1.0.1` | 127.0.0.1:3900 (S3), 127.0.0.1:3903 (admin) | S3-compatible object storage. Needs `garage/bootstrap.sh` once. |
 | caddy | `caddy:2` | 127.0.0.1:8088 | Reverse proxy in front of the dev server (`caddy/Caddyfile`). |
 | mailpit | `axllent/mailpit:v1.21` | 127.0.0.1:1025 (SMTP), 127.0.0.1:8025 (web UI) | Catches outgoing mail. |
-| coturn | `coturn/coturn:4.6` | 3478 (udp/tcp), 49152-49200/udp | TURN/STUN for voice and video (`coturn/turnserver.conf`). |
+| coturn | `coturn/coturn:4.6` | 3478 (udp/tcp), 49152-49200/udp | TURN/STUN for voice and video (`coturn/turnserver.conf`; REST credentials from sr-server, secret `dev-turn-shared-secret`, set `SR_VOICE__TURN__SECRET` to match). |
 
 When you bump a tag, change it in `dev.yml`, in the table above, and re-run the two workflows
 below; do not use `latest`. `caddy:2` is the only floating major tag (it follows Caddy 2.x).

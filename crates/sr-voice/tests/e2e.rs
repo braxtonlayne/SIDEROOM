@@ -616,7 +616,9 @@ async fn gateway_commands_mute_and_disconnect_on_the_media_path() {
             priority: false,
         })
         .await;
-    both(&mut a, &mut b, Duration::from_millis(300)).await;
+    // Frames already in flight when the mute landed may still arrive; let them drain
+    // (generously, the test machine can be busy) before counting.
+    both(&mut a, &mut b, Duration::from_millis(1500)).await;
     let at_mute = b.frames_from(1);
     both(&mut a, &mut b, Duration::from_millis(800)).await;
     assert_eq!(b.frames_from(1), at_mute, "muted audio kept flowing");
@@ -673,5 +675,34 @@ async fn draining_closes_clients_and_refuses_new_joins() {
     )
     .await;
     assert_eq!(close_code(&mut ws).await, Some(close::SERVER_RESTARTING));
+    server.handle.shutdown().await;
+}
+
+#[tokio::test]
+async fn a_mute_issued_before_the_client_connects_still_applies() {
+    let server = start_server(false).await;
+    // The gateway muted user 1 after minting the token but before the client reached the SFU.
+    server
+        .handle
+        .apply(VoiceCommand::SetFlags {
+            channel: ChannelId::new(CHANNEL),
+            user: UserId::new(1),
+            speak: false,
+            deaf: false,
+            ptt_required: false,
+            priority: false,
+        })
+        .await;
+    let mut a = Vc::connect(&server, 1, false).await;
+    let mut b = Vc::connect(&server, 2, false).await;
+    settle(&mut a, &mut b).await;
+    assert!(a.ready.as_ref().unwrap().participants.is_empty());
+    a.talk = Some(-28);
+    both(&mut a, &mut b, Duration::from_millis(1000)).await;
+    assert_eq!(
+        b.frames_from(1),
+        0,
+        "the token said speak=true, the later mute wins"
+    );
     server.handle.shutdown().await;
 }

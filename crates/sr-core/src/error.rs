@@ -63,6 +63,7 @@ error_codes! {
     RequestEntityTooLarge = 40005, 413, "Request entity too large";
     FeatureDisabled = 40006, 403, "This feature has been temporarily disabled server-side";
     UserBanned = 40007, 403, "The user is banned from this guild";
+    TargetNotInVoice = 40032, 400, "Target user is not connected to voice.";
     TooManyRequests = 40062, 429, "You are being rate limited";
     TagRequired = 40067, 400, "A tag is required to create a forum post in this channel";
     MissingAccess = 50001, 403, "Missing Access";

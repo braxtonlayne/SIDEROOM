@@ -53,6 +53,20 @@ pub enum TokenError {
     Expired,
 }
 
+/// Derive the join-token secret from a master key (`server.secret_key`) when none is
+/// configured: HMAC-SHA256 keyed with the master over a fixed label, so the master key
+/// itself never leaves the process and other uses of it stay independent.
+pub fn derive_secret(master: &[u8]) -> Vec<u8> {
+    match HmacSha256::new_from_slice(master) {
+        Ok(mut mac) => {
+            mac.update(b"sr-voice-token-secret-v1");
+            mac.finalize().into_bytes().to_vec()
+        }
+        // HMAC accepts any key length; unreachable, but never fall back to an empty secret.
+        Err(_) => master.to_vec(),
+    }
+}
+
 /// Signs and verifies join tokens with one shared secret.
 #[derive(Clone)]
 pub struct TokenSigner {
@@ -138,6 +152,15 @@ mod tests {
         let t = s.sign(&claims(100)).unwrap();
         assert_eq!(s.verify(&t, 99).unwrap(), claims(100));
         assert_eq!(s.verify(&t, 100), Err(TokenError::Expired));
+    }
+
+    #[test]
+    fn derived_secrets_are_stable_distinct_and_not_the_master() {
+        let a = derive_secret(b"master-key-one");
+        assert_eq!(a, derive_secret(b"master-key-one"));
+        assert_ne!(a, derive_secret(b"master-key-two"));
+        assert_ne!(a, b"master-key-one".to_vec());
+        assert_eq!(a.len(), 32);
     }
 
     #[test]

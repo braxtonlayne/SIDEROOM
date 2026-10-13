@@ -5179,6 +5179,7 @@ dependencies = [
  "sr-chat",
  "sr-core",
  "sr-events",
+ "sr-voice-proto",
  "thiserror 2.0.21",
  "tokio",
 ]
@@ -5297,6 +5298,8 @@ dependencies = [
  "sr-search",
  "sr-storage",
  "sr-unfurl",
+ "sr-voice",
+ "sr-voice-proto",
  "thiserror 2.0.21",
  "tokio",
  "tokio-stream",

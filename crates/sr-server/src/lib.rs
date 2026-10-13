@@ -15,6 +15,7 @@ pub mod ready;
 pub mod rich_jobs;
 pub mod search_jobs;
 pub mod settings_pg;
+pub mod voice;
 
 /// The OpenAPI document served at `/api/v1/openapi.json` and printed by
 /// `sr-server openapi`.

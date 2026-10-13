@@ -199,12 +199,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .map(|k| parse_secret_key(k.expose()))
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| anyhow::anyhow!("server.secret_key_previous: {e}"))?;
-    let auth_repo = PgAuthRepo::new(
-        pool.clone(),
-        id_src.clone(),
-        secret_key(cfg.server.secret_key.expose())?,
-    )
-    .with_previous_keys(previous_keys);
+    let master_key = secret_key(cfg.server.secret_key.expose())?;
+    let auth_repo =
+        PgAuthRepo::new(pool.clone(), id_src.clone(), master_key).with_previous_keys(previous_keys);
 
     // The wrapper lets the search indexer notice when it lagged behind the bus.
     let lag_bus = Arc::new(crate::lag_bus::LagTapBus::new(
@@ -314,10 +311,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     )
     // Every stored entry also reaches the gateway as GUILD_AUDIT_LOG_ENTRY_CREATE.
     .with_audit_observer(routes::settings::audit::bus_audit_observer(bus.clone()));
+    let audit_sink: Arc<dyn routes::guilds::backend::AuditSink> = Arc::new(settings_service);
     let guilds = GuildApi(routes::guilds::backend::backend_with_audit(
         chat,
         bus.clone(),
-        Arc::new(settings_service),
+        audit_sink.clone(),
     ));
 
     // MessagesDeps: the message endpoints' collaborators (open questions 97-158).
@@ -508,10 +506,17 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         store: Arc::new(sr_db::chat_repo::PgMessageStore::new(pool.clone())),
     });
 
+    // Voice (off by default): the embedded SFU and the gateway's token/relay wiring.
+    let voice_setup = if cfg.voice.enabled {
+        Some(crate::voice::start(&cfg, &master_key).await?)
+    } else {
+        None
+    };
     let gateway = Gateway::new(
         GatewayConfig {
             // Cookie-authenticated web sessions may IDENTIFY from the public origin only.
             allowed_origins: vec![cfg.server.public_url.trim_end_matches('/').to_owned()],
+            voice: voice_setup.as_ref().map(|v| v.gateway.clone()),
             ..GatewayConfig::default()
         },
         Arc::new(PgAuthenticator::new(
@@ -573,6 +578,14 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .bots(Arc::new(NoBots))
         .bearers(Arc::new(NoBearers))
         .openapi(routes::openapi())
+        .extension(Arc::new(routes::voice::VoiceApi(Arc::new(
+            crate::voice::ServerVoice::new(
+                gateway.clone(),
+                crate::voice::turn_config(&cfg),
+                cfg.voice.enabled,
+                audit_sink.clone(),
+            ),
+        ))))
         .extension(Arc::new(guilds.clone()))
         .extension(messages.clone())
         .extension(threads_deps.clone())
@@ -690,17 +703,39 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // Signed media delivery at `/cdn/*`, outside `/api/v1`: no cookie auth or CSRF,
     // the URL signature is the credential.
     let cdn_routes = routes::cdn::layered(state.clone());
-    let app = build_router(state, api)
+    let mut app = build_router(state, api)
         .merge(gateway_routes)
         .merge(cdn_routes);
+    // The SFU's WebSocket (`/voice/ws`) is served beside the gateway; media uses its own sockets.
+    let sfu = voice_setup.map(|v| v.sfu);
+    if let Some(s) = &sfu {
+        app = app.merge(with_request_id(sr_voice::router(s.clone())));
+    }
 
     let gw = gateway.clone();
-    let result = serve_until(public, app, shutdown, move || gw.request_reconnect(), grace).await;
+    let sfu_for_drain = sfu.clone();
+    let result = serve_until(
+        public,
+        app,
+        shutdown,
+        move || {
+            gw.request_reconnect();
+            // Voice clients resume on another node (or after the restart).
+            if let Some(s) = sfu_for_drain.clone() {
+                tokio::spawn(async move { s.drain().await });
+            }
+        },
+        grace,
+    )
+    .await;
 
     // Reached on signal or on a serve error: unwind in order either way.
     tracing::info!("shutting down");
     let _ = job_tx.send(true);
     gateway.shutdown();
+    if let Some(s) = &sfu {
+        s.shutdown().await;
+    }
     gauge_task.abort();
     seen_task.abort();
     metrics_task.abort();

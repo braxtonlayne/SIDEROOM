@@ -63,6 +63,7 @@ pub mod intents {
     pub const GUILD_EXPRESSIONS: u64 = 1 << 3;
     pub const GUILD_WEBHOOKS: u64 = 1 << 5;
     pub const GUILD_INVITES: u64 = 1 << 6;
+    pub const GUILD_VOICE_STATES: u64 = 1 << 7;
     pub const GUILD_PRESENCES: u64 = 1 << 8;
     pub const GUILD_MESSAGES: u64 = 1 << 9;
     pub const GUILD_MESSAGE_REACTIONS: u64 = 1 << 10;
@@ -111,6 +112,7 @@ pub mod intents {
             "MESSAGE_POLL_VOTE_ADD" | "MESSAGE_POLL_VOTE_REMOVE" => Some(GUILD_MESSAGE_POLLS),
             "MESSAGE_CREATE" => Some(GUILD_MESSAGES),
             "TYPING_START" => Some(GUILD_MESSAGE_TYPING),
+            "VOICE_STATE_UPDATE" => Some(GUILD_VOICE_STATES),
             _ => None,
         }
     }

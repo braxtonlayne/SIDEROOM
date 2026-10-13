@@ -159,6 +159,75 @@ impl Default for GatewayLimits {
     }
 }
 
+/// `[voice]`: the SFU embedded in the server and the gateway's voice wiring (docs/specs/
+/// lounge-voice-video.md section 4). Off by default: enabling it binds the UDP range.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct VoiceConfig {
+    pub enabled: bool,
+    /// Public WebSocket URLs of the SFU nodes, handed to clients in `VOICE_SERVER_UPDATE`.
+    /// Empty: derived from `server.public_url` as `ws(s)://<host>/voice/ws` (the embedded SFU).
+    pub endpoints: Vec<String>,
+    /// Interface the media sockets bind to.
+    pub bind_ip: String,
+    /// UDP media port range (inclusive); at most 256 sockets are bound from it.
+    pub udp_port_min: u16,
+    pub udp_port_max: u16,
+    /// ICE-TCP passive port; 0 disables it.
+    pub tcp_port: u16,
+    /// Addresses advertised as ICE host candidates: the node's public (or LAN) IPs.
+    pub announce_ips: Vec<String>,
+    pub max_participants: usize,
+    pub max_room_size: usize,
+    /// Secret shared by the gateway and the SFU for join tokens. Empty: derived from
+    /// `server.secret_key`.
+    pub token_secret: Secret,
+    /// Seconds a voice state survives its gateway session losing the socket.
+    pub session_grace_secs: u64,
+    pub turn: TurnSection,
+}
+
+/// `[voice.turn]`: STUN/TURN handed to clients (coturn REST credentials, ADR-0004).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TurnSection {
+    /// `stun:host:3478`, `turn:host:3478?transport=udp`, `turns:host:443?transport=tcp`.
+    pub urls: Vec<String>,
+    /// coturn `static-auth-secret`. Empty disables TURN credentials (STUN URLs still work).
+    pub secret: Secret,
+    /// Credential lifetime in seconds.
+    pub ttl_secs: u64,
+}
+
+impl Default for TurnSection {
+    fn default() -> Self {
+        Self {
+            urls: Vec::new(),
+            secret: Secret::default(),
+            ttl_secs: 3600,
+        }
+    }
+}
+
+impl Default for VoiceConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            endpoints: Vec::new(),
+            bind_ip: "0.0.0.0".into(),
+            udp_port_min: 50_000,
+            udp_port_max: 50_099,
+            tcp_port: 0,
+            announce_ips: vec!["127.0.0.1".into()],
+            max_participants: 2_000,
+            max_room_size: 99,
+            token_secret: Secret::default(),
+            session_grace_secs: 20,
+            turn: TurnSection::default(),
+        }
+    }
+}
+
 /// `[unfurl]`: server-side link previews (LNG-MSG-014). The feature itself is the
 /// `unfurl` feature module (default on); this section holds operator policy.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -262,6 +331,7 @@ pub struct Config {
     pub gateway: GatewayLimits,
     pub search: SearchConfig,
     pub unfurl: UnfurlConfig,
+    pub voice: VoiceConfig,
 }
 
 /// `[discord]`: OAuth sign-in and registration (open question 79). An empty
@@ -357,6 +427,37 @@ impl Config {
         if self.gateway.max_connections == 0 {
             return Err(bad("gateway.max_connections must be > 0"));
         }
+        let v = &self.voice;
+        if v.enabled {
+            if v.udp_port_min > v.udp_port_max {
+                return Err(bad("voice.udp_port_min must be <= voice.udp_port_max"));
+            }
+            if v.bind_ip.parse::<std::net::IpAddr>().is_err() {
+                return Err(bad("voice.bind_ip must be an IP address"));
+            }
+            if v.announce_ips.is_empty()
+                || v.announce_ips
+                    .iter()
+                    .any(|ip| ip.parse::<std::net::IpAddr>().is_err())
+            {
+                return Err(bad(
+                    "voice.announce_ips must be a non-empty list of IP addresses",
+                ));
+            }
+            if v.max_participants == 0 || v.max_room_size == 0 {
+                return Err(bad(
+                    "voice.max_participants and voice.max_room_size must be > 0",
+                ));
+            }
+            if !v.token_secret.expose().is_empty() && v.token_secret.expose().len() < 16 {
+                return Err(bad("voice.token_secret must be at least 16 characters"));
+            }
+            if !v.turn.secret.expose().is_empty() && v.turn.urls.is_empty() {
+                return Err(bad(
+                    "voice.turn.urls is required when voice.turn.secret is set",
+                ));
+            }
+        }
         Ok(())
     }
 }
@@ -364,6 +465,60 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn voice_is_off_by_default_and_validated_when_on() {
+        let c = Config::default();
+        assert!(!c.voice.enabled);
+        assert_eq!(
+            (c.voice.udp_port_min, c.voice.udp_port_max),
+            (50_000, 50_099)
+        );
+        assert_eq!(c.voice.turn.ttl_secs, 3600);
+        let on = |toml: &str| {
+            Config::from_figment(
+                &Figment::from(Serialized::defaults(Config::default())).merge(Toml::string(
+                    &format!(
+                        "[voice]
+enabled = true
+{toml}"
+                    ),
+                )),
+            )
+        };
+        assert!(on("").is_ok());
+        assert!(
+            on("udp_port_min = 60000
+udp_port_max = 50000")
+            .is_err()
+        );
+        assert!(on("bind_ip = \"nope\"").is_err());
+        assert!(on("announce_ips = []").is_err());
+        assert!(on("announce_ips = [\"not an ip\"]").is_err());
+        assert!(on("token_secret = \"short\"").is_err());
+        assert!(
+            on("[voice.turn]
+secret = \"s\"")
+            .is_err()
+        );
+        assert!(
+            on("[voice.turn]
+secret = \"s\"
+urls = [\"turn:t:3478\"]")
+            .is_ok()
+        );
+        // A disabled section is never validated.
+        assert!(
+            Config::from_figment(
+                &Figment::from(Serialized::defaults(Config::default())).merge(Toml::string(
+                    "[voice]
+announce_ips = []
+"
+                ))
+            )
+            .is_ok()
+        );
+    }
 
     #[test]
     fn defaults_valid() {
