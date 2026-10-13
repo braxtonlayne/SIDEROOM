@@ -261,6 +261,7 @@ describe('Add a Server', () => {
     const router = at('/channels/g1/c1');
     await userEvent.click(await screen.findByRole('button', { name: 'Add a Server' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Create My Own' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'skip this question' }));
     const name = screen.getByLabelText('Server name');
     await userEvent.clear(name);
     await userEvent.type(name, 'Fresh');

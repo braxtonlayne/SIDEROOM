@@ -19,8 +19,11 @@ import type {
   Presence,
   RailEntry,
   Role,
+  SendExtras,
   Snowflake,
 } from './data';
+import { applyMutes } from './shell/applyMutes';
+import { useNotifSettings } from './shell/notifSettings';
 import {
   basePermissions,
   isUnread,
@@ -174,22 +177,26 @@ export function useLiveSnapshot(): LiveSnapshot {
   const memberIdsByGuild = useStore((s) => s.memberIdsByGuild);
   const presences = useStore((s) => s.presences);
   const readStates = useStore((s) => s.readStates);
+  const mutes = useNotifSettings((s) => s.byGuild);
   return useMemo(
     () =>
-      buildLiveSnapshot({
-        currentUserId,
-        users,
-        guilds,
-        guildOrder,
-        channels,
-        channelIdsByGuild,
-        roles,
-        roleIdsByGuild,
-        members,
-        memberIdsByGuild,
-        presences,
-        readStates,
-      }),
+      applyMutes(
+        buildLiveSnapshot({
+          currentUserId,
+          users,
+          guilds,
+          guildOrder,
+          channels,
+          channelIdsByGuild,
+          roles,
+          roleIdsByGuild,
+          members,
+          memberIdsByGuild,
+          presences,
+          readStates,
+        }),
+        mutes,
+      ),
     [
       currentUserId,
       users,
@@ -203,6 +210,7 @@ export function useLiveSnapshot(): LiveSnapshot {
       memberIdsByGuild,
       presences,
       readStates,
+      mutes,
     ],
   );
 }
@@ -273,13 +281,74 @@ export function useLivePresence(userId: Snowflake): Presence {
   return useMemo(() => toLoungePresence(p), [p]);
 }
 
+/** View-model send extras to the wire shape. */
+export function toPostExtras(x: SendExtras): rest.PostExtras {
+  return {
+    ...(x.attachments?.length
+      ? {
+          attachments: x.attachments.map((a) => ({
+            id: a.id,
+            uploaded_filename: a.uploadedFilename,
+            ...(a.description ? { description: a.description } : {}),
+            ...(a.durationSecs ? { duration_secs: a.durationSecs } : {}),
+            ...(a.waveform ? { waveform: a.waveform } : {}),
+          })),
+        }
+      : {}),
+    ...(x.poll
+      ? {
+          poll: {
+            question: { text: x.poll.question },
+            answers: x.poll.answers.map((a) => ({
+              poll_media: { text: a.text, ...(a.emoji ? { emoji: { name: a.emoji } } : {}) },
+            })),
+            duration: x.poll.durationHours,
+            allow_multiselect: x.poll.multi,
+          },
+        }
+      : {}),
+    ...(x.mentionRepliedUser === false ? { allow_reply_ping: false } : {}),
+    ...(x.flags ? { flags: x.flags } : {}),
+  };
+}
+
 /** Actions are plain functions over the store, so one object serves the whole app. */
 export const LIVE_ACTIONS: LoungeActions = {
-  sendMessage(channelId, content, replyToId) {
+  sendMessage(channelId, content, replyToId, extras) {
     useStore
       .getState()
-      .sendMessage(channelId, content, replyToId ?? null)
+      .sendMessage(channelId, content, replyToId ?? null, extras ? toPostExtras(extras) : undefined)
       .catch(noop);
+  },
+  deleteMessage(channelId, messageId) {
+    useStore.getState().deleteMessage(channelId, messageId).catch(noop);
+  },
+  pinMessage(channelId, messageId, pinned) {
+    useStore.getState().pinMessage(channelId, messageId, pinned).catch(noop);
+  },
+  forwardMessage(source, targets, note) {
+    const st = useStore.getState();
+    for (const target of targets) {
+      st.forwardMessage(target, source)
+        .then(() => {
+          if (note) st.sendMessage(target, note, null).catch(noop);
+        })
+        .catch(noop);
+    }
+  },
+  votePoll(channelId, messageId, answerId, add) {
+    useStore.getState().votePoll(channelId, messageId, answerId, add).catch(noop);
+  },
+  endPoll(channelId, messageId) {
+    useStore.getState().endPoll(channelId, messageId).catch(noop);
+  },
+  retryMessage(channelId, messageId) {
+    const nonce = useStore.getState().messages[messageId]?.local?.nonce;
+    if (nonce) useStore.getState().retryMessage(channelId, nonce).catch(noop);
+  },
+  discardMessage(channelId, messageId) {
+    const nonce = useStore.getState().messages[messageId]?.local?.nonce;
+    if (nonce) useStore.getState().discardMessage(channelId, nonce);
   },
   editMessage(channelId, messageId, content) {
     useStore.getState().editMessage(channelId, messageId, content).catch(noop);

@@ -750,13 +750,14 @@ impl WebhookRepository for PgSettingsRepo {
 
     async fn update_webhook(&self, w: &Webhook) -> RepoResult<()> {
         sqlx::query(
-            "UPDATE webhooks SET channel_id = $2, name = $3, avatar_key = $4, updated_at = now() \
-             WHERE id = $1",
+            "UPDATE webhooks SET channel_id = $2, name = $3, avatar_key = $4, token_hash = $5, \
+             updated_at = now() WHERE id = $1",
         )
         .bind(i(w.id.get()))
         .bind(i(w.channel_id.get()))
         .bind(&w.name)
         .bind(w.avatar_key.as_deref())
+        .bind(w.token_hash.as_deref())
         .execute(&self.pool)
         .await
         .map_err(db)?;

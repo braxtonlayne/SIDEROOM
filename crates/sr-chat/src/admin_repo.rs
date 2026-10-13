@@ -19,6 +19,31 @@ pub struct Ban {
     pub created_at_ms: i64,
 }
 
+/// Narrowing for member listings (`GET /guilds/{id}/members`).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MemberFilter {
+    /// Case-insensitive substring of the nickname, username or display name.
+    pub query: Option<String>,
+    /// Only members holding this role. The `@everyone` role matches every member.
+    pub role: Option<RoleId>,
+}
+
+impl MemberFilter {
+    pub fn is_empty(&self) -> bool {
+        self.query.is_none() && self.role.is_none()
+    }
+}
+
+/// Who a prune would remove (Discord `prune`): members who joined before
+/// `joined_before_ms`, wrote no message in the guild since `active_since_ms`, are not
+/// the owner, and hold no role except possibly those in `include_roles`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PruneCriteria {
+    pub joined_before_ms: i64,
+    pub active_since_ms: i64,
+    pub include_roles: Vec<RoleId>,
+}
+
 #[async_trait]
 pub trait GuildAdminRepository: Send + Sync {
     /// Persist the editable guild columns.
@@ -28,10 +53,11 @@ pub trait GuildAdminRepository: Send + Sync {
     /// Guilds `user` is a member of, ordered by guild id.
     async fn list_user_guilds(&self, user: UserId) -> RepoResult<Vec<Guild>>;
 
-    /// Members ordered by user id, strictly after `after`.
+    /// Members matching `filter`, ordered by user id, strictly after `after`.
     async fn list_members(
         &self,
         guild: GuildId,
+        filter: &MemberFilter,
         after: Option<UserId>,
         limit: usize,
     ) -> RepoResult<Vec<Member>>;
@@ -39,6 +65,17 @@ pub trait GuildAdminRepository: Send + Sync {
     async fn update_member(&self, member: &Member) -> RepoResult<()>;
     /// Remove the membership row (and its role assignments).
     async fn remove_member(&self, guild: GuildId, user: UserId) -> RepoResult<()>;
+    /// Members a prune with `criteria` would remove, ordered by user id, at most `limit`.
+    /// Role hierarchy is the caller's business; this only applies the criteria.
+    async fn prune_candidates(
+        &self,
+        guild: GuildId,
+        criteria: &PruneCriteria,
+        limit: usize,
+    ) -> RepoResult<Vec<Member>>;
+    /// Remove many memberships (and role assignments) in one statement; returns how
+    /// many rows were removed.
+    async fn remove_members(&self, guild: GuildId, users: &[UserId]) -> RepoResult<u64>;
 
     /// Set the `position` of the listed roles in one transaction.
     async fn set_role_positions(

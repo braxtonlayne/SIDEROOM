@@ -15,6 +15,7 @@ pub mod read_state;
 pub mod relationships;
 pub mod repo;
 pub mod service;
+pub mod user_settings;
 
 #[cfg(test)]
 mod tests;
@@ -100,6 +101,8 @@ pub enum SocialError {
     NotOwner,
     #[error("action only valid in a group DM")]
     NotGroupDm,
+    #[error("your settings changed in another session; try again")]
+    Conflict,
     #[error("invalid {field}: {message}")]
     Invalid {
         field: String,

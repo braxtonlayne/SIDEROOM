@@ -73,14 +73,14 @@ export function Modal({
         className={cx(styles.dialog, styles[size], className)}
         data-sr-part="modal"
       >
-        <header className={styles.header}>
+        <div className={styles.header}>
           <h2 id={titleId} className={styles.title}>
             {title}
           </h2>
           <button type="button" className={styles.close} aria-label="Close" onClick={onClose}>
             <span aria-hidden="true">×</span>
           </button>
-        </header>
+        </div>
         {description && (
           <p id={descId} className={styles.description}>
             {description}

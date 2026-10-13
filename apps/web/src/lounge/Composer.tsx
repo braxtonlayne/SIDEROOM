@@ -1,10 +1,21 @@
-import { Icon, Popover, Tooltip, useToast } from '@sideroom/ui';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { ChangeEvent, KeyboardEvent } from 'react';
+import { Button, DropdownMenu, Icon, Popover, Tooltip, useToast } from '@sideroom/ui';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useId,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
+import type { ChangeEvent, ClipboardEvent, KeyboardEvent } from 'react';
 import { EmojiPicker } from './components/EmojiPicker';
+import { EMOJI_CATEGORIES } from './components/emoji';
 import {
   insertAt,
   MAX_MESSAGE_LENGTH,
+  prefixLines,
   toggleWrap,
   typingLabel,
   WRAP_KEYS,
@@ -12,15 +23,35 @@ import {
   type TextEdit,
 } from './composerText';
 import {
+  useChannels,
   useCurrentUser,
   useLoungeActions,
+  useMembers,
+  useRoles,
   useTyping,
   useUsers,
   type Message,
+  type NewPoll,
   type Snowflake,
 } from './data';
 import { drafts } from './drafts';
 import { currentMarkdownEngine, loadMarkdownEngine, type MarkdownEngine } from './markdown';
+import {
+  applySuggestion,
+  channelSuggestions,
+  emojiSuggestions,
+  findTrigger,
+  mentionSuggestions,
+  resolveTokens,
+  type Suggestion,
+  type Trigger,
+} from './msg/autocomplete';
+import { AutocompletePopup } from './msg/AutocompletePopup';
+import { PollModal } from './msg/PollModal';
+import { commandSuggestions, runSlash } from './msg/slashCommands';
+import { UploadTray } from './msg/UploadTray';
+import { MAX_FILES, uploadFiles, type PendingFile } from './msg/upload';
+import './msg/msg.css';
 
 /** Shortcodes become emoji at send time (Q89): the parser leaves `:name:` literal. */
 function expandForSend(text: string, then: (content: string) => void) {
@@ -39,52 +70,113 @@ function expandForSend(text: string, then: (content: string) => void) {
 /** Test hook: forgets every unsent draft (memory and localStorage). */
 export const resetComposerDrafts = () => drafts.clear();
 
+export interface ComposerHandle {
+  /** Queue files from a drop or paste. */
+  addFiles: (files: File[]) => void;
+}
+
 export interface ComposerProps {
   channelId: Snowflake;
+  /** Undefined in DMs; mention and channel autocomplete read this guild. */
+  guildId?: Snowflake | undefined;
   /** "#general" or a person's name; used in the placeholder. */
   target: string;
   canSend: boolean;
   replyTo: Message | null;
   onCancelReply: () => void;
-  editing: Message | null;
-  onCancelEdit: () => void;
   /** ArrowUp in an empty composer: edit my last message. */
   onEditLast: () => void;
+  /** Seconds between messages for members without Manage Messages. */
+  slowmodeSeconds?: number | undefined;
+  /** The viewer is exempt from slowmode. */
+  bypassSlowmode?: boolean | undefined;
+  /** May use @everyone / @here. */
+  canMentionEveryone?: boolean | undefined;
 }
 
-export function Composer({
-  channelId,
-  target,
-  canSend,
-  replyTo,
-  onCancelReply,
-  editing,
-  onCancelEdit,
-  onEditLast,
-}: ComposerProps) {
+const FORMATS: { label: string; run: (v: string, s: number, e: number) => TextEdit }[] = [
+  { label: 'Bold', run: (v, s, e) => toggleWrap(v, s, e, '**') },
+  { label: 'Italic', run: (v, s, e) => toggleWrap(v, s, e, '*') },
+  { label: 'Underline', run: (v, s, e) => toggleWrap(v, s, e, '__') },
+  { label: 'Strikethrough', run: (v, s, e) => toggleWrap(v, s, e, '~~') },
+  { label: 'Spoiler', run: (v, s, e) => toggleWrap(v, s, e, '||') },
+  { label: 'Code', run: (v, s, e) => toggleWrap(v, s, e, '`') },
+  { label: 'Quote', run: (v, s, e) => prefixLines(v, s, e, '> ') },
+  { label: 'List', run: (v, s, e) => prefixLines(v, s, e, '- ') },
+];
+const FORMAT_GLYPH: Record<string, string> = {
+  Bold: 'B',
+  Italic: 'I',
+  Underline: 'U',
+  Strikethrough: 'S',
+  Spoiler: '▒',
+  Code: '<>',
+  Quote: '❝',
+  List: '•',
+};
+
+let fileCounter = 0;
+
+export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
+  {
+    channelId,
+    guildId,
+    target,
+    canSend,
+    replyTo,
+    onCancelReply,
+    onEditLast,
+    slowmodeSeconds,
+    bypassSlowmode,
+    canMentionEveryone,
+  },
+  handle,
+) {
   const actions = useLoungeActions();
   const me = useCurrentUser();
   const users = useUsers();
+  const members = useMembers(guildId);
+  const roles = useRoles(guildId);
+  const channels = useChannels(guildId);
   const typingIds = useTyping(channelId);
   const toast = useToast();
   const ref = useRef<HTMLTextAreaElement | null>(null);
+  const fileInput = useRef<HTMLInputElement | null>(null);
+  const acId = useId();
   const [text, setText] = useState(() => drafts.get(channelId) ?? '');
   const pendingSel = useRef<{ s: number; e: number } | null>(null);
   const lastTyping = useRef(0);
+  const tokens = useRef(new Map<string, string>());
 
-  // Entering edit mode loads the message; leaving it restores the draft.
+  const [files, setFiles] = useState<PendingFile[]>([]);
+  const [sending, setSending] = useState(false);
+  const abort = useRef<AbortController | null>(null);
+  const [pollOpen, setPollOpen] = useState(false);
+  const [ping, setPing] = useState(true);
+  const [hasSel, setHasSel] = useState(false);
+  const [caret, setCaret] = useState(0);
+  const [acIndex, setAcIndex] = useState(0);
+  const [acDismissed, setAcDismissed] = useState<number | null>(null);
+  const [cooldownEnd, setCooldownEnd] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+
   useEffect(() => {
-    if (editing) {
-      setText(editing.content);
+    if (replyTo) {
       ref.current?.focus();
-    } else {
-      setText(drafts.get(channelId) ?? '');
+      setPing(true);
     }
-  }, [editing, channelId]);
-
-  useEffect(() => {
-    if (replyTo) ref.current?.focus();
   }, [replyTo]);
+
+  // Slowmode countdown (LNG-CMP-010).
+  const cooldownLeft = Math.max(0, Math.ceil((cooldownEnd - now) / 1000));
+  useEffect(() => {
+    if (cooldownEnd <= Date.now()) return;
+    const t = setInterval(() => {
+      setNow(Date.now());
+      if (Date.now() >= cooldownEnd) clearInterval(t);
+    }, 250);
+    return () => clearInterval(t);
+  }, [cooldownEnd]);
 
   // Auto-grow up to ~40% of the viewport, then scroll inside the box.
   useLayoutEffect(() => {
@@ -107,9 +199,10 @@ export function Composer({
     (edit: TextEdit) => {
       pendingSel.current = { s: edit.selStart, e: edit.selEnd };
       setText(edit.value);
-      if (!editing) drafts.set(channelId, edit.value);
+      setCaret(edit.selEnd);
+      drafts.set(channelId, edit.value);
     },
-    [channelId, editing],
+    [channelId],
   );
 
   const sel = () => {
@@ -117,45 +210,215 @@ export function Composer({
     return { s: el?.selectionStart ?? text.length, e: el?.selectionEnd ?? text.length };
   };
 
-  const submit = (content: string) => {
-    if (editing) {
-      actions.editMessage(channelId, editing.id, content);
-      onCancelEdit();
-    } else {
-      actions.sendMessage(channelId, content, replyTo?.id ?? null);
-      drafts.delete(channelId);
-      setText('');
-      onCancelReply();
+  // ---- files ----
+  const addFiles = useCallback(
+    (list: File[]) => {
+      if (list.length === 0) return;
+      setFiles((cur) => {
+        const room = MAX_FILES - cur.length;
+        if (list.length > room) {
+          toast.show({
+            title: `You can attach up to ${MAX_FILES} files per message`,
+            variant: 'info',
+            duration: 3000,
+          });
+        }
+        const added = list.slice(0, Math.max(0, room)).map((file): PendingFile => ({
+          id: `f${Date.now().toString(36)}${fileCounter++}`,
+          file,
+          name: file.name || 'file',
+          spoiler: false,
+          description: '',
+          progress: 0,
+          status: 'queued',
+        }));
+        return [...cur, ...added];
+      });
+    },
+    [toast],
+  );
+  useImperativeHandle(handle, () => ({ addFiles }), [addFiles]);
+
+  const patchFile = useCallback((id: string, patch: Partial<PendingFile>) => {
+    setFiles((cur) => cur.map((f) => (f.id === id ? { ...f, ...patch } : f)));
+  }, []);
+
+  const removeFile = (id: string) => {
+    if (sending) abort.current?.abort();
+    setFiles((cur) => cur.filter((f) => f.id !== id));
+  };
+
+  const onPaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    const pasted = Array.from(e.clipboardData?.files ?? []);
+    if (pasted.length) {
+      e.preventDefault();
+      addFiles(pasted);
     }
   };
 
+  // ---- sending ----
+  const finishSend = () => {
+    drafts.delete(channelId);
+    setText('');
+    setCaret(0);
+    tokens.current.clear();
+    setFiles([]);
+    onCancelReply();
+    if (slowmodeSeconds && !bypassSlowmode) {
+      const end = Date.now() + slowmodeSeconds * 1000;
+      setCooldownEnd(end);
+      setNow(Date.now());
+    }
+  };
+
+  const submit = (content: string, poll?: NewPoll) => {
+    const base = {
+      ...(replyTo && !ping ? { mentionRepliedUser: false } : {}),
+      ...(poll ? { poll } : {}),
+    };
+    if (files.length === 0) {
+      actions.sendMessage(
+        channelId,
+        content,
+        replyTo?.id ?? null,
+        Object.keys(base).length ? base : undefined,
+      );
+      finishSend();
+      return;
+    }
+    const ctl = new AbortController();
+    abort.current = ctl;
+    setSending(true);
+    uploadFiles(channelId, files, { onUpdate: patchFile, signal: ctl.signal })
+      .then((refs) => {
+        actions.sendMessage(channelId, content, replyTo?.id ?? null, {
+          ...base,
+          attachments: refs,
+        });
+        finishSend();
+      })
+      .catch((e: unknown) => {
+        if (ctl.signal.aborted) return;
+        const msg = e instanceof Error ? e.message : 'Upload failed.';
+        toast.show({ title: msg, variant: 'danger', duration: 5000 });
+      })
+      .finally(() => {
+        setSending(false);
+        abort.current = null;
+      });
+  };
+
   const send = () => {
-    const content = text.trim();
-    if (!content || content.length > MAX_MESSAGE_LENGTH) return;
-    expandForSend(content, submit);
+    if (sending || cooldownLeft > 0) return;
+    let content = resolveTokens(text.trim(), tokens.current);
+    if (!content && files.length === 0) return;
+    if (content.length > MAX_MESSAGE_LENGTH) return;
+    if (content.startsWith('/')) {
+      const r = runSlash(content);
+      if (r.kind === 'poll') {
+        setPollOpen(true);
+        return;
+      }
+      if (r.kind === 'error') {
+        toast.show({ title: r.message, variant: 'danger', duration: 3000 });
+        return;
+      }
+      if (r.kind === 'send') content = r.content;
+    }
+    expandForSend(content, (c) => submit(c));
+  };
+
+  const sendAsFile = () => {
+    const body = text.trim();
+    if (!body) return;
+    const file = new File([body], 'message.txt', { type: 'text/plain' });
+    setText('');
+    drafts.delete(channelId);
+    setFiles((cur) => [
+      ...cur,
+      {
+        id: `f${Date.now().toString(36)}${fileCounter++}`,
+        file,
+        name: 'message.txt',
+        spoiler: false,
+        description: '',
+        progress: 0,
+        status: 'queued',
+      },
+    ]);
+  };
+
+  // ---- autocomplete ----
+  const trigger: Trigger | null =
+    !acDismissed || acDismissed !== caret ? findTrigger(text, caret) : null;
+  let suggestions: Suggestion[] = [];
+  let acTitle = '';
+  if (trigger?.kind === '@') {
+    suggestions = mentionSuggestions(trigger.query, members, roles, {
+      everyone: !!canMentionEveryone,
+    });
+    acTitle = 'Members';
+  } else if (trigger?.kind === '#') {
+    suggestions = channelSuggestions(trigger.query, channels);
+    acTitle = 'Text channels';
+  } else if (trigger?.kind === ':') {
+    suggestions = emojiSuggestions(
+      trigger.query,
+      EMOJI_CATEGORIES.flatMap((c) => c.emoji),
+    );
+    acTitle = 'Emoji matching';
+  } else if (trigger?.kind === '/') {
+    suggestions = commandSuggestions(trigger.query);
+    acTitle = 'Commands';
+  }
+  const acOpen = suggestions.length > 0;
+  const activeIdx = Math.min(acIndex, Math.max(0, suggestions.length - 1));
+
+  const pick = (s: Suggestion) => {
+    if (!trigger) return;
+    if (s.token) tokens.current.set(s.insert, s.token);
+    const r = applySuggestion(text, trigger, caret, s);
+    apply({ value: r.value, selStart: r.caret, selEnd: r.caret });
+    setAcIndex(0);
+    ref.current?.focus();
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.nativeEvent.isComposing) return;
     const mod = e.ctrlKey || e.metaKey;
+    if (acOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const n = suggestions.length;
+        setAcIndex((activeIdx + (e.key === 'ArrowDown' ? 1 : n - 1)) % n);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        pick(suggestions[activeIdx]!);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setAcDismissed(caret);
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       send();
       return;
     }
     if (e.key === 'Escape') {
-      if (editing) {
-        e.preventDefault();
-        e.stopPropagation();
-        onCancelEdit();
-      } else if (replyTo) {
+      if (replyTo) {
         e.preventDefault();
         e.stopPropagation();
         onCancelReply();
       }
       return;
     }
-    if (e.key === 'ArrowUp' && text === '' && !editing) {
+    if (e.key === 'ArrowUp' && text === '' && files.length === 0) {
       e.preventDefault();
       onEditLast();
       return;
@@ -173,7 +436,9 @@ export function Composer({
 
   const onChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
-    if (!editing) drafts.set(channelId, e.target.value);
+    setCaret(e.target.selectionStart);
+    setAcIndex(0);
+    drafts.set(channelId, e.target.value);
     const now = Date.now();
     if (e.target.value && now - lastTyping.current > 8000) {
       lastTyping.current = now;
@@ -181,11 +446,20 @@ export function Composer({
     }
   };
 
-  const typing = typingLabel(
-    typingIds.filter((id) => id !== me.id).map((id) => users[id]?.displayName ?? 'Someone'),
-  );
+  const trackSelection = () => {
+    const el = ref.current;
+    if (!el) return;
+    setCaret(el.selectionStart);
+    setHasSel(el.selectionEnd > el.selectionStart);
+  };
+
+  const typingNames = typingIds
+    .filter((id) => id !== me.id)
+    .map((id) => users[id]?.displayName ?? 'Someone');
+  const typing = typingLabel(typingNames);
   const remaining = MAX_MESSAGE_LENGTH - text.length;
   const showCounter = remaining <= 200;
+  const hasContent = !!text.trim() || files.length > 0;
 
   if (!canSend) {
     return (
@@ -205,58 +479,105 @@ export function Composer({
           <span>
             Replying to <strong>{replyTo.author.displayName}</strong>
           </span>
-          <button
-            type="button"
-            className="lng-icon-btn"
-            aria-label="Cancel reply"
-            onClick={onCancelReply}
-          >
-            <Icon name="close" size={16} />
-          </button>
+          <span className="lng-bar-actions">
+            <button
+              type="button"
+              className="lng-ping"
+              aria-pressed={ping}
+              aria-label={`Mention ${replyTo.author.displayName}: ${ping ? 'on' : 'off'}`}
+              onClick={() => setPing((p) => !p)}
+            >
+              @ {ping ? 'ON' : 'OFF'}
+            </button>
+            <button
+              type="button"
+              className="lng-icon-btn"
+              aria-label="Cancel reply"
+              onClick={onCancelReply}
+            >
+              <Icon name="close" size={16} />
+            </button>
+          </span>
         </div>
       )}
-      {editing && (
-        <div className="lng-bar" role="status">
-          <span>
-            Editing message. <span className="lng-muted">Esc to cancel, Enter to save</span>
-          </span>
-          <button
-            type="button"
-            className="lng-icon-btn"
-            aria-label="Cancel edit"
-            onClick={onCancelEdit}
-          >
-            <Icon name="close" size={16} />
-          </button>
+      <UploadTray files={files} busy={sending} onChange={patchFile} onRemove={removeFile} />
+      {hasSel && (
+        <div className="lng-format" role="toolbar" aria-label="Text formatting">
+          {FORMATS.map((f) => (
+            <button
+              key={f.label}
+              type="button"
+              className="lng-format-btn"
+              aria-label={f.label}
+              // Keep the selection in the textarea while the button is pressed.
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                const { s, e } = sel();
+                apply(f.run(text, s, e));
+                ref.current?.focus();
+              }}
+            >
+              <span aria-hidden="true">{FORMAT_GLYPH[f.label]}</span>
+            </button>
+          ))}
         </div>
       )}
       <div className="lng-composer">
-        <Tooltip content="Upload a File">
-          <button
-            type="button"
-            className="lng-icon-btn"
-            aria-label="Upload a File"
-            onClick={() =>
-              toast.show({
-                title: 'Uploads are not available yet',
-                variant: 'info',
-                duration: 2500,
-              })
-            }
-          >
-            <Icon name="plus" size={20} />
-          </button>
-        </Tooltip>
+        {acOpen && (
+          <AutocompletePopup
+            id={acId}
+            suggestions={suggestions}
+            active={activeIdx}
+            title={acTitle}
+            onPick={pick}
+            onHover={setAcIndex}
+          />
+        )}
+        <DropdownMenu
+          label="Add to message"
+          placement="top-start"
+          items={[
+            { label: 'Upload a File', onSelect: () => fileInput.current?.click() },
+            { label: 'Create Poll', onSelect: () => setPollOpen(true) },
+          ]}
+          trigger={
+            <button type="button" className="lng-icon-btn" aria-label="Add to message">
+              <Icon name="plus" size={20} />
+            </button>
+          }
+        />
+        <input
+          ref={fileInput}
+          type="file"
+          multiple
+          hidden
+          aria-label="Upload files"
+          data-testid="file-input"
+          onChange={(e) => {
+            addFiles(Array.from(e.target.files ?? []));
+            e.target.value = '';
+          }}
+        />
         <textarea
           ref={ref}
           className="lng-textarea"
           data-composer
           rows={1}
           aria-label={`Message ${target}`}
-          placeholder={`Message ${target}`}
+          aria-controls={acOpen ? acId : undefined}
+          aria-activedescendant={acOpen ? `${acId}-${activeIdx}` : undefined}
+          placeholder={
+            cooldownLeft > 0
+              ? `Slowmode is on. You can send another message in ${cooldownLeft}s`
+              : `Message ${target}`
+          }
           value={text}
           onChange={onChange}
           onKeyDown={onKeyDown}
+          onKeyUp={trackSelection}
+          onSelect={trackSelection}
+          onClick={trackSelection}
+          onPaste={onPaste}
         />
         {showCounter && (
           <span
@@ -290,16 +611,48 @@ export function Composer({
             type="button"
             className="lng-icon-btn lng-send"
             aria-label="Send message"
-            disabled={!text.trim() || remaining < 0}
+            disabled={!hasContent || remaining < 0 || sending || cooldownLeft > 0}
             onClick={send}
           >
             <Icon name="arrow-right" size={20} />
           </button>
         </Tooltip>
       </div>
+      {remaining < 0 && (
+        <p className="lng-over" role="alert">
+          Your message is {-remaining} characters over the limit.{' '}
+          <Button variant="link" size="sm" onClick={sendAsFile}>
+            Upload as a file instead
+          </Button>
+        </p>
+      )}
+      {cooldownLeft > 0 && (
+        <p className="lng-muted lng-slow" role="status">
+          Slowmode: you can send another message in {cooldownLeft}s.
+        </p>
+      )}
       <div className="lng-typing" aria-live="polite">
-        {typing}
+        {typing && (
+          <>
+            <span className="lng-typing-dots" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
+            {typing}
+          </>
+        )}
       </div>
+      <PollModal
+        open={pollOpen}
+        onClose={() => setPollOpen(false)}
+        onCreate={(poll) => {
+          setPollOpen(false);
+          // The text box becomes the message that accompanies the poll.
+          const content = resolveTokens(text.trim(), tokens.current);
+          submit(content.startsWith('/poll') ? '' : content, poll);
+        }}
+      />
     </div>
   );
-}
+});

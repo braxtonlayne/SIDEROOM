@@ -95,7 +95,10 @@ async fn guild_admin_round_trip() {
     assert_eq!(g.name, "Admin Renamed");
     assert_eq!(svc.list_my_guilds(bob).await.unwrap().len(), 1);
     assert_eq!(
-        svc.list_members(owner, gid, None, 10).await.unwrap().len(),
+        svc.list_members(owner, gid, Default::default(), None, 10)
+            .await
+            .unwrap()
+            .len(),
         3
     );
 
@@ -208,4 +211,195 @@ async fn member_count_and_automod_style_timeout_round_trip() {
     repo.update_member(&m).await.unwrap();
     let m = repo.get_member(gid, bob).await.unwrap().unwrap();
     assert_eq!(m.communication_disabled_until_ms, Some(until));
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn member_search_role_filter_and_prune() {
+    use sr_chat::SendMessage;
+    use sr_chat::admin_repo::MemberFilter;
+    let pool = pool().await;
+    let (svc, ids) = service(&pool);
+    let [owner, bob, carol, dave, erin] = [
+        account(&pool, &ids).await,
+        account(&pool, &ids).await,
+        account(&pool, &ids).await,
+        account(&pool, &ids).await,
+        account(&pool, &ids).await,
+    ];
+    let bp = svc.create_guild(owner, "Prune Test").await.unwrap();
+    let (gid, general) = (bp.guild.id, bp.channels[2].id);
+    for u in [bob, carol, dave, erin] {
+        join(&pool, gid, u).await;
+    }
+    let tag = format!("zq{}", bob.get() % 100_000);
+    sqlx::query("UPDATE accounts SET display_name = $2 WHERE id = $1")
+        .bind(bob.get() as i64)
+        .bind(format!("Robert {tag}%_"))
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE guild_members SET nick = $3 WHERE guild_id = $1 AND user_id = $2")
+        .bind(gid.get() as i64)
+        .bind(carol.get() as i64)
+        .bind(format!("Caro {tag}"))
+        .execute(&pool)
+        .await
+        .unwrap();
+    let listed = |f: MemberFilter| {
+        let svc = &svc;
+        async move {
+            svc.list_members(owner, gid, f, None, 100)
+                .await
+                .unwrap()
+                .iter()
+                .map(|m| m.user_id)
+                .collect::<Vec<_>>()
+        }
+    };
+    let q = |s: &str| MemberFilter {
+        query: Some(s.into()),
+        role: None,
+    };
+    // Display name and nickname, case-insensitive; LIKE metacharacters are literal.
+    assert_eq!(listed(q(&tag.to_uppercase())).await, vec![bob, carol]);
+    assert_eq!(listed(q(&format!("{tag}%_"))).await, vec![bob]);
+    assert_eq!(listed(q(&format!("{tag}_%"))).await, Vec::<UserId>::new());
+    // A bare "%" or "_" matches only the literal character (only Bob has them).
+    assert_eq!(listed(q("%")).await, vec![bob]);
+    assert_eq!(listed(q("_")).await, vec![bob]);
+    // Username search.
+    let uname: String = sqlx::query_scalar("SELECT username::text FROM accounts WHERE id = $1")
+        .bind(dave.get() as i64)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(listed(q(&uname)).await, vec![dave]);
+
+    // Role filter.
+    let role = svc
+        .create_role(
+            owner,
+            gid,
+            NewRole {
+                name: Some("crew".into()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    svc.assign_role(owner, gid, dave, role.id, true)
+        .await
+        .unwrap();
+    let by_role = MemberFilter {
+        query: None,
+        role: Some(role.id),
+    };
+    assert_eq!(listed(by_role).await, vec![dave]);
+    let everyone = MemberFilter {
+        query: None,
+        role: Some(sr_core::RoleId::new(gid.get())),
+    };
+    assert_eq!(listed(everyone).await.len(), 5);
+    assert_eq!(
+        svc.list_role_members(owner, gid, role.id, None, 10)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+
+    // Prune: Bob, Carol, Dave and Erin joined 40 days ago; Carol posts; Dave has a role.
+    sqlx::query(
+        "UPDATE guild_members SET joined_at = now() - interval '40 days' \
+         WHERE guild_id = $1 AND user_id <> $2",
+    )
+    .bind(gid.get() as i64)
+    .bind(erin.get() as i64)
+    .execute(&pool)
+    .await
+    .unwrap();
+    svc.send_message(
+        carol,
+        general,
+        SendMessage {
+            content: "still around".into(),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(svc.prune_preview(owner, gid, 7, &[]).await.unwrap(), 1); // Bob only
+    assert_eq!(
+        svc.prune_preview(owner, gid, 7, &[role.id]).await.unwrap(),
+        2
+    );
+    assert!(matches!(
+        svc.prune_preview(bob, gid, 7, &[]).await,
+        Err(ChatError::MissingPermissions)
+    ));
+    let removed = svc.prune(owner, gid, 7, &[]).await.unwrap();
+    assert_eq!(removed, vec![bob]);
+    let left = listed(MemberFilter::default()).await;
+    assert_eq!(left.len(), 4);
+    assert!(!left.contains(&bob));
+    assert!(left.contains(&owner), "the owner is never pruned");
+    // Removing nobody is fine.
+    assert_eq!(svc.prune(owner, gid, 7, &[]).await.unwrap(), vec![]);
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn afk_settings_persist_and_clear_when_the_channel_is_deleted() {
+    use sr_chat::channel_rules::NewChannel;
+    use sr_chat::domain::ChannelType;
+    let pool = pool().await;
+    let (svc, ids) = service(&pool);
+    let owner = account(&pool, &ids).await;
+    let bp = svc.create_guild(owner, "Afk Test").await.unwrap();
+    let gid = bp.guild.id;
+    assert_eq!((bp.guild.afk_channel_id, bp.guild.afk_timeout), (None, 300));
+
+    let voice = svc
+        .create_channel(
+            owner,
+            gid,
+            NewChannel::new(ChannelType::Voice, "afk-lounge"),
+        )
+        .await
+        .unwrap();
+    let edited = svc
+        .edit_guild(
+            owner,
+            gid,
+            GuildPatch {
+                afk_channel_id: Some(Some(voice.id)),
+                afk_timeout: Some(1800),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(edited.afk_channel_id, Some(voice.id));
+    let (g, _) = svc.get_guild(owner, gid).await.unwrap();
+    assert_eq!((g.afk_channel_id, g.afk_timeout), (Some(voice.id), 1800));
+
+    // A text channel is refused.
+    let text = bp.channels[2].id;
+    assert!(
+        svc.edit_guild(
+            owner,
+            gid,
+            GuildPatch {
+                afk_channel_id: Some(Some(text)),
+                ..Default::default()
+            }
+        )
+        .await
+        .is_err()
+    );
+    // Deleting the channel clears the setting (FK ON DELETE SET NULL); the timeout stays.
+    svc.delete_channel(owner, voice.id).await.unwrap();
+    let (g, _) = svc.get_guild(owner, gid).await.unwrap();
+    assert_eq!((g.afk_channel_id, g.afk_timeout), (None, 1800));
 }

@@ -365,6 +365,274 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/library/chapters/{chapter_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change a chapter's number, title, volume or release group (`PUBLISH_READING`). */
+        put: operations["admin_library_update_chapter"];
+        post?: never;
+        /** Delete a chapter and its pages (`DELETE_CONTENT`). */
+        delete: operations["admin_library_delete_chapter"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/chapters/{chapter_id}/pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Preview a chapter's page manifest, published or not (`PUBLISH_READING`). */
+        get: operations["admin_library_pages"];
+        /**
+         * Replace the whole page list of an image chapter: this is how pages are reordered,
+         *     replaced and removed (`PUBLISH_READING`). Object keys must live under
+         *     `library/{series_id}/{chapter_id}/`.
+         */
+        put: operations["admin_library_replace_pages"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/chapters/{chapter_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish a chapter; it needs pages (`PUBLISH_READING`). */
+        post: operations["admin_library_publish_chapter"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/chapters/{chapter_id}/unpublish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unpublish a chapter (`PUBLISH_READING` or `DELETE_CONTENT`). */
+        post: operations["admin_library_unpublish_chapter"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/editions/{edition_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change an edition (`PUBLISH_READING`). */
+        put: operations["admin_library_update_edition"];
+        post?: never;
+        /** Delete an edition and its chapters (`DELETE_CONTENT`). */
+        delete: operations["admin_library_delete_edition"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/editions/{edition_id}/chapters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add a draft chapter to an edition (`PUBLISH_READING`). */
+        post: operations["admin_library_create_chapter"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/editions/{edition_id}/volumes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add a volume to an edition (`PUBLISH_READING`). */
+        post: operations["admin_library_create_volume"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** All series, drafts included (`PUBLISH_READING`). */
+        get: operations["admin_library_list"];
+        put?: never;
+        /** Create a draft series (`PUBLISH_READING`). */
+        post: operations["admin_library_create_series"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/series/{series_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A series with its editions, published or not (`PUBLISH_READING`). */
+        get: operations["admin_library_series"];
+        /** Replace the editable fields of a series (`PUBLISH_READING`). */
+        put: operations["admin_library_update_series"];
+        post?: never;
+        /** Delete a series with everything under it (`DELETE_CONTENT`). */
+        delete: operations["admin_library_delete_series"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/series/{series_id}/chapters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Editions, volumes and every chapter of a series, published or not (`PUBLISH_READING`). */
+        get: operations["admin_library_chapters"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/series/{series_id}/editions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add an edition (`PUBLISH_READING`). */
+        post: operations["admin_library_create_edition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/series/{series_id}/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Merge this series into another (`PUBLISH_READING` and `DELETE_CONTENT`): editions,
+         *     chapters, follows and progress move; this series stays as a redirect.
+         */
+        post: operations["admin_library_merge_series"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/series/{series_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish a series (`PUBLISH_READING`). */
+        post: operations["admin_library_publish_series"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/series/{series_id}/unpublish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unpublish a series (`PUBLISH_READING` or `DELETE_CONTENT`). */
+        post: operations["admin_library_unpublish_series"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/library/volumes/{volume_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a volume; its chapters stay, ungrouped (`DELETE_CONTENT`). */
+        delete: operations["admin_library_delete_volume"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/me": {
         parameters: {
             query?: never;
@@ -1433,8 +1701,31 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Page through the members of a guild, ordered by user id. */
+        /**
+         * Page through the members of a guild, ordered by user id.
+         * @description `query` and `role_id` narrow the page to members matching a search text and/or holding a role.
+         */
         get: operations["list_members"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/members/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Discord's member search: members whose nickname, username or display name contains
+         *     `query` (case-insensitive), ordered by user id.
+         */
+        get: operations["search_members"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1519,6 +1810,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/prune": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** How many members a prune would remove right now. Counts at most 10,000. */
+        get: operations["prune_count"];
+        put?: never;
+        /**
+         * Remove inactive members (`KICK_MEMBERS`). Removes at most 10,000 per call; call again
+         *     for a bigger backlog.
+         */
+        post: operations["prune"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/roles": {
         parameters: {
             query?: never;
@@ -1554,6 +1866,26 @@ export interface paths {
         head?: never;
         /** Modify a role the caller outranks. */
         patch: operations["modify_role"];
+        trace?: never;
+    };
+    "/guilds/{guild_id}/roles/{role_id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Members holding a role, ordered by user id (any member of the guild may list them).
+         *     `@everyone` lists every member.
+         */
+        get: operations["list_role_members"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/guilds/{guild_id}/sr/community": {
@@ -1753,6 +2085,148 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/library/chapters/{chapter_id}/pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The reader's page manifest: sized, signed image URLs plus neighbouring chapters.
+         * @description For an age-restricted series the account must have confirmed it is 18 or older
+         *     (D-032); otherwise the answer is 403 with code 900011 (`AGE_CONFIRMATION_REQUIRED`)
+         *     and the client shows the same dialog as age-restricted Lounge channels.
+         */
+        get: operations["library_pages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/me/follows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's followed series ("My library"), newest follow first. */
+        get: operations["library_my_follows"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Instant search: matching series plus author, genre and tag suggestions. */
+        get: operations["library_search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Browse the catalog with filters, sort and pagination. */
+        get: operations["library_browse"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/series/{series_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A series with its editions and the caller's follow. A merged series answers with its target. */
+        get: operations["library_series"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/series/{series_id}/chapters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Chapters of a series with volumes, editions and the caller's read marks. */
+        get: operations["library_chapters"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/series/{series_id}/follow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Follow a series, or change its shelf and notification setting. */
+        put: operations["library_follow"];
+        post?: never;
+        /** Stop following a series. */
+        delete: operations["library_unfollow"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/library/updates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Latest published chapters, newest first. */
+        get: operations["library_updates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/read-states/ack-bulk": {
         parameters: {
             query?: never;
@@ -1764,6 +2238,73 @@ export interface paths {
         put?: never;
         /** Acknowledge many channels at once ("mark server as read"). */
         post: operations["ack_bulk"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/auth/email/change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /sr/auth/email/change {new_email, password}`: start an email change. A
+         *     confirmation link goes to the new address; the old one stays until it is used.
+         *     One request per minute per account. `204` also when the address belongs to
+         *     someone else, so the endpoint is not an account-existence oracle (the mail is
+         *     simply not sent).
+         */
+        post: operations["change_email"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/auth/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * `POST /sr/auth/password {current_password, new_password, revoke_other_sessions?}`:
+         *     change the password of the signed-in account. The current password is checked
+         *     first (and counts toward the login lockout). By default every other session and
+         *     every trusted device is revoked; the current session always stays. A notice goes
+         *     to the account's email.
+         */
+        post: operations["change_password"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/auth/username": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * `PUT /sr/auth/username {username, password}`: change the login name. Same rules as
+         *     signup (`^[a-z0-9_.]{2,32}$`, not reserved), two changes per day. Returns the new
+         *     username. Friends and shared servers receive `USER_UPDATE`.
+         */
+        put: operations["change_username"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1978,6 +2519,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/@me/notification-defaults": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller's global default notification level. It applies to servers where
+         *     neither the server nor a channel has an explicit choice, and takes precedence
+         *     over the server owner's suggested default.
+         */
+        get: operations["get_notification_defaults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Set (or clear with `null`) the global default notification level. Publishes
+         *     `SR_NOTIFICATION_DEFAULTS_UPDATE` to the caller's sessions.
+         */
+        patch: operations["patch_notification_defaults"];
+        trace?: never;
+    };
     "/users/@me/presence": {
         parameters: {
             query?: never;
@@ -1997,6 +2563,28 @@ export interface paths {
          *     `duration_seconds`) and set or clear the custom status.
          */
         patch: operations["patch_presence"];
+        trace?: never;
+    };
+    "/users/@me/privacy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's DM and friend-request privacy settings. */
+        get: operations["get_privacy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change DM and friend-request privacy. Takes effect for new requests and new
+         *     conversations; existing friendships and open DMs are untouched. Publishes
+         *     `SR_PRIVACY_UPDATE` to the caller's sessions.
+         */
+        patch: operations["patch_privacy"];
         trace?: never;
     };
     "/users/@me/profile": {
@@ -2078,6 +2666,27 @@ export interface paths {
         patch: operations["set_nickname"];
         trace?: never;
     };
+    "/users/@me/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's synced settings blob (empty at version 0 until the first save). */
+        get: operations["get_settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Merge a partial update into the settings blob. Publishes `SR_USER_SETTINGS_UPDATE`
+         *     to the caller's other sessions.
+         */
+        patch: operations["patch_settings"];
+        trace?: never;
+    };
     "/users/{user_id}/profile": {
         parameters: {
             query?: never;
@@ -2115,6 +2724,28 @@ export interface paths {
         head?: never;
         /** Modify a webhook's name or channel (`MANAGE_WEBHOOKS`). */
         patch: operations["modify_webhook"];
+        trace?: never;
+    };
+    "/webhooks/{webhook_id}/reset-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue a new execution token for an incoming webhook and invalidate the old one
+         *     (`MANAGE_WEBHOOKS`). The token is stored only as a hash, so an existing URL cannot be
+         *     shown again; this is the supported way to get a copyable URL later. The response is the
+         *     only place the new `token` and `url` appear.
+         */
+        post: operations["reset_webhook_token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/webhooks/{webhook_id}/{token}": {
@@ -2276,6 +2907,12 @@ export interface components {
             balance: number;
         };
         /**
+         * @description How age-restricted series are treated by a listing. Everyone sees them by
+         *     default (`include`); `hide` and `only` are optional filters (D-184).
+         * @enum {string}
+         */
+        AgeFilter: "hide" | "include" | "only";
+        /**
          * @description Discord's `allowed_mentions` object. `parse` may hold `users`, `roles` and
          *     `everyone`; listed `users`/`roles` ids may ping even when their kind is not parsed.
          */
@@ -2418,6 +3055,31 @@ export interface components {
             /** Format: int64 */
             rows_checked: number;
         };
+        /** @description Body for `POST /sr/auth/email/change`. */
+        ChangeEmailBody: {
+            new_email: string;
+            /** @description Current password. */
+            password: string;
+        };
+        /** @description Body for `POST /sr/auth/password`. */
+        ChangePasswordBody: {
+            /** @description The password in use now. */
+            current_password: string;
+            /** @description At least 10 characters and not easy to guess (zxcvbn score 3 or more). */
+            new_password: string;
+            /**
+             * @description Sign out every other session and trusted device (default `true`). Pass
+             *     `false` to keep the other browsers signed in.
+             */
+            revoke_other_sessions?: boolean;
+        };
+        /** @description Body for `PUT /sr/auth/username`. */
+        ChangeUsernameBody: {
+            /** @description Current password. */
+            password: string;
+            /** @description 2 to 32 characters of `a-z 0-9 _ .` (case-insensitive), not reserved. */
+            username: string;
+        };
         ChannelObject: {
             /** @description Forum tag ids applied to a post. */
             applied_tags?: string[] | null;
@@ -2488,6 +3150,50 @@ export interface components {
             message_notifications?: number | null;
             mute_config?: null | components["schemas"]["MuteConfigObject"];
             muted: boolean;
+        };
+        Chapter: {
+            edition_id: string;
+            format: components["schemas"]["ChapterFormat"];
+            id: string;
+            /** Format: double */
+            number: number;
+            /** Format: int32 */
+            page_count: number;
+            progress?: null | components["schemas"]["ChapterProgress"];
+            published: boolean;
+            /** Format: int64 */
+            published_at_ms?: number | null;
+            release_group?: string | null;
+            series_id: string;
+            title?: string | null;
+            volume_id?: string | null;
+        };
+        /**
+         * @description How a chapter is stored.
+         * @enum {string}
+         */
+        ChapterFormat: "images" | "pdf" | "epub";
+        ChapterInput: {
+            format?: components["schemas"]["ChapterFormat"];
+            /** Format: double */
+            number: number;
+            release_group?: string | null;
+            /** @description Storage key of the original file (`pdf` / `epub` chapters). */
+            source_key?: string | null;
+            title?: string | null;
+            volume_id?: string | null;
+        };
+        ChapterList: {
+            chapters: components["schemas"]["Chapter"][];
+            editions: components["schemas"]["Edition"][];
+            volumes: components["schemas"]["Volume"][];
+        };
+        ChapterProgress: {
+            completed: boolean;
+            /** Format: int32 */
+            page_index: number;
+            /** Format: float */
+            percent: number;
         };
         CommunityObject: {
             age_restricted: boolean;
@@ -2745,7 +3451,26 @@ export interface components {
             banner?: string | null;
             bio?: string | null;
             custom_status?: null | components["schemas"]["CustomStatusBody"];
+            /**
+             * @description Display name (Discord `global_name`, 32 characters at most); `null` clears it so
+             *     the username shows. The username itself changes through `PUT /sr/auth/username`.
+             */
+            global_name?: string | null;
             pronouns?: string | null;
+        };
+        Edition: {
+            id: string;
+            is_default: boolean;
+            label: string;
+            language: string;
+            series_id: string;
+        };
+        EditionInput: {
+            is_default?: boolean;
+            /** @description "Official English", "Scanlation X". */
+            label: string;
+            /** @description BCP 47 language tag. */
+            language: string;
         };
         EmojiObject: {
             animated: boolean;
@@ -2807,6 +3532,31 @@ export interface components {
             id?: string | null;
             spoiler?: boolean | null;
         };
+        /** @description A followed series with the user's shelf. */
+        Follow: {
+            /** Format: int64 */
+            created_at_ms: number;
+            notify: boolean;
+            shelf: components["schemas"]["Shelf"];
+        };
+        FollowBody: {
+            /** @description New-chapter notifications; default on. */
+            notify?: boolean | null;
+            shelf?: null | components["schemas"]["Shelf"];
+        };
+        FollowPage: {
+            items: components["schemas"]["FollowedSeries"][];
+            /** Format: int32 */
+            limit: number;
+            /** Format: int32 */
+            offset: number;
+            /** Format: int64 */
+            total: number;
+        };
+        FollowedSeries: {
+            follow: components["schemas"]["Follow"];
+            series: components["schemas"]["Series"];
+        };
         /** @description Result of a forced logout. */
         ForceLogoutResult: {
             /** Format: int64 */
@@ -2838,6 +3588,13 @@ export interface components {
             default_thread_rate_limit_per_user?: number | null;
         };
         GuildObject: {
+            /** @description Voice channel idle members are moved to. */
+            afk_channel_id?: string | null;
+            /**
+             * Format: int32
+             * @description Seconds of voice inactivity before that move: 60, 300, 900, 1800 or 3600.
+             */
+            afk_timeout: number;
             /** @description Banner hash, same URL shape as the icon. */
             banner?: string | null;
             channels?: components["schemas"]["ChannelObject"][] | null;
@@ -2884,6 +3641,13 @@ export interface components {
             suppress_everyone?: boolean | null;
             suppress_highlights?: boolean | null;
             suppress_roles?: boolean | null;
+        };
+        /** @description Instant-search result. */
+        InstantSearch: {
+            authors: string[];
+            genres: string[];
+            series: components["schemas"]["Series"][];
+            tags: string[];
         };
         InviteChannel: {
             id: string;
@@ -3044,6 +3808,10 @@ export interface components {
             roles: string[];
             user: components["schemas"]["UserRef"];
         };
+        MergeBody: {
+            /** @description The series that stays; this one is merged into it. */
+            target_id: string;
+        };
         MessageObject: {
             attachments: components["schemas"]["AttachmentObject"][];
             author: components["schemas"]["UserRef"];
@@ -3150,6 +3918,13 @@ export interface components {
             roles?: string[] | null;
         };
         ModifyGuildBody: {
+            /** @description A voice channel of the server; `null` clears it. */
+            afk_channel_id?: string | null;
+            /**
+             * Format: int32
+             * @description 60, 300, 900, 1800 or 3600 seconds.
+             */
+            afk_timeout?: number | null;
             /** @description Banner image data URI (aspect ratio kept, at most 1920x1080); `null` removes it. */
             banner?: string | null;
             /** Format: int32 */
@@ -3242,6 +4017,14 @@ export interface components {
             note_user_id: string;
             user_id: string;
         };
+        /** @description The caller's own default notification level. */
+        NotificationDefaultsObject: {
+            /**
+             * Format: int32
+             * @description 0 all messages, 1 only @mentions, 2 nothing; `null` follows each server's default.
+             */
+            message_notifications?: number | null;
+        };
         OnboardingDto: {
             default_channel_ids?: string[];
             enabled?: boolean;
@@ -3283,6 +4066,52 @@ export interface components {
              */
             type: number;
         };
+        PageEntry: {
+            blurhash?: string | null;
+            /** Format: int32 */
+            height: number;
+            /** Format: int32 */
+            index: number;
+            is_double_spread: boolean;
+            /** @description Full-size signed URL. */
+            url: string;
+            /** @description Smaller signed variants; pick by viewport width times device pixel ratio. */
+            variants: components["schemas"]["PageVariant"][];
+            /** Format: int32 */
+            width: number;
+        };
+        /** @description Replacement page list entry (admin). */
+        PageInput: {
+            blurhash?: string | null;
+            /** Format: int32 */
+            height: number;
+            is_double_spread?: boolean;
+            /** @description Full-size WebP object key; must live under `library/{series}/{chapter}/`. */
+            key: string;
+            /** @description Sized variants as `{"720": key, ...}`. */
+            variants?: {
+                [key: string]: string;
+            };
+            /** Format: int32 */
+            width: number;
+        };
+        PageManifest: {
+            chapter: components["schemas"]["Chapter"];
+            /**
+             * Format: int64
+             * @description Unix seconds when the signed URLs stop working.
+             */
+            expires_at: number;
+            next_chapter_id?: string | null;
+            pages: components["schemas"]["PageEntry"][];
+            prev_chapter_id?: string | null;
+            reading_direction: components["schemas"]["ReadingDirection"];
+        };
+        PageVariant: {
+            url: string;
+            /** Format: int32 */
+            width: number;
+        };
         PartialEmoji: {
             id?: string | null;
             name: string;
@@ -3296,10 +4125,35 @@ export interface components {
             /** @description Replace the platform-scope setting overrides (validated against the feature schema). */
             settings?: Record<string, never> | null;
         };
+        /** @description Body of `PATCH /users/@me/notification-defaults`. */
+        PatchNotificationDefaultsBody: {
+            /**
+             * Format: int32
+             * @description 0, 1 or 2; `null` goes back to following each server's default.
+             */
+            message_notifications?: number | null;
+        };
+        /** @description Body of `PATCH /users/@me/privacy`; absent fields stay. */
+        PatchPrivacyBody: {
+            allow_server_member_dms?: boolean | null;
+            friend_requests_everyone?: boolean | null;
+            friend_requests_friends_of_friends?: boolean | null;
+            friend_requests_server_members?: boolean | null;
+            message_requests?: boolean | null;
+        };
         PatchSettingsBody: {
             reason?: string | null;
             /** @description Setting key to new value; unknown keys or out-of-range values reject the whole patch. */
             values: Record<string, never>;
+        };
+        /** @description Body of `PATCH /users/@me/settings`. */
+        PatchUserSettingsBody: {
+            /**
+             * @description A JSON Merge Patch (RFC 7386): objects merge key by key, `null` deletes a key,
+             *     other values replace. The merged blob may not exceed 64 KiB, 8 levels of nesting
+             *     or 256 top-level keys.
+             */
+            settings: Record<string, never>;
         };
         PersonBanBody: {
             category: components["schemas"]["BanCategory"];
@@ -3344,6 +4198,19 @@ export interface components {
             status: string;
             status_expires_at?: string | null;
         };
+        /** @description Who may send the caller friend requests and DMs. */
+        PrivacyObject: {
+            /** @description DMs from members of shared servers (default on). */
+            allow_server_member_dms: boolean;
+            /** @description Friend requests from anyone. */
+            friend_requests_everyone: boolean;
+            /** @description Friend requests from friends of friends. */
+            friend_requests_friends_of_friends: boolean;
+            /** @description Friend requests from members of a shared server. */
+            friend_requests_server_members: boolean;
+            /** @description DMs from non-friends land in Message Requests (default on). */
+            message_requests: boolean;
+        };
         ProbeView: {
             error?: string | null;
             name: string;
@@ -3376,6 +4243,19 @@ export interface components {
             single_select?: boolean;
             title: string;
         };
+        PruneBody: {
+            /**
+             * Format: int32
+             * @description 1 to 30, default 7.
+             */
+            days?: number | null;
+            /** @description Roles whose holders may be pruned; members with other roles are kept. */
+            include_roles?: string[];
+        };
+        PruneResult: {
+            /** @description Members that would be (preview) or were (execute) removed. */
+            pruned: number;
+        };
         PutRelationshipBody: {
             /**
              * Format: int32
@@ -3400,6 +4280,11 @@ export interface components {
         ReadStatesResponse: {
             entries: components["schemas"]["ReadStateObject"][];
         };
+        /**
+         * @description Default reading mode of a series.
+         * @enum {string}
+         */
+        ReadingDirection: "rtl" | "ltr" | "vertical";
         /** @description Body of actions that only need a reason. */
         ReasonBody: {
             /**
@@ -3526,6 +4411,84 @@ export interface components {
             pronouns?: string | null;
             user: components["schemas"]["UserObject"];
         };
+        /** @description A series as the API shows it. */
+        Series: {
+            age_restricted: boolean;
+            alt_titles: string[];
+            artists: string[];
+            authors: string[];
+            /**
+             * Format: int32
+             * @description Published chapters across all editions.
+             */
+            chapter_count: number;
+            /** @description Signed, short-lived cover URL. */
+            cover_url?: string | null;
+            /** Format: int64 */
+            created_at_ms: number;
+            /** Format: int32 */
+            follower_count: number;
+            genres: string[];
+            id: string;
+            kind: components["schemas"]["SeriesKind"];
+            /** Format: int64 */
+            last_chapter_at_ms?: number | null;
+            merged_into?: string | null;
+            published: boolean;
+            /** Format: int64 */
+            published_at_ms?: number | null;
+            reading_direction: components["schemas"]["ReadingDirection"];
+            status: components["schemas"]["SeriesStatus"];
+            synopsis: string;
+            tags: string[];
+            title: string;
+            /** Format: int64 */
+            updated_at_ms: number;
+            /** Format: int32 */
+            year?: number | null;
+        };
+        SeriesDetail: {
+            editions: components["schemas"]["Edition"][];
+            follow?: null | components["schemas"]["Follow"];
+            series: components["schemas"]["Series"];
+        };
+        /** @description Editable fields of a series (create, and full replace on update). */
+        SeriesInput: {
+            age_restricted?: boolean;
+            alt_titles?: string[];
+            artists?: string[];
+            authors?: string[];
+            /** @description Storage key of the cover (under `library/`). */
+            cover_key?: string | null;
+            genres?: string[];
+            kind: components["schemas"]["SeriesKind"];
+            reading_direction?: null | components["schemas"]["ReadingDirection"];
+            status?: components["schemas"]["SeriesStatus"];
+            synopsis?: string;
+            tags?: string[];
+            title: string;
+            /** Format: int32 */
+            year?: number | null;
+        };
+        /**
+         * @description `reading_series.kind`.
+         * @enum {string}
+         */
+        SeriesKind: "manga" | "manhwa" | "manhua" | "webtoon" | "comic" | "novel" | "book";
+        SeriesPage: {
+            items: components["schemas"]["Series"][];
+            /** Format: int32 */
+            limit: number;
+            /** Format: int32 */
+            offset: number;
+            /** Format: int64 */
+            total: number;
+        };
+        /**
+         * @description `reading_series.status`.
+         * @enum {string}
+         */
+        SeriesStatus: "ongoing" | "completed" | "hiatus" | "cancelled";
         /** @enum {string} */
         SettingKind: "integer" | "number" | "boolean" | "text";
         /** @description One platform setting with its current value, for Admin -> Limits. */
@@ -3544,6 +4507,11 @@ export interface components {
             updated_at_ms?: number | null;
             value: unknown;
         };
+        /**
+         * @description The "My library" shelf of a followed series.
+         * @enum {string}
+         */
+        Shelf: "reading" | "plan_to_read" | "completed" | "on_hold" | "dropped";
         /** @description A short-lived signed CDN URL. */
         SignedUrlObject: {
             /**
@@ -3554,6 +4522,11 @@ export interface components {
             /** @description Relative to the public origin: `/cdn/...?size=..&ex=..&sig=..`. */
             url: string;
         };
+        /**
+         * @description Browse ordering.
+         * @enum {string}
+         */
+        SortKey: "newest" | "updated" | "title" | "followers";
         /** @description A current staff member. */
         StaffMember: {
             account_id: string;
@@ -3752,6 +4725,27 @@ export interface components {
             /** Format: int64 */
             accounts_reactivated: number;
         };
+        /** @description One entry of the latest-updates feed. */
+        UpdateItem: {
+            age_restricted: boolean;
+            chapter_id: string;
+            /** Format: double */
+            chapter_number: number;
+            chapter_title?: string | null;
+            cover_url?: string | null;
+            kind: components["schemas"]["SeriesKind"];
+            language: string;
+            /** Format: int64 */
+            published_at_ms: number;
+            release_group?: string | null;
+            series_id: string;
+            series_title: string;
+        };
+        UpdatesPage: {
+            items: components["schemas"]["UpdateItem"][];
+            /** @description Pass back as `before` for the next page; absent at the end. */
+            next_before?: string | null;
+        };
         UploadSlot: {
             /**
              * Format: int64
@@ -3823,6 +4817,29 @@ export interface components {
             global_name?: string | null;
             id: string;
             username?: string | null;
+        };
+        /** @description The synced settings blob. */
+        UserSettingsObject: {
+            /** @description Client-owned JSON object. */
+            settings: Record<string, never>;
+            /**
+             * Format: int64
+             * @description Bumps on every save; 0 when nothing was ever saved.
+             */
+            version: number;
+        };
+        Volume: {
+            edition_id: string;
+            id: string;
+            /** Format: double */
+            number: number;
+            title?: string | null;
+        };
+        VolumeInput: {
+            cover_key?: string | null;
+            /** Format: double */
+            number: number;
+            title?: string | null;
         };
         WebhookObject: {
             avatar?: string | null;
@@ -5004,6 +6021,1131 @@ export interface operations {
             path: {
                 /** @description Job snowflake */
                 job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_update_chapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChapterInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Chapter"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_delete_chapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_pages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageManifest"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_replace_pages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PageInput"][];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Chapter"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_publish_chapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Chapter"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_unpublish_chapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Chapter"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_update_edition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Edition snowflake */
+                edition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditionInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Edition"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_delete_edition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Edition snowflake */
+                edition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_create_chapter: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Edition snowflake */
+                edition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChapterInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Chapter"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_create_volume: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Edition snowflake */
+                edition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VolumeInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Volume"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_list: {
+        parameters: {
+            query?: {
+                kind?: components["schemas"]["SeriesKind"];
+                status?: components["schemas"]["SeriesStatus"];
+                /** @description Comma-separated genres the series must have. */
+                genres?: string;
+                /** @description Comma-separated tags the series must have. */
+                tags?: string;
+                /** @description `true` for published, `false` for drafts and unpublished series. */
+                published?: boolean;
+                /** @description Title substring. */
+                title?: string;
+                /** @description `include` (default), `hide` or `only`. */
+                age?: components["schemas"]["AgeFilter"];
+                sort?: components["schemas"]["SortKey"];
+                order?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesPage"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_create_series: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeriesInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Series"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_series: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesDetail"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_update_series: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeriesInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Series"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_delete_series: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_chapters: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChapterList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_create_edition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditionInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Edition"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_merge_series: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake to merge away */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MergeBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Series"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_publish_series: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Series"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_unpublish_series: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Series"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_library_delete_volume: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Volume snowflake */
+                volume_id: string;
             };
             cookie?: never;
         };
@@ -8971,6 +11113,10 @@ export interface operations {
                 limit?: number;
                 /** @description User snowflake cursor */
                 after?: string;
+                /** @description Search text (at most 64 characters): matches nickname, username or display name, case-insensitive */
+                query?: string;
+                /** @description Only members holding this role snowflake */
+                role_id?: string;
             };
             header?: never;
             path: {
@@ -8987,6 +11133,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MemberObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    search_members: {
+        parameters: {
+            query: {
+                /** @description Search text, 1 to 64 characters */
+                query: string;
+                /** @description 1 to 1000, default 1 */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberObject"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             403: {
@@ -9379,6 +11576,107 @@ export interface operations {
             };
         };
     };
+    prune_count: {
+        parameters: {
+            query?: {
+                /** @description 1 to 30, default 7 */
+                days?: number;
+                /** @description Comma-separated role snowflakes */
+                include_roles?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PruneResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    prune: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PruneBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PruneResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_roles: {
         parameters: {
             query?: never;
@@ -9596,6 +11894,51 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_role_members: {
+        parameters: {
+            query?: {
+                /** @description 1 to 1000, default 100 */
+                limit?: number;
+                /** @description User snowflake cursor */
+                after?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Role snowflake */
+                role_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberObject"][];
                 };
             };
             403: {
@@ -10472,6 +12815,373 @@ export interface operations {
             };
         };
     };
+    library_pages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Chapter snowflake */
+                chapter_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageManifest"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age-restricted series and the account has not confirmed it is 18 or older: error code 900011 (AGE_CONFIRMATION_REQUIRED). Show the 'Are you 18 or older?' dialog, POST /sr/age-gate, then retry. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_my_follows: {
+        parameters: {
+            query?: {
+                shelf?: components["schemas"]["Shelf"];
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FollowPage"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_search: {
+        parameters: {
+            query: {
+                /** @description Search-box text; every word is matched as a prefix. */
+                q: string;
+                /** @description 1 to 20, default 8. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstantSearch"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_browse: {
+        parameters: {
+            query?: {
+                kind?: components["schemas"]["SeriesKind"];
+                status?: components["schemas"]["SeriesStatus"];
+                /** @description Comma-separated; a series must have every one. */
+                genres?: string;
+                /** @description Comma-separated; a series with any of them is left out. */
+                exclude_genres?: string;
+                /** @description Comma-separated; a series must have every one. */
+                tags?: string;
+                /** @description BCP 47 tag: series with a published chapter in this language. */
+                language?: string;
+                year_from?: number;
+                year_to?: number;
+                /** @description `include` (default), `hide` or `only`. Everyone may see restricted series; opening their pages needs age confirmation. A member who set `library.hide_age_restricted` gets `hide` as the default. */
+                age?: components["schemas"]["AgeFilter"];
+                /** @description `updated` (default), `newest`, `title` or `followers`. */
+                sort?: components["schemas"]["SortKey"];
+                /** @description `asc` or `desc`; default depends on the sort. */
+                order?: string;
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_series: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesDetail"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_chapters: {
+        parameters: {
+            query?: {
+                /** @description Only this edition's chapters. */
+                edition?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChapterList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_follow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FollowBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Follow"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_unfollow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series snowflake */
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    library_updates: {
+        parameters: {
+            query?: {
+                /** @description Only followed series. */
+                following?: boolean;
+                /** @description Cursor from the previous page's `next_before`. */
+                before?: string;
+                /** @description 1 to 100, default 30. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdatesPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     ack_bulk: {
         parameters: {
             query?: never;
@@ -10501,6 +13211,144 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    change_email: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeEmailBody"];
+            };
+        };
+        responses: {
+            /** @description Confirmation link sent, if the address is free */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    change_password: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangePasswordBody"];
+            };
+        };
+        responses: {
+            /** @description Password changed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    change_username: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeUsernameBody"];
+            };
+        };
+        responses: {
+            /** @description `{username}`: the new login name */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -11121,6 +13969,56 @@ export interface operations {
             };
         };
     };
+    get_notification_defaults: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationDefaultsObject"];
+                };
+            };
+        };
+    };
+    patch_notification_defaults: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchNotificationDefaultsBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationDefaultsObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_presence: {
         parameters: {
             query?: never;
@@ -11167,6 +14065,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_privacy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrivacyObject"];
+                };
+            };
+        };
+    };
+    patch_privacy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchPrivacyBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrivacyObject"];
                 };
             };
         };
@@ -11424,6 +14364,56 @@ export interface operations {
             };
         };
     };
+    get_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserSettingsObject"];
+                };
+            };
+        };
+    };
+    patch_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchUserSettingsBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserSettingsObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_profile: {
         parameters: {
             query?: {
@@ -11561,6 +14551,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    reset_webhook_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Webhook snowflake */
+                webhook_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookObject"];
                 };
             };
             403: {

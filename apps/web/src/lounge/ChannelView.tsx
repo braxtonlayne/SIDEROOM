@@ -1,14 +1,15 @@
-import { EmptyState, Icon, useToast } from '@sideroom/ui';
-import { useState } from 'react';
+import { EmptyState, Icon } from '@sideroom/ui';
+import { useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 import { ChannelHeader } from './ChannelHeader';
 import { CHANNEL_ICON } from './ChannelSidebar';
-import { Composer } from './Composer';
+import { Composer, type ComposerHandle } from './Composer';
 import { dmTitle, HOME } from './channels';
 import {
   useChannels,
   useCurrentUser,
   useDms,
+  useGuild,
   useMessages,
   usePresence,
   useUsers,
@@ -33,7 +34,8 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
   const { messages } = useMessages(channelId);
   const membersOpen = useLoungeUi((s) => s.memberListOpen);
   const setMembersOpen = useLoungeUi((s) => s.setMemberListOpen);
-  const toast = useToast();
+  const composer = useRef<ComposerHandle | null>(null);
+  const guild = useGuild(isDm ? undefined : guildId);
 
   const channel = channels.find((c) => c.id === channelId);
   const dm = dms.find((d) => d.id === channelId);
@@ -85,7 +87,7 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
       if (!hasFiles(e)) return;
       e.preventDefault();
       setDragging(false);
-      toast.show({ title: 'Uploads are not available yet', variant: 'info', duration: 2500 });
+      composer.current?.addFiles(Array.from(e.dataTransfer?.files ?? []));
     },
   };
 
@@ -118,16 +120,21 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
           setReplyTo(null);
           setEditing(m);
         }}
+        editingId={editing?.id}
+        onCancelEdit={() => setEditing(null)}
       />
       <Composer
         key={channelId}
+        ref={composer}
         channelId={channelId}
+        guildId={isDm ? undefined : guildId}
+        slowmodeSeconds={channel?.slowmodeSeconds}
+        bypassSlowmode={!!(guild?.permissions.manageMessages || guild?.permissions.manageChannels)}
+        canMentionEveryone={isDm ? false : (guild?.permissions.mentionEveryone ?? false)}
         target={target}
         canSend={channel ? channel.canSend : true}
         replyTo={replyTo}
         onCancelReply={() => setReplyTo(null)}
-        editing={editing}
-        onCancelEdit={() => setEditing(null)}
         onEditLast={editLast}
       />
       {dragging && (

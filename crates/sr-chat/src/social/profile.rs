@@ -14,6 +14,8 @@ pub struct Profile {
     pub accent_color: Option<u32>,
     pub bio: Option<String>,
     pub pronouns: Option<String>,
+    /// Display name shown instead of the username (Discord `global_name`).
+    pub display_name: Option<String>,
     pub connections: Vec<Connection>,
 }
 
@@ -39,6 +41,7 @@ pub struct ProfileEdit {
     pub accent_color: Option<Option<u32>>,
     pub bio: Option<Option<String>>,
     pub pronouns: Option<Option<String>>,
+    pub display_name: Option<Option<String>>,
 }
 
 /// Apply an edit with validation, returning the new profile fields.
@@ -52,6 +55,19 @@ pub fn apply_edit(
     }
     if let Some(p) = &edit.pronouns {
         current.pronouns = clean_text("pronouns", p.as_deref(), limits.max_pronouns_chars)?;
+    }
+    if let Some(name) = &edit.display_name {
+        if name
+            .as_deref()
+            .is_some_and(|n| n.chars().any(char::is_control))
+        {
+            return Err(SocialError::invalid(
+                "global_name",
+                "BASE_TYPE_BAD_FORMAT",
+                "must not contain control characters",
+            ));
+        }
+        current.display_name = clean_text("global_name", name.as_deref(), 32)?;
     }
     if let Some(color) = edit.accent_color {
         if color.is_some_and(|c| c > 0x00FF_FFFF) {

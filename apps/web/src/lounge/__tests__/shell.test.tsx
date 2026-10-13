@@ -156,10 +156,10 @@ describe('Lounge shell', () => {
     await userEvent.type(box, 'my draft{Enter}');
     await userEvent.click(box);
     await userEvent.keyboard('{ArrowUp}');
-    expect(await screen.findByText(/Editing message/)).toBeInTheDocument();
-    expect(box).toHaveValue('my draft');
-    await userEvent.clear(box);
-    await userEvent.type(box, 'edited text{Enter}');
+    const editor = await screen.findByRole('textbox', { name: 'Edit message' });
+    expect(editor).toHaveValue('my draft');
+    await userEvent.clear(editor);
+    await userEvent.type(editor, 'edited text{Enter}');
     expect(await screen.findByText('edited text')).toBeInTheDocument();
     expect(screen.getByText('edited text').closest('article')).toHaveTextContent('(edited)');
   });

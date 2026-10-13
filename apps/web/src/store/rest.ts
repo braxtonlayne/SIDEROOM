@@ -32,21 +32,97 @@ export async function fetchMessages(
   return [...list].reverse();
 }
 
+/** Optional parts of a new message (uploaded files, a poll, reply ping control). */
+export interface PostExtras {
+  attachments?: {
+    id: string;
+    uploaded_filename: string;
+    description?: string | null;
+    duration_secs?: number | null;
+    waveform?: string | null;
+  }[];
+  poll?: {
+    question: { text: string };
+    answers: { poll_media: { text: string; emoji?: { name: string } } }[];
+    duration: number;
+    allow_multiselect: boolean;
+  };
+  allow_reply_ping?: boolean;
+  flags?: number;
+}
+
 export const postMessage = (
   channelId: string,
   content: string,
   nonce: string,
   replyToId?: string | null,
+  extras: PostExtras = {},
 ) =>
   apiFetch<Message>(`/channels/${channelId}/messages`, {
     method: 'POST',
     json: {
-      content,
+      ...(content ? { content } : {}),
       nonce,
       enforce_nonce: true,
       ...(replyToId
         ? { message_reference: { message_id: replyToId, fail_if_not_exists: false } }
         : {}),
+      ...(extras.attachments?.length ? { attachments: extras.attachments } : {}),
+      ...(extras.poll ? { poll: extras.poll } : {}),
+      ...(extras.flags ? { flags: extras.flags } : {}),
+      ...(replyToId && extras.allow_reply_ping === false
+        ? { allowed_mentions: { replied_user: false, parse: ['users', 'roles', 'everyone'] } }
+        : {}),
+    },
+    retries: 0,
+  });
+
+export const deleteMessage = (channelId: string, messageId: string) =>
+  apiFetch<void>(`/channels/${channelId}/messages/${messageId}`, {
+    method: 'DELETE',
+    retries: 0,
+  });
+
+export const pinMessage = (channelId: string, messageId: string) =>
+  apiFetch<void>(`/channels/${channelId}/pins/${messageId}`, { method: 'PUT', retries: 0 });
+export const unpinMessage = (channelId: string, messageId: string) =>
+  apiFetch<void>(`/channels/${channelId}/pins/${messageId}`, { method: 'DELETE', retries: 0 });
+
+const pollPath = (channelId: string, messageId: string) =>
+  `/channels/${channelId}/polls/${messageId}`;
+export const votePoll = (channelId: string, messageId: string, answerId: number) =>
+  apiFetch<void>(`${pollPath(channelId, messageId)}/answers/${answerId}/voters/@me`, {
+    method: 'PUT',
+    retries: 0,
+  });
+export const unvotePoll = (channelId: string, messageId: string, answerId: number) =>
+  apiFetch<void>(`${pollPath(channelId, messageId)}/answers/${answerId}/voters/@me`, {
+    method: 'DELETE',
+    retries: 0,
+  });
+export const endPoll = (channelId: string, messageId: string) =>
+  apiFetch<Message>(`${pollPath(channelId, messageId)}/expire`, {
+    method: 'POST',
+    json: {},
+    retries: 0,
+  });
+
+export const forwardMessage = (
+  targetChannelId: string,
+  source: { channelId: string; messageId: string; guildId?: string },
+  nonce: string,
+) =>
+  apiFetch<Message>(`/channels/${targetChannelId}/messages`, {
+    method: 'POST',
+    json: {
+      nonce,
+      enforce_nonce: true,
+      message_reference: {
+        type: 1,
+        message_id: source.messageId,
+        channel_id: source.channelId,
+        ...(source.guildId ? { guild_id: source.guildId } : {}),
+      },
     },
     retries: 0,
   });
@@ -147,11 +223,21 @@ export interface SearchResults {
   /** Each result is a one-message group. */
   messages: SearchHit[][];
 }
-export const searchGuildMessages = (guildId: string, q: string, offset = 0) => {
-  const params = new URLSearchParams({ q, limit: '25' });
-  if (offset) params.set('offset', String(offset));
-  return apiFetch<SearchResults>(`/guilds/${guildId}/messages/search?${params}`, { retries: 0 });
+export interface SearchOptions {
+  offset?: number;
+  /** Extra query params, e.g. sort_by / sort_order. */
+  extra?: Record<string, string>;
+}
+const searchParams = (q: string, o: SearchOptions) => {
+  const params = new URLSearchParams({ q, limit: '25', ...o.extra });
+  if (o.offset) params.set('offset', String(o.offset));
+  return params;
 };
+export const searchGuildMessages = (guildId: string, q: string, o: SearchOptions | number = {}) =>
+  apiFetch<SearchResults>(
+    `/guilds/${guildId}/messages/search?${searchParams(q, typeof o === 'number' ? { offset: o } : o)}`,
+    { retries: 0 },
+  );
 
 /** Messages around one id (jump to message). Oldest first. */
 export async function fetchMessagesAround(channelId: string, messageId: string, limit = PAGE_SIZE) {
@@ -161,10 +247,12 @@ export async function fetchMessagesAround(channelId: string, messageId: string, 
   return [...list].sort((a, b) => cmpId(a.id, b.id));
 }
 
-export const searchChannelMessages = (channelId: string, q: string, offset = 0) => {
-  const params = new URLSearchParams({ q, limit: '25' });
-  if (offset) params.set('offset', String(offset));
-  return apiFetch<SearchResults>(`/channels/${channelId}/messages/search?${params}`, {
-    retries: 0,
-  });
-};
+export const searchChannelMessages = (
+  channelId: string,
+  q: string,
+  o: SearchOptions | number = {},
+) =>
+  apiFetch<SearchResults>(
+    `/channels/${channelId}/messages/search?${searchParams(q, typeof o === 'number' ? { offset: o } : o)}`,
+    { retries: 0 },
+  );

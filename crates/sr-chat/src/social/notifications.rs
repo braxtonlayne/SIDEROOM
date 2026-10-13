@@ -135,9 +135,23 @@ impl ChannelOverride {
 }
 
 /// Resolve the level: channel override, then category override, then the user's
-/// guild setting, then the guild default.
+/// guild setting, then the guild default. See [`effective_level_with_user_default`]
+/// for the user's own global default.
 pub fn effective_level(
     guild_default: NotificationLevel,
+    scope: Option<&ScopeSettings>,
+    category: Option<&ChannelOverride>,
+    channel: Option<&ChannelOverride>,
+) -> NotificationLevel {
+    effective_level_with_user_default(guild_default, None, scope, category, channel)
+}
+
+/// Like [`effective_level`], with the user's global default (`user_default`) between
+/// the per-guild setting and the guild default: an explicit per-guild or per-channel
+/// choice always wins, then the user's own default, then what the server suggests.
+pub fn effective_level_with_user_default(
+    guild_default: NotificationLevel,
+    user_default: Option<NotificationLevel>,
     scope: Option<&ScopeSettings>,
     category: Option<&ChannelOverride>,
     channel: Option<&ChannelOverride>,
@@ -146,6 +160,7 @@ pub fn effective_level(
         .and_then(|c| c.level)
         .or_else(|| category.and_then(|c| c.level))
         .or_else(|| scope.and_then(|s| s.level))
+        .or(user_default)
         .unwrap_or(guild_default)
 }
 

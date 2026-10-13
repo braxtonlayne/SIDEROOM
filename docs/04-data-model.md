@@ -30,7 +30,7 @@ The staff-side record of a real human. It may span several accounts (D-030).
 | password_hash | text | argon2id PHC string |
 | state | enum `active`, `deactivated`, `deleted`, `platform_banned` | Only `active` counts toward the 20k cap (D-013) |
 | state_changed_at | timestamptz | |
-| age_confirmed_at | timestamptz null | D-032 |
+| age_confirmed_at | timestamptz null | D-032. Gates opening age-restricted channels and Library pages (D-184) |
 | locale, timezone | text | |
 | flags | bigint | public badges (staff, early member, donor, contributor…) |
 | invited_by_invite_id | bigint fk platform_invites null | null only for the bootstrap Owner |
@@ -184,6 +184,8 @@ id, message_id, uploader_id, filename, content_type, size_bytes, width, height, 
 ## 11. Library (reading)
 
 `reading_series` (id, kind: manga / manhwa / manhua / webtoon / comic / novel / book, title, alt_titles text[], authors, artists, status, year, synopsis, genres, tags, `reading_direction default rtl/ltr/vertical`, age_restricted, cover_key, published), `reading_editions` (series_id, language, edition label e.g. "Official English", "Scanlation X", is_default), `volumes`, `chapters` (edition_id, volume_id null, number numeric, title, page_count, `format: images / pdf / epub`, release_group, published_at), `pages` (chapter_id, index, key (webp), width, height, is_double_spread bool, blurhash), `reading_progress` (user, chapter, page_index, percent, updated_at), `bookmarks`.
+
+As built (migrations 0200 and 0201): the tables carry the `reading_` prefix, `reading_volumes` / `reading_chapters` / `reading_pages` / `reading_bookmarks` / `reading_follows`, and `reading_pages` is keyed `(chapter_id, idx)` with a `variants` jsonb of sized WebP keys (`{"720": key, ...}`). A chapter is readable only when it and its series are `published`; a merged-away series keeps its row with `merged_into` set. `reading_series` also keeps `chapter_count`, `last_chapter_at` and `follower_count`, refreshed in the transaction that changes them. `reading_follows` holds the shelf (reading / plan_to_read / completed / on_hold / dropped) and the notify flag. Pages, covers and variants live under the object key prefix `library/{series}/{chapter}/` and are served through signed `/cdn/library/...` URLs.
 
 ## 12. Donations
 

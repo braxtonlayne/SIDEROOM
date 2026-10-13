@@ -12,6 +12,7 @@
 //! | `stickers`    | `sticker/`        | guild stickers                   |
 //! | `avatars`     | `avatars/`        | user avatars/banners (`avatars/{user}/{hash}`) |
 //! | `icons`       | `icons/`          | guild icon/banner/splash (`icons/{guild}/{hash}`) |
+//! | `library`     | `library/`        | Library covers and reader pages (`library/{series}/{chapter}/{page}.webp`), signed |
 //!
 //! `avatars` and `icons` are *public kinds*: the URL is `/cdn/avatars/{user}/{hash}.{ext}`
 //! where `ext` (png, jpg, webp, gif) selects the output format and is not part of the
@@ -26,6 +27,7 @@ pub const KINDS: &[(&str, &str)] = &[
     ("stickers", "sticker"),
     ("avatars", "avatars"),
     ("icons", "icons"),
+    ("library", "library"),
 ];
 
 const MAX_PATH: usize = 1024;

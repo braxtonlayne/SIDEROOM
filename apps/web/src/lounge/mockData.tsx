@@ -52,7 +52,15 @@ const USERS: Record<Snowflake, LoungeUser> = Object.fromEntries([
   ]),
 ]);
 
-const ALL_PERMS = { manageGuild: true, manageChannels: true, createInvite: true, moderate: true };
+const ALL_PERMS = {
+  manageGuild: true,
+  manageChannels: true,
+  createInvite: true,
+  moderate: true,
+  manageMessages: true,
+  pinMessages: true,
+  mentionEveryone: true,
+};
 const BASIC_PERMS = {
   manageGuild: false,
   manageChannels: false,
@@ -433,9 +441,24 @@ function MockDataSource({ children, now, historySize = HISTORY_TOTAL }: MockData
 
   useEffect(() => recomputeGuild(channelsByGuild), [channelsByGuild, recomputeGuild]);
 
+  /** Replace one message (or drop it with null) in a channel's loaded window. */
+  const patchMessage = useCallback(
+    (channelId: string, messageId: string, fn: ((m: Message) => Message) | null) => {
+      setMessages((prev) => {
+        const cur = prev[channelId];
+        if (!cur) return prev;
+        const list = fn
+          ? cur.messages.map((m) => (m.id === messageId ? fn(m) : m))
+          : cur.messages.filter((m) => m.id !== messageId);
+        return { ...prev, [channelId]: { ...cur, messages: list } };
+      });
+    },
+    [],
+  );
+
   const actions: LoungeActions = useMemo(
     () => ({
-      sendMessage(channelId, content, replyToId) {
+      sendMessage(channelId, content, replyToId, extras) {
         const id = `${channelId}-local${nextId.current++}`;
         const msg: Message = {
           id,
@@ -444,6 +467,25 @@ function MockDataSource({ children, now, historySize = HISTORY_TOTAL }: MockData
           content,
           createdAt: new Date().toISOString(),
           ...(replyToId ? { replyToId } : {}),
+          ...(extras?.poll
+            ? {
+                poll: {
+                  question: extras.poll.question,
+                  answers: extras.poll.answers.map((a, i) => ({
+                    id: i + 1,
+                    text: a.text,
+                    emoji: a.emoji,
+                    count: 0,
+                    me: false,
+                  })),
+                  multi: extras.poll.multi,
+                  expiresAt: new Date(
+                    Date.now() + extras.poll.durationHours * 3_600_000,
+                  ).toISOString(),
+                  finalized: false,
+                },
+              }
+            : {}),
         };
         setMessages((prev) => {
           const cur = prev[channelId] ?? {
@@ -472,6 +514,69 @@ function MockDataSource({ children, now, historySize = HISTORY_TOTAL }: MockData
             },
           };
         });
+      },
+      deleteMessage(channelId, messageId) {
+        patchMessage(channelId, messageId, null);
+      },
+      pinMessage(channelId, messageId, pinned) {
+        patchMessage(channelId, messageId, (m) => ({ ...m, pinned }));
+      },
+      forwardMessage(source, targets, note) {
+        setMessages((prev) => {
+          const src = prev[source.channelId]?.messages.find((x) => x.id === source.messageId);
+          if (!src) return prev;
+          const next = { ...prev };
+          for (const t of targets) {
+            const cur = next[t] ?? {
+              messages: [],
+              hasMore: false,
+              loadingOlder: false,
+              loading: false,
+            };
+            const fwd: Message = {
+              id: `${t}-local${nextId.current++}`,
+              channelId: t,
+              author: ME,
+              content: '',
+              createdAt: new Date().toISOString(),
+              forwarded: {
+                content: src.content,
+                createdAt: src.createdAt,
+                attachments: src.attachments ?? [],
+                embeds: src.embeds ?? [],
+              },
+            };
+            const list = [...cur.messages, fwd];
+            if (note)
+              list.push({
+                id: `${t}-local${nextId.current++}`,
+                channelId: t,
+                author: ME,
+                content: note,
+                createdAt: new Date().toISOString(),
+              });
+            next[t] = { ...cur, messages: list };
+          }
+          return next;
+        });
+      },
+      votePoll(channelId, messageId, answerId, add) {
+        patchMessage(channelId, messageId, (m) => {
+          const poll = m.poll;
+          if (!poll) return m;
+          const answers = poll.answers.map((a) => {
+            if (a.id === answerId)
+              return { ...a, me: add, count: Math.max(0, a.count + (add ? 1 : -1)) };
+            if (add && !poll.multi && a.me) return { ...a, me: false, count: a.count - 1 };
+            return a;
+          });
+          return { ...m, poll: { ...poll, answers } };
+        });
+      },
+      endPoll(channelId, messageId) {
+        patchMessage(channelId, messageId, (m) =>
+          m.poll ? { ...m, poll: { ...m.poll, finalized: true } } : m,
+        );
       },
       loadOlder(channelId) {
         setMessages((prev) => {
@@ -542,7 +647,7 @@ function MockDataSource({ children, now, historySize = HISTORY_TOTAL }: MockData
         setTyping((prev) => ({ ...prev, [channelId]: prev[channelId] ?? [] }));
       },
     }),
-    [patchChannel],
+    [patchChannel, patchMessage],
   );
 
   const value: LoungeData = {

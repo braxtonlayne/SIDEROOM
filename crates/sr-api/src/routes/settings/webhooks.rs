@@ -1,7 +1,8 @@
 //! Webhooks (LNG-SSET-044/045, open question 137): management by users with
 //! `MANAGE_WEBHOOKS`, and token-authenticated get/modify/delete/execute.
 //!
-//! The token is 68 base64url characters, returned once at creation; only its
+//! The token is 68 base64url characters, returned once at creation (and again by
+//! `POST /webhooks/{id}/reset-token`, which replaces it); only its
 //! SHA-256 is stored. `POST /webhooks/{id}/{token}` supports `?wait`.
 //!
 //! TODO(webhook-author): `Message.author_id` is a user id, so executed messages are
@@ -18,7 +19,13 @@ use crate::routes::messages::error::{ApiJson, ApiQuery, MsgError, MsgResult};
 use crate::routes::messages::model::MessageObject;
 use crate::routes::messages::render::{event_payload, render_one};
 use crate::{HttpError, Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
-use axum::{Json, Router, extract::Path, http::StatusCode, response::IntoResponse, routing::get};
+use axum::{
+    Json, Router,
+    extract::Path,
+    http::StatusCode,
+    response::IntoResponse,
+    routing::{get, post},
+};
 use serde::{Deserialize, Serialize};
 use sr_chat::SendMessage;
 use sr_chat::settings::service::WebhookPatch;
@@ -40,6 +47,10 @@ pub fn routes() -> Router<AppState> {
             get(get_webhook)
                 .patch(modify_webhook)
                 .delete(delete_webhook),
+        )
+        .route(
+            "/webhooks/{webhook_id}/reset-token",
+            post(reset_webhook_token),
         )
         .route(
             "/webhooks/{webhook_id}/{token}",
@@ -243,6 +254,38 @@ pub async fn get_webhook(
         .await
         .map_err(se)?;
     Ok(Json(render(&deps, &[w], None).await?.remove(0)))
+}
+
+/// Issue a new execution token for an incoming webhook and invalidate the old one
+/// (`MANAGE_WEBHOOKS`). The token is stored only as a hash, so an existing URL cannot be
+/// shown again; this is the supported way to get a copyable URL later. The response is the
+/// only place the new `token` and `url` appear.
+#[utoipa::path(
+    post,
+    path = "/webhooks/{webhook_id}/reset-token",
+    params(("webhook_id" = String, Path, description = "Webhook snowflake")),
+    responses((status = 200, body = WebhookObject), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn reset_webhook_token(
+    p: Principal,
+    Ext(deps): Ext<SettingsDeps>,
+    Path(webhook_id): Path<String>,
+) -> ApiResult<Json<WebhookObject>> {
+    let user = actor(&p)?;
+    let (w, perms) = managed(&deps, user, &webhook_id).await?;
+    let (w, token) = deps
+        .service
+        .reset_webhook_token(perms, user, w.guild_id, w.id)
+        .await
+        .map_err(se)?;
+    deps.publish(SettingsEvent::WebhooksUpdated {
+        guild: w.guild_id,
+        channel: w.channel_id,
+    })
+    .await;
+    let users = deps.users(w.creator_id).await?;
+    Ok(Json(WebhookObject::of(&w, &users, Some(&token))))
 }
 
 async fn modify_inner(

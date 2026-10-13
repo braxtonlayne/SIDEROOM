@@ -33,6 +33,21 @@ export function insertAt(value: string, start: number, end: number, text: string
   return { value: next, selStart: caret, selEnd: caret };
 }
 
+/** Prefixes every line touched by the selection (block quote `> `, list `- `); a second use removes it. */
+export function prefixLines(value: string, start: number, end: number, prefix: string): TextEdit {
+  const from = value.lastIndexOf('\n', start - 1) + 1;
+  const nl = value.indexOf('\n', end);
+  const to = nl === -1 ? value.length : nl;
+  const lines = value.slice(from, to).split('\n');
+  const all = lines.every((l) => l.startsWith(prefix));
+  const next = lines.map((l) => (all ? l.slice(prefix.length) : prefix + l)).join('\n');
+  return {
+    value: value.slice(0, from) + next + value.slice(to),
+    selStart: from,
+    selEnd: from + next.length,
+  };
+}
+
 export const WRAP_KEYS: Record<string, string> = { b: '**', i: '*', u: '__' };
 export const WRAP_SHIFT_KEYS: Record<string, string> = { x: '~~', s: '||', c: '`' };
 

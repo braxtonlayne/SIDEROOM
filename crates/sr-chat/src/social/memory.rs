@@ -2,12 +2,13 @@
 //! crate and of consumers that need a database-free fake.
 
 use super::dm::{DmChannel, DmKind, RequestState};
-use super::notifications::{ChannelOverride, ScopeSettings};
+use super::notifications::{ChannelOverride, NotificationLevel, ScopeSettings};
 use super::presence::PresencePrefs;
 use super::profile::{Connection, Profile};
 use super::read_state::{MAX_MENTION_COUNT, ReadState};
 use super::relationships::{RelOp, Relationship, RelationshipCounts, RelationshipKind};
 use super::repo::*;
+use super::user_settings::UserSettings;
 use crate::error::RepoError;
 use async_trait::async_trait;
 use sr_core::{ChannelId, GuildId, UserId};
@@ -38,6 +39,8 @@ pub struct Store {
     pub notes: HashMap<(UserId, UserId), String>,
     /// Message Request state per `(recipient, channel)`; absent means accepted.
     pub requests: HashMap<(UserId, ChannelId), RequestState>,
+    pub user_settings: HashMap<UserId, super::user_settings::UserSettings>,
+    pub default_levels: HashMap<UserId, super::notifications::NotificationLevel>,
 }
 
 #[derive(Default)]
@@ -632,6 +635,55 @@ impl PresenceRepository for MemoryRepo {
 
     async fn put_presence(&self, prefs: &PresencePrefs) -> RepoResult<()> {
         self.lock()?.presence.insert(prefs.user, prefs.clone());
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl UserSettingsRepository for MemoryRepo {
+    async fn get_user_settings(&self, user: UserId) -> RepoResult<Option<UserSettings>> {
+        Ok(self.lock()?.user_settings.get(&user).cloned())
+    }
+
+    async fn put_user_settings(
+        &self,
+        user: UserId,
+        data: &serde_json::Value,
+        expected_version: i64,
+    ) -> RepoResult<Option<i64>> {
+        let mut s = self.lock()?;
+        let current = s.user_settings.get(&user).map_or(0, |u| u.version);
+        if current != expected_version {
+            return Ok(None);
+        }
+        let version = current + 1;
+        s.user_settings.insert(
+            user,
+            UserSettings {
+                data: data.clone(),
+                version,
+            },
+        );
+        Ok(Some(version))
+    }
+
+    async fn get_default_notification_level(
+        &self,
+        user: UserId,
+    ) -> RepoResult<Option<NotificationLevel>> {
+        Ok(self.lock()?.default_levels.get(&user).copied())
+    }
+
+    async fn put_default_notification_level(
+        &self,
+        user: UserId,
+        level: Option<NotificationLevel>,
+    ) -> RepoResult<()> {
+        let mut s = self.lock()?;
+        match level {
+            Some(l) => s.default_levels.insert(user, l),
+            None => s.default_levels.remove(&user),
+        };
         Ok(())
     }
 }

@@ -1,0 +1,28 @@
+[package]
+name = "sr-library"
+version = "0.0.0"
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+bytes = "1"
+blurhash = { version = "0.2.3", default-features = false }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
+quick-xml = { version = "0.42.0", default-features = false }
+serde.workspace = true
+serde_json.workspace = true
+sr-core = { path = "../sr-core", default-features = false }
+sr-storage = { path = "../sr-storage" }
+tantivy = "0.26"
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt", "sync"] }
+tracing = "0.1"
+utoipa = "5"
+zip = { version = "9.0.2", default-features = false, features = ["deflate-flate2"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
+
+[lints]
+workspace = true

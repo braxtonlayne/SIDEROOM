@@ -153,6 +153,10 @@ function putPresences(s: StoreData, list: Obj[]): Record<string, Presence> {
   return out;
 }
 
+export function removeFromWindowState(s: StoreData, channelId: string, messageId: string) {
+  return removeFromWindow(s, channelId, [messageId]);
+}
+
 function removeFromWindow(
   s: StoreData,
   channelId: string,
@@ -507,6 +511,42 @@ export function reduceDispatch(
         users: d.author ? addUser(s.users, d.author) : s.users,
       };
     }
+    case 'MESSAGE_REACTION_ADD':
+    case 'MESSAGE_REACTION_REMOVE':
+    case 'MESSAGE_REACTION_REMOVE_ALL':
+    case 'MESSAGE_REACTION_REMOVE_EMOJI': {
+      const id = str(d.message_id);
+      const existing = s.messages[id];
+      if (!existing) return {};
+      return {
+        messages: { ...s.messages, [id]: applyReactionEvent(existing, event, d, s.currentUserId) },
+      };
+    }
+    case 'MESSAGE_POLL_VOTE_ADD':
+    case 'MESSAGE_POLL_VOTE_REMOVE': {
+      const id = str(d.message_id);
+      const existing = s.messages[id];
+      const results = existing?.poll?.results;
+      if (!existing?.poll || !results) return {};
+      const add = event === 'MESSAGE_POLL_VOTE_ADD';
+      const answerId = Number(d.answer_id);
+      const mine = str(d.user_id) === s.currentUserId;
+      const answer_counts = results.answer_counts.map((c) =>
+        c.id === answerId
+          ? {
+              ...c,
+              count: Math.max(0, c.count + (add ? 1 : -1)),
+              me_voted: mine ? add : c.me_voted,
+            }
+          : c,
+      );
+      return {
+        messages: {
+          ...s.messages,
+          [id]: { ...existing, poll: { ...existing.poll, results: { ...results, answer_counts } } },
+        },
+      };
+    }
     case 'MESSAGE_DELETE':
       return removeFromWindow(s, str(d.channel_id), [str(d.id)]);
     case 'MESSAGE_DELETE_BULK':
@@ -527,4 +567,35 @@ export function reduceDispatch(
     default:
       return {};
   }
+}
+
+/** Applies a MESSAGE_REACTION_* dispatch to one message (the viewer's own events keep `me`). */
+function applyReactionEvent(m: Message, event: string, d: Obj, selfId: string | null): Message {
+  const e = (d.emoji ?? {}) as { id?: string | null; name?: string | null };
+  const key = e.name ?? e.id ?? '';
+  const list = [...(m.reactions ?? [])];
+  const i = list.findIndex((r) => (r.emoji.name ?? r.emoji.id ?? '') === key);
+  const cur = list[i];
+  const mine = str(d.user_id) === selfId;
+  switch (event) {
+    case 'MESSAGE_REACTION_ADD':
+      if (cur) {
+        // The viewer's own optimistic toggle already counted this reaction.
+        if (!(mine && cur.me)) list[i] = { ...cur, count: cur.count + 1, me: cur.me || mine };
+      } else list.push({ emoji: { id: e.id ?? null, name: e.name ?? null }, count: 1, me: mine });
+      break;
+    case 'MESSAGE_REACTION_REMOVE':
+      if (cur) {
+        if (mine && !cur.me) break;
+        if (cur.count <= 1) list.splice(i, 1);
+        else list[i] = { ...cur, count: cur.count - 1, me: mine ? false : cur.me };
+      }
+      break;
+    case 'MESSAGE_REACTION_REMOVE_EMOJI':
+      if (cur) list.splice(i, 1);
+      break;
+    default:
+      list.length = 0;
+  }
+  return { ...m, reactions: list };
 }

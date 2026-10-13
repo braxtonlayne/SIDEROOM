@@ -129,6 +129,10 @@ pub struct Guild {
     pub owner_id: UserId,
     pub is_staff_guild: bool,
     pub system_channel_id: Option<ChannelId>,
+    /// Voice channel that idle members are moved to (Discord `afk_channel_id`).
+    pub afk_channel_id: Option<ChannelId>,
+    /// Seconds of voice inactivity before the move: 60, 300, 900, 1800 or 3600.
+    pub afk_timeout: u32,
     pub verification_level: u8,
     pub default_message_notifications: u8,
     pub explicit_content_filter: u8,

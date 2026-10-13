@@ -107,6 +107,11 @@ pub async fn modify_guild(
         Some(None) => Some(None),
         Some(Some(s)) => Some(Some(id::<ChannelId>("system_channel_id", &s)?)),
     };
+    let afk_channel_id = match body.afk_channel_id {
+        None => None,
+        Some(None) => Some(None),
+        Some(Some(s)) => Some(Some(id::<ChannelId>("afk_channel_id", &s)?)),
+    };
     let owner_id = body
         .owner_id
         .as_deref()
@@ -157,6 +162,8 @@ pub async fn modify_guild(
         name: body.name,
         description: body.description,
         system_channel_id,
+        afk_channel_id,
+        afk_timeout: body.afk_timeout,
         verification_level: body.verification_level,
         default_message_notifications: body.default_message_notifications,
         explicit_content_filter: body.explicit_content_filter,

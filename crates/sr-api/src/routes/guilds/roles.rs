@@ -1,11 +1,11 @@
 //! Roles: CRUD, reorder and member assignment.
 
-use super::dto::{CreateRoleBody, ModifyRoleBody, ReorderRoleEntry, RoleObject};
-use super::util::{Api, actor, ce, id, permissions};
+use super::dto::{CreateRoleBody, MemberObject, ModifyRoleBody, ReorderRoleEntry, RoleObject};
+use super::util::{Api, actor, ce, id, permissions, users_for};
 use crate::{Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
 use axum::{
     Json, Router,
-    extract::Path,
+    extract::{Path, Query},
     http::StatusCode,
     routing::{get, put},
 };
@@ -21,6 +21,10 @@ pub fn routes() -> Router<AppState> {
         .route(
             "/guilds/{guild_id}/roles/{role_id}",
             axum::routing::patch(modify_role).delete(delete_role),
+        )
+        .route(
+            "/guilds/{guild_id}/roles/{role_id}/members",
+            get(list_role_members),
         )
         .route(
             "/guilds/{guild_id}/members/{user_id}/roles/{role_id}",
@@ -218,4 +222,54 @@ pub async fn remove_member_role(
     Path(ids): Path<(String, String, String)>,
 ) -> ApiResult<StatusCode> {
     set_member_role(p, api, ids, false).await
+}
+
+/// Query of `GET /guilds/{id}/roles/{role_id}/members`.
+#[derive(Debug, serde::Deserialize)]
+pub struct RoleMembersQuery {
+    /// 1 to 1000; default 100.
+    pub limit: Option<usize>,
+    /// Highest user id of the previous page.
+    pub after: Option<String>,
+}
+
+/// Members holding a role, ordered by user id (any member of the guild may list them).
+/// `@everyone` lists every member.
+#[utoipa::path(
+    get,
+    path = "/guilds/{guild_id}/roles/{role_id}/members",
+    params(
+        ("guild_id" = String, Path, description = "Guild snowflake"),
+        ("role_id" = String, Path, description = "Role snowflake"),
+        ("limit" = Option<usize>, Query, description = "1 to 1000, default 100"),
+        ("after" = Option<String>, Query, description = "User snowflake cursor"),
+    ),
+    responses((status = 200, body = Vec<MemberObject>), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn list_role_members(
+    p: Principal,
+    Api(api): Api,
+    Path((guild_id, role_id)): Path<(String, String)>,
+    Query(q): Query<RoleMembersQuery>,
+) -> ApiResult<Json<Vec<MemberObject>>> {
+    let user = actor(&p)?;
+    let gid: GuildId = id("guild_id", &guild_id)?;
+    let rid: RoleId = id("role_id", &role_id)?;
+    let after = q
+        .after
+        .as_deref()
+        .map(|a| id::<UserId>("after", a))
+        .transpose()?;
+    let members = api
+        .list_role_members(user, gid, rid, after, q.limit.unwrap_or(100))
+        .await
+        .map_err(ce)?;
+    let users = users_for(&*api, members.iter().map(|m| m.user_id)).await?;
+    Ok(Json(
+        members
+            .iter()
+            .map(|m| MemberObject::new(m, false, &users))
+            .collect(),
+    ))
 }

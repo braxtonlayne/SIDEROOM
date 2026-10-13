@@ -24,6 +24,7 @@ pub mod presence;
 pub mod profile;
 pub mod read_state;
 pub mod relationships;
+pub mod user_settings;
 pub mod util;
 
 #[cfg(test)]
@@ -97,6 +98,19 @@ pub fn router() -> Router<AppState> {
         .route("/guilds/{guild_id}/ack", post(read_state::ack_guild))
         .route("/users/@me/read-states", get(read_state::list))
         .route(
+            "/users/@me/settings",
+            get(user_settings::get_settings).patch(user_settings::patch_settings),
+        )
+        .route(
+            "/users/@me/notification-defaults",
+            get(user_settings::get_notification_defaults)
+                .patch(user_settings::patch_notification_defaults),
+        )
+        .route(
+            "/users/@me/privacy",
+            get(user_settings::get_privacy).patch(user_settings::patch_privacy),
+        )
+        .route(
             "/users/@me/guilds/{guild_id}/settings",
             get(notifications::get_settings).patch(notifications::patch_settings),
         )
@@ -136,10 +150,22 @@ pub fn router() -> Router<AppState> {
         read_state::list,
         notifications::get_settings,
         notifications::patch_settings,
+        user_settings::get_settings,
+        user_settings::patch_settings,
+        user_settings::get_notification_defaults,
+        user_settings::patch_notification_defaults,
+        user_settings::get_privacy,
+        user_settings::patch_privacy,
     ),
     components(schemas(
         ErrorBody,
         model::UserObject,
+        user_settings::UserSettingsObject,
+        user_settings::PatchUserSettingsBody,
+        user_settings::NotificationDefaultsObject,
+        user_settings::PatchNotificationDefaultsBody,
+        user_settings::PrivacyObject,
+        user_settings::PatchPrivacyBody,
         model::RelationshipObject,
         model::PutRelationshipBody,
         model::AddRelationshipBody,

@@ -1,43 +1,92 @@
 import { Markdown, type Resolvers } from '@sideroom/markdown-react';
-import { Avatar, DropdownMenu, Icon, Popover, Tooltip, type MenuEntry } from '@sideroom/ui';
-import { memo } from 'react';
+import {
+  Avatar,
+  ContextMenu,
+  DropdownMenu,
+  Icon,
+  Popover,
+  Tooltip,
+  type MenuEntry,
+} from '@sideroom/ui';
+import { memo, useMemo } from 'react';
 import { EmojiPicker } from './components/EmojiPicker';
 import type { Message, Snowflake } from './data';
 import { isJumbo, parseMarkdown, useMarkdownReady } from './markdown';
+import { AttachmentList } from './msg/Attachments';
+import { ComponentRows } from './msg/Components';
+import { findInviteCode, InviteCard } from './msg/InviteCard';
+import { EmbedList } from './msg/Embeds';
+import { ForwardedFrame } from './msg/Forwarded';
+import { InlineEdit } from './msg/InlineEdit';
+import { PollView } from './msg/Poll';
+import { Sticker } from './msg/Sticker';
+import { isSystemMessage, SystemMessage } from './msg/SystemMessage';
 import { formatClock, formatFullTime, formatMessageTime } from './time';
+
+/** How the reply preview line resolves its target. */
+export type ReplyState = 'loaded' | 'deleted' | 'unloaded';
 
 export interface MessageItemProps {
   message: Message;
   grouped: boolean;
   /** Message this one replies to, if loaded. */
   replyTarget?: Message | undefined;
+  replyState?: ReplyState | undefined;
   /** CSS color of the author's highest colored role. */
   nameColor?: string | undefined;
   resolvers: Resolvers;
   isOwn: boolean;
+  /** Undefined in DMs. */
+  guildId?: Snowflake | undefined;
+  /** The message mentions the viewer (directly, via a role, or @everyone). */
+  mentionsMe?: boolean | undefined;
+  /** Viewer may delete others' messages. */
+  canManage?: boolean | undefined;
+  canPin?: boolean | undefined;
+  editing?: boolean | undefined;
   onReply: (m: Message) => void;
   onEdit: (m: Message) => void;
   onReact: (m: Message, emoji: string) => void;
   onMentionClick?: (t: { kind: 'user' | 'role' | 'channel'; id: Snowflake }) => void;
   onJumpTo?: (id: Snowflake) => void;
+  /** `skipConfirm` is set when delete was shift-clicked. */
+  onDelete?: (m: Message, skipConfirm: boolean) => void;
+  onPin?: (m: Message) => void;
+  onForward?: (m: Message) => void;
+  onViewReactions?: (m: Message, emoji?: string) => void;
+  onSaveEdit?: (m: Message, content: string) => void;
+  onCancelEdit?: () => void;
+  onVote?: (m: Message, answerId: number, add: boolean) => void;
+  onEndPoll?: (m: Message) => void;
+  onRetry?: (m: Message) => void;
+  onDiscard?: (m: Message) => void;
 }
 
 const QUICK = ['👍', '😂', '🎉'];
+const MENU_EMOJI = ['👍', '❤️', '😂', '😮', '😢', '🎉'];
 
-function formatSize(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+/** Message permalink used by Copy Message Link. */
+export function messageLink(origin: string, guildId: Snowflake | undefined, m: Message): string {
+  return `${origin}/channels/${guildId ?? '@me'}/${m.channelId}/${m.id}`;
 }
 
 function MessageBody({
   m,
+  guildId,
   resolvers,
+  isOwn,
   onMentionClick,
-}: Pick<MessageItemProps, 'resolvers' | 'onMentionClick'> & { m: Message }) {
+  onVote,
+  onEndPoll,
+}: Pick<MessageItemProps, 'resolvers' | 'onMentionClick' | 'isOwn' | 'guildId'> & {
+  m: Message;
+  onVote?: (answerId: number, add: boolean) => void;
+  onEndPoll?: () => void;
+}) {
   // Re-renders this body once the WASM parser is ready (plain text until then).
   useMarkdownReady();
   const nodes = parseMarkdown(m.content);
+  const inviteCode = useMemo(() => findInviteCode(m.content, location.origin), [m.content]);
   return (
     <>
       {m.content && (
@@ -54,24 +103,27 @@ function MessageBody({
           (edited)
         </span>
       )}
-      {m.attachments?.map((a) =>
-        a.contentType.startsWith('image/') ? (
-          <img
-            key={a.id}
-            className="lng-attach-img"
-            src={a.url}
-            alt={a.filename}
-            width={a.width}
-            height={a.height}
-            loading="lazy"
-          />
-        ) : (
-          <a key={a.id} className="lng-attach-file" href={a.url} download={a.filename}>
-            <Icon name="download" size={20} />
-            <span>{a.filename}</span>
-            <span className="lng-muted">{formatSize(a.size)}</span>
-          </a>
-        ),
+      {m.forwarded && <ForwardedFrame snapshot={m.forwarded} resolvers={resolvers} />}
+      {m.attachments && m.attachments.length > 0 && (
+        <AttachmentList attachments={m.attachments} voice={!!m.voice} />
+      )}
+      {m.embeds && m.embeds.length > 0 && !m.suppressEmbeds && (
+        <EmbedList embeds={m.embeds} resolvers={resolvers} />
+      )}
+      {!m.suppressEmbeds && inviteCode && <InviteCard code={inviteCode} />}
+      {m.components && m.components.length > 0 && <ComponentRows rows={m.components} />}
+      {m.stickers?.map((s) => (
+        <Sticker key={s.id} sticker={s} guildId={guildId} />
+      ))}
+      {m.poll && (
+        <PollView
+          poll={m.poll}
+          channelId={m.channelId}
+          messageId={m.id}
+          isOwn={isOwn}
+          onVote={(a, add) => onVote?.(a, add)}
+          onEnd={onEndPoll}
+        />
       )}
     </>
   );
@@ -82,29 +134,107 @@ function MessageItemImpl(props: MessageItemProps) {
     message: m,
     grouped,
     replyTarget,
+    replyState,
     nameColor,
     isOwn,
+    guildId,
+    mentionsMe,
+    canManage,
+    canPin,
+    editing,
     onReply,
     onEdit,
     onReact,
     onJumpTo,
+    onDelete,
+    onPin,
+    onForward,
+    onViewReactions,
+    onSaveEdit,
+    onCancelEdit,
+    onVote,
+    onEndPoll,
+    onRetry,
+    onDiscard,
   } = props;
-  const moreItems: MenuEntry[] = [
-    { label: 'Copy Text', onSelect: () => void navigator.clipboard?.writeText(m.content) },
-    {
+
+  const canDelete = !!onDelete && (isOwn || !!canManage) && !m.pending;
+  const canPinHere = !!onPin && !!canPin && !m.pending;
+  const copy = (text: string) => void navigator.clipboard?.writeText(text);
+
+  const menu = useMemo<MenuEntry[]>(() => {
+    const entries: MenuEntry[] = [
+      {
+        type: 'submenu',
+        label: 'Add Reaction',
+        icon: <Icon name="smile" size={16} />,
+        items: MENU_EMOJI.map((e) => ({ label: e, onSelect: () => onReact(m, e) })),
+      },
+    ];
+    if (isOwn) entries.push({ label: 'Edit Message', onSelect: () => onEdit(m) });
+    entries.push({ label: 'Reply', onSelect: () => onReply(m) });
+    if (onForward) entries.push({ label: 'Forward', onSelect: () => onForward(m) });
+    if (m.content) entries.push({ label: 'Copy Text', onSelect: () => copy(m.content) });
+    if (m.reactions?.length && onViewReactions)
+      entries.push({ label: 'View Reactions', onSelect: () => onViewReactions(m) });
+    if (m.content && typeof speechSynthesis !== 'undefined')
+      entries.push({
+        label: 'Speak Message',
+        onSelect: () => {
+          speechSynthesis.cancel();
+          speechSynthesis.speak(
+            new SpeechSynthesisUtterance(`${m.author.displayName} says ${m.content}`),
+          );
+        },
+      });
+    entries.push({
       label: 'Copy Message Link',
-      onSelect: () =>
-        void navigator.clipboard?.writeText(`${location.origin}${location.pathname}/${m.id}`),
-    },
-    { label: 'Copy Message ID', onSelect: () => void navigator.clipboard?.writeText(m.id) },
-  ];
-  const toolbar = (
+      onSelect: () => copy(messageLink(location.origin, guildId, m)),
+    });
+    if (canPinHere)
+      entries.push({
+        label: m.pinned ? 'Unpin Message' : 'Pin Message',
+        onSelect: () => onPin!(m),
+      });
+    if (canDelete) {
+      entries.push({ type: 'separator' });
+      entries.push({
+        label: 'Delete Message',
+        danger: true,
+        onSelect: () => onDelete!(m, false),
+      });
+    }
+    entries.push({ type: 'separator' });
+    entries.push({ label: 'Copy Message ID', onSelect: () => copy(m.id) });
+    return entries;
+  }, [
+    m,
+    isOwn,
+    guildId,
+    canPinHere,
+    canDelete,
+    onReact,
+    onEdit,
+    onReply,
+    onForward,
+    onViewReactions,
+    onPin,
+    onDelete,
+  ]);
+
+  if (isSystemMessage(m)) {
+    return (
+      <SystemMessage message={m} referenceId={m.replyToId} {...(onJumpTo ? { onJumpTo } : {})} />
+    );
+  }
+
+  const toolbar = !m.pending && !m.failed && !editing && (
     <div
       className="lng-msg-tools"
       role="toolbar"
       aria-label={`Actions for message by ${m.author.displayName}`}
     >
-      {QUICK.slice(0, 2).map((e) => (
+      {QUICK.map((e) => (
         <button
           key={e}
           type="button"
@@ -136,6 +266,18 @@ function MessageItemImpl(props: MessageItemProps) {
           <Icon name="reply" size={20} />
         </button>
       </Tooltip>
+      {onForward && (
+        <Tooltip content="Forward">
+          <button
+            type="button"
+            className="lng-icon-btn"
+            aria-label="Forward"
+            onClick={() => onForward(m)}
+          >
+            <Icon name="arrow-up-right" size={20} />
+          </button>
+        </Tooltip>
+      )}
       {isOwn && (
         <Tooltip content="Edit">
           <button
@@ -148,9 +290,21 @@ function MessageItemImpl(props: MessageItemProps) {
           </button>
         </Tooltip>
       )}
+      {canDelete && (
+        <Tooltip content="Delete (hold Shift to skip confirmation)">
+          <button
+            type="button"
+            className="lng-icon-btn lng-danger"
+            aria-label="Delete"
+            onClick={(e) => onDelete!(m, e.shiftKey)}
+          >
+            <Icon name="trash" size={20} />
+          </button>
+        </Tooltip>
+      )}
       <DropdownMenu
         label="More"
-        items={moreItems}
+        items={menu}
         placement="bottom-end"
         trigger={
           <button type="button" className="lng-icon-btn" aria-label="More">
@@ -162,94 +316,141 @@ function MessageItemImpl(props: MessageItemProps) {
   );
 
   return (
-    <article
-      className="lng-msg"
-      data-grouped={grouped || undefined}
-      data-pending={m.pending || undefined}
-      data-failed={m.failed || undefined}
-      data-message-id={m.id}
-      aria-label={`${m.author.displayName}, ${formatMessageTime(m.createdAt)}`}
-    >
-      {m.replyToId && (
-        <button
-          type="button"
-          className="lng-reply"
-          onClick={() => onJumpTo?.(m.replyToId!)}
-          disabled={!replyTarget}
-        >
-          <Icon name="reply" size={16} />
-          {replyTarget ? (
-            <>
-              <span className="lng-reply-name">@{replyTarget.author.displayName}</span>
-              <span className="lng-reply-text">
-                {replyTarget.content.slice(0, 120) || 'Click to see attachment'}
-              </span>
-            </>
-          ) : (
-            <span className="lng-reply-text lng-muted">Original message was not loaded</span>
-          )}
-        </button>
-      )}
-      <div className="lng-msg-main">
-        <div className="lng-msg-gutter">
-          {grouped ? (
-            <time
-              className="lng-msg-hover-time"
-              dateTime={m.createdAt}
-              title={formatFullTime(m.createdAt)}
-            >
-              {formatClock(new Date(m.createdAt))}
-            </time>
-          ) : (
-            <Avatar name={m.author.displayName} src={m.author.avatarUrl ?? null} size={40} />
-          )}
-        </div>
-        <div className="lng-msg-body">
-          {!grouped && (
-            <header className="lng-msg-head">
-              <span className="lng-msg-author" style={nameColor ? { color: nameColor } : undefined}>
-                {m.author.displayName}
-              </span>
-              {m.author.tag && <span className="lng-tag">{m.author.tag}</span>}
-              {m.author.bot && <span className="lng-bot">APP</span>}
+    <ContextMenu items={menu} label={`Message actions for ${m.author.displayName}`}>
+      <article
+        className="lng-msg"
+        data-grouped={grouped || undefined}
+        data-pending={m.pending || undefined}
+        data-failed={m.failed || undefined}
+        data-mention={mentionsMe || undefined}
+        data-pinned={m.pinned || undefined}
+        data-editing={editing || undefined}
+        data-message-id={m.id}
+        aria-label={`${m.author.displayName}, ${formatMessageTime(m.createdAt)}`}
+      >
+        {m.replyToId && (
+          <button
+            type="button"
+            className="lng-reply"
+            onClick={() => onJumpTo?.(m.replyToId!)}
+            disabled={replyState === 'deleted'}
+          >
+            <Icon name="reply" size={16} />
+            {replyTarget ? (
+              <>
+                <span className="lng-reply-name">@{replyTarget.author.displayName}</span>
+                <span className="lng-reply-text">
+                  {replyTarget.content.slice(0, 120) || 'Click to see attachment'}
+                </span>
+              </>
+            ) : replyState === 'deleted' ? (
+              <span className="lng-reply-text lng-muted">Original message was deleted</span>
+            ) : (
+              <span className="lng-reply-text lng-muted">Click to load the original message</span>
+            )}
+          </button>
+        )}
+        <div className="lng-msg-main">
+          <div className="lng-msg-gutter">
+            {grouped ? (
               <time
-                className="lng-msg-time"
+                className="lng-msg-hover-time"
                 dateTime={m.createdAt}
                 title={formatFullTime(m.createdAt)}
               >
-                {formatMessageTime(m.createdAt)}
+                {formatClock(new Date(m.createdAt))}
               </time>
-            </header>
-          )}
-          <div className="lng-msg-content">
-            <MessageBody
-              m={m}
-              resolvers={props.resolvers}
-              {...(props.onMentionClick ? { onMentionClick: props.onMentionClick } : {})}
-            />
+            ) : (
+              <Avatar name={m.author.displayName} src={m.author.avatarUrl ?? null} size={40} />
+            )}
           </div>
-          {m.failed && <p className="lng-failed">Your message could not be delivered.</p>}
-          {m.reactions && m.reactions.length > 0 && (
-            <div className="lng-reactions">
-              {m.reactions.map((r) => (
-                <button
-                  key={r.emoji}
-                  type="button"
-                  className="lng-reaction"
-                  aria-pressed={r.me}
-                  aria-label={`${r.emoji} ${r.count} ${r.count === 1 ? 'reaction' : 'reactions'}${r.me ? ', including you' : ''}`}
-                  onClick={() => onReact(m, r.emoji)}
+          <div className="lng-msg-body">
+            {!grouped && (
+              <header className="lng-msg-head">
+                <span
+                  className="lng-msg-author"
+                  style={nameColor ? { color: nameColor } : undefined}
                 >
-                  <span aria-hidden="true">{r.emoji}</span>{' '}
-                  <span aria-hidden="true">{r.count}</span>
-                </button>
-              ))}
+                  {m.author.displayName}
+                </span>
+                {m.author.tag && <span className="lng-tag">{m.author.tag}</span>}
+                {m.author.bot && <span className="lng-bot">APP</span>}
+                <time
+                  className="lng-msg-time"
+                  dateTime={m.createdAt}
+                  title={formatFullTime(m.createdAt)}
+                >
+                  {formatMessageTime(m.createdAt)}
+                </time>
+              </header>
+            )}
+            <div className="lng-msg-content">
+              {editing && onSaveEdit && onCancelEdit ? (
+                <InlineEdit
+                  initial={m.content}
+                  onSave={(c) => onSaveEdit(m, c)}
+                  onCancel={onCancelEdit}
+                  onEmpty={() => onDelete?.(m, false)}
+                />
+              ) : (
+                <MessageBody
+                  m={m}
+                  guildId={guildId}
+                  isOwn={isOwn}
+                  resolvers={props.resolvers}
+                  {...(props.onMentionClick ? { onMentionClick: props.onMentionClick } : {})}
+                  onVote={(a, add) => onVote?.(m, a, add)}
+                  {...(onEndPoll && isOwn ? { onEndPoll: () => onEndPoll(m) } : {})}
+                />
+              )}
             </div>
-          )}
+            {m.failed && (
+              <p className="lng-failed" role="alert">
+                Your message could not be delivered.{' '}
+                {onRetry && (
+                  <button type="button" className="lng-link-btn" onClick={() => onRetry(m)}>
+                    Retry
+                  </button>
+                )}{' '}
+                {onDiscard && (
+                  <button
+                    type="button"
+                    className="lng-link-btn lng-danger"
+                    onClick={() => onDiscard(m)}
+                  >
+                    Delete
+                  </button>
+                )}
+              </p>
+            )}
+            {m.reactions && m.reactions.length > 0 && (
+              <div className="lng-reactions">
+                {m.reactions.map((r) => (
+                  <button
+                    key={r.emoji}
+                    type="button"
+                    className="lng-reaction"
+                    aria-pressed={r.me}
+                    aria-label={`${r.emoji} ${r.count} ${r.count === 1 ? 'reaction' : 'reactions'}${r.me ? ', including you' : ''}`}
+                    onClick={() => onReact(m, r.emoji)}
+                    onContextMenu={(e) => {
+                      if (!onViewReactions) return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onViewReactions(m, r.emoji);
+                    }}
+                  >
+                    <span aria-hidden="true">{r.emoji}</span>{' '}
+                    <span aria-hidden="true">{r.count}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-      {toolbar}
-    </article>
+        {toolbar}
+      </article>
+    </ContextMenu>
   );
 }
 

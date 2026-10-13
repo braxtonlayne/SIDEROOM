@@ -278,11 +278,13 @@ async fn profile_and_presence() {
                 accent_color: Some(Some(0x00FF_8800)),
                 banner_key: Some(Some("banners/x".into())),
                 avatar_key: Some(Some("0123456789abcdef0123456789abcdef".into())),
+                display_name: Some(Some("Al Ice".into())),
             },
         )
         .await
         .unwrap();
     assert_eq!(p.accent_color, Some(0x00FF_8800));
+    assert_eq!(p.display_name.as_deref(), Some("Al Ice"));
     // The avatar hash is persisted and read back with the profile.
     assert_eq!(
         svc.get_profile(a, a).await.unwrap().avatar_key.as_deref(),
@@ -443,4 +445,102 @@ async fn guild_memberships_peers_and_mutual_friends() {
     let audience = svc.audience(member).await.unwrap();
     assert_eq!(audience.friends, vec![friend]);
     assert_eq!(audience.guilds, vec![bp.guild.id]);
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn user_settings_blob_default_level_and_privacy_persist() {
+    use serde_json::json;
+    use sr_chat::social::user_settings::PrivacyUpdate;
+    let pool = pool().await;
+    let (svc, ids) = service(&pool);
+    let (a, b) = (account(&pool, &ids).await, account(&pool, &ids).await);
+
+    // Blob: merge, version bumps, per user.
+    assert_eq!(svc.user_settings(a).await.unwrap().version, 0);
+    let s = svc
+        .patch_user_settings(a, &json!({"theme": "ash", "ui": {"compact": true}}))
+        .await
+        .unwrap();
+    assert_eq!(s.version, 1);
+    let s = svc
+        .patch_user_settings(a, &json!({"theme": null, "ui": {"zoom": 90}}))
+        .await
+        .unwrap();
+    assert_eq!(s.version, 2);
+    let stored = svc.user_settings(a).await.unwrap();
+    assert_eq!(stored.data, json!({"ui": {"compact": true, "zoom": 90}}));
+    assert_eq!(svc.user_settings(b).await.unwrap().version, 0);
+
+    // A stale writer loses the race at the repository.
+    use sr_chat::social::repo::UserSettingsRepository;
+    let repo = svc.repo();
+    assert_eq!(
+        repo.put_user_settings(a, &json!({"x": 1}), 1)
+            .await
+            .unwrap(),
+        None
+    );
+    assert_eq!(
+        repo.put_user_settings(a, &json!({"x": 1}), 2)
+            .await
+            .unwrap(),
+        Some(3)
+    );
+    // Two writers patching concurrently both land.
+    let (left, right) = (json!({"left": 1}), json!({"right": 2}));
+    let (r1, r2) = tokio::join!(
+        svc.patch_user_settings(a, &left),
+        svc.patch_user_settings(a, &right)
+    );
+    r1.unwrap();
+    r2.unwrap();
+    let merged = svc.user_settings(a).await.unwrap().data;
+    assert_eq!(merged["left"], 1);
+    assert_eq!(merged["right"], 2);
+
+    // Default level lives in the same row and does not disturb the blob.
+    assert_eq!(svc.default_notification_level(a).await.unwrap(), None);
+    svc.set_default_notification_level(a, Some(NotificationLevel::OnlyMentions))
+        .await
+        .unwrap();
+    assert_eq!(
+        svc.default_notification_level(a).await.unwrap(),
+        Some(NotificationLevel::OnlyMentions)
+    );
+    assert_eq!(svc.user_settings(a).await.unwrap().data, merged);
+    // A user who never saved a blob can still set the level and then save one.
+    svc.set_default_notification_level(b, Some(NotificationLevel::Nothing))
+        .await
+        .unwrap();
+    assert_eq!(svc.user_settings(b).await.unwrap().version, 0);
+    assert_eq!(
+        svc.patch_user_settings(b, &json!({"k": 1}))
+            .await
+            .unwrap()
+            .version,
+        1
+    );
+    assert_eq!(
+        svc.default_notification_level(b).await.unwrap(),
+        Some(NotificationLevel::Nothing)
+    );
+    svc.set_default_notification_level(b, None).await.unwrap();
+    assert_eq!(svc.default_notification_level(b).await.unwrap(), None);
+
+    // Privacy.
+    let p = svc
+        .update_privacy(
+            a,
+            PrivacyUpdate {
+                friend_everyone: Some(false),
+                message_requests: Some(false),
+                ..PrivacyUpdate::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert!(!p.friend_requests.everyone && !p.dms.message_requests);
+    assert_eq!(svc.privacy(a).await.unwrap(), p);
+    assert!(svc.privacy(b).await.unwrap().friend_requests.everyone);
 }

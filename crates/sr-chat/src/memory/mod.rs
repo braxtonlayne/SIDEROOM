@@ -2,7 +2,7 @@
 
 pub mod messages;
 mod rich;
-use crate::admin_repo::{Ban, GuildAdminRepository};
+use crate::admin_repo::{Ban, GuildAdminRepository, MemberFilter, PruneCriteria};
 use crate::domain::{Channel, Guild, Member, Message, Role, Visibility};
 use crate::error::RepoError;
 use crate::guild_rules::GuildBlueprint;
@@ -29,6 +29,8 @@ pub struct Store {
     pub sent_at: HashMap<(ChannelId, UserId), i64>,
     pub bans: Vec<Ban>,
     pub thread_members: Vec<crate::threads::model::ThreadMember>,
+    /// Accounts for name search and the user lookup.
+    pub users: HashMap<UserId, crate::repo::UserSummary>,
 }
 
 /// Cloning shares the same store, so tests can keep a handle while the service owns a clone.
@@ -424,19 +426,74 @@ impl GuildAdminRepository for MemoryRepo {
     async fn list_members(
         &self,
         guild: GuildId,
+        filter: &MemberFilter,
         after: Option<UserId>,
         limit: usize,
     ) -> RepoResult<Vec<Member>> {
-        let mut out: Vec<Member> = self
-            .lock()?
+        let s = self.lock()?;
+        let needle = filter.query.as_deref().map(str::to_lowercase);
+        let hit = |m: &Member| {
+            let role_ok = filter
+                .role
+                .is_none_or(|r| r.get() == guild.get() || m.role_ids.contains(&r));
+            let query_ok = needle.as_deref().is_none_or(|q| {
+                let has = |v: Option<&str>| v.is_some_and(|v| v.to_lowercase().contains(q));
+                let user = s.users.get(&m.user_id);
+                has(m.nick.as_deref())
+                    || has(user.map(|u| u.username.as_str()))
+                    || has(user.and_then(|u| u.display_name.as_deref()))
+            });
+            role_ok && query_ok
+        };
+        let mut out: Vec<Member> = s
             .members
             .iter()
-            .filter(|m| m.guild_id == guild && after.is_none_or(|a| m.user_id > a))
+            .filter(|m| m.guild_id == guild && after.is_none_or(|a| m.user_id > a) && hit(m))
             .cloned()
             .collect();
         out.sort_by_key(|m| m.user_id);
         out.truncate(limit);
         Ok(out)
+    }
+
+    async fn prune_candidates(
+        &self,
+        guild: GuildId,
+        criteria: &PruneCriteria,
+        limit: usize,
+    ) -> RepoResult<Vec<Member>> {
+        let s = self.lock()?;
+        let owner = s.guilds.get(&guild).map(|g| g.owner_id);
+        let mut out: Vec<Member> = s
+            .members
+            .iter()
+            .filter(|m| m.guild_id == guild && Some(m.user_id) != owner)
+            .filter(|m| m.joined_at_ms < criteria.joined_before_ms)
+            .filter(|m| {
+                m.role_ids
+                    .iter()
+                    .all(|r| criteria.include_roles.contains(r))
+            })
+            .filter(|m| {
+                !s.messages.iter().any(|msg| {
+                    msg.guild_id == Some(guild)
+                        && msg.author_id == m.user_id
+                        && msg.id.snowflake().unix_ms() >= criteria.active_since_ms
+                })
+            })
+            .cloned()
+            .collect();
+        out.sort_by_key(|m| m.user_id);
+        out.truncate(limit);
+        Ok(out)
+    }
+
+    async fn remove_members(&self, guild: GuildId, users: &[UserId]) -> RepoResult<u64> {
+        let mut s = self.lock()?;
+        let before = s.members.len();
+        s.members
+            .retain(|m| !(m.guild_id == guild && users.contains(&m.user_id)));
+        Ok((before - s.members.len()) as u64)
     }
 
     async fn update_member(&self, member: &Member) -> RepoResult<()> {
@@ -569,7 +626,11 @@ impl GuildAdminRepository for MemoryRepo {
 
 #[async_trait]
 impl crate::repo::UserLookup for MemoryRepo {
-    async fn users(&self, _ids: &[UserId]) -> RepoResult<Vec<crate::repo::UserSummary>> {
-        Ok(Vec::new())
+    async fn users(&self, ids: &[UserId]) -> RepoResult<Vec<crate::repo::UserSummary>> {
+        let s = self.lock()?;
+        Ok(ids
+            .iter()
+            .filter_map(|id| s.users.get(id).cloned())
+            .collect())
     }
 }

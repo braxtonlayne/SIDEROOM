@@ -3,20 +3,20 @@
 Phase 4. Spec: [library-reader](../specs/library-reader.md). Mockup: `library-home.jpg`.
 
 ## LIB-DATA — Catalog backend
-- [ ] **LIB-DATA-001** [DB] reading_series, reading_editions, volumes, chapters, pages, reading_progress, bookmarks, follows
-- [ ] **LIB-DATA-002** [BE] Series/edition/chapter CRUD (publishers) + publish/unpublish + merge
-- [ ] **LIB-DATA-003** [BE] Public catalog API (browse with filters/sort/pagination, series detail, chapter list, page manifest with sized URLs)
-- [ ] **LIB-DATA-004** [BE] Tantivy index for series (titles, alt titles, authors, tags) + instant search endpoint
-- [ ] **LIB-DATA-005** [BE] Age-restricted filtering everywhere
-- [ ] **LIB-DATA-006** [BE] Latest updates feed (global + followed)
+- [x] **LIB-DATA-001** [DB] reading_series, reading_editions, volumes, chapters, pages, reading_progress, bookmarks, follows
+- [x] **LIB-DATA-002** [BE] Series/edition/chapter CRUD (publishers) + publish/unpublish + merge
+- [x] **LIB-DATA-003** [BE] Public catalog API (browse with filters/sort/pagination, series detail, chapter list, page manifest with sized URLs)
+- [x] **LIB-DATA-004** [BE] Tantivy index for series (titles, alt titles, authors, tags) + instant search endpoint
+- [x] **LIB-DATA-005** [BE] Age-restricted filtering everywhere
+- [x] **LIB-DATA-006** [BE] Latest updates feed (global + followed)
 
 ## LIB-ING — Ingest & conversion
-- [ ] **LIB-ING-001** [BE] Image page pipeline: decode JPEG/PNG/WebP/AVIF/GIF → WebP (q85, lossless if smaller) + sized variants 720/1080/1600 + blurhash + dimensions + spread detection
-- [ ] **LIB-ING-002** [BE] Archive readers: ZIP/CBZ, RAR/CBR, 7z/CB7 (natural sort, ignore junk files like `__MACOSX`, `Thumbs.db`)
-- [ ] **LIB-ING-003** [BE] ComicInfo.xml parser → metadata
+- [ ] **LIB-ING-001** [BE] Image page pipeline: decode JPEG/PNG/WebP/AVIF/GIF → WebP (q85, lossless if smaller) + sized variants 720/1080/1600 + blurhash + dimensions + spread detection *(partial: lossless WebP only, no AVIF; see open-questions 25, 26)*
+- [ ] **LIB-ING-002** [BE] Archive readers: ZIP/CBZ, RAR/CBR, 7z/CB7 (natural sort, ignore junk files like `__MACOSX`, `Thumbs.db`) *(partial: ZIP/CBZ only; see open-questions 27)*
+- [x] **LIB-ING-003** [BE] ComicInfo.xml parser → metadata
 - [ ] **LIB-ING-004** [BE] PDF: keep original + rasterize pages (pdfium) for image mode
 - [ ] **LIB-ING-005** [BE] EPUB: validate, extract metadata/cover, keep as-is
-- [ ] **LIB-ING-006** [BE] series.json parser
+- [x] **LIB-ING-006** [BE] series.json parser
 - [ ] **LIB-ING-007** [BE] Auto-crop border detection data (optional per page)
 - [ ] **LIB-ING-008** [BE] Library `SubmissionKind` impls (series, items) with publish actions
 - [ ] **LIB-ING-009** [WASM] Client-side pre-checks (image validity, sizes) before upload

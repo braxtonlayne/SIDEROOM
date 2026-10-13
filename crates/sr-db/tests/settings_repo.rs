@@ -293,3 +293,31 @@ async fn emoji_rules_templates_and_community_round_trip() {
     repo.put_welcome_screen(&ws).await.unwrap();
     assert_eq!(repo.get_welcome_screen(g).await.unwrap(), ws);
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn webhook_update_replaces_the_token_hash() {
+    use sr_chat::settings::repo::WebhookRepository;
+    use sr_chat::settings::webhooks::{Webhook, hash_token};
+    use sr_core::WebhookId;
+    let pool = pool().await;
+    let test_ids = ids(6);
+    let repo = PgSettingsRepo::new(pool.clone());
+    let (g, ch, owner) = guild(&pool, &test_ids).await;
+    let mut w = Webhook::new_incoming(
+        WebhookId::new(test_ids.generate().get()),
+        g,
+        ch,
+        owner,
+        "Deploys",
+        hash_token("first"),
+        NOW,
+    )
+    .unwrap();
+    repo.insert_webhook(&w).await.unwrap();
+    w.token_hash = Some(hash_token("second"));
+    repo.update_webhook(&w).await.unwrap();
+    let stored = repo.get_webhook(w.id).await.unwrap().unwrap();
+    assert!(stored.token_matches(&hash_token("second")));
+    assert!(!stored.token_matches(&hash_token("first")));
+}

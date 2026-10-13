@@ -1,5 +1,10 @@
-import { Avatar, EmptyState, Icon } from '@sideroom/ui';
-import { useDms, usePresence, useUsers } from './data';
+import { Avatar, EmptyState } from '@sideroom/ui';
+import { isTextLike } from './channels';
+import { useChannels, useDms, usePresence, useUsers } from './data';
+import { ServerWelcome } from './shell/ServerWelcome';
+import { FriendsPage } from './shell/FriendsPage';
+import { MessageRequestsPage } from './shell/MessageRequestsPage';
+import { useLoungeUi } from './store';
 
 /** Right-hand profile panel for a DM (LNG-DM-006 is a later item; this is the minimum useful card). */
 export function DmProfilePanel({ dmId }: { dmId: string }) {
@@ -38,23 +43,16 @@ export function DmProfilePanel({ dmId }: { dmId: string }) {
   );
 }
 
-/** Home with no conversation selected. The Friends page (LNG-FRD) replaces this. */
+/** Home with no conversation selected: the Friends page, or Message Requests when chosen in the sidebar. */
 export function HomeFriends() {
-  return (
-    <section className="lng-channel-view" aria-label="Friends">
-      <header className="lng-header">
-        <Icon name="users" size={24} />
-        <h1 className="lng-header-title">Friends</h1>
-      </header>
-      <EmptyState
-        title="Wumpus is waiting on friends. You don't have to be!"
-        description="The Friends page (Online, All, Pending, Add Friend) is built under LNG-FRD."
-      />
-    </section>
-  );
+  const view = useLoungeUi((s) => s.homeView);
+  return view === 'requests' ? <MessageRequestsPage /> : <FriendsPage />;
 }
 
-export function PickChannel() {
+export function PickChannel({ guildId }: { guildId?: string }) {
+  const channels = useChannels(guildId);
+  // A server with nowhere to talk yet shows the welcome checklist instead of an empty prompt.
+  if (guildId && !channels.some(isTextLike)) return <ServerWelcome guildId={guildId} />;
   return (
     <section className="lng-channel-view" aria-label="No channel selected">
       <EmptyState
