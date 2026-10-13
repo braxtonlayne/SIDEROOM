@@ -1008,3 +1008,66 @@ async fn access_log_is_chained_serialised_append_only_and_tamper_evident() {
     // Rolled back: the real chain is intact and the repository agrees.
     assert!(r.verify_log().await.unwrap().ok);
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn frozen_issuers_cannot_have_invites_redeemed() {
+    let pool = pool().await;
+    let issuer = account(&pool, None).await;
+    sqlx::query("INSERT INTO invite_credits_ledger (id, account_id, delta, reason) VALUES ($1,$2,5,'initial_grant')")
+        .bind(uid())
+        .bind(issuer)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let person = person_of(&pool, issuer).await;
+    let invite = |emergency: bool| {
+        let pool = pool.clone();
+        async move {
+            let code = InviteCode::generate().unwrap();
+            sqlx::query("INSERT INTO platform_invites (id, code, issuer_account_id, emergency) VALUES ($1,$2,$3,$4)")
+                .bind(uid())
+                .bind(code.canonical())
+                .bind(issuer)
+                .bind(emergency)
+                .execute(&pool)
+                .await
+                .unwrap();
+            code
+        }
+    };
+    let register = |code: InviteCode| {
+        let pool = pool.clone();
+        async move {
+            register_with_invite(
+                &pool,
+                &NewRegistration {
+                    account_id: uid(),
+                    person_id: uid(),
+                    ledger_ids: [uid(), uid()],
+                    code: code.canonical().to_owned(),
+                    username: format!("n{}", uid()),
+                    display_name: None,
+                    email: format!("fresh{}@example.test", uid()),
+                    password_hash: "x".into(),
+                    discord_id: None,
+                    identity_id: uid(),
+                    account_cap: i64::MAX,
+                    initial_credits: 0,
+                },
+            )
+            .await
+            .unwrap()
+        }
+    };
+    // Level 1 is under the default threshold of 2: the invite works.
+    sqlx::query("UPDATE persons SET suspicion_level = 1 WHERE id = $1").bind(person).execute(&pool).await.unwrap();
+    assert!(register(invite(false).await).await.is_ok());
+    // At the threshold the issuer is frozen: a normal invite is refused, an operator one is not.
+    sqlx::query("UPDATE persons SET suspicion_level = 2 WHERE id = $1").bind(person).execute(&pool).await.unwrap();
+    assert_eq!(register(invite(false).await).await.unwrap_err(), Rejection::InviteUnavailable);
+    assert!(register(invite(true).await).await.is_ok());
+    // Clearing suspicion unfreezes.
+    sqlx::query("UPDATE persons SET suspicion_level = 0 WHERE id = $1").bind(person).execute(&pool).await.unwrap();
+    assert!(register(invite(false).await).await.is_ok());
+}

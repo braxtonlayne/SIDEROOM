@@ -451,10 +451,10 @@ impl AdminRepository for MemoryAdminRepo {
         let owner_role = s.roles.iter().find(|r| r.name == "Owner").map(|r| r.id);
         if let Some(rid) = owner_role {
             s.member_roles.entry(new_owner).or_default().push(rid);
-            if let Some(old) = old {
-                if let Some(v) = s.member_roles.get_mut(&old) {
-                    v.retain(|r| *r != rid);
-                }
+            if let Some(old) = old
+                && let Some(v) = s.member_roles.get_mut(&old)
+            {
+                v.retain(|r| *r != rid);
             }
         }
         if !s
