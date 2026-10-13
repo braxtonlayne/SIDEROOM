@@ -9,15 +9,12 @@ import { server } from './server';
 // "Expected signal to be an instance of AbortSignal". Strip jsdom signals from Request and fetch and
 // apply their abort semantics ourselves.
 const NodeRequest = globalThis.Request;
-const NodeAbortSignal = new NodeRequest('http://localhost/').signal.constructor;
-const isNodeSignal = (s: unknown) =>
-  Function.prototype[Symbol.hasInstance].call(NodeAbortSignal, s);
 const foreignSignals = new WeakMap<Request, AbortSignal>();
 
 class BridgedRequest extends NodeRequest {
   constructor(input: RequestInfo | URL, init?: RequestInit) {
     const signal = init?.signal;
-    if (signal && !isNodeSignal(signal)) {
+    if (signal) {
       const rest: RequestInit = { ...init };
       delete rest.signal;
       super(input, rest);
@@ -33,8 +30,7 @@ function bridgeJsdomSignals() {
   const inner = globalThis.fetch;
   globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
     const signal =
-      (init?.signal && !isNodeSignal(init.signal) ? init.signal : undefined) ??
-      (input instanceof NodeRequest ? foreignSignals.get(input) : undefined);
+      init?.signal ?? (input instanceof NodeRequest ? foreignSignals.get(input) : undefined);
     if (!signal) return inner(input, init);
     const rest: RequestInit = { ...init };
     delete rest.signal;
@@ -65,21 +61,3 @@ afterEach(() => {
   sessionStorage.clear();
 });
 afterAll(() => server.close());
-
-// TEMP-DEBUG(node24)
-{
-  const f = globalThis.fetch;
-  beforeAll(() => {
-    const g = globalThis.fetch;
-    globalThis.fetch = (async (...a: Parameters<typeof fetch>) => {
-      try {
-        return await g(...a);
-      } catch (e) {
-        const c = (e as { cause?: Error }).cause;
-        process.stderr.write(`FETCHDBG ${String(e)} :: ${c?.name}: ${c?.message}\n${String(c?.stack).split('\n').slice(0, 8).join('\n')}\n`);
-        throw e;
-      }
-    }) as typeof fetch;
-  });
-  void f;
-}
