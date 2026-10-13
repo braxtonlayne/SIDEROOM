@@ -4,6 +4,7 @@
  */
 import type {
   Attachment,
+  Activity,
   Channel,
   ChannelType,
   DmChannel,
@@ -172,8 +173,27 @@ export function toLoungeRole(r: S.Role): Role {
   };
 }
 
+const ACTIVITY_KIND: Record<number, Activity['kind']> = {
+  0: 'playing',
+  2: 'listening',
+  3: 'watching',
+  4: 'custom',
+};
+
+interface WireActivity {
+  type?: number;
+  name?: string;
+  state?: string | null;
+}
+
 export function toLoungePresence(p: S.Presence | undefined): Presence {
-  return { status: p?.status ?? 'offline' };
+  const status = p?.status ?? 'offline';
+  const a = (p?.activities as WireActivity[] | undefined)?.find(
+    (x) => x.type !== undefined && ACTIVITY_KIND[x.type] !== undefined,
+  );
+  if (!a || a.type === undefined) return { status };
+  const text = (a.type === 4 ? (a.state ?? a.name) : a.name) ?? '';
+  return text ? { status, activity: { kind: ACTIVITY_KIND[a.type]!, text } } : { status };
 }
 
 export function toLoungeMember(m: S.Member, user: LoungeUser): Member {

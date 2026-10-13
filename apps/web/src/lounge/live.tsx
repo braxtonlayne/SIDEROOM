@@ -22,6 +22,8 @@ import type {
   SendExtras,
   Snowflake,
 } from './data';
+import { applyMutes } from './shell/applyMutes';
+import { useNotifSettings } from './shell/notifSettings';
 import {
   basePermissions,
   isUnread,
@@ -175,22 +177,26 @@ export function useLiveSnapshot(): LiveSnapshot {
   const memberIdsByGuild = useStore((s) => s.memberIdsByGuild);
   const presences = useStore((s) => s.presences);
   const readStates = useStore((s) => s.readStates);
+  const mutes = useNotifSettings((s) => s.byGuild);
   return useMemo(
     () =>
-      buildLiveSnapshot({
-        currentUserId,
-        users,
-        guilds,
-        guildOrder,
-        channels,
-        channelIdsByGuild,
-        roles,
-        roleIdsByGuild,
-        members,
-        memberIdsByGuild,
-        presences,
-        readStates,
-      }),
+      applyMutes(
+        buildLiveSnapshot({
+          currentUserId,
+          users,
+          guilds,
+          guildOrder,
+          channels,
+          channelIdsByGuild,
+          roles,
+          roleIdsByGuild,
+          members,
+          memberIdsByGuild,
+          presences,
+          readStates,
+        }),
+        mutes,
+      ),
     [
       currentUserId,
       users,
@@ -204,6 +210,7 @@ export function useLiveSnapshot(): LiveSnapshot {
       memberIdsByGuild,
       presences,
       readStates,
+      mutes,
     ],
   );
 }

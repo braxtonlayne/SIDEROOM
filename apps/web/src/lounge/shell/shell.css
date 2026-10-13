@@ -1,0 +1,366 @@
+/* Shell, sidebar and modal modules added in feat/p2-lounge-shell. Kept apart from lounge.css. */
+.lng-select {
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: 4px;
+  background: var(--bg-base-lowest);
+  color: var(--text-normal);
+  font-size: 14px;
+  text-transform: none;
+  font-weight: 400;
+}
+.lng-field-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Rail drag and drop, folders, muted servers */
+.lng-rail-item[data-dragging] {
+  opacity: 0.4;
+}
+.lng-rail-item[data-drop='before']::before,
+.lng-rail-item[data-drop='after']::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--brand);
+}
+.lng-rail-item[data-drop='before']::before {
+  top: -4px;
+}
+.lng-rail-item[data-drop='after']::after {
+  bottom: -4px;
+}
+.lng-rail-item[data-drop='into'] .lng-guild {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.lng-rail-item[data-muted] .lng-guild {
+  opacity: 0.5;
+}
+.lng-swatches {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.lng-swatch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.lng-swatch {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+}
+.lng-swatch input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.lng-swatch:has(input:checked) {
+  outline: 3px solid var(--text-normal);
+  outline-offset: 2px;
+}
+.lng-swatch:has(input:focus-visible) {
+  outline: 3px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* Channel list: hover actions, drag and drop, muted categories */
+.lng-channel-item {
+  position: relative;
+}
+.lng-channel-item .lng-pill {
+  left: -8px;
+}
+.lng-channel-actions {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  display: none;
+  gap: 2px;
+}
+.lng-channel-item:hover .lng-channel-actions,
+.lng-channel-item:focus-within .lng-channel-actions {
+  display: flex;
+}
+.lng-channel-item[data-dragging],
+.lng-category-head[data-dragging] {
+  opacity: 0.4;
+}
+.lng-channel-item[data-drop='before']::before,
+.lng-category-head[data-drop='before']::before,
+.lng-channel-item[data-drop='after']::after,
+.lng-category-head[data-drop='after']::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  background: var(--brand);
+}
+.lng-channel-item[data-drop='before']::before,
+.lng-category-head[data-drop='before']::before {
+  top: 0;
+}
+.lng-channel-item[data-drop='after']::after,
+.lng-category-head[data-drop='after']::after {
+  bottom: 0;
+}
+.lng-category-head {
+  position: relative;
+}
+.lng-category-head[data-drop='into'] {
+  outline: 2px solid var(--brand);
+  border-radius: 4px;
+}
+.lng-category-head[data-muted] .lng-category-btn {
+  opacity: 0.5;
+}
+
+/* User panel status avatar */
+.lng-user-avatar {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+.lng-user-avatar:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* Banners and Home pages */
+.lng-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 16px;
+  font-size: 13px;
+  background: var(--bg-base-low);
+  border-bottom: 1px solid var(--ui-border);
+}
+.lng-banner[data-tone='warn'] {
+  background: color-mix(in srgb, var(--warning, #faa61a) 25%, var(--bg-base-low));
+}
+.lng-friends-tabs {
+  margin-left: 16px;
+  flex: 1;
+}
+.lng-friends-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.lng-friends-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  overflow-y: auto;
+}
+.lng-friends-h {
+  margin: 8px 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.lng-friend-list,
+.lng-active-list,
+.lng-pick-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lng-friend-row,
+.lng-pick-row,
+.lng-active-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 8px;
+  border-top: 1px solid var(--ui-border);
+  border-radius: 4px;
+}
+.lng-friend-row:hover {
+  background: var(--bg-base-low);
+}
+.lng-friend-text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+}
+.lng-friend-name {
+  font-weight: 600;
+}
+.lng-friend-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.lng-active-now {
+  width: 280px;
+  flex-shrink: 0;
+  padding: 16px;
+  border-left: 1px solid var(--ui-border);
+  overflow-y: auto;
+}
+.lng-active-title {
+  margin: 0 0 4px;
+  font-weight: 700;
+}
+.lng-add-ok {
+  margin: 0;
+  color: var(--success, #3ba55d);
+}
+.lng-pick-list {
+  max-height: 260px;
+  overflow-y: auto;
+}
+.lng-root[data-mobile] .lng-active-now {
+  display: none;
+}
+
+/* DM rows: close button on hover */
+.lng-dm-wrap {
+  position: relative;
+}
+.lng-dm-wrap[data-muted] .lng-dm {
+  opacity: 0.55;
+}
+.lng-dm-close {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: none;
+  transform: translateY(-50%);
+}
+.lng-dm-wrap:hover .lng-dm-close,
+.lng-dm-wrap:focus-within .lng-dm-close {
+  display: inline-flex;
+}
+
+/* Create a Server wizard */
+.lng-template-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lng-template {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  background: var(--bg-base-lowest);
+  color: var(--text-normal);
+  text-align: left;
+  cursor: pointer;
+}
+.lng-template:hover {
+  background: var(--bg-base-low);
+}
+.lng-template-text {
+  display: flex;
+  flex-direction: column;
+}
+.lng-template-text small {
+  color: var(--text-muted);
+}
+.lng-link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-link, var(--brand));
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+.lng-examples {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* Server welcome */
+.lng-welcome-body {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 48px 16px;
+}
+.lng-welcome-title {
+  margin: 0 0 8px;
+  font-size: 28px;
+}
+.lng-welcome-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.lng-welcome-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background: var(--bg-base-low);
+  color: var(--text-normal);
+  text-align: left;
+  cursor: pointer;
+}
+.lng-welcome-card:hover:not(:disabled) {
+  background: var(--bg-base-lowest);
+}
+.lng-welcome-card:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.lng-welcome-card[data-done] {
+  border-color: var(--success, #3ba55d);
+}
+.lng-welcome-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+.lng-welcome-text small {
+  color: var(--text-muted);
+}
+
+@media (hover: none) {
+  /* Touch: Close DM and the channel actions live in the long-press menu. */
+  .lng-dm-close,
+  .lng-channel-actions {
+    display: none !important;
+  }
+}

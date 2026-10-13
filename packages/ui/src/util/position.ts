@@ -109,6 +109,12 @@ export function computePosition(
       Math.max(padding, Math.min(v, vpSize - size - padding));
     if (side === "top" || side === "bottom") x = clamp(x, float.width, viewport.width);
     else y = clamp(y, float.height, viewport.height);
+    // Neither side has room (a tall menu opened mid-screen): pin it inside the viewport rather than
+    // letting part of it hang off the edge, even though it then overlaps the anchor.
+    if (flip && mainOverflow(side, { x, y }, float, viewport, padding) > 0) {
+      if (side === "top" || side === "bottom") y = clamp(y, float.height, viewport.height);
+      else x = clamp(x, float.width, viewport.width);
+    }
   }
   return { x, y, side, placement: align === "center" ? side : (`${side}-${align}` as FloatingPlacement) };
 }

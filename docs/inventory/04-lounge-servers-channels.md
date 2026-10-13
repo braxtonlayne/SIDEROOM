@@ -17,19 +17,19 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 - [ ] **LNG-GLD-012** [BE] Per-server profiles (nick, avatar, banner, bio)
 - [ ] **LNG-GLD-013** [BE] Server Directory: listing request, categories, staff approval state, search API
 - [x] **LNG-GLD-014** [BE] Community enable checks (verification level, explicit filter, rules & updates channels)
-- [ ] **LNG-GLD-015** [FE] Create Server modal step 1: title, subtitle, "Create My Own", "START FROM A TEMPLATE" list (Gaming, Friends, Study Group, School Club, Local Community, Artists & Creators, Watch Club, Reading Club), "Have an invite already?" + Join a Server
-- [ ] **LNG-GLD-016** [FE] Create Server step 2: "Tell us more about your server" (club/community vs me & friends, skip)
+- [x] **LNG-GLD-015** [FE] Create Server modal step 1: title, subtitle, "Create My Own", "START FROM A TEMPLATE" list (Gaming, Friends, Study Group, School Club, Local Community, Artists & Creators, Watch Club, Reading Club), "Have an invite already?" + Join a Server *(templates are applied by the client after creation; LNG-GLD-003 is the backend half)*
+- [x] **LNG-GLD-016** [FE] Create Server step 2: "Tell us more about your server" (club/community vs me & friends, skip)
 - [ ] **LNG-GLD-017** [FE] Create Server step 3: customize (icon upload with crop, server name prefilled "<user>'s server", guidelines note), Back / Create
-- [ ] **LNG-GLD-018** [FE] Join a Server modal (invite link/code input, examples, "Don't have an invite? Check out the Directory")
+- [x] **LNG-GLD-018** [FE] Join a Server modal (invite link/code input, examples, "Don't have an invite? Check out the Directory") *(no Directory link yet)*
 - [ ] **LNG-GLD-019** [FE] Server header button with name + chevron, banner area (if banner), boost/level indicator
 - [x] **LNG-GLD-020** [FE] Server dropdown menu: Server Support, Invite to Server, Server Settings, Create Channel, Create Category, Create Event, App Directory, Notification Settings, Privacy Settings, Edit Per-server Profile, Hide Muted Channels (checkbox), Copy Server Info ▸ (ID, link), Security Actions (mods), Leave Server
-- [ ] **LNG-GLD-021** [FE] Welcome/empty-server screen: "Welcome to <server>", intro line + Getting Started guide link, checklist cards (Invite your friends, Personalize your server with an icon, Send your first message, Add your first app, Support this server) with completion state
+- [x] **LNG-GLD-021** [FE] Welcome/empty-server screen: "Welcome to <server>", intro line + Getting Started guide link, checklist cards (Invite your friends, Personalize your server with an icon, Send your first message, Add your first app, Support this server) with completion state *(three of the five cards; apps and support need their own features)*
 - [x] **LNG-GLD-022** [FE] Member list panel: role groups with counts, online/offline groups, owner crown, bot tag, activity line, virtualized lazy ranges
 - [ ] **LNG-GLD-023** [FE] Member context menu: Profile, Mention, Message, Call, Add Note, Change Nickname, Invite to Server ▸, Remove Friend, Ignore, Block, Apps ▸, Roles ▸ (checkbox list), Timeout ▸, Kick, Ban, Transfer Ownership, Copy User ID
-- [ ] **LNG-GLD-024** [FE] Timeout modal (durations, reason), Kick modal (reason), Ban modal (delete history window, reason)
+- [x] **LNG-GLD-024** [FE] Timeout modal (durations, reason), Kick modal (reason), Ban modal (delete history window, reason)
 - [ ] **LNG-GLD-025** [FE] Privacy Settings modal per server (allow DMs, message requests, activity status, joined-server visibility)
 - [ ] **LNG-GLD-026** [FE] Edit Per-server Profile modal
-- [ ] **LNG-GLD-027** [FE] Leave Server confirm (owner must transfer first)
+- [x] **LNG-GLD-027** [FE] Leave Server confirm (owner must transfer first)
 - [ ] **LNG-GLD-028** [FE] Server Directory page (search, categories, server cards with banner, icon, description, members/online, Join)
 - [ ] **LNG-GLD-029** [FE] Server preview / lurk mode for Directory community servers (read-only before joining)
 - [ ] **LNG-GLD-030** [FE] Membership screening / rules acceptance modal
@@ -46,15 +46,15 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 - [ ] **LNG-CHN-005** [BE] Slowmode (rate_limit_per_user) enforcement with bypass permissions
 - [ ] **LNG-CHN-006** [BE] NSFW / age-restricted channel gate (D-032)
 - [ ] **LNG-CHN-007** [GW] CHANNEL_CREATE/UPDATE/DELETE, CHANNEL_PINS_UPDATE
-- [ ] **LNG-CHN-008** [FE] Channel list: categories (collapse/expand, persist), "+" create channel per category, drag-and-drop reorder & re-parent (managers)
-- [ ] **LNG-CHN-009** [FE] Channel row: type icon (text #, announcement megaphone, forum, media, voice speaker, stage, rules book, locked variants, NSFW variant), name, unread white text + left pill, mention badge, muted dim, hover icons (create invite, edit channel gear)
+- [x] **LNG-CHN-008** [FE] Channel list: categories (collapse/expand, persist), "+" create channel per category, drag-and-drop reorder & re-parent (managers)
+- [x] **LNG-CHN-009** [FE] Channel row: type icon (text #, announcement megaphone, forum, media, voice speaker, stage, rules book, locked variants, NSFW variant), name, unread white text + left pill, mention badge, muted dim, hover icons (create invite, edit channel gear) *(no NSFW icon variant yet)*
 - [ ] **LNG-CHN-010** [FE] Voice channel row: connected-user sub-rows (avatar, name, speaking ring, mute/deaf/server-mute icons, camera, LIVE badge), user limit "n/m", voice status text, stream preview on hover
 - [ ] **LNG-CHN-011** [FE] Events row at top (count, opens events modal)
 - [ ] **LNG-CHN-012** [FE] "Unread mentions" / "New unreads" floating jump pills (top/bottom)
-- [ ] **LNG-CHN-013** [FE] Channel context menu: Mark As Read, Copy Link, Mute Channel ▸, Notification Settings ▸, Edit Channel, Duplicate Channel, Create Text/Voice Channel, Delete Channel, Copy Channel ID, Invite People
-- [ ] **LNG-CHN-014** [FE] Category context menu: Mark As Read, Collapse, Collapse All, Mute Category, Notification Settings, Edit Category, Delete Category, Copy ID
-- [ ] **LNG-CHN-015** [FE] Create Channel modal: type radio (Text, Voice, Forum, Announcement, Stage, Media, Watch Party) with descriptions, name input (auto-slug for text), Private Channel toggle → member/role picker step
-- [ ] **LNG-CHN-016** [FE] Create Category modal (name, private toggle)
+- [x] **LNG-CHN-013** [FE] Channel context menu: Mark As Read, Copy Link, Mute Channel ▸, Notification Settings ▸, Edit Channel, Duplicate Channel, Create Text/Voice Channel, Delete Channel, Copy Channel ID, Invite People
+- [x] **LNG-CHN-014** [FE] Category context menu: Mark As Read, Collapse, Collapse All, Mute Category, Notification Settings, Edit Category, Delete Category, Copy ID
+- [x] **LNG-CHN-015** [FE] Create Channel modal: type radio (Text, Voice, Forum, Announcement, Stage, Media, Watch Party) with descriptions, name input (auto-slug for text), Private Channel toggle → member/role picker step *(no Watch Party type yet)*
+- [x] **LNG-CHN-016** [FE] Create Category modal (name, private toggle)
 - [ ] **LNG-CHN-017** [FE] Edit Channel settings: Overview (name, topic, slowmode, age-restricted, announcement toggle, hide after inactivity, default thread archive, voice: bitrate, video quality, user limit, region), Permissions (simple private toggle + advanced roles/members overwrite matrix with ✓/✕/⧸ tri-state per permission, search, "sync with category"), Invites, Integrations (webhooks, followed), Features (feature modules channel scope), Delete Channel
 - [ ] **LNG-CHN-018** [FE] Channel header: icon + name, topic (click → topic modal), thread list icon, notification bell menu, pins popout, member list toggle, search, inbox, help
 - [ ] **LNG-CHN-019** [FE] Channel welcome header ("Welcome to #channel! This is the start of the #channel channel." + Edit Channel)
@@ -90,6 +90,6 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 - [ ] **LNG-INV-004** [BE] Vanity URL (free) + invite splash
 - [ ] **LNG-INV-005** [BE] Temporary membership removal on disconnect without roles
 - [ ] **LNG-INV-006** [GW] INVITE_CREATE/DELETE
-- [ ] **LNG-INV-007** [FE] Invite modal: friend list with "Invite" buttons + search, link field with Copy, "Edit invite link" (expire after, max uses, temporary), default single-use for copy
+- [x] **LNG-INV-007** [FE] Invite modal: friend list with "Invite" buttons + search, link field with Copy, "Edit invite link" (expire after, max uses, temporary), default single-use for copy *(no temporary-membership toggle yet; the link default is single use per D-022)*
 - [ ] **LNG-INV-008** [FE] Invite embed in chat (server card with Join/Joined, expired state)
 - [ ] **LNG-INV-009** [FE] `/invite/:code` page (logged-out: only "Log in to accept"; logged-in: Accept)

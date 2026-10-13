@@ -77,6 +77,13 @@ describe("computePosition", () => {
     expect(r2.side).toBe("bottom");
   });
 
+  it("pins a tall float inside the viewport when neither side has room", () => {
+    const tall = { width: 200, height: 500 };
+    const r = computePosition({ x: 100, y: 400, width: 1, height: 1 }, tall, vp, { placement: "bottom-start", offset: 0 });
+    expect(r.y + tall.height).toBeLessThanOrEqual(vp.height - 8);
+    expect(r.y).toBeGreaterThanOrEqual(8);
+  });
+
   it("shifts along the cross axis to stay on screen", () => {
     const left = computePosition({ x: 0, y: 100, width: 20, height: 20 }, float, vp, { placement: "bottom", padding: 8 });
     expect(left.x).toBe(8);
