@@ -80,7 +80,7 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 ## FND-OBS — Observability
 - [x] **FND-OBS-001** [BE] tracing JSON logs, span per request/gateway session/job
 - [x] **FND-OBS-002** [BE] Prometheus metrics registry + standard metrics (HTTP, DB pool, gateway sessions, jobs)
-- [ ] **FND-OBS-003** [OPS] Optional Prometheus + Grafana compose profile + dashboards
+- [x] **FND-OBS-003** [OPS] Optional Prometheus + Grafana compose profile + dashboards
 
 ## FND-CLI — `sr-cli`
 - [x] **FND-CLI-001** [BE] `migrate`, `bootstrap` (Owner, Staff Server with the default staff roles, system user, one-time login link); `staff ensure-roles` re-runs the role step idempotently
