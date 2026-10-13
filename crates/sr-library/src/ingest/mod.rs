@@ -2,7 +2,7 @@
 //!
 //! * [`image`]: decode a page and produce a WebP original, sized variants,
 //!   dimensions, a blurhash and spread detection (LIB-ING-001).
-//! * [`archive`]: a hardened ZIP/CBZ reader with natural page order and junk
+//! * [`archive`]: a hardened ZIP/CBZ, 7z/CB7 and RAR/CBR reader with natural page order and junk
 //!   filtering (LIB-ING-002).
 //! * [`comicinfo`] and [`series_json`]: metadata files (LIB-ING-003, LIB-ING-006).
 //! * [`pipeline`]: archive in, uploaded pages out.
@@ -23,7 +23,7 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum IngestError {
-    /// Not a readable ZIP.
+    /// Not a readable archive (ZIP, 7z or RAR).
     #[error("unreadable archive: {0}")]
     Archive(String),
     #[error("archive exceeds the size budget: {0}")]
@@ -40,6 +40,13 @@ pub enum IngestError {
     UnsafePath(String),
     #[error("entry {0:?} is encrypted")]
     Encrypted(String),
+    /// A format that is refused on purpose: AVIF pages (D-169) or RAR when the operator
+    /// switched it off. `files` names the offending entries, when there are any.
+    #[error("unsupported format: {what}{}", list_files(.files))]
+    UnsupportedFormat {
+        what: &'static str,
+        files: Vec<String>,
+    },
     #[error("the archive contains no readable pages")]
     NoPages,
     #[error("page {page:?}: {source}")]
@@ -52,6 +59,21 @@ pub enum IngestError {
     Metadata(String),
     #[error("storage: {0}")]
     Storage(String),
+}
+
+/// `": a.avif, b.avif"` (at most ten names), or nothing when there are none.
+fn list_files(files: &[String]) -> String {
+    if files.is_empty() {
+        return String::new();
+    }
+    let shown: Vec<&str> = files.iter().take(10).map(String::as_str).collect();
+    let more = files.len().saturating_sub(10);
+    let tail = if more > 0 {
+        format!(" and {more} more")
+    } else {
+        String::new()
+    };
+    format!(": {}{tail}", shown.join(", "))
 }
 
 /// Compare file names the way people read them: case-insensitively, with digit runs
