@@ -68,8 +68,8 @@ fn vis_parse(s: &str) -> RepoResult<Visibility> {
     })
 }
 
-pub(crate) const GUILD_COLS: &str = "id, name, description, icon_key, owner_id, is_staff_guild, \
-    system_channel_id, verification_level, default_message_notifications, \
+pub(crate) const GUILD_COLS: &str = "id, name, description, icon_key, banner_key, splash_key, \
+    owner_id, is_staff_guild, system_channel_id, verification_level, default_message_notifications, \
     explicit_content_filter, preferred_locale";
 
 pub(crate) fn guild_from(r: &PgRow) -> Result<Guild, sqlx::Error> {
@@ -78,6 +78,8 @@ pub(crate) fn guild_from(r: &PgRow) -> Result<Guild, sqlx::Error> {
         name: r.try_get("name")?,
         description: r.try_get("description")?,
         icon_key: r.try_get("icon_key")?,
+        banner_key: r.try_get("banner_key")?,
+        splash_key: r.try_get("splash_key")?,
         owner_id: UserId::new(u(r.try_get("owner_id")?)),
         is_staff_guild: r.try_get("is_staff_guild")?,
         system_channel_id: r

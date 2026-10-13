@@ -39,8 +39,10 @@ pub struct CurrentUser {
     /// Same as `global_name` (SIDE ROOM name for the field).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>,
-    /// Avatar hash; always null until avatars land.
+    /// Avatar hash; the image is at `/cdn/avatars/{id}/{hash}.png`.
     pub avatar: Option<String>,
+    /// Profile banner hash, served like the avatar.
+    pub banner: Option<String>,
     /// Always `"0"` (no discriminators).
     pub discriminator: String,
     /// True for bot callers.
@@ -129,6 +131,7 @@ pub async fn openapi_json(State(state): State<AppState>) -> Json<utoipa::openapi
 pub async fn current_user(
     p: crate::auth::Principal,
     crate::routes::MaybeExt(auth): crate::routes::MaybeExt<crate::routes::auth::AuthService>,
+    crate::routes::MaybeExt(social): crate::routes::MaybeExt<crate::routes::social::SocialDeps>,
 ) -> Result<Json<CurrentUser>, crate::HttpError> {
     let mut me = CurrentUser {
         id: p.user_id.to_string(),
@@ -142,6 +145,7 @@ pub async fn current_user(
         global_name: None,
         display_name: None,
         avatar: None,
+        banner: None,
         discriminator: "0".to_owned(),
         bot: matches!(p.kind, crate::AuthKind::Bot { .. }),
         verified: None,
@@ -150,6 +154,14 @@ pub async fn current_user(
         flags: None,
         locale: None,
     };
+    if let Some(social) = social
+        && let Ok(u) = social
+            .user_object(sr_core::UserId::new(u64::try_from(p.user_id).unwrap_or(0)))
+            .await
+    {
+        me.avatar = u.avatar;
+        me.banner = u.banner;
+    }
     // Only a session is backed by an account row; the email is the caller's own.
     if matches!(p.kind, crate::AuthKind::Session { .. })
         && let Some(auth) = auth

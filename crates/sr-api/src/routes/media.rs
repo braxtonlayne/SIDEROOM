@@ -100,8 +100,10 @@ impl MediaDeps {
             return;
         }
         let key = media::object_key(kind, owner, hash);
-        // `list` is by prefix: the object itself plus `<key>@<size>.<ext>`.
-        match self.storage.list(&key).await {
+        // `list` works on whole path segments, so list the owner "directory" and
+        // match the object itself plus its `<key>@<size>.<ext>` variants.
+        let dir = format!("{}/{owner}", kind.namespace());
+        match self.storage.list(&dir).await {
             Ok(objects) => {
                 for o in objects {
                     if o.key == key || o.key.starts_with(&format!("{key}@")) {

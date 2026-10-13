@@ -10,7 +10,12 @@ use crate::routes::Ext;
 use crate::routes::guilds::dto::UserRef;
 use crate::routes::messages::error::ApiJson;
 use crate::{HttpError, Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
-use axum::{Json, Router, extract::Path, http::StatusCode, routing::get};
+use axum::{
+    Json, Router,
+    extract::{Path, Query, State},
+    http::StatusCode,
+    routing::get,
+};
 use bytes::Bytes;
 use data_encoding::BASE64;
 use serde::{Deserialize, Serialize};
@@ -23,6 +28,11 @@ use utoipa::ToSchema;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
+        .route("/guilds/{guild_id}/emojis/{emoji_id}/url", get(emoji_url))
+        .route(
+            "/guilds/{guild_id}/stickers/{sticker_id}/url",
+            get(sticker_url),
+        )
         .route(
             "/guilds/{guild_id}/emojis",
             get(list_emojis).post(create_emoji),
@@ -753,4 +763,152 @@ mod tests {
         assert!(decode_data_uri("image", "data:image/png,abc").is_err());
         assert!(decode_data_uri("image", "data:image/png;base64,***").is_err());
     }
+}
+
+// ---- signed image URLs -----------------------------------------------------------
+
+/// Query of the emoji and sticker `url` endpoints.
+#[derive(Debug, Default, Deserialize)]
+pub struct UrlQuery {
+    /// Longest edge: a power of two from 16 to 4096.
+    pub size: Option<u32>,
+    /// `png`, `jpg`, `webp` or `gif`; omitted follows the source and `Accept`.
+    pub format: Option<String>,
+}
+
+/// A short-lived signed CDN URL.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct SignedUrlObject {
+    /// Relative to the public origin: `/cdn/...?size=..&ex=..&sig=..`.
+    pub url: String,
+    /// Unix seconds.
+    pub expires_at: u64,
+}
+
+/// Lifetime of minted emoji and sticker URLs.
+const URL_TTL_SECS: u64 = 3600;
+
+fn signed_media_url(
+    state: &AppState,
+    cdn: &crate::routes::cdn::CdnDeps,
+    media_key: &str,
+    q: &UrlQuery,
+) -> ApiResult<SignedUrlObject> {
+    if let Some(s) = q.size
+        && !sr_storage::img::valid_size(s)
+    {
+        return Err(invalid(
+            "size",
+            "NUMBER_TYPE_BAD_VALUE",
+            "Must be a power of two between 16 and 4096.",
+        ));
+    }
+    let format = match q.format.as_deref() {
+        None => None,
+        Some(f) => Some(
+            sr_storage::img::ImgFormat::from_name(f)
+                .ok_or_else(|| {
+                    invalid(
+                        "format",
+                        "ENUM_TYPE_BAD_VALUE",
+                        "Must be png, jpg, webp or gif.",
+                    )
+                })?
+                .ext(),
+        ),
+    };
+    // Object keys are `emoji/<guild>/<id>.<ext>` and `sticker/<guild>/<id>.<ext>`.
+    let (prefix, rest) = media_key.split_once('/').ok_or(ErrorCode::SrInternal)?;
+    let kind = match prefix {
+        "emoji" => "emoji",
+        "sticker" => "stickers",
+        _ => return Err(ErrorCode::SrInternal.into()),
+    };
+    let segs: Vec<&str> = rest.split('/').collect();
+    let path = crate::routes::cdn::cdn_path(kind, &segs);
+    // Lottie JSON is not an image: no resize parameters.
+    let is_image = !media_key.ends_with(".json");
+    let (size, format) = if is_image {
+        (q.size, format)
+    } else {
+        (None, None)
+    };
+    let expires_at = u64::try_from(state.now_secs()).unwrap_or(0) + URL_TTL_SECS;
+    Ok(SignedUrlObject {
+        url: cdn
+            .signer
+            .signed_variant_url(&path, size, format, expires_at),
+        expires_at,
+    })
+}
+
+/// Mint a short-lived signed CDN URL for an emoji image (any member). Emoji
+/// objects carry no URL, so clients ask here and may request `size`/`format`.
+#[utoipa::path(
+    get,
+    path = "/guilds/{guild_id}/emojis/{emoji_id}/url",
+    params(
+        ("guild_id" = String, Path, description = "Guild snowflake"),
+        ("emoji_id" = String, Path, description = "Emoji snowflake"),
+        ("size" = Option<u32>, Query, description = "Power of two, 16 to 4096"),
+        ("format" = Option<String>, Query, description = "png, jpg, webp or gif"),
+    ),
+    responses((status = 200, body = SignedUrlObject), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn emoji_url(
+    p: Principal,
+    State(state): State<AppState>,
+    Ext(deps): Ext<SettingsDeps>,
+    Ext(cdn): Ext<crate::routes::cdn::CdnDeps>,
+    Path((guild_id, emoji_id)): Path<(String, String)>,
+    Query(q): Query<UrlQuery>,
+) -> ApiResult<Json<SignedUrlObject>> {
+    let user = actor(&p)?;
+    let gid: GuildId = id("guild_id", &guild_id)?;
+    let eid: EmojiId = id("emoji_id", &emoji_id)?;
+    deps.guild_access(user, gid).await?;
+    let e = deps
+        .service
+        .repo()
+        .get_emoji(gid, eid)
+        .await
+        .map_err(re)?
+        .ok_or(ErrorCode::UnknownEmoji)?;
+    Ok(Json(signed_media_url(&state, &cdn, &e.media_key, &q)?))
+}
+
+/// Mint a short-lived signed CDN URL for a sticker image (any member).
+#[utoipa::path(
+    get,
+    path = "/guilds/{guild_id}/stickers/{sticker_id}/url",
+    params(
+        ("guild_id" = String, Path, description = "Guild snowflake"),
+        ("sticker_id" = String, Path, description = "Sticker snowflake"),
+        ("size" = Option<u32>, Query, description = "Power of two, 16 to 4096"),
+        ("format" = Option<String>, Query, description = "png, jpg, webp or gif"),
+    ),
+    responses((status = 200, body = SignedUrlObject), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn sticker_url(
+    p: Principal,
+    State(state): State<AppState>,
+    Ext(deps): Ext<SettingsDeps>,
+    Ext(cdn): Ext<crate::routes::cdn::CdnDeps>,
+    Path((guild_id, sticker_id)): Path<(String, String)>,
+    Query(q): Query<UrlQuery>,
+) -> ApiResult<Json<SignedUrlObject>> {
+    let user = actor(&p)?;
+    let gid: GuildId = id("guild_id", &guild_id)?;
+    let sid: StickerId = id("sticker_id", &sticker_id)?;
+    deps.guild_access(user, gid).await?;
+    let s = deps
+        .service
+        .repo()
+        .get_sticker(gid, sid)
+        .await
+        .map_err(re)?
+        .ok_or(ErrorCode::UnknownEmoji)?;
+    Ok(Json(signed_media_url(&state, &cdn, &s.media_key, &q)?))
 }

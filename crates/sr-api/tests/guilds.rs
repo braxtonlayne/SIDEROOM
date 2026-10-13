@@ -32,6 +32,7 @@ struct Fx {
     app: Router,
     repo: MemoryRepo,
     bus: Arc<InProcessBus>,
+    storage: Arc<sr_storage::ObjectStoreStorage>,
 }
 
 fn fixture() -> Fx {
@@ -81,10 +82,14 @@ fn fixture_with(audit: Option<Arc<dyn guilds::backend::AuditSink>>) -> Fx {
         },
         ..ApiSettings::default()
     };
+    let storage = Arc::new(sr_storage::ObjectStoreStorage::in_memory());
     let mut doc = openapi::base();
     doc.merge(guilds::openapi());
     let state = AppState::builder()
         .extension(Arc::new(guilds::GuildApi(backend)))
+        .extension(Arc::new(sr_api::routes::media::MediaDeps::new(
+            storage.clone(),
+        )))
         .bots(bots)
         .bearers(bearers)
         .clock(clock)
@@ -95,6 +100,7 @@ fn fixture_with(audit: Option<Arc<dyn guilds::backend::AuditSink>>) -> Fx {
         app: build_router(state, guilds::router()),
         repo,
         bus,
+        storage,
     }
 }
 
@@ -904,4 +910,108 @@ async fn guild_mutations_are_audited_and_role_creation_announces_shifted_roles()
     );
     assert_eq!(log[2].1, Some(2));
     assert_eq!(log[2].2.as_deref(), Some("spam"));
+}
+
+fn png_uri(w: u32, h: u32, seed: u8) -> String {
+    let img = image::RgbaImage::from_fn(w, h, |x, y| {
+        image::Rgba([(x % 255) as u8, (y % 255) as u8, seed, 255])
+    });
+    let mut out = Vec::new();
+    image::DynamicImage::ImageRgba8(img)
+        .write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
+        .unwrap();
+    format!(
+        "data:image/png;base64,{}",
+        data_encoding::BASE64.encode(&out)
+    )
+}
+
+#[tokio::test]
+async fn guild_icon_banner_splash_upload_replace_remove() {
+    let f = fixture();
+    let (gid, created) = guild(&f).await;
+    assert!(
+        created["icon"].is_null() && created["banner"].is_null() && created["splash"].is_null()
+    );
+    let mut events = f
+        .bus
+        .subscribe(Topic::Guild(GuildId::new(gid.parse().unwrap())));
+
+    let (s, g) = patch(
+        &f,
+        &format!("/guilds/{gid}"),
+        "owner",
+        json!({ "icon": png_uri(120, 80, 1), "banner": png_uri(300, 100, 2), "splash": png_uri(64, 64, 3) }),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{g}");
+    let (icon, banner, splash) = (
+        g["icon"].as_str().unwrap().to_owned(),
+        g["banner"].as_str().unwrap().to_owned(),
+        g["splash"].as_str().unwrap().to_owned(),
+    );
+    for h in [&icon, &banner, &splash] {
+        assert!(sr_storage::media::is_valid_hash(h));
+        assert!(
+            sr_storage::ObjectStorage::head(&*f.storage, &format!("icons/{gid}/{h}"))
+                .await
+                .is_ok()
+        );
+    }
+    // Same source, different kinds: separate objects.
+    assert_ne!(icon, banner);
+    // The icon is a centred square.
+    let bytes = sr_storage::ObjectStorage::get(&*f.storage, &format!("icons/{gid}/{icon}"))
+        .await
+        .unwrap();
+    let dims = image::ImageReader::new(std::io::Cursor::new(&bytes))
+        .with_guessed_format()
+        .unwrap()
+        .into_dimensions()
+        .unwrap();
+    assert_eq!(dims, (80, 80));
+    // Members see the hashes on GET, and GUILD_UPDATE carries them.
+    let (_, g) = get(&f, &format!("/guilds/{gid}"), "bob").await;
+    assert_eq!(g["icon"], icon.as_str());
+    let ev = next_event(&mut events).await.expect("GUILD_UPDATE");
+    assert!(format!("{ev:?}").contains(&icon));
+
+    // Replace the icon, remove the banner, leave the splash.
+    let (s, g) = patch(
+        &f,
+        &format!("/guilds/{gid}"),
+        "owner",
+        json!({ "icon": png_uri(40, 40, 9), "banner": null }),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{g}");
+    assert_ne!(g["icon"], icon.as_str());
+    assert!(g["banner"].is_null());
+    assert_eq!(g["splash"], splash.as_str());
+    let head = |h: &str| {
+        let key = format!("icons/{gid}/{h}");
+        let st = f.storage.clone();
+        async move { sr_storage::ObjectStorage::head(&*st, &key).await.is_ok() }
+    };
+    assert!(!head(&icon).await && !head(&banner).await && head(&splash).await);
+
+    // Bad uploads and missing permission change nothing.
+    let (s, _) = patch(
+        &f,
+        &format!("/guilds/{gid}"),
+        "owner",
+        json!({ "icon": "data:text/html;base64,PGI+" }),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let before = f.storage.list("icons/").await.unwrap().len();
+    let (s, _) = patch(
+        &f,
+        &format!("/guilds/{gid}"),
+        "bob",
+        json!({ "icon": png_uri(32, 32, 5) }),
+    )
+    .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    assert_eq!(f.storage.list("icons/").await.unwrap().len(), before);
 }

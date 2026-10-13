@@ -116,7 +116,11 @@ async fn render_profile(
         mutual_friends_count,
         mutual_guilds,
         friends_since,
-        user: deps.user_object(user).await?,
+        user: UserObject {
+            avatar: profile.avatar_key.clone(),
+            banner: profile.banner_key.clone(),
+            ..deps.user_object(user).await?
+        },
         user_profile: UserProfileFields::from(&profile),
         connected_accounts: profile
             .connections
@@ -258,7 +262,11 @@ pub async fn edit_self(
         None => deps.service.presence(me).await?,
     };
     let out = SelfObject {
-        user: deps.user_object(me).await?,
+        user: UserObject {
+            avatar: profile.avatar_key.clone(),
+            banner: profile.banner_key.clone(),
+            ..deps.user_object(me).await?
+        },
         bio: profile.bio.clone(),
         pronouns: profile.pronouns.clone(),
         banner: profile.banner_key.clone(),

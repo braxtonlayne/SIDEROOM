@@ -162,6 +162,8 @@ pub(crate) mod fixtures {
             name: "Test".into(),
             description: None,
             icon_key: None,
+            banner_key: None,
+            splash_key: None,
             owner_id: UserId::new(OWNER),
             is_staff_guild: false,
             system_channel_id: None,
