@@ -330,6 +330,9 @@ async fn stickers_forwards_and_voice_metadata_round_trip() {
         created_at_ms: clock.now_unix_ms(),
         duration_ms: None,
         waveform: None,
+        width: None,
+        height: None,
+        blurhash: None,
     };
     store.insert_attachment(&att).await.unwrap();
     att.duration_ms = Some(4500);

@@ -150,6 +150,9 @@ async fn update_attachment_persists_the_new_size() {
         created_at_ms: clock.now_unix_ms(),
         duration_ms: None,
         waveform: None,
+        width: Some(640),
+        height: Some(480),
+        blurhash: Some("LEHV6nWB2yk8pyo0adR*.7kCMdnj".into()),
     };
     store.insert_attachment(&att).await.unwrap();
 
@@ -163,4 +166,10 @@ async fn update_attachment_persists_the_new_size() {
     assert_eq!(got[0].size, 400, "the stripped size must be stored");
     assert_eq!(got[0].content_type.as_deref(), Some("image/jpeg"));
     assert_eq!(got[0].state, UploadState::Ready);
+    // The client-declared picture size and BlurHash survive the update.
+    assert_eq!((got[0].width, got[0].height), (Some(640), Some(480)));
+    assert_eq!(
+        got[0].blurhash.as_deref(),
+        Some("LEHV6nWB2yk8pyo0adR*.7kCMdnj")
+    );
 }

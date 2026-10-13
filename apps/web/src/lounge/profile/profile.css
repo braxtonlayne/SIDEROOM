@@ -1,0 +1,133 @@
+/* Profile popout and full profile (LNG-SHL-012) */
+.lng-pop {
+  z-index: 60;
+  width: 340px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background: var(--bg-surface-overlay);
+  color: var(--text-normal);
+  box-shadow: var(--ui-shadow-overlay);
+}
+.lng-pop:focus {
+  outline: none;
+}
+.lng-pop-banner {
+  height: 60px;
+  background: var(--brand);
+  background-position: center;
+  background-size: cover;
+}
+.lng-pop-head {
+  margin: -40px 0 0 16px;
+  width: 80px;
+}
+.lng-pop-head > span {
+  border: 6px solid var(--bg-surface-overlay);
+  box-sizing: content-box;
+  margin: -6px;
+}
+.lng-pop-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px 16px;
+}
+.lng-pop-name {
+  margin: 0;
+  font-size: 20px;
+}
+.lng-pop-handle,
+.lng-pop-activity {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+.lng-pop-h {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.lng-pop-bio {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.lng-pop-roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lng-pop-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  background: var(--bg-base-lower);
+  color: var(--text-normal);
+  font-size: 12px;
+}
+.lng-pop-role-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+.lng-pop-role-x,
+.lng-pop-role-add {
+  cursor: pointer;
+}
+.lng-pop-role-x {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+}
+.lng-pop-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  background: var(--bg-base-lowest);
+  color: var(--text-normal);
+}
+.lng-pop-full {
+  align-self: flex-start;
+}
+.lng-full {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 12px;
+}
+.lng-pop-list {
+  margin: 0;
+  padding-left: 18px;
+}
+.lng-avatar-btn,
+.lng-name-btn {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.lng-avatar-btn {
+  display: block;
+  border-radius: 50%;
+}
+.lng-name-btn:hover {
+  text-decoration: underline;
+}

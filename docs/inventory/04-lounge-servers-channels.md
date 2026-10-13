@@ -25,7 +25,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 - [x] **LNG-GLD-020** [FE] Server dropdown menu: Server Support, Invite to Server, Server Settings, Create Channel, Create Category, Create Event, App Directory, Notification Settings, Privacy Settings, Edit Per-server Profile, Hide Muted Channels (checkbox), Copy Server Info ▸ (ID, link), Security Actions (mods), Leave Server
 - [x] **LNG-GLD-021** [FE] Welcome/empty-server screen: "Welcome to <server>", intro line + Getting Started guide link, checklist cards (Invite your friends, Personalize your server with an icon, Send your first message, Add your first app, Support this server) with completion state *(three of the five cards; apps and support need their own features)*
 - [x] **LNG-GLD-022** [FE] Member list panel: role groups with counts, online/offline groups, owner crown, bot tag, activity line, virtualized lazy ranges
-- [ ] **LNG-GLD-023** [FE] Member context menu: Profile, Mention, Message, Call, Add Note, Change Nickname, Invite to Server ▸, Remove Friend, Ignore, Block, Apps ▸, Roles ▸ (checkbox list), Timeout ▸, Kick, Ban, Transfer Ownership, Copy User ID
+- [x] **LNG-GLD-023** [FE] Member context menu: Profile, Mention, Message, Call, Add Note, Change Nickname, Invite to Server ▸, Remove Friend, Ignore, Block, Apps ▸, Roles ▸ (checkbox list), Timeout ▸, Kick, Ban, Transfer Ownership, Copy User ID *Call and Apps are not in the menu: there is no voice and no installed apps yet. Transfer Ownership is offered to the owner only.*
 - [x] **LNG-GLD-024** [FE] Timeout modal (durations, reason), Kick modal (reason), Ban modal (delete history window, reason)
 - [ ] **LNG-GLD-025** [FE] Privacy Settings modal per server (allow DMs, message requests, activity status, joined-server visibility)
 - [ ] **LNG-GLD-026** [FE] Edit Per-server Profile modal
@@ -55,12 +55,12 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 - [x] **LNG-CHN-014** [FE] Category context menu: Mark As Read, Collapse, Collapse All, Mute Category, Notification Settings, Edit Category, Delete Category, Copy ID
 - [x] **LNG-CHN-015** [FE] Create Channel modal: type radio (Text, Voice, Forum, Announcement, Stage, Media, Watch Party) with descriptions, name input (auto-slug for text), Private Channel toggle → member/role picker step *(no Watch Party type yet)*
 - [x] **LNG-CHN-016** [FE] Create Category modal (name, private toggle)
-- [ ] **LNG-CHN-017** [FE] Edit Channel settings: Overview (name, topic, slowmode, age-restricted, announcement toggle, hide after inactivity, default thread archive, voice: bitrate, video quality, user limit, region), Permissions (simple private toggle + advanced roles/members overwrite matrix with ✓/✕/⧸ tri-state per permission, search, "sync with category"), Invites, Integrations (webhooks, followed), Features (feature modules channel scope), Delete Channel
+- [ ] **LNG-CHN-017** [FE] Edit Channel settings: Overview (name, topic, slowmode, age-restricted, announcement toggle, hide after inactivity, default thread archive, voice: bitrate, video quality, user limit, region), Permissions (simple private toggle + advanced roles/members overwrite matrix with ✓/✕/⧸ tri-state per permission, search, "sync with category"), Invites, Integrations (webhooks, followed), Features (feature modules channel scope), Delete Channel *Partial: Invites, Integrations (channel webhooks) and Features (thread defaults) tabs are built. Still open: the announcement toggle (the API cannot change a channel's type), voice settings, per-channel feature-module switches (only /admin/features exists) and followed channels.*
 - [ ] **LNG-CHN-018** [FE] Channel header: icon + name, topic (click → topic modal), thread list icon, notification bell menu, pins popout, member list toggle, search, inbox, help
 - [ ] **LNG-CHN-019** [FE] Channel welcome header ("Welcome to #channel! This is the start of the #channel channel." + Edit Channel)
 - [ ] **LNG-CHN-020** [FE] Pins popout (list, jump, unpin)
 - [ ] **LNG-CHN-021** [FE] Read-only/announcement composer state + "Follow" button
-- [ ] **LNG-CHN-022** [FE] Age-gate interstitial for restricted channels
+- [x] **LNG-CHN-022** [FE] Age-gate interstitial for restricted channels *The answer is saved with POST /sr/age-gate and remembered per device (no call reads it back); the server does not block restricted channels itself.*
 - [x] **LNG-CHN-023** [FE] Hide Muted Channels behavior
 - [ ] **LNG-CHN-024** [FE] Rules channel + Updates channel badges (Community)
 
@@ -68,11 +68,11 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 - [x] **LNG-THR-001** [BE] Start thread from message / without message, private threads, join/leave, add/remove member, archive/lock/unarchive, auto-archive job
 - [x] **LNG-THR-002** [BE] Active/archived (public/private/joined) listings with pagination
 - [x] **LNG-THR-003** [GW] THREAD_CREATE/UPDATE/DELETE/LIST_SYNC/MEMBER_UPDATE/MEMBERS_UPDATE
-- [ ] **LNG-THR-004** [FE] Threads list popout (Joined / Active / Archived, search)
-- [ ] **LNG-THR-005** [FE] Thread side pane (header, members, notification menu, close, open full view)
-- [ ] **LNG-THR-006** [FE] Thread starter row under message ("N Messages ›" + last message preview)
+- [ ] **LNG-THR-004** [FE] Threads list popout (Joined / Active / Archived, search) *Partial: Active and Archived lists with Load more are built (header Threads button). Joined filter and search are not.*
+- [ ] **LNG-THR-005** [FE] Thread side pane (header, members, notification menu, close, open full view) *Partial: Side pane with name, Follow/Following, close, messages and composer is built. Members list, notification menu and open-full-view are not.*
+- [x] **LNG-THR-006** [FE] Thread starter row under message ("N Messages ›" + last message preview) *Shows the thread name and message count; no last-message preview yet.*
 - [ ] **LNG-THR-007** [FE] Threads nested in channel list (joined/active)
-- [ ] **LNG-THR-008** [FE] Create Thread composer (name, private toggle, archive duration)
+- [ ] **LNG-THR-008** [FE] Create Thread composer (name, private toggle, archive duration) *Partial: Create Thread dialog (from a message, or standalone from the plus menu and /thread) takes a name and archive duration. The private-thread toggle is not built.*
 - [ ] **LNG-THR-009** [FE] Thread settings (name, slowmode, archive duration, lock, delete)
 
 ## LNG-FRM — Forum & media channels

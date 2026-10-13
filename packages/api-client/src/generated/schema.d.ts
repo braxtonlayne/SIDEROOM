@@ -3302,6 +3302,8 @@ export interface components {
             userHandle?: string | null;
         };
         AttachmentObject: {
+            /** @description BlurHash placeholder to show until the image loads. */
+            blurhash?: string | null;
             content_type?: string | null;
             description?: string | null;
             /**
@@ -3312,6 +3314,8 @@ export interface components {
             /** @description Set when the attachment is a large file that will expire. */
             expires_at?: string | null;
             filename: string;
+            /** Format: int32 */
+            height?: number | null;
             id: string;
             /** Format: int64 */
             size: number;
@@ -3319,6 +3323,11 @@ export interface components {
             url: string;
             /** @description Voice messages: base64 waveform. */
             waveform?: string | null;
+            /**
+             * Format: int32
+             * @description Pixel size, as declared by the uploader.
+             */
+            width?: number | null;
         };
         /** @description An uploaded file referenced by a new message. */
         AttachmentRef: {
@@ -3967,15 +3976,24 @@ export interface components {
             settings: Record<string, never>;
         };
         FileSpec: {
+            /** @description Images: BlurHash of the picture, shown until it loads. */
+            blurhash?: string | null;
             /** @description What the client believes the type is; verified by sniffing at completion. */
             content_type?: string | null;
             description?: string | null;
             /** Format: int64 */
             file_size: number;
             filename: string;
+            /** Format: int32 */
+            height?: number | null;
             /** @description Client-chosen id, echoed back. */
             id?: string | null;
             spoiler?: boolean | null;
+            /**
+             * Format: int32
+             * @description Images and videos: pixel size (1 to 16384 each, both or neither).
+             */
+            width?: number | null;
         };
         /** @description A followed series with the user's shelf. */
         Follow: {

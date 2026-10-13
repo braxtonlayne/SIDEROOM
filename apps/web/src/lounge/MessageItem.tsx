@@ -8,20 +8,34 @@ import {
   Tooltip,
   type MenuEntry,
 } from '@sideroom/ui';
-import { memo, useMemo } from 'react';
+import { memo, useMemo, type CSSProperties } from 'react';
+import { useSavedPrefs } from '../settings/user/prefs';
 import { EmojiPicker } from './components/EmojiPicker';
 import type { Message, Snowflake } from './data';
 import { isJumbo, parseMarkdown, useMarkdownReady } from './markdown';
 import { AttachmentList } from './msg/Attachments';
 import { ComponentRows } from './msg/Components';
 import { findInviteCode, InviteCard } from './msg/InviteCard';
+import { findMessageLinks, MessageLinkCard } from './msg/MessageLinkCard';
 import { EmbedList } from './msg/Embeds';
 import { ForwardedFrame } from './msg/Forwarded';
 import { InlineEdit } from './msg/InlineEdit';
 import { PollView } from './msg/Poll';
+import { ReactionRow } from './msg/Reactions';
+import { REMIND_CHOICES } from './shell/savedMessages';
 import { Sticker } from './msg/Sticker';
 import { isSystemMessage, SystemMessage } from './msg/SystemMessage';
 import { formatClock, formatFullTime, formatMessageTime } from './time';
+
+/** Name styling taken from the author's roles (LNG-MSGUI-002). */
+export interface NameDecor {
+  color?: string;
+  /** Second colour of a gradient role. */
+  secondary?: string;
+  /** Role icon emoji and the role it comes from. */
+  icon?: string;
+  iconName?: string;
+}
 
 /** How the reply preview line resolves its target. */
 export type ReplyState = 'loaded' | 'deleted' | 'unloaded';
@@ -34,6 +48,7 @@ export interface MessageItemProps {
   replyState?: ReplyState | undefined;
   /** CSS color of the author's highest colored role. */
   nameColor?: string | undefined;
+  nameDecor?: NameDecor | undefined;
   resolvers: Resolvers;
   isOwn: boolean;
   /** Undefined in DMs. */
@@ -60,6 +75,19 @@ export interface MessageItemProps {
   onEndPoll?: (m: Message) => void;
   onRetry?: (m: Message) => void;
   onDiscard?: (m: Message) => void;
+  /** Mark Unread from this message. */
+  onMarkUnread?: (m: Message) => void;
+  bookmarked?: boolean | undefined;
+  onBookmark?: (m: Message) => void;
+  /** Remind Me after `ms` milliseconds. */
+  onRemind?: (m: Message, ms: number) => void;
+  /** Start a thread from this message (hidden when the viewer cannot, or in a thread). */
+  onCreateThread?: (m: Message) => void;
+  onOpenThread?: (m: Message, threadId: Snowflake) => void;
+  /** Open the author's profile popout next to `anchor`. */
+  onOpenProfile?: (userId: Snowflake, anchor: HTMLElement) => void;
+  /** Jump to a message in another channel (the first row of a thread). */
+  onJumpToChannelMessage?: (channelId: Snowflake, messageId: Snowflake) => void;
 }
 
 const QUICK = ['👍', '😂', '🎉'];
@@ -87,6 +115,7 @@ function MessageBody({
   useMarkdownReady();
   const nodes = parseMarkdown(m.content);
   const inviteCode = useMemo(() => findInviteCode(m.content, location.origin), [m.content]);
+  const messageLinks = useMemo(() => findMessageLinks(m.content, location.origin), [m.content]);
   return (
     <>
       {m.content && (
@@ -111,7 +140,10 @@ function MessageBody({
         <EmbedList embeds={m.embeds} resolvers={resolvers} />
       )}
       {!m.suppressEmbeds && inviteCode && <InviteCard code={inviteCode} />}
-      {m.components && m.components.length > 0 && <ComponentRows rows={m.components} />}
+      {!m.suppressEmbeds && messageLinks.map((l) => <MessageLinkCard key={l.messageId} link={l} />)}
+      {m.components && m.components.length > 0 && (
+        <ComponentRows rows={m.components} guildId={guildId} />
+      )}
       {m.stickers?.map((s) => (
         <Sticker key={s.id} sticker={s} guildId={guildId} />
       ))}
@@ -129,13 +161,23 @@ function MessageBody({
   );
 }
 
+function authorStyle(color?: string, decor?: NameDecor): CSSProperties | undefined {
+  if (decor?.secondary && (decor.color ?? color)) {
+    return {
+      backgroundImage: `linear-gradient(90deg, ${decor.color ?? color}, ${decor.secondary})`,
+    };
+  }
+  return color ? { color } : undefined;
+}
+
 function MessageItemImpl(props: MessageItemProps) {
   const {
     message: m,
-    grouped,
+    grouped: groupedProp,
     replyTarget,
     replyState,
     nameColor,
+    nameDecor,
     isOwn,
     guildId,
     mentionsMe,
@@ -156,7 +198,18 @@ function MessageItemImpl(props: MessageItemProps) {
     onEndPoll,
     onRetry,
     onDiscard,
+    onMarkUnread,
+    bookmarked,
+    onBookmark,
+    onRemind,
+    onCreateThread,
+    onOpenThread,
+    onJumpToChannelMessage,
+    onOpenProfile,
   } = props;
+  const compact = useSavedPrefs().messageDisplay === 'compact';
+  // Compact mode puts the name and time on every line (no avatar), so nothing is grouped.
+  const grouped = groupedProp && !compact;
 
   const canDelete = !!onDelete && (isOwn || !!canManage) && !m.pending;
   const canPinHere = !!onPin && !!canPin && !m.pending;
@@ -174,6 +227,10 @@ function MessageItemImpl(props: MessageItemProps) {
     if (isOwn) entries.push({ label: 'Edit Message', onSelect: () => onEdit(m) });
     entries.push({ label: 'Reply', onSelect: () => onReply(m) });
     if (onForward) entries.push({ label: 'Forward', onSelect: () => onForward(m) });
+    if (m.thread && onOpenThread)
+      entries.push({ label: 'Open Thread', onSelect: () => onOpenThread(m, m.thread!.id) });
+    else if (onCreateThread && !m.pending)
+      entries.push({ label: 'Create Thread', onSelect: () => onCreateThread(m) });
     if (m.content) entries.push({ label: 'Copy Text', onSelect: () => copy(m.content) });
     if (m.reactions?.length && onViewReactions)
       entries.push({ label: 'View Reactions', onSelect: () => onViewReactions(m) });
@@ -187,10 +244,26 @@ function MessageItemImpl(props: MessageItemProps) {
           );
         },
       });
+    if (onMarkUnread && !m.pending)
+      entries.push({ label: 'Mark Unread', onSelect: () => onMarkUnread(m) });
     entries.push({
       label: 'Copy Message Link',
       onSelect: () => copy(messageLink(location.origin, guildId, m)),
     });
+    if (onBookmark && !m.pending)
+      entries.push({
+        label: bookmarked ? 'Remove Bookmark' : 'Bookmark Message',
+        onSelect: () => onBookmark(m),
+      });
+    if (onRemind && !m.pending)
+      entries.push({
+        type: 'submenu',
+        label: 'Remind Me',
+        items: REMIND_CHOICES.map((c) => ({
+          label: c.label,
+          onSelect: () => onRemind(m, c.ms),
+        })),
+      });
     if (canPinHere)
       entries.push({
         label: m.pinned ? 'Unpin Message' : 'Pin Message',
@@ -220,11 +293,24 @@ function MessageItemImpl(props: MessageItemProps) {
     onViewReactions,
     onPin,
     onDelete,
+    onMarkUnread,
+    bookmarked,
+    onBookmark,
+    onRemind,
+    onCreateThread,
+    onOpenThread,
   ]);
 
   if (isSystemMessage(m)) {
     return (
-      <SystemMessage message={m} referenceId={m.replyToId} {...(onJumpTo ? { onJumpTo } : {})} />
+      <SystemMessage
+        message={m}
+        referenceId={m.replyToId}
+        referenceChannelId={m.referenceChannelId}
+        {...(onJumpTo ? { onJumpTo } : {})}
+        {...(onOpenThread ? { onOpenThread: (id: Snowflake) => onOpenThread(m, id) } : {})}
+        onJumpToChannelMessage={onJumpToChannelMessage}
+      />
     );
   }
 
@@ -278,6 +364,18 @@ function MessageItemImpl(props: MessageItemProps) {
           </button>
         </Tooltip>
       )}
+      {onCreateThread && !m.thread && (
+        <Tooltip content="Create Thread">
+          <button
+            type="button"
+            className="lng-icon-btn"
+            aria-label="Create Thread"
+            onClick={() => onCreateThread(m)}
+          >
+            <Icon name="list" size={20} />
+          </button>
+        </Tooltip>
+      )}
       {isOwn && (
         <Tooltip content="Edit">
           <button
@@ -325,6 +423,7 @@ function MessageItemImpl(props: MessageItemProps) {
         data-mention={mentionsMe || undefined}
         data-pinned={m.pinned || undefined}
         data-editing={editing || undefined}
+        data-compact={compact || undefined}
         data-message-id={m.id}
         aria-label={`${m.author.displayName}, ${formatMessageTime(m.createdAt)}`}
       >
@@ -338,6 +437,14 @@ function MessageItemImpl(props: MessageItemProps) {
             <Icon name="reply" size={16} />
             {replyTarget ? (
               <>
+                <Avatar
+                  name={replyTarget.author.displayName}
+                  src={replyTarget.author.avatarUrl ?? null}
+                  size={24}
+                  className="lng-reply-avatar"
+                  style={{ width: 16, height: 16, fontSize: 8 }}
+                  aria-hidden="true"
+                />
                 <span className="lng-reply-name">@{replyTarget.author.displayName}</span>
                 <span className="lng-reply-text">
                   {replyTarget.content.slice(0, 120) || 'Click to see attachment'}
@@ -352,7 +459,7 @@ function MessageItemImpl(props: MessageItemProps) {
         )}
         <div className="lng-msg-main">
           <div className="lng-msg-gutter">
-            {grouped ? (
+            {grouped || compact ? (
               <time
                 className="lng-msg-hover-time"
                 dateTime={m.createdAt}
@@ -361,7 +468,21 @@ function MessageItemImpl(props: MessageItemProps) {
                 {formatClock(new Date(m.createdAt))}
               </time>
             ) : (
-              <Avatar name={m.author.displayName} src={m.author.avatarUrl ?? null} size={40} />
+              <button
+                type="button"
+                className="lng-avatar-btn"
+                aria-label={`Open profile of ${m.author.displayName}`}
+                aria-haspopup="dialog"
+                disabled={!onOpenProfile}
+                onClick={(e) => onOpenProfile?.(m.author.id, e.currentTarget)}
+              >
+                <Avatar
+                  name={m.author.displayName}
+                  src={m.author.avatarUrl ?? null}
+                  size={40}
+                  aria-hidden="true"
+                />
+              </button>
             )}
           </div>
           <div className="lng-msg-body">
@@ -369,19 +490,43 @@ function MessageItemImpl(props: MessageItemProps) {
               <header className="lng-msg-head">
                 <span
                   className="lng-msg-author"
-                  style={nameColor ? { color: nameColor } : undefined}
+                  data-gradient={nameDecor?.secondary ? '' : undefined}
+                  style={authorStyle(nameColor, nameDecor)}
                 >
-                  {m.author.displayName}
+                  {onOpenProfile ? (
+                    <button
+                      type="button"
+                      className="lng-name-btn"
+                      aria-haspopup="dialog"
+                      onClick={(e) => onOpenProfile(m.author.id, e.currentTarget)}
+                    >
+                      {m.author.displayName}
+                    </button>
+                  ) : (
+                    m.author.displayName
+                  )}
                 </span>
+                {nameDecor?.icon && (
+                  <span
+                    className="lng-role-icon"
+                    role="img"
+                    aria-label={`${nameDecor.iconName ?? 'Role'} icon`}
+                    title={nameDecor.iconName}
+                  >
+                    {nameDecor.icon}
+                  </span>
+                )}
                 {m.author.tag && <span className="lng-tag">{m.author.tag}</span>}
                 {m.author.bot && <span className="lng-bot">APP</span>}
-                <time
-                  className="lng-msg-time"
-                  dateTime={m.createdAt}
-                  title={formatFullTime(m.createdAt)}
-                >
-                  {formatMessageTime(m.createdAt)}
-                </time>
+                {!compact && (
+                  <time
+                    className="lng-msg-time"
+                    dateTime={m.createdAt}
+                    title={formatFullTime(m.createdAt)}
+                  >
+                    {formatMessageTime(m.createdAt)}
+                  </time>
+                )}
               </header>
             )}
             <div className="lng-msg-content">
@@ -423,29 +568,20 @@ function MessageItemImpl(props: MessageItemProps) {
                 )}
               </p>
             )}
-            {m.reactions && m.reactions.length > 0 && (
-              <div className="lng-reactions">
-                {m.reactions.map((r) => (
-                  <button
-                    key={r.emoji}
-                    type="button"
-                    className="lng-reaction"
-                    aria-pressed={r.me}
-                    aria-label={`${r.emoji} ${r.count} ${r.count === 1 ? 'reaction' : 'reactions'}${r.me ? ', including you' : ''}`}
-                    onClick={() => onReact(m, r.emoji)}
-                    onContextMenu={(e) => {
-                      if (!onViewReactions) return;
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onViewReactions(m, r.emoji);
-                    }}
-                  >
-                    <span aria-hidden="true">{r.emoji}</span>{' '}
-                    <span aria-hidden="true">{r.count}</span>
-                  </button>
-                ))}
-              </div>
+            {m.thread && onOpenThread && (
+              <button
+                type="button"
+                className="lng-thread-chip"
+                onClick={() => onOpenThread(m, m.thread!.id)}
+              >
+                <Icon name="list" size={16} />
+                <strong>{m.thread.name}</strong>
+                <span className="lng-muted">
+                  {m.thread.messageCount} {m.thread.messageCount === 1 ? 'message' : 'messages'}
+                </span>
+              </button>
             )}
+            <ReactionRow message={m} onReact={onReact} onViewReactions={onViewReactions} />
           </div>
         </div>
         {toolbar}

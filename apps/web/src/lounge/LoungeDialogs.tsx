@@ -14,6 +14,8 @@ import { MemberActionDialog } from './shell/MemberDialogs';
 import { NicknameDialog, NoteDialog } from './shell/UserDialogs';
 import { LeaveServerDialog } from './shell/LeaveServerDialog';
 import { NotificationDialog } from './shell/NotificationDialog';
+import { TransferOwnershipDialog } from './shell/TransferOwnershipDialog';
+import { CreateThreadDialog } from './threads/CreateThreadDialog';
 import { useLoungeUi } from './store';
 import './shell/shell.css';
 
@@ -71,6 +73,19 @@ export function LoungeDialogs() {
     case 'notifications':
       return (
         <NotificationDialog guildId={dialog.guildId} channelId={dialog.channelId} onClose={close} />
+      );
+    case 'transferOwnership':
+      return (
+        <TransferOwnershipDialog guildId={dialog.guildId} userId={dialog.userId} onClose={close} />
+      );
+    case 'createThread':
+      return (
+        <CreateThreadDialog
+          guildId={dialog.guildId}
+          channelId={dialog.channelId}
+          messageId={dialog.messageId}
+          onClose={close}
+        />
       );
   }
 }

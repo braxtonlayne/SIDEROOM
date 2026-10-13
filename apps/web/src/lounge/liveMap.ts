@@ -44,6 +44,8 @@ export const PERM = {
   MENTION_EVERYONE: 1n << 17n,
   MODERATE_MEMBERS: 1n << 40n,
   PIN_MESSAGES: 1n << 51n,
+  SEND_TTS_MESSAGES: 1n << 12n,
+  CREATE_PUBLIC_THREADS: 1n << 35n,
 } as const;
 
 const ALL_BITS = (1n << 64n) - 1n;
@@ -142,6 +144,8 @@ export function computeChannelPermissions(
     mentionEveryone: has(PERM.MENTION_EVERYONE),
     manageChannels: has(PERM.MANAGE_CHANNELS),
     createInvite: has(PERM.CREATE_INSTANT_INVITE),
+    sendTts: has(PERM.SEND_TTS_MESSAGES),
+    createThreads: has(PERM.CREATE_PUBLIC_THREADS),
   };
 }
 
@@ -193,6 +197,7 @@ export function toLoungeChannel(
     mentionCount: rs?.mention_count ?? 0,
     lastReadMessageId: rs?.last_message_id ?? null,
     canSend: permissions ? permissions.send : canSend,
+    ...(c.nsfw ? { nsfw: true } : {}),
     ...(permissions ? { permissions } : {}),
     ...(c.rate_limit_per_user ? { slowmodeSeconds: c.rate_limit_per_user } : {}),
   };
@@ -226,13 +231,18 @@ export function toLoungeGuild(
   };
 }
 
+const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
+
 export function toLoungeRole(r: S.Role): Role {
+  const secondary = r.colors?.secondary_color;
   return {
     id: r.id,
     name: r.name,
-    color: r.color ? `#${r.color.toString(16).padStart(6, '0')}` : null,
+    color: r.color ? hex(r.color) : null,
     hoist: !!r.hoist,
     position: r.position,
+    ...(secondary ? { colorSecondary: hex(secondary) } : {}),
+    ...(r.unicode_emoji ? { emoji: r.unicode_emoji } : {}),
   };
 }
 
@@ -289,6 +299,7 @@ export function toLoungeAttachment(a: S.RawAttachment, now = Date.now()): Attach
     url: a.url,
     ...(a.width ? { width: a.width } : {}),
     ...(a.height ? { height: a.height } : {}),
+    ...(a.blurhash ? { blurhash: a.blurhash } : {}),
     // Discord marks spoiler attachments with a filename prefix.
     ...(a.filename.startsWith('SPOILER_') ? { spoiler: true } : {}),
     description: a.description ?? null,
@@ -358,10 +369,34 @@ export function toLoungeMessage(m: S.Message): Message {
     ...(snap
       ? {
           forwarded: {
+            ...(m.message_reference?.channel_id
+              ? {
+                  source: {
+                    channelId: m.message_reference.channel_id,
+                    messageId: m.message_reference.message_id,
+                    ...(m.message_reference.guild_id
+                      ? { guildId: m.message_reference.guild_id }
+                      : {}),
+                  },
+                }
+              : {}),
             content: snap.content ?? '',
             createdAt: snap.timestamp ?? m.timestamp,
             attachments: (snap.attachments ?? []).map((a) => toLoungeAttachment(a)),
             embeds: snap.embeds ?? [],
+          },
+        }
+      : {}),
+    ...(m.message_reference?.channel_id && m.type
+      ? { referenceChannelId: m.message_reference.channel_id }
+      : {}),
+    ...(m.tts ? { tts: true } : {}),
+    ...(m.thread
+      ? {
+          thread: {
+            id: m.thread.id,
+            name: m.thread.name ?? 'Thread',
+            messageCount: m.thread.message_count ?? 0,
           },
         }
       : {}),

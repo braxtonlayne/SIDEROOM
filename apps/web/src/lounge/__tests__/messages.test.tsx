@@ -9,6 +9,7 @@ import { http, HttpResponse, server } from '../../test/server';
 import { resetComposerDrafts } from '../Composer';
 import { useLoungeUi } from '../store';
 import { resetStickerCache } from '../msg/Sticker';
+import { interactionConfig } from '../msg/Components';
 
 // The gateway is not under test; the store is seeded directly.
 vi.mock('../../store/connect', () => ({
@@ -376,7 +377,13 @@ describe('message rendering', () => {
       'https://docs.example/x',
     );
     expect(within(log).getByRole('combobox', { name: 'Pick a colour' })).toBeInTheDocument();
+    interactionConfig.timeoutMs = 60;
     await userEvent.click(within(log).getByRole('button', { name: 'Approve' }));
+    // Waiting for the app: the button shows a spinner and cannot be pressed again, then the failure.
+    expect(within(log).getByRole('button', { name: /Approve/ })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
     expect(await screen.findByText('This interaction failed')).toBeInTheDocument();
     const invite = await within(log).findByRole('region', { name: 'Invite to Book Club' });
     expect(within(invite).getByText('7 Online • 42 Members')).toBeInTheDocument();

@@ -11,6 +11,7 @@ export const server = setupServer(
   // Home screen loads: nobody to befriend, no templates, online with no custom status.
   http.get('*/api/v1/users/@me/relationships', () => HttpResponse.json([])),
   http.get('*/api/v1/guilds/templates/builtin', () => HttpResponse.json([])),
+  http.get('*/api/v1/users/@me/ignores', () => HttpResponse.json([])),
   http.get('*/api/v1/users/@me/presence', () =>
     HttpResponse.json({ status: 'online', custom_status: null }),
   ),

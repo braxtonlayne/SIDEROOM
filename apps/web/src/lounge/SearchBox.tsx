@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router';
 import { Icon } from '@sideroom/ui';
-import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { ApiError } from '../api/client';
 import { rest } from '../store';
 import { HOME } from './channels';
@@ -18,6 +18,7 @@ import {
   sortParams,
   type SearchSort,
 } from './searchUi';
+import { ContextLine, useHitContext } from './searchContext';
 import { formatMessageTime } from './time';
 
 type Status =
@@ -28,11 +29,35 @@ type Status =
 
 const CHIPS = ['from:', 'in:', 'has:link', 'has:image', 'pinned:true'] as const;
 
+/** One result: the hit with the message before and after it (LNG-SRC-005) and a Jump button. */
+function HitRow({
+  hit,
+  onJump,
+  children,
+}: {
+  hit: rest.SearchHit;
+  onJump: () => void;
+  children: ReactNode;
+}) {
+  const { ref, ctx } = useHitContext(hit.channel_id, hit.id);
+  return (
+    <li ref={ref} className="lng-search-row">
+      <ContextLine n={ctx?.before} side="before" />
+      <button type="button" className="lng-search-hit" onClick={onJump}>
+        {children}
+        <span className="lng-search-jump">Jump</span>
+      </button>
+      <ContextLine n={ctx?.after} side="after" />
+    </li>
+  );
+}
+
 /**
  * The header search box (LNG-SRC-003/004/005/006): runs `GET /guilds/{id}/messages/search` (or the channel
  * route in a DM). Typing a filter opens an options list (people, channels, has:, dates); results are grouped
- * by channel with sort and paging; recent queries are kept on the device. `from:name` and `in:#channel` are
- * resolved to ids before the request because the server parser takes ids.
+ * by channel with sort and paging, each with the message before and after it; recent queries are kept on the
+ * device. `from:name` and `in:#channel` are resolved to ids before the request because the server parser
+ * takes ids.
  */
 export function SearchBox({
   guildId,
@@ -306,28 +331,21 @@ export function SearchBox({
                         const name =
                           users[m.author.id]?.displayName ?? m.author.username ?? 'Unknown';
                         return (
-                          <li key={m.id}>
-                            <button
-                              type="button"
-                              className="lng-search-hit"
-                              onClick={() => jump(m)}
-                            >
-                              <span className="lng-search-meta">
-                                <strong>{name}</strong>
-                                <time dateTime={m.timestamp}>{formatMessageTime(m.timestamp)}</time>
-                              </span>
-                              <span className="lng-search-snippet">
-                                {highlightSegments(snippet.text, snippet.highlights).map((s, i) =>
-                                  s.hit ? (
-                                    <mark key={i}>{s.text}</mark>
-                                  ) : (
-                                    <span key={i}>{s.text}</span>
-                                  ),
-                                )}
-                              </span>
-                              <span className="lng-search-jump">Jump</span>
-                            </button>
-                          </li>
+                          <HitRow key={m.id} hit={m} onJump={() => jump(m)}>
+                            <span className="lng-search-meta">
+                              <strong>{name}</strong>
+                              <time dateTime={m.timestamp}>{formatMessageTime(m.timestamp)}</time>
+                            </span>
+                            <span className="lng-search-snippet">
+                              {highlightSegments(snippet.text, snippet.highlights).map((s, i) =>
+                                s.hit ? (
+                                  <mark key={i}>{s.text}</mark>
+                                ) : (
+                                  <span key={i}>{s.text}</span>
+                                ),
+                              )}
+                            </span>
+                          </HitRow>
                         );
                       })}
                     </ul>

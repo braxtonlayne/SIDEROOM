@@ -202,6 +202,9 @@ pub fn snapshot_of(src: &Message, atts: &[Attachment]) -> ForwardSnapshot {
                 description: a.description.clone(),
                 duration_ms: a.duration_ms,
                 waveform: a.waveform.clone(),
+                width: a.width,
+                height: a.height,
+                blurhash: a.blurhash.clone(),
             })
             .collect(),
         sticker_ids: src.sticker_ids.clone(),
@@ -272,6 +275,9 @@ mod tests {
             created_at_ms: 0,
             duration_ms: ms,
             waveform: wave.map(str::to_owned),
+            width: None,
+            height: None,
+            blurhash: None,
         }
     }
 

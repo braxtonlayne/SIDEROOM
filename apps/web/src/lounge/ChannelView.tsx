@@ -15,7 +15,10 @@ import {
   useUsers,
   type Message,
 } from './data';
+import { AgeConfirmPrompt, useAgeGate } from './AgeGate';
 import { MessageList } from './MessageList';
+import { useLoungeGoto } from './nav';
+import { useMyTimeout } from './timeout';
 import { useLoungeUi } from './store';
 
 export interface ChannelViewProps {
@@ -36,8 +39,11 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
   const setMembersOpen = useLoungeUi((s) => s.setMemberListOpen);
   const composer = useRef<ComposerHandle | null>(null);
   const guild = useGuild(isDm ? undefined : guildId);
+  const timedOutUntil = useMyTimeout(isDm ? undefined : guildId);
 
   const channel = channels.find((c) => c.id === channelId);
+  const gate = useAgeGate(channel?.nsfw);
+  const goto = useLoungeGoto();
   const dm = dms.find((d) => d.id === channelId);
   const dmFirst = dm ? users[dm.recipientIds[0] ?? ''] : undefined;
   const presence = usePresence(dmFirst?.id ?? '');
@@ -106,45 +112,82 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
         guildId={guildId}
         channelId={channelId}
       />
-      <MessageList
-        channelId={channelId}
-        guildId={isDm ? undefined : guildId}
-        title={title}
-        isDm={isDm}
-        lastReadId={openedLastRead}
-        onReply={(m) => {
-          setEditing(null);
-          setReplyTo(m);
-        }}
-        onEdit={(m) => {
-          setReplyTo(null);
-          setEditing(m);
-        }}
-        editingId={editing?.id}
-        onCancelEdit={() => setEditing(null)}
-      />
-      <Composer
-        key={channelId}
-        ref={composer}
-        channelId={channelId}
-        guildId={isDm ? undefined : guildId}
-        slowmodeSeconds={channel?.slowmodeSeconds}
-        bypassSlowmode={
-          channel?.permissions
-            ? channel.permissions.manageMessages || channel.permissions.manageChannels
-            : !!(guild?.permissions.manageMessages || guild?.permissions.manageChannels)
-        }
-        canMentionEveryone={
-          isDm
-            ? false
-            : (channel?.permissions?.mentionEveryone ?? guild?.permissions.mentionEveryone ?? false)
-        }
-        target={target}
-        canSend={channel ? channel.canSend : true}
-        replyTo={replyTo}
-        onCancelReply={() => setReplyTo(null)}
-        onEditLast={editLast}
-      />
+      {gate.state !== 'open' ? (
+        <div className="lng-agegate-wrap">
+          {gate.state === 'wait' ? (
+            <p role="status" className="lng-muted">
+              Checking…
+            </p>
+          ) : gate.state === 'ask' ? (
+            <AgeConfirmPrompt
+              title={`#${title} is age-restricted`}
+              busy={gate.busy}
+              error={gate.error}
+              onAnswer={(over18) =>
+                void gate.submit(over18).then((ok) => {
+                  if (ok === false) goto(isDm ? HOME : guildId);
+                })
+              }
+            />
+          ) : (
+            <EmptyState
+              title="Age-restricted channel"
+              description="You said you are under 18, so this channel stays hidden. You can change your answer in User Settings."
+            />
+          )}
+        </div>
+      ) : (
+        <>
+          <MessageList
+            channelId={channelId}
+            guildId={isDm ? undefined : guildId}
+            title={title}
+            isDm={isDm}
+            lastReadId={openedLastRead}
+            onReply={(m) => {
+              setEditing(null);
+              setReplyTo(m);
+            }}
+            onEdit={(m) => {
+              setReplyTo(null);
+              setEditing(m);
+            }}
+            editingId={editing?.id}
+            onCancelEdit={() => setEditing(null)}
+          />
+          <Composer
+            key={channelId}
+            ref={composer}
+            channelId={channelId}
+            guildId={isDm ? undefined : guildId}
+            slowmodeSeconds={channel?.slowmodeSeconds}
+            bypassSlowmode={
+              channel?.permissions
+                ? channel.permissions.manageMessages || channel.permissions.manageChannels
+                : !!(guild?.permissions.manageMessages || guild?.permissions.manageChannels)
+            }
+            canMentionEveryone={
+              isDm
+                ? false
+                : (channel?.permissions?.mentionEveryone ??
+                  guild?.permissions.mentionEveryone ??
+                  false)
+            }
+            target={target}
+            timedOutUntil={timedOutUntil}
+            canTts={!isDm && (channel?.permissions?.sendTts ?? true)}
+            canStartThread={
+              !isDm &&
+              (channel?.type === 'text' || channel?.type === 'announcement') &&
+              (channel.permissions?.createThreads ?? true)
+            }
+            canSend={channel ? channel.canSend : true}
+            replyTo={replyTo}
+            onCancelReply={() => setReplyTo(null)}
+            onEditLast={editLast}
+          />
+        </>
+      )}
       {dragging && (
         <div className="lng-drop" aria-hidden="true">
           <Icon name="upload" size={24} />

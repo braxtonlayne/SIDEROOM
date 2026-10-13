@@ -17995,6 +17995,13 @@
           "url"
         ],
         "properties": {
+          "blurhash": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "BlurHash placeholder to show until the image loads."
+          },
           "content_type": {
             "type": [
               "string",
@@ -18025,6 +18032,14 @@
           "filename": {
             "type": "string"
           },
+          "height": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
           "id": {
             "type": "string"
           },
@@ -18043,6 +18058,15 @@
               "null"
             ],
             "description": "Voice messages: base64 waveform."
+          },
+          "width": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Pixel size, as declared by the uploader.",
+            "minimum": 0
           }
         }
       },
@@ -20232,6 +20256,13 @@
           "file_size"
         ],
         "properties": {
+          "blurhash": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Images: BlurHash of the picture, shown until it loads."
+          },
           "content_type": {
             "type": [
               "string",
@@ -20253,6 +20284,14 @@
           "filename": {
             "type": "string"
           },
+          "height": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
           "id": {
             "type": [
               "string",
@@ -20265,6 +20304,15 @@
               "boolean",
               "null"
             ]
+          },
+          "width": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Images and videos: pixel size (1 to 16384 each, both or neither).",
+            "minimum": 0
           }
         }
       },

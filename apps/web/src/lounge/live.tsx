@@ -333,6 +333,8 @@ export function toPostExtras(x: SendExtras): rest.PostExtras {
       : {}),
     ...(x.mentionRepliedUser === false ? { allow_reply_ping: false } : {}),
     ...(x.flags ? { flags: x.flags } : {}),
+    ...(x.stickerIds?.length ? { sticker_ids: x.stickerIds } : {}),
+    ...(x.tts ? { tts: true } : {}),
   };
 }
 
@@ -379,6 +381,15 @@ export const LIVE_ACTIONS: LoungeActions = {
   },
   loadOlder(channelId) {
     void useStore.getState().loadOlderMessages(channelId);
+  },
+  loadNewer(channelId) {
+    void useStore.getState().loadNewerMessages(channelId);
+  },
+  markUnread(channelId, messageId) {
+    return useStore.getState().markUnread(channelId, messageId);
+  },
+  releaseUnread(channelId) {
+    useStore.getState().releaseAck(channelId);
   },
   markRead(channelId) {
     useStore.getState().ackChannel(channelId);

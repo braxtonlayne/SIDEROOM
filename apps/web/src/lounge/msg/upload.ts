@@ -19,6 +19,8 @@ export interface PendingFile {
   progress: number;
   status: 'queued' | 'uploading' | 'done' | 'error' | 'cancelled';
   error?: string | undefined;
+  /** Pixel size and BlurHash of an image, read in the browser (see blurhash.ts). */
+  meta?: { width: number; height: number; blurhash?: string | undefined } | undefined;
 }
 
 /** Discord marks spoilers by a filename prefix; the renderer reads it back. */
@@ -98,6 +100,9 @@ export async function uploadFiles(
           content_type: f.file.type || undefined,
           spoiler: f.spoiler || undefined,
           description: f.description || undefined,
+          width: f.meta?.width,
+          height: f.meta?.height,
+          blurhash: f.meta?.blurhash,
         })),
       },
     });

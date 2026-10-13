@@ -110,6 +110,7 @@ pub async fn request_slots(
     // Validate everything before issuing any slot.
     let mut decisions = Vec::with_capacity(body.files.len());
     for (i, f) in body.files.iter().enumerate() {
+        check_image_meta(i, f)?;
         match deps.size_policy.check(f.file_size, entitled) {
             Ok(d) => decisions.push(d),
             Err(SizeError::Empty) => {
@@ -159,6 +160,9 @@ pub async fn request_slots(
             created_at_ms: now,
             duration_ms: None,
             waveform: None,
+            width: f.width,
+            height: f.height,
+            blurhash: f.blurhash.clone(),
         };
         let url = deps
             .storage
@@ -253,6 +257,32 @@ pub async fn finalize(deps: &MessagesDeps, att: &mut Attachment) -> MsgResult<()
     att.content_type = Some(content_type);
     att.state = UploadState::Ready;
     deps.store.update_attachment(att).await?;
+    Ok(())
+}
+
+/// The client-declared picture size and BlurHash: both sides or neither, in range, and a plausible hash.
+fn check_image_meta(i: usize, f: &super::model::FileSpec) -> MsgResult<()> {
+    let side_ok = |n: u32| (1..=sr_chat::repo::MAX_IMAGE_SIDE).contains(&n);
+    match (f.width, f.height) {
+        (None, None) => {}
+        (Some(w), Some(h)) if side_ok(w) && side_ok(h) => {}
+        _ => {
+            return Err(invalid(
+                &format!("files.{i}.width"),
+                "NUMBER_TYPE_RANGE",
+                "Width and height must both be given, between 1 and 16384.",
+            ));
+        }
+    }
+    if let Some(h) = &f.blurhash
+        && !sr_chat::repo::valid_blurhash(h)
+    {
+        return Err(invalid(
+            &format!("files.{i}.blurhash"),
+            "BASE_TYPE_BAD_FORMAT",
+            "Not a valid BlurHash.",
+        ));
+    }
     Ok(())
 }
 

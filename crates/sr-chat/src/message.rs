@@ -182,6 +182,12 @@ pub struct SnapshotAttachment {
     pub duration_ms: Option<u32>,
     #[serde(default)]
     pub waveform: Option<String>,
+    #[serde(default)]
+    pub width: Option<u32>,
+    #[serde(default)]
+    pub height: Option<u32>,
+    #[serde(default)]
+    pub blurhash: Option<String>,
 }
 
 /// A message component (Discord `component` object): action rows (type 1) hold
