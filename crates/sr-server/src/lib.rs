@@ -34,3 +34,6 @@ mod tests {
         assert!(v["paths"]["/sr/csrf"].is_object());
     }
 }
+
+#[cfg(test)]
+mod voice_pg_tests;

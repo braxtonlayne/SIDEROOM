@@ -946,6 +946,26 @@ async fn leaving_the_guild_or_losing_access_removes_the_member_from_voice() {
 }
 
 #[tokio::test]
+async fn a_media_session_the_sfu_lost_clears_the_voice_state() {
+    let e = env();
+    let mut a = client(&e, MEMBER).await;
+    let mut b = client(&e, FRIEND).await;
+    a.voice(1, Some(LOBBY.get()), false, false).await;
+    a.event("VOICE_SERVER_UPDATE").await;
+    b.drain().await;
+    // A report for another channel is stale (the user moved on) and is ignored.
+    e.gw.voice_media_lost(u(MEMBER), ROOM_B).await;
+    assert!(e.gw.voice_state(u(MEMBER)).is_some());
+    e.gw.voice_media_lost(u(MEMBER), LOBBY).await;
+    assert!(e.gw.voice_state(u(MEMBER)).is_none());
+    let seen = b.drain().await;
+    assert!(
+        seen.iter()
+            .any(|v| v["t"] == "VOICE_STATE_UPDATE" && v["d"]["channel_id"].is_null())
+    );
+}
+
+#[tokio::test]
 async fn deleting_a_channel_closes_its_room() {
     let e = env();
     let mut a = client(&e, MEMBER).await;

@@ -703,6 +703,21 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // Signed media delivery at `/cdn/*`, outside `/api/v1`: no cookie auth or CSRF,
     // the URL signature is the credential.
     let cdn_routes = routes::cdn::layered(state.clone());
+    // The SFU reports participants it lost (media or WebSocket gone) so the gateway can clear
+    // their voice state instead of showing a ghost in the channel.
+    let voice_events = voice_setup.as_ref().map(|v| v.sfu.subscribe());
+    if let Some(mut rx) = voice_events {
+        let gw = gateway.clone();
+        tokio::spawn(async move {
+            loop {
+                match rx.recv().await {
+                    Ok(e) => gw.voice_media_lost(e.user, e.channel).await,
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                }
+            }
+        });
+    }
     let mut app = build_router(state, api)
         .merge(gateway_routes)
         .merge(cdn_routes);

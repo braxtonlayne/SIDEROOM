@@ -45,7 +45,7 @@ Status: **audio is implemented** (wave 5, `feat/p5-voice-sfu`). Video, simulcast
    ```
    `endpoint` is a full `ws(s)://` URL (Discord sends a bare host; ours may carry a path behind Caddy). `token` is valid for 60 s and is single purpose (join this channel as this user). `ice_servers` is a ready `RTCConfiguration.iceServers` list; TURN credentials are ephemeral (section 6) and the list is empty when no STUN/TURN is configured.
 3. Client opens the WebSocket at `endpoint` and sends `IDENTIFY`. The server answers `READY`.
-4. Client creates its `RTCPeerConnection` (`iceServers` from step 2), adds its microphone track (`sendrecv` or `sendonly` audio transceiver), and sends `SDP_OFFER`. The server answers `SDP_ANSWER` (ICE-lite, `a=ice-lite`, host candidates included, `a=setup:passive`).
+4. Client creates its `RTCPeerConnection` (`iceServers` from step 2), adds its microphone track as a **`sendonly`** audio transceiver (not `sendrecv`: the SFU answers `recvonly`, and a `sendrecv` line would also surface a silent remote track), and sends `SDP_OFFER`. Audio only: do not add video m-lines yet (they would be accepted and ignored). The server answers `SDP_ANSWER` (ICE-lite, `a=ice-lite`, host candidates included, `a=setup:passive`).
 5. ICE and DTLS complete; Opus RTP flows. As other participants exist or arrive, the server sends `SDP_OFFER`s that add one `sendonly` audio m-line per remote participant (see 4.4); the client answers each with `SDP_ANSWER`.
 
 ### 4.3 Wire format
@@ -78,6 +78,7 @@ Text WebSocket frames, one JSON object: `{"op": <int>, "d": <object>}`. Ids are 
 - The **server offers** whenever the room's membership changes (a remote participant starts or stops, or on join to add the existing participants): it adds or stops one `sendonly` audio m-line per remote participant. The m-line's `a=msid` stream id is the participant's **user id** (decimal). The client maps tracks to users with `event.streams[0].id`. Do not rely on mid ordering; mids are recycled.
 - **Glare.** The **client is the impolite peer, the server is polite.** The server never sends an offer while its own previous offer is unanswered. If a client `SDP_OFFER` arrives while a server offer is pending, the server abandons its offer, answers the client's, and sends a fresh offer afterwards. So: **a client that has its own offer outstanding ignores any server `SDP_OFFER` it receives** (no rollback needed) and just waits for the answer to its own; the server's replacement offer follows. A client answer to an abandoned offer is ignored.
 - **ICE restart / network change.** The client calls `restartIce()` and sends a new `SDP_OFFER` (fresh ufrag/pwd). The server accepts it on the existing WebSocket and the existing participant. If the WebSocket is also gone, reconnect it first and use `RESUME`.
+- **Ordering.** WebSocket messages must be handled strictly in order: finish `setRemoteDescription`/`setLocalDescription` for one SDP message before starting the next (the server's first offer follows its answer immediately).
 - Codec: Opus (payload type from the client's offer), `usedtx=1;useinbandfec=1;stereo=0`. DTX is allowed; the audio-level header extension must be negotiated (browsers do by default).
 - Bitrate: advertise the channel's bitrate (kbps) through `RTCRtpSender.setParameters({encodings: [{maxBitrate}]})`; the server does not transcode and trusts but does not enforce it in v1. TODO(bitrate-cap): enforce `min(channel bitrate, server level cap)` in the SFU.
 
@@ -85,6 +86,7 @@ Text WebSocket frames, one JSON object: `{"op": <int>, "d": <object>}`. Ids are 
 - If only the WebSocket drops, media keeps flowing. The SFU keeps the participant for **20 s** after a socket loss. Reconnect to the same `endpoint`, send `RESUME` (not `IDENTIFY`), receive `RESUMED` with the current participants, and carry on (answer any new server offer). `RESUME` needs the `resume_token` from `READY`, not a new join token.
 - After 20 s, or after any close with 4006/4014, the session is gone: rejoin through the gateway to get a fresh token. To rejoin the channel you are already in, send op 4 with `channel_id: null` and then again with the channel (a repeated op 4 with the same channel only updates mute/deafen and does not issue a new `VOICE_SERVER_UPDATE`).
 - Media failure: if ICE stays disconnected for 15 s the SFU drops the participant and closes the WebSocket with 4006. Clients that notice a dead connection earlier should `restartIce()` first (4.4).
+- If the SFU loses a participant on its own (WebSocket not resumed within 20 s, or ICE dead for 15 s) it reports that to the gateway, which clears the voice state and dispatches the leave, so no ghost stays in the channel.
 - If the gateway session is lost (it detached and did not resume within 20 s), the gateway removes the voice state and tells the SFU to drop the participant.
 - A second `IDENTIFY` for the same user closes the older connection with 4016.
 

@@ -36,7 +36,12 @@ struct Server {
 }
 
 async fn start_server(tcp: bool) -> Server {
+    start_server_with(tcp, Duration::from_secs(20)).await
+}
+
+async fn start_server_with(tcp: bool, resume_window: Duration) -> Server {
     let handle = sr_voice::start(SfuConfig {
+        resume_window,
         bind_ip: [127, 0, 0, 1].into(),
         udp_port_min: 0,
         udp_port_max: 0,
@@ -704,5 +709,41 @@ async fn a_mute_issued_before_the_client_connects_still_applies() {
         0,
         "the token said speak=true, the later mute wins"
     );
+    server.handle.shutdown().await;
+}
+
+#[tokio::test]
+async fn a_participant_whose_websocket_never_returns_is_reported_lost() {
+    let server = start_server_with(false, Duration::from_millis(600)).await;
+    let mut events = server.handle.subscribe();
+    let mut a = Vc::connect(&server, 1, false).await;
+    let mut b = Vc::connect(&server, 2, false).await;
+    settle(&mut a, &mut b).await;
+
+    // A's socket dies and nobody resumes it.
+    a.ws.close(None).await.ok();
+    let lost = tokio::time::timeout(Duration::from_secs(6), events.recv())
+        .await
+        .expect("the SFU should report the lost participant")
+        .unwrap();
+    assert_eq!(lost.user, UserId::new(1));
+    assert_eq!(lost.channel, ChannelId::new(CHANNEL));
+    // B is told A left.
+    both(&mut a, &mut b, Duration::from_millis(300)).await;
+    assert!(
+        b.signals.iter().any(|m| m.op == op::CLIENT_DISCONNECT
+            && m.data::<UserRef>().unwrap().user_id == UserId::new(1))
+    );
+
+    // Commands from the gateway (leave, move) are not echoed back as "lost".
+    server
+        .handle
+        .apply(VoiceCommand::Disconnect {
+            channel: ChannelId::new(CHANNEL),
+            user: UserId::new(2),
+        })
+        .await;
+    both(&mut a, &mut b, Duration::from_millis(500)).await;
+    assert!(events.try_recv().is_err());
     server.handle.shutdown().await;
 }

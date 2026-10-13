@@ -741,6 +741,17 @@ impl Gateway {
         }
     }
 
+    /// The SFU lost `user`'s media session in `channel` (WebSocket gone past the resume
+    /// window, or ICE failed). Clear the voice state if it still points there.
+    pub async fn voice_media_lost(&self, user: UserId, channel: ChannelId) {
+        if self
+            .voice_state(user)
+            .is_some_and(|s| s.channel_id == channel)
+        {
+            self.voice_leave(user).await;
+        }
+    }
+
     pub(crate) async fn voice_member_left(&self, guild: GuildId, user: UserId) {
         if self.voice_state(user).is_some_and(|s| s.guild_id == guild) {
             self.voice_leave(user).await;

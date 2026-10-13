@@ -114,6 +114,15 @@ pub enum StartError {
     NoAnnounce,
 }
 
+/// Something the gateway should hear about: a participant the SFU lost without being told to
+/// drop it (its WebSocket never came back within the resume window, or its media connection
+/// died). The gateway then clears the user's voice state.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SfuEvent {
+    pub channel: ChannelId,
+    pub user: UserId,
+}
+
 /// Cheap clone: the way into a running SFU.
 #[derive(Clone)]
 pub struct SfuHandle {
@@ -123,9 +132,15 @@ pub struct SfuHandle {
     conn_ids: Arc<AtomicU64>,
     udp_ports: Arc<Vec<u16>>,
     tcp_port: Option<u16>,
+    events: tokio::sync::broadcast::Sender<SfuEvent>,
 }
 
 impl SfuHandle {
+    /// Subscribe to [`SfuEvent`]s.
+    pub fn subscribe(&self) -> tokio::sync::broadcast::Receiver<SfuEvent> {
+        self.events.subscribe()
+    }
+
     pub fn signer(&self) -> &TokenSigner {
         &self.signer
     }
@@ -225,6 +240,7 @@ pub async fn start(cfg: SfuConfig) -> Result<SfuHandle, StartError> {
     }
 
     let cfg = Arc::new(cfg);
+    let (events, _) = tokio::sync::broadcast::channel(256);
     let handle = SfuHandle {
         tx: cmd_tx,
         signer: TokenSigner::new(cfg.token_secret.clone()),
@@ -232,6 +248,7 @@ pub async fn start(cfg: SfuConfig) -> Result<SfuHandle, StartError> {
         conn_ids: Arc::new(AtomicU64::new(1)),
         udp_ports: Arc::new(ports.clone()),
         tcp_port,
+        events: events.clone(),
     };
     let actor = Actor {
         core: SfuCore::new(cfg.max_participants, cfg.max_room_size),
@@ -247,6 +264,7 @@ pub async fn start(cfg: SfuConfig) -> Result<SfuHandle, StartError> {
         draining: false,
         last_forwarded: 0,
         pending_flags: HashMap::new(),
+        events,
     };
     tokio::spawn(actor.run(cmd_rx, pkt_rx));
     Ok(handle)
@@ -366,6 +384,7 @@ struct Actor {
     /// between `VOICE_SERVER_UPDATE` and their connection). Applied at join, dropped after
     /// the token lifetime.
     pending_flags: HashMap<(ChannelId, UserId), (Flags, Instant)>,
+    events: tokio::sync::broadcast::Sender<SfuEvent>,
 }
 
 fn random_hex() -> String {
@@ -745,7 +764,16 @@ impl Actor {
                 CoreOutput::Event(CoreEvent::Signal { to, msg }) => {
                     self.send_ws(to, WsOut::Msg(msg));
                 }
-                CoreOutput::Event(CoreEvent::Closed { pid, reason, .. }) => {
+                CoreOutput::Event(CoreEvent::Closed {
+                    pid,
+                    reason,
+                    user,
+                    channel,
+                }) => {
+                    // Not asked for by the gateway: tell it, so it clears the voice state.
+                    if matches!(reason, CloseReason::Left | CloseReason::Connection) {
+                        let _ = self.events.send(SfuEvent { channel, user });
+                    }
                     if let Some(s) = self.sessions.remove(&pid) {
                         self.by_session.remove(&s.session_id);
                         if let Some(c) = s.conn {
