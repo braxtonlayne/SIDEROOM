@@ -62,15 +62,78 @@ describe('Privacy and Safety', () => {
     expect(await screen.findByText('Try later.')).toBeInTheDocument();
   });
 
-  it('shows empty states and says DM/friend privacy has no endpoint', async () => {
+  it('shows the empty states, and says where the data request and media filters stand', async () => {
     server.use(
       http.get('*/api/v1/users/@me/relationships', () => HttpResponse.json([])),
       http.get('*/api/v1/users/@me/ignores', () => HttpResponse.json([])),
     );
     openSettings('privacy');
     expect(await screen.findByText("You haven't ignored anyone.")).toBeInTheDocument();
-    expect(screen.getByText(/no endpoint for DM and friend-request privacy/)).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: /direct messages/ })).toBeDisabled();
+    expect(screen.getByText(/data export package/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Request my data' })).toBeDisabled();
+    expect(screen.getByText(/no media-scanning/)).toBeInTheDocument();
+  });
+
+  it('loads who can reach you and saves each change straight away', async () => {
+    server.use(
+      http.get('*/api/v1/users/@me/relationships', () => HttpResponse.json([])),
+      http.get('*/api/v1/users/@me/ignores', () => HttpResponse.json([])),
+      http.get('*/api/v1/users/@me/privacy', () =>
+        HttpResponse.json({
+          friend_requests_everyone: false,
+          friend_requests_friends_of_friends: true,
+          friend_requests_server_members: true,
+          allow_server_member_dms: true,
+          message_requests: true,
+        }),
+      ),
+    );
+    const sent: unknown[] = [];
+    server.use(
+      http.patch('*/api/v1/users/@me/privacy', async ({ request }) => {
+        const body = (await request.json()) as Record<string, boolean>;
+        sent.push(body);
+        return HttpResponse.json({
+          friend_requests_everyone: true,
+          friend_requests_friends_of_friends: true,
+          friend_requests_server_members: true,
+          allow_server_member_dms: true,
+          message_requests: true,
+          ...body,
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    openSettings('privacy');
+    const everyone = await screen.findByRole('switch', { name: /Everyone/ });
+    expect(everyone).not.toBeChecked();
+    expect(screen.getByRole('switch', { name: /Friends of friends/ })).toBeChecked();
+    expect(await axeViolations(document.body)).toEqual([]);
+    await user.click(everyone);
+    await waitFor(() => expect(sent).toEqual([{ friend_requests_everyone: true }]));
+    await waitFor(() => expect(everyone).toBeChecked());
+    await user.click(screen.getByRole('switch', { name: /direct messages from server members/ }));
+    await waitFor(() => expect(sent[1]).toEqual({ allow_server_member_dms: false }));
+    await user.click(screen.getByRole('switch', { name: /^Message requests/ }));
+    await waitFor(() => expect(sent[2]).toEqual({ message_requests: false }));
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('puts the switch back and shows the reason when a privacy change is refused', async () => {
+    server.use(
+      http.get('*/api/v1/users/@me/relationships', () => HttpResponse.json([])),
+      http.get('*/api/v1/users/@me/ignores', () => HttpResponse.json([])),
+      http.patch('*/api/v1/users/@me/privacy', () =>
+        HttpResponse.json({ message: 'Try again later.' }, { status: 500 }),
+      ),
+    );
+    const user = userEvent.setup();
+    openSettings('privacy');
+    const sw = await screen.findByRole('switch', { name: /^Message requests/ });
+    expect(sw).toBeChecked();
+    await user.click(sw);
+    expect(await screen.findByText('Try again later.')).toBeInTheDocument();
+    expect(sw).toBeChecked();
   });
 
   it('reports load failures', async () => {

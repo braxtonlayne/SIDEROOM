@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import { ThemeProvider } from '@sideroom/ui';
+import { useSavedPrefs } from '../settings/user/prefs';
 import type { ReactNode } from 'react';
 import { DoorIcon } from './icons';
 import './entrance.css';
@@ -28,8 +29,15 @@ export function EntranceShell({
   footerRight = 'By invitation only',
   children,
 }: EntranceShellProps) {
+  // Signed-out pages only know this browser's saved choice of Entrance theme.
+  const { sectionThemes } = useSavedPrefs();
   return (
-    <ThemeProvider section="entrance" platformDefault="sideroom" className="ent-root">
+    <ThemeProvider
+      section="entrance"
+      platformDefault="sideroom"
+      perSection={sectionThemes}
+      className="ent-root"
+    >
       <header className="ent-header">
         <Logo />
         <p className="ent-tagline">A private corner of the internet</p>

@@ -797,7 +797,7 @@
   padding: 2px 48px 2px 0;
 }
 .lng-msg:not([data-grouped]) {
-  margin-top: 16px;
+  margin-top: var(--lng-message-gap, 16px);
   padding-top: 2px;
 }
 .lng-msg:hover,
@@ -1553,5 +1553,5 @@
   --lounge-message-gutter: 56px;
 }
 .lng-root[data-message-display='compact'] .lng-msg:not([data-grouped]) {
-  margin-top: 6px;
+  margin-top: min(6px, var(--lng-message-gap, 6px));
 }

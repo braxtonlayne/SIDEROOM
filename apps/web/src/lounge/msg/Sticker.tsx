@@ -1,7 +1,9 @@
 import { Tooltip } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { apiFetch } from '../../api/client';
+import { useSavedPrefs } from '../../settings/user/prefs';
 import type { StickerItem } from '../data';
+import { useAnimatedSrc } from './staticFrame';
 
 const cache = new Map<string, Promise<string | null>>();
 
@@ -35,6 +37,8 @@ export function Sticker({
   guildId: string | undefined;
 }) {
   const [url, setUrl] = useState<string | null>(null);
+  const [active, setActive] = useState(false);
+  const shown = useAnimatedSrc(url, useSavedPrefs().stickerAnimation, active);
   useEffect(() => {
     let live = true;
     if (guildId) void stickerUrl(guildId, sticker.id).then((u) => live && setUrl(u));
@@ -44,9 +48,16 @@ export function Sticker({
   }, [guildId, sticker.id]);
   return (
     <Tooltip content={sticker.name}>
-      <span className="lng-sticker" tabIndex={0}>
-        {url ? (
-          <img src={url} alt={`Sticker: ${sticker.name}`} width={160} height={160} />
+      <span
+        className="lng-sticker"
+        tabIndex={0}
+        onMouseEnter={() => setActive(true)}
+        onMouseLeave={() => setActive(false)}
+        onFocus={() => setActive(true)}
+        onBlur={() => setActive(false)}
+      >
+        {shown ? (
+          <img src={shown} alt={`Sticker: ${sticker.name}`} width={160} height={160} />
         ) : (
           <span className="lng-sticker-ph" role="img" aria-label={`Sticker: ${sticker.name}`} />
         )}

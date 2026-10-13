@@ -94,3 +94,64 @@ export function matchShortcut(
 export const isApple = () =>
   typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 export const displayKey = (k: string) => (k === 'Mod' ? (isApple() ? '⌘' : 'Ctrl') : k);
+
+// ---- custom keybinds (User Settings > Keybinds) ----
+
+/** Contextual keys that stay where they are: Esc depends on dialogs, "any key" is not a combo. */
+const FIXED: ReadonlySet<ShortcutId> = new Set<ShortcutId>(['markRead', 'focusComposer']);
+export const isRebindable = (id: ShortcutId) => !FIXED.has(id);
+
+const ARROW: Record<string, string> = { '↑': 'ArrowUp', '↓': 'ArrowDown' };
+const ARROW_SHOWN: Record<string, string> = {
+  ArrowUp: '↑',
+  ArrowDown: '↓',
+  ArrowLeft: '←',
+  ArrowRight: '→',
+};
+
+/** "Mod+Alt+ArrowUp": modifiers in the order Mod, Alt, Shift, then the key. */
+export const defaultCombo = (def: ShortcutDef): string =>
+  def.keys.map((k) => ARROW[k] ?? (k.length === 1 ? k.toUpperCase() : k)).join('+');
+
+/** The combo a key event stands for, or null for a bare modifier press. */
+export function comboFromEvent(
+  e: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey'>,
+): string | null {
+  if (['Control', 'Meta', 'Alt', 'Shift', 'AltGraph', 'Dead', 'Unidentified'].includes(e.key))
+    return null;
+  const key = e.key === ' ' ? 'Space' : e.key.length === 1 ? e.key.toUpperCase() : e.key;
+  const parts: string[] = [];
+  if (e.ctrlKey || e.metaKey) parts.push('Mod');
+  if (e.altKey) parts.push('Alt');
+  if (e.shiftKey) parts.push('Shift');
+  parts.push(key);
+  return parts.join('+');
+}
+
+/** Keys of a combo for display ("Mod+Alt+ArrowUp" becomes Ctrl, Alt, ↑). */
+export function comboKeys(combo: string): string[] {
+  if (combo === '') return [];
+  const m = /^((?:(?:Mod|Alt|Shift)\+)*)(.+)$/.exec(combo);
+  if (!m) return [combo];
+  const mods = (m[1] ?? '').split('+').filter(Boolean);
+  const key = m[2] ?? '';
+  return [...mods, ARROW_SHOWN[key] ?? key].map(displayKey);
+}
+
+/** The combo in force for a shortcut: the user's choice ('' = unbound) or the default. */
+export const effectiveCombo = (def: ShortcutDef, overrides: Record<string, string>): string =>
+  overrides[def.id] ?? defaultCombo(def);
+
+/** Which shortcut a key event triggers once the user's keybinds are applied. */
+export function matchCustomShortcut(
+  e: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey'>,
+  overrides: Record<string, string>,
+): ShortcutId | null {
+  const fixed = matchShortcut(e);
+  if (fixed && FIXED.has(fixed)) return fixed;
+  const combo = comboFromEvent(e);
+  if (!combo) return null;
+  for (const def of SHORTCUTS)
+    if (isRebindable(def.id) && effectiveCombo(def, overrides) === combo) return def.id;
+  return null;
+}
