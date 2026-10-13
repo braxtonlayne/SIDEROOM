@@ -1061,3 +1061,17 @@
     animation: none;
   }
 }
+
+/* LNG-SRC-005: context lines around a search hit */
+.lng-search-context {
+  display: block;
+  padding: 2px 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.lng-search-context strong {
+  color: var(--interactive-normal);
+}

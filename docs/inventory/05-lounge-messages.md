@@ -33,7 +33,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [x] **LNG-MD-003** [BE][WASM] Unicode emoji shortcode table (`:smile:` → 😄) + emoji-only "jumbo" detection
 - [x] **LNG-MD-004** [BE][WASM] AST → plain text (search/notifications), AST JSON for the React renderer
 - [x] **LNG-MD-005** [TEST] Shared fixture corpus (≥ 500 cases) run in Rust and WASM
-- [ ] **LNG-MD-006** [FE] React AST renderer + syntax highlighting (lazy-loaded grammar set)
+- [x] **LNG-MD-006** [FE] React AST renderer + syntax highlighting (lazy-loaded grammar set) *Shiki core with the JavaScript regex engine and about 30 lazily loaded grammars (js, ts, rust, python, bash, json, sql, html, css, yaml, and more); other languages stay plain. The build output dropped from 12 MB to 4 MB.*
 
 ## LNG-MSGUI — Message list UI
 - [x] **LNG-MSGUI-001** [FE] Virtualized message list with bidirectional pagination, scroll anchoring, jump-to-message (highlight flash), jump-to-present bar
@@ -108,7 +108,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [ ] **LNG-SRC-002** [JOB] Index on create/edit, remove on delete; full reindex command
 - [x] **LNG-SRC-003** [BE] Search API (guild & DM/channel scopes) with filters from:, mentions:, has:, before:, during:, after:, in:, pinned:, authorType:; permission filtering; sort; pagination; total count
 - [x] **LNG-SRC-004** [FE] Search box with filter autocomplete popover (options list, user/channel pickers, date picker)
-- [ ] **LNG-SRC-005** [FE] Results pane (grouped by channel, context lines, Jump, sort New/Old/Relevant, pagination)
+- [x] **LNG-SRC-005** [FE] Results pane (grouped by channel, context lines, Jump, sort New/Old/Relevant, pagination)
 - [x] **LNG-SRC-006** [FE] Search history (recent queries, clear)
 
 ## LNG-NTF — Notifications & inbox
