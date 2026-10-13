@@ -28,9 +28,15 @@ export interface GuildObject {
   id: string;
   name: string;
   icon: string | null;
+  banner?: string | null;
+  splash?: string | null;
   description: string | null;
   owner_id: string;
   system_channel_id: string | null;
+  /** Voice channel idle members move to (voice is not built yet, the setting is stored). */
+  afk_channel_id?: string | null;
+  /** Seconds: 60, 300, 900, 1800 or 3600. */
+  afk_timeout?: number;
   verification_level: number;
   default_message_notifications: number;
   explicit_content_filter: number;
@@ -41,11 +47,24 @@ export interface ModifyGuildBody {
   name?: string;
   description?: string | null;
   system_channel_id?: string | null;
+  afk_channel_id?: string | null;
+  afk_timeout?: number;
   verification_level?: number;
   default_message_notifications?: number;
   explicit_content_filter?: number;
   preferred_locale?: string;
+  /** Data URI to set, null to remove. */
+  icon?: string | null;
+  banner?: string | null;
+  splash?: string | null;
 }
+export const AFK_TIMEOUTS = [
+  { seconds: 60, label: '1 minute' },
+  { seconds: 300, label: '5 minutes' },
+  { seconds: 900, label: '15 minutes' },
+  { seconds: 1800, label: '30 minutes' },
+  { seconds: 3600, label: '1 hour' },
+];
 export const getGuild = (id: string) => apiFetch<GuildObject>(`/guilds/${id}`, { retries: 0 });
 export const modifyGuild = (id: string, body: ModifyGuildBody) =>
   send<GuildObject>(`/guilds/${id}`, 'PATCH', body);

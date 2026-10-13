@@ -292,3 +292,81 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* Image picker (icon, banner, splash) */
+.ss-image-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ss-image-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.ss-image-preview {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--ui-bg-sunken, var(--ui-bg-raised));
+  border: 1px dashed var(--ui-border);
+  color: var(--ui-text-muted);
+  font-size: 0.75rem;
+}
+.ss-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ss-image-square {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+}
+.ss-image-wide {
+  width: 160px;
+  height: 90px;
+  border-radius: var(--ui-radius-lg, 8px);
+}
+.ss-error-text {
+  margin: 0;
+  color: var(--ui-danger, #f23f43);
+  font-size: 0.8125rem;
+}
+
+.ss-server-card {
+  width: 280px;
+  max-width: 100%;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+  overflow: hidden;
+  background: var(--ui-bg);
+}
+.ss-server-banner {
+  height: 80px;
+  background: var(--ui-accent, #5865f2);
+}
+.ss-server-banner img,
+.ss-server-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ss-server-meta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+}
+.ss-server-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--ui-bg-raised);
+  font-weight: 700;
+  flex: none;
+}

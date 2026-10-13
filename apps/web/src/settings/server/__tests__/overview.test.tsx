@@ -1,5 +1,7 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { axeViolations } from '../../../../../../packages/ui/src/test-axe';
+import { useStore } from '../../../store';
 import { capture, http, HttpResponse, MANAGE, openSettings, seed, server } from './helpers';
 
 vi.mock('../../../store/connect', () => ({
@@ -37,7 +39,77 @@ const community = {
   age_restricted: false,
 };
 
+const PNG =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAfbLI3wAAAABJRU5ErkJggg==';
+
 describe('Overview', () => {
+  it('saves the AFK channel and timeout, and uploads and removes images', async () => {
+    seed({ perms: [MANAGE.guild] });
+    const cap = capture();
+    useStore.setState((st) => ({
+      channels: {
+        ...st.channels,
+        v1: { id: 'v1', type: 2, guild_id: 'g1', name: 'Lounge VC', position: 2 },
+      },
+      channelIdsByGuild: { g1: [...st.channelIdsByGuild['g1']!, 'v1'] },
+    }));
+    server.use(
+      http.get('*/api/v1/guilds/g1', () =>
+        HttpResponse.json({
+          ...guildObj,
+          afk_channel_id: null,
+          afk_timeout: 300,
+          banner: 'b'.repeat(32),
+        }),
+      ),
+      http.get('*/api/v1/guilds/g1/sr/community', () => HttpResponse.json(community)),
+      http.patch('*/api/v1/guilds/g1', async ({ request }) => {
+        await cap.record(request);
+        return HttpResponse.json(guildObj);
+      }),
+    );
+    await openSettings('overview');
+    await userEvent.selectOptions(
+      await screen.findByRole('combobox', { name: 'Inactive channel' }),
+      'v1',
+    );
+    await userEvent.selectOptions(screen.getByLabelText('Inactive timeout'), '900');
+    const file = new File(
+      [Uint8Array.from(atob(PNG.split(',')[1]!), (c) => c.charCodeAt(0))],
+      'icon.png',
+      {
+        type: 'image/png',
+      },
+    );
+    await userEvent.upload(screen.getByTestId('file-server-icon'), file);
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove server banner' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await screen.findByText('Server settings saved.');
+    expect(cap.calls[0]!.body).toMatchObject({
+      afk_channel_id: 'v1',
+      afk_timeout: 900,
+      banner: null,
+    });
+    expect((cap.calls[0]!.body as { icon: string }).icon).toMatch(/^data:image\/png;base64,/);
+  });
+
+  it('refuses a file that is not an image', async () => {
+    seed({ perms: [MANAGE.guild] });
+    server.use(
+      http.get('*/api/v1/guilds/g1', () => HttpResponse.json(guildObj)),
+      http.get('*/api/v1/guilds/g1/sr/community', () => HttpResponse.json(community)),
+    );
+    const { container } = await openSettings('overview');
+    const input = await screen.findByTestId('file-invite-background');
+    await userEvent.upload(input, new File(['x'], 'notes.txt', { type: 'text/plain' }), {
+      applyAccept: false,
+    });
+    expect(
+      await screen.findByText('notes.txt is not a PNG, JPEG, GIF or WebP image.'),
+    ).toBeInTheDocument();
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
   it('loads, saves only changed fields, and shows community flags read-only', async () => {
     seed({ perms: [MANAGE.guild] });
     const cap = capture();
@@ -55,7 +127,7 @@ describe('Overview', () => {
     await waitFor(() =>
       expect(screen.getByText('Welcome screen').nextSibling).toHaveTextContent('On'),
     );
-    expect(screen.getByRole('button', { name: 'Change server icon' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Upload server icon' })).toBeEnabled();
     await userEvent.clear(name);
     await userEvent.type(name, 'Book Club 2');
     await userEvent.click(screen.getByRole('radio', { name: 'Only @mentions' }));
