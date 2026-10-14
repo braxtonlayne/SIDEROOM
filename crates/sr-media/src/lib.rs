@@ -13,14 +13,20 @@
 //! * [`retention`]: originals and proxy retention (CIN-ING-009).
 //! * [`retranscode`]: re-transcode planning (CIN-ING-011).
 
+pub mod assets;
+pub mod downloads;
+pub mod grant;
 pub mod http;
+pub mod output_storage;
 pub mod plan;
 pub mod playback;
 pub mod playlist;
 pub mod probe;
+pub mod remux;
 pub mod retention;
 pub mod retranscode;
 pub mod runner;
+pub mod service;
 pub mod subtitles;
 pub mod worker_api;
 

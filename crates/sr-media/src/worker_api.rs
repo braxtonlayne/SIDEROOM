@@ -12,12 +12,14 @@
 
 use crate::plan::{JobPlan, ProxyPlan};
 use crate::playlist::UrlSigner;
+use crate::remux::RemuxPlan;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
+use utoipa::ToSchema;
 
 /// Route prefix; see [`crate::http::router`].
 pub const API_PREFIX: &str = "/api/v1/transcode/worker";
@@ -29,7 +31,7 @@ pub const MAX_OUTPUT_FILES: usize = 200_000;
 
 // ---- wire types ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, ToSchema)]
 pub struct WorkerCapabilities {
     pub nvenc: bool,
     pub encoders: Vec<String>,
@@ -70,11 +72,27 @@ pub struct HeartbeatResponse {
     pub drain: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum JobKind {
     Proxy,
     Ladder,
+    /// Stream-copy remux of a stored rendition into an MP4 (Patron download, CIN-DL-001).
+    Remux,
+}
+
+impl JobKind {
+    pub const ALL: [Self; 3] = [Self::Proxy, Self::Ladder, Self::Remux];
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Proxy => "proxy",
+            Self::Ladder => "ladder",
+            Self::Remux => "remux",
+        }
+    }
+    pub fn parse(s: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|k| k.as_str() == s)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
@@ -89,6 +107,7 @@ pub struct ClaimRequest {
 pub enum JobSpec {
     Proxy { plan: Box<ProxyPlan> },
     Ladder { plan: Box<JobPlan> },
+    Remux { plan: Box<RemuxPlan> },
 }
 
 impl JobSpec {
@@ -96,6 +115,7 @@ impl JobSpec {
         match self {
             Self::Proxy { .. } => JobKind::Proxy,
             Self::Ladder { .. } => JobKind::Ladder,
+            Self::Remux { .. } => JobKind::Remux,
         }
     }
     /// Paths that must exist when the job completes.
@@ -103,12 +123,14 @@ impl JobSpec {
         match self {
             Self::Proxy { plan } => vec![plan.output.clone()],
             Self::Ladder { plan } => plan.required_outputs(),
+            Self::Remux { plan } => vec![plan.output.clone()],
         }
     }
     /// Directories (prefixes) outputs may be written under.
     pub fn allowed_prefixes(&self) -> Vec<String> {
         match self {
             Self::Proxy { .. } => vec!["proxy/".into()],
+            Self::Remux { .. } => vec!["remux/".into()],
             Self::Ladder { plan } => {
                 let mut p: Vec<String> = plan.rungs.iter().map(|r| format!("{}/", r.dir)).collect();
                 p.extend(plan.audio.iter().map(|a| format!("{}/", a.dir)));
@@ -138,6 +160,17 @@ pub struct ClaimedJob {
     pub lease_expires_at: u64,
     /// The worker must not produce more than this many bytes in total.
     pub max_output_bytes: u64,
+    /// Remux jobs: every file to fetch, with a signed URL (empty for the other kinds).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub inputs: Vec<ClaimInput>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ClaimInput {
+    /// Local path under the job input directory.
+    pub path: String,
+    pub url: String,
+    pub size_bytes: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
@@ -145,7 +178,7 @@ pub struct ClaimResponse {
     pub job: Option<ClaimedJob>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Stage {
     Download,
@@ -156,7 +189,7 @@ pub enum Stage {
     Upload,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct ProgressRequest {
     pub stage: Stage,
     /// Overall percent, 0..=100.
@@ -180,7 +213,7 @@ pub struct InitUploadRequest {
     pub size: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct PartUrl {
     pub part_number: u32,
     pub url: String,
@@ -196,7 +229,7 @@ pub struct InitUploadResponse {
     pub expires_at: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct PartDone {
     pub part_number: u32,
     pub etag: String,
@@ -319,7 +352,7 @@ pub struct WorkerRecord {
     pub drain: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum JobState {
     Queued,
@@ -537,6 +570,15 @@ pub fn validate_output_path(
         .ok_or_else(|| ApiError::BadRequest("output path: unsupported file type".into()))
 }
 
+/// The CDN path an original is served under: object keys start with `originals/`, which the
+/// `originals` CDN kind adds back (`originals/12/source.mkv` is `/cdn/originals/12/source.mkv`).
+pub fn original_cdn_path(key: &str) -> String {
+    format!(
+        "/cdn/originals/{}",
+        key.strip_prefix("originals/").unwrap_or(key)
+    )
+}
+
 /// Storage key for a job output: staged per job and attempt; the catalog promotes on complete.
 pub fn output_key(job: &JobRecord, path: &str) -> String {
     format!("transcode/{}/{}/{}", job.job_id, job.attempt, path)
@@ -557,6 +599,14 @@ pub struct ServiceConfig {
     /// Multiple of the original's size a job may produce, with a floor.
     pub output_budget_factor: u64,
     pub output_budget_floor: u64,
+}
+
+impl ServiceConfig {
+    /// Every output is one part, so one presigned `PUT` (for storage that cannot presign parts).
+    pub fn single_part(mut self) -> Self {
+        self.part_size = self.max_file_bytes.saturating_add(1);
+        self
+    }
 }
 
 impl Default for ServiceConfig {
@@ -704,7 +754,7 @@ impl WorkerService {
         }
         let now = self.now();
         let kinds = if req.kinds.is_empty() {
-            vec![JobKind::Proxy, JobKind::Ladder]
+            JobKind::ALL.to_vec()
         } else {
             req.kinds
         };
@@ -716,9 +766,26 @@ impl WorkerService {
             return Ok(ClaimResponse { job: None });
         };
         let expires_at = now + self.config.download_ttl_secs;
-        let url = self
-            .downloads
-            .signed_url(&format!("/cdn/originals/{}", job.source_key), expires_at);
+        let (url, inputs) = match &job.spec {
+            JobSpec::Remux { plan } => {
+                let inputs: Vec<ClaimInput> = plan
+                    .inputs
+                    .iter()
+                    .map(|i| ClaimInput {
+                        path: i.path.clone(),
+                        url: self.downloads.signed_url(&i.cdn_path, expires_at),
+                        size_bytes: i.size_bytes,
+                    })
+                    .collect();
+                let first = inputs.first().map(|i| i.url.clone()).unwrap_or_default();
+                (first, inputs)
+            }
+            _ => (
+                self.downloads
+                    .signed_url(&original_cdn_path(&job.source_key), expires_at),
+                Vec::new(),
+            ),
+        };
         let budget = job
             .source_size
             .saturating_mul(self.config.output_budget_factor)
@@ -736,6 +803,7 @@ impl WorkerService {
                 },
                 lease_expires_at: job.lease_expires_at.unwrap_or(now),
                 max_output_bytes: budget,
+                inputs,
             }),
         })
     }
@@ -922,6 +990,27 @@ impl WorkerService {
                 }
                 for s in &idx.segments {
                     let path = format!("{}/{}", rung.dir, s.name);
+                    if !finished.contains_key(&path)
+                        || !s.duration_secs.is_finite()
+                        || s.duration_secs <= 0.0
+                    {
+                        return Err(ApiError::BadRequest(format!("segment {path} not uploaded")));
+                    }
+                }
+            }
+            for a in &plan.audio {
+                let idx = req
+                    .segment_index
+                    .iter()
+                    .find(|s| s.playlist == a.playlist)
+                    .ok_or_else(|| {
+                        ApiError::BadRequest(format!("missing segment index for {}", a.playlist))
+                    })?;
+                if idx.segments.is_empty() {
+                    return Err(ApiError::BadRequest("empty segment index".into()));
+                }
+                for s in &idx.segments {
+                    let path = format!("{}/{}", a.dir, s.name);
                     if !finished.contains_key(&path)
                         || !s.duration_secs.is_finite()
                         || s.duration_secs <= 0.0
@@ -1483,10 +1572,7 @@ mod tests {
         assert_eq!(first.attempt, 1);
         assert_eq!(
             first.source.download_url,
-            format!(
-                "/cdn/originals/originals/77/source.mkv?ex={}&sig=S",
-                1_000 + 8 * 3600
-            )
+            format!("/cdn/originals/77/source.mkv?ex={}&sig=S", 1_000 + 8 * 3600)
         );
         assert_eq!(first.lease_expires_at, 1_120);
         assert_eq!(first.max_output_bytes, 20 * 1024 * 1024 * 1024);
@@ -1520,6 +1606,95 @@ mod tests {
                 .job
                 .is_none()
         );
+    }
+
+    #[tokio::test]
+    async fn remux_claim_signs_every_input_and_sandboxes_the_output() {
+        use crate::remux::{RemuxFile, RemuxRequest, RemuxTrack, plan_remux};
+        let h = harness();
+        let c = caller(&h).await;
+        let w = h.svc.register(&c, register_req()).await.unwrap().worker_id;
+        let track = |dir: &str| RemuxTrack {
+            playlist: format!("{dir}/index.m3u8"),
+            init: format!("{dir}/init.mp4"),
+            segments: vec![RemuxFile {
+                path: format!("{dir}/seg_00000.m4s"),
+                size_bytes: 10,
+            }],
+            playlist_size: 1,
+            init_size: 2,
+        };
+        let plan = plan_remux(&RemuxRequest {
+            rendition: "1080p".into(),
+            cdn_base: "/cdn/hls/9/1".into(),
+            video: track("v/1080p"),
+            audio: vec![track("a/00-eng-stereo")],
+            duration_secs: 6.0,
+        })
+        .unwrap();
+        let spec = JobSpec::Remux {
+            plan: Box::new(plan),
+        };
+        assert_eq!(spec.kind(), JobKind::Remux);
+        assert_eq!(spec.required_outputs(), vec!["remux/video.mp4".to_string()]);
+        h.store
+            .enqueue(NewJob {
+                asset_id: 77,
+                spec: spec.clone(),
+                source_key: String::new(),
+                source_size: 26,
+                source_extension: "m3u8".into(),
+                priority: 3,
+            })
+            .await
+            .unwrap();
+        let job = h
+            .svc
+            .claim(&c, &w, ClaimRequest::default())
+            .await
+            .unwrap()
+            .job
+            .unwrap();
+        assert_eq!(job.inputs.len(), 6);
+        assert_eq!(
+            job.inputs[0].url,
+            format!(
+                "/cdn/hls/9/1/v/1080p/index.m3u8?ex={}&sig=S",
+                1_000 + 8 * 3600
+            )
+        );
+        assert_eq!(job.inputs[0].path, "v/1080p/index.m3u8");
+        assert!(
+            h.svc
+                .init_upload(
+                    &c,
+                    &job.job_id,
+                    InitUploadRequest {
+                        path: "remux/video.mp4".into(),
+                        size: 100
+                    }
+                )
+                .await
+                .is_ok()
+        );
+        // The remux job may write nothing but its own directory.
+        assert!(
+            h.svc
+                .init_upload(
+                    &c,
+                    &job.job_id,
+                    InitUploadRequest {
+                        path: "v/1080p/index.m3u8".into(),
+                        size: 100
+                    }
+                )
+                .await
+                .is_err()
+        );
+        let wire = serde_json::to_string(&job).unwrap();
+        assert!(wire.contains("\"inputs\""));
+        let back: ClaimedJob = serde_json::from_str(&wire).unwrap();
+        assert_eq!(back, job);
     }
 
     #[tokio::test]
@@ -1838,6 +2013,9 @@ mod tests {
         for r in &plan.rungs {
             paths.push(format!("{}/seg_00000.m4s", r.dir));
         }
+        for a in &plan.audio {
+            paths.push(format!("{}/seg_00000.m4s", a.dir));
+        }
         for p in &paths {
             let init = h
                 .svc
@@ -1870,11 +2048,14 @@ mod tests {
                 size: 1000,
             });
         }
-        let index: Vec<SegmentIndex> = plan
+        let playlists = plan
             .rungs
             .iter()
-            .map(|r| SegmentIndex {
-                playlist: r.playlist.clone(),
+            .map(|r| r.playlist.clone())
+            .chain(plan.audio.iter().map(|a| a.playlist.clone()));
+        let index: Vec<SegmentIndex> = playlists
+            .map(|playlist| SegmentIndex {
+                playlist,
                 init: "init.mp4".into(),
                 segments: vec![SegmentEntry {
                     name: "seg_00000.m4s".into(),

@@ -34,6 +34,9 @@ pub struct SubtitleExtra {
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlaybackAsset {
     pub id: i64,
+    /// Where the asset's files live in storage, without a trailing slash: `transcode/<job>/<attempt>` for
+    /// worker outputs (kept where the worker wrote them), `video/<id>` for the default layout.
+    pub storage_prefix: String,
     pub duration_ms: Option<i64>,
     /// Video rungs, audio renditions and subtitle files with their segment lists.
     pub media: MediaSet,
@@ -142,6 +145,7 @@ pub fn sample_asset(id: i64) -> PlaybackAsset {
     };
     PlaybackAsset {
         id,
+        storage_prefix: format!("video/{id}"),
         duration_ms: Some(18_000),
         media: MediaSet {
             videos: vec![

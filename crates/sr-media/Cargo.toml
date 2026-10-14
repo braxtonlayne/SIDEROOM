@@ -21,10 +21,15 @@ axum = { version = "0.8", default-features = false, features = ["http1", "json",
 serde.workspace = true
 serde_json.workspace = true
 sha2 = "0.11"
+bytes = "1"
+futures = "0.3"
 sr-storage = { path = "../sr-storage" }
 thiserror.workspace = true
+tokio = { workspace = true, features = ["rt", "fs", "io-util"] }
+tracing = "0.1"
+utoipa = "5"
 
 [dev-dependencies]
 http-body-util = "0.1"
-tokio = { workspace = true, features = ["rt", "macros"] }
+tokio = { workspace = true, features = ["rt", "macros", "time"] }
 tower = { version = "0.5", features = ["util"] }

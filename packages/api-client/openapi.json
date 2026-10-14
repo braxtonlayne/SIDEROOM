@@ -1315,6 +1315,658 @@
         ]
       }
     },
+    "/admin/cinema/assets": {
+      "get": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Uploaded videos, newest first (`PUBLISH_MEDIA`).",
+        "operationId": "admin_cinema_assets",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/AssetState"
+            }
+          },
+          {
+            "name": "title_id",
+            "in": "query",
+            "description": "Only assets uploaded for this title.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 200, default 50.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "`next_before` of the previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Reserve an upload slot for an original and get the presigned multipart `PUT` URLs\n(`PUBLISH_MEDIA`).",
+        "description": "Send each part of the file (`part_size` bytes, the last one shorter) to its URL with `PUT`\nand keep the `ETag` response header of every part, then call the `complete` endpoint with the\nparts. A slot that is never completed expires after a day. Files over the configured size\nlimit (`cinema.upload.max_gb`) and unknown containers are refused with 400.",
+        "operationId": "admin_cinema_begin_upload",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadSlot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Object storage did not start the upload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/assets/{asset_id}": {
+      "get": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "An asset with its jobs and a summary of its probe: poll this after completing the upload\n(`PUBLISH_MEDIA`).",
+        "operationId": "admin_cinema_asset",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Asset snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/assets/{asset_id}/complete": {
+      "post": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "The file is uploaded: finish the multipart upload, check the object and queue the probe\n(`PUBLISH_MEDIA`). Repeating the call for an asset past the upload returns it unchanged.",
+        "operationId": "admin_cinema_complete_upload",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Asset snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteUploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The storage did not accept the parts, or the file is empty, over the limit or not the announced size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/assets/{asset_id}/link": {
+      "put": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Record which title or episode an asset is for and, once it is playable, link it in the\ncatalog as the video of that title or episode (`PUBLISH_MEDIA`).",
+        "operationId": "admin_cinema_link_asset",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Asset snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The asset has no playable renditions yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/assets/{asset_id}/original-downloads": {
+      "put": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Allow (or stop allowing) members with the download perk to fetch the original file\n(`PUBLISH_MEDIA`). An asset with this on keeps its original on the hot tier.",
+        "operationId": "admin_cinema_original_downloads",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Asset snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OriginalDownloadsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/assets/{asset_id}/probe": {
+      "post": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Probe the original again, for example after FFmpeg was installed on the server\n(`PUBLISH_MEDIA`).",
+        "operationId": "admin_cinema_reprobe",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Asset snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/assets/{asset_id}/transcode": {
+      "post": {
+        "tags": [
+          "staff"
+        ],
+        "summary": "Queue the ladder transcode of an asset that waited for approval (`PUBLISH_MEDIA`).",
+        "operationId": "admin_cinema_transcode",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Asset snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/cinema/collections": {
       "get": {
         "tags": [
@@ -9122,6 +9774,748 @@
         ]
       }
     },
+    "/admin/transcode/jobs": {
+      "get": {
+        "tags": [
+          "transcode"
+        ],
+        "summary": "Jobs, newest first (`MANAGE_TRANSCODE`).",
+        "operationId": "admin_transcode_jobs",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/JobState"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/JobKind"
+            }
+          },
+          {
+            "name": "asset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 200, default 50.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "A job id: only older jobs.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JobSummary"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/transcode/jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "transcode"
+        ],
+        "summary": "One job with its log tail, encoder and warnings (`MANAGE_TRANSCODE`).",
+        "operationId": "admin_transcode_job",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "description": "Job id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/transcode/jobs/{job_id}/cancel": {
+      "post": {
+        "tags": [
+          "transcode"
+        ],
+        "summary": "Cancel a job (`MANAGE_TRANSCODE`): a queued job stops at once, a running one when its worker\nnext reports.",
+        "operationId": "admin_transcode_cancel",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "description": "Job id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/transcode/jobs/{job_id}/retry": {
+      "post": {
+        "tags": [
+          "transcode"
+        ],
+        "summary": "Queue a failed or cancelled job again with a fresh attempt counter (`MANAGE_TRANSCODE`).",
+        "operationId": "admin_transcode_retry",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "description": "Job id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/transcode/queue": {
+      "get": {
+        "tags": [
+          "transcode"
+        ],
+        "summary": "Queue depth: queued, running, and the last day's outcomes (`MANAGE_TRANSCODE`).",
+        "operationId": "admin_transcode_queue",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueueCounts"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/transcode/retranscode": {
+      "post": {
+        "tags": [
+          "transcode"
+        ],
+        "summary": "Re-transcode one asset, a whole title or everything (`MANAGE_TRANSCODE`): the ladder is\nplanned again from the stored probe and queued (a batch is capped at 500 assets; repeat for\nthe rest). The old files stay playable until the new ones are published.",
+        "operationId": "admin_transcode_retranscode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetranscodeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetranscodeOutcome"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/transcode/sweep": {
+      "post": {
+        "tags": [
+          "transcode"
+        ],
+        "summary": "Run the retention sweep now (`MANAGE_TRANSCODE`): expired upload slots, originals and\nproxies the retention policy lets go, unreferenced transcode prefixes, expired downloads. It\nalso runs hourly.",
+        "operationId": "admin_transcode_sweep",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SweepReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/transcode/tokens": {
+      "get": {
+        "tags": [
+          "transcode"
+        ],
+        "summary": "Worker tokens, newest first (`MANAGE_TRANSCODE`). Only hashes are stored: the secret is shown\nonce, when the token is created.",
+        "operationId": "admin_transcode_tokens",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkerToken"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "transcode"
+        ],
+        "summary": "Create a worker token (`MANAGE_TRANSCODE`). The response carries the secret; it cannot be\nshown again.",
+        "operationId": "admin_transcode_create_token",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTokenBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedToken"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/transcode/tokens/{token_id}": {
+      "delete": {
+        "tags": [
+          "transcode"
+        ],
+        "summary": "Revoke a token (`MANAGE_TRANSCODE`): it stops authenticating at once and the workers\nregistered with it are told to drain.",
+        "operationId": "admin_transcode_revoke_token",
+        "parameters": [
+          {
+            "name": "token_id",
+            "in": "path",
+            "description": "Token snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/transcode/workers": {
+      "get": {
+        "tags": [
+          "transcode"
+        ],
+        "summary": "Workers that registered, with capabilities, last contact and the jobs they run\n(`MANAGE_TRANSCODE`).",
+        "operationId": "admin_transcode_workers",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkerView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/transcode/workers/{worker_id}/drain": {
+      "put": {
+        "tags": [
+          "transcode"
+        ],
+        "summary": "Tell a worker to finish its jobs and claim no more, or lift that (`MANAGE_TRANSCODE`). The\nworker learns it on its next heartbeat.",
+        "operationId": "admin_transcode_drain",
+        "parameters": [
+          {
+            "name": "worker_id",
+            "in": "path",
+            "description": "Worker id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DrainBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/channels/{channel_id}": {
       "get": {
         "tags": [
@@ -13297,6 +14691,133 @@
         ]
       }
     },
+    "/cinema/downloads/{job_id}": {
+      "get": {
+        "tags": [
+          "downloads"
+        ],
+        "summary": "State of a download you started: `queued`, `preparing`, `ready` (with the link) or `failed`.",
+        "operationId": "cinema_download",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "description": "Download id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadJob"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/cinema/downloads/{job_id}/file": {
+      "get": {
+        "tags": [
+          "downloads"
+        ],
+        "summary": "The file of a ready download: redirects to a signed CDN URL that works for a few minutes.\nOnly the member who started the download can use this link.",
+        "operationId": "cinema_download_file",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "description": "Download id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "307": {
+            "description": "Redirect to the signed file URL."
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not ready yet, or expired.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/cinema/episodes/{episode_id}": {
       "get": {
         "tags": [
@@ -15321,6 +16842,177 @@
           },
           "404": {
             "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/cinema/titles/{title_id}/downloads": {
+      "get": {
+        "tags": [
+          "downloads"
+        ],
+        "summary": "The renditions a Patron can download for a title or episode, with sizes, which are already\nprepared, and how many downloads are left today.",
+        "operationId": "cinema_download_options",
+        "parameters": [
+          {
+            "name": "title_id",
+            "in": "path",
+            "description": "Title snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "episode",
+            "in": "query",
+            "description": "For a series: the episode to download.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadOptions"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a Patron, or the title needs age confirmation (code 900011).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "downloads"
+        ],
+        "summary": "Start a download (or reuse the prepared file): the MP4 of the chosen rendition is made by a\nstream-copy job and cached for 7 days. Counts against the daily limit (429 when used up).",
+        "operationId": "cinema_start_download",
+        "parameters": [
+          {
+            "name": "title_id",
+            "in": "path",
+            "description": "Title snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadJob"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a Patron, the original is not enabled, or age confirmation is needed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "The daily limit is used up.",
             "content": {
               "application/json": {
                 "schema": {
@@ -28749,6 +30441,117 @@
           }
         }
       },
+      "Asset": {
+        "type": "object",
+        "description": "One uploaded video and what became of it.",
+        "required": [
+          "id",
+          "state",
+          "filename",
+          "original_size",
+          "original_tier",
+          "original_deleted",
+          "original_downloads",
+          "auto_ladder",
+          "has_proxy",
+          "playable",
+          "created_at_ms",
+          "updated_at_ms"
+        ],
+        "properties": {
+          "auto_ladder": {
+            "type": "boolean",
+            "description": "The ladder is queued right after the probe instead of waiting for approval."
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "episode_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the asset is `failed`, in words for staff."
+          },
+          "filename": {
+            "type": "string"
+          },
+          "has_proxy": {
+            "type": "boolean",
+            "description": "A review proxy exists."
+          },
+          "id": {
+            "type": "string"
+          },
+          "original_deleted": {
+            "type": "boolean",
+            "description": "The original file is gone (retention deleted it); a re-transcode needs a new upload."
+          },
+          "original_downloads": {
+            "type": "boolean",
+            "description": "Members with the download perk may fetch the original."
+          },
+          "original_size": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "original_tier": {
+            "type": "string",
+            "description": "`hot` or `cold`."
+          },
+          "playable": {
+            "type": "boolean",
+            "description": "The ladder is ready to play (renditions exist)."
+          },
+          "profile_version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "published_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "state": {
+            "$ref": "#/components/schemas/AssetState"
+          },
+          "title_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "uploaded_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "AssetBody": {
         "type": "object",
         "properties": {
@@ -28758,6 +30561,72 @@
               "null"
             ],
             "description": "The playable asset, or `null` to unlink it. Unlinking the last playable thing of a\npublished title unpublishes it."
+          }
+        }
+      },
+      "AssetList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Asset"
+            }
+          },
+          "next_before": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "AssetState": {
+        "type": "string",
+        "enum": [
+          "awaiting_upload",
+          "uploaded",
+          "probing",
+          "proxy_ready",
+          "in_review",
+          "approved",
+          "transcoding",
+          "published",
+          "rejected",
+          "removed",
+          "failed",
+          "expired"
+        ]
+      },
+      "AssetStatus": {
+        "type": "object",
+        "required": [
+          "asset",
+          "jobs"
+        ],
+        "properties": {
+          "asset": {
+            "$ref": "#/components/schemas/Asset"
+          },
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobSummary"
+            }
+          },
+          "probe": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProbeSummary",
+                "description": "The probe, summarised for the editor."
+              }
+            ]
           }
         }
       },
@@ -31574,6 +33443,24 @@
           }
         }
       },
+      "CompleteUploadRequest": {
+        "type": "object",
+        "required": [
+          "upload_id",
+          "parts"
+        ],
+        "properties": {
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartDone"
+            }
+          },
+          "upload_id": {
+            "type": "string"
+          }
+        }
+      },
       "ConnectionObject": {
         "type": "object",
         "required": [
@@ -32153,6 +34040,18 @@
           }
         }
       },
+      "CreateTokenBody": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "A label for the machine, 1 to 64 characters."
+          }
+        }
+      },
       "CreateWebhookBody": {
         "type": "object",
         "required": [
@@ -32169,6 +34068,22 @@
           "name": {
             "type": "string",
             "description": "1-80 characters, no `@everyone`/`@here`."
+          }
+        }
+      },
+      "CreatedToken": {
+        "type": "object",
+        "required": [
+          "token",
+          "secret"
+        ],
+        "properties": {
+          "secret": {
+            "type": "string",
+            "description": "The secret. It is shown once and only its SHA-256 is stored."
+          },
+          "token": {
+            "$ref": "#/components/schemas/WorkerToken"
           }
         }
       },
@@ -32488,6 +34403,139 @@
             "format": "int32",
             "description": "1 DM, 3 group DM.",
             "minimum": 0
+          }
+        }
+      },
+      "DownloadJob": {
+        "type": "object",
+        "description": "What the download modal polls.",
+        "required": [
+          "id",
+          "state",
+          "progress"
+        ],
+        "properties": {
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expires_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When the prepared file is deleted, Unix milliseconds."
+          },
+          "id": {
+            "type": "string"
+          },
+          "progress": {
+            "type": "number",
+            "format": "float",
+            "description": "0 to 1."
+          },
+          "state": {
+            "$ref": "#/components/schemas/DownloadState"
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The link to fetch the file (needs the same session), once `ready`."
+          }
+        }
+      },
+      "DownloadKind": {
+        "type": "string",
+        "enum": [
+          "remux",
+          "original"
+        ]
+      },
+      "DownloadOptions": {
+        "type": "object",
+        "required": [
+          "renditions"
+        ],
+        "properties": {
+          "daily_remaining": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Downloads left today; `null` when unlimited.",
+            "minimum": 0
+          },
+          "renditions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DownloadRendition"
+            }
+          }
+        }
+      },
+      "DownloadRendition": {
+        "type": "object",
+        "description": "One rendition the picker offers.",
+        "required": [
+          "id",
+          "label",
+          "size_bytes",
+          "kind",
+          "cached"
+        ],
+        "properties": {
+          "cached": {
+            "type": "boolean",
+            "description": "Prepared and cached: no job is needed."
+          },
+          "height": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "id": {
+            "type": "string",
+            "description": "`1080p`, `720p`, ... or `original`."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/DownloadKind"
+          },
+          "label": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "DownloadState": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "preparing",
+          "ready",
+          "failed"
+        ]
+      },
+      "DrainBody": {
+        "type": "object",
+        "required": [
+          "drain"
+        ],
+        "properties": {
+          "drain": {
+            "type": "boolean"
           }
         }
       },
@@ -33945,6 +35993,61 @@
           "Published"
         ]
       },
+      "JobDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/JobSummary"
+          },
+          {
+            "type": "object",
+            "required": [
+              "output_count",
+              "warnings"
+            ],
+            "properties": {
+              "encoder": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "log_tail": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The worker's log tail (last 32 KiB), control characters removed."
+              },
+              "output_count": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 0
+              },
+              "wall_secs": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "format": "double"
+              },
+              "warnings": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "JobKind": {
+        "type": "string",
+        "enum": [
+          "proxy",
+          "ladder",
+          "remux"
+        ]
+      },
       "JobPage": {
         "type": "object",
         "required": [
@@ -34012,6 +36115,96 @@
           }
         }
       },
+      "JobState": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "running",
+          "succeeded",
+          "failed",
+          "cancelled"
+        ]
+      },
+      "JobSummary": {
+        "type": "object",
+        "required": [
+          "job_id",
+          "asset_id",
+          "kind",
+          "state",
+          "priority",
+          "attempt",
+          "cancel_requested",
+          "created_at_ms"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": "string"
+          },
+          "attempt": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "cancel_requested": {
+            "type": "boolean"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "finished_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "job_id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/JobKind"
+          },
+          "priority": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "progress": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProgressRequest"
+              }
+            ]
+          },
+          "started_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "state": {
+            "$ref": "#/components/schemas/JobState"
+          },
+          "worker_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "KindInfo": {
         "type": "object",
         "description": "A kind available for creation.",
@@ -34056,6 +36249,32 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "LinkBody": {
+        "type": "object",
+        "properties": {
+          "episode_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The episode the asset is the video of. With an episode, the episode is linked."
+          },
+          "set_playable": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Also make it the playable asset of the title or episode in the catalog (default true).\nNeeds a finished ladder."
+          },
+          "title_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The title the asset belongs to (a film, or the series for bookkeeping)."
           }
         }
       },
@@ -35258,6 +37477,17 @@
           }
         }
       },
+      "OriginalDownloadsBody": {
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
       "OverwriteBody": {
         "type": "object",
         "required": [
@@ -35468,6 +37698,40 @@
             "type": "integer",
             "format": "int32",
             "minimum": 0
+          }
+        }
+      },
+      "PartDone": {
+        "type": "object",
+        "required": [
+          "part_number",
+          "etag"
+        ],
+        "properties": {
+          "etag": {
+            "type": "string"
+          },
+          "part_number": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "PartUrl": {
+        "type": "object",
+        "required": [
+          "part_number",
+          "url"
+        ],
+        "properties": {
+          "part_number": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "url": {
+            "type": "string"
           }
         }
       },
@@ -35943,6 +38207,76 @@
           }
         }
       },
+      "ProbeSummary": {
+        "type": "object",
+        "required": [
+          "container",
+          "interlaced",
+          "audio_languages",
+          "subtitle_count",
+          "warnings"
+        ],
+        "properties": {
+          "audio_languages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "container": {
+            "type": "string"
+          },
+          "duration_secs": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "hdr": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "height": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "interlaced": {
+            "type": "boolean"
+          },
+          "subtitle_count": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "video_codec": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "width": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
       "ProbeView": {
         "type": "object",
         "required": [
@@ -36110,6 +38444,50 @@
           }
         }
       },
+      "ProgressRequest": {
+        "type": "object",
+        "required": [
+          "stage",
+          "percent"
+        ],
+        "properties": {
+          "fps": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "out_time_secs": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "percent": {
+            "type": "number",
+            "format": "float",
+            "description": "Overall percent, 0..=100."
+          },
+          "speed": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float"
+          },
+          "stage": {
+            "$ref": "#/components/schemas/Stage"
+          }
+        }
+      },
       "ProgressSaved": {
         "type": "object",
         "description": "Answer of a progress save.",
@@ -36205,6 +38583,37 @@
             ],
             "format": "int32",
             "description": "1 (default) sends or accepts a friend request, 2 blocks."
+          }
+        }
+      },
+      "QueueCounts": {
+        "type": "object",
+        "required": [
+          "queued",
+          "running",
+          "failed_last_day",
+          "succeeded_last_day"
+        ],
+        "properties": {
+          "failed_last_day": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "queued": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "running": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "succeeded_last_day": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           }
         }
       },
@@ -36575,6 +38984,99 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          }
+        }
+      },
+      "RetranscodeBody": {
+        "type": "object",
+        "required": [
+          "scope"
+        ],
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The asset or title id; required unless the scope is `all`."
+          },
+          "only_older_than_profile": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Only assets rendered with an older profile than this.",
+            "minimum": 0
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scope": {
+            "$ref": "#/components/schemas/RetranscodeScopeName"
+          }
+        }
+      },
+      "RetranscodeOutcome": {
+        "type": "object",
+        "required": [
+          "enqueued",
+          "skipped",
+          "estimated_gpu_secs",
+          "truncated",
+          "failed"
+        ],
+        "properties": {
+          "enqueued": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "estimated_gpu_secs": {
+            "type": "number",
+            "format": "double"
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RetranscodeSkip"
+            }
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RetranscodeSkip"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RetranscodeScopeName": {
+        "type": "string",
+        "enum": [
+          "asset",
+          "title",
+          "all"
+        ]
+      },
+      "RetranscodeSkip": {
+        "type": "object",
+        "required": [
+          "asset_id",
+          "reason"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
           }
         }
       },
@@ -37545,6 +40047,35 @@
           }
         }
       },
+      "Stage": {
+        "type": "string",
+        "enum": [
+          "download",
+          "video",
+          "audio",
+          "subtitles",
+          "sprites",
+          "upload"
+        ]
+      },
+      "StartBody": {
+        "type": "object",
+        "required": [
+          "rendition_id"
+        ],
+        "properties": {
+          "episode_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rendition_id": {
+            "type": "string",
+            "description": "A `rendition.id` from the picker (`1080p`, ..., `original`)."
+          }
+        }
+      },
       "StartFromMessageBody": {
         "type": "object",
         "description": "`POST /channels/{id}/messages/{id}/threads`.",
@@ -38023,6 +40554,56 @@
           },
           "person_id": {
             "type": "string"
+          }
+        }
+      },
+      "SweepReport": {
+        "type": "object",
+        "required": [
+          "originals_deleted",
+          "proxies_deleted",
+          "cold_skipped",
+          "slots_expired",
+          "prefixes_collected",
+          "bytes_freed",
+          "failed"
+        ],
+        "properties": {
+          "bytes_freed": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "cold_skipped": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Cold-tier moves need a second bucket, which is not configured: reported, not done.",
+            "minimum": 0
+          },
+          "failed": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "originals_deleted": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "prefixes_collected": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "proxies_deleted": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "slots_expired": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
           }
         }
       },
@@ -39673,6 +42254,143 @@
             "items": {
               "$ref": "#/components/schemas/WelcomeChannelDto"
             }
+          }
+        }
+      },
+      "WorkerCapabilities": {
+        "type": "object",
+        "required": [
+          "nvenc",
+          "encoders",
+          "hwaccels",
+          "concurrency",
+          "libplacebo"
+        ],
+        "properties": {
+          "concurrency": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "encoders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ffmpeg_version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hwaccels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "libplacebo": {
+            "type": "boolean",
+            "description": "ffmpeg was built with libplacebo (needed for Dolby Vision profile 5)."
+          },
+          "nvenc": {
+            "type": "boolean"
+          }
+        }
+      },
+      "WorkerToken": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "created_at_ms"
+        ],
+        "properties": {
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_used_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "revoked_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "WorkerView": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "version",
+          "token_id",
+          "token_name",
+          "token_revoked",
+          "capabilities",
+          "last_seen_ms",
+          "online",
+          "drain",
+          "active_jobs"
+        ],
+        "properties": {
+          "active_jobs": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/WorkerCapabilities"
+          },
+          "drain": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_seen_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "online": {
+            "type": "boolean",
+            "description": "Heard from within the last minute."
+          },
+          "token_id": {
+            "type": "string"
+          },
+          "token_name": {
+            "type": "string"
+          },
+          "token_revoked": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "string"
           }
         }
       }

@@ -9,6 +9,7 @@ async-trait.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sr-core = { path = "../sr-core", default-features = false }
+sr-review = { path = "../sr-review" }
 sr-storage = { path = "../sr-storage" }
 tantivy = "0.26"
 thiserror.workspace = true

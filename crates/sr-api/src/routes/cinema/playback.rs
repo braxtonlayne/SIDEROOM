@@ -313,4 +313,9 @@ impl PlaylistRenderer for PlaybackDeps {
         };
         Some(Rendered { content_type, body })
     }
+
+    async fn storage_key(&self, asset_id: i64, rel: &str) -> Option<String> {
+        let asset = self.source.asset(asset_id).await.ok().flatten()?;
+        Some(format!("{}/{}", asset.storage_prefix, rel))
+    }
 }

@@ -5092,6 +5092,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sr-core",
+ "sr-review",
  "sr-storage",
  "tantivy",
  "thiserror 2.0.21",
@@ -5167,6 +5168,7 @@ dependencies = [
  "sr-cinema",
  "sr-core",
  "sr-library",
+ "sr-media",
  "sr-review",
  "sr-storage",
  "thiserror 2.0.21",
@@ -5281,6 +5283,8 @@ version = "0.0.0"
 dependencies = [
  "async-trait",
  "axum",
+ "bytes",
+ "futures",
  "http-body-util",
  "serde",
  "serde_json",
@@ -5289,6 +5293,8 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tower",
+ "tracing",
+ "utoipa",
 ]
 
 [[package]]

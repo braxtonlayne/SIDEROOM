@@ -13,6 +13,7 @@ pub mod gateway_pg;
 pub mod jobs;
 pub mod lag_bus;
 pub mod library_jobs;
+pub mod media_jobs;
 pub mod ready;
 pub mod rich_jobs;
 pub mod search_jobs;

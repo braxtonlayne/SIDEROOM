@@ -14,6 +14,8 @@
 //! | `icons`       | `icons/`          | guild icon/banner/splash (`icons/{guild}/{hash}`) |
 //! | `library`     | `library/`        | Library covers and reader pages (`library/{series}/{chapter}/{page}.webp`), signed |
 //! | `cinema`      | `cinema/`         | Cinema artwork (`cinema/{title}/poster.webp`, stills), signed |
+//! | `originals`   | `originals/`      | Cinema originals (`originals/{asset}/source.mkv`), signed, handed to workers and Patron downloads |
+//! | `transcode`   | `transcode/`      | Stored transcode outputs (`transcode/{job}/{attempt}/remux/video.mp4`, segments), signed; Patron downloads |
 //! | `hls`         | `video/`          | Cinema HLS assets (`video/{asset}/v/1080p/seg_00001.m4s`, subtitles, sprites), signed; playlists are rendered on request (`PlaylistRenderer`) |
 //!
 //! `avatars` and `icons` are *public kinds*: the URL is `/cdn/avatars/{user}/{hash}.{ext}`
@@ -31,7 +33,9 @@ pub const KINDS: &[(&str, &str)] = &[
     ("icons", "icons"),
     ("library", "library"),
     ("cinema", "cinema"),
+    ("originals", "originals"),
     ("hls", "video"),
+    ("transcode", "transcode"),
 ];
 
 const MAX_PATH: usize = 1024;

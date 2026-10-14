@@ -187,7 +187,22 @@ pub(super) async fn serve(State(state): State<AppState>, req: Request) -> Respon
         }
     }
 
-    let info = match deps.storage.head(&parsed.key).await {
+    // Stored files of an HLS asset live under the asset's own storage prefix (transcode outputs are kept where the
+    // worker wrote them), which the renderer knows; everything else uses the key derived from the path.
+    let mapped_key = if parsed.kind == "hls"
+        && let Some(renderer) = deps.playlists.as_ref()
+        && let Some((asset, rel)) = parsed
+            .canonical
+            .strip_prefix("/cdn/hls/")
+            .and_then(|r| r.split_once('/'))
+        && let Ok(asset) = asset.parse::<i64>()
+    {
+        renderer.storage_key(asset, rel).await
+    } else {
+        None
+    };
+    let key: &str = mapped_key.as_deref().unwrap_or(&parsed.key);
+    let info = match deps.storage.head(key).await {
         Ok(i) => i,
         Err(StorageError::NotFound(_)) => return plain(StatusCode::NOT_FOUND, "not found"),
         Err(e) => {
@@ -195,7 +210,7 @@ pub(super) async fn serve(State(state): State<AppState>, req: Request) -> Respon
             return plain(StatusCode::BAD_GATEWAY, "storage unavailable");
         }
     };
-    let tag = etag(&parsed.key, info.etag.as_deref(), info.size);
+    let tag = etag(key, info.etag.as_deref(), info.size);
 
     let mut headers = HeaderMap::new();
     put(&mut headers, header::ETAG, &tag);
@@ -214,12 +229,12 @@ pub(super) async fn serve(State(state): State<AppState>, req: Request) -> Respon
     } else {
         content::from_extension(&parsed.filename)
     };
-    let presentation = match by_extension {
+    let mut presentation = match by_extension {
         Some(p) => p,
         None if info.size == 0 => content::from_mime(""),
         None => match deps
             .storage
-            .get_range(&parsed.key, 0, info.size.min(SNIFF_BYTES))
+            .get_range(key, 0, info.size.min(SNIFF_BYTES))
             .await
         {
             Ok(b) => content::from_sniffed(&b),
@@ -230,6 +245,10 @@ pub(super) async fn serve(State(state): State<AppState>, req: Request) -> Respon
             }
         },
     };
+    // `dl=1` asks for a download instead of inline playback (Patron downloads).
+    if query.split('&').any(|p| p == "dl=1") {
+        presentation.inline = false;
+    }
     put(
         &mut headers,
         header::CONTENT_TYPE,
@@ -285,7 +304,7 @@ pub(super) async fn serve(State(state): State<AppState>, req: Request) -> Respon
     let whole = status == StatusCode::OK;
     let stream = match deps
         .storage
-        .get_stream(&parsed.key, if whole { None } else { Some(range) })
+        .get_stream(key, if whole { None } else { Some(range) })
         .await
     {
         Ok(s) => s,

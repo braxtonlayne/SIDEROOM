@@ -71,6 +71,13 @@ use tower_http::{
 pub trait PlaylistRenderer: Send + Sync {
     /// `None`: not a rendered file (the object is read from storage) or unknown.
     async fn render(&self, asset_id: i64, rel: &str, now: u64) -> Option<Rendered>;
+
+    /// Storage key of a stored (not rendered) file of the asset, for assets whose outputs do not live under
+    /// the default `video/<asset>/` prefix (transcode outputs live under `transcode/<job>/<attempt>/`).
+    /// `None`: use the default key.
+    async fn storage_key(&self, _asset_id: i64, _rel: &str) -> Option<String> {
+        None
+    }
 }
 
 /// A rendered playlist.

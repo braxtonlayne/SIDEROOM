@@ -34,7 +34,7 @@ pub use playback::{
 #[cfg(test)]
 mod playback_tests;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 use crate::{
     auth::UserOnly,

@@ -18,6 +18,7 @@ pub mod jobs;
 pub mod library_repo;
 pub mod library_state_repo;
 pub mod lock;
+pub mod media_repo;
 pub mod partitions;
 mod pool;
 pub mod registration;

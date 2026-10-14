@@ -243,6 +243,148 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/cinema/assets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Uploaded videos, newest first (`PUBLISH_MEDIA`). */
+        get: operations["admin_cinema_assets"];
+        put?: never;
+        /**
+         * Reserve an upload slot for an original and get the presigned multipart `PUT` URLs
+         *     (`PUBLISH_MEDIA`).
+         * @description Send each part of the file (`part_size` bytes, the last one shorter) to its URL with `PUT`
+         *     and keep the `ETag` response header of every part, then call the `complete` endpoint with the
+         *     parts. A slot that is never completed expires after a day. Files over the configured size
+         *     limit (`cinema.upload.max_gb`) and unknown containers are refused with 400.
+         */
+        post: operations["admin_cinema_begin_upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/assets/{asset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * An asset with its jobs and a summary of its probe: poll this after completing the upload
+         *     (`PUBLISH_MEDIA`).
+         */
+        get: operations["admin_cinema_asset"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/assets/{asset_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The file is uploaded: finish the multipart upload, check the object and queue the probe
+         *     (`PUBLISH_MEDIA`). Repeating the call for an asset past the upload returns it unchanged.
+         */
+        post: operations["admin_cinema_complete_upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/assets/{asset_id}/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Record which title or episode an asset is for and, once it is playable, link it in the
+         *     catalog as the video of that title or episode (`PUBLISH_MEDIA`).
+         */
+        put: operations["admin_cinema_link_asset"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/assets/{asset_id}/original-downloads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Allow (or stop allowing) members with the download perk to fetch the original file
+         *     (`PUBLISH_MEDIA`). An asset with this on keeps its original on the hot tier.
+         */
+        put: operations["admin_cinema_original_downloads"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/assets/{asset_id}/probe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Probe the original again, for example after FFmpeg was installed on the server
+         *     (`PUBLISH_MEDIA`).
+         */
+        post: operations["admin_cinema_reprobe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/assets/{asset_id}/transcode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Queue the ladder transcode of an asset that waited for approval (`PUBLISH_MEDIA`). */
+        post: operations["admin_cinema_transcode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/cinema/collections": {
         parameters: {
             query?: never;
@@ -1647,6 +1789,220 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/transcode/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Jobs, newest first (`MANAGE_TRANSCODE`). */
+        get: operations["admin_transcode_jobs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/transcode/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One job with its log tail, encoder and warnings (`MANAGE_TRANSCODE`). */
+        get: operations["admin_transcode_job"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/transcode/jobs/{job_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel a job (`MANAGE_TRANSCODE`): a queued job stops at once, a running one when its worker
+         *     next reports.
+         */
+        post: operations["admin_transcode_cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/transcode/jobs/{job_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Queue a failed or cancelled job again with a fresh attempt counter (`MANAGE_TRANSCODE`). */
+        post: operations["admin_transcode_retry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/transcode/queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Queue depth: queued, running, and the last day's outcomes (`MANAGE_TRANSCODE`). */
+        get: operations["admin_transcode_queue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/transcode/retranscode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Re-transcode one asset, a whole title or everything (`MANAGE_TRANSCODE`): the ladder is
+         *     planned again from the stored probe and queued (a batch is capped at 500 assets; repeat for
+         *     the rest). The old files stay playable until the new ones are published.
+         */
+        post: operations["admin_transcode_retranscode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/transcode/sweep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run the retention sweep now (`MANAGE_TRANSCODE`): expired upload slots, originals and
+         *     proxies the retention policy lets go, unreferenced transcode prefixes, expired downloads. It
+         *     also runs hourly.
+         */
+        post: operations["admin_transcode_sweep"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/transcode/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Worker tokens, newest first (`MANAGE_TRANSCODE`). Only hashes are stored: the secret is shown
+         *     once, when the token is created.
+         */
+        get: operations["admin_transcode_tokens"];
+        put?: never;
+        /**
+         * Create a worker token (`MANAGE_TRANSCODE`). The response carries the secret; it cannot be
+         *     shown again.
+         */
+        post: operations["admin_transcode_create_token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/transcode/tokens/{token_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke a token (`MANAGE_TRANSCODE`): it stops authenticating at once and the workers
+         *     registered with it are told to drain.
+         */
+        delete: operations["admin_transcode_revoke_token"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/transcode/workers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Workers that registered, with capabilities, last contact and the jobs they run
+         *     (`MANAGE_TRANSCODE`).
+         */
+        get: operations["admin_transcode_workers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/transcode/workers/{worker_id}/drain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Tell a worker to finish its jobs and claim no more, or lift that (`MANAGE_TRANSCODE`). The
+         *     worker learns it on its next heartbeat.
+         */
+        put: operations["admin_transcode_drain"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/channels/{channel_id}": {
         parameters: {
             query?: never;
@@ -2365,6 +2721,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cinema/downloads/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** State of a download you started: `queued`, `preparing`, `ready` (with the link) or `failed`. */
+        get: operations["cinema_download"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/downloads/{job_id}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The file of a ready download: redirects to a signed CDN URL that works for a few minutes.
+         *     Only the member who started the download can use this link.
+         */
+        get: operations["cinema_download_file"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cinema/episodes/{episode_id}": {
         parameters: {
             query?: never;
@@ -2767,6 +3160,30 @@ export interface paths {
         put?: never;
         /** Comment on a title, or reply to a top-level comment (`parent_id`). */
         post: operations["cinema_post_title_comment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/titles/{title_id}/downloads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The renditions a Patron can download for a title or episode, with sizes, which are already
+         *     prepared, and how many downloads are left today.
+         */
+        get: operations["cinema_download_options"];
+        put?: never;
+        /**
+         * Start a download (or reuse the prepared file): the MP4 of the chosen rendition is made by a
+         *     stream-copy job and cached for 7 days. Counts against the daily limit (429 when used up).
+         */
+        post: operations["cinema_start_download"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5266,12 +5683,58 @@ export interface components {
             /** @description `userHandle` (present for discoverable credentials). */
             userHandle?: string | null;
         };
+        /** @description One uploaded video and what became of it. */
+        Asset: {
+            /** @description The ladder is queued right after the probe instead of waiting for approval. */
+            auto_ladder: boolean;
+            /** Format: int64 */
+            created_at_ms: number;
+            /** Format: int64 */
+            duration_ms?: number | null;
+            episode_id?: string | null;
+            /** @description Why the asset is `failed`, in words for staff. */
+            error?: string | null;
+            filename: string;
+            /** @description A review proxy exists. */
+            has_proxy: boolean;
+            id: string;
+            /** @description The original file is gone (retention deleted it); a re-transcode needs a new upload. */
+            original_deleted: boolean;
+            /** @description Members with the download perk may fetch the original. */
+            original_downloads: boolean;
+            /** Format: int64 */
+            original_size: number;
+            /** @description `hot` or `cold`. */
+            original_tier: string;
+            /** @description The ladder is ready to play (renditions exist). */
+            playable: boolean;
+            /** Format: int32 */
+            profile_version?: number | null;
+            /** Format: int64 */
+            published_at_ms?: number | null;
+            state: components["schemas"]["AssetState"];
+            title_id?: string | null;
+            /** Format: int64 */
+            updated_at_ms: number;
+            uploaded_by?: string | null;
+        };
         AssetBody: {
             /**
              * @description The playable asset, or `null` to unlink it. Unlinking the last playable thing of a
              *     published title unpublishes it.
              */
             asset_id?: string | null;
+        };
+        AssetList: {
+            items: components["schemas"]["Asset"][];
+            next_before?: string | null;
+        };
+        /** @enum {string} */
+        AssetState: "awaiting_upload" | "uploaded" | "probing" | "proxy_ready" | "in_review" | "approved" | "transcoding" | "published" | "rejected" | "removed" | "failed" | "expired";
+        AssetStatus: {
+            asset: components["schemas"]["Asset"];
+            jobs: components["schemas"]["JobSummary"][];
+            probe?: null | components["schemas"]["ProbeSummary"];
         };
         AttachmentObject: {
             /** @description BlurHash placeholder to show until the image loads. */
@@ -6124,6 +6587,10 @@ export interface components {
             safety_alerts_channel_id?: string | null;
             welcome_screen_enabled: boolean;
         };
+        CompleteUploadRequest: {
+            parts: components["schemas"]["PartDone"][];
+            upload_id: string;
+        };
         ConnectionObject: {
             id: string;
             name: string;
@@ -6295,6 +6762,10 @@ export interface components {
             /** @description 1-100 characters. */
             name: string;
         };
+        CreateTokenBody: {
+            /** @description A label for the machine, 1 to 64 characters. */
+            name: string;
+        };
         CreateWebhookBody: {
             /**
              * @description Avatar image data URI (PNG, JPEG, GIF or WebP, 8 MiB at most; cropped to a square).
@@ -6303,6 +6774,11 @@ export interface components {
             avatar?: string | null;
             /** @description 1-80 characters, no `@everyone`/`@here`. */
             name: string;
+        };
+        CreatedToken: {
+            /** @description The secret. It is shown once and only its SHA-256 is stored. */
+            secret: string;
+            token: components["schemas"]["WorkerToken"];
         };
         CreditLedger: {
             /** Format: int64 */
@@ -6400,6 +6876,52 @@ export interface components {
              * @description 1 DM, 3 group DM.
              */
             type: number;
+        };
+        /** @description What the download modal polls. */
+        DownloadJob: {
+            error?: string | null;
+            /**
+             * Format: int64
+             * @description When the prepared file is deleted, Unix milliseconds.
+             */
+            expires_at_ms?: number | null;
+            id: string;
+            /**
+             * Format: float
+             * @description 0 to 1.
+             */
+            progress: number;
+            state: components["schemas"]["DownloadState"];
+            /** @description The link to fetch the file (needs the same session), once `ready`. */
+            url?: string | null;
+        };
+        /** @enum {string} */
+        DownloadKind: "remux" | "original";
+        DownloadOptions: {
+            /**
+             * Format: int32
+             * @description Downloads left today; `null` when unlimited.
+             */
+            daily_remaining?: number | null;
+            renditions: components["schemas"]["DownloadRendition"][];
+        };
+        /** @description One rendition the picker offers. */
+        DownloadRendition: {
+            /** @description Prepared and cached: no job is needed. */
+            cached: boolean;
+            /** Format: int32 */
+            height?: number | null;
+            /** @description `1080p`, `720p`, ... or `original`. */
+            id: string;
+            kind: components["schemas"]["DownloadKind"];
+            label: string;
+            /** Format: int64 */
+            size_bytes: number;
+        };
+        /** @enum {string} */
+        DownloadState: "queued" | "preparing" | "ready" | "failed";
+        DrainBody: {
+            drain: boolean;
         };
         EditDmBody: {
             /** @description Icon key; `null` removes the icon. */
@@ -6837,6 +7359,18 @@ export interface components {
          * @enum {string}
          */
         ItemState: "Pending" | "Approved" | "Rejected" | "Published";
+        JobDetail: components["schemas"]["JobSummary"] & {
+            encoder?: string | null;
+            /** @description The worker's log tail (last 32 KiB), control characters removed. */
+            log_tail?: string | null;
+            /** Format: int32 */
+            output_count: number;
+            /** Format: double */
+            wall_secs?: number | null;
+            warnings: string[];
+        };
+        /** @enum {string} */
+        JobKind: "proxy" | "ladder" | "remux";
         JobPage: {
             items: components["schemas"]["JobRow"][];
             next_after?: string | null;
@@ -6855,6 +7389,28 @@ export interface components {
             run_at_ms: number;
             state: string;
         };
+        /** @enum {string} */
+        JobState: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+        JobSummary: {
+            asset_id: string;
+            /** Format: int32 */
+            attempt: number;
+            cancel_requested: boolean;
+            /** Format: int64 */
+            created_at_ms: number;
+            error?: string | null;
+            /** Format: int64 */
+            finished_at_ms?: number | null;
+            job_id: string;
+            kind: components["schemas"]["JobKind"];
+            /** Format: int32 */
+            priority: number;
+            progress?: null | components["schemas"]["ProgressRequest"];
+            /** Format: int64 */
+            started_at_ms?: number | null;
+            state: components["schemas"]["JobState"];
+            worker_id?: string | null;
+        };
         /** @description A kind available for creation. */
         KindInfo: {
             id: string;
@@ -6868,6 +7424,17 @@ export interface components {
             id: string;
             reason: string;
             ref_id?: string | null;
+        };
+        LinkBody: {
+            /** @description The episode the asset is the video of. With an episode, the episode is linked. */
+            episode_id?: string | null;
+            /**
+             * @description Also make it the playable asset of the title or episode in the catalog (default true).
+             *     Needs a finished ladder.
+             */
+            set_playable?: boolean | null;
+            /** @description The title the asset belongs to (a film, or the series for bookkeeping). */
+            title_id?: string | null;
         };
         /** @description Body for `POST /sr/auth/passkeys/login/begin`. */
         LoginBeginBody: {
@@ -7212,6 +7779,9 @@ export interface components {
             role_ids?: string[];
             title: string;
         };
+        OriginalDownloadsBody: {
+            enabled: boolean;
+        };
         OverwriteBody: {
             allow?: string | null;
             deny?: string | null;
@@ -7280,6 +7850,16 @@ export interface components {
             url: string;
             /** Format: int32 */
             width: number;
+        };
+        PartDone: {
+            etag: string;
+            /** Format: int32 */
+            part_number: number;
+        };
+        PartUrl: {
+            /** Format: int32 */
+            part_number: number;
+            url: string;
         };
         PartialEmoji: {
             id?: string | null;
@@ -7422,6 +8002,22 @@ export interface components {
             /** @description DMs from non-friends land in Message Requests (default on). */
             message_requests: boolean;
         };
+        ProbeSummary: {
+            audio_languages: string[];
+            container: string;
+            /** Format: double */
+            duration_secs?: number | null;
+            hdr?: string | null;
+            /** Format: int32 */
+            height?: number | null;
+            interlaced: boolean;
+            /** Format: int32 */
+            subtitle_count: number;
+            video_codec?: string | null;
+            warnings: string[];
+            /** Format: int32 */
+            width?: number | null;
+        };
         ProbeView: {
             error?: string | null;
             name: string;
@@ -7484,6 +8080,21 @@ export interface components {
              */
             percent: number;
         };
+        ProgressRequest: {
+            /** Format: float */
+            fps?: number | null;
+            message?: string | null;
+            /** Format: double */
+            out_time_secs?: number | null;
+            /**
+             * Format: float
+             * @description Overall percent, 0..=100.
+             */
+            percent: number;
+            /** Format: float */
+            speed?: number | null;
+            stage: components["schemas"]["Stage"];
+        };
         /** @description Answer of a progress save. */
         ProgressSaved: {
             /**
@@ -7521,6 +8132,16 @@ export interface components {
              * @description 1 (default) sends or accepts a friend request, 2 blocks.
              */
             type?: number | null;
+        };
+        QueueCounts: {
+            /** Format: int32 */
+            failed_last_day: number;
+            /** Format: int32 */
+            queued: number;
+            /** Format: int32 */
+            running: number;
+            /** Format: int32 */
+            succeeded_last_day: number;
         };
         ReactionObject: {
             /** Format: int32 */
@@ -7655,6 +8276,31 @@ export interface components {
             totp: number;
             /** Format: int64 */
             trusted_devices: number;
+        };
+        RetranscodeBody: {
+            /** @description The asset or title id; required unless the scope is `all`. */
+            id?: string | null;
+            /**
+             * Format: int32
+             * @description Only assets rendered with an older profile than this.
+             */
+            only_older_than_profile?: number | null;
+            reason?: string | null;
+            scope: components["schemas"]["RetranscodeScopeName"];
+        };
+        RetranscodeOutcome: {
+            enqueued: string[];
+            /** Format: double */
+            estimated_gpu_secs: number;
+            failed: components["schemas"]["RetranscodeSkip"][];
+            skipped: components["schemas"]["RetranscodeSkip"][];
+            truncated: boolean;
+        };
+        /** @enum {string} */
+        RetranscodeScopeName: "asset" | "title" | "all";
+        RetranscodeSkip: {
+            asset_id: string;
+            reason: string;
         };
         RoleObject: {
             /** Format: int32 */
@@ -7930,6 +8576,13 @@ export interface components {
             /** Format: int32 */
             position: number;
         };
+        /** @enum {string} */
+        Stage: "download" | "video" | "audio" | "subtitles" | "sprites" | "upload";
+        StartBody: {
+            episode_id?: string | null;
+            /** @description A `rendition.id` from the picker (`1080p`, ..., `original`). */
+            rendition_id: string;
+        };
         /** @description `POST /channels/{id}/messages/{id}/threads`. */
         StartFromMessageBody: {
             /**
@@ -8090,6 +8743,25 @@ export interface components {
             /** Format: int32 */
             level: number;
             person_id: string;
+        };
+        SweepReport: {
+            /** Format: int64 */
+            bytes_freed: number;
+            /**
+             * Format: int32
+             * @description Cold-tier moves need a second bucket, which is not configured: reported, not done.
+             */
+            cold_skipped: number;
+            /** Format: int32 */
+            failed: number;
+            /** Format: int32 */
+            originals_deleted: number;
+            /** Format: int32 */
+            prefixes_collected: number;
+            /** Format: int32 */
+            proxies_deleted: number;
+            /** Format: int32 */
+            slots_expired: number;
         };
         /** @description Counts for the dashboard and system page. */
         SystemCounts: {
@@ -8571,6 +9243,43 @@ export interface components {
             description?: string | null;
             enabled: boolean;
             welcome_channels: components["schemas"]["WelcomeChannelDto"][];
+        };
+        WorkerCapabilities: {
+            /** Format: int32 */
+            concurrency: number;
+            encoders: string[];
+            ffmpeg_version?: string | null;
+            hwaccels: string[];
+            /** @description ffmpeg was built with libplacebo (needed for Dolby Vision profile 5). */
+            libplacebo: boolean;
+            nvenc: boolean;
+        };
+        WorkerToken: {
+            /** Format: int64 */
+            created_at_ms: number;
+            created_by?: string | null;
+            id: string;
+            /** Format: int64 */
+            last_used_at_ms?: number | null;
+            name: string;
+            /** Format: int64 */
+            revoked_at_ms?: number | null;
+        };
+        WorkerView: {
+            /** Format: int32 */
+            active_jobs: number;
+            capabilities: components["schemas"]["WorkerCapabilities"];
+            drain: boolean;
+            id: string;
+            /** Format: int64 */
+            last_seen_ms: number;
+            name: string;
+            /** @description Heard from within the last minute. */
+            online: boolean;
+            token_id: string;
+            token_name: string;
+            token_revoked: boolean;
+            version: string;
         };
     };
     responses: never;
@@ -9408,6 +10117,443 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_assets: {
+        parameters: {
+            query?: {
+                state?: components["schemas"]["AssetState"];
+                /** @description Only assets uploaded for this title. */
+                title_id?: string;
+                /** @description 1 to 200, default 50. */
+                limit?: number;
+                /** @description `next_before` of the previous page. */
+                before?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_begin_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UploadRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadSlot"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Object storage did not start the upload. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_asset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Asset snowflake */
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetStatus"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_complete_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Asset snowflake */
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompleteUploadRequest"];
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Asset"];
+                };
+            };
+            /** @description The storage did not accept the parts, or the file is empty, over the limit or not the announced size. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_link_asset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Asset snowflake */
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Asset"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The asset has no playable renditions yet. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_original_downloads: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Asset snowflake */
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OriginalDownloadsBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Asset"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_reprobe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Asset snowflake */
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Asset"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_transcode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Asset snowflake */
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Asset"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -14671,6 +15817,517 @@ export interface operations {
             };
         };
     };
+    admin_transcode_jobs: {
+        parameters: {
+            query?: {
+                state?: components["schemas"]["JobState"];
+                kind?: components["schemas"]["JobKind"];
+                asset_id?: string;
+                /** @description 1 to 200, default 50. */
+                limit?: number;
+                /** @description A job id: only older jobs. */
+                before?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobSummary"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_transcode_job: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Job id */
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobDetail"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_transcode_cancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Job id */
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_transcode_retry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Job id */
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_transcode_queue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueueCounts"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_transcode_retranscode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetranscodeBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetranscodeOutcome"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_transcode_sweep: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SweepReport"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_transcode_tokens: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerToken"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_transcode_create_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTokenBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedToken"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_transcode_revoke_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Token snowflake */
+                token_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_transcode_workers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerView"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_transcode_drain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Worker id */
+                worker_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DrainBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_channel: {
         parameters: {
             query?: never;
@@ -17190,6 +18847,98 @@ export interface operations {
             };
         };
     };
+    cinema_download: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Download id */
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DownloadJob"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_download_file: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Download id */
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to the signed file URL. */
+            307: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not ready yet, or expired. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     cinema_episode: {
         parameters: {
             query?: never;
@@ -18483,6 +20232,124 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_download_options: {
+        parameters: {
+            query?: {
+                /** @description For a series: the episode to download. */
+                episode?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DownloadOptions"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not a Patron, or the title needs age confirmation (code 900011). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_start_download: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartBody"];
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DownloadJob"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not a Patron, the original is not enabled, or age confirmation is needed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The daily limit is used up. */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
