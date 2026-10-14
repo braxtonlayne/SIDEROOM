@@ -26,8 +26,11 @@ pub fn normalise(pattern: &str) -> &str {
 /// Routes a bot token must never reach, whatever permissions its roles hold.
 pub fn bot_denied(method: &Method, pattern: &str) -> bool {
     let p = normalise(pattern);
-    // Platform staff, developer portal and OAuth consent: human sessions only.
+    // Platform staff, developer portal and OAuth consent: human sessions only. So are the
+    // staff appointment answer and the platform announcement banner.
     if p.starts_with("/admin")
+        || p.starts_with("/staff/")
+        || p.starts_with("/announcements")
         || p.starts_with("/developers")
         || p.starts_with("/oauth2/authorize")
         || p.starts_with("/oauth2/tokens")
@@ -118,6 +121,8 @@ mod tests {
     fn bots_are_kept_out_of_account_and_portal_routes() {
         for (m, p) in [
             (Method::GET, "/admin/me"),
+            (Method::POST, "/staff/offers/{offer_id}/respond"),
+            (Method::GET, "/announcements/active"),
             (Method::POST, "/developers/apply"),
             (Method::GET, "/sr/auth/sessions"),
             (Method::GET, "/sr/cinema/titles"),

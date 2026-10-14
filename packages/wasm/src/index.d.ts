@@ -95,6 +95,31 @@ export interface ComputeChannelInput {
   communication_disabled_until_ms: number | null;
 }
 
+/** Options of `GraphApi.layout`; leave a field out for its default. */
+export interface GraphLayoutOptions {
+  /** Steps to run (default 300). */
+  iterations?: number;
+  /** Same graph and seed give the same picture (default 0, which is the same as 1). */
+  seed?: number;
+  /** Ideal edge length (default 40). */
+  springLength?: number;
+}
+
+/** Force-directed layout with Barnes-Hut repulsion (ADM-GRAPH-002). */
+export interface GraphApi {
+  /**
+   * Positions for `nodeCount` nodes joined by `edges`, a flat list of node index pairs
+   * `[a0, b0, a1, b1, ...]`. Returns `[x0, y0, x1, y1, ...]` centred on the origin. Throws for an
+   * edge that points at a node that does not exist.
+   */
+  layout(
+    nodeCount: number,
+    edges: ArrayLike<number> | Uint32Array,
+    options?: GraphLayoutOptions,
+  ): Float32Array;
+  defaults: { iterations: number; seed: number; springLength: number };
+}
+
 /** Optional overrides of where the `.wasm` binaries are loaded from (defaults to `dist/<name>/`). */
 export interface WasmInitOptions {
   theme?: string | URL;
@@ -106,6 +131,8 @@ export function loadTheme(wasmUrl?: string | URL): Promise<ThemeApi>;
 export function loadMarkdown(wasmUrl?: string | URL): Promise<MarkdownApi>;
 /** `wasmUrl` may also be the module bytes (tests read the `.wasm` from disk). */
 export function loadPermissions(wasmUrl?: string | URL | BufferSource): Promise<PermissionsApi>;
+/** Loaded on its own (not part of `initWasm`): only the Invite Graph needs it. */
+export function loadGraph(wasmUrl?: string | URL | BufferSource): Promise<GraphApi>;
 
 /** Load all modules in parallel. */
 export function initWasm(options?: WasmInitOptions): Promise<{

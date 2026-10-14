@@ -72,6 +72,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/accounts/{account_id}/badges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Grant and revoke public badges (`MANAGE_ACCOUNTS`). */
+        post: operations["badges"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/accounts/{account_id}/ban": {
         parameters: {
             query?: never;
@@ -83,6 +100,26 @@ export interface paths {
         put?: never;
         /** Platform-ban the Person behind an account (`PLATFORM_BAN`). */
         post: operations["ban_account"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/accounts/{account_id}/change-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace an account's email; it becomes unverified and links sent to the old address
+         *     stop working (`MANAGE_ACCOUNTS`). Needs a fresh second factor.
+         */
+        post: operations["change_email"];
         delete?: never;
         options?: never;
         head?: never;
@@ -141,6 +178,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/accounts/{account_id}/force-password-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Make the password unusable and end every session; the account's owner must use
+         *     "Forgot password" to get back in (`MANAGE_ACCOUNTS`). Needs a fresh second factor.
+         */
+        post: operations["force_password_reset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/accounts/{account_id}/invite-descendants": {
         parameters: {
             query?: never;
@@ -175,6 +232,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/accounts/{account_id}/rename": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Change the username and/or display name (`MANAGE_ACCOUNTS`). */
+        post: operations["rename"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/accounts/{account_id}/reset-2fa": {
         parameters: {
             query?: never;
@@ -184,7 +258,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Remove TOTP, recovery codes and passkeys and end all sessions (`MANAGE_ACCOUNTS`). */
+        /**
+         * Remove TOTP, recovery codes and passkeys and end all sessions (`MANAGE_ACCOUNTS`).
+         *     Needs a second factor checked within the last 15 minutes.
+         */
         post: operations["reset_2fa"];
         delete?: never;
         options?: never;
@@ -226,6 +303,79 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Recent staff alerts, newest first (`STAFF_BASIC`). */
+        get: operations["alerts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/alerts/{alert_id}/ack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Acknowledge an alert (`STAFF_BASIC`). */
+        post: operations["ack"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/announcements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Announcements, newest first (`MANAGE_FEATURES`). */
+        get: operations["list"];
+        put?: never;
+        /**
+         * Publish an announcement: a banner every signed-in user sees, and with `send_dm` also a
+         *     DM from the SIDE ROOM system user to every active account (`MANAGE_FEATURES`). Needs a
+         *     fresh second factor because it reaches everyone.
+         */
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/announcements/{announcement_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** End an announcement early (`MANAGE_FEATURES`). */
+        delete: operations["end"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/bans": {
         parameters: {
             query?: never;
@@ -237,6 +387,27 @@ export interface paths {
         get: operations["bans"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/card-actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Press a button on a Staff Server card (`#alerts`, `#review-queue`, ...). The message must
+         *     be a system-user card in a channel of the Staff Server that the caller can see; the
+         *     action runs with the caller's own platform permissions (the card grants nothing).
+         */
+        post: operations["card_action"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1741,6 +1912,79 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/private/accounts/{account_id}/dms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** DM and group DM channels an account takes part in (`READ_PRIVATE_CONTENT`; logged). */
+        get: operations["account_dms"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/private/channels/{channel_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a conversation, including deleted messages younger than the retention window and
+         *     edit history (`READ_PRIVATE_CONTENT`). Reason and a fresh second factor required; the
+         *     request is logged before the content is returned.
+         */
+        get: operations["messages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/private/guilds/{guild_id}/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Channels of a server that `@everyone` cannot see (`READ_PRIVATE_CONTENT`; logged). */
+        get: operations["guild_channels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/reauth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** `GET /admin/reauth`: is the second-factor window open? (any staff member) */
+        get: operations["reauth_status"];
+        put?: never;
+        /** `POST /admin/reauth`: prove a second factor to open the 15-minute window for this session. */
+        post: operations["reauth"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/review/queue": {
         parameters: {
             query?: never;
@@ -2026,6 +2270,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/staff/delegations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Open delegations of appointment rights (`APPOINT_STAFF`). */
+        get: operations["list_delegations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/staff/offers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Offers, newest first (`APPOINT_STAFF`). */
+        get: operations["list_offers"];
+        put?: never;
+        /**
+         * Offer an appointment (`APPOINT_STAFF`). The appointee gets a system DM with Accept and
+         *     Decline and joins the staff only by accepting. Needs a fresh second factor.
+         */
+        post: operations["create_offer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/staff/offers/{offer_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Withdraw a pending offer (`APPOINT_STAFF`). */
+        delete: operations["cancel_offer"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/staff/roles": {
         parameters: {
             query?: never;
@@ -2055,6 +2354,24 @@ export interface paths {
         post?: never;
         /** Revoke an appointment (`APPOINT_STAFF`). The Owner cannot be revoked. */
         delete: operations["revoke"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/staff/{account_id}/delegation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Let a staff member appoint others within a ceiling (Owner only, D-132). */
+        put: operations["delegate"];
+        post?: never;
+        /** End a delegation (Owner only). */
+        delete: operations["undelegate"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2491,6 +2808,23 @@ export interface paths {
         };
         /** What aired in a window (at most 31 days). */
         get: operations["admin_tv_report"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/announcements/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The banners showing right now. Any signed-in user. */
+        get: operations["active"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5962,6 +6296,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/staff/offers/{offer_id}/respond": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Answer an appointment offer addressed to you. This is what the Accept and Decline
+         *     buttons of the system DM call. Any signed-in user may call it, for their own offer only.
+         */
+        post: operations["respond"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/submissions": {
         parameters: {
             query?: never;
@@ -7358,6 +7712,52 @@ export interface components {
             roles?: string[];
             users?: string[];
         };
+        AnnounceBody: components["schemas"]["AnnouncementInput"] & {
+            reason?: string | null;
+        };
+        /**
+         * @description A platform announcement: a banner every signed-in user sees, optionally also sent
+         *     as a DM from the system user.
+         */
+        Announcement: {
+            body: string;
+            /** Format: int64 */
+            created_at_ms: number;
+            created_by: string;
+            /**
+             * Format: int64
+             * @description Set when staff end it early.
+             */
+            ended_at_ms?: number | null;
+            /** Format: int64 */
+            ends_at_ms?: number | null;
+            id: string;
+            /** @description Whether the system user also DMs it to every active account. */
+            send_dm: boolean;
+            severity: components["schemas"]["AnnouncementSeverity"];
+            /** Format: int64 */
+            starts_at_ms: number;
+            title: string;
+        };
+        /** @description Input of `POST /admin/announcements`. */
+        AnnouncementInput: {
+            body: string;
+            /**
+             * Format: int64
+             * @description Stop showing at this time (default: never).
+             */
+            ends_at_ms?: number | null;
+            send_dm?: boolean;
+            severity?: null | components["schemas"]["AnnouncementSeverity"];
+            /**
+             * Format: int64
+             * @description Start showing at this time (default: now).
+             */
+            starts_at_ms?: number | null;
+            title: string;
+        };
+        /** @enum {string} */
+        AnnouncementSeverity: "info" | "warning" | "critical";
         /** @description A version in the staff queue. */
         AppVersionAdmin: components["schemas"]["AppVersionObject"] & {
             application: components["schemas"]["VersionApplication"];
@@ -7634,6 +8034,13 @@ export interface components {
             id: string;
             name: string;
         };
+        BadgesBody: {
+            /** @description Badge names to add: `early_member`, `contributor`, `bug_hunter`, `honorary`. */
+            grant?: string[];
+            reason?: string | null;
+            /** @description Badge names to remove. */
+            revoke?: string[];
+        };
         /** @description Ban body: the reason is the ban note. */
         BanBody: {
             /** @description `serious` raises suspicion on the inviter (D-031); `standard` does not. */
@@ -7782,6 +8189,17 @@ export interface components {
             /** @description The token from the "This wasn't me" link. */
             token: string;
         };
+        CardActionBody: {
+            channel_id: string;
+            /** @description The `custom_id` of the pressed button (`sr:<action>:<id>`). */
+            custom_id: string;
+            message_id: string;
+        };
+        /** @description Outcome of pressing a button on a staff card. */
+        CardActionResult: {
+            message: string;
+            ok: boolean;
+        };
         /** @description Result of verifying the whole chain. */
         ChainReport: {
             /**
@@ -7796,12 +8214,9 @@ export interface components {
             /** Format: int64 */
             rows_checked: number;
         };
-        /** @description Body for `POST /sr/auth/email/change`. */
         ChangeEmailBody: {
-            mfa?: null | components["schemas"]["MfaProof"];
-            new_email: string;
-            /** @description Current password. */
-            password: string;
+            email: string;
+            reason?: string | null;
         };
         /** @description Body for `POST /sr/auth/password`. */
         ChangePasswordBody: {
@@ -8782,6 +9197,28 @@ export interface components {
             emoji_id?: string | null;
             emoji_name?: string | null;
         };
+        DelegateBody: {
+            /**
+             * @description The most the delegate may hand out: `PlatformPermissions` bits as a decimal string.
+             *     Owner-only permissions are refused.
+             */
+            max_permissions: string;
+            reason?: string | null;
+        };
+        /**
+         * @description The Owner's delegation of appointment rights (D-132): the delegate may appoint
+         *     staff, but only with permission bits inside `max_permissions` and that they hold.
+         */
+        Delegation: {
+            account_id: string;
+            /** Format: int64 */
+            granted_at_ms: number;
+            granted_by: string;
+            /** @description `PlatformPermissions` ceiling as a decimal string. */
+            max_permissions: string;
+            reason: string;
+            username: string;
+        };
         DeleteRequest: {
             account_id: string;
             /** Format: int64 */
@@ -9109,6 +9546,11 @@ export interface components {
         };
         /** @description Result of a forced logout. */
         ForceLogoutResult: {
+            /** Format: int64 */
+            sessions_revoked: number;
+        };
+        /** @description Result of a forced password reset. */
+        ForcePasswordResetResult: {
             /** Format: int64 */
             sessions_revoked: number;
         };
@@ -9953,6 +10395,18 @@ export interface components {
             scopes: string[];
             user?: Record<string, never> | null;
         };
+        OfferBody: {
+            /** @description Account to invite to the staff. */
+            account_id: string;
+            reason?: string | null;
+            /** @description Staff Server role ids to start with. */
+            role_ids: string[];
+        };
+        /**
+         * @description State of an appointment offer (the system DM the appointee answers).
+         * @enum {string}
+         */
+        OfferState: "pending" | "accepted" | "declined" | "cancelled" | "expired";
         OnboardingDto: {
             default_channel_ids?: string[];
             enabled?: boolean;
@@ -10261,6 +10715,58 @@ export interface components {
             /** @description DMs from non-friends land in Message Requests (default on). */
             message_requests: boolean;
         };
+        /** @description Where a private conversation lives. */
+        PrivateChannel: {
+            guild_id?: string | null;
+            id: string;
+            /**
+             * Format: int32
+             * @description Discord channel type (1 DM, 3 group DM, 0 text, ...).
+             */
+            kind: number;
+            name?: string | null;
+            /** @description Whether the channel is private to some members of its server. */
+            private: boolean;
+            /** @description Participants of a DM or group DM (empty for guild channels). */
+            recipients: components["schemas"]["AccountRef"][];
+        };
+        /** @description One earlier version of an edited message. */
+        PrivateEdit: {
+            /** Format: int64 */
+            edited_at_ms: number;
+            /** @description The content before this edit. */
+            previous_content: string;
+        };
+        /** @description A message as staff see it: also removed ones, with the edit history. */
+        PrivateMessage: {
+            /** Format: int32 */
+            attachment_count: number;
+            author_id: string;
+            author_name: string;
+            content: string;
+            /** Format: int64 */
+            created_at_ms: number;
+            /** Format: int64 */
+            deleted_at_ms?: number | null;
+            /** Format: int64 */
+            edited_at_ms?: number | null;
+            edits: components["schemas"]["PrivateEdit"][];
+            id: string;
+            /** @description `visible`, `user_deleted` or `staff_removed`. */
+            visibility: string;
+        };
+        /** @description A page of a private conversation, newest first. */
+        PrivateMessagePage: {
+            channel: components["schemas"]["PrivateChannel"];
+            /**
+             * Format: int64
+             * @description Deleted messages older than this many days are gone for good.
+             */
+            deleted_retention_days: number;
+            items: components["schemas"]["PrivateMessage"][];
+            /** @description Pass as `before` for the next (older) page. */
+            next_before?: string | null;
+        };
         ProbeSummary: {
             audio_languages: string[];
             container: string;
@@ -10470,6 +10976,28 @@ export interface components {
              */
             reason?: string | null;
         };
+        ReauthBody: {
+            code: string;
+            /** @description `totp`, `recovery` or `passkey` (then `code` is the JSON of the passkey assertion). */
+            method: string;
+        };
+        /** @description Where the session stands on the second-factor window. */
+        ReauthStatus: {
+            /**
+             * @description The account has a second factor (TOTP or passkey). Without one the sensitive
+             *     admin actions stay closed.
+             */
+            enrolled: boolean;
+            /** @description A second factor was checked on this session in the last 15 minutes. */
+            fresh: boolean;
+            /** @description Whether the installation demands the window at all. */
+            required: boolean;
+            /**
+             * Format: int64
+             * @description Length of the window in seconds.
+             */
+            window_secs: number;
+        };
         /** @description Body for `POST /sr/auth/passkeys/register/finish`. */
         RegisterFinishBody: {
             /** @description From `register/begin`. */
@@ -10519,10 +11047,12 @@ export interface components {
             type: number;
             user: components["schemas"]["UserObject"];
         };
-        /** @description Body for `PATCH /sr/auth/passkeys/{id}`. */
         RenameBody: {
-            /** @description New label, 1 to 64 characters. */
-            name: string;
+            /** @description New display name; `null` or empty clears it. Leave out to keep it. */
+            display_name?: string | null;
+            reason?: string | null;
+            /** @description New username (2-32 of a-z, 0-9, `_`, `.`). Leave out to keep it. */
+            username?: string | null;
         };
         ReorderChannelEntry: {
             id: string;
@@ -10584,6 +11114,10 @@ export interface components {
             reason?: string | null;
             /** @description `mark_paid`, `refund_noted` or `dismiss`. */
             resolution: string;
+        };
+        RespondBody: {
+            /** @description `true` to accept (and join the staff), `false` to decline. */
+            accept: boolean;
         };
         RetranscodeBody: {
             /** @description The asset or title id; required unless the scope is `all`. */
@@ -10884,6 +11418,17 @@ export interface components {
          * @enum {string}
          */
         SortKey: "newest" | "updated" | "title" | "followers";
+        /** @description A stored staff alert (what `#alerts` showed), kept for the dashboard. */
+        StaffAlertRow: {
+            /** Format: int64 */
+            acked_at_ms?: number | null;
+            acked_by?: string | null;
+            /** Format: int64 */
+            created_at_ms: number;
+            detail: string;
+            id: string;
+            kind: string;
+        };
         /** @description A current staff member. */
         StaffMember: {
             account_id: string;
@@ -10896,6 +11441,28 @@ export interface components {
             platform_permissions: string;
             reason: string;
             roles: components["schemas"]["StaffRole"][];
+            username: string;
+        };
+        /** @description An offer to join the staff, answered by the appointee from a system DM. */
+        StaffOffer: {
+            account_id: string;
+            /** Format: int64 */
+            created_at_ms: number;
+            /** @description The system DM carrying the Accept and Decline buttons. */
+            dm_channel_id?: string | null;
+            dm_message_id?: string | null;
+            /** Format: int64 */
+            expires_at_ms: number;
+            id: string;
+            offered_by: string;
+            offered_by_name: string;
+            reason: string;
+            /** Format: int64 */
+            responded_at_ms?: number | null;
+            /** @description Staff Server role ids offered (decimal strings). */
+            role_ids: string[];
+            role_names: string[];
+            state: components["schemas"]["OfferState"];
             username: string;
         };
         /** @description A staff role of the Staff Server. */
@@ -11117,20 +11684,45 @@ export interface components {
             accounts_active: number;
             /** Format: int64 */
             accounts_banned: number;
+            /**
+             * Format: int64
+             * @description The account cap (`accounts.cap`), for the gauge next to `accounts_active`.
+             */
+            accounts_cap?: number;
             /** Format: int64 */
             accounts_deactivated: number;
             /** Format: int64 */
             accounts_deleted: number;
+            /**
+             * Format: int64
+             * @description Staff alerts nobody acknowledged yet.
+             */
+            alerts_unacked?: number;
+            /**
+             * Format: int64
+             * @description Unused invite codes.
+             */
+            invites_open?: number;
             /** Format: int64 */
             jobs_dead: number;
             /** Format: int64 */
             jobs_queued: number;
             /** Format: int64 */
             jobs_running: number;
+            /**
+             * Format: int64
+             * @description Submissions waiting for a reviewer (submitted or in review).
+             */
+            review_pending?: number;
             /** Format: int64 */
             sessions_active: number;
             /** Format: int64 */
             staff: number;
+            /**
+             * Format: int64
+             * @description Bytes of stored attachments (live rows).
+             */
+            storage_bytes?: number;
         };
         SystemView: {
             counts: components["schemas"]["SystemCounts"];
@@ -12438,6 +13030,64 @@ export interface operations {
             };
         };
     };
+    badges: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BadgesBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountSummary"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     ban_account: {
         parameters: {
             query?: never;
@@ -12460,6 +13110,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BanOutcome"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    change_email: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeEmailBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountSummary"];
                 };
             };
             400: {
@@ -12745,6 +13461,65 @@ export interface operations {
             };
         };
     };
+    force_password_reset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        /** @description Reason (or X-Audit-Log-Reason header) */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForcePasswordResetResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     descendants: {
         parameters: {
             query?: {
@@ -12831,6 +13606,72 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    rename: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenameBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountSummary"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -13041,6 +13882,218 @@ export interface operations {
             };
         };
     };
+    alerts: {
+        parameters: {
+            query?: {
+                /** @description 1-100, default 20 */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffAlertRow"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    ack: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Alert snowflake */
+                alert_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffAlertRow"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Announcement"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnnounceBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Announcement"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    end: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Announcement snowflake */
+                announcement_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Announcement"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     bans: {
         parameters: {
             query?: {
@@ -13074,6 +14127,61 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    card_action: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CardActionBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardActionResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -18435,6 +19543,255 @@ export interface operations {
             };
         };
     };
+    account_dms: {
+        parameters: {
+            query?: {
+                /** @description Why; or the X-Audit-Log-Reason header */
+                reason?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrivateChannel"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    messages: {
+        parameters: {
+            query?: {
+                /** @description Only messages older than this id */
+                before?: string;
+                /** @description 1-100, default 50 */
+                limit?: number;
+                /** @description Why; or the X-Audit-Log-Reason header */
+                reason?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Channel snowflake (DM, group DM or server channel) */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrivateMessagePage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    guild_channels: {
+        parameters: {
+            query?: {
+                /** @description Why; or the X-Audit-Log-Reason header */
+                reason?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrivateChannel"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    reauth_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReauthStatus"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    reauth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReauthBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReauthStatus"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     admin_review_queue: {
         parameters: {
             query?: {
@@ -19435,6 +20792,206 @@ export interface operations {
             };
         };
     };
+    list_delegations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Delegation"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_offers: {
+        parameters: {
+            query?: {
+                /** @description Only pending offers */
+                pending?: boolean;
+                /** @description 1-100, default 50 */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffOffer"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_offer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OfferBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffOffer"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cancel_offer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Offer snowflake */
+                offer_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffOffer"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     roles: {
         parameters: {
             query?: never;
@@ -19471,6 +21028,116 @@ export interface operations {
         };
     };
     revoke: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delegate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DelegateBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Delegation"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    undelegate: {
         parameters: {
             query?: never;
             header?: never;
@@ -20875,6 +22542,33 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    active: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Announcement"][];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -32571,6 +34265,56 @@ export interface operations {
             };
             /** @description TURN is not configured on this installation */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    respond: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Offer snowflake */
+                offer_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RespondBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffOffer"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

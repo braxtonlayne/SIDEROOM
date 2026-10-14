@@ -45,3 +45,17 @@ See BACKUP.md "Secrets rotation". If the key leaked, rotate it and ask members t
 ## Locked-out owner
 
 `sr-cli user reset-2fa <user>` removes TOTP, recovery codes and passkeys and revokes every session. `sr-cli invite` creates a platform invite without credits (it writes a platform audit row), and `sr-cli staff` manages appointments.
+
+## Staff alerts and the second-factor window
+
+The Staff Server's `#alerts`, `#new-members` and `#donations` channels are fed by the system user. A 15-minute health job raises an alert for a disk that is too full, a missing or stale backup, and each failed transcode job; the same problem is not raised again within a day. Tune it in Admin, Limits (group `alerts`), or `PATCH /admin/settings`:
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `alerts.disk_percent` | 80 | Alert when the watched disk is this percent full. |
+| `ops.disk_path` | empty | Directory whose disk is watched; empty watches the server's working directory. Point it at the Postgres and Garage volume. |
+| `ops.backup_dir` | empty | `SR_BACKUP_DIR` of `deploy/scripts/backup.sh`. Empty switches the backup alert off. |
+| `alerts.backup_max_age_hours` | 36 | A backup (`*.dump` or manifest `*.json`) older than this raises an alert. |
+| `alerts.email_to_owner` | off | Also email each alert to the Staff Server owner, at most one mail per kind every 30 minutes. Needs `[smtp]`. |
+
+Sensitive admin actions (reading private content, changing an account's email, forcing a password reset, resetting 2FA, appointing or revoking staff, announcements) need a second factor checked on the session in the last 15 minutes. Staff without TOTP or a passkey cannot use them until they enroll. For local development and end-to-end tests set `SR_ADMIN_REQUIRE_REAUTH=0` to switch the check off; never do that on a real installation.

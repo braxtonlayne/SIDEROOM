@@ -1,0 +1,19 @@
+[package]
+name = "sr-graph-wasm"
+version = "0.0.0"
+edition.workspace = true
+publish.workspace = true
+description = "Force-directed graph layout with Barnes-Hut repulsion for the Invite Graph (ADM-GRAPH-002), as a wasm-bindgen module."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+thiserror.workspace = true
+wasm-bindgen.workspace = true
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.79"
+
+[lints]
+workspace = true

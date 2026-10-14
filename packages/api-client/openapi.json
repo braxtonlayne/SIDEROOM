@@ -346,6 +346,93 @@
         ]
       }
     },
+    "/admin/accounts/{account_id}/badges": {
+      "post": {
+        "tags": [
+          "accounts_ext"
+        ],
+        "summary": "Grant and revoke public badges (`MANAGE_ACCOUNTS`).",
+        "operationId": "badges",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BadgesBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/accounts/{account_id}/ban": {
       "post": {
         "tags": [
@@ -381,6 +468,103 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BanOutcome"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/accounts/{account_id}/change-email": {
+      "post": {
+        "tags": [
+          "accounts_ext"
+        ],
+        "summary": "Replace an account's email; it becomes unverified and links sent to the old address\nstop working (`MANAGE_ACCOUNTS`). Needs a fresh second factor.",
+        "operationId": "change_email",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeEmailBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountSummary"
                 }
               }
             }
@@ -801,6 +985,94 @@
         ]
       }
     },
+    "/admin/accounts/{account_id}/force-password-reset": {
+      "post": {
+        "tags": [
+          "accounts_ext"
+        ],
+        "summary": "Make the password unusable and end every session; the account's owner must use\n\"Forgot password\" to get back in (`MANAGE_ACCOUNTS`). Needs a fresh second factor.",
+        "operationId": "force_password_reset",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Reason (or X-Audit-Log-Reason header)",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForcePasswordResetResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/accounts/{account_id}/invite-descendants": {
       "get": {
         "tags": [
@@ -945,12 +1217,109 @@
         ]
       }
     },
+    "/admin/accounts/{account_id}/rename": {
+      "post": {
+        "tags": [
+          "accounts_ext"
+        ],
+        "summary": "Change the username and/or display name (`MANAGE_ACCOUNTS`).",
+        "operationId": "rename",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/accounts/{account_id}/reset-2fa": {
       "post": {
         "tags": [
           "accounts"
         ],
-        "summary": "Remove TOTP, recovery codes and passkeys and end all sessions (`MANAGE_ACCOUNTS`).",
+        "summary": "Remove TOTP, recovery codes and passkeys and end all sessions (`MANAGE_ACCOUNTS`).\nNeeds a second factor checked within the last 15 minutes.",
         "operationId": "reset_2fa",
         "parameters": [
           {
@@ -1239,6 +1608,314 @@
         ]
       }
     },
+    "/admin/alerts": {
+      "get": {
+        "tags": [
+          "announce"
+        ],
+        "summary": "Recent staff alerts, newest first (`STAFF_BASIC`).",
+        "operationId": "alerts",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1-100, default 20",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StaffAlertRow"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/alerts/{alert_id}/ack": {
+      "post": {
+        "tags": [
+          "announce"
+        ],
+        "summary": "Acknowledge an alert (`STAFF_BASIC`).",
+        "operationId": "ack",
+        "parameters": [
+          {
+            "name": "alert_id",
+            "in": "path",
+            "description": "Alert snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffAlertRow"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/announcements": {
+      "get": {
+        "tags": [
+          "announce"
+        ],
+        "summary": "Announcements, newest first (`MANAGE_FEATURES`).",
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Announcement"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "announce"
+        ],
+        "summary": "Publish an announcement: a banner every signed-in user sees, and with `send_dm` also a\nDM from the SIDE ROOM system user to every active account (`MANAGE_FEATURES`). Needs a\nfresh second factor because it reaches everyone.",
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnnounceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Announcement"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/announcements/{announcement_id}": {
+      "delete": {
+        "tags": [
+          "announce"
+        ],
+        "summary": "End an announcement early (`MANAGE_FEATURES`).",
+        "operationId": "end",
+        "parameters": [
+          {
+            "name": "announcement_id",
+            "in": "path",
+            "description": "Announcement snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Announcement"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/bans": {
       "get": {
         "tags": [
@@ -1298,6 +1975,82 @@
             }
           },
           "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/card-actions": {
+      "post": {
+        "tags": [
+          "announce"
+        ],
+        "summary": "Press a button on a Staff Server card (`#alerts`, `#review-queue`, ...). The message must\nbe a system-user card in a channel of the Staff Server that the caller can see; the\naction runs with the caller's own platform permissions (the card grants nothing).",
+        "operationId": "card_action",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CardActionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardActionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
             "description": "",
             "content": {
               "application/json": {
@@ -9416,6 +10169,389 @@
         ]
       }
     },
+    "/admin/private/accounts/{account_id}/dms": {
+      "get": {
+        "tags": [
+          "private"
+        ],
+        "summary": "DM and group DM channels an account takes part in (`READ_PRIVATE_CONTENT`; logged).",
+        "operationId": "account_dms",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "description": "Why; or the X-Audit-Log-Reason header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PrivateChannel"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/private/channels/{channel_id}/messages": {
+      "get": {
+        "tags": [
+          "private"
+        ],
+        "summary": "Read a conversation, including deleted messages younger than the retention window and\nedit history (`READ_PRIVATE_CONTENT`). Reason and a fresh second factor required; the\nrequest is logged before the content is returned.",
+        "operationId": "messages",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake (DM, group DM or server channel)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Only messages older than this id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1-100, default 50",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "description": "Why; or the X-Audit-Log-Reason header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivateMessagePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/private/guilds/{guild_id}/channels": {
+      "get": {
+        "tags": [
+          "private"
+        ],
+        "summary": "Channels of a server that `@everyone` cannot see (`READ_PRIVATE_CONTENT`; logged).",
+        "operationId": "guild_channels",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "description": "Why; or the X-Audit-Log-Reason header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PrivateChannel"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/reauth": {
+      "get": {
+        "tags": [
+          "private"
+        ],
+        "summary": "`GET /admin/reauth`: is the second-factor window open? (any staff member)",
+        "operationId": "reauth_status",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "private"
+        ],
+        "summary": "`POST /admin/reauth`: prove a second factor to open the 15-minute window for this session.",
+        "operationId": "reauth",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReauthBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/review/queue": {
       "get": {
         "tags": [
@@ -10929,6 +12065,296 @@
         ]
       }
     },
+    "/admin/staff/delegations": {
+      "get": {
+        "tags": [
+          "staff_ext"
+        ],
+        "summary": "Open delegations of appointment rights (`APPOINT_STAFF`).",
+        "operationId": "list_delegations",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Delegation"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/staff/offers": {
+      "get": {
+        "tags": [
+          "staff_ext"
+        ],
+        "summary": "Offers, newest first (`APPOINT_STAFF`).",
+        "operationId": "list_offers",
+        "parameters": [
+          {
+            "name": "pending",
+            "in": "query",
+            "description": "Only pending offers",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1-100, default 50",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StaffOffer"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "staff_ext"
+        ],
+        "summary": "Offer an appointment (`APPOINT_STAFF`). The appointee gets a system DM with Accept and\nDecline and joins the staff only by accepting. Needs a fresh second factor.",
+        "operationId": "create_offer",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OfferBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffOffer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/staff/offers/{offer_id}": {
+      "delete": {
+        "tags": [
+          "staff_ext"
+        ],
+        "summary": "Withdraw a pending offer (`APPOINT_STAFF`).",
+        "operationId": "cancel_offer",
+        "parameters": [
+          {
+            "name": "offer_id",
+            "in": "path",
+            "description": "Offer snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffOffer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/staff/roles": {
       "get": {
         "tags": [
@@ -10985,6 +12411,161 @@
         ],
         "summary": "Revoke an appointment (`APPOINT_STAFF`). The Owner cannot be revoked.",
         "operationId": "revoke",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/staff/{account_id}/delegation": {
+      "put": {
+        "tags": [
+          "staff_ext"
+        ],
+        "summary": "Let a staff member appoint others within a ceiling (Owner only, D-132).",
+        "operationId": "delegate",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DelegateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Delegation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "staff_ext"
+        ],
+        "summary": "End a delegation (Owner only).",
+        "operationId": "undelegate",
         "parameters": [
           {
             "name": "account_id",
@@ -13031,6 +14612,48 @@
         "security": [
           {
             "session": []
+          }
+        ]
+      }
+    },
+    "/announcements/active": {
+      "get": {
+        "tags": [
+          "announce"
+        ],
+        "summary": "The banners showing right now. Any signed-in user.",
+        "operationId": "active",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Announcement"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          },
+          {
+            "authorization": []
           }
         ]
       }
@@ -31861,6 +33484,83 @@
         ]
       }
     },
+    "/staff/offers/{offer_id}/respond": {
+      "post": {
+        "tags": [
+          "staff_ext"
+        ],
+        "summary": "Answer an appointment offer addressed to you. This is what the Accept and Decline\nbuttons of the system DM call. Any signed-in user may call it, for their own offer only.",
+        "operationId": "respond",
+        "parameters": [
+          {
+            "name": "offer_id",
+            "in": "path",
+            "description": "Offer snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RespondBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffOffer"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/submissions": {
       "get": {
         "tags": [
@@ -38134,6 +39834,135 @@
           }
         }
       },
+      "AnnounceBody": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AnnouncementInput"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "Announcement": {
+        "type": "object",
+        "description": "A platform announcement: a banner every signed-in user sees, optionally also sent\nas a DM from the system user.",
+        "required": [
+          "id",
+          "title",
+          "body",
+          "severity",
+          "send_dm",
+          "created_by",
+          "created_at_ms",
+          "starts_at_ms"
+        ],
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "ended_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Set when staff end it early."
+          },
+          "ends_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "send_dm": {
+            "type": "boolean",
+            "description": "Whether the system user also DMs it to every active account."
+          },
+          "severity": {
+            "$ref": "#/components/schemas/AnnouncementSeverity"
+          },
+          "starts_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "AnnouncementInput": {
+        "type": "object",
+        "description": "Input of `POST /admin/announcements`.",
+        "required": [
+          "title",
+          "body"
+        ],
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "ends_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Stop showing at this time (default: never)."
+          },
+          "send_dm": {
+            "type": "boolean"
+          },
+          "severity": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AnnouncementSeverity"
+              }
+            ]
+          },
+          "starts_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Start showing at this time (default: now)."
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "AnnouncementSeverity": {
+        "type": "string",
+        "enum": [
+          "info",
+          "warning",
+          "critical"
+        ]
+      },
       "AppVersionAdmin": {
         "allOf": [
           {
@@ -39120,6 +40949,31 @@
           }
         }
       },
+      "BadgesBody": {
+        "type": "object",
+        "properties": {
+          "grant": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Badge names to add: `early_member`, `contributor`, `bug_hunter`, `honorary`."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revoke": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Badge names to remove."
+          }
+        }
+      },
       "BanBody": {
         "type": "object",
         "description": "Ban body: the reason is the ban note.",
@@ -39610,6 +41464,42 @@
           }
         }
       },
+      "CardActionBody": {
+        "type": "object",
+        "required": [
+          "channel_id",
+          "message_id",
+          "custom_id"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": "string"
+          },
+          "custom_id": {
+            "type": "string",
+            "description": "The `custom_id` of the pressed button (`sr:<action>:<id>`)."
+          },
+          "message_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CardActionResult": {
+        "type": "object",
+        "description": "Outcome of pressing a button on a staff card.",
+        "required": [
+          "ok",
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        }
+      },
       "ChainReport": {
         "type": "object",
         "description": "Result of verifying the whole chain.",
@@ -39650,29 +41540,18 @@
       },
       "ChangeEmailBody": {
         "type": "object",
-        "description": "Body for `POST /sr/auth/email/change`.",
         "required": [
-          "new_email",
-          "password"
+          "email"
         ],
         "properties": {
-          "mfa": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/MfaProof",
-                "description": "Second factor. Required when the account has two-factor authentication on,\nunless this session passed a second-factor check in the last 15 minutes."
-              }
-            ]
-          },
-          "new_email": {
+          "email": {
             "type": "string"
           },
-          "password": {
-            "type": "string",
-            "description": "Current password."
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -42910,6 +44789,58 @@
           }
         }
       },
+      "DelegateBody": {
+        "type": "object",
+        "required": [
+          "max_permissions"
+        ],
+        "properties": {
+          "max_permissions": {
+            "type": "string",
+            "description": "The most the delegate may hand out: `PlatformPermissions` bits as a decimal string.\nOwner-only permissions are refused."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Delegation": {
+        "type": "object",
+        "description": "The Owner's delegation of appointment rights (D-132): the delegate may appoint\nstaff, but only with permission bits inside `max_permissions` and that they hold.",
+        "required": [
+          "account_id",
+          "username",
+          "max_permissions",
+          "granted_by",
+          "granted_at_ms",
+          "reason"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "granted_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "granted_by": {
+            "type": "string"
+          },
+          "max_permissions": {
+            "type": "string",
+            "description": "`PlatformPermissions` ceiling as a decimal string."
+          },
+          "reason": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
       "DeleteRequest": {
         "type": "object",
         "required": [
@@ -44038,6 +45969,20 @@
       "ForceLogoutResult": {
         "type": "object",
         "description": "Result of a forced logout.",
+        "required": [
+          "sessions_revoked"
+        ],
+        "properties": {
+          "sessions_revoked": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "ForcePasswordResetResult": {
+        "type": "object",
+        "description": "Result of a forced password reset.",
         "required": [
           "sessions_revoked"
         ],
@@ -46928,6 +48873,43 @@
           }
         }
       },
+      "OfferBody": {
+        "type": "object",
+        "required": [
+          "account_id",
+          "role_ids"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "description": "Account to invite to the staff."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Staff Server role ids to start with."
+          }
+        }
+      },
+      "OfferState": {
+        "type": "string",
+        "description": "State of an appointment offer (the system DM the appointee answers).",
+        "enum": [
+          "pending",
+          "accepted",
+          "declined",
+          "cancelled",
+          "expired"
+        ]
+      },
       "OnboardingDto": {
         "type": "object",
         "properties": {
@@ -48011,6 +49993,159 @@
           }
         }
       },
+      "PrivateChannel": {
+        "type": "object",
+        "description": "Where a private conversation lives.",
+        "required": [
+          "id",
+          "kind",
+          "recipients",
+          "private"
+        ],
+        "properties": {
+          "guild_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Discord channel type (1 DM, 3 group DM, 0 text, ...)."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "private": {
+            "type": "boolean",
+            "description": "Whether the channel is private to some members of its server."
+          },
+          "recipients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountRef"
+            },
+            "description": "Participants of a DM or group DM (empty for guild channels)."
+          }
+        }
+      },
+      "PrivateEdit": {
+        "type": "object",
+        "description": "One earlier version of an edited message.",
+        "required": [
+          "edited_at_ms",
+          "previous_content"
+        ],
+        "properties": {
+          "edited_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "previous_content": {
+            "type": "string",
+            "description": "The content before this edit."
+          }
+        }
+      },
+      "PrivateMessage": {
+        "type": "object",
+        "description": "A message as staff see it: also removed ones, with the edit history.",
+        "required": [
+          "id",
+          "author_id",
+          "author_name",
+          "content",
+          "created_at_ms",
+          "visibility",
+          "attachment_count",
+          "edits"
+        ],
+        "properties": {
+          "attachment_count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "author_id": {
+            "type": "string"
+          },
+          "author_name": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "deleted_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "edited_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "edits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrivateEdit"
+            }
+          },
+          "id": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string",
+            "description": "`visible`, `user_deleted` or `staff_removed`."
+          }
+        }
+      },
+      "PrivateMessagePage": {
+        "type": "object",
+        "description": "A page of a private conversation, newest first.",
+        "required": [
+          "channel",
+          "items",
+          "deleted_retention_days"
+        ],
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/PrivateChannel"
+          },
+          "deleted_retention_days": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Deleted messages older than this many days are gone for good."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrivateMessage"
+            }
+          },
+          "next_before": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass as `before` for the next (older) page."
+          }
+        }
+      },
       "ProbeSummary": {
         "type": "object",
         "required": [
@@ -48627,6 +50762,51 @@
           }
         }
       },
+      "ReauthBody": {
+        "type": "object",
+        "required": [
+          "method",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string",
+            "description": "`totp`, `recovery` or `passkey` (then `code` is the JSON of the passkey assertion)."
+          }
+        }
+      },
+      "ReauthStatus": {
+        "type": "object",
+        "description": "Where the session stands on the second-factor window.",
+        "required": [
+          "fresh",
+          "enrolled",
+          "window_secs",
+          "required"
+        ],
+        "properties": {
+          "enrolled": {
+            "type": "boolean",
+            "description": "The account has a second factor (TOTP or passkey). Without one the sensitive\nadmin actions stay closed."
+          },
+          "fresh": {
+            "type": "boolean",
+            "description": "A second factor was checked on this session in the last 15 minutes."
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Whether the installation demands the window at all."
+          },
+          "window_secs": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Length of the window in seconds."
+          }
+        }
+      },
       "RegisterFinishBody": {
         "type": "object",
         "description": "Body for `POST /sr/auth/passkeys/register/finish`.",
@@ -48745,14 +50925,26 @@
       },
       "RenameBody": {
         "type": "object",
-        "description": "Body for `PATCH /sr/auth/passkeys/{id}`.",
-        "required": [
-          "name"
-        ],
         "properties": {
-          "name": {
-            "type": "string",
-            "description": "New label, 1 to 64 characters."
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "New display name; `null` or empty clears it. Leave out to keep it."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "New username (2-32 of a-z, 0-9, `_`, `.`). Leave out to keep it."
           }
         }
       },
@@ -48959,6 +51151,18 @@
           "resolution": {
             "type": "string",
             "description": "`mark_paid`, `refund_noted` or `dismiss`."
+          }
+        }
+      },
+      "RespondBody": {
+        "type": "object",
+        "required": [
+          "accept"
+        ],
+        "properties": {
+          "accept": {
+            "type": "boolean",
+            "description": "`true` to accept (and join the staff), `false` to decline."
           }
         }
       },
@@ -50020,6 +52224,44 @@
           "followers"
         ]
       },
+      "StaffAlertRow": {
+        "type": "object",
+        "description": "A stored staff alert (what `#alerts` showed), kept for the dashboard.",
+        "required": [
+          "id",
+          "kind",
+          "detail",
+          "created_at_ms"
+        ],
+        "properties": {
+          "acked_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "acked_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        }
+      },
       "StaffMember": {
         "type": "object",
         "description": "A current staff member.",
@@ -50067,6 +52309,87 @@
             "items": {
               "$ref": "#/components/schemas/StaffRole"
             }
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
+      "StaffOffer": {
+        "type": "object",
+        "description": "An offer to join the staff, answered by the appointee from a system DM.",
+        "required": [
+          "id",
+          "account_id",
+          "username",
+          "offered_by",
+          "offered_by_name",
+          "role_ids",
+          "role_names",
+          "reason",
+          "state",
+          "created_at_ms",
+          "expires_at_ms"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "dm_channel_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The system DM carrying the Accept and Decline buttons."
+          },
+          "dm_message_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expires_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "offered_by": {
+            "type": "string"
+          },
+          "offered_by_name": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "responded_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "role_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Staff Server role ids offered (decimal strings)."
+          },
+          "role_names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "state": {
+            "$ref": "#/components/schemas/OfferState"
           },
           "username": {
             "type": "string"
@@ -50756,6 +53079,11 @@
             "type": "integer",
             "format": "int64"
           },
+          "accounts_cap": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The account cap (`accounts.cap`), for the gauge next to `accounts_active`."
+          },
           "accounts_deactivated": {
             "type": "integer",
             "format": "int64"
@@ -50763,6 +53091,16 @@
           "accounts_deleted": {
             "type": "integer",
             "format": "int64"
+          },
+          "alerts_unacked": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Staff alerts nobody acknowledged yet."
+          },
+          "invites_open": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unused invite codes."
           },
           "jobs_dead": {
             "type": "integer",
@@ -50776,6 +53114,11 @@
             "type": "integer",
             "format": "int64"
           },
+          "review_pending": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Submissions waiting for a reviewer (submitted or in review)."
+          },
           "sessions_active": {
             "type": "integer",
             "format": "int64"
@@ -50783,6 +53126,11 @@
           "staff": {
             "type": "integer",
             "format": "int64"
+          },
+          "storage_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bytes of stored attachments (live rows)."
           }
         }
       },
