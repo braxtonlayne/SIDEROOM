@@ -14,6 +14,7 @@ export interface RawMember {
 }
 
 export const fetchGuilds = () => apiFetch<Guild[]>('/users/@me/guilds');
+export const fetchDmChannels = () => apiFetch<Channel[]>('/users/@me/channels');
 export const fetchGuild = (id: string) => apiFetch<Guild>(`/guilds/${id}`);
 export const fetchChannels = (guildId: string) =>
   apiFetch<Channel[]>(`/guilds/${guildId}/channels`);
