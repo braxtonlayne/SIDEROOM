@@ -483,3 +483,9 @@
 .us-keybind-row p {
   margin: 0;
 }
+.us-scope-list {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  color: var(--sr-text-2);
+  font-size: 13px;
+}

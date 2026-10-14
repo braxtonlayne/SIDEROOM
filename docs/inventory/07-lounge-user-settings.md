@@ -41,7 +41,7 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
 - [ ] **LNG-USET-020** [BE][JOB] Data export package builder (JSON + attachment index, zipped, 7-day link)
 
 ## Authorized Apps
-- [ ] **LNG-USET-021** [FE] OAuth2 grants list (app, scopes, Deauthorize)
+- [x] **LNG-USET-021** [FE] OAuth2 grants list (app, scopes, Deauthorize)
    - Placeholder page only: the server has no OAuth2 grants to list or revoke, and the page says so.
 
 ## Devices

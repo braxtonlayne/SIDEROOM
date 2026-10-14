@@ -10,7 +10,7 @@ Phase 6. Spec: doc 11, doc 05.
 - [x] **DEV-APP-005** [BE] Release review (versions with manifest diff, scopes/intents changes force review), suspend app (versions with manifest snapshot and diff, `needs_review` reasons, staff decision, suspend/unsuspend)
 - [x] **DEV-APP-006** [BE] Privileged intents approval flow (developers request privileged intents, staff approve a subset with the version decision; the gateway enforces `requested AND approved` for released apps)
 - [ ] **DEV-APP-007** [BE] Install flows (guild install with permissions, user install), OAuth2 authorize/token/revoke, scopes (partly done: server installs (bot with a managed role capped to the installer's permissions, applications.commands), OAuth2 authorize/token/revoke/introspect with PKCE and refresh rotation, scopes identify/email/guilds/bot/applications.commands(.permissions.update); user installs are not built)
-- [ ] **DEV-APP-008** [FE] OAuth2 authorize screen (app, scopes list, server picker, permissions checkboxes, Authorize)
+- [x] **DEV-APP-008** [FE] OAuth2 authorize screen (app, scopes list, server picker, permissions checkboxes, Authorize)
 
 ## DEV-BOT — Bot runtime API
 - [x] **DEV-BOT-001** [BE] Bot auth on REST + gateway, intents filtering (incl. MESSAGE_CONTENT) (`Authorization: Bot` and `Bearer` on REST (`AppsAuth` replaces NoBots/NoBearers), bot IDENTIFY and RESUME, privileged-intent gating (4014), MESSAGE_CONTENT redaction)
@@ -27,10 +27,10 @@ Phase 6. Spec: doc 11, doc 05.
 - [ ] **DEV-BOT-012** [FE] App Directory (approved released apps: search, categories, app page, Add App)
 
 ## DEV-PORT — Developer portal
-- [ ] **DEV-PORT-001** [FE] `/developers` landing + Apply flow + status
-- [ ] **DEV-PORT-002** [FE] Applications list + New Application modal
-- [ ] **DEV-PORT-003** [FE] App pages: General Information, Installation, OAuth2 (redirects, URL generator), Bot (token, intents toggles, public bot), Emojis, Webhooks, Rich Presence assets, App Testers, Activities (URL mappings), Review (submit version, status, reviewer messages)
-- [ ] **DEV-PORT-004** [DOC] API docs site (generated from OpenAPI + gateway docs), porting-from-Discord guide
+- [x] **DEV-PORT-001** [FE] `/developers` landing + Apply flow + status
+- [x] **DEV-PORT-002** [FE] Applications list + New Application modal
+- [ ] **DEV-PORT-003** [FE] App pages: General Information, Installation, OAuth2 (redirects, URL generator), Bot (token, intents toggles, public bot), Emojis, Webhooks, Rich Presence assets, App Testers, Activities (URL mappings), Review (submit version, status, reviewer messages) _(web partial: General, OAuth2, Bot, Installation, Commands builder, Review done; Emojis, Webhooks, Rich Presence, App Testers, Activities not built because the backend has none)_
+- [ ] **DEV-PORT-004** [DOC] API docs site (generated from OpenAPI + gateway docs), porting-from-Discord guide _(web partial: hand-written hub with samples, not generated from OpenAPI)_
 
 ## DEV-SDK — SDKs & compatibility
 - [ ] **DEV-SDK-001** [BE] `sr-sdk` Rust (client, gateway shard manager, cache, command framework)
