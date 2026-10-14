@@ -11,15 +11,11 @@ import {
   TextInput,
 } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
+import { useT } from '../../i18n';
 import { SectionHeader, useAdminViewer } from '../ui';
 import * as api from './api';
 import { Banner, LoadProblem, intOrNull, useLoad, useRun } from './hooks';
 
-const DISPLAYS = [
-  { value: 'row', label: 'Row' },
-  { value: 'hero', label: 'Hero spotlight' },
-  { value: 'banner', label: 'Banner' },
-];
 const slugify = (s: string) =>
   s
     .toLowerCase()
@@ -27,15 +23,16 @@ const slugify = (s: string) =>
     .replace(/^-+|-+$/g, '');
 
 export function CollectionsSection() {
+  const t = useT();
   const allowed = useAdminViewer().can('MANAGE_COLLECTIONS');
   const [open, setOpen] = useState<string | 'new' | null>(null);
   if (!allowed)
     return (
       <>
-        <SectionHeader title="Cinema collections" />
+        <SectionHeader title={t('admin.collections.title')} />
         <EmptyState
-          title="You do not have access"
-          description="Collections take the Manage collections permission (Media Curator)."
+          title={t('admin.collections.noAccess.title')}
+          description={t('admin.collections.noAccess.description')}
         />
       </>
     );
@@ -45,27 +42,31 @@ export function CollectionsSection() {
 }
 
 function CollectionList({ onOpen }: { onOpen: (id: string | 'new') => void }) {
+  const t = useT();
   const res = useLoad('cinema-collections', api.listCollections);
   return (
     <>
       <SectionHeader
-        title="Cinema collections"
-        description="Curated rows and spotlights that appear on Discover and the browse pages, in position order."
-        actions={<Button onClick={() => onOpen('new')}>New collection</Button>}
+        title={t('admin.collections.title')}
+        description={t('admin.collections.description')}
+        actions={<Button onClick={() => onOpen('new')}>{t('admin.collections.new')}</Button>}
       />
       {res.error && !res.data && (
         <LoadProblem
           error={res.error}
           status={res.status}
           onRetry={() => void res.reload()}
-          what="collections"
+          what={t('admin.collections.whatCollections')}
         />
       )}
       {res.data && res.data.items.length === 0 && (
-        <EmptyState title="No collections" description="Create the first curated row." />
+        <EmptyState
+          title={t('admin.collections.empty.title')}
+          description={t('admin.collections.empty.description')}
+        />
       )}
       {res.data && res.data.items.length > 0 && (
-        <ul className="ss-list" aria-label="Collections">
+        <ul className="ss-list" aria-label={t('admin.collections.list')}>
           {[...res.data.items]
             .sort((a, b) => a.position - b.position)
             .map((c) => (
@@ -74,21 +75,23 @@ function CollectionList({ onOpen }: { onOpen: (id: string | 'new') => void }) {
                   <div className="ss-name">
                     {c.name} <Badge>{c.display}</Badge>{' '}
                     <Badge variant={c.published ? 'success' : 'neutral'}>
-                      {c.published ? 'published' : 'draft'}
+                      {c.published
+                        ? t('admin.collections.statusPublished')
+                        : t('admin.collections.statusDraft')}
                     </Badge>
                   </div>
                   <div className="ss-meta">
-                    {c.item_count} title{c.item_count === 1 ? '' : 's'} ·{' '}
-                    {c.surfaces.join(', ') || 'no surface'}
+                    {t('admin.collections.titleCount', { n: c.item_count })} ·{' '}
+                    {c.surfaces.join(', ') || t('admin.collections.noSurface')}
                   </div>
                 </div>
                 <Button
                   size="sm"
                   variant="secondary"
-                  aria-label={`Edit collection ${c.name}`}
+                  aria-label={t('admin.collections.editAria', { name: c.name })}
                   onClick={() => onOpen(c.id)}
                 >
-                  Edit
+                  {t('admin.collections.edit')}
                 </Button>
               </li>
             ))}
@@ -99,6 +102,7 @@ function CollectionList({ onOpen }: { onOpen: (id: string | 'new') => void }) {
 }
 
 function CollectionEditor({ id: initialId, onClose }: { id: string | null; onClose: () => void }) {
+  const t = useT();
   const [id, setId] = useState(initialId);
   const res = useLoad<api.CollectionDetail | null>(`cinema-collection:${id ?? 'new'}`, async () =>
     id ? api.getCollection(id) : null,
@@ -109,15 +113,15 @@ function CollectionEditor({ id: initialId, onClose }: { id: string | null; onClo
   return (
     <>
       <SectionHeader
-        title={c ? c.name : 'New collection'}
+        title={c ? c.name : t('admin.collections.newTitle')}
         actions={
           <>
             <Button variant="ghost" onClick={onClose}>
-              Back to collections
+              {t('admin.collections.back')}
             </Button>
             {c && (
               <Button variant="danger" onClick={() => setRemove(true)}>
-                Delete collection
+                {t('admin.collections.delete')}
               </Button>
             )}
           </>
@@ -129,7 +133,7 @@ function CollectionEditor({ id: initialId, onClose }: { id: string | null; onClo
           error={res.error}
           status={res.status}
           onRetry={() => void res.reload()}
-          what="this collection"
+          what={t('admin.collections.whatThis')}
         />
       )}
       {(!id || res.data) && (
@@ -156,9 +160,11 @@ function CollectionEditor({ id: initialId, onClose }: { id: string | null; onClo
       <ConfirmDialog
         open={remove}
         danger
-        title={`Delete ${c?.name ?? 'collection'}`}
-        description="The row disappears from Discover. The titles themselves are not touched."
-        confirmLabel="Delete collection"
+        title={t('admin.collections.deleteTitle', {
+          name: c?.name ?? t('admin.collections.collectionWord'),
+        })}
+        description={t('admin.collections.deleteDescription')}
+        confirmLabel={t('admin.collections.delete')}
         loading={del.busy}
         onCancel={() => setRemove(false)}
         onConfirm={() => {
@@ -185,6 +191,12 @@ function CollectionForm({
   collection: api.Collection | undefined;
   onSave: (b: api.CollectionInput) => Promise<void>;
 }) {
+  const t = useT();
+  const displays = [
+    { value: 'row', label: t('admin.collections.display.row') },
+    { value: 'hero', label: t('admin.collections.display.hero') },
+    { value: 'banner', label: t('admin.collections.display.banner') },
+  ];
   const [name, setName] = useState(collection?.name ?? '');
   const [slug, setSlug] = useState(collection?.slug ?? '');
   const [slugTouched, setSlugTouched] = useState(!!collection);
@@ -198,7 +210,7 @@ function CollectionForm({
   return (
     <form
       className="adm-form adm-cin-form"
-      aria-label="Collection details"
+      aria-label={t('admin.collections.form.aria')}
       onSubmit={(e) => {
         e.preventDefault();
         void run(
@@ -213,13 +225,13 @@ function CollectionForm({
               position: intOrNull(position) ?? 0,
               published,
             }).then(() => true),
-          collection ? 'Saved.' : 'Collection created.',
+          collection ? t('admin.collections.form.saved') : t('admin.collections.form.created'),
         );
       }}
     >
       <div className="adm-cin-grid">
         <TextInput
-          label="Collection name"
+          label={t('admin.collections.form.name')}
           value={name}
           onChange={(e) => {
             setName(e.target.value);
@@ -227,34 +239,43 @@ function CollectionForm({
           }}
         />
         <TextInput
-          label="Slug"
+          label={t('admin.collections.form.slug')}
           value={slug}
           onChange={(e) => {
             setSlugTouched(true);
             setSlug(e.target.value);
           }}
         />
-        <TextInput label="Eyebrow" value={eyebrow} onChange={(e) => setEyebrow(e.target.value)} />
+        <TextInput
+          label={t('admin.collections.form.eyebrow')}
+          value={eyebrow}
+          onChange={(e) => setEyebrow(e.target.value)}
+        />
         <Select
-          aria-label="Display"
-          options={DISPLAYS}
+          aria-label={t('admin.collections.form.display')}
+          options={displays}
           value={display}
           onValueChange={setDisplay}
         />
         <TextInput
-          label="Position"
+          label={t('admin.collections.form.position')}
           type="number"
           value={position}
           onChange={(e) => setPosition(e.target.value)}
         />
       </div>
-      <TextArea label="Blurb" rows={2} value={blurb} onChange={(e) => setBlurb(e.target.value)} />
+      <TextArea
+        label={t('admin.collections.form.blurb')}
+        rows={2}
+        value={blurb}
+        onChange={(e) => setBlurb(e.target.value)}
+      />
       <fieldset className="adm-check-row">
-        <legend className="ss-field-label">Shown on</legend>
+        <legend className="ss-field-label">{t('admin.collections.form.shownOn')}</legend>
         {api.SURFACES.map((s) => (
           <Switch
             key={s}
-            label={`Surface ${s}`}
+            label={t('admin.collections.form.surface', { name: s })}
             checked={surfaces.includes(s)}
             onChange={(e) =>
               setSurfaces((cur) => (e.target.checked ? [...cur, s] : cur.filter((x) => x !== s)))
@@ -263,14 +284,14 @@ function CollectionForm({
         ))}
       </fieldset>
       <Switch
-        label="Published"
+        label={t('admin.collections.form.published')}
         checked={published}
         onChange={(e) => setPublished(e.target.checked)}
       />
       <Banner error={error} notice={notice} />
       <div className="adm-actions">
         <Button type="submit" loading={busy} disabled={!name.trim() || !slug.trim()}>
-          {collection ? 'Save collection' : 'Create collection'}
+          {collection ? t('admin.collections.form.save') : t('admin.collections.form.create')}
         </Button>
       </div>
     </form>
@@ -294,6 +315,7 @@ function ItemsEditor({
   initial: api.Title[];
   onSaved: () => Promise<void>;
 }) {
+  const t = useT();
   const [items, setItems] = useState(initial);
   const [dirty, setDirty] = useState(false);
   const [dragFrom, setDragFrom] = useState<number | null>(null);
@@ -311,7 +333,7 @@ function ItemsEditor({
       return;
     }
     let live = true;
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       api
         .listTitles({ title: q.trim(), limit: 8 })
         .then((p) => live && setFound(p.items))
@@ -319,7 +341,7 @@ function ItemsEditor({
     }, 200);
     return () => {
       live = false;
-      clearTimeout(t);
+      clearTimeout(timer);
     };
   }, [q]);
 
@@ -330,15 +352,15 @@ function ItemsEditor({
   const inList = new Set(items.map((i) => i.id));
 
   return (
-    <section className="ss-card" aria-label="Collection titles">
-      <h2 className="ss-sub">Titles, in order</h2>
+    <section className="ss-card" aria-label={t('admin.collections.items.aria')}>
+      <h2 className="ss-sub">{t('admin.collections.items.heading')}</h2>
       {items.length === 0 ? (
-        <p className="ss-na">No titles yet. Search below to add some.</p>
+        <p className="ss-na">{t('admin.collections.items.none')}</p>
       ) : (
-        <ol className="ss-list" aria-label="Ordered titles">
-          {items.map((t, i) => (
+        <ol className="ss-list" aria-label={t('admin.collections.items.ordered')}>
+          {items.map((ti, i) => (
             <li
-              key={t.id}
+              key={ti.id}
               className={`ss-row${dragFrom === i ? ' ss-dragging' : ''}${over === i && dragFrom !== i ? ' ss-drop-target' : ''}`}
               draggable
               onDragStart={() => setDragFrom(i)}
@@ -359,66 +381,73 @@ function ItemsEditor({
               </span>
               <span className="adm-cin-pos">{i + 1}</span>
               <div className="ss-grow">
-                <div className="ss-name">{t.title}</div>
+                <div className="ss-name">{ti.title}</div>
                 <div className="ss-meta">
-                  {t.kind} · {t.year ?? 'no year'} · {t.published ? 'published' : 'draft'}
+                  {ti.kind} · {ti.year ?? t('admin.collections.noYear')} ·{' '}
+                  {ti.published
+                    ? t('admin.collections.statusPublished')
+                    : t('admin.collections.statusDraft')}
                 </div>
               </div>
               <Button
                 size="sm"
                 variant="ghost"
-                aria-label={`Move ${t.title} up`}
+                aria-label={t('admin.collections.items.moveUpAria', { title: ti.title })}
                 disabled={i === 0}
                 onClick={() => apply(move(items, i, i - 1))}
               >
-                Up
+                {t('admin.collections.items.up')}
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
-                aria-label={`Move ${t.title} down`}
+                aria-label={t('admin.collections.items.moveDownAria', { title: ti.title })}
                 disabled={i === items.length - 1}
                 onClick={() => apply(move(items, i, i + 1))}
               >
-                Down
+                {t('admin.collections.items.down')}
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
-                aria-label={`Remove ${t.title}`}
-                onClick={() => apply(items.filter((x) => x.id !== t.id))}
+                aria-label={t('admin.collections.items.removeAria', { title: ti.title })}
+                onClick={() => apply(items.filter((x) => x.id !== ti.id))}
               >
-                Remove
+                {t('admin.collections.items.remove')}
               </Button>
             </li>
           ))}
         </ol>
       )}
       <TextInput
-        label="Add a title"
+        label={t('admin.collections.items.addLabel')}
         type="search"
         value={q}
         onChange={(e) => setQ(e.target.value)}
       />
       {found.length > 0 && (
-        <ul className="ss-list" aria-label="Search results">
-          {found.map((t) => (
-            <li key={t.id} className="ss-row">
+        <ul className="ss-list" aria-label={t('admin.collections.items.results')}>
+          {found.map((ti) => (
+            <li key={ti.id} className="ss-row">
               <div className="ss-grow">
-                <div className="ss-name">{t.title}</div>
+                <div className="ss-name">{ti.title}</div>
                 <div className="ss-meta">
-                  {t.kind} · {t.year ?? 'no year'} ·{' '}
-                  {t.published ? 'published' : 'draft (hidden until published)'}
+                  {ti.kind} · {ti.year ?? t('admin.collections.noYear')} ·{' '}
+                  {ti.published
+                    ? t('admin.collections.statusPublished')
+                    : t('admin.collections.items.draftHidden')}
                 </div>
               </div>
               <Button
                 size="sm"
                 variant="secondary"
-                disabled={inList.has(t.id)}
-                aria-label={`Add ${t.title}`}
-                onClick={() => apply([...items, t])}
+                disabled={inList.has(ti.id)}
+                aria-label={t('admin.collections.items.addAria', { title: ti.title })}
+                onClick={() => apply([...items, ti])}
               >
-                {inList.has(t.id) ? 'Added' : 'Add'}
+                {inList.has(ti.id)
+                  ? t('admin.collections.items.added')
+                  : t('admin.collections.items.add')}
               </Button>
             </li>
           ))}
@@ -438,10 +467,10 @@ function ItemsEditor({
               setDirty(false);
               await onSaved();
               return true;
-            }, 'Order saved.')
+            }, t('admin.collections.items.saved'))
           }
         >
-          Save order
+          {t('admin.collections.items.saveOrder')}
         </Button>
         <Button
           variant="ghost"
@@ -451,7 +480,7 @@ function ItemsEditor({
             setDirty(false);
           }}
         >
-          Revert
+          {t('admin.collections.items.revert')}
         </Button>
       </div>
     </section>

@@ -9,6 +9,7 @@ import {
   type MenuEntry,
 } from '@sideroom/ui';
 import { memo, useMemo, type CSSProperties } from 'react';
+import { useT } from '../i18n';
 import { useSavedPrefs } from '../settings/user/prefs';
 import { EmojiPicker } from './components/EmojiPicker';
 import type { Message, Snowflake } from './data';
@@ -113,6 +114,7 @@ function MessageBody({
 }) {
   // Re-renders this body once the WASM parser is ready (plain text until then).
   useMarkdownReady();
+  const t = useT();
   const { linkPreviews, showEmbeds, spoilers } = useSavedPrefs();
   const nodes = parseMarkdown(m.content);
   // Link previews (everything built from a pasted link) and embeds posted by apps are separate switches.
@@ -134,7 +136,7 @@ function MessageBody({
       {m.editedAt && (
         <span className="lng-edited" title={formatFullTime(m.editedAt)}>
           {' '}
-          (edited)
+          {t('lounge.messageItem.edited')}
         </span>
       )}
       {m.forwarded && <ForwardedFrame snapshot={m.forwarded} resolvers={resolvers} />}
@@ -212,6 +214,7 @@ function MessageItemImpl(props: MessageItemProps) {
     onJumpToChannelMessage,
     onOpenProfile,
   } = props;
+  const t = useT();
   const prefs = useSavedPrefs();
   const compact = prefs.messageDisplay === 'compact';
   // Role colours: on the name (default), as a dot before it, or off (User Settings > Accessibility).
@@ -227,46 +230,65 @@ function MessageItemImpl(props: MessageItemProps) {
     const entries: MenuEntry[] = [
       {
         type: 'submenu',
-        label: 'Add Reaction',
+        label: t('lounge.messageItem.addReaction'),
         icon: <Icon name="smile" size={16} />,
         items: MENU_EMOJI.map((e) => ({ label: e, onSelect: () => onReact(m, e) })),
       },
     ];
-    if (isOwn) entries.push({ label: 'Edit Message', onSelect: () => onEdit(m) });
-    entries.push({ label: 'Reply', onSelect: () => onReply(m) });
-    if (onForward) entries.push({ label: 'Forward', onSelect: () => onForward(m) });
+    if (isOwn)
+      entries.push({ label: t('lounge.messageItem.editMessage'), onSelect: () => onEdit(m) });
+    entries.push({ label: t('lounge.messageItem.reply'), onSelect: () => onReply(m) });
+    if (onForward)
+      entries.push({ label: t('lounge.messageItem.forward'), onSelect: () => onForward(m) });
     if (m.thread && onOpenThread)
-      entries.push({ label: 'Open Thread', onSelect: () => onOpenThread(m, m.thread!.id) });
+      entries.push({
+        label: t('lounge.messageItem.openThread'),
+        onSelect: () => onOpenThread(m, m.thread!.id),
+      });
     else if (onCreateThread && !m.pending)
-      entries.push({ label: 'Create Thread', onSelect: () => onCreateThread(m) });
-    if (m.content) entries.push({ label: 'Copy Text', onSelect: () => copy(m.content) });
+      entries.push({
+        label: t('lounge.messageItem.createThread'),
+        onSelect: () => onCreateThread(m),
+      });
+    if (m.content)
+      entries.push({ label: t('lounge.messageItem.copyText'), onSelect: () => copy(m.content) });
     if (m.reactions?.length && onViewReactions)
-      entries.push({ label: 'View Reactions', onSelect: () => onViewReactions(m) });
+      entries.push({
+        label: t('lounge.messageItem.viewReactions'),
+        onSelect: () => onViewReactions(m),
+      });
     if (m.content && typeof speechSynthesis !== 'undefined')
       entries.push({
-        label: 'Speak Message',
+        label: t('lounge.messageItem.speakMessage'),
         onSelect: () => {
           speechSynthesis.cancel();
           speechSynthesis.speak(
-            new SpeechSynthesisUtterance(`${m.author.displayName} says ${m.content}`),
+            new SpeechSynthesisUtterance(
+              t('lounge.messageItem.speechText', {
+                name: m.author.displayName,
+                content: m.content,
+              }),
+            ),
           );
         },
       });
     if (onMarkUnread && !m.pending)
-      entries.push({ label: 'Mark Unread', onSelect: () => onMarkUnread(m) });
+      entries.push({ label: t('lounge.messageItem.markUnread'), onSelect: () => onMarkUnread(m) });
     entries.push({
-      label: 'Copy Message Link',
+      label: t('lounge.messageItem.copyMessageLink'),
       onSelect: () => copy(messageLink(location.origin, guildId, m)),
     });
     if (onBookmark && !m.pending)
       entries.push({
-        label: bookmarked ? 'Remove Bookmark' : 'Bookmark Message',
+        label: bookmarked
+          ? t('lounge.messageItem.removeBookmark')
+          : t('lounge.messageItem.bookmarkMessage'),
         onSelect: () => onBookmark(m),
       });
     if (onRemind && !m.pending)
       entries.push({
         type: 'submenu',
-        label: 'Remind Me',
+        label: t('lounge.messageItem.remindMe'),
         items: REMIND_CHOICES.map((c) => ({
           label: c.label,
           onSelect: () => onRemind(m, c.ms),
@@ -274,21 +296,22 @@ function MessageItemImpl(props: MessageItemProps) {
       });
     if (canPinHere)
       entries.push({
-        label: m.pinned ? 'Unpin Message' : 'Pin Message',
+        label: m.pinned ? t('lounge.messageItem.unpinMessage') : t('lounge.messageItem.pinMessage'),
         onSelect: () => onPin!(m),
       });
     if (canDelete) {
       entries.push({ type: 'separator' });
       entries.push({
-        label: 'Delete Message',
+        label: t('lounge.messageItem.deleteMessage'),
         danger: true,
         onSelect: () => onDelete!(m, false),
       });
     }
     entries.push({ type: 'separator' });
-    entries.push({ label: 'Copy Message ID', onSelect: () => copy(m.id) });
+    entries.push({ label: t('lounge.messageItem.copyMessageId'), onSelect: () => copy(m.id) });
     return entries;
   }, [
+    t,
     m,
     isOwn,
     guildId,
@@ -326,46 +349,50 @@ function MessageItemImpl(props: MessageItemProps) {
     <div
       className="lng-msg-tools"
       role="toolbar"
-      aria-label={`Actions for message by ${m.author.displayName}`}
+      aria-label={t('lounge.messageItem.toolbarLabel', { name: m.author.displayName })}
     >
       {QUICK.map((e) => (
         <button
           key={e}
           type="button"
           className="lng-icon-btn"
-          aria-label={`React with ${e}`}
+          aria-label={t('lounge.messageItem.reactWith', { emoji: e })}
           onClick={() => onReact(m, e)}
         >
           <span aria-hidden="true">{e}</span>
         </button>
       ))}
       <Popover
-        label="Add reaction"
+        label={t('lounge.messageItem.addReactionPopover')}
         placement="left"
         trigger={
-          <button type="button" className="lng-icon-btn" aria-label="Add Reaction">
+          <button
+            type="button"
+            className="lng-icon-btn"
+            aria-label={t('lounge.messageItem.addReaction')}
+          >
             <Icon name="smile" size={20} />
           </button>
         }
       >
         <EmojiPicker onPick={(e) => onReact(m, e)} />
       </Popover>
-      <Tooltip content="Reply">
+      <Tooltip content={t('lounge.messageItem.reply')}>
         <button
           type="button"
           className="lng-icon-btn"
-          aria-label="Reply"
+          aria-label={t('lounge.messageItem.reply')}
           onClick={() => onReply(m)}
         >
           <Icon name="reply" size={20} />
         </button>
       </Tooltip>
       {onForward && (
-        <Tooltip content="Forward">
+        <Tooltip content={t('lounge.messageItem.forward')}>
           <button
             type="button"
             className="lng-icon-btn"
-            aria-label="Forward"
+            aria-label={t('lounge.messageItem.forward')}
             onClick={() => onForward(m)}
           >
             <Icon name="arrow-up-right" size={20} />
@@ -373,11 +400,11 @@ function MessageItemImpl(props: MessageItemProps) {
         </Tooltip>
       )}
       {onCreateThread && !m.thread && (
-        <Tooltip content="Create Thread">
+        <Tooltip content={t('lounge.messageItem.createThread')}>
           <button
             type="button"
             className="lng-icon-btn"
-            aria-label="Create Thread"
+            aria-label={t('lounge.messageItem.createThread')}
             onClick={() => onCreateThread(m)}
           >
             <Icon name="list" size={20} />
@@ -385,11 +412,11 @@ function MessageItemImpl(props: MessageItemProps) {
         </Tooltip>
       )}
       {isOwn && (
-        <Tooltip content="Edit">
+        <Tooltip content={t('lounge.messageItem.edit')}>
           <button
             type="button"
             className="lng-icon-btn"
-            aria-label="Edit"
+            aria-label={t('lounge.messageItem.edit')}
             onClick={() => onEdit(m)}
           >
             <Icon name="edit" size={20} />
@@ -397,11 +424,11 @@ function MessageItemImpl(props: MessageItemProps) {
         </Tooltip>
       )}
       {canDelete && (
-        <Tooltip content="Delete (hold Shift to skip confirmation)">
+        <Tooltip content={t('lounge.messageItem.deleteTooltip')}>
           <button
             type="button"
             className="lng-icon-btn lng-danger"
-            aria-label="Delete"
+            aria-label={t('lounge.messageItem.delete')}
             onClick={(e) => onDelete!(m, e.shiftKey)}
           >
             <Icon name="trash" size={20} />
@@ -409,11 +436,11 @@ function MessageItemImpl(props: MessageItemProps) {
         </Tooltip>
       )}
       <DropdownMenu
-        label="More"
+        label={t('lounge.messageItem.more')}
         items={menu}
         placement="bottom-end"
         trigger={
-          <button type="button" className="lng-icon-btn" aria-label="More">
+          <button type="button" className="lng-icon-btn" aria-label={t('lounge.messageItem.more')}>
             <Icon name="more-horizontal" size={20} />
           </button>
         }
@@ -422,7 +449,10 @@ function MessageItemImpl(props: MessageItemProps) {
   );
 
   return (
-    <ContextMenu items={menu} label={`Message actions for ${m.author.displayName}`}>
+    <ContextMenu
+      items={menu}
+      label={t('lounge.messageItem.contextMenuLabel', { name: m.author.displayName })}
+    >
       <article
         className="lng-msg"
         data-grouped={grouped || undefined}
@@ -433,7 +463,10 @@ function MessageItemImpl(props: MessageItemProps) {
         data-editing={editing || undefined}
         data-compact={compact || undefined}
         data-message-id={m.id}
-        aria-label={`${m.author.displayName}, ${formatMessageTime(m.createdAt)}`}
+        aria-label={t('lounge.messageItem.articleLabel', {
+          name: m.author.displayName,
+          time: formatMessageTime(m.createdAt),
+        })}
       >
         {m.replyToId && (
           <button
@@ -455,13 +488,18 @@ function MessageItemImpl(props: MessageItemProps) {
                 />
                 <span className="lng-reply-name">@{replyTarget.author.displayName}</span>
                 <span className="lng-reply-text">
-                  {replyTarget.content.slice(0, 120) || 'Click to see attachment'}
+                  {replyTarget.content.slice(0, 120) ||
+                    t('lounge.messageItem.clickToSeeAttachment')}
                 </span>
               </>
             ) : replyState === 'deleted' ? (
-              <span className="lng-reply-text lng-muted">Original message was deleted</span>
+              <span className="lng-reply-text lng-muted">
+                {t('lounge.messageItem.originalDeleted')}
+              </span>
             ) : (
-              <span className="lng-reply-text lng-muted">Click to load the original message</span>
+              <span className="lng-reply-text lng-muted">
+                {t('lounge.messageItem.clickToLoadOriginal')}
+              </span>
             )}
           </button>
         )}
@@ -479,7 +517,7 @@ function MessageItemImpl(props: MessageItemProps) {
               <button
                 type="button"
                 className="lng-avatar-btn"
-                aria-label={`Open profile of ${m.author.displayName}`}
+                aria-label={t('lounge.messageItem.openProfile', { name: m.author.displayName })}
                 aria-haspopup="dialog"
                 disabled={!onOpenProfile}
                 onClick={(e) => onOpenProfile?.(m.author.id, e.currentTarget)}
@@ -525,14 +563,18 @@ function MessageItemImpl(props: MessageItemProps) {
                   <span
                     className="lng-role-icon"
                     role="img"
-                    aria-label={`${nameDecor.iconName ?? 'Role'} icon`}
+                    aria-label={t('lounge.messageItem.roleIcon', {
+                      name: nameDecor.iconName ?? 'Role',
+                    })}
                     title={nameDecor.iconName}
                   >
                     {nameDecor.icon}
                   </span>
                 )}
                 {m.author.tag && <span className="lng-tag">{m.author.tag}</span>}
-                {m.author.bot && <span className="lng-bot">APP</span>}
+                {m.author.bot && (
+                  <span className="lng-bot">{t('lounge.messageItem.appBadge')}</span>
+                )}
                 {!compact && (
                   <time
                     className="lng-msg-time"
@@ -566,10 +608,10 @@ function MessageItemImpl(props: MessageItemProps) {
             </div>
             {m.failed && (
               <p className="lng-failed" role="alert">
-                Your message could not be delivered.{' '}
+                {t('lounge.messageItem.deliveryFailed')}{' '}
                 {onRetry && (
                   <button type="button" className="lng-link-btn" onClick={() => onRetry(m)}>
-                    Retry
+                    {t('lounge.messageItem.retry')}
                   </button>
                 )}{' '}
                 {onDiscard && (
@@ -578,7 +620,7 @@ function MessageItemImpl(props: MessageItemProps) {
                     className="lng-link-btn lng-danger"
                     onClick={() => onDiscard(m)}
                   >
-                    Delete
+                    {t('lounge.messageItem.delete')}
                   </button>
                 )}
               </p>
@@ -592,7 +634,7 @@ function MessageItemImpl(props: MessageItemProps) {
                 <Icon name="list" size={16} />
                 <strong>{m.thread.name}</strong>
                 <span className="lng-muted">
-                  {m.thread.messageCount} {m.thread.messageCount === 1 ? 'message' : 'messages'}
+                  {t('lounge.messageItem.threadMessageCount', { n: m.thread.messageCount })}
                 </span>
               </button>
             )}

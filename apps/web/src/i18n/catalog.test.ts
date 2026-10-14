@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { argumentNames, parseIcu } from './icu';
 import { en } from './messages/en';
+import './messages/en.rest';
 import { mergeFragments } from './messages/merge';
 
 const SRC = resolve(__dirname, '..');

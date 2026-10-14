@@ -1,6 +1,7 @@
 import { Button, Checkbox, Modal, Switch, TextInput } from '@sideroom/ui';
 import { useState, type FormEvent } from 'react';
 import { ApiError } from '../api/client';
+import { useT } from '../i18n';
 import { rest, useStore } from '../store';
 import { useGotoGuild } from './AddServerDialog';
 import { useChannels, useCurrentUser, useGuild, useMembers, useRoles } from './data';
@@ -10,35 +11,47 @@ const VIEW_CHANNEL = (1n << 10n).toString();
 
 type Kind = 'text' | 'voice' | 'announcement' | 'forum' | 'stage' | 'media';
 
-const KINDS: { kind: Kind; type: number; label: string; blurb: string; slug: boolean }[] = [
-  { kind: 'text', type: 0, label: 'Text', blurb: 'Send messages, images and opinions', slug: true },
+const KINDS: { kind: Kind; type: number; labelKey: string; blurbKey: string; slug: boolean }[] = [
+  {
+    kind: 'text',
+    type: 0,
+    labelKey: 'lounge.createChannelDialog.kindText',
+    blurbKey: 'lounge.createChannelDialog.kindTextBlurb',
+    slug: true,
+  },
   {
     kind: 'voice',
     type: 2,
-    label: 'Voice',
-    blurb: 'Hang out together with voice and video',
+    labelKey: 'lounge.createChannelDialog.kindVoice',
+    blurbKey: 'lounge.createChannelDialog.kindVoiceBlurb',
     slug: false,
   },
   {
     kind: 'announcement',
     type: 5,
-    label: 'Announcement',
-    blurb: 'Important updates people can follow',
+    labelKey: 'lounge.createChannelDialog.kindAnnouncement',
+    blurbKey: 'lounge.createChannelDialog.kindAnnouncementBlurb',
     slug: true,
   },
-  { kind: 'forum', type: 15, label: 'Forum', blurb: 'Organized posts, one topic each', slug: true },
+  {
+    kind: 'forum',
+    type: 15,
+    labelKey: 'lounge.createChannelDialog.kindForum',
+    blurbKey: 'lounge.createChannelDialog.kindForumBlurb',
+    slug: true,
+  },
   {
     kind: 'stage',
     type: 13,
-    label: 'Stage',
-    blurb: 'Host talks with speakers and an audience',
+    labelKey: 'lounge.createChannelDialog.kindStage',
+    blurbKey: 'lounge.createChannelDialog.kindStageBlurb',
     slug: false,
   },
   {
     kind: 'media',
     type: 16,
-    label: 'Media',
-    blurb: 'A gallery for sharing art and clips',
+    labelKey: 'lounge.createChannelDialog.kindMedia',
+    blurbKey: 'lounge.createChannelDialog.kindMediaBlurb',
     slug: true,
   },
 ];
@@ -58,6 +71,7 @@ export function CreateChannelDialog({
   category?: boolean | undefined;
   onClose: () => void;
 }) {
+  const t = useT();
   const guild = useGuild(guildId);
   const channels = useChannels(guildId);
   const roles = useRoles(guildId);
@@ -94,7 +108,14 @@ export function CreateChannelDialog({
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const clean = isCategory || !def.slug ? name.trim() : slugChannelName(name);
-    if (!clean) return setError(`Enter a ${isCategory ? 'category' : 'channel'} name.`);
+    if (!clean)
+      return setError(
+        t(
+          isCategory
+            ? 'lounge.createChannelDialog.categoryNameRequired'
+            : 'lounge.createChannelDialog.channelNameRequired',
+        ),
+      );
     const body: rest.CreateChannelBody = {
       name: clean,
       type: isCategory ? 4 : def.type,
@@ -120,10 +141,10 @@ export function CreateChannelDialog({
     } catch (err) {
       setError(
         err instanceof ApiError && err.status === 403
-          ? 'You do not have permission to create channels here.'
+          ? t('lounge.createChannelDialog.forbidden')
           : err instanceof ApiError
             ? err.message
-            : 'Could not create the channel. Try again.',
+            : t('lounge.createChannelDialog.createFailed'),
       );
       setBusy(false);
     }
@@ -134,13 +155,19 @@ export function CreateChannelDialog({
       open
       onClose={onClose}
       size="sm"
-      title={isCategory ? 'Create Category' : 'Create Channel'}
-      description={parent ? `in ${parent.name}` : undefined}
+      title={
+        isCategory
+          ? t('lounge.createChannelDialog.createCategory')
+          : t('lounge.createChannelDialog.createChannel')
+      }
+      description={
+        parent ? t('lounge.createChannelDialog.inParent', { name: parent.name }) : undefined
+      }
     >
       <form className="lng-form" onSubmit={(e) => void submit(e)} noValidate>
         {!isCategory && (
           <fieldset className="lng-kind">
-            <legend>Channel type</legend>
+            <legend>{t('lounge.createChannelDialog.channelType')}</legend>
             {KINDS.map((k) => (
               <label
                 key={k.kind}
@@ -155,41 +182,58 @@ export function CreateChannelDialog({
                   onChange={() => setKind(k.kind)}
                 />
                 <span>
-                  <strong>{k.label}</strong>
-                  <small>{k.blurb}</small>
+                  <strong>{t(k.labelKey)}</strong>
+                  <small>{t(k.blurbKey)}</small>
                 </span>
               </label>
             ))}
           </fieldset>
         )}
         <TextInput
-          label={isCategory ? 'Category name' : 'Channel name'}
+          label={
+            isCategory
+              ? t('lounge.createChannelDialog.categoryName')
+              : t('lounge.createChannelDialog.channelName')
+          }
           value={name}
           maxLength={100}
           autoFocus
-          placeholder={isCategory ? 'New Category' : def.slug ? 'new-channel' : 'New Channel'}
+          placeholder={
+            isCategory
+              ? t('lounge.createChannelDialog.newCategory')
+              : def.slug
+                ? t('lounge.createChannelDialog.newChannelSlug')
+                : t('lounge.createChannelDialog.newChannel')
+          }
           error={error}
           onChange={(e) => setName(e.target.value)}
         />
         {!isCategory && def.slug && name.trim() && slugChannelName(name) !== name.trim() && (
           <p className="lng-muted" aria-live="polite">
-            It will be created as <strong>#{slugChannelName(name)}</strong>
+            {t('lounge.createChannelDialog.createdAs')}
+            <strong>#{slugChannelName(name)}</strong>
           </p>
         )}
         <Switch
-          label={isCategory ? 'Private Category' : 'Private Channel'}
-          description="Only you and the roles and members you pick can view it."
+          label={
+            isCategory
+              ? t('lounge.createChannelDialog.privateCategory')
+              : t('lounge.createChannelDialog.privateChannel')
+          }
+          description={t('lounge.createChannelDialog.privateDescription')}
           checked={isPrivate}
           onChange={(e) => setPrivate(e.target.checked)}
         />
         {isPrivate && (
           <fieldset className="lng-pickers">
-            <legend className="lng-field-label">Who can view it</legend>
+            <legend className="lng-field-label">
+              {t('lounge.createChannelDialog.whoCanView')}
+            </legend>
             {pickable.roles.length === 0 && pickable.members.length === 0 && (
-              <p className="lng-muted">No other roles or members yet. Only you can view it.</p>
+              <p className="lng-muted">{t('lounge.createChannelDialog.noOthers')}</p>
             )}
             {pickable.roles.length > 0 && (
-              <ul className="lng-pick-list" aria-label="Roles">
+              <ul className="lng-pick-list" aria-label={t('lounge.createChannelDialog.roles')}>
                 {pickable.roles.map((r) => (
                   <li key={r.id} className="lng-pick-row">
                     <Checkbox
@@ -202,7 +246,7 @@ export function CreateChannelDialog({
               </ul>
             )}
             {pickable.members.length > 0 && (
-              <ul className="lng-pick-list" aria-label="Members">
+              <ul className="lng-pick-list" aria-label={t('lounge.createChannelDialog.members')}>
                 {pickable.members.map((m) => (
                   <li key={m.user.id} className="lng-pick-row">
                     <Checkbox
@@ -219,10 +263,12 @@ export function CreateChannelDialog({
         )}
         <div className="lng-form-actions">
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t('lounge.createChannelDialog.cancel')}
           </Button>
           <Button type="submit" loading={busy}>
-            {isCategory ? 'Create Category' : 'Create Channel'}
+            {isCategory
+              ? t('lounge.createChannelDialog.createCategory')
+              : t('lounge.createChannelDialog.createChannel')}
           </Button>
         </div>
       </form>

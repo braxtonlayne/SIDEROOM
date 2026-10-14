@@ -12,6 +12,7 @@ import {
   type MenuEntry,
 } from '@sideroom/ui';
 import { useId, useState } from 'react';
+import { useT } from '../i18n';
 import { useVoiceSession } from '../voice/session';
 import { useJoinVoice } from './voice/actions';
 import { useVoiceMenuEntries } from './voice/useVoiceMenu';
@@ -51,25 +52,31 @@ function VoiceMemberRow({
   member: VoiceMember;
   onError: (message: string) => void;
 }) {
+  const t = useT();
   const users = useUsers();
   const u = users[m.userId];
   const menu = useVoiceMenuEntries(
     channel.guildId,
-    { id: m.userId, name: u?.displayName ?? 'Unknown' },
+    { id: m.userId, name: u?.displayName ?? t('lounge.channelSidebar.unknown') },
     onError,
     channel.id,
   );
   if (!u) return null;
   return (
     <li>
-      <ContextMenu items={menu} label={`${u.displayName} voice actions`}>
+      <ContextMenu
+        items={menu}
+        label={t('lounge.channelSidebar.voiceActions', { name: u.displayName })}
+      >
         <div className="lng-voice-member" data-speaking={m.speaking || undefined}>
           <Avatar name={u.displayName} src={u.avatarUrl ?? null} size={24} speaking={m.speaking} />
           <span className="lng-voice-name">{u.displayName}</span>
-          {m.streaming && <span className="lng-live">LIVE</span>}
-          {m.video && <Icon name="video" size={16} label="Camera on" />}
-          {m.muted && <Icon name="mic-off" size={16} label="Muted" />}
-          {m.deafened && <Icon name="volume-off" size={16} label="Deafened" />}
+          {m.streaming && <span className="lng-live">{t('lounge.channelSidebar.live')}</span>}
+          {m.video && <Icon name="video" size={16} label={t('lounge.channelSidebar.cameraOn')} />}
+          {m.muted && <Icon name="mic-off" size={16} label={t('lounge.channelSidebar.muted')} />}
+          {m.deafened && (
+            <Icon name="volume-off" size={16} label={t('lounge.channelSidebar.deafened')} />
+          )}
         </div>
       </ContextMenu>
     </li>
@@ -77,10 +84,14 @@ function VoiceMemberRow({
 }
 
 function VoiceMembers({ channel, onError }: { channel: Channel; onError: (m: string) => void }) {
+  const t = useT();
   const members = useVoiceMembers(channel.id);
   if (!members.length) return null;
   return (
-    <ul className="lng-voice-members" aria-label={`Connected to ${channel.name}`}>
+    <ul
+      className="lng-voice-members"
+      aria-label={t('lounge.channelSidebar.connectedTo', { name: channel.name })}
+    >
       {members.map((m) => (
         <VoiceMemberRow key={m.userId} channel={channel} member={m} onError={onError} />
       ))}
@@ -109,6 +120,7 @@ function ChannelRow({
   dnd: Dnd;
   onError: (m: string) => void;
 }) {
+  const t = useT();
   const joinVoice = useJoinVoice();
   const openDialog = useLoungeUi((s) => s.openDialog);
   const connected = useVoiceSession((s) => s.channelId === channel.id && s.status !== 'idle');
@@ -123,7 +135,7 @@ function ChannelRow({
     'data-muted': channel.muted || undefined,
     'data-selected': selected || undefined,
   };
-  const label = `${channel.name}${channel.unread ? ', unread' : ''}${channel.mentionCount ? `, ${channel.mentionCount} mentions` : ''}${channel.muted ? ', muted' : ''}`;
+  const label = `${channel.name}${channel.unread ? t('lounge.channelSidebar.unreadSuffix') : ''}${channel.mentionCount ? t('lounge.channelSidebar.mentionsSuffix', { count: channel.mentionCount }) : ''}${channel.muted ? t('lounge.channelSidebar.mutedSuffix') : ''}`;
   return (
     <li
       className="lng-channel-item"
@@ -131,7 +143,10 @@ function ChannelRow({
       data-drop={dnd.mark?.id === channel.id ? dnd.mark.zone : undefined}
       {...dnd.props(channel.id)}
     >
-      <ContextMenu items={menu} label={`${channel.name} menu`}>
+      <ContextMenu
+        items={menu}
+        label={t('lounge.channelSidebar.channelMenu', { name: channel.name })}
+      >
         {isVoiceLike(channel) ? (
           <>
             <button
@@ -139,7 +154,17 @@ function ChannelRow({
               className={cls}
               {...attrs}
               data-connected={connected || undefined}
-              aria-label={`${channel.name}, ${channel.type} channel${connected ? ', connected' : ''}`}
+              aria-label={
+                connected
+                  ? t('lounge.channelSidebar.voiceChannelConnected', {
+                      name: channel.name,
+                      type: channel.type,
+                    })
+                  : t('lounge.channelSidebar.voiceChannel', {
+                      name: channel.name,
+                      type: channel.type,
+                    })
+              }
               onClick={() => joinVoice(channel)}
             >
               <Icon name={icon} size={20} />
@@ -172,7 +197,7 @@ function ChannelRow({
               </span>
               <CounterBadge
                 count={channel.muted ? 0 : channel.mentionCount}
-                noun="mentions"
+                noun={t('lounge.channelSidebar.mentionsNoun')}
                 className="lng-mention-badge lng-mention-inline"
               />
             </Link>
@@ -183,7 +208,7 @@ function ChannelRow({
             <button
               type="button"
               className="lng-icon-btn"
-              aria-label="Create Invite"
+              aria-label={t('lounge.channelSidebar.createInvite')}
               aria-describedby={nameId}
               onClick={() =>
                 openDialog({ kind: 'invite', guildId: guild.id, channelId: channel.id })
@@ -196,7 +221,7 @@ function ChannelRow({
             <button
               type="button"
               className="lng-icon-btn"
-              aria-label="Edit Channel"
+              aria-label={t('lounge.channelSidebar.editChannel')}
               aria-describedby={nameId}
               onClick={() =>
                 openDialog({ kind: 'editChannel', guildId: guild.id, channelId: channel.id })
@@ -226,11 +251,15 @@ function CategoryHead({
   dnd: Dnd;
   onError: (m: string) => void;
 }) {
+  const t = useT();
   const toggle = useLoungeUi((s) => s.toggleCategory);
   const openDialog = useLoungeUi((s) => s.openDialog);
   const menu = useChannelMenu(category, guild, channels, onError);
   return (
-    <ContextMenu items={menu} label={`${category.name} category menu`}>
+    <ContextMenu
+      items={menu}
+      label={t('lounge.channelSidebar.categoryMenu', { name: category.name })}
+    >
       <div
         className="lng-category-head"
         data-muted={category.muted || undefined}
@@ -251,7 +280,7 @@ function CategoryHead({
           <button
             type="button"
             className="lng-icon-btn"
-            aria-label={`Create Channel in ${category.name}`}
+            aria-label={t('lounge.channelSidebar.createChannelIn', { name: category.name })}
             onClick={() =>
               openDialog({ kind: 'createChannel', guildId: guild.id, parentId: category.id })
             }
@@ -265,50 +294,76 @@ function CategoryHead({
 }
 
 function GuildHeader({ guild }: { guild: Guild }) {
+  const t = useT();
   const core = useGuildMenuCore(guild);
   const [coming, setComing] = useState<string | null>(null);
   const soon = (title: string) => () => setComing(title);
   const p = guild.permissions;
   const items: MenuEntry[] = [
-    { label: 'Server Support', onSelect: soon('Server Support') },
+    {
+      label: t('lounge.channelSidebar.serverSupport'),
+      onSelect: soon(t('lounge.channelSidebar.serverSupport')),
+    },
     ...(p.createInvite
-      ? [{ ...(core.invite as object), label: 'Invite to Server' } as MenuEntry]
+      ? [
+          {
+            ...(core.invite as object),
+            label: t('lounge.channelSidebar.inviteToServer'),
+          } as MenuEntry,
+        ]
       : []),
     ...((p.serverSettings ?? p.manageGuild) ? [core.settings] : []),
     ...(p.manageChannels
       ? [
           core.createChannel,
           core.createCategory,
-          { label: 'Create Event', onSelect: soon('Create Event') },
+          {
+            label: t('lounge.channelSidebar.createEvent'),
+            onSelect: soon(t('lounge.channelSidebar.createEvent')),
+          },
         ]
       : []),
-    { label: 'App Directory', onSelect: soon('App Directory') },
+    {
+      label: t('lounge.channelSidebar.appDirectory'),
+      onSelect: soon(t('lounge.channelSidebar.appDirectory')),
+    },
     core.notifications,
-    { label: 'Privacy Settings', onSelect: soon('Privacy Settings') },
-    { label: 'Edit Per-server Profile', onSelect: soon('Edit Per-server Profile') },
+    {
+      label: t('lounge.channelSidebar.privacySettings'),
+      onSelect: soon(t('lounge.channelSidebar.privacySettings')),
+    },
+    {
+      label: t('lounge.channelSidebar.editPerServerProfile'),
+      onSelect: soon(t('lounge.channelSidebar.editPerServerProfile')),
+    },
     core.mute,
     core.hideMuted,
     {
       type: 'submenu',
-      label: 'Copy Server Info',
+      label: t('lounge.channelSidebar.copyServerInfo'),
       items: [
         core.copyId,
         {
-          label: 'Copy Server Link',
+          label: t('lounge.channelSidebar.copyServerLink'),
           onSelect: () =>
             void navigator.clipboard?.writeText(`${location.origin}/channels/${guild.id}`),
         },
       ],
     },
     ...(p.moderate
-      ? [{ label: 'Security Actions', onSelect: soon('Security Actions') } as MenuEntry]
+      ? [
+          {
+            label: t('lounge.channelSidebar.securityActions'),
+            onSelect: soon(t('lounge.channelSidebar.securityActions')),
+          } as MenuEntry,
+        ]
       : []),
     ...(core.isOwner ? [] : [{ type: 'separator' } as MenuEntry, core.leave]),
   ];
   return (
     <>
       <DropdownMenu
-        label={`${guild.name} server menu`}
+        label={t('lounge.channelSidebar.serverMenu', { name: guild.name })}
         items={items}
         trigger={
           <button type="button" className="lng-guild-header">
@@ -318,13 +373,14 @@ function GuildHeader({ guild }: { guild: Guild }) {
         }
       />
       <ComingSoon open={coming !== null} onClose={() => setComing(null)} title={coming ?? ''}>
-        <p>This server action ships with its own inventory item (LNG-GLD-019..034).</p>
+        <p>{t('lounge.channelSidebar.serverActionSoon')}</p>
       </ComingSoon>
     </>
   );
 }
 
 export function ChannelSidebar({ guildId }: { guildId: string }) {
+  const t = useT();
   const guild = useGuild(guildId);
   const channels = useChannels(guildId);
   const { channelId } = useLoungeRoute();
@@ -342,8 +398,13 @@ export function ChannelSidebar({ guildId }: { guildId: string }) {
           {error}
         </Notice>
       )}
-      <nav className="lng-channels" aria-label={`${guild.name} channels`}>
-        {groups.length === 0 && <p className="lng-muted lng-pad">No channels yet.</p>}
+      <nav
+        className="lng-channels"
+        aria-label={t('lounge.channelSidebar.channels', { name: guild.name })}
+      >
+        {groups.length === 0 && (
+          <p className="lng-muted lng-pad">{t('lounge.channelSidebar.noChannels')}</p>
+        )}
         {groups.map((g) => {
           const isCollapsed = !!g.category && !!collapsed[g.category.id];
           const shown = isCollapsed

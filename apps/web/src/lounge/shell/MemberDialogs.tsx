@@ -1,33 +1,34 @@
 import { Button, Modal, TextInput } from '@sideroom/ui';
 import { useState, type FormEvent } from 'react';
 import { ApiError, apiFetch } from '../../api/client';
+import { t, useT, type MessageKey } from '../../i18n';
 import { banMember, kickMember } from '../../settings/server/api';
 import { useStore } from '../../store';
 import { useGuild, useMembers } from '../data';
 
 /** Timeout lengths offered in the timeout dialog (seconds). */
-export const TIMEOUT_OPTIONS: { label: string; seconds: number }[] = [
-  { label: '60 secs', seconds: 60 },
-  { label: '5 mins', seconds: 300 },
-  { label: '10 mins', seconds: 600 },
-  { label: '1 hour', seconds: 3600 },
-  { label: '1 day', seconds: 86400 },
-  { label: '1 week', seconds: 604800 },
+export const TIMEOUT_OPTIONS: { labelKey: MessageKey; seconds: number }[] = [
+  { labelKey: 'lounge.memberDialogs.timeout60s', seconds: 60 },
+  { labelKey: 'lounge.memberDialogs.timeout5m', seconds: 300 },
+  { labelKey: 'lounge.memberDialogs.timeout10m', seconds: 600 },
+  { labelKey: 'lounge.memberDialogs.timeout1h', seconds: 3600 },
+  { labelKey: 'lounge.memberDialogs.timeout1d', seconds: 86400 },
+  { labelKey: 'lounge.memberDialogs.timeout1w', seconds: 604800 },
 ];
 
 /** Message history removed along with a ban (seconds). */
-export const BAN_HISTORY_OPTIONS: { label: string; seconds: number }[] = [
-  { label: "Don't delete any", seconds: 0 },
-  { label: 'Previous hour', seconds: 3600 },
-  { label: 'Previous 24 hours', seconds: 86400 },
-  { label: 'Previous 7 days', seconds: 604800 },
+export const BAN_HISTORY_OPTIONS: { labelKey: MessageKey; seconds: number }[] = [
+  { labelKey: 'lounge.memberDialogs.historyNone', seconds: 0 },
+  { labelKey: 'lounge.memberDialogs.historyHour', seconds: 3600 },
+  { labelKey: 'lounge.memberDialogs.history24h', seconds: 86400 },
+  { labelKey: 'lounge.memberDialogs.history7d', seconds: 604800 },
 ];
 
 export type MemberAction = 'timeout' | 'kick' | 'ban';
 
 const errorText = (e: unknown, fallback: string) =>
   e instanceof ApiError && e.status === 403
-    ? 'You do not have permission to do that to this member.'
+    ? t('lounge.memberDialogs.forbidden')
     : e instanceof ApiError && e.message
       ? e.message
       : fallback;
@@ -53,17 +54,26 @@ export function MemberActionDialog({
   userId: string;
   onClose: () => void;
 }) {
+  const t = useT();
   const guild = useGuild(guildId);
   const member = useMembers(guildId).find((m) => m.user.id === userId);
-  const name = member?.nick || member?.user.displayName || 'this member';
+  const name = member?.nick || member?.user.displayName || t('lounge.memberDialogs.thisMember');
   const [reason, setReason] = useState('');
   const [seconds, setSeconds] = useState(action === 'timeout' ? 3600 : 0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!guild) return null;
 
-  const title = { timeout: `Timeout ${name}`, kick: `Kick ${name}`, ban: `Ban ${name}` }[action];
-  const verb = { timeout: 'Timeout', kick: 'Kick', ban: 'Ban' }[action];
+  const title = {
+    timeout: t('lounge.memberDialogs.titleTimeout', { name }),
+    kick: t('lounge.memberDialogs.titleKick', { name }),
+    ban: t('lounge.memberDialogs.titleBan', { name }),
+  }[action];
+  const verb = {
+    timeout: t('lounge.memberDialogs.verbTimeout'),
+    kick: t('lounge.memberDialogs.verbKick'),
+    ban: t('lounge.memberDialogs.verbBan'),
+  }[action];
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -92,7 +102,16 @@ export function MemberActionDialog({
       }
       onClose();
     } catch (err) {
-      setError(errorText(err, `Could not ${verb.toLowerCase()} ${name}. Try again.`));
+      setError(
+        errorText(
+          err,
+          {
+            timeout: t('lounge.memberDialogs.errorTimeout', { name }),
+            kick: t('lounge.memberDialogs.errorKick', { name }),
+            ban: t('lounge.memberDialogs.errorBan', { name }),
+          }[action],
+        ),
+      );
       setBusy(false);
     }
   };
@@ -106,17 +125,19 @@ export function MemberActionDialog({
       title={title}
       description={
         action === 'timeout'
-          ? 'They cannot send messages, react or join voice until the timeout ends.'
+          ? t('lounge.memberDialogs.descTimeout')
           : action === 'kick'
-            ? 'They can rejoin with a new invite.'
-            : 'They cannot rejoin until you unban them.'
+            ? t('lounge.memberDialogs.descKick')
+            : t('lounge.memberDialogs.descBan')
       }
     >
       <form className="lng-form" onSubmit={(e) => void submit(e)}>
         {action !== 'kick' && (
           <label className="lng-field">
             <span className="lng-field-label">
-              {action === 'timeout' ? 'Duration' : 'Delete message history'}
+              {action === 'timeout'
+                ? t('lounge.memberDialogs.duration')
+                : t('lounge.memberDialogs.deleteHistory')}
             </span>
             <select
               className="lng-select"
@@ -125,14 +146,14 @@ export function MemberActionDialog({
             >
               {options.map((o) => (
                 <option key={o.seconds} value={o.seconds}>
-                  {o.label}
+                  {t(o.labelKey)}
                 </option>
               ))}
             </select>
           </label>
         )}
         <TextInput
-          label="Reason (optional)"
+          label={t('lounge.memberDialogs.reasonLabel')}
           value={reason}
           maxLength={512}
           onChange={(e) => setReason(e.target.value)}
@@ -144,7 +165,7 @@ export function MemberActionDialog({
         )}
         <div className="lng-form-actions">
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t('lounge.memberDialogs.cancel')}
           </Button>
           <Button
             type="submit"

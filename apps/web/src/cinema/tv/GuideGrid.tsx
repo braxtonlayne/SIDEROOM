@@ -3,6 +3,7 @@
 // Enter opens the programme, `n` jumps to now.
 import { Icon } from '@sideroom/ui';
 import { forwardRef, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { t, useT } from '../../i18n';
 import { AgeBadge } from '../ui';
 import {
   SLOT_MS,
@@ -40,14 +41,21 @@ export interface GuideGridProps {
 const NAV_KEYS: NavKey[] = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
 
 export function cellLabel(b: TvBlock, ch: TvChannel, tz: string | null, nowMs: number) {
-  const when = isNow(b, nowMs) ? 'on now' : b.start_ms < nowMs ? 'aired' : 'upcoming';
+  const when = isNow(b, nowMs)
+    ? t('cinema.guide.onNow')
+    : b.start_ms < nowMs
+      ? t('cinema.guide.aired')
+      : t('cinema.guide.upcoming');
   return [
     `${b.title}`,
     b.episode_label,
-    `${timeLabel(b.start_ms, tz)} to ${timeLabel(b.end_ms, tz)}`,
-    b.content_rating ? `rated ${b.content_rating}` : null,
-    b.age_restricted ? 'age-restricted, 18 or older' : null,
-    `channel ${ch.number} ${ch.call_sign}`,
+    t('cinema.guide.timeRange', {
+      start: timeLabel(b.start_ms, tz),
+      end: timeLabel(b.end_ms, tz),
+    }),
+    b.content_rating ? t('cinema.guide.rated', { rating: b.content_rating }) : null,
+    b.age_restricted ? t('cinema.guide.ageRestricted') : null,
+    t('cinema.guide.channelLabel', { number: ch.number, callSign: ch.call_sign }),
     when,
   ]
     .filter(Boolean)
@@ -72,6 +80,7 @@ export const GuideGrid = forwardRef<HTMLDivElement, GuideGridProps>(function Gui
   },
   scrollerRef,
 ) {
+  const tr = useT();
   const rows = useMemo(
     () =>
       channels.map((c) =>
@@ -140,7 +149,7 @@ export const GuideGrid = forwardRef<HTMLDivElement, GuideGridProps>(function Gui
       <div
         ref={root}
         role="grid"
-        aria-label="Programme guide"
+        aria-label={tr('cinema.guide.programmeGuide')}
         aria-rowcount={channels.length + 1}
         className="tv-grid"
         style={{
@@ -151,18 +160,20 @@ export const GuideGrid = forwardRef<HTMLDivElement, GuideGridProps>(function Gui
       >
         <div role="row" className="tv-row tv-head">
           <div role="columnheader" className="tv-chan tv-chan-head">
-            <span className="tv-chan-head-title">YOUR CHANNELS</span>
-            <span className="tv-chan-head-now">Now · {timeLabel(nowMs)}</span>
+            <span className="tv-chan-head-title">{tr('cinema.guide.yourChannels')}</span>
+            <span className="tv-chan-head-now">
+              {tr('cinema.guide.nowAt', { time: timeLabel(nowMs) })}
+            </span>
           </div>
           <div role="presentation" className="tv-track" style={{ width: trackW }}>
-            {headerSlots.map((t, i) => (
+            {headerSlots.map((slot, i) => (
               <div
-                key={t}
+                key={slot}
                 role="columnheader"
                 className="tv-slot-head"
                 style={{ left: i * slotPx, width: slotPx }}
               >
-                {timeLabel(t)}
+                {timeLabel(slot)}
               </div>
             ))}
           </div>
@@ -185,7 +196,11 @@ export const GuideGrid = forwardRef<HTMLDivElement, GuideGridProps>(function Gui
                   type="button"
                   className="tv-fav"
                   aria-pressed={fav}
-                  aria-label={`${fav ? 'Remove' : 'Add'} ${ch.name} ${fav ? 'from' : 'to'} favorites`}
+                  aria-label={
+                    fav
+                      ? tr('cinema.guide.removeFavorite', { name: ch.name })
+                      : tr('cinema.guide.addFavorite', { name: ch.name })
+                  }
                   onClick={() => onToggleFavourite(ch.id)}
                 >
                   <Icon name="star" size={16} className={fav ? 'tv-fav-on' : undefined} />
@@ -194,7 +209,10 @@ export const GuideGrid = forwardRef<HTMLDivElement, GuideGridProps>(function Gui
                 <button
                   type="button"
                   className="tv-chan-name"
-                  aria-label={`Show channel ${ch.number} ${ch.call_sign} in the preview`}
+                  aria-label={tr('cinema.guide.showInPreview', {
+                    number: ch.number,
+                    callSign: ch.call_sign,
+                  })}
                   onClick={() => onSelectChannel(ch.id)}
                 >
                   {ch.logo_url ? (
@@ -233,7 +251,9 @@ export const GuideGrid = forwardRef<HTMLDivElement, GuideGridProps>(function Gui
                         onClick={(e) => onOpen(b, e.currentTarget)}
                       >
                         <span className="tv-cell-time" aria-hidden="true">
-                          {live ? `NOW · ${timeLabel(b.start_ms, tz)}` : timeLabel(b.start_ms, tz)}
+                          {live
+                            ? tr('cinema.guide.nowTime', { time: timeLabel(b.start_ms, tz) })
+                            : timeLabel(b.start_ms, tz)}
                         </span>
                         <span className="tv-cell-title" aria-hidden="true">
                           {b.title}

@@ -15,6 +15,7 @@ import {
   TextInput,
 } from '@sideroom/ui';
 import { useCallback, useEffect, useState } from 'react';
+import { useT, type MessageKey } from '../../i18n';
 import * as rv from '../../review/api';
 import {
   ChangeList,
@@ -49,39 +50,44 @@ import {
 
 const PAGE = 25;
 
-const STATE_FILTERS = [
-  { value: 'waiting', label: 'Waiting and in review' },
-  { value: 'submitted', label: 'Waiting for review' },
-  { value: 'in_review', label: 'In review' },
-  { value: 'changes_requested', label: 'Changes requested' },
-  { value: 'approved', label: 'Approved' },
-  { value: 'published', label: 'Published' },
-  { value: 'rejected', label: 'Rejected' },
-  { value: 'all', label: 'Every state' },
+type TFn = ReturnType<typeof useT>;
+type OptionKeys = { value: string; label: MessageKey }[];
+const localize = (t: TFn, list: OptionKeys) =>
+  list.map((o) => ({ value: o.value, label: t(o.label) }));
+
+const STATE_FILTERS: OptionKeys = [
+  { value: 'waiting', label: 'admin.review.stateWaiting' },
+  { value: 'submitted', label: 'admin.review.stateSubmitted' },
+  { value: 'in_review', label: 'admin.review.stateInReview' },
+  { value: 'changes_requested', label: 'admin.review.stateChangesRequested' },
+  { value: 'approved', label: 'admin.review.stateApproved' },
+  { value: 'published', label: 'admin.review.statePublished' },
+  { value: 'rejected', label: 'admin.review.stateRejected' },
+  { value: 'all', label: 'admin.review.stateAll' },
 ];
 const ALL_STATES =
   'draft,submitted,in_review,changes_requested,approved,rejected,published,withdrawn';
-const CLAIM_FILTERS = [
-  { value: '', label: 'Anyone' },
-  { value: 'mine', label: 'Claimed by me' },
-  { value: 'unclaimed', label: 'Not claimed' },
+const CLAIM_FILTERS: OptionKeys = [
+  { value: '', label: 'admin.review.claimAnyone' },
+  { value: 'mine', label: 'admin.review.claimMine' },
+  { value: 'unclaimed', label: 'admin.review.claimNone' },
 ];
-const SORTS = [
-  { value: 'submitted:asc', label: 'Oldest waiting first' },
-  { value: 'submitted:desc', label: 'Newest first' },
-  { value: 'updated:desc', label: 'Recently updated' },
-  { value: 'title:asc', label: 'Title A to Z' },
+const SORTS: OptionKeys = [
+  { value: 'submitted:asc', label: 'admin.review.sortOldest' },
+  { value: 'submitted:desc', label: 'admin.review.sortNewest' },
+  { value: 'updated:desc', label: 'admin.review.sortUpdated' },
+  { value: 'title:asc', label: 'admin.review.sortTitle' },
 ];
-const AGES = [
-  { value: '', label: 'Any age' },
-  { value: '24', label: 'Waiting a day or more' },
-  { value: '72', label: 'Waiting 3 days or more' },
-  { value: '168', label: 'Waiting a week or more' },
+const AGES: OptionKeys = [
+  { value: '', label: 'admin.review.ageAny' },
+  { value: '24', label: 'admin.review.ageDay' },
+  { value: '72', label: 'admin.review.age3Days' },
+  { value: '168', label: 'admin.review.ageWeek' },
 ];
-const KINDS = [
-  { value: '', label: 'Every kind' },
-  { value: 'library.series', label: 'New series' },
-  { value: 'library.items', label: 'New chapters' },
+const KINDS: OptionKeys = [
+  { value: '', label: 'admin.review.kindAll' },
+  { value: 'library.series', label: 'admin.review.kindSeries' },
+  { value: 'library.items', label: 'admin.review.kindItems' },
 ];
 
 export const REJECT_TEMPLATES = [
@@ -92,18 +98,29 @@ export const REJECT_TEMPLATES = [
   { value: 'Other', label: 'Other (explain below)' },
 ];
 
+/** The `value` is the reason text sent to the API (kept English); only the label is translated. */
+const REJECT_LABEL_KEYS: Record<string, MessageKey> = {
+  'Duplicate of an existing title': 'admin.review.rejectDuplicate',
+  'Poor image quality': 'admin.review.rejectQuality',
+  'Wrong or missing metadata': 'admin.review.rejectMetadata',
+  'Content we cannot host': 'admin.review.rejectContent',
+  Other: 'admin.review.rejectOther',
+};
+
 /** Who a lease or an event actor is, from the reviewer's point of view. */
-const who = (me: string, id: string | null) =>
-  id === null ? 'Someone' : id === me ? 'You' : `Account ${id}`;
+const who = (t: TFn, me: string, id: string | null) =>
+  id === null
+    ? t('admin.review.someone')
+    : id === me
+      ? t('admin.review.you')
+      : t('admin.review.account', { id });
 
 export function ReviewSection() {
+  const t = useT();
   const [open, setOpen] = useState<string | null>(null);
   return (
     <>
-      <SectionHeader
-        title="Review queues"
-        description="Submissions waiting for a decision. Claim one to review it; a claim lasts 30 minutes."
-      />
+      <SectionHeader title={t('admin.review.title')} description={t('admin.review.description')} />
       {open ? (
         <ReviewDetail id={open} onBack={() => setOpen(null)} />
       ) : (
@@ -116,6 +133,7 @@ export function ReviewSection() {
 // ---- queue ----
 
 function ReviewQueue({ onOpen }: { onOpen: (id: string) => void }) {
+  const t = useT();
   const viewer = useAdminViewer();
   const [state, setState] = useState('waiting');
   const [claimed, setClaimed] = useState('');
@@ -154,61 +172,70 @@ function ReviewQueue({ onOpen }: { onOpen: (id: string) => void }) {
       <form
         className="ss-toolbar"
         role="search"
-        aria-label="Filter the review queue"
+        aria-label={t('admin.review.filterQueue')}
         onSubmit={(e) => {
           e.preventDefault();
           setQ(text.trim());
           setOffset(0);
         }}
       >
-        <TextInput label="Title contains" value={text} onChange={(e) => setText(e.target.value)} />
+        <TextInput
+          label={t('admin.review.titleContains')}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
         <Select
-          aria-label="Filter by state"
-          options={STATE_FILTERS}
+          aria-label={t('admin.review.filterByState')}
+          options={localize(t, STATE_FILTERS)}
           value={state}
           onValueChange={reset(setState)}
         />
         <Select
-          aria-label="Filter by kind"
-          options={KINDS}
+          aria-label={t('admin.review.filterByKind')}
+          options={localize(t, KINDS)}
           value={kind}
           onValueChange={reset(setKind)}
         />
         <Select
-          aria-label="Filter by claim"
-          options={CLAIM_FILTERS}
+          aria-label={t('admin.review.filterByClaim')}
+          options={localize(t, CLAIM_FILTERS)}
           value={claimed}
           onValueChange={reset(setClaimed)}
         />
         <Select
-          aria-label="Filter by waiting time"
-          options={AGES}
+          aria-label={t('admin.review.filterByWaiting')}
+          options={localize(t, AGES)}
           value={age}
           onValueChange={reset(setAge)}
         />
-        <Select aria-label="Sort" options={SORTS} value={sort} onValueChange={reset(setSort)} />
-        <Button type="submit">Filter</Button>
+        <Select
+          aria-label={t('admin.review.sort')}
+          options={localize(t, SORTS)}
+          value={sort}
+          onValueChange={reset(setSort)}
+        />
+        <Button type="submit">{t('admin.review.filter')}</Button>
       </form>
-      <Async res={res} label="Loading the queue">
+      <Async res={res} label={t('admin.review.loadingQueue')}>
         {(page) =>
           page.items.length === 0 ? (
             <EmptyState
-              title="Nothing to review"
-              description="No submission matches this filter right now."
+              title={t('admin.review.emptyTitle')}
+              description={t('admin.review.emptyDescription')}
             />
           ) : (
             <>
               <div className="rv-table-wrap">
-                <table className="rv-table" aria-label="Review queue">
+                <table className="rv-table" aria-label={t('admin.review.queueTable')}>
                   <thead>
                     <tr>
-                      <th scope="col">Submission</th>
-                      <th scope="col">Submitter</th>
-                      <th scope="col">State</th>
-                      <th scope="col">Waiting</th>
-                      <th scope="col">Claim</th>
+                      <th scope="col">{t('admin.review.colSubmission')}</th>
+                      <th scope="col">{t('admin.review.colSubmitter')}</th>
+                      <th scope="col">{t('admin.review.colState')}</th>
+                      <th scope="col">{t('admin.review.colWaiting')}</th>
+                      <th scope="col">{t('admin.review.colClaim')}</th>
                       <th scope="col">
-                        <span className="sr-only-label">Open</span>
+                        <span className="sr-only-label">{t('admin.review.open')}</span>
                       </th>
                     </tr>
                   </thead>
@@ -218,22 +245,26 @@ function ReviewQueue({ onOpen }: { onOpen: (id: string) => void }) {
                         <td>
                           <strong>{s.title}</strong>
                           <div className="rv-muted">
-                            {s.kind === 'library.items' ? 'New chapters' : 'New series'}
+                            {s.kind === 'library.items'
+                              ? t('admin.review.kindItems')
+                              : t('admin.review.kindSeries')}
                           </div>
                         </td>
-                        <td className="adm-mono">{s.submitter_id ?? 'Deleted account'}</td>
+                        <td className="adm-mono">
+                          {s.submitter_id ?? t('admin.review.deletedAccount')}
+                        </td>
                         <td>
                           <StateChip state={s.state} />
                         </td>
                         <td>{s.submitted_at_ms ? ago(s.submitted_at_ms) : ''}</td>
-                        <td>{claimText(s, viewer.userId)}</td>
+                        <td>{claimText(t, s, viewer.userId)}</td>
                         <td>
                           <Button
                             size="sm"
-                            aria-label={`Open ${s.title}`}
+                            aria-label={t('admin.review.openAria', { title: s.title })}
                             onClick={() => onOpen(s.id)}
                           >
-                            Open
+                            {t('admin.review.open')}
                           </Button>
                         </td>
                       </tr>
@@ -243,7 +274,11 @@ function ReviewQueue({ onOpen }: { onOpen: (id: string) => void }) {
               </div>
               <div className="rv-pager">
                 <span className="rv-muted" aria-live="polite">
-                  {offset + 1} to {offset + page.items.length} of {page.total}
+                  {t('admin.review.pager', {
+                    from: offset + 1,
+                    to: offset + page.items.length,
+                    total: page.total,
+                  })}
                 </span>
                 <div className="rv-actions">
                   <Button
@@ -251,14 +286,14 @@ function ReviewQueue({ onOpen }: { onOpen: (id: string) => void }) {
                     disabled={offset === 0}
                     onClick={() => setOffset(Math.max(0, offset - PAGE))}
                   >
-                    Previous
+                    {t('admin.review.previous')}
                   </Button>
                   <Button
                     variant="secondary"
                     disabled={offset + page.items.length >= page.total}
                     onClick={() => setOffset(offset + PAGE)}
                   >
-                    Next
+                    {t('admin.review.next')}
                   </Button>
                 </div>
               </div>
@@ -270,15 +305,21 @@ function ReviewQueue({ onOpen }: { onOpen: (id: string) => void }) {
   );
 }
 
-function claimText(s: Submission, me: string): string {
-  if (!s.claimed_by || !s.claim_expires_at_ms || s.claim_expires_at_ms <= Date.now()) return 'Free';
-  const by = s.claimed_by === me ? 'You' : `Account ${s.claimed_by}`;
-  return `${by} until ${new Date(s.claim_expires_at_ms).toLocaleTimeString(undefined, { timeStyle: 'short' })}`;
+function claimText(t: TFn, s: Submission, me: string): string {
+  if (!s.claimed_by || !s.claim_expires_at_ms || s.claim_expires_at_ms <= Date.now())
+    return t('admin.review.free');
+  const by =
+    s.claimed_by === me ? t('admin.review.you') : t('admin.review.account', { id: s.claimed_by });
+  return t('admin.review.claimUntil', {
+    by,
+    time: new Date(s.claim_expires_at_ms).toLocaleTimeString(undefined, { timeStyle: 'short' }),
+  });
 }
 
 // ---- review page ----
 
 function ReviewDetail({ id, onBack }: { id: string; onBack: () => void }) {
+  const t = useT();
   const viewer = useAdminViewer();
   const res = useResource(`review:${id}`, () => rv.reviewGet(id));
   const preview = useResource(
@@ -298,8 +339,8 @@ function ReviewDetail({ id, onBack }: { id: string; onBack: () => void }) {
   // Re-render when the lease runs out.
   const [, tick] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => tick((n) => n + 1), 30_000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => tick((n) => n + 1), 30_000);
+    return () => clearInterval(timer);
   }, []);
 
   const apply = async (fn: () => Promise<SubmissionDetail>, done: string) => {
@@ -312,7 +353,7 @@ function ReviewDetail({ id, onBack }: { id: string; onBack: () => void }) {
   };
 
   return (
-    <Async res={res} label="Loading the submission">
+    <Async res={res} label={t('admin.review.loadingSubmission')}>
       {(d) => {
         const s = d.submission;
         const live = !!s.claimed_by && (s.claim_expires_at_ms ?? 0) > Date.now();
@@ -334,7 +375,7 @@ function ReviewDetail({ id, onBack }: { id: string; onBack: () => void }) {
           <>
             <div className="rv-row" style={{ marginBottom: 12 }}>
               <Button variant="secondary" onClick={onBack}>
-                Back to the queue
+                {t('admin.review.backToQueue')}
               </Button>
             </div>
             <div className="rv-head">
@@ -342,22 +383,22 @@ function ReviewDetail({ id, onBack }: { id: string; onBack: () => void }) {
               <StateChip state={s.state} />
               <Badge variant="neutral">{d.kind_label}</Badge>
             </div>
-            <dl className="rv-kv" aria-label="Submission details">
+            <dl className="rv-kv" aria-label={t('admin.review.detailsLabel')}>
               <div className="rv-kv-row">
-                <dt>Submitter</dt>
-                <dd className="adm-mono">{s.submitter_id ?? 'Deleted account'}</dd>
+                <dt>{t('admin.review.dtSubmitter')}</dt>
+                <dd className="adm-mono">{s.submitter_id ?? t('admin.review.deletedAccount')}</dd>
               </div>
               <div className="rv-kv-row">
-                <dt>Submitted</dt>
-                <dd>{fmtWhen(s.submitted_at_ms) || 'Not yet'}</dd>
+                <dt>{t('admin.review.dtSubmitted')}</dt>
+                <dd>{fmtWhen(s.submitted_at_ms) || t('admin.review.notYet')}</dd>
               </div>
               <div className="rv-kv-row">
-                <dt>Claim</dt>
-                <dd>{claimText(s, viewer.userId)}</dd>
+                <dt>{t('admin.review.dtClaim')}</dt>
+                <dd>{claimText(t, s, viewer.userId)}</dd>
               </div>
               {s.summary && (
                 <div className="rv-kv-row">
-                  <dt>Submitter note</dt>
+                  <dt>{t('admin.review.dtSubmitterNote')}</dt>
                   <dd>{s.summary}</dd>
                 </div>
               )}
@@ -365,15 +406,19 @@ function ReviewDetail({ id, onBack }: { id: string; onBack: () => void }) {
 
             <ActionStatus error={action.error} done={action.done} />
             {failed && (
-              <Notice variant="warning" title="Publishing failed" className="ss-status">
+              <Notice
+                variant="warning"
+                title={t('admin.review.publishFailed')}
+                className="ss-status"
+              >
                 {failed.body}
                 <div style={{ marginTop: 8 }}>
                   <Button
                     size="sm"
                     loading={action.busy}
-                    onClick={() => void apply(() => rv.publish(id), 'Published.')}
+                    onClick={() => void apply(() => rv.publish(id), t('admin.review.published'))}
                   >
-                    Try publishing again
+                    {t('admin.review.tryPublishAgain')}
                   </Button>
                 </div>
               </Notice>
@@ -382,73 +427,74 @@ function ReviewDetail({ id, onBack }: { id: string; onBack: () => void }) {
             <div
               className="rv-actions"
               role="group"
-              aria-label="Decision bar"
+              aria-label={t('admin.review.decisionBar')}
               style={{ margin: '16px 0' }}
             >
               {(s.state === 'submitted' || (s.state === 'in_review' && !live)) && (
                 <Button
                   loading={action.busy}
-                  onClick={() =>
-                    void apply(() => rv.claim(id), 'You claimed this submission for 30 minutes.')
-                  }
+                  onClick={() => void apply(() => rv.claim(id), t('admin.review.claimedNotice'))}
                 >
-                  Claim
+                  {t('admin.review.claim')}
                 </Button>
               )}
               {s.state === 'in_review' && heldByOther && viewer.can('PUBLISH_READING') && (
                 <Button variant="secondary" onClick={() => setDialog('takeover')}>
-                  Take over the claim
+                  {t('admin.review.takeOver')}
                 </Button>
               )}
               {mine && s.state === 'in_review' && (
                 <Button
                   variant="secondary"
                   loading={action.busy}
-                  onClick={() => void apply(() => rv.release(id), 'Returned to the queue.')}
+                  onClick={() => void apply(() => rv.release(id), t('admin.review.released'))}
                 >
-                  Release
+                  {t('admin.review.release')}
                 </Button>
               )}
               <Button disabled={!canDecide} onClick={() => setDialog('approve')}>
-                Approve
+                {t('admin.review.approve')}
               </Button>
               <Button
                 variant="secondary"
                 disabled={!canDecide}
                 onClick={() => setDialog('changes')}
               >
-                Request changes
+                {t('admin.review.requestChanges')}
               </Button>
               <Button variant="danger" disabled={!canDecide} onClick={() => setDialog('reject')}>
-                Reject
+                {t('admin.review.reject')}
               </Button>
             </div>
             {!canDecide && s.state === 'in_review' && (
               <p className="rv-muted">
                 {heldByOther
-                  ? `Account ${s.claimed_by} is reviewing this until ${fmtWhen(s.claim_expires_at_ms)}.`
-                  : 'Claim this submission to decide on it.'}
+                  ? t('admin.review.heldByOther', {
+                      id: s.claimed_by ?? '',
+                      when: fmtWhen(s.claim_expires_at_ms),
+                    })
+                  : t('admin.review.claimToDecide')}
               </p>
             )}
 
             <section className="rv-panel" aria-labelledby="rv-changes-h">
-              <h3 id="rv-changes-h">What changed</h3>
+              <h3 id="rv-changes-h">{t('admin.review.whatChanged')}</h3>
               {last && prev ? (
                 <ChangeList changes={previewDiff(prev, last)} />
               ) : (
-                <p className="rv-muted">First submission: everything below is new.</p>
+                <p className="rv-muted">{t('admin.review.firstSubmission')}</p>
               )}
             </section>
 
             <section className="rv-panel" aria-labelledby="rv-meta-h">
-              <h3 id="rv-meta-h">Metadata</h3>
-              <Async res={preview} label="Loading the preview">
+              <h3 id="rv-meta-h">{t('admin.review.metadata')}</h3>
+              <Async res={preview} label={t('admin.review.loadingPreview')}>
                 {(p: LibraryPreview) => (
                   <>
                     <PreviewFacts preview={p} />
                     {!p.new_series && (
                       <p className="rv-muted">
-                        The series already has {p.existing_chapters} published chapters.
+                        {t('admin.review.existingChapters', { count: p.existing_chapters })}
                       </p>
                     )}
                   </>
@@ -457,19 +503,19 @@ function ReviewDetail({ id, onBack }: { id: string; onBack: () => void }) {
             </section>
 
             <section className="rv-panel" aria-labelledby="rv-items-h">
-              <h3 id="rv-items-h">Chapters ({items.length})</h3>
+              <h3 id="rv-items-h">{t('admin.review.chapters', { count: items.length })}</h3>
               {items.length === 0 ? (
-                <p className="rv-muted">No items.</p>
+                <p className="rv-muted">{t('admin.review.noItems')}</p>
               ) : (
                 <div className="rv-table-wrap">
-                  <table className="rv-table" aria-label="Items under review">
+                  <table className="rv-table" aria-label={t('admin.review.itemsTable')}>
                     <thead>
                       <tr>
-                        <th scope="col">Item</th>
-                        <th scope="col">Decision</th>
-                        <th scope="col">Note</th>
+                        <th scope="col">{t('admin.review.colItem')}</th>
+                        <th scope="col">{t('admin.review.colDecision')}</th>
+                        <th scope="col">{t('admin.review.colNote')}</th>
                         <th scope="col">
-                          <span className="sr-only-label">Actions</span>
+                          <span className="sr-only-label">{t('admin.review.colActions')}</span>
                         </th>
                       </tr>
                     </thead>
@@ -484,7 +530,14 @@ function ReviewDetail({ id, onBack }: { id: string; onBack: () => void }) {
                           onDecide={(state, note) =>
                             void apply(
                               () => rv.decideItem(id, it.id, state, note),
-                              `${it.label} ${state}.`,
+                              t(
+                                state === 'approved'
+                                  ? 'admin.review.itemApproved'
+                                  : state === 'rejected'
+                                    ? 'admin.review.itemRejected'
+                                    : 'admin.review.itemPending',
+                                { label: it.label },
+                              ),
                             )
                           }
                           onPages={async () => {
@@ -492,7 +545,7 @@ function ReviewDetail({ id, onBack }: { id: string; onBack: () => void }) {
                               const m = await rv.reviewPages(id, it.ref_id);
                               setPages({ item: it, pages: m.pages });
                             } catch (e) {
-                              action.setError(errorText(e, 'Could not load the pages.'));
+                              action.setError(errorText(e, t('admin.review.loadPagesError')));
                             }
                           }}
                         />
@@ -504,50 +557,52 @@ function ReviewDetail({ id, onBack }: { id: string; onBack: () => void }) {
             </section>
 
             <section className="rv-panel" aria-labelledby="rv-time-h">
-              <h3 id="rv-time-h">Timeline and notes</h3>
-              <Timeline events={d.events} actorLabel={(a) => who(viewer.userId, a)} />
+              <h3 id="rv-time-h">{t('admin.review.timelineTitle')}</h3>
+              <Timeline events={d.events} actorLabel={(a) => who(t, viewer.userId, a)} />
               <NoteForm
                 busy={action.busy}
                 onSend={(body, internal) =>
-                  apply(() => rv.reviewComment(id, body, internal), 'Note added.')
+                  apply(() => rv.reviewComment(id, body, internal), t('admin.review.noteAdded'))
                 }
               />
             </section>
 
             <ConfirmDialog
               open={dialog === 'approve'}
-              title="Approve this submission"
+              title={t('admin.review.approveTitle')}
               description={
                 pendingLeft > 0
-                  ? `${approveCount} of ${items.length} items will be approved and published. Items you rejected stay out.`
-                  : `${approveCount} approved items will be published now.`
+                  ? t('admin.review.approveSome', { approved: approveCount, total: items.length })
+                  : t('admin.review.approveAll', { approved: approveCount })
               }
-              confirmLabel="Approve and publish"
+              confirmLabel={t('admin.review.approveConfirm')}
               loading={action.busy}
               onCancel={() => setDialog(null)}
               onConfirm={() =>
-                void apply(() => rv.approve(id), 'Approved.').then(() => setDialog(null))
+                void apply(() => rv.approve(id), t('admin.review.approved')).then(() =>
+                  setDialog(null),
+                )
               }
             />
             <ConfirmDialog
               open={dialog === 'takeover'}
-              title="Take over the claim"
-              description={`Account ${s.claimed_by ?? ''} is still reviewing this. They will lose the claim and cannot decide any more.`}
-              confirmLabel="Take over"
+              title={t('admin.review.takeOver')}
+              description={t('admin.review.takeOverDescription', { id: s.claimed_by ?? '' })}
+              confirmLabel={t('admin.review.takeOverConfirm')}
               loading={action.busy}
               onCancel={() => setDialog(null)}
               onConfirm={() =>
-                void apply(() => rv.claim(id, true), 'You took over the claim.').then(() =>
+                void apply(() => rv.claim(id, true), t('admin.review.tookOver')).then(() =>
                   setDialog(null),
                 )
               }
             />
             <ReasonDialog
               open={dialog === 'changes'}
-              title="Request changes"
-              description="The submitter sees this note and can fix the submission and send it again."
-              confirmLabel="Send back"
-              reasonLabel="What needs to change"
+              title={t('admin.review.requestChanges')}
+              description={t('admin.review.changesDescription')}
+              confirmLabel={t('admin.review.sendBack')}
+              reasonLabel={t('admin.review.changesReason')}
               onCancel={() => setDialog(null)}
               onConfirm={async (reason) => {
                 const out = await rv.requestChanges(id, reason);
@@ -569,7 +624,7 @@ function ReviewDetail({ id, onBack }: { id: string; onBack: () => void }) {
               onClose={() => setPages(null)}
               title={pages ? pages.item.label : ''}
               size="lg"
-              footer={<Button onClick={() => setPages(null)}>Close</Button>}
+              footer={<Button onClick={() => setPages(null)}>{t('admin.review.close')}</Button>}
             >
               {pages && (
                 <div className="rv-pages">
@@ -577,7 +632,7 @@ function ReviewDetail({ id, onBack }: { id: string; onBack: () => void }) {
                     <img
                       key={p.index}
                       src={p.url}
-                      alt={`Page ${p.index + 1}`}
+                      alt={t('admin.review.pageAlt', { n: p.index + 1 })}
                       width={p.width}
                       height={p.height}
                       loading="lazy"
@@ -586,7 +641,9 @@ function ReviewDetail({ id, onBack }: { id: string; onBack: () => void }) {
                 </div>
               )}
               {pages && pages.pages.length > 24 && (
-                <p className="rv-muted">Showing 24 of {pages.pages.length} pages.</p>
+                <p className="rv-muted">
+                  {t('admin.review.showingPages', { total: pages.pages.length })}
+                </p>
               )}
             </Modal>
           </>
@@ -611,6 +668,7 @@ function ItemRow({
   onDecide: (state: 'approved' | 'rejected' | 'pending', note?: string) => void;
   onPages: () => void;
 }) {
+  const t = useT();
   const [rejecting, setRejecting] = useState(false);
   const [note, setNote] = useState('');
   const ch = preview?.chapters.find((c) => c.id === item.ref_id);
@@ -621,7 +679,8 @@ function ItemRow({
           <strong>{ch ? chapterName(ch) : item.label}</strong>
           {ch && (
             <div className="rv-muted">
-              {ch.page_count} {ch.format === 'images' ? 'pages' : ch.format.toUpperCase()}
+              {ch.page_count}{' '}
+              {ch.format === 'images' ? t('admin.review.pagesWord') : ch.format.toUpperCase()}
             </div>
           )}
         </td>
@@ -635,42 +694,42 @@ function ItemRow({
               <Button
                 size="sm"
                 variant="secondary"
-                aria-label={`View pages of ${item.label}`}
+                aria-label={t('admin.review.viewPagesAria', { label: item.label })}
                 onClick={onPages}
               >
-                Pages
+                {t('admin.review.pages')}
               </Button>
             )}
             {canDecide && item.state !== 'approved' && (
               <Button
                 size="sm"
-                aria-label={`Approve ${item.label}`}
+                aria-label={t('admin.review.approveItemAria', { label: item.label })}
                 disabled={busy}
                 onClick={() => onDecide('approved')}
               >
-                Approve
+                {t('admin.review.approve')}
               </Button>
             )}
             {canDecide && item.state !== 'rejected' && (
               <Button
                 size="sm"
                 variant="danger"
-                aria-label={`Reject ${item.label}`}
+                aria-label={t('admin.review.rejectItemAria', { label: item.label })}
                 disabled={busy}
                 onClick={() => setRejecting(true)}
               >
-                Reject
+                {t('admin.review.reject')}
               </Button>
             )}
             {canDecide && item.state !== 'pending' && (
               <Button
                 size="sm"
                 variant="ghost"
-                aria-label={`Reset ${item.label}`}
+                aria-label={t('admin.review.resetItemAria', { label: item.label })}
                 disabled={busy}
                 onClick={() => onDecide('pending')}
               >
-                Reset
+                {t('admin.review.reset')}
               </Button>
             )}
           </div>
@@ -690,17 +749,17 @@ function ItemRow({
               }}
             >
               <TextArea
-                label={`Why is ${item.label} rejected?`}
+                label={t('admin.review.whyRejected', { label: item.label })}
                 value={note}
                 rows={2}
                 onChange={(e) => setNote(e.target.value)}
               />
               <div className="rv-actions">
                 <Button type="submit" variant="danger" disabled={!note.trim()}>
-                  Reject item
+                  {t('admin.review.rejectItem')}
                 </Button>
                 <Button type="button" variant="ghost" onClick={() => setRejecting(false)}>
-                  Cancel
+                  {t('admin.review.cancel')}
                 </Button>
               </div>
             </form>
@@ -718,6 +777,7 @@ function NoteForm({
   busy: boolean;
   onSend: (body: string, internal: boolean) => Promise<unknown>;
 }) {
+  const t = useT();
   const [body, setBody] = useState('');
   const [internal, setInternal] = useState(false);
   return (
@@ -731,21 +791,21 @@ function NoteForm({
       }}
     >
       <TextArea
-        label="Add a note"
+        label={t('admin.review.addNote')}
         value={body}
         rows={3}
         maxLength={4000}
         onChange={(e) => setBody(e.target.value)}
       />
       <Checkbox
-        label="Internal note"
-        description="Only reviewers see it. Leave it off to tell the submitter."
+        label={t('admin.review.internalNote')}
+        description={t('admin.review.internalNoteHint')}
         checked={internal}
         onChange={(e) => setInternal(e.target.checked)}
       />
       <div>
         <Button type="submit" disabled={!body.trim()} loading={busy}>
-          Add note
+          {t('admin.review.addNoteButton')}
         </Button>
       </div>
     </form>
@@ -761,6 +821,7 @@ function RejectDialog({
   onCancel: () => void;
   onConfirm: (reason: string) => Promise<unknown>;
 }) {
+  const t = useT();
   const [template, setTemplate] = useState('');
   useEffect(() => {
     if (!open) setTemplate('');
@@ -768,20 +829,23 @@ function RejectDialog({
   return (
     <ReasonDialog
       open={open}
-      title="Reject this submission"
-      description="Rejecting is final. The submitter sees the reason."
-      confirmLabel="Reject"
+      title={t('admin.review.rejectTitle')}
+      description={t('admin.review.rejectDescription')}
+      confirmLabel={t('admin.review.reject')}
       danger
       reasonOptional
-      reasonLabel="Note for the submitter"
+      reasonLabel={t('admin.review.rejectNote')}
       valid={template !== ''}
       onCancel={onCancel}
       onConfirm={(note) => onConfirm(note ? `${template}: ${note}` : template)}
     >
       <Select
-        aria-label="Reason"
-        placeholder="Pick a reason"
-        options={REJECT_TEMPLATES}
+        aria-label={t('admin.review.reasonLabel')}
+        placeholder={t('admin.review.pickReason')}
+        options={REJECT_TEMPLATES.map((o) => {
+          const key = REJECT_LABEL_KEYS[o.value];
+          return { value: o.value, label: key ? t(key) : o.label };
+        })}
         value={template}
         onValueChange={setTemplate}
       />

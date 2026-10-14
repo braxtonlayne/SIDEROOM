@@ -2,6 +2,7 @@
 // voice call when the party is bound to a voice channel the viewer is connected to, host actions, and the
 // host's party settings.
 import { Avatar, Badge, Button, DropdownMenu, Icon, Switch, type MenuEntry } from '@sideroom/ui';
+import { useT } from '../i18n';
 import { useVoiceParticipants } from '../voice/hooks';
 import { CONTROL_LABEL, httpPartyApi } from './api';
 import { partyController, useParty } from './runtime';
@@ -10,6 +11,7 @@ import type { ControlMode, Participant } from './types';
 const MODES: ControlMode[] = ['host', 'controllers', 'everyone'];
 
 export function PeoplePanel() {
+  const t = useT();
   const c = partyController();
   const party = useParty((s) => s.party);
   const hands = useParty((s) => s.hands);
@@ -24,20 +26,22 @@ export function PeoplePanel() {
 
   const menu = (p: Participant): MenuEntry[] => [
     {
-      label: p.is_controller ? 'Remove controller' : 'Let them control playback',
+      label: p.is_controller
+        ? t('watchparty.people.removeController')
+        : t('watchparty.people.letControl'),
       onSelect: () =>
         act(async () =>
           c.adoptRest(await httpPartyApi.setController(party.id, p.user_id, !p.is_controller)),
         ),
     },
     {
-      label: 'Make host',
+      label: t('watchparty.people.makeHost'),
       onSelect: () =>
         act(async () => c.adoptRest(await httpPartyApi.transferHost(party.id, p.user_id))),
     },
     { type: 'separator' },
     {
-      label: 'Remove from party',
+      label: t('watchparty.people.removeFromParty'),
       danger: true,
       onSelect: () => act(() => httpPartyApi.kick(party.id, p.user_id)),
     },
@@ -46,9 +50,10 @@ export function PeoplePanel() {
   return (
     <div className="wp-people">
       <h3 className="wp-h">
-        In this party <span className="wp-muted">({party.participants.length})</span>
+        {t('watchparty.people.inThisParty')}{' '}
+        <span className="wp-muted">({party.participants.length})</span>
       </h3>
-      <ul className="wp-list" aria-label="Participants">
+      <ul className="wp-list" aria-label={t('watchparty.people.participants')}>
         {party.participants.map((p) => {
           const name = p.display_name || p.username;
           const isSpeaking = speaking.has(p.user_id);
@@ -59,16 +64,22 @@ export function PeoplePanel() {
               <span className="wp-row-main">
                 <span className="wp-row-title">
                   {name}
-                  {p.user_id === me ? ' (you)' : ''}
+                  {p.user_id === me ? t('watchparty.people.you') : ''}
                 </span>
                 <span className="wp-badges">
-                  {p.is_host && <Badge variant="accent">Host</Badge>}
-                  {!p.is_host && p.is_controller && <Badge>Controller</Badge>}
-                  {p.buffering && <Badge variant="warning">Buffering</Badge>}
-                  {p.ready && <Badge variant="success">Ready</Badge>}
-                  {inVoice.has(p.user_id) && <Badge>In voice</Badge>}
-                  {isSpeaking && <span className="wp-sr-only">speaking</span>}
-                  {raised && <Badge variant="accent">{'✋'} wants control</Badge>}
+                  {p.is_host && <Badge variant="accent">{t('watchparty.people.host')}</Badge>}
+                  {!p.is_host && p.is_controller && (
+                    <Badge>{t('watchparty.people.controller')}</Badge>
+                  )}
+                  {p.buffering && (
+                    <Badge variant="warning">{t('watchparty.people.buffering')}</Badge>
+                  )}
+                  {p.ready && <Badge variant="success">{t('watchparty.people.ready')}</Badge>}
+                  {inVoice.has(p.user_id) && <Badge>{t('watchparty.people.inVoice')}</Badge>}
+                  {isSpeaking && (
+                    <span className="wp-sr-only">{t('watchparty.people.speaking')}</span>
+                  )}
+                  {raised && <Badge variant="accent">{t('watchparty.people.wantsControl')}</Badge>}
                 </span>
               </span>
               {raised && manage && !p.is_controller && (
@@ -81,17 +92,22 @@ export function PeoplePanel() {
                       c.adoptRest(await httpPartyApi.setController(party.id, p.user_id, true)),
                     );
                   }}
-                  aria-label={`Let ${name} control playback`}
+                  aria-label={t('watchparty.people.letNameControl', { name })}
                 >
-                  Grant
+                  {t('watchparty.people.grant')}
                 </Button>
               )}
               {manage && p.user_id !== me && (
                 <DropdownMenu
-                  label={`Actions for ${name}`}
+                  label={t('watchparty.people.actionsFor', { name })}
                   items={menu(p)}
                   trigger={
-                    <Button size="sm" variant="ghost" iconOnly aria-label={`Actions for ${name}`}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      iconOnly
+                      aria-label={t('watchparty.people.actionsFor', { name })}
+                    >
                       <Icon name="menu" size={16} />
                     </Button>
                   }
@@ -108,6 +124,7 @@ export function PeoplePanel() {
 }
 
 function Settings() {
+  const t = useT();
   const c = partyController();
   const party = useParty((s) => s.party);
   if (!party) return null;
@@ -118,10 +135,10 @@ function Settings() {
       .then((x) => c.adoptRest(x))
       .catch(() => undefined);
   return (
-    <section className="wp-settings" aria-label="Party settings">
-      <h3 className="wp-h">Party settings</h3>
+    <section className="wp-settings" aria-label={t('watchparty.people.settings')}>
+      <h3 className="wp-h">{t('watchparty.people.settings')}</h3>
       <label className="wp-field">
-        <span>Who can play, pause and seek</span>
+        <span>{t('watchparty.people.whoControls')}</span>
         <select
           value={s.shared_control}
           onChange={(e) => patch({ shared_control: e.target.value as ControlMode })}
@@ -134,7 +151,7 @@ function Settings() {
         </select>
       </label>
       <label className="wp-field">
-        <span>Who can add to the queue</span>
+        <span>{t('watchparty.people.whoQueues')}</span>
         <select
           value={s.queue_policy}
           onChange={(e) => patch({ queue_policy: e.target.value as ControlMode })}
@@ -147,7 +164,7 @@ function Settings() {
         </select>
       </label>
       <Switch
-        label="Pause everyone when someone is buffering"
+        label={t('watchparty.people.autoPause')}
         checked={s.auto_pause_buffering}
         onChange={(e) => patch({ auto_pause_buffering: e.target.checked })}
       />

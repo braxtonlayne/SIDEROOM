@@ -1,5 +1,6 @@
 import { Avatar, Icon, Modal, Tooltip, type IconName } from '@sideroom/ui';
 import { useState } from 'react';
+import { useT } from '../i18n';
 import { SearchBox } from './SearchBox';
 import { ThreadsButton } from './threads/ThreadsButton';
 
@@ -21,8 +22,9 @@ export interface ChannelHeaderProps {
 }
 
 function Soon({ icon, label }: { icon: IconName; label: string }) {
+  const t = useT();
   return (
-    <Tooltip content={`${label} (coming soon)`}>
+    <Tooltip content={t('lounge.channelHeader.comingSoon', { label })}>
       <button
         type="button"
         className="lng-icon-btn"
@@ -49,6 +51,7 @@ export function ChannelHeader({
   guildId,
   channelId,
 }: ChannelHeaderProps) {
+  const t = useT();
   const [topicOpen, setTopicOpen] = useState(false);
   return (
     <header className="lng-header">
@@ -56,7 +59,7 @@ export function ChannelHeader({
         <button
           type="button"
           className="lng-icon-btn lng-back"
-          aria-label="Back to channels"
+          aria-label={t('lounge.channelHeader.backToChannels')}
           onClick={onBack}
         >
           <Icon name="arrow-left" size={20} />
@@ -83,13 +86,19 @@ export function ChannelHeader({
       )}
       <div className="lng-header-tools">
         {!isDm && guildId && channelId && <ThreadsButton guildId={guildId} channelId={channelId} />}
-        <Soon icon="bell" label="Notification Settings" />
-        <Soon icon="pin" label="Pinned Messages" />
-        <Tooltip content={membersOpen ? 'Hide Member List' : 'Show Member List'}>
+        <Soon icon="bell" label={t('lounge.channelHeader.notificationSettings')} />
+        <Soon icon="pin" label={t('lounge.channelHeader.pinnedMessages')} />
+        <Tooltip
+          content={
+            membersOpen
+              ? t('lounge.channelHeader.hideMembers')
+              : t('lounge.channelHeader.showMembers')
+          }
+        >
           <button
             type="button"
             className="lng-icon-btn"
-            aria-label="Member List"
+            aria-label={t('lounge.channelHeader.memberList')}
             aria-pressed={membersOpen}
             onClick={onToggleMembers}
           >
@@ -101,11 +110,16 @@ export function ChannelHeader({
         ) : (
           <label className="lng-search">
             <Icon name="search" size={16} />
-            <input type="search" placeholder="Search" aria-label={searchLabel} readOnly />
+            <input
+              type="search"
+              placeholder={t('lounge.channelHeader.search')}
+              aria-label={searchLabel}
+              readOnly
+            />
           </label>
         )}
-        <Soon icon="bookmark" label="Inbox" />
-        <Soon icon="info" label="Help" />
+        <Soon icon="bookmark" label={t('lounge.channelHeader.inbox')} />
+        <Soon icon="info" label={t('lounge.channelHeader.help')} />
       </div>
       <Modal
         open={topicOpen}

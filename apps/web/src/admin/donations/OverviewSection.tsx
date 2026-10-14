@@ -3,98 +3,124 @@
 import { Badge, Button, Notice, TextArea, TextInput } from '@sideroom/ui';
 import { useState } from 'react';
 import { usd } from '../../support/api';
+import { useT } from '../../i18n';
 import { Async, ReasonDialog, SectionHeader, Stat, fmtMs, useResource } from '../ui';
 import * as api from './api';
 import './donations.css';
 
-function ageText(ms: number | null) {
-  if (!ms) return 'never';
+function ageText(t: ReturnType<typeof useT>, ms: number | null) {
+  if (!ms) return t('admin.donations.overview.never');
   const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
-  if (s < 90) return `${s} s ago`;
-  if (s < 5400) return `${Math.round(s / 60)} min ago`;
-  return `${Math.round(s / 3600)} h ago`;
+  if (s < 90) return t('admin.donations.overview.secondsAgo', { n: s });
+  if (s < 5400) return t('admin.donations.overview.minutesAgo', { n: Math.round(s / 60) });
+  return t('admin.donations.overview.hoursAgo', { n: Math.round(s / 3600) });
 }
 
 function Health({ s }: { s: api.Status }) {
+  const t = useT();
   const w = s.watcher;
   const healthy = !!w.last_ok_ms && !w.last_error;
   return (
     <section className="ss-card" aria-labelledby="don-health-h">
-      <h2 id="don-health-h">Health</h2>
+      <h2 id="don-health-h">{t('admin.donations.overview.health')}</h2>
       <div className="adm-stats">
-        <Stat label="Donations" value={s.enabled ? 'On' : 'Off'} />
         <Stat
-          label="Watcher"
-          value={healthy ? 'Healthy' : w.last_run_ms ? 'Problem' : 'Not run'}
-          hint={`last ok ${ageText(w.last_ok_ms)}`}
+          label={t('admin.donations.overview.donations')}
+          value={s.enabled ? t('admin.donations.overview.on') : t('admin.donations.overview.off')}
         />
-        <Stat label="Chain tip" value={w.tip_height ?? 'unknown'} />
-        <Stat label="Needs attention" value={s.needs_attention} hint="underpaid, overpaid, late" />
+        <Stat
+          label={t('admin.donations.overview.watcher')}
+          value={
+            healthy
+              ? t('admin.donations.overview.healthy')
+              : w.last_run_ms
+                ? t('admin.donations.overview.problem')
+                : t('admin.donations.overview.notRun')
+          }
+          hint={t('admin.donations.overview.lastOk', { age: ageText(t, w.last_ok_ms) })}
+        />
+        <Stat
+          label={t('admin.donations.overview.chainTip')}
+          value={w.tip_height ?? t('admin.donations.overview.unknown')}
+        />
+        <Stat
+          label={t('admin.donations.overview.needsAttention')}
+          value={s.needs_attention}
+          hint={t('admin.donations.overview.needsAttentionHint')}
+        />
       </div>
       {w.last_error && (
-        <Notice variant="warning" title="The watcher reported a problem" role="status">
+        <Notice
+          variant="warning"
+          title={t('admin.donations.overview.watcherProblem')}
+          role="status"
+        >
           {w.last_error}
         </Notice>
       )}
       {!s.enabled && (
-        <Notice variant="info" title="Donations are off">
-          They switch on once a wallet is set below, an Esplora endpoint is configured
-          (SR_PAYMENTS_ESPLORA_URL) and the switch in Pricing is on.
+        <Notice variant="info" title={t('admin.donations.overview.donationsOffTitle')}>
+          {t('admin.donations.overview.donationsOff')}
         </Notice>
       )}
       {s.wallet ? (
         <dl className="adm-dl">
-          <dt>Wallet</dt>
+          <dt>{t('admin.donations.overview.wallet')}</dt>
           <dd>
-            <code>{s.wallet.fingerprint}</code> on {s.wallet.network}
+            <code>{s.wallet.fingerprint}</code>{' '}
+            {t('admin.donations.overview.onNetwork', { network: s.wallet.network })}
           </dd>
-          <dt>Next address index</dt>
+          <dt>{t('admin.donations.overview.nextIndex')}</dt>
           <dd>{s.wallet.next_index}</dd>
-          <dt>Unused in a row</dt>
+          <dt>{t('admin.donations.overview.unusedInARow')}</dt>
           <dd>
-            {s.wallet.gap_used} of {s.wallet.gap_limit}{' '}
+            {t('admin.donations.overview.gapValue', {
+              used: s.wallet.gap_used,
+              limit: s.wallet.gap_limit,
+            })}{' '}
             {s.wallet.gap_used >= s.wallet.gap_limit && (
-              <Badge variant="danger">gap limit reached</Badge>
+              <Badge variant="danger">{t('admin.donations.overview.gapReached')}</Badge>
             )}
           </dd>
         </dl>
       ) : (
-        <p className="ss-meta">No wallet yet.</p>
+        <p className="ss-meta">{t('admin.donations.overview.noWallet')}</p>
       )}
-      <h3>Invoices (last 90 days)</h3>
+      <h3>{t('admin.donations.overview.invoices90')}</h3>
       <p className="ss-meta">
         {Object.entries(s.counts)
           .map(([k, n]) => `${k.replace('_', ' ')}: ${n}`)
-          .join(' · ') || 'None yet'}
+          .join(' · ') || t('admin.donations.overview.noneYet')}
       </p>
     </section>
   );
 }
 
 function Rates({ s }: { s: api.Status }) {
+  const t = useT();
   return (
     <section className="ss-card" aria-labelledby="don-rates-h">
-      <h2 id="don-rates-h">Price sources</h2>
+      <h2 id="don-rates-h">{t('admin.donations.overview.priceSources')}</h2>
       {s.rate ? (
         <p>
-          Current: <strong>{usd(s.rate.cents_per_btc)}</strong> per BTC ({s.rate.source})
-          {s.rate.stale && <Badge variant="warning">stale</Badge>}
+          {t('admin.donations.overview.current')} <strong>{usd(s.rate.cents_per_btc)}</strong>{' '}
+          {t('admin.donations.overview.perBtc', { source: s.rate.source })}
+          {s.rate.stale && <Badge variant="warning">{t('admin.donations.overview.stale')}</Badge>}
         </p>
       ) : (
-        <Notice variant="warning" title="No price" role="status">
-          No source answered yet. Invoices cannot be created without a price. Configure sources with
-          SR_PAYMENTS_RATE_SOURCES.
+        <Notice variant="warning" title={t('admin.donations.overview.noPriceTitle')} role="status">
+          {t('admin.donations.overview.noPrice')}
         </Notice>
       )}
       {s.rate_sources.length > 0 && (
         <table className="adm-table">
-          <caption className="us-sr">Price sources</caption>
+          <caption className="us-sr">{t('admin.donations.overview.priceSources')}</caption>
           <thead>
             <tr>
-              <th scope="col">Source</th>
-              <th scope="col">Last price</th>
-              <th scope="col">Last ok</th>
-              <th scope="col">Error</th>
+              <th scope="col">{t('admin.donations.overview.colSource')}</th>
+              <th scope="col">{t('admin.donations.overview.colLastPrice')}</th>
+              <th scope="col">{t('admin.donations.overview.colLastOk')}</th>
+              <th scope="col">{t('admin.donations.overview.colError')}</th>
             </tr>
           </thead>
           <tbody>
@@ -102,7 +128,7 @@ function Rates({ s }: { s: api.Status }) {
               <tr key={r.name}>
                 <th scope="row">{r.name}</th>
                 <td>{r.last_cents ? usd(r.last_cents) : ''}</td>
-                <td>{r.last_ok_ms ? fmtMs(r.last_ok_ms) : 'never'}</td>
+                <td>{r.last_ok_ms ? fmtMs(r.last_ok_ms) : t('admin.donations.overview.never')}</td>
                 <td>{r.last_error ?? ''}</td>
               </tr>
             ))}
@@ -114,6 +140,7 @@ function Rates({ s }: { s: api.Status }) {
 }
 
 function WalletForm({ onSaved }: { onSaved: () => void }) {
+  const t = useT();
   const [descriptor, setDescriptor] = useState('');
   const [network, setNetwork] = useState('mainnet');
   const [gap, setGap] = useState('20');
@@ -142,15 +169,14 @@ function WalletForm({ onSaved }: { onSaved: () => void }) {
 
   return (
     <section className="ss-card" aria-labelledby="don-wallet-h">
-      <h2 id="don-wallet-h">Wallet</h2>
-      <Notice variant="info" title="Watch-only">
-        Paste a watch-only descriptor such as <code>wpkh(xpub.../0/*)</code>. The server derives one
-        address per invoice and never holds a key, a seed, or any way to spend. A descriptor with a
-        private key is refused.
+      <h2 id="don-wallet-h">{t('admin.donations.overview.wallet')}</h2>
+      <Notice variant="info" title={t('admin.donations.overview.watchOnly')}>
+        {t('admin.donations.overview.pasteDescriptor')} <code>wpkh(xpub.../0/*)</code>.{' '}
+        {t('admin.donations.overview.serverNeverSpends')}
       </Notice>
       <form className="adm-form" onSubmit={(e) => e.preventDefault()}>
         <TextArea
-          label="Output descriptor (watch-only)"
+          label={t('admin.donations.overview.descriptorLabel')}
           value={descriptor}
           rows={3}
           spellCheck={false}
@@ -158,7 +184,7 @@ function WalletForm({ onSaved }: { onSaved: () => void }) {
           onChange={(e) => setDescriptor(e.target.value)}
         />
         <label>
-          Network{' '}
+          {t('admin.donations.overview.network')}{' '}
           <select value={network} onChange={(e) => setNetwork(e.target.value)}>
             <option value="mainnet">mainnet</option>
             <option value="testnet">testnet</option>
@@ -167,8 +193,8 @@ function WalletForm({ onSaved }: { onSaved: () => void }) {
           </select>
         </label>
         <TextInput
-          label="Gap limit"
-          hint="How many unused addresses in a row before new invoices wait."
+          label={t('admin.donations.overview.gapLimit')}
+          hint={t('admin.donations.overview.gapLimitHint')}
           inputMode="numeric"
           value={gap}
           onChange={(e) => setGap(e.target.value)}
@@ -179,10 +205,10 @@ function WalletForm({ onSaved }: { onSaved: () => void }) {
             disabled={busy || descriptor.trim() === ''}
             onClick={() => void test()}
           >
-            Test derivation
+            {t('admin.donations.overview.testDerivation')}
           </Button>
           <Button disabled={!addresses} onClick={() => setConfirm(true)}>
-            Use this wallet
+            {t('admin.donations.overview.useThisWallet')}
           </Button>
         </div>
       </form>
@@ -194,8 +220,8 @@ function WalletForm({ onSaved }: { onSaved: () => void }) {
       {addresses && (
         <div>
           <p>
-            Fingerprint <code>{fingerprint}</code>. Compare these with the first receive addresses
-            in your own wallet before using it:
+            {t('admin.donations.overview.fingerprint')} <code>{fingerprint}</code>.{' '}
+            {t('admin.donations.overview.compareAddresses')}
           </p>
           <ol className="adm-mono">
             {addresses.map((a) => (
@@ -211,9 +237,9 @@ function WalletForm({ onSaved }: { onSaved: () => void }) {
       )}
       <ReasonDialog
         open={confirm}
-        title="Use this wallet for new invoices"
-        description="Open invoices of the previous wallet keep being watched."
-        confirmLabel="Use wallet"
+        title={t('admin.donations.overview.confirmTitle')}
+        description={t('admin.donations.overview.confirmDescription')}
+        confirmLabel={t('admin.donations.overview.confirmLabel')}
         onCancel={() => setConfirm(false)}
         onConfirm={async (reason) => {
           const r = await api.setWallet({
@@ -222,7 +248,12 @@ function WalletForm({ onSaved }: { onSaved: () => void }) {
             gap_limit: Number(gap) || 20,
             reason,
           });
-          setSaved(`Wallet ${r.fingerprint} is active on ${r.network}.`);
+          setSaved(
+            t('admin.donations.overview.walletActive', {
+              fingerprint: r.fingerprint,
+              network: r.network,
+            }),
+          );
           setConfirm(false);
           setDescriptor('');
           setAddresses(null);
@@ -234,15 +265,16 @@ function WalletForm({ onSaved }: { onSaved: () => void }) {
 }
 
 function MonthReport() {
+  const t = useT();
   const res = useResource('don-report', () => api.getReport());
   return (
     <section className="ss-card" aria-labelledby="don-report-h">
-      <h2 id="don-report-h">This month</h2>
-      <Async res={res} label="Loading the report">
+      <h2 id="don-report-h">{t('admin.donations.overview.thisMonth')}</h2>
+      <Async res={res} label={t('admin.donations.overview.loadingReport')}>
         {(r) => (
           <>
             <p>
-              Credited: <strong>{usd(r.credited_cents)}</strong>
+              {t('admin.donations.overview.credited')} <strong>{usd(r.credited_cents)}</strong>
             </p>
             {r.by_purpose.length > 0 && (
               <ul className="ss-list">
@@ -264,19 +296,20 @@ function MonthReport() {
 }
 
 export function DonationsOverviewSection() {
+  const t = useT();
   const res = useResource('don-status', api.getStatus);
   return (
     <>
       <SectionHeader
-        title="Donations"
-        description="Self-custodial, watch-only Bitcoin. Payments go straight to your wallet; this server only watches."
+        title={t('admin.donations.overview.donations')}
+        description={t('admin.donations.overview.description')}
         actions={
           <Button variant="secondary" onClick={() => void res.reload()}>
-            Refresh
+            {t('admin.donations.overview.refresh')}
           </Button>
         }
       />
-      <Async res={res} label="Loading donations">
+      <Async res={res} label={t('admin.donations.overview.loadingDonations')}>
         {(s) => (
           <>
             <Health s={s} />

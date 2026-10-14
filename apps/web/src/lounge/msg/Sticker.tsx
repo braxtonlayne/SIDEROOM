@@ -1,6 +1,7 @@
 import { Tooltip } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { apiFetch } from '../../api/client';
+import { useT } from '../../i18n';
 import { useSavedPrefs } from '../../settings/user/prefs';
 import type { StickerItem } from '../data';
 import { useAnimatedSrc } from './staticFrame';
@@ -36,6 +37,7 @@ export function Sticker({
   sticker: StickerItem;
   guildId: string | undefined;
 }) {
+  const t = useT();
   const [url, setUrl] = useState<string | null>(null);
   const [active, setActive] = useState(false);
   const shown = useAnimatedSrc(url, useSavedPrefs().stickerAnimation, active);
@@ -57,9 +59,18 @@ export function Sticker({
         onBlur={() => setActive(false)}
       >
         {shown ? (
-          <img src={shown} alt={`Sticker: ${sticker.name}`} width={160} height={160} />
+          <img
+            src={shown}
+            alt={t('lounge.sticker.label', { name: sticker.name })}
+            width={160}
+            height={160}
+          />
         ) : (
-          <span className="lng-sticker-ph" role="img" aria-label={`Sticker: ${sticker.name}`} />
+          <span
+            className="lng-sticker-ph"
+            role="img"
+            aria-label={t('lounge.sticker.label', { name: sticker.name })}
+          />
         )}
       </span>
     </Tooltip>

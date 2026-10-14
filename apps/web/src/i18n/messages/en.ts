@@ -1,4 +1,4 @@
-import { mergeFragments } from './merge';
+import { en, registerFragments } from './store';
 
 /**
  * English source catalog (XC-I18N-001). Keys are `<area>.<component>.<thing>`; values are ICU MessageFormat.
@@ -20,12 +20,14 @@ import { mergeFragments } from './merge';
  *   key falls back to this catalog.
  * - See docs/dev/i18n-extraction.md for what to extract and how.
  */
-const fragments = import.meta.glob<Record<string, string>>('./en/*.ts', {
+// Only the fragments the first paint needs are bundled with the app; `./en.rest.ts` loads the others.
+const core = import.meta.glob<Record<string, string>>('./en/{entrance,a11y,pwa}.ts', {
   eager: true,
   import: 'default',
 });
+registerFragments(core);
 
-export const en: Readonly<Record<string, string>> = mergeFragments(fragments);
+export { en };
 
 /** Keys are plain strings: the catalog is assembled from fragments, so there is no static key union. */
 export type MessageKey = string;

@@ -1,25 +1,27 @@
 import { Button, Modal } from '@sideroom/ui';
 import { useState } from 'react';
+import { t, useT } from '../../i18n';
 import type { NewPoll } from '../data';
 
 export const POLL_MAX_ANSWERS = 10;
 export const POLL_MIN_ANSWERS = 2;
-const DURATIONS: { hours: number; label: string }[] = [
-  { hours: 1, label: '1 hour' },
-  { hours: 4, label: '4 hours' },
-  { hours: 8, label: '8 hours' },
-  { hours: 24, label: '24 hours' },
-  { hours: 72, label: '3 days' },
-  { hours: 168, label: '1 week' },
+/** `labelKey` is a catalog key, resolved when rendered. */
+const DURATIONS: { hours: number; labelKey: string }[] = [
+  { hours: 1, labelKey: 'lounge.pollModal.duration1h' },
+  { hours: 4, labelKey: 'lounge.pollModal.duration4h' },
+  { hours: 8, labelKey: 'lounge.pollModal.duration8h' },
+  { hours: 24, labelKey: 'lounge.pollModal.duration24h' },
+  { hours: 72, labelKey: 'lounge.pollModal.duration3d' },
+  { hours: 168, labelKey: 'lounge.pollModal.duration1w' },
 ];
 
 /** Validation shared with the tests: question 1-300, 2-10 answers of 1-55 characters. */
 export function validatePoll(p: NewPoll): string | null {
-  if (!p.question.trim()) return 'Ask a question.';
-  if (p.question.length > 300) return 'The question is too long (300 characters at most).';
+  if (!p.question.trim()) return t('lounge.pollModal.askQuestion');
+  if (p.question.length > 300) return t('lounge.pollModal.questionTooLong');
   const answers = p.answers.filter((a) => a.text.trim());
-  if (answers.length < POLL_MIN_ANSWERS) return 'Add at least two answers.';
-  if (answers.some((a) => a.text.length > 55)) return 'Answers can be 55 characters at most.';
+  if (answers.length < POLL_MIN_ANSWERS) return t('lounge.pollModal.addTwoAnswers');
+  if (answers.some((a) => a.text.length > 55)) return t('lounge.pollModal.answerTooLong');
   return null;
 }
 
@@ -33,6 +35,7 @@ export function PollModal({
   onClose: () => void;
   onCreate: (poll: NewPoll) => void;
 }) {
+  const t = useT();
   const [question, setQuestion] = useState('');
   const [answers, setAnswers] = useState<{ text: string; emoji: string }[]>([
     { text: '', emoji: '' },
@@ -73,12 +76,12 @@ export function PollModal({
     <Modal
       open={open}
       onClose={close}
-      title="Create Poll"
+      title={t('lounge.pollModal.title')}
       size="md"
       footer={
         <>
           <Button variant="ghost" onClick={close}>
-            Cancel
+            {t('lounge.pollModal.cancel')}
           </Button>
           <Button
             onClick={() => {
@@ -88,7 +91,7 @@ export function PollModal({
               reset();
             }}
           >
-            Post
+            {t('lounge.pollModal.post')}
           </Button>
         </>
       }
@@ -100,24 +103,24 @@ export function PollModal({
         }}
       >
         <label className="lng-field">
-          <span>Question</span>
+          <span>{t('lounge.pollModal.question')}</span>
           <input
             type="text"
             value={question}
             maxLength={300}
-            placeholder="What question do you want to ask?"
+            placeholder={t('lounge.pollModal.questionPlaceholder')}
             onChange={(e) => setQuestion(e.target.value)}
             data-autofocus
           />
         </label>
         <fieldset className="lng-poll-fields">
-          <legend>Answers</legend>
+          <legend>{t('lounge.pollModal.answers')}</legend>
           {answers.map((a, i) => (
             <div key={i} className="lng-poll-field">
               <input
                 type="text"
                 className="lng-poll-emoji"
-                aria-label={`Emoji for answer ${i + 1}`}
+                aria-label={t('lounge.pollModal.emojiForAnswer', { n: i + 1 })}
                 value={a.emoji}
                 maxLength={8}
                 placeholder="🙂"
@@ -125,20 +128,20 @@ export function PollModal({
               />
               <input
                 type="text"
-                aria-label={`Answer ${i + 1}`}
+                aria-label={t('lounge.pollModal.answerLabel', { n: i + 1 })}
                 value={a.text}
                 maxLength={55}
-                placeholder="Type your answer"
+                placeholder={t('lounge.pollModal.answerPlaceholder')}
                 onChange={(e) => set(i, { text: e.target.value })}
               />
               {answers.length > POLL_MIN_ANSWERS && (
                 <button
                   type="button"
                   className="lng-link-btn lng-danger"
-                  aria-label={`Remove answer ${i + 1}`}
+                  aria-label={t('lounge.pollModal.removeAnswer', { n: i + 1 })}
                   onClick={() => setAnswers((l) => l.filter((_, j) => j !== i))}
                 >
-                  Remove
+                  {t('lounge.pollModal.remove')}
                 </button>
               )}
             </div>
@@ -149,23 +152,23 @@ export function PollModal({
               className="lng-link-btn"
               onClick={() => setAnswers((l) => [...l, { text: '', emoji: '' }])}
             >
-              Add another answer
+              {t('lounge.pollModal.addAnswer')}
             </button>
           )}
         </fieldset>
         <label className="lng-field">
-          <span>Duration</span>
+          <span>{t('lounge.pollModal.duration')}</span>
           <select value={hours} onChange={(e) => setHours(Number(e.target.value))}>
             {DURATIONS.map((d) => (
               <option key={d.hours} value={d.hours}>
-                {d.label}
+                {t(d.labelKey)}
               </option>
             ))}
           </select>
         </label>
         <label className="lng-check">
           <input type="checkbox" checked={multi} onChange={(e) => setMulti(e.target.checked)} />
-          <span>Allow multiple answers</span>
+          <span>{t('lounge.pollModal.allowMultiple')}</span>
         </label>
         {touched && error && (
           <p className="lng-failed" role="alert">

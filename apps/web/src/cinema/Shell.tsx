@@ -14,6 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError } from '../api/client';
+import { useT } from '../i18n';
 import { getMe } from '../settings/user/api';
 import { useOpenUserSettings } from '../settings/user/nav';
 import { keys } from './api';
@@ -21,21 +22,22 @@ import { SearchOverlay } from './Search';
 
 /** `SIDE ROOM / The lounge · The cinema · The library` with the cinema active (CIN-UI-001). No "board". */
 export function SectionBar() {
+  const t = useT();
   return (
     <header className="cin-sectionbar">
       <span className="cin-sectionbar-brand">SIDE ROOM</span>
       <span aria-hidden="true" className="cin-sectionbar-slash">
         /
       </span>
-      <nav aria-label="Sections" className="cin-sectionbar-nav">
+      <nav aria-label={t('cinema.shell.sections')} className="cin-sectionbar-nav">
         <a href="/channels" className="cin-sectionbar-link">
-          The lounge
+          {t('cinema.shell.lounge')}
         </a>
         <a href="/cinema" className="cin-sectionbar-link" aria-current="page">
-          The cinema
+          {t('cinema.shell.cinema')}
         </a>
         <a href="/library" className="cin-sectionbar-link">
-          The library
+          {t('cinema.shell.library')}
         </a>
       </nav>
     </header>
@@ -44,6 +46,7 @@ export function SectionBar() {
 
 interface NavItem {
   href: string;
+  /** Catalog key of the label. */
   label: string;
   /** Marker after the label: a sparkle for anime, a dot for live TV. */
   mark?: 'sparkle' | 'dot';
@@ -52,18 +55,19 @@ interface NavItem {
 }
 
 export const NAV: NavItem[] = [
-  { href: '/cinema', label: 'Discover', exact: true },
-  { href: '/cinema/movies', label: 'Movies' },
-  { href: '/cinema/series', label: 'Series' },
-  { href: '/cinema/anime', label: 'Anime', mark: 'sparkle', anime: true },
-  { href: '/cinema/tv', label: 'Live TV', mark: 'dot' },
-  { href: '/cinema/my-list', label: 'My list' },
+  { href: '/cinema', label: 'cinema.shell.navDiscover', exact: true },
+  { href: '/cinema/movies', label: 'cinema.shell.navMovies' },
+  { href: '/cinema/series', label: 'cinema.shell.navSeries' },
+  { href: '/cinema/anime', label: 'cinema.shell.navAnime', mark: 'sparkle', anime: true },
+  { href: '/cinema/tv', label: 'cinema.shell.navLiveTv', mark: 'dot' },
+  { href: '/cinema/my-list', label: 'cinema.shell.navMyList' },
 ];
 
 const isActive = (path: string, i: NavItem) =>
   i.exact ? path === i.href : path === i.href || path.startsWith(`${i.href}/`);
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
+  const t = useT();
   const path = useRouterState({ select: (s) => s.location.pathname });
   return (
     <ul className="cin-nav-list">
@@ -76,7 +80,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
             aria-current={isActive(path, i) ? 'page' : undefined}
             onClick={onNavigate}
           >
-            {i.label}
+            {t(i.label)}
             {i.mark && (
               <span aria-hidden="true" className="cin-nav-mark">
                 {i.mark === 'sparkle' ? ' ✦' : ' •'}
@@ -90,28 +94,36 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 function AvatarMenu() {
+  const t = useT();
   const navigate = useNavigate();
   const openSettings = useOpenUserSettings();
   const me = useQuery({ queryKey: keys.me(), queryFn: getMe, staleTime: 5 * 60_000 });
-  const name = me.data?.global_name ?? me.data?.display_name ?? me.data?.username ?? 'You';
+  const name =
+    me.data?.global_name ?? me.data?.display_name ?? me.data?.username ?? t('cinema.shell.you');
   // My uploads / Upload / Requests live in the submissions flow, which today is under /library.
   const items: MenuEntry[] = [
     { type: 'label', label: name },
-    { label: 'Profile', onSelect: () => openSettings() },
-    { label: 'My uploads', onSelect: () => void navigate({ to: '/library/submissions' }) },
-    { label: 'Upload', onSelect: () => void navigate({ to: '/library/upload' }) },
-    { label: 'Requests', onSelect: () => void navigate({ to: '/library/requests' }) },
-    { label: 'Settings', onSelect: () => openSettings() },
+    { label: t('cinema.shell.profile'), onSelect: () => openSettings() },
+    {
+      label: t('cinema.shell.myUploads'),
+      onSelect: () => void navigate({ to: '/library/submissions' }),
+    },
+    { label: t('cinema.shell.upload'), onSelect: () => void navigate({ to: '/library/upload' }) },
+    {
+      label: t('cinema.shell.requests'),
+      onSelect: () => void navigate({ to: '/library/requests' }),
+    },
+    { label: t('cinema.shell.settings'), onSelect: () => openSettings() },
     { type: 'separator' },
-    { label: 'Back to Lounge', onSelect: () => void navigate({ to: '/channels' }) },
+    { label: t('cinema.shell.backToLounge'), onSelect: () => void navigate({ to: '/channels' }) },
   ];
   return (
     <DropdownMenu
-      label="Account"
+      label={t('cinema.shell.account')}
       placement="bottom-end"
       items={items}
       trigger={
-        <button type="button" className="cin-avatar-btn" aria-label="Account menu">
+        <button type="button" className="cin-avatar-btn" aria-label={t('cinema.shell.accountMenu')}>
           <Avatar name={name} size={32} />
         </button>
       }
@@ -134,19 +146,20 @@ export function useRequireSession() {
 }
 
 export function CinemaHeader({ onSearch, onMenu }: { onSearch: () => void; onMenu?: () => void }) {
+  const t = useT();
   return (
     <div className="cin-header">
       {onMenu && (
         <button
           type="button"
           className="cin-icon-btn"
-          aria-label="Open cinema menu"
+          aria-label={t('cinema.shell.openMenu')}
           onClick={onMenu}
         >
           <Icon name="menu" size={20} />
         </button>
       )}
-      <a href="/cinema" className="cin-logo" aria-label="Side Room Cinema, Discover">
+      <a href="/cinema" className="cin-logo" aria-label={t('cinema.shell.logoLabel')}>
         <DoorLogo size={32} />
         <span className="cin-logo-text">
           <span className="cin-logo-name">SIDE ROOM</span>
@@ -156,7 +169,7 @@ export function CinemaHeader({ onSearch, onMenu }: { onSearch: () => void; onMen
         </span>
       </a>
       {!onMenu && (
-        <nav aria-label="Cinema" className="cin-nav">
+        <nav aria-label={t('cinema.shell.navLabel')} className="cin-nav">
           <NavLinks />
         </nav>
       )}
@@ -164,7 +177,7 @@ export function CinemaHeader({ onSearch, onMenu }: { onSearch: () => void; onMen
         <button
           type="button"
           className="cin-icon-btn"
-          aria-label="Search the cinema"
+          aria-label={t('cinema.shell.search')}
           aria-keyshortcuts="/"
           onClick={onSearch}
         >
@@ -177,14 +190,15 @@ export function CinemaHeader({ onSearch, onMenu }: { onSearch: () => void; onMen
 }
 
 export function CinemaFooter() {
+  const t = useT();
   return (
     <footer className="cin-footer">
       <span className="cin-footer-brand">
         Side Room <em>Cinema</em>
       </span>
-      <span className="cin-footer-tag">A little further from the ordinary.</span>
+      <span className="cin-footer-tag">{t('cinema.shell.tagline')}</span>
       <a href="/house-notes" className="cin-footer-link">
-        About this library
+        {t('cinema.shell.aboutLibrary')}
       </a>
     </footer>
   );
@@ -192,6 +206,7 @@ export function CinemaFooter() {
 
 /** The page frame around every Cinema page except the player. */
 export function CinemaShell({ children }: { children?: ReactNode }) {
+  const tr = useT();
   const mobile = useMediaQuery(MOBILE_QUERY);
   const [drawer, setDrawer] = useState(false);
   const [search, setSearch] = useState(false);
@@ -223,8 +238,13 @@ export function CinemaShell({ children }: { children?: ReactNode }) {
       </main>
       <CinemaFooter />
       {mobile && (
-        <Drawer open={drawer} onClose={() => setDrawer(false)} title="The cinema" side="left">
-          <nav aria-label="Cinema menu">
+        <Drawer
+          open={drawer}
+          onClose={() => setDrawer(false)}
+          title={tr('cinema.shell.cinema')}
+          side="left"
+        >
+          <nav aria-label={tr('cinema.shell.menuLabel')}>
             <NavLinks onNavigate={() => setDrawer(false)} />
           </nav>
         </Drawer>

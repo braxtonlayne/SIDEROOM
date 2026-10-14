@@ -1,5 +1,6 @@
 import { Avatar, Button, TextInput } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
+import { useT } from '../../i18n';
 import type { rest } from '../../store';
 import { sendServerInvite } from './userMenu';
 import { friendsOf, useSocial, wireName } from './social';
@@ -18,6 +19,7 @@ export function InviteFriends({
   channelId: string;
   options?: rest.CreateInviteOptions | undefined;
 }) {
+  const t = useT();
   const rows = useSocial((s) => s.relationships);
   const load = useSocial((s) => s.loadRelationships);
   const [query, setQuery] = useState('');
@@ -47,15 +49,15 @@ export function InviteFriends({
   };
 
   return (
-    <section aria-label="Invite friends">
-      <h3 className="lng-form-h">Invite friends</h3>
+    <section aria-label={t('lounge.inviteFriends.title')}>
+      <h3 className="lng-form-h">{t('lounge.inviteFriends.title')}</h3>
       <TextInput
-        label="Search friends"
+        label={t('lounge.inviteFriends.searchLabel')}
         value={query}
-        placeholder="Search for friends"
+        placeholder={t('lounge.inviteFriends.searchPlaceholder')}
         onChange={(e) => setQuery(e.target.value)}
       />
-      <ul className="lng-pick-list" aria-label="Friends">
+      <ul className="lng-pick-list" aria-label={t('lounge.inviteFriends.friendsList')}>
         {shown.map((r) => {
           const state = sent[r.id];
           return (
@@ -65,7 +67,7 @@ export function InviteFriends({
                 <span className="lng-friend-name">{wireName(r.user)}</span>
                 {state === 'error' && (
                   <span role="alert" className="lng-form-error">
-                    Could not send the invite.
+                    {t('lounge.inviteFriends.sendError')}
                   </span>
                 )}
               </span>
@@ -74,10 +76,14 @@ export function InviteFriends({
                 variant="secondary"
                 loading={state === 'sending'}
                 disabled={state === 'sent'}
-                aria-label={`Invite ${wireName(r.user)}`}
+                aria-label={t('lounge.inviteFriends.inviteLabel', { name: wireName(r.user) })}
                 onClick={() => void invite(r.id)}
               >
-                {state === 'sent' ? 'Sent' : state === 'error' ? 'Retry' : 'Invite'}
+                {state === 'sent'
+                  ? t('lounge.inviteFriends.sent')
+                  : state === 'error'
+                    ? t('lounge.inviteFriends.retry')
+                    : t('lounge.inviteFriends.invite')}
               </Button>
             </li>
           );

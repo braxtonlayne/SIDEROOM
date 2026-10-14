@@ -1,31 +1,33 @@
 import { Avatar, DropdownMenu, type MenuEntry } from '@sideroom/ui';
 import { useEffect } from 'react';
+import { t, useT, type MessageKey } from '../../i18n';
 import { useLoungeUi } from '../store';
 import { useSelfPresence, type SelfStatus } from './selfPresence';
 
-const LABEL: Record<SelfStatus, string> = {
-  online: 'Online',
-  idle: 'Idle',
-  dnd: 'Do Not Disturb',
-  invisible: 'Invisible',
+const LABEL: Record<SelfStatus, MessageKey> = {
+  online: 'lounge.statusMenu.online',
+  idle: 'lounge.statusMenu.idle',
+  dnd: 'lounge.statusMenu.dnd',
+  invisible: 'lounge.statusMenu.invisible',
 };
 
-const DURATIONS: { label: string; seconds: number | null }[] = [
-  { label: 'For 15 Minutes', seconds: 900 },
-  { label: 'For 1 Hour', seconds: 3600 },
-  { label: 'For 3 Hours', seconds: 10800 },
-  { label: 'For 8 Hours', seconds: 28800 },
-  { label: 'For 24 Hours', seconds: 86400 },
-  { label: 'Forever', seconds: null },
+const DURATIONS: { labelKey: MessageKey; seconds: number | null }[] = [
+  { labelKey: 'lounge.statusMenu.for15m', seconds: 900 },
+  { labelKey: 'lounge.statusMenu.for1h', seconds: 3600 },
+  { labelKey: 'lounge.statusMenu.for3h', seconds: 10800 },
+  { labelKey: 'lounge.statusMenu.for8h', seconds: 28800 },
+  { labelKey: 'lounge.statusMenu.for24h', seconds: 86400 },
+  { labelKey: 'lounge.statusMenu.forever', seconds: null },
 ];
 
-export const statusLabel = (s: SelfStatus) => LABEL[s];
+export const statusLabel = (s: SelfStatus) => t(LABEL[s]);
 
 /**
  * The avatar in the user panel: opens the status picker (LNG-HOME-011). Do Not Disturb and Invisible offer
  * durations; the server reverts to online afterwards.
  */
 export function StatusMenu({ name }: { name: string }) {
+  const t = useT();
   const status = useSelfPresence((s) => s.status);
   const customText = useSelfPresence((s) => s.customText);
   const load = useSelfPresence((s) => s.load);
@@ -41,30 +43,30 @@ export function StatusMenu({ name }: { name: string }) {
   const timed = (next: SelfStatus, label: string): MenuEntry => ({
     type: 'submenu',
     label,
-    items: DURATIONS.map((d) => ({ label: d.label, onSelect: () => set(next, d.seconds) })),
+    items: DURATIONS.map((d) => ({ label: t(d.labelKey), onSelect: () => set(next, d.seconds) })),
   });
 
   const items: MenuEntry[] = [
     {
-      label: customText ? 'Edit Custom Status' : 'Set Custom Status',
+      label: customText ? t('lounge.statusMenu.editCustom') : t('lounge.statusMenu.setCustom'),
       onSelect: () => openDialog({ kind: 'customStatus' }),
     },
     { type: 'separator' },
-    { label: 'Online', onSelect: () => set('online') },
-    { label: 'Idle', onSelect: () => set('idle') },
-    timed('dnd', 'Do Not Disturb'),
-    timed('invisible', 'Invisible'),
+    { label: t('lounge.statusMenu.online'), onSelect: () => set('online') },
+    { label: t('lounge.statusMenu.idle'), onSelect: () => set('idle') },
+    timed('dnd', t('lounge.statusMenu.dnd')),
+    timed('invisible', t('lounge.statusMenu.invisible')),
   ];
 
   return (
     <DropdownMenu
-      label="Set status"
+      label={t('lounge.statusMenu.setStatus')}
       items={items}
       trigger={
         <button
           type="button"
           className="lng-user-avatar"
-          aria-label={`Set status, currently ${LABEL[status]}`}
+          aria-label={t('lounge.statusMenu.currently', { status: t(LABEL[status]) })}
         >
           <Avatar name={name} size={32} status={status === 'invisible' ? 'offline' : status} />
         </button>

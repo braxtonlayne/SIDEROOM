@@ -1,0 +1,60 @@
+export default {
+  // Add server dialog
+  'lounge.addServerDialog.nameRequired': 'Give your server a name.',
+  'lounge.addServerDialog.createFailed': 'Could not create the server. Try again.',
+  'lounge.addServerDialog.codeRequired': 'Paste an invite link or code.',
+  'lounge.addServerDialog.titleChoose': 'Create a Server',
+  'lounge.addServerDialog.titlePurpose': 'Tell us more about your server',
+  'lounge.addServerDialog.titleCustomize': 'Customize your server',
+  'lounge.addServerDialog.titleJoin': 'Join a Server',
+  'lounge.addServerDialog.descChoose':
+    'Your server is where you and your friends hang out. Make yours and start talking.',
+  'lounge.addServerDialog.descPurpose':
+    'In order to help you with your setup, is your new server for just a few friends or a larger community?',
+  'lounge.addServerDialog.descCustomize':
+    'Give your new server a personality with a name. You can always change it later.',
+  'lounge.addServerDialog.descJoin': 'Enter an invite below to join an existing server.',
+  'lounge.addServerDialog.createMyOwn': 'Create My Own',
+  'lounge.addServerDialog.fromTemplate': 'Start from a template',
+  'lounge.addServerDialog.templatesLabel': 'Templates',
+  'lounge.addServerDialog.templatesUnavailable':
+    'Templates are unavailable right now. You can still create your own.',
+  'lounge.addServerDialog.haveInvite': 'Have an invite already?',
+  'lounge.addServerDialog.forClub': 'For a club or community',
+  'lounge.addServerDialog.forFriends': 'For me and my friends',
+  'lounge.addServerDialog.notSure': 'Not sure? You can',
+  'lounge.addServerDialog.skipQuestion': 'skip this question',
+  'lounge.addServerDialog.forNow': 'for now.',
+  'lounge.addServerDialog.back': 'Back',
+  // "Starting from the <b>{name}</b> template for a community." is assembled from these pieces around the bold name
+  'lounge.addServerDialog.startingFrom': 'Starting from the ',
+  'lounge.addServerDialog.templateSuffix': ' template',
+  'lounge.addServerDialog.forCommunity': ' for a community',
+  'lounge.addServerDialog.forFriendsShort': ' for friends',
+  'lounge.addServerDialog.period': '.',
+  'lounge.addServerDialog.serverName': 'Server name',
+  'lounge.addServerDialog.agree':
+    'By creating a server, you agree to follow the community guidelines of this site.',
+  'lounge.addServerDialog.create': 'Create',
+  'lounge.addServerDialog.inviteLabel': 'Invite link or code',
+  'lounge.addServerDialog.invitePlaceholder': 'https://example.com/invite/AbCd123',
+  'lounge.addServerDialog.invitesLookLike': 'Invites look like',
+  'lounge.addServerDialog.joinServer': 'Join Server',
+  // Age gate
+  'lounge.ageGate.defaultTitle': 'This content is age-restricted',
+  'lounge.ageGate.question': 'Are you 18 or older? Your answer is saved to your account.',
+  'lounge.ageGate.no': 'No, take me back',
+  'lounge.ageGate.yes': 'Yes, I am 18 or older',
+  'lounge.ageGate.saveFailed': 'Could not save your answer. Try again.',
+  // Channel header
+  'lounge.channelHeader.comingSoon': '{label} (coming soon)',
+  'lounge.channelHeader.backToChannels': 'Back to channels',
+  'lounge.channelHeader.notificationSettings': 'Notification Settings',
+  'lounge.channelHeader.pinnedMessages': 'Pinned Messages',
+  'lounge.channelHeader.hideMembers': 'Hide Member List',
+  'lounge.channelHeader.showMembers': 'Show Member List',
+  'lounge.channelHeader.memberList': 'Member List',
+  'lounge.channelHeader.search': 'Search',
+  'lounge.channelHeader.inbox': 'Inbox',
+  'lounge.channelHeader.help': 'Help',
+} satisfies Record<string, string>;

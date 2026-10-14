@@ -14,6 +14,7 @@ import {
 import { Navigate, useNavigate, useParams } from '@tanstack/react-router';
 import { useEffect, useMemo, useState, type ComponentType } from 'react';
 import { ApiError } from '../api/client';
+import { t as translate, useT } from '../i18n';
 import * as api from './api';
 import { hasAny, parsePerms } from './permissions';
 import { AccessLogSection } from './sections/AccessLog';
@@ -48,43 +49,43 @@ interface SectionDef {
 export const ADMIN_SECTIONS: SectionDef[] = [
   {
     id: 'dashboard',
-    label: 'Dashboard',
-    group: 'OVERVIEW',
+    label: 'admin.adminApp.section.dashboard',
+    group: 'admin.adminApp.group.overview',
     visible: (v) => v.can('STAFF_BASIC'),
     component: DashboardSection,
   },
   {
     id: 'accounts',
-    label: 'Accounts',
-    group: 'PEOPLE',
+    label: 'admin.adminApp.section.accounts',
+    group: 'admin.adminApp.group.people',
     visible: (v) => v.can('MANAGE_ACCOUNTS'),
     component: AccountsSection,
   },
   {
     id: 'bans',
-    label: 'Platform bans',
-    group: 'PEOPLE',
+    label: 'admin.adminApp.section.bans',
+    group: 'admin.adminApp.group.people',
     visible: (v) => v.can('PLATFORM_BAN'),
     component: BansSection,
   },
   {
     id: 'invites',
-    label: 'Invites',
-    group: 'PEOPLE',
+    label: 'admin.adminApp.section.invites',
+    group: 'admin.adminApp.group.people',
     visible: (v) => v.can('MANAGE_INVITES'),
     component: InvitesSection,
   },
   {
     id: 'staff',
-    label: 'Staff & roles',
-    group: 'PEOPLE',
+    label: 'admin.adminApp.section.staff',
+    group: 'admin.adminApp.group.people',
     visible: (v) => v.can('APPOINT_STAFF'),
     component: StaffSection,
   },
   {
     id: 'review',
-    label: 'Review queues',
-    group: 'CONTENT',
+    label: 'admin.adminApp.section.review',
+    group: 'admin.adminApp.group.content',
     visible: (v) =>
       hasAny(
         v.perms,
@@ -98,99 +99,99 @@ export const ADMIN_SECTIONS: SectionDef[] = [
   },
   {
     id: 'jobs',
-    label: 'Jobs',
-    group: 'CONTENT',
+    label: 'admin.adminApp.section.jobs',
+    group: 'admin.adminApp.group.content',
     visible: (v) => v.can('MANAGE_TRANSCODE'),
     component: JobsSection,
   },
   {
     id: 'cinema-catalog',
-    label: 'Cinema catalog',
-    group: 'CINEMA',
+    label: 'admin.adminApp.section.cinemaCatalog',
+    group: 'admin.adminApp.group.cinema',
     visible: (v) => hasAny(v.perms, 'PUBLISH_MEDIA', 'DELETE_CONTENT'),
     component: CatalogSection,
   },
   {
     id: 'cinema-collections',
-    label: 'Cinema collections',
-    group: 'CINEMA',
+    label: 'admin.adminApp.section.cinemaCollections',
+    group: 'admin.adminApp.group.cinema',
     visible: (v) => v.can('MANAGE_COLLECTIONS'),
     component: CollectionsSection,
   },
   {
     id: 'cinema-transcoding',
-    label: 'Cinema transcoding',
-    group: 'CINEMA',
+    label: 'admin.adminApp.section.cinemaTranscoding',
+    group: 'admin.adminApp.group.cinema',
     visible: (v) => v.can('MANAGE_TRANSCODE'),
     component: TranscodingSection,
   },
   {
     id: 'cinema-live-tv',
-    label: 'Live TV',
-    group: 'CINEMA',
+    label: 'admin.adminApp.section.cinemaLiveTv',
+    group: 'admin.adminApp.group.cinema',
     visible: (v) => v.can('MANAGE_TV'),
     component: LiveTvSection,
   },
   {
     id: 'donations',
-    label: 'Donations',
-    group: 'MONEY',
+    label: 'admin.adminApp.section.donations',
+    group: 'admin.adminApp.group.money',
     visible: (v) => v.can('MANAGE_DONATIONS'),
     component: DonationsOverviewSection,
   },
   {
     id: 'donation-invoices',
-    label: 'Invoices',
-    group: 'MONEY',
+    label: 'admin.adminApp.section.donationInvoices',
+    group: 'admin.adminApp.group.money',
     visible: (v) => v.can('MANAGE_DONATIONS'),
     component: InvoicesSection,
   },
   {
     id: 'donation-entitlements',
-    label: 'Entitlements',
-    group: 'MONEY',
+    label: 'admin.adminApp.section.donationEntitlements',
+    group: 'admin.adminApp.group.money',
     visible: (v) => v.can('MANAGE_DONATIONS'),
     component: EntitlementsSection,
   },
   {
     id: 'donation-pricing',
-    label: 'Pricing and perks',
-    group: 'MONEY',
+    label: 'admin.adminApp.section.donationPricing',
+    group: 'admin.adminApp.group.money',
     visible: (v) => v.can('MANAGE_DONATIONS'),
     component: PricingSection,
   },
   {
     id: 'features',
-    label: 'Features',
-    group: 'PLATFORM',
+    label: 'admin.adminApp.section.features',
+    group: 'admin.adminApp.group.platform',
     visible: (v) => v.can('MANAGE_FEATURES'),
     component: FeaturesSection,
   },
   {
     id: 'limits',
-    label: 'Limits & settings',
-    group: 'PLATFORM',
+    label: 'admin.adminApp.section.limits',
+    group: 'admin.adminApp.group.platform',
     visible: (v) => v.can('MANAGE_FEATURES'),
     component: LimitsSection,
   },
   {
     id: 'system',
-    label: 'System',
-    group: 'PLATFORM',
+    label: 'admin.adminApp.section.system',
+    group: 'admin.adminApp.group.platform',
     visible: (v) => v.can('OPERATOR'),
     component: SystemSection,
   },
   {
     id: 'access-log',
-    label: 'Access log',
-    group: 'AUDIT',
+    label: 'admin.adminApp.section.accessLog',
+    group: 'admin.adminApp.group.audit',
     visible: (v) => v.can('VIEW_ACCESS_LOG'),
     component: AccessLogSection,
   },
   {
     id: 'cli',
-    label: 'Command line',
-    group: 'AUDIT',
+    label: 'admin.adminApp.section.cli',
+    group: 'admin.adminApp.group.audit',
     visible: (v) =>
       hasAny(v.perms, 'MANAGE_INVITES', 'APPOINT_STAFF', 'OPERATOR', 'VIEW_ACCESS_LOG'),
     component: CliParitySection,
@@ -208,7 +209,7 @@ function useMe() {
         (e: unknown) =>
           live &&
           setState({
-            error: errorText(e, 'Could not check your staff access.'),
+            error: errorText(e, translate('admin.adminApp.staffAccessError')),
             ...(e instanceof ApiError ? { status: e.status } : {}),
           }),
       );
@@ -220,6 +221,7 @@ function useMe() {
 }
 
 export function AdminShell({ section }: { section: string | undefined }) {
+  const t = useT();
   const navigate = useNavigate();
   const me = useMe();
   const viewer = useMemo(
@@ -237,8 +239,8 @@ export function AdminShell({ section }: { section: string | undefined }) {
 
   const navSections: SettingsSection[] = visible.map((s) => ({
     id: s.id,
-    label: s.label,
-    group: s.group,
+    label: t(s.label),
+    group: t(s.group),
   }));
   const active = visible.find((s) => s.id === section);
 
@@ -248,29 +250,29 @@ export function AdminShell({ section }: { section: string | undefined }) {
     const signedOut = me.status === 401;
     body = signedOut ? (
       <EmptyState
-        title="Sign in to continue"
-        description="The admin pages need a staff session."
+        title={t('admin.adminApp.signIn.title')}
+        description={t('admin.adminApp.signIn.description')}
         action={
           <Button onClick={() => void navigate({ to: '/login', search: { next: '/admin' } })}>
-            Log in
+            {t('admin.adminApp.signIn.button')}
           </Button>
         }
       />
     ) : (
       <EmptyState
-        title="Staff only"
+        title={t('admin.adminApp.staffOnly.title')}
         description={me.error}
-        action={<Button onClick={close}>Back to the Lounge</Button>}
+        action={<Button onClick={close}>{t('admin.adminApp.backToLounge')}</Button>}
       />
     );
   } else if (!viewer) {
-    body = <Loading label="Loading admin" />;
+    body = <Loading label={t('admin.adminApp.loading')} />;
   } else if (visible.length === 0) {
     body = (
       <EmptyState
-        title="Nothing to administer"
-        description="Your staff roles do not include any admin page. Ask the Owner or a senior staff member to adjust them."
-        action={<Button onClick={close}>Back to the Lounge</Button>}
+        title={t('admin.adminApp.nothing.title')}
+        description={t('admin.adminApp.nothing.description')}
+        action={<Button onClick={close}>{t('admin.adminApp.backToLounge')}</Button>}
       />
     );
   } else if (!active) {
@@ -286,7 +288,7 @@ export function AdminShell({ section }: { section: string | undefined }) {
 
   return (
     <SettingsLayout
-      title="Platform admin"
+      title={t('admin.adminApp.title')}
       sections={navSections}
       activeId={active?.id ?? ''}
       onSelect={(id) => void navigate({ to: '/admin/$section', params: { section: id } })}

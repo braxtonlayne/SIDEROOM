@@ -1,0 +1,40 @@
+export default {
+  'settings.userSettings.saveError': "Couldn't save everything",
+  'settings.userSettings.whatsNew': "What's New",
+  'settings.userSettings.logOut': 'Log Out',
+  'settings.userSettings.logOutTitle': 'Log out?',
+  'settings.userSettings.logOutDescription':
+    'You will need to sign in again to use SIDE ROOM on this device.',
+  'settings.userSettings.logOutError': "Couldn't log out",
+  'settings.accessibility.animAlways': 'Always',
+  'settings.accessibility.animHover': 'On hover or focus',
+  'settings.accessibility.animNever': 'Never',
+  'settings.accessibility.title': 'Accessibility',
+  'settings.accessibility.motion': 'Motion',
+  'settings.accessibility.reducedMotion': 'Reduced motion',
+  'settings.accessibility.motionSystem': 'Sync with system',
+  'settings.accessibility.motionOn': 'On',
+  'settings.accessibility.motionOff': 'Off',
+  'settings.accessibility.stickers': 'Play animated stickers',
+  'settings.accessibility.emoji': 'Play animated emoji',
+  'settings.accessibility.contrast': 'Contrast',
+  'settings.accessibility.highContrast': 'High contrast',
+  'settings.accessibility.highContrastDesc':
+    'Uses full-strength text and stronger borders everywhere.',
+  'settings.accessibility.links': 'Links',
+  'settings.accessibility.underline': 'Always underline links',
+  'settings.accessibility.underlineDesc':
+    "Links are underlined without hovering, so they don't rely on colour alone.",
+  'settings.accessibility.roleColors': 'Role colors',
+  'settings.accessibility.showRoleColors': 'Show role colors',
+  'settings.accessibility.roleName': 'Next to names',
+  'settings.accessibility.roleDot': 'As a dot',
+  'settings.accessibility.roleHelp':
+    '"Next to names" colours the name itself; "As a dot" keeps the name in the normal text colour, which reads better for low-contrast role colours.',
+  'settings.accessibility.reading': 'Reading',
+  'settings.accessibility.dyslexia': 'Dyslexia-friendly text',
+  'settings.accessibility.dyslexiaDesc': 'A clearer typeface with wider letter and word spacing.',
+  'settings.accessibility.sendButton': 'Show the send-message button',
+  'settings.accessibility.sendButtonDesc':
+    'A button next to the message box, for touch screens and switch access.',
+} satisfies Record<string, string>;

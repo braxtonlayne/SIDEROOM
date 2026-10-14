@@ -2,32 +2,40 @@
 // from the gateway while the channel is open.
 import { Button, Icon } from '@sideroom/ui';
 import { useRouter } from '@tanstack/react-router';
+import { useT } from '../i18n';
 import { useChannelParty } from './useChannelParty';
 import './watchparty.css';
 
 export function WatchPartyStrip({ channelId }: { channelId: string | undefined }) {
+  const t = useT();
   const party = useChannelParty(channelId);
   const router = useRouter();
   if (!party) return null;
   const m = party.media;
   const n = party.participants.length;
   return (
-    <aside className="wp-strip" aria-label="Watch party">
+    <aside className="wp-strip" aria-label={t('watchparty.strip.label')}>
       <Icon name="film" size={20} />
       <span className="wp-strip-text">
         <strong>{m.title}</strong>
         {m.episode_label ? <span className="wp-muted"> · {m.episode_label}</span> : null}
         <span className="wp-muted">
           {' '}
-          · {party.playback.playing ? 'playing' : 'paused'} · {n} watching
+          ·{' '}
+          {t('watchparty.strip.status', {
+            state: party.playback.playing
+              ? t('watchparty.strip.playing')
+              : t('watchparty.strip.paused'),
+            n,
+          })}
         </span>
       </span>
       <Button
         size="sm"
         onClick={() => router.history.push(`/cinema/party/${party.id}`)}
-        aria-label={`Join the watch party for ${m.title}`}
+        aria-label={t('watchparty.strip.joinLabel', { title: m.title })}
       >
-        Join
+        {t('watchparty.strip.join')}
       </Button>
     </aside>
   );

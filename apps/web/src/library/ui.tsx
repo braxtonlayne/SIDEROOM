@@ -1,23 +1,47 @@
 // Small shared pieces of the Library UI: formatting helpers, the series card, the 18+ badge.
 import { PosterCard, Skeleton } from '@sideroom/ui';
 import type { ReactNode } from 'react';
+import { t, useT } from '../i18n';
 import type { Series, SeriesKind, SeriesStatus, UpdateItem } from './types';
 
+/** Getters resolve the label at access time (never at module load: the locale is not known yet). */
 export const KIND_LABEL: Record<SeriesKind, string> = {
-  manga: 'Manga',
-  manhwa: 'Manhwa',
-  manhua: 'Manhua',
-  webtoon: 'Webtoon',
-  comic: 'Comic',
-  novel: 'Novel',
-  book: 'Book',
+  get manga() {
+    return t('library.ui.kind.manga');
+  },
+  get manhwa() {
+    return t('library.ui.kind.manhwa');
+  },
+  get manhua() {
+    return t('library.ui.kind.manhua');
+  },
+  get webtoon() {
+    return t('library.ui.kind.webtoon');
+  },
+  get comic() {
+    return t('library.ui.kind.comic');
+  },
+  get novel() {
+    return t('library.ui.kind.novel');
+  },
+  get book() {
+    return t('library.ui.kind.book');
+  },
 };
 
 export const STATUS_LABEL: Record<SeriesStatus, string> = {
-  ongoing: 'Ongoing',
-  completed: 'Completed',
-  hiatus: 'Hiatus',
-  cancelled: 'Cancelled',
+  get ongoing() {
+    return t('library.ui.status.ongoing');
+  },
+  get completed() {
+    return t('library.ui.status.completed');
+  },
+  get hiatus() {
+    return t('library.ui.status.hiatus');
+  },
+  get cancelled() {
+    return t('library.ui.status.cancelled');
+  },
 };
 
 /** Server labels are lower-cased ("slice of life"); show them as sentence case. */
@@ -35,22 +59,23 @@ export function formatDate(ms: number | null | undefined): string {
 
 export function timeAgo(ms: number, now = Date.now()): string {
   const s = Math.max(0, Math.round((now - ms) / 1000));
-  if (s < 60) return 'just now';
+  if (s < 60) return t('library.ui.justNow');
   const m = Math.round(s / 60);
-  if (m < 60) return `${m} min ago`;
+  if (m < 60) return t('library.ui.minAgo', { m });
   const h = Math.round(m / 60);
-  if (h < 24) return `${h} h ago`;
+  if (h < 24) return t('library.ui.hourAgo', { h });
   const d = Math.round(h / 24);
-  if (d < 30) return `${d} d ago`;
+  if (d < 30) return t('library.ui.dayAgo', { d });
   return formatDate(ms);
 }
 
 /** "18+" marker for age-restricted titles (D-184: shown to everyone, only opening is gated). */
 export function AgeBadge({ className = '' }: { className?: string }) {
+  const t = useT();
   return (
-    <span className={`lib-age-badge ${className}`.trim()} title="Age-restricted: 18 or older">
+    <span className={`lib-age-badge ${className}`.trim()} title={t('library.ui.ageBadgeTitle')}>
       <span aria-hidden="true">18+</span>
-      <span className="lib-sr-only">Age-restricted, 18 or older</span>
+      <span className="lib-sr-only">{t('library.ui.ageBadgeSr')}</span>
     </span>
   );
 }
@@ -64,10 +89,11 @@ export interface SeriesCardProps {
 
 /** A poster for one series. Genres go in the third line; restricted titles carry the 18+ badge. */
 export function SeriesCard({ series, tag, subtitle }: SeriesCardProps) {
+  const t = useT();
   const sub =
     subtitle ??
     `${KIND_LABEL[series.kind]} · ${STATUS_LABEL[series.status]}${
-      series.chapter_count ? ` · ${series.chapter_count} ch.` : ''
+      series.chapter_count ? t('library.ui.chapterCountShort', { n: series.chapter_count }) : ''
     }`;
   return (
     <div className="lib-card" data-restricted={series.age_restricted || undefined}>
@@ -96,16 +122,35 @@ export function CardSkeletons({ n = 5 }: { n?: number }) {
 
 /** "Chapter 138 · English" for an updates row. */
 export const updateLine = (u: Pick<UpdateItem, 'chapter_number' | 'language'>) =>
-  `Chapter ${u.chapter_number} · ${LANG[u.language] ?? u.language.toUpperCase()}`;
+  t('library.ui.updateLine', {
+    n: u.chapter_number,
+    lang: LANG[u.language] ?? u.language.toUpperCase(),
+  });
 
 const LANG: Record<string, string> = {
-  en: 'English',
-  ja: 'Japanese',
-  ko: 'Korean',
-  zh: 'Chinese',
-  es: 'Spanish',
-  fr: 'French',
-  de: 'German',
-  pt: 'Portuguese',
+  get en() {
+    return t('library.ui.lang.en');
+  },
+  get ja() {
+    return t('library.ui.lang.ja');
+  },
+  get ko() {
+    return t('library.ui.lang.ko');
+  },
+  get zh() {
+    return t('library.ui.lang.zh');
+  },
+  get es() {
+    return t('library.ui.lang.es');
+  },
+  get fr() {
+    return t('library.ui.lang.fr');
+  },
+  get de() {
+    return t('library.ui.lang.de');
+  },
+  get pt() {
+    return t('library.ui.lang.pt');
+  },
 };
 export const languageName = (code: string) => LANG[code] ?? code.toUpperCase();

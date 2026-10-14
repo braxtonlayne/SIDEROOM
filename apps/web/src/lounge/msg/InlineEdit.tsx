@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useT } from '../../i18n';
 import { MAX_MESSAGE_LENGTH } from '../composerText';
 import { currentMarkdownEngine } from '../markdown';
 
@@ -18,6 +19,7 @@ export function InlineEdit({
   /** Saving an empty edit: the caller shows the delete prompt. */
   onEmpty: () => void;
 }) {
+  const t = useT();
   const [text, setText] = useState(initial);
   const ref = useRef<HTMLTextAreaElement | null>(null);
 
@@ -60,20 +62,20 @@ export function InlineEdit({
       <textarea
         ref={ref}
         className="lng-textarea lng-inline-textarea"
-        aria-label="Edit message"
+        aria-label={t('lounge.inlineEdit.label')}
         rows={1}
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={onKeyDown}
       />
       <p className="lng-muted lng-inline-hint">
-        escape to{' '}
+        {t('lounge.inlineEdit.escapeTo')}{' '}
         <button type="button" className="lng-link-btn" onClick={onCancel}>
-          cancel
+          {t('lounge.inlineEdit.cancel')}
         </button>{' '}
-        • enter to{' '}
+        {t('lounge.inlineEdit.enterTo')}{' '}
         <button type="button" className="lng-link-btn" onClick={save}>
-          save
+          {t('lounge.inlineEdit.save')}
         </button>
       </p>
     </div>

@@ -10,6 +10,7 @@ import {
   TextInput,
 } from '@sideroom/ui';
 import { useState } from 'react';
+import { useT } from '../../../i18n';
 import { cdnUrl, useChannels } from '../../../store';
 import * as api from '../api';
 import { useResource, type Viewer } from '../hooks';
@@ -29,41 +30,45 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 export function IntegrationsSection({ guildId, viewer }: SectionProps) {
+  const t = useT();
   const tabs = [
     ...(viewer.can('MANAGE_WEBHOOKS')
-      ? [{ id: 'webhooks', label: 'Webhooks', content: <Webhooks guildId={guildId} /> }]
+      ? [
+          {
+            id: 'webhooks',
+            label: t('settings.integrations.tabWebhooks'),
+            content: <Webhooks guildId={guildId} />,
+          },
+        ]
       : []),
     ...(viewer.can('MANAGE_GUILD')
       ? [
           {
             id: 'templates',
-            label: 'Server Template',
+            label: t('settings.integrations.tabTemplate'),
             content: <Templates guildId={guildId} viewer={viewer} />,
           },
         ]
       : []),
     {
       id: 'apps',
-      label: 'Bots and Apps',
-      content: (
-        <NotAvailable>
-          Bots, followed channels and the App Directory ship with the developer platform.
-        </NotAvailable>
-      ),
+      label: t('settings.integrations.tabApps'),
+      content: <NotAvailable>{t('settings.integrations.appsNotAvailable')}</NotAvailable>,
     },
   ];
   return (
     <>
       <SectionHeader
-        title="Integrations"
-        description="Connect webhooks and share a template of this server."
+        title={t('settings.integrations.title')}
+        description={t('settings.integrations.description')}
       />
-      <Tabs label="Integrations" items={tabs} />
+      <Tabs label={t('settings.integrations.title')} items={tabs} />
     </>
   );
 }
 
 function Webhooks({ guildId }: { guildId: string }) {
+  const t = useT();
   const res = useResource(`webhooks:${guildId}`, () => api.listWebhooks(guildId));
   const channels = useChannels(guildId).filter((c) => c.type === 0 || c.type === 5);
   const [creating, setCreating] = useState(false);
@@ -100,17 +105,21 @@ function Webhooks({ guildId }: { guildId: string }) {
   return (
     <div className="ss-form" style={{ maxWidth: 'none' }}>
       <div className="ss-actions">
-        <Button onClick={() => setCreating(true)}>Create webhook</Button>
+        <Button onClick={() => setCreating(true)}>
+          {t('settings.integrations.createWebhook')}
+        </Button>
       </div>
       <ActionStatus error={action.error} />
       {reveal?.hook.url && (
         <div className="ss-card" role="status">
           <h2>
-            {reveal.reset ? 'New webhook URL' : 'Webhook created'}: {reveal.hook.name}
+            {reveal.reset
+              ? t('settings.integrations.webhookNewUrl', { name: reveal.hook.name })
+              : t('settings.integrations.webhookCreated', { name: reveal.hook.name })}
           </h2>
           <p className="ss-sub">
-            Copy the URL now. It contains the secret token and is only shown once.
-            {reveal.reset ? ' The old URL no longer works.' : ''}
+            {t('settings.integrations.copyUrlNow')}
+            {reveal.reset ? t('settings.integrations.oldUrlDead') : ''}
           </p>
           <code className="ss-pre">{`${origin()}${reveal.hook.url}`}</code>
           <div className="ss-actions">
@@ -119,30 +128,29 @@ function Webhooks({ guildId }: { guildId: string }) {
               onClick={() =>
                 void copyText(`${origin()}${reveal.hook.url}`).then((ok) => {
                   setCopied(ok);
-                  if (!ok)
-                    action.setError(
-                      'Copying is blocked by the browser. Select the URL and copy it by hand.',
-                    );
+                  if (!ok) action.setError(t('settings.integrations.copyUrlBlocked'));
                 })
               }
             >
-              {copied ? 'Copied!' : 'Copy webhook URL'}
+              {copied
+                ? t('settings.integrations.copied')
+                : t('settings.integrations.copyWebhookUrl')}
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setReveal(null)}>
-              Dismiss
+              {t('settings.integrations.dismiss')}
             </Button>
           </div>
         </div>
       )}
-      <Async res={res} label="Loading webhooks">
+      <Async res={res} label={t('settings.integrations.loadingWebhooks')}>
         {(list) =>
           list.length === 0 ? (
             <EmptyState
-              title="No webhooks"
-              description="Create a webhook to post into a channel from another service."
+              title={t('settings.integrations.noWebhooksTitle')}
+              description={t('settings.integrations.noWebhooksDescription')}
             />
           ) : (
-            <ul className="ss-list" aria-label="Webhooks">
+            <ul className="ss-list" aria-label={t('settings.integrations.tabWebhooks')}>
               {list.map((w) => (
                 <li key={w.id} className="ss-row">
                   <Avatar
@@ -154,33 +162,35 @@ function Webhooks({ guildId }: { guildId: string }) {
                     <div className="ss-name">{w.name}</div>
                     <div className="ss-meta">
                       #{channels.find((c) => c.id === w.channel_id)?.name ?? w.channel_id}
-                      {w.user ? ` - created by ${api.userName(w.user)}` : ''}
+                      {w.user
+                        ? t('settings.integrations.createdBy', { name: api.userName(w.user) })
+                        : ''}
                     </div>
                   </div>
                   <Button
                     size="sm"
                     variant="secondary"
-                    aria-label={`Edit webhook ${w.name}`}
+                    aria-label={t('settings.integrations.editWebhook', { name: w.name })}
                     onClick={() => setEditing(w)}
                   >
-                    Edit
+                    {t('settings.integrations.edit')}
                   </Button>
                   <Button
                     size="sm"
                     variant="secondary"
-                    aria-label={`Reset URL for ${w.name}`}
-                    title="URLs are only shown once. Reset issues a new one."
+                    aria-label={t('settings.integrations.resetUrlFor', { name: w.name })}
+                    title={t('settings.integrations.resetUrlTitle')}
                     onClick={() => setToReset(w)}
                   >
-                    Reset URL
+                    {t('settings.integrations.resetUrl')}
                   </Button>
                   <Button
                     size="sm"
                     variant="danger"
-                    aria-label={`Delete webhook ${w.name}`}
+                    aria-label={t('settings.integrations.deleteWebhookNamed', { name: w.name })}
                     onClick={() => setToDelete(w)}
                   >
-                    Delete
+                    {t('settings.integrations.delete')}
                   </Button>
                 </li>
               ))}
@@ -214,9 +224,11 @@ function Webhooks({ guildId }: { guildId: string }) {
       <ConfirmDialog
         open={!!toReset}
         danger
-        title={`Reset URL for ${toReset?.name ?? 'webhook'}`}
-        description="A new URL is created and shown once. The current URL stops working immediately."
-        confirmLabel="Reset URL"
+        title={t('settings.integrations.resetUrlFor', {
+          name: toReset?.name ?? t('settings.integrations.webhookWord'),
+        })}
+        description={t('settings.integrations.resetDescription')}
+        confirmLabel={t('settings.integrations.resetUrl')}
         loading={action.busy}
         onConfirm={() => void resetUrl()}
         onCancel={() => setToReset(null)}
@@ -224,9 +236,11 @@ function Webhooks({ guildId }: { guildId: string }) {
       <ConfirmDialog
         open={!!toDelete}
         danger
-        title={`Delete ${toDelete?.name ?? 'webhook'}`}
-        description="Anything posting with this webhook stops working."
-        confirmLabel="Delete webhook"
+        title={t('settings.integrations.deleteTitle', {
+          name: toDelete?.name ?? t('settings.integrations.webhookWord'),
+        })}
+        description={t('settings.integrations.deleteWebhookDescription')}
+        confirmLabel={t('settings.integrations.deleteWebhook')}
         loading={action.busy}
         onConfirm={() => void remove()}
         onCancel={() => setToDelete(null)}
@@ -247,6 +261,7 @@ function WebhookDialog({
   onClose: () => void;
   onSaved: (w: api.WebhookObject, created: boolean) => Promise<void>;
 }) {
+  const t = useT();
   const [name, setName] = useState(webhook?.name ?? '');
   const [channel, setChannel] = useState(webhook?.channel_id ?? channels[0]?.id ?? '');
   // The stored hash, a data URI picked now, or null.
@@ -278,18 +293,22 @@ function WebhookDialog({
       open
       onClose={onClose}
       size="sm"
-      title={webhook ? `Edit ${webhook.name}` : 'Create webhook'}
+      title={
+        webhook
+          ? t('settings.integrations.editTitle', { name: webhook.name })
+          : t('settings.integrations.createWebhook')
+      }
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t('settings.integrations.cancel')}
           </Button>
           <Button
             loading={action.busy}
             disabled={!nameOk || !channel}
             onClick={() => void submit()}
           >
-            {webhook ? 'Save' : 'Create'}
+            {webhook ? t('settings.integrations.save') : t('settings.integrations.create')}
           </Button>
         </>
       }
@@ -297,8 +316,8 @@ function WebhookDialog({
       <div className="ss-form">
         <ActionStatus error={action.error} />
         <ImageField
-          label="Webhook avatar"
-          hint="Shown next to messages posted by this webhook."
+          label={t('settings.integrations.avatarLabel')}
+          hint={t('settings.integrations.avatarHint')}
           ownerId={webhook?.id ?? ''}
           kind="avatars"
           shape="square"
@@ -306,14 +325,14 @@ function WebhookDialog({
           onChange={setAvatar}
         />
         <TextInput
-          label="Webhook name"
+          label={t('settings.integrations.webhookName')}
           value={name}
           maxLength={80}
           onChange={(e) => setName(e.target.value)}
         />
         <div>
           <label className="ss-field-label" htmlFor="ss-webhook-channel">
-            Channel
+            {t('settings.integrations.channel')}
           </label>
           <select
             id="ss-webhook-channel"
@@ -334,6 +353,7 @@ function WebhookDialog({
 }
 
 function Templates({ guildId }: { guildId: string; viewer: Viewer }) {
+  const t = useT();
   const res = useResource(`templates:${guildId}`, () => api.listTemplates(guildId));
   const action = useAction();
   const [name, setName] = useState('');
@@ -342,24 +362,24 @@ function Templates({ guildId }: { guildId: string; viewer: Viewer }) {
   const [copied, setCopied] = useState<string | null>(null);
 
   const create = async () => {
-    const t = await action.run(
+    const made = await action.run(
       () =>
         api.createTemplate(guildId, {
           name: name.trim(),
           ...(description.trim() ? { description: description.trim() } : {}),
         }),
-      'Template created.',
+      t('settings.integrations.templateCreated'),
     );
-    if (t) {
+    if (made) {
       setName('');
       setDescription('');
       await res.reload();
     }
   };
-  const sync = async (t: api.TemplateObject) => {
+  const sync = async (tpl: api.TemplateObject) => {
     const next = await action.run(
-      () => api.syncTemplate(guildId, t.code),
-      'Template synced with the server.',
+      () => api.syncTemplate(guildId, tpl.code),
+      t('settings.integrations.templateSynced'),
     );
     if (next) await res.reload();
   };
@@ -378,68 +398,76 @@ function Templates({ guildId }: { guildId: string; viewer: Viewer }) {
     if (await copyText(text)) {
       setCopied(text);
       setTimeout(() => setCopied((c) => (c === text ? null : c)), 2000);
-    } else
-      action.setError('Copying is blocked by the browser. Select the text and copy it by hand.');
+    } else action.setError(t('settings.integrations.copyTextBlocked'));
   };
 
   return (
     <div className="ss-form" style={{ maxWidth: 'none' }}>
-      <p className="ss-sub">
-        A template copies this server&apos;s channels, roles and permissions (not its messages or
-        members) so others can start a server from it.
-      </p>
+      <p className="ss-sub">{t('settings.integrations.templateIntro')}</p>
       <ActionStatus error={action.error} done={action.done} />
-      <Async res={res} label="Loading templates">
+      <Async res={res} label={t('settings.integrations.loadingTemplates')}>
         {(list) => (
           <>
-            {list.map((t) => (
-              <div key={t.code} className="ss-card">
-                <h2>{t.name}</h2>
-                {t.description && <p className="ss-sub">{t.description}</p>}
+            {list.map((tpl) => (
+              <div key={tpl.code} className="ss-card">
+                <h2>{tpl.name}</h2>
+                {tpl.description && <p className="ss-sub">{tpl.description}</p>}
                 <p className="ss-meta">
-                  Used {t.usage_count} times - updated {formatDate(t.updated_at)}{' '}
-                  {t.is_dirty && <Badge variant="warning">Out of date</Badge>}
+                  {t('settings.integrations.templateUsed', {
+                    count: String(tpl.usage_count),
+                    date: formatDate(tpl.updated_at),
+                  })}{' '}
+                  {tpl.is_dirty && (
+                    <Badge variant="warning">{t('settings.integrations.outOfDate')}</Badge>
+                  )}
                 </p>
-                <code className="ss-pre" aria-label={`Template code for ${t.name}`}>
-                  {t.code}
+                <code
+                  className="ss-pre"
+                  aria-label={t('settings.integrations.codeFor', { name: tpl.name })}
+                >
+                  {tpl.code}
                 </code>
                 <div className="ss-actions">
-                  <Button size="sm" onClick={() => void copy(t.code)}>
-                    {copied === t.code ? 'Copied!' : 'Copy code'}
+                  <Button size="sm" onClick={() => void copy(tpl.code)}>
+                    {copied === tpl.code
+                      ? t('settings.integrations.copied')
+                      : t('settings.integrations.copyCode')}
                   </Button>
                   <Button
                     size="sm"
                     variant="secondary"
-                    aria-label={`Copy link for ${t.name}`}
-                    onClick={() => void copy(t.code, `${origin()}/template/${t.code}`)}
+                    aria-label={t('settings.integrations.copyLinkFor', { name: tpl.name })}
+                    onClick={() => void copy(tpl.code, `${origin()}/template/${tpl.code}`)}
                   >
-                    {copied === `${origin()}/template/${t.code}` ? 'Copied!' : 'Copy link'}
+                    {copied === `${origin()}/template/${tpl.code}`
+                      ? t('settings.integrations.copied')
+                      : t('settings.integrations.copyLink')}
                   </Button>
                   <a
                     className="ss-link"
-                    href={`/template/${t.code}`}
+                    href={`/template/${tpl.code}`}
                     target="_blank"
                     rel="noreferrer"
-                    aria-label={`Preview template ${t.name}`}
+                    aria-label={t('settings.integrations.previewFor', { name: tpl.name })}
                   >
-                    Preview
+                    {t('settings.integrations.preview')}
                   </a>
                   <Button
                     size="sm"
                     variant="secondary"
                     loading={action.busy}
-                    aria-label={`Sync template ${t.name}`}
-                    onClick={() => void sync(t)}
+                    aria-label={t('settings.integrations.syncFor', { name: tpl.name })}
+                    onClick={() => void sync(tpl)}
                   >
-                    Sync
+                    {t('settings.integrations.sync')}
                   </Button>
                   <Button
                     size="sm"
                     variant="danger"
-                    aria-label={`Delete template ${t.name}`}
-                    onClick={() => setToDelete(t)}
+                    aria-label={t('settings.integrations.deleteTemplateNamed', { name: tpl.name })}
+                    onClick={() => setToDelete(tpl)}
                   >
-                    Delete
+                    {t('settings.integrations.delete')}
                   </Button>
                 </div>
               </div>
@@ -452,22 +480,22 @@ function Templates({ guildId }: { guildId: string; viewer: Viewer }) {
                   void create();
                 }}
               >
-                <h2>Create a template</h2>
+                <h2>{t('settings.integrations.createTemplate')}</h2>
                 <TextInput
-                  label="Template name"
+                  label={t('settings.integrations.templateName')}
                   value={name}
                   maxLength={100}
                   onChange={(e) => setName(e.target.value)}
                 />
                 <TextArea
-                  label="Description"
+                  label={t('settings.integrations.descriptionLabel')}
                   value={description}
                   maxLength={120}
                   onChange={(e) => setDescription(e.target.value)}
                 />
                 <div>
                   <Button type="submit" disabled={!name.trim()} loading={action.busy}>
-                    Generate template
+                    {t('settings.integrations.generate')}
                   </Button>
                 </div>
               </form>
@@ -478,9 +506,11 @@ function Templates({ guildId }: { guildId: string; viewer: Viewer }) {
       <ConfirmDialog
         open={!!toDelete}
         danger
-        title={`Delete ${toDelete?.name ?? 'template'}`}
-        description="The template code stops working."
-        confirmLabel="Delete template"
+        title={t('settings.integrations.deleteTitle', {
+          name: toDelete?.name ?? t('settings.integrations.templateWord'),
+        })}
+        description={t('settings.integrations.deleteTemplateDescription')}
+        confirmLabel={t('settings.integrations.deleteTemplate')}
         loading={action.busy}
         onConfirm={() => void remove()}
         onCancel={() => setToDelete(null)}

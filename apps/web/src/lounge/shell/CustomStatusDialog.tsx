@@ -1,14 +1,15 @@
 import { Button, Modal, TextInput } from '@sideroom/ui';
 import { useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
+import { useT, type MessageKey } from '../../i18n';
 import { useSelfPresence } from './selfPresence';
 
-const CLEAR_AFTER: { value: string; label: string; seconds: number | null }[] = [
-  { value: 'never', label: "Don't clear", seconds: null },
-  { value: '30m', label: '30 minutes', seconds: 1800 },
-  { value: '1h', label: '1 hour', seconds: 3600 },
-  { value: '4h', label: '4 hours', seconds: 14400 },
-  { value: 'today', label: 'Today', seconds: -1 },
+const CLEAR_AFTER: { value: string; labelKey: MessageKey; seconds: number | null }[] = [
+  { value: 'never', labelKey: 'lounge.customStatus.clearNever', seconds: null },
+  { value: '30m', labelKey: 'lounge.customStatus.clear30m', seconds: 1800 },
+  { value: '1h', labelKey: 'lounge.customStatus.clear1h', seconds: 3600 },
+  { value: '4h', labelKey: 'lounge.customStatus.clear4h', seconds: 14400 },
+  { value: 'today', labelKey: 'lounge.customStatus.clearToday', seconds: -1 },
 ];
 
 /** Seconds from `now` until the end of the local day (for "Today"). */
@@ -20,6 +21,7 @@ export function secondsUntilMidnight(now = new Date()): number {
 
 /** Set or clear the custom status (LNG-HOME-011). */
 export function CustomStatusDialog({ onClose }: { onClose: () => void }) {
+  const t = useT();
   const current = useSelfPresence((s) => s.customText);
   const update = useSelfPresence((s) => s.update);
   const [text, setText] = useState(current ?? '');
@@ -43,7 +45,7 @@ export function CustomStatusDialog({ onClose }: { onClose: () => void }) {
       });
       onClose();
     } catch (e) {
-      setError(e instanceof ApiError && e.message ? e.message : 'Could not save your status.');
+      setError(e instanceof ApiError && e.message ? e.message : t('lounge.customStatus.saveError'));
       setBusy(false);
     }
   };
@@ -54,10 +56,10 @@ export function CustomStatusDialog({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Modal open onClose={onClose} size="sm" title="Set a custom status">
+    <Modal open onClose={onClose} size="sm" title={t('lounge.customStatus.title')}>
       <form className="lng-form" onSubmit={submit}>
         <TextInput
-          label="What's happening?"
+          label={t('lounge.customStatus.fieldLabel')}
           value={text}
           maxLength={128}
           autoFocus
@@ -65,7 +67,7 @@ export function CustomStatusDialog({ onClose }: { onClose: () => void }) {
           onChange={(e) => setText(e.target.value)}
         />
         <label className="lng-field">
-          <span className="lng-field-label">Clear after</span>
+          <span className="lng-field-label">{t('lounge.customStatus.clearAfter')}</span>
           <select
             className="lng-select"
             value={clearAfter}
@@ -73,7 +75,7 @@ export function CustomStatusDialog({ onClose }: { onClose: () => void }) {
           >
             {CLEAR_AFTER.map((o) => (
               <option key={o.value} value={o.value}>
-                {o.label}
+                {t(o.labelKey)}
               </option>
             ))}
           </select>
@@ -81,14 +83,14 @@ export function CustomStatusDialog({ onClose }: { onClose: () => void }) {
         <div className="lng-form-actions">
           {current && (
             <Button variant="ghost" onClick={() => void save(null)} disabled={busy}>
-              Clear Status
+              {t('lounge.customStatus.clearStatus')}
             </Button>
           )}
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t('lounge.customStatus.cancel')}
           </Button>
           <Button type="submit" loading={busy}>
-            Save
+            {t('lounge.customStatus.save')}
           </Button>
         </div>
       </form>

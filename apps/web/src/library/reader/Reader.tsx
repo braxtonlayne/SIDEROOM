@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useRouter } from '@tanstack/react-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
+import { useT } from '../../i18n';
 import { isAgeGateError, useAgeGate, withAgeGate } from '../../lib/ageGate';
 import { getChapters, getPages, getSeries } from '../api';
 import {
@@ -49,6 +50,7 @@ export function Reader(props: ReaderProps) {
 }
 
 function ReaderLoader({ chapterId, page }: ReaderProps) {
+  const t = useT();
   const navigate = useNavigate();
   const router = useRouter();
   const { ensureAdult } = useAgeGate();
@@ -87,15 +89,13 @@ function ReaderLoader({ chapterId, page }: ReaderProps) {
     return (
       <div className="lib-reader lib-reader-msg" data-bg="black">
         <EmptyState
-          title={gone ? 'This chapter is not available' : 'We could not open this chapter'}
+          title={gone ? t('library.reader.goneTitle') : t('library.reader.errorTitle')}
           description={
-            gone
-              ? 'It may have been unpublished or removed.'
-              : 'Check your connection and try again.'
+            gone ? t('library.reader.goneDescription') : t('library.reader.errorDescription')
           }
           action={
             <Link to="/library" className="lib-btn">
-              Back to the library
+              {t('library.reader.backToLibrary')}
             </Link>
           }
         />
@@ -105,7 +105,7 @@ function ReaderLoader({ chapterId, page }: ReaderProps) {
   if (!manifest.data || !series.data || saved.isPending || declined) {
     return (
       <div className="lib-reader lib-reader-msg" data-bg="black">
-        <Spinner label="Opening chapter" />
+        <Spinner label={t('library.reader.opening')} />
       </div>
     );
   }
@@ -129,6 +129,7 @@ interface ViewProps {
 }
 
 function ReaderView({ manifest, series, initialIndex }: ViewProps) {
+  const t = useT();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const chapter = manifest.chapter;
@@ -263,8 +264,8 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
       return;
     }
     latest.current.dirty = true;
-    const t = setTimeout(flush, SAVE_DEBOUNCE_MS);
-    return () => clearTimeout(t);
+    const timer = setTimeout(flush, SAVE_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
   }, [index, flush]);
   useEffect(() => {
     const onHide = () => flush();
@@ -436,7 +437,9 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
   };
 
   /* ------------------------------------------------------------- view */
-  const title = `${series.title} · Chapter ${chapter.number}${chapter.title ? `: ${chapter.title}` : ''}`;
+  const title = `${t('library.reader.title', { series: series.title, n: chapter.number })}${
+    chapter.title ? t('library.reader.titleSuffix', { title: chapter.title }) : ''
+  }`;
   const current =
     spreads[index >= count ? spreads.length - 1 : spreadIndexOf(spreads, index)] ?? [];
   const rtl = !strip && prefs.direction === 'rtl';
@@ -452,12 +455,12 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
       data-fit={prefs.fit}
       onMouseMove={poke}
     >
-      <header className="lib-reader-top" aria-label="Reader">
+      <header className="lib-reader-top" aria-label={t('library.reader.label')}>
         <Link
           to="/library/s/$seriesId"
           params={{ seriesId: series.id }}
           className="lib-icon-btn"
-          aria-label={`Back to ${series.title}`}
+          aria-label={t('library.reader.backTo', { title: series.title })}
         >
           <Icon name="arrow-left" size={20} />
         </Link>
@@ -472,7 +475,9 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
         <button
           type="button"
           className="lib-icon-btn"
-          aria-label={markHere ? 'Remove bookmark from this page' : 'Bookmark this page'}
+          aria-label={
+            markHere ? t('library.reader.removeBookmark') : t('library.reader.addBookmark')
+          }
           aria-pressed={!!markHere}
           onClick={() => void toggleBookmark()}
         >
@@ -481,7 +486,7 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
         <button
           type="button"
           className="lib-icon-btn"
-          aria-label="Bookmarks"
+          aria-label={t('library.reader.bookmarks')}
           onClick={() => setPanel('bookmarks')}
         >
           <Icon name="list" size={20} />
@@ -489,7 +494,7 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
         <button
           type="button"
           className="lib-icon-btn"
-          aria-label="Reader settings"
+          aria-label={t('library.reader.settings')}
           onClick={() => setPanel('settings')}
         >
           <Icon name="settings" size={20} />
@@ -500,7 +505,7 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
         ref={stageRef}
         className={strip ? 'lib-stage lib-stage-strip' : 'lib-stage'}
         data-mode={prefs.mode}
-        aria-label="Chapter pages"
+        aria-label={t('library.reader.pages')}
         onClick={strip ? () => setChromeOn((v) => !v) : onStageClick}
         {...(strip ? {} : zoom.bind)}
       >
@@ -519,7 +524,7 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
                   page={p}
                   cssWidth={Math.min(stageWidth, p.width)}
                   active={Math.abs(i - index) <= 4}
-                  alt={`Page ${i + 1}`}
+                  alt={t('library.reader.pageAlt', { n: i + 1 })}
                 />
               </div>
             ))}
@@ -551,7 +556,7 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
                 key={pages[i]!.index}
                 page={pages[i]!}
                 cssWidth={stageWidth / current.length}
-                alt={`Page ${i + 1}`}
+                alt={t('library.reader.pageAlt', { n: i + 1 })}
               />
             ))}
           </div>
@@ -569,14 +574,14 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
         {scrub !== null && pages[scrub] && (
           <img
             className="lib-scrub-thumb"
-            alt={`Preview of page ${scrub + 1}`}
+            alt={t('library.reader.preview', { n: scrub + 1 })}
             src={pickVariant(pages[scrub]!, 120, 1)}
           />
         )}
         <button
           type="button"
           className="lib-icon-btn"
-          aria-label="Previous chapter"
+          aria-label={t('library.reader.prevChapter')}
           disabled={!manifest.prev_chapter_id}
           onClick={() => manifest.prev_chapter_id && leaveTo(manifest.prev_chapter_id, false)}
         >
@@ -584,12 +589,12 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
         </button>
         <div className="lib-reader-slider" dir={rtl ? 'rtl' : 'ltr'}>
           <Slider
-            label="Page"
+            label={t('library.reader.pageSlider')}
             min={1}
             max={Math.max(1, count)}
             value={pageIdx + 1}
             showValue
-            formatValue={(v) => `${v} / ${count}`}
+            formatValue={(v) => t('library.reader.pageOfTotal', { v, count })}
             onValueChange={(v) => {
               setScrub(v - 1);
               goIndex(v - 1);
@@ -600,7 +605,7 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
         <button
           type="button"
           className="lib-icon-btn"
-          aria-label="Next chapter"
+          aria-label={t('library.reader.nextChapter')}
           disabled={!manifest.next_chapter_id}
           onClick={() => manifest.next_chapter_id && leaveTo(manifest.next_chapter_id, false)}
         >
@@ -609,7 +614,9 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
       </footer>
 
       <p className="lib-sr-only" role="status" aria-live="polite" data-testid="reader-status">
-        {showEnd ? 'End of chapter' : `Page ${pageIdx + 1} of ${count}`}
+        {showEnd
+          ? t('library.reader.endOfChapter')
+          : t('library.reader.pageStatus', { n: pageIdx + 1, count })}
       </p>
 
       <SettingsPanel
@@ -640,16 +647,17 @@ function ChapterSelect({
   current: Chapter;
   onPick: (id: string) => void;
 }) {
+  const t = useT();
   const sorted = useMemo(() => [...chapters].sort((a, b) => a.number - b.number), [chapters]);
   if (sorted.length < 2) return null;
   return (
     <label className="lib-chapter-select">
-      <span className="lib-sr-only">Chapter</span>
+      <span className="lib-sr-only">{t('library.reader.chapterSelect')}</span>
       <select value={current.id} onChange={(e) => onPick(e.target.value)}>
         {sorted.map((c) => (
           <option key={c.id} value={c.id}>
-            Chapter {c.number}
-            {c.title ? `: ${c.title}` : ''}
+            {t('library.reader.chapterOption', { n: c.number })}
+            {c.title ? t('library.reader.titleSuffix', { title: c.title }) : ''}
           </option>
         ))}
       </select>
@@ -668,21 +676,22 @@ function EndCard({
   seriesId: string;
   onNext: (id: string, last: boolean) => void;
 }) {
+  const t = useT();
   return (
-    <section className="lib-endcard" aria-label="End of chapter">
-      <p className="lib-eyebrow">End of chapter {chapter.number}</p>
+    <section className="lib-endcard" aria-label={t('library.reader.endOfChapter')}>
+      <p className="lib-eyebrow">{t('library.reader.endOfChapterN', { n: chapter.number })}</p>
       {next ? (
         <button type="button" className="lib-btn lib-btn-gold" onClick={() => onNext(next, false)}>
-          Next chapter
+          {t('library.reader.nextChapter')}
           <Icon name="arrow-right" size={16} />
         </button>
       ) : (
-        <p>You are all caught up.</p>
+        <p>{t('library.reader.caughtUp')}</p>
       )}
       <Link className="lib-btn" to="/library/s/$seriesId" params={{ seriesId }}>
-        Back to the series
+        {t('library.reader.backToSeries')}
       </Link>
-      <p className="lib-muted">Rating and comments for chapters arrive with the social features.</p>
+      <p className="lib-muted">{t('library.reader.socialSoon')}</p>
     </section>
   );
 }

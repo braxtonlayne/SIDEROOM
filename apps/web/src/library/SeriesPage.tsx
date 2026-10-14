@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import { ApiError } from '../api/client';
+import { useT } from '../i18n';
 import { followSeries, getChapters, getSeries, keys, unfollowSeries } from './api';
 import { pickContinue, progressOf, readMark, type ProgressMap } from './continue';
 import { progressApi } from './progress';
@@ -11,6 +12,7 @@ import type { Chapter, Edition, Series, SeriesDetail, Volume } from './types';
 import { AgeBadge, formatDate, KIND_LABEL, label, languageName, STATUS_LABEL } from './ui';
 
 export function SeriesPage({ seriesId }: { seriesId: string }) {
+  const t = useT();
   const detail = useQuery({ queryKey: keys.series(seriesId), queryFn: () => getSeries(seriesId) });
   if (detail.isPending)
     return (
@@ -22,11 +24,13 @@ export function SeriesPage({ seriesId }: { seriesId: string }) {
     const gone = detail.error instanceof ApiError && detail.error.status === 404;
     return (
       <EmptyState
-        title={gone ? 'This series is not here' : 'We could not load this series'}
-        description={gone ? 'It may have been removed or merged.' : 'Try again in a moment.'}
+        title={gone ? t('library.series.goneTitle') : t('library.series.errorTitle')}
+        description={
+          gone ? t('library.series.goneDescription') : t('library.series.errorDescription')
+        }
         action={
           <Link to="/library/browse" search={{}} className="lib-btn">
-            Browse the library
+            {t('library.series.browse')}
           </Link>
         }
       />
@@ -36,6 +40,7 @@ export function SeriesPage({ seriesId }: { seriesId: string }) {
 }
 
 function SeriesView({ detail }: { detail: SeriesDetail }) {
+  const t = useT();
   const { series, editions } = detail;
   const defaultEdition = editions.find((e) => e.is_default) ?? editions[0];
   const [editionId, setEditionId] = useState<string | undefined>(defaultEdition?.id);
@@ -51,20 +56,30 @@ function SeriesView({ detail }: { detail: SeriesDetail }) {
         onEdition={setEditionId}
       />
       <Tabs
-        label="Series sections"
+        label={t('library.series.sections')}
         value={tab}
         onValueChange={setTab}
         items={[
           {
             id: 'chapters',
-            label: 'Chapters',
+            label: t('library.series.tab.chapters'),
             content: <ChapterList series={series} editionId={editionId} />,
           },
           // These arrive with LIB-SOC-003 (reviews, comments) and the recommendation/credit work.
-          { id: 'reviews', label: 'Reviews', disabled: true, content: null },
-          { id: 'comments', label: 'Comments', disabled: true, content: null },
-          { id: 'related', label: 'Related', disabled: true, content: null },
-          { id: 'contributors', label: 'Contributors', disabled: true, content: null },
+          { id: 'reviews', label: t('library.series.tab.reviews'), disabled: true, content: null },
+          {
+            id: 'comments',
+            label: t('library.series.tab.comments'),
+            disabled: true,
+            content: null,
+          },
+          { id: 'related', label: t('library.series.tab.related'), disabled: true, content: null },
+          {
+            id: 'contributors',
+            label: t('library.series.tab.contributors'),
+            disabled: true,
+            content: null,
+          },
         ]}
       />
     </article>
@@ -86,6 +101,7 @@ function Header({
   editions: Edition[];
   onEdition: (id: string) => void;
 }) {
+  const t = useT();
   const [more, setMore] = useState(false);
   const people = [...new Set([...series.authors, ...series.artists])];
   const long = series.synopsis.length > 280;
@@ -98,7 +114,7 @@ function Header({
       )}
       <div className="lib-series-cover">
         {series.cover_url ? (
-          <img src={series.cover_url} alt={`Cover of ${series.title}`} />
+          <img src={series.cover_url} alt={t('library.series.coverAlt', { title: series.title })} />
         ) : (
           <span aria-hidden="true">{series.title.charAt(0)}</span>
         )}
@@ -112,10 +128,12 @@ function Header({
           {series.title} {series.age_restricted && <AgeBadge />}
         </h1>
         {series.alt_titles.length > 0 && (
-          <p className="lib-muted">Also known as {series.alt_titles.join(' · ')}</p>
+          <p className="lib-muted">
+            {t('library.series.alsoKnownAs', { titles: series.alt_titles.join(' · ') })}
+          </p>
         )}
         {people.length > 0 && <p className="lib-people">{people.join(', ')}</p>}
-        <ul className="lib-chip-list" aria-label="Genres and tags">
+        <ul className="lib-chip-list" aria-label={t('library.series.genresAndTags')}>
           {series.genres.map((g) => (
             <li key={`g-${g}`}>
               <Link to="/library/browse" search={{ genres: g }}>
@@ -123,10 +141,10 @@ function Header({
               </Link>
             </li>
           ))}
-          {series.tags.map((t) => (
-            <li key={`t-${t}`} className="lib-chip-tag">
-              <Link to="/library/browse" search={{ tags: t }}>
-                {label(t)}
+          {series.tags.map((tag) => (
+            <li key={`t-${tag}`} className="lib-chip-tag">
+              <Link to="/library/browse" search={{ tags: tag }}>
+                {label(tag)}
               </Link>
             </li>
           ))}
@@ -141,7 +159,7 @@ function Header({
                 aria-expanded={more}
                 onClick={() => setMore((v) => !v)}
               >
-                {more ? 'Show less' : 'Read more'}
+                {more ? t('library.series.showLess') : t('library.series.readMore')}
               </button>
             )}
           </div>
@@ -149,11 +167,14 @@ function Header({
         <Actions series={series} follow={follow} editionId={editionId} />
         {editions.length > 1 && (
           <label className="lib-select lib-edition">
-            <span>Edition</span>
+            <span>{t('library.series.edition')}</span>
             <select value={editionId} onChange={(e) => onEdition(e.target.value)}>
               {editions.map((e) => (
                 <option key={e.id} value={e.id}>
-                  {e.label} ({languageName(e.language)})
+                  {t('library.series.editionOption', {
+                    label: e.label,
+                    lang: languageName(e.language),
+                  })}
                 </option>
               ))}
             </select>
@@ -187,6 +208,7 @@ function Actions({
   follow: SeriesDetail['follow'];
   editionId: string | undefined;
 }) {
+  const t = useT();
   const qc = useQueryClient();
   const { chapters, map } = useSeriesProgress(series, editionId);
   const target = useMemo(
@@ -216,11 +238,15 @@ function Actions({
           className="lib-btn lib-btn-gold"
         >
           <Icon name="book" size={16} />
-          {target.mode === 'start' ? 'Start reading' : `Continue Ch. ${target.chapter.number}`}
+          {target.mode === 'start'
+            ? t('library.series.startReading')
+            : t('library.series.continueChapter', { n: target.chapter.number })}
         </Link>
       ) : (
         <span className="lib-btn" aria-disabled="true">
-          {chapters.isPending ? 'Loading chapters…' : 'No chapters yet'}
+          {chapters.isPending
+            ? t('library.series.loadingChapters')
+            : t('library.series.noChapters')}
         </span>
       )}
       <Button
@@ -230,11 +256,9 @@ function Actions({
         onClick={() => toggle.mutate()}
       >
         <Icon name="bell" size={16} />
-        {following ? 'Following' : 'Follow'}
+        {following ? t('library.series.following') : t('library.series.follow')}
       </Button>
-      {toggle.isError && (
-        <Notice variant="danger">We could not update your follow. Try again.</Notice>
-      )}
+      {toggle.isError && <Notice variant="danger">{t('library.series.followError')}</Notice>}
     </div>
   );
 }
@@ -242,6 +266,7 @@ function Actions({
 /* ---------------------------------------------------------------- chapters */
 
 function ChapterList({ series, editionId }: { series: Series; editionId: string | undefined }) {
+  const t = useT();
   const { chapters, map } = useSeriesProgress(series, editionId);
   const [desc, setDesc] = useState(true);
   const data = chapters.data;
@@ -266,24 +291,30 @@ function ChapterList({ series, editionId }: { series: Series; editionId: string 
   }, [data, desc]);
 
   if (!editionId || chapters.isPending) return <Skeleton height={160} />;
-  if (chapters.isError) return <Notice variant="danger" title="We could not load the chapters" />;
+  if (chapters.isError)
+    return <Notice variant="danger" title={t('library.series.chaptersError')} />;
   if ((data?.chapters.length ?? 0) === 0)
-    return <EmptyState title="No chapters yet" description="Check back soon." />;
+    return (
+      <EmptyState
+        title={t('library.series.noChapters')}
+        description={t('library.series.checkBack')}
+      />
+    );
 
   return (
-    <section aria-label="Chapters">
+    <section aria-label={t('library.series.tab.chapters')}>
       <div className="lib-chapters-head">
-        <h2 className="lib-h2">{data!.chapters.length} chapters</h2>
+        <h2 className="lib-h2">{t('library.series.chapterCount', { n: data!.chapters.length })}</h2>
         <button type="button" className="lib-linklike" onClick={() => setDesc((v) => !v)}>
-          {desc ? 'Newest first' : 'Oldest first'}
+          {desc ? t('library.series.newestFirst') : t('library.series.oldestFirst')}
         </button>
       </div>
       {groups.map((g) => (
         <div key={g.id ?? 'none'} className="lib-volume">
           {g.volume && (
             <h3 className="lib-volume-title">
-              Volume {g.volume.number}
-              {g.volume.title ? `: ${g.volume.title}` : ''}
+              {t('library.series.volume', { n: g.volume.number })}
+              {g.volume.title ? t('library.series.titleSuffix', { title: g.volume.title }) : ''}
             </h3>
           )}
           <ul className="lib-chapter-list">
@@ -297,8 +328,8 @@ function ChapterList({ series, editionId }: { series: Series; editionId: string 
                     className="lib-chapter-link"
                   >
                     <span className="lib-chapter-title">
-                      Chapter {c.number}
-                      {c.title ? `: ${c.title}` : ''}
+                      {t('library.series.chapter', { n: c.number })}
+                      {c.title ? t('library.series.titleSuffix', { title: c.title }) : ''}
                     </span>
                     <span className="lib-chapter-meta">
                       {[c.release_group, formatDate(c.published_at_ms)].filter(Boolean).join(' · ')}

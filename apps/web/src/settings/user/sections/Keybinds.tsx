@@ -9,6 +9,7 @@ import {
   SHORTCUTS,
   type ShortcutDef,
 } from '../../../lounge/shortcuts';
+import { t, useT } from '../../../i18n';
 import { KEYBIND_ACTIONS, keybindConflict, useVoiceSettings } from '../../../voice/settings';
 import { KeybindRecorder } from '../KeybindRecorder';
 import { Card, SectionTitle } from '../parts';
@@ -24,15 +25,16 @@ export function comboProblem(
   const special =
     /^(Shift\+)?(F\d{1,2}|Arrow\w+|Tab|Enter|Escape|Backspace|Delete|Home|End|Page\w+)$/;
   // A bare letter would be typed into the message box (and Escape closes dialogs).
-  if (!hasModifier && !special.test(combo)) return 'Hold Ctrl, ⌘ or Alt together with the key.';
-  if (/^(Shift\+)?Escape$/.test(combo)) return 'Escape is reserved for closing things.';
+  if (!hasModifier && !special.test(combo)) return t('settings.keybinds.needModifier');
+  if (/^(Shift\+)?Escape$/.test(combo)) return t('settings.keybinds.escapeReserved');
   const other = SHORTCUTS.find(
     (d) => d.id !== id && isRebindable(d.id) && effectiveCombo(d, overrides) === combo,
   );
-  return other ? `Already used for "${other.description}".` : null;
+  return other ? t('settings.keybinds.alreadyUsed', { description: other.description }) : null;
 }
 
 function Row({ def, prefs, setPrefs }: PrefsFormProps & { def: ShortcutDef }) {
+  const t = useT();
   const [recording, setRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const capture = useRef<HTMLButtonElement>(null);
@@ -75,7 +77,7 @@ function Row({ def, prefs, setPrefs }: PrefsFormProps & { def: ShortcutDef }) {
         <dt>{def.description}</dt>
         <dd>
           <KbdCombo keys={def.keys} />
-          <span className="us-muted"> fixed</span>
+          <span className="us-muted"> {t('settings.keybinds.fixed')}</span>
         </dd>
       </div>
     );
@@ -90,14 +92,14 @@ function Row({ def, prefs, setPrefs }: PrefsFormProps & { def: ShortcutDef }) {
               ref={capture}
               type="button"
               className="us-key-capture"
-              aria-label={`Press the new keys for ${def.description}. Escape cancels.`}
+              aria-label={t('settings.keybinds.pressAria', { description: def.description })}
               onKeyDown={onKey}
               onBlur={() => {
                 setRecording(false);
                 setError(null);
               }}
             >
-              Press the keys...
+              {t('settings.keybinds.pressKeys')}
             </button>
             {error && (
               <span role="alert" className="us-key-error">
@@ -108,22 +110,25 @@ function Row({ def, prefs, setPrefs }: PrefsFormProps & { def: ShortcutDef }) {
         ) : (
           <>
             {combo === '' ? (
-              <span className="us-muted">Not bound</span>
+              <span className="us-muted">{t('settings.keybinds.notBound')}</span>
             ) : (
               <KbdCombo keys={comboKeys(combo)} />
             )}
             <span className="us-actions">
               <Button variant="secondary" size="sm" onClick={() => setRecording(true)}>
-                Change<span className="us-sr"> {def.description}</span>
+                {t('settings.keybinds.change')}
+                <span className="us-sr"> {def.description}</span>
               </Button>
               {combo !== '' && (
                 <Button variant="ghost" size="sm" onClick={() => set('')}>
-                  Unbind<span className="us-sr"> {def.description}</span>
+                  {t('settings.keybinds.unbind')}
+                  <span className="us-sr"> {def.description}</span>
                 </Button>
               )}
               {custom && (
                 <Button variant="ghost" size="sm" onClick={() => set(null)}>
-                  Reset<span className="us-sr"> {def.description}</span>
+                  {t('settings.keybinds.reset')}
+                  <span className="us-sr"> {def.description}</span>
                 </Button>
               )}
             </span>
@@ -135,28 +140,26 @@ function Row({ def, prefs, setPrefs }: PrefsFormProps & { def: ShortcutDef }) {
 }
 
 export function KeybindsSection({ prefs, setPrefs }: PrefsFormProps) {
+  const t = useT();
   const groups = Array.from(new Set(SHORTCUTS.map((s) => s.group)));
   const customCount = Object.keys(prefs.keybinds).length;
   const voiceBinds = useVoiceSettings((s) => s.settings.keybinds);
   const setVoiceKeybind = useVoiceSettings((s) => s.setKeybind);
   return (
     <>
-      <SectionTitle>Keybinds</SectionTitle>
-      <p className="us-muted">
-        Choose Change, then press the keys you want. Custom keybinds save to your account with the
-        rest of your settings.
-      </p>
+      <SectionTitle>{t('settings.keybinds.title')}</SectionTitle>
+      <p className="us-muted">{t('settings.keybinds.intro')}</p>
       {customCount > 0 && (
         <p>
           <Button variant="link" size="sm" onClick={() => setPrefs({ keybinds: {} })}>
-            Reset all keybinds to the defaults
+            {t('settings.keybinds.resetAll')}
           </Button>
         </p>
       )}
       <Card
         id="us-keys-voice"
-        title="Voice"
-        description="These work while this tab is focused. Pressing one while typing in a message box does not type it during a call."
+        title={t('settings.keybinds.voiceTitle')}
+        description={t('settings.keybinds.voiceDesc')}
       >
         <ul className="us-keybind-list">
           {KEYBIND_ACTIONS.map((a) => (

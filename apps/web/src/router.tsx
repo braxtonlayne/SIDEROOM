@@ -5,6 +5,7 @@ import {
   Outlet,
   type RouterHistory,
 } from '@tanstack/react-router';
+import { useT } from './i18n';
 import { createCinemaRoutes } from './cinema/routes';
 import { createLibraryRoutes } from './library/routes';
 import { createLoungeRoutes } from './routes/lounge';
@@ -97,12 +98,17 @@ const routeTree = root.addChildren([
   r('/support', Support),
 ]);
 
+function NotFoundPage() {
+  const t = useT();
+  return <p>{t('app.router.notFound')}</p>;
+}
+
 export const createAppRouter = (history?: RouterHistory) =>
   createRouter({
     routeTree,
     history,
     pathParamsAllowedCharacters: ['@'],
-    defaultNotFoundComponent: () => <p>Page not found.</p>,
+    defaultNotFoundComponent: NotFoundPage,
   });
 
 declare module '@tanstack/react-router' {

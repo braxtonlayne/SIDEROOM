@@ -1,5 +1,6 @@
 import { Button, Icon } from '@sideroom/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useT } from '../../i18n';
 import { formatDuration } from './format';
 import { FLAT_WAVEFORM, MAX_VOICE_SECS, voiceMimeType, waveformOf } from './voice';
 
@@ -25,7 +26,9 @@ export function VoiceRecorder({
   onCancel: () => void;
   stopRef?: { current: (() => void) | null };
 }) {
+  const t = useT();
   const [phase, setPhase] = useState<Phase>('starting');
+  /** Catalog key of the error message. */
   const [error, setError] = useState<string | null>(null);
   const [secs, setSecs] = useState(0);
   const [clip, setClip] = useState<VoiceClip | null>(null);
@@ -54,7 +57,7 @@ export function VoiceRecorder({
   useEffect(() => {
     const mime = voiceMimeType();
     if (!mime || !navigator.mediaDevices?.getUserMedia) {
-      setError('This browser cannot record voice messages.');
+      setError('lounge.voiceRecorder.unsupported');
       setPhase('error');
       return;
     }
@@ -95,7 +98,7 @@ export function VoiceRecorder({
       })
       .catch(() => {
         if (!live) return;
-        setError('Microphone access was blocked. Allow it in the browser to record.');
+        setError('lounge.voiceRecorder.micBlocked');
         setPhase('error');
       });
     return () => {
@@ -111,47 +114,53 @@ export function VoiceRecorder({
   // Elapsed time, and the two-minute cap.
   useEffect(() => {
     if (phase !== 'recording') return;
-    const t = setInterval(() => {
+    const timer = setInterval(() => {
       const s = (Date.now() - startedAt.current) / 1000;
       setSecs(s);
       if (s >= MAX_VOICE_SECS) stop();
     }, 200);
-    return () => clearInterval(t);
+    return () => clearInterval(timer);
   }, [phase, stop]);
 
   return (
-    <div className="lng-voice" role="group" aria-label="Voice message">
+    <div className="lng-voice" role="group" aria-label={t('lounge.voiceRecorder.voiceMessage')}>
       {phase === 'error' && (
         <p role="alert" className="lng-voice-text">
-          {error}
+          {error && t(error)}
         </p>
       )}
       {(phase === 'starting' || phase === 'processing') && (
         <p role="status" className="lng-voice-text">
-          {phase === 'starting' ? 'Waiting for the microphone…' : 'Preparing…'}
+          {phase === 'starting'
+            ? t('lounge.voiceRecorder.waitingForMic')
+            : t('lounge.voiceRecorder.preparing')}
         </p>
       )}
       {phase === 'recording' && (
         <>
           <span className="lng-voice-dot" aria-hidden="true" />
-          <span role="timer" aria-label="Recording time" className="lng-voice-text">
+          <span
+            role="timer"
+            aria-label={t('lounge.voiceRecorder.recordingTime')}
+            className="lng-voice-text"
+          >
             {formatDuration(secs)} / {formatDuration(MAX_VOICE_SECS)}
           </span>
           <Button size="sm" onClick={stop}>
-            Stop
+            {t('lounge.voiceRecorder.stop')}
           </Button>
         </>
       )}
       {phase === 'preview' && clip && url && (
         <>
-          <audio controls src={url} aria-label="Voice message preview" />
+          <audio controls src={url} aria-label={t('lounge.voiceRecorder.preview')} />
           <Button size="sm" onClick={() => onSend(clip)}>
-            <Icon name="arrow-right" size={16} /> Send
+            <Icon name="arrow-right" size={16} /> {t('lounge.voiceRecorder.send')}
           </Button>
         </>
       )}
       <Button size="sm" variant="ghost" onClick={onCancel}>
-        {phase === 'preview' ? 'Delete' : 'Cancel'}
+        {phase === 'preview' ? t('lounge.voiceRecorder.delete') : t('lounge.voiceRecorder.cancel')}
       </Button>
     </div>
   );

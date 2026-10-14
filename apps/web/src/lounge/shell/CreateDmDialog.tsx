@@ -1,6 +1,7 @@
 import { Avatar, Button, Checkbox, EmptyState, Modal, Spinner, TextInput } from '@sideroom/ui';
 import { useEffect, useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
+import { useT } from '../../i18n';
 import { usePresenceMap } from '../data';
 import { useOpenDm } from './dm';
 import { friendsOf, useSocial, wireName } from './social';
@@ -10,6 +11,7 @@ export const MAX_GROUP_RECIPIENTS = 9;
 
 /** Create DM / Group DM picker (LNG-HOME-005): search friends, tick up to nine, create. */
 export function CreateDmDialog({ onClose }: { onClose: () => void }) {
+  const t = useT();
   const rows = useSocial((s) => s.relationships);
   const status = useSocial((s) => s.status);
   const load = useSocial((s) => s.loadRelationships);
@@ -45,9 +47,7 @@ export function CreateDmDialog({ onClose }: { onClose: () => void }) {
       onClose();
     } catch (err) {
       setError(
-        err instanceof ApiError && err.message
-          ? err.message
-          : 'Could not start that conversation. Try again.',
+        err instanceof ApiError && err.message ? err.message : t('lounge.createDm.startError'),
       );
       setBusy(false);
     }
@@ -58,39 +58,37 @@ export function CreateDmDialog({ onClose }: { onClose: () => void }) {
       open
       onClose={onClose}
       size="sm"
-      title="Select Friends"
-      description={`You can add ${MAX_GROUP_RECIPIENTS - picked.length} more friend${
-        MAX_GROUP_RECIPIENTS - picked.length === 1 ? '' : 's'
-      }.`}
+      title={t('lounge.createDm.title')}
+      description={t('lounge.createDm.canAdd', { n: MAX_GROUP_RECIPIENTS - picked.length })}
     >
       <form className="lng-form" onSubmit={(e) => void submit(e)}>
         <TextInput
-          label="Search friends"
+          label={t('lounge.createDm.searchLabel')}
           value={query}
-          placeholder="Type the username of a friend"
+          placeholder={t('lounge.createDm.searchPlaceholder')}
           autoFocus
           onChange={(e) => setQuery(e.target.value)}
         />
         {status === 'loading' && friends.length === 0 && (
           <p role="status">
-            <Spinner label="Loading friends" />
+            <Spinner label={t('lounge.createDm.loadingFriends')} />
           </p>
         )}
         {status === 'error' && (
           <p role="alert" className="lng-form-error">
-            Could not load your friends.
+            {t('lounge.createDm.loadError')}
           </p>
         )}
         {status === 'ready' && friends.length === 0 && (
           <EmptyState
-            title="You have no friends to add yet"
-            description="Add friends from the Friends page first."
+            title={t('lounge.createDm.noFriendsTitle')}
+            description={t('lounge.createDm.noFriendsBody')}
           />
         )}
         {friends.length > 0 && shown.length === 0 && (
-          <p className="lng-muted">No friends match that search.</p>
+          <p className="lng-muted">{t('lounge.createDm.noMatch')}</p>
         )}
-        <ul className="lng-pick-list" aria-label="Friends">
+        <ul className="lng-pick-list" aria-label={t('lounge.createDm.friendsList')}>
           {shown.map((r) => {
             const on = picked.includes(r.id);
             return (
@@ -118,10 +116,10 @@ export function CreateDmDialog({ onClose }: { onClose: () => void }) {
         )}
         <div className="lng-form-actions">
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t('lounge.createDm.cancel')}
           </Button>
           <Button type="submit" loading={busy} disabled={!picked.length}>
-            {picked.length > 1 ? 'Create Group DM' : 'Create DM'}
+            {picked.length > 1 ? t('lounge.createDm.createGroup') : t('lounge.createDm.create')}
           </Button>
         </div>
       </form>

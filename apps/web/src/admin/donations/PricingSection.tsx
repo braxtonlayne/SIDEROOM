@@ -4,6 +4,7 @@
 import { Button, Notice, TextInput } from '@sideroom/ui';
 import { useMemo, useState } from 'react';
 import { usd } from '../../support/api';
+import { useT, type MessageKey } from '../../i18n';
 import { Async, ReasonDialog, SectionHeader, useResource } from '../ui';
 import * as api from './api';
 import { breakEven, suggestedPrice, type CostInputs, type LevelShape } from './calculator';
@@ -13,27 +14,31 @@ type NumKey = {
   [K in keyof api.AdminConfig]: api.AdminConfig[K] extends number ? K : never;
 }[keyof api.AdminConfig];
 
-const FIELDS: { key: NumKey; label: string; hint?: string }[] = [
-  { key: 'patron_price_cents', label: 'Patron price per month (USD cents)' },
-  { key: 'patron_max_months', label: 'Most months in one invoice' },
-  { key: 'grace_days', label: 'Grace days after Patron or a level lapses' },
-  { key: 'pool_window_days', label: 'Server pool window (days)' },
-  { key: 'invite_credit_price_cents', label: 'Invite credit price (USD cents)' },
-  { key: 'min_donation_cents', label: 'Smallest donation (USD cents)' },
-  { key: 'max_donation_cents', label: 'Largest donation (USD cents)' },
+const FIELDS: { key: NumKey; label: MessageKey; hint?: MessageKey }[] = [
+  { key: 'patron_price_cents', label: 'admin.donations.pricing.fieldPatronPrice' },
+  { key: 'patron_max_months', label: 'admin.donations.pricing.fieldPatronMaxMonths' },
+  { key: 'grace_days', label: 'admin.donations.pricing.fieldGraceDays' },
+  { key: 'pool_window_days', label: 'admin.donations.pricing.fieldPoolWindow' },
+  { key: 'invite_credit_price_cents', label: 'admin.donations.pricing.fieldInviteCreditPrice' },
+  { key: 'min_donation_cents', label: 'admin.donations.pricing.fieldMinDonation' },
+  { key: 'max_donation_cents', label: 'admin.donations.pricing.fieldMaxDonation' },
   {
     key: 'confirmations',
-    label: 'Confirmations before crediting',
-    hint: '0 credits from the mempool',
+    label: 'admin.donations.pricing.fieldConfirmations',
+    hint: 'admin.donations.pricing.fieldConfirmationsHint',
   },
-  { key: 'finality_confirmations', label: 'Keep watching until this many confirmations' },
-  { key: 'invoice_expiry_minutes', label: 'Invoice expiry (minutes)' },
-  { key: 'tolerance_bps', label: 'Underpay/overpay tolerance (basis points)', hint: '100 = 1%' },
-  { key: 'late_watch_days', label: 'Watch expired invoices for (days)' },
+  { key: 'finality_confirmations', label: 'admin.donations.pricing.fieldFinality' },
+  { key: 'invoice_expiry_minutes', label: 'admin.donations.pricing.fieldExpiry' },
+  {
+    key: 'tolerance_bps',
+    label: 'admin.donations.pricing.fieldTolerance',
+    hint: 'admin.donations.pricing.fieldToleranceHint',
+  },
+  { key: 'late_watch_days', label: 'admin.donations.pricing.fieldLateWatch' },
   {
     key: 'hosting_cost_cents',
-    label: 'Monthly hosting cost (USD cents)',
-    hint: 'For the progress bar',
+    label: 'admin.donations.pricing.fieldHosting',
+    hint: 'admin.donations.pricing.fieldHostingHint',
   },
 ];
 
@@ -45,17 +50,18 @@ const PERK_FIELDS: {
     | 'audio_kbps'
     | 'watch_parties'
     | 'downloads_per_day';
-  label: string;
+  label: MessageKey;
 }[] = [
-  { key: 'upload_mib', label: 'Upload MB' },
-  { key: 'video_senders', label: 'Video senders' },
-  { key: 'stream_viewers', label: 'Viewers' },
-  { key: 'audio_kbps', label: 'Audio kbps' },
-  { key: 'watch_parties', label: 'Watch parties' },
-  { key: 'downloads_per_day', label: 'Downloads/day' },
+  { key: 'upload_mib', label: 'admin.donations.pricing.perkUpload' },
+  { key: 'video_senders', label: 'admin.donations.pricing.perkVideoSenders' },
+  { key: 'stream_viewers', label: 'admin.donations.pricing.perkViewers' },
+  { key: 'audio_kbps', label: 'admin.donations.pricing.perkAudio' },
+  { key: 'watch_parties', label: 'admin.donations.pricing.perkWatchParties' },
+  { key: 'downloads_per_day', label: 'admin.donations.pricing.perkDownloads' },
 ];
 
 function ConfigForm({ cfg, onSaved }: { cfg: api.AdminConfig; onSaved: () => void }) {
+  const t = useT();
   const [draft, setDraft] = useState<api.AdminConfig>(cfg);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -73,9 +79,9 @@ function ConfigForm({ cfg, onSaved }: { cfg: api.AdminConfig; onSaved: () => voi
     setDraft((d) => ({ ...d, [key]: Number(v.replace(/\D/g, '')) || 0 }));
   const setThreshold = (i: number, v: string) =>
     setDraft((d) => {
-      const t = [...d.level_thresholds_cents] as [number, number, number];
-      t[i] = Number(v.replace(/\D/g, '')) || 0;
-      return { ...d, level_thresholds_cents: t };
+      const next = [...d.level_thresholds_cents] as [number, number, number];
+      next[i] = Number(v.replace(/\D/g, '')) || 0;
+      return { ...d, level_thresholds_cents: next };
     });
   const setPerk = (
     tier: 'patron' | 'free' | number,
@@ -95,21 +101,21 @@ function ConfigForm({ cfg, onSaved }: { cfg: api.AdminConfig; onSaved: () => voi
 
   return (
     <section className="ss-card" aria-labelledby="don-prices-h">
-      <h2 id="don-prices-h">Prices and rules</h2>
+      <h2 id="don-prices-h">{t('admin.donations.pricing.pricesAndRules')}</h2>
       <label className="adm-check-row">
         <input
           type="checkbox"
           checked={draft.enabled}
           onChange={(e) => setDraft((d) => ({ ...d, enabled: e.target.checked }))}
         />{' '}
-        Donations are on
+        {t('admin.donations.pricing.donationsOn')}
       </label>
       <div className="adm-grid2">
         {FIELDS.map((f) => (
           <TextInput
             key={f.key}
-            label={f.label}
-            {...(f.hint ? { hint: f.hint } : {})}
+            label={t(f.label)}
+            {...(f.hint ? { hint: t(f.hint) } : {})}
             inputMode="numeric"
             value={String(draft[f.key])}
             onChange={(e) => setNum(f.key, e.target.value)}
@@ -118,23 +124,23 @@ function ConfigForm({ cfg, onSaved }: { cfg: api.AdminConfig; onSaved: () => voi
         {[0, 1, 2].map((i) => (
           <TextInput
             key={i}
-            label={`Level ${i + 1} monthly total (USD cents)`}
+            label={t('admin.donations.pricing.levelTotal', { level: i + 1 })}
             inputMode="numeric"
             value={String(draft.level_thresholds_cents[i])}
             onChange={(e) => setThreshold(i, e.target.value)}
           />
         ))}
       </div>
-      <h3>Perks per tier</h3>
+      <h3>{t('admin.donations.pricing.perksPerTier')}</h3>
       <div className="adm-table-wrap">
         <table className="adm-table">
-          <caption className="us-sr">Perks per tier</caption>
+          <caption className="us-sr">{t('admin.donations.pricing.perksPerTier')}</caption>
           <thead>
             <tr>
-              <th scope="col">Tier</th>
+              <th scope="col">{t('admin.donations.pricing.colTier')}</th>
               {PERK_FIELDS.map((p) => (
                 <th key={p.key} scope="col">
-                  {p.label}
+                  {t(p.label)}
                 </th>
               ))}
             </tr>
@@ -142,21 +148,25 @@ function ConfigForm({ cfg, onSaved }: { cfg: api.AdminConfig; onSaved: () => voi
           <tbody>
             {(
               [
-                ['Free', 'free'],
-                ['Patron', 'patron'],
-                ['Level 1', 0],
-                ['Level 2', 1],
-                ['Level 3', 2],
+                ['admin.donations.pricing.tierFree', 'free'],
+                ['admin.donations.pricing.tierPatron', 'patron'],
+                ['admin.donations.pricing.tierLevel1', 0],
+                ['admin.donations.pricing.tierLevel2', 1],
+                ['admin.donations.pricing.tierLevel3', 2],
               ] as const
-            ).map(([label, tier]) => {
+            ).map(([labelKey, tier]) => {
+              const label = t(labelKey);
               const perks = typeof tier === 'number' ? draft.levels[tier] : draft[tier];
               return (
-                <tr key={label}>
+                <tr key={labelKey}>
                   <th scope="row">{label}</th>
                   {PERK_FIELDS.map((p) => (
                     <td key={p.key}>
                       <input
-                        aria-label={`${label} ${p.label}`}
+                        aria-label={t('admin.donations.pricing.perkAria', {
+                          tier: label,
+                          perk: t(p.label),
+                        })}
                         inputMode="numeric"
                         size={6}
                         value={String(perks[p.key])}
@@ -170,10 +180,7 @@ function ConfigForm({ cfg, onSaved }: { cfg: api.AdminConfig; onSaved: () => voi
           </tbody>
         </table>
       </div>
-      <p className="ss-meta">
-        A tier that leaves a perk at 0 never lowers what another tier gives. Server levels never
-        unlock downloads.
-      </p>
+      <p className="ss-meta">{t('admin.donations.pricing.perksNote')}</p>
       {notice && (
         <Notice variant="success" role="status">
           {notice}
@@ -181,22 +188,24 @@ function ConfigForm({ cfg, onSaved }: { cfg: api.AdminConfig; onSaved: () => voi
       )}
       <div className="adm-actions">
         <Button variant="secondary" disabled={!dirty} onClick={() => setDraft(cfg)}>
-          Reset
+          {t('admin.donations.pricing.reset')}
         </Button>
         <Button disabled={!dirty} onClick={() => setSaving(true)}>
-          Save changes
+          {t('admin.donations.pricing.saveChanges')}
         </Button>
       </div>
       <ReasonDialog
         open={saving}
-        title="Save donation settings"
-        description={`${Object.keys(changes).length} setting(s) change. They take effect at once.`}
-        confirmLabel="Save"
+        title={t('admin.donations.pricing.saveTitle')}
+        description={t('admin.donations.pricing.saveDescription', {
+          count: Object.keys(changes).length,
+        })}
+        confirmLabel={t('admin.donations.pricing.save')}
         onCancel={() => setSaving(false)}
         onConfirm={async (reason) => {
           await api.patchConfig(changes as Partial<api.AdminConfig>, reason);
           setSaving(false);
-          setNotice('Saved.');
+          setNotice(t('admin.donations.pricing.saved'));
           onSaved();
         }}
       />
@@ -205,6 +214,7 @@ function ConfigForm({ cfg, onSaved }: { cfg: api.AdminConfig; onSaved: () => voi
 }
 
 function Calculator({ cfg }: { cfg: api.AdminConfig }) {
+  const t = useT();
   const [serverCost, setServerCost] = useState('128');
   const [uplink, setUplink] = useState('1000');
   const [hours, setHours] = useState('40');
@@ -238,44 +248,41 @@ function Calculator({ cfg }: { cfg: api.AdminConfig }) {
   const dollars = (v: number) => usd(Math.round(v * 100));
   return (
     <section className="ss-card" aria-labelledby="don-calc-h">
-      <h2 id="don-calc-h">Cost calculator</h2>
-      <p className="ss-meta">
-        Enter what the server really costs. Suggested prices cover the expected video egress with a
-        safety factor of three (docs/08 section 6.4).
-      </p>
+      <h2 id="don-calc-h">{t('admin.donations.pricing.calcTitle')}</h2>
+      <p className="ss-meta">{t('admin.donations.pricing.calcIntro')}</p>
       <div className="adm-grid2">
         <TextInput
-          label="Server cost per month (USD)"
+          label={t('admin.donations.pricing.serverCost')}
           inputMode="decimal"
           value={serverCost}
           onChange={(e) => setServerCost(e.target.value)}
         />
         <TextInput
-          label="Uplink (Mbps)"
+          label={t('admin.donations.pricing.uplink')}
           inputMode="numeric"
           value={uplink}
           onChange={(e) => setUplink(e.target.value)}
         />
         <TextInput
-          label="Heavy-use hours per month"
+          label={t('admin.donations.pricing.heavyHours')}
           inputMode="numeric"
           value={hours}
           onChange={(e) => setHours(e.target.value)}
         />
         <TextInput
-          label="Lowest price worth charging (USD)"
+          label={t('admin.donations.pricing.floorPrice')}
           inputMode="decimal"
           value={floor}
           onChange={(e) => setFloor(e.target.value)}
         />
       </div>
       <table className="adm-table">
-        <caption className="us-sr">Suggested against configured prices</caption>
+        <caption className="us-sr">{t('admin.donations.pricing.calcCaption')}</caption>
         <thead>
           <tr>
-            <th scope="col">Level</th>
-            <th scope="col">Suggested</th>
-            <th scope="col">Configured</th>
+            <th scope="col">{t('admin.donations.pricing.colLevel')}</th>
+            <th scope="col">{t('admin.donations.pricing.colSuggested')}</th>
+            <th scope="col">{t('admin.donations.pricing.colConfigured')}</th>
           </tr>
         </thead>
         <tbody>
@@ -289,14 +296,20 @@ function Calculator({ cfg }: { cfg: api.AdminConfig }) {
         </tbody>
       </table>
       <p data-testid="break-even">
-        To cover {dollars(inputs.serverCost)} a month you need {even.patrons} Patrons, or{' '}
-        {even.levels.map((c, i) => `${c} level-${i + 1} servers`).join(', or ')}.
+        {t('admin.donations.pricing.breakEven', {
+          cost: dollars(inputs.serverCost),
+          patrons: even.patrons,
+          levels: even.levels
+            .map((c, i) => t('admin.donations.pricing.levelServers', { count: c, level: i + 1 }))
+            .join(t('admin.donations.pricing.orSeparator')),
+        })}
       </p>
     </section>
   );
 }
 
 function Moderation() {
+  const t = useT();
   const [id, setId] = useState('');
   const [what, setWhat] = useState<'user' | 'guild'>('user');
   const [hide, setHide] = useState(true);
@@ -304,20 +317,18 @@ function Moderation() {
   const [notice, setNotice] = useState<string | null>(null);
   return (
     <section className="ss-card" aria-labelledby="don-mod-h">
-      <h2 id="don-mod-h">Leaderboard moderation</h2>
-      <p className="ss-meta">
-        Keep a donor or a server off the public boards, for example for an offensive name.
-      </p>
+      <h2 id="don-mod-h">{t('admin.donations.pricing.modTitle')}</h2>
+      <p className="ss-meta">{t('admin.donations.pricing.modIntro')}</p>
       <div className="ss-toolbar">
         <label>
-          Who{' '}
+          {t('admin.donations.pricing.who')}{' '}
           <select value={what} onChange={(e) => setWhat(e.target.value as typeof what)}>
-            <option value="user">Account</option>
-            <option value="guild">Server</option>
+            <option value="user">{t('admin.donations.pricing.whoAccount')}</option>
+            <option value="guild">{t('admin.donations.pricing.whoServer')}</option>
           </select>
         </label>
         <TextInput
-          label="Id"
+          label={t('admin.donations.pricing.id')}
           inputMode="numeric"
           value={id}
           onChange={(e) => setId(e.target.value)}
@@ -330,7 +341,7 @@ function Moderation() {
             setOpen(true);
           }}
         >
-          Hide
+          {t('admin.donations.pricing.hide')}
         </Button>
         <Button
           variant="secondary"
@@ -340,7 +351,7 @@ function Moderation() {
             setOpen(true);
           }}
         >
-          Show again
+          {t('admin.donations.pricing.showAgain')}
         </Button>
       </div>
       {notice && (
@@ -350,8 +361,10 @@ function Moderation() {
       )}
       <ReasonDialog
         open={open}
-        title={hide ? 'Hide from the leaderboards' : 'Show on the leaderboards again'}
-        confirmLabel={hide ? 'Hide' : 'Show'}
+        title={
+          hide ? t('admin.donations.pricing.hideTitle') : t('admin.donations.pricing.showTitle')
+        }
+        confirmLabel={hide ? t('admin.donations.pricing.hide') : t('admin.donations.pricing.show')}
         onCancel={() => setOpen(false)}
         onConfirm={async (reason) => {
           await api.hideFromBoards({
@@ -359,7 +372,9 @@ function Moderation() {
             hidden: hide,
             reason,
           });
-          setNotice(hide ? 'Hidden from the boards.' : 'Visible on the boards again.');
+          setNotice(
+            hide ? t('admin.donations.pricing.hidden') : t('admin.donations.pricing.visibleAgain'),
+          );
           setOpen(false);
         }}
       />
@@ -368,14 +383,15 @@ function Moderation() {
 }
 
 export function PricingSection() {
+  const t = useT();
   const res = useResource('don-config', api.getConfig);
   return (
     <>
       <SectionHeader
-        title="Pricing and perks"
-        description="Everything here is operator-configurable and applies without a restart."
+        title={t('admin.donations.pricing.title')}
+        description={t('admin.donations.pricing.description')}
       />
-      <Async res={res} label="Loading settings">
+      <Async res={res} label={t('admin.donations.pricing.loading')}>
         {(cfg) => (
           <>
             <ConfigForm key={JSON.stringify(cfg)} cfg={cfg} onSaved={() => void res.reload()} />

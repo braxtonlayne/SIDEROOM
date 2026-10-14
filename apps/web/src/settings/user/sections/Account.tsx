@@ -11,6 +11,7 @@ import {
 } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { ApiError } from '../../../api/client';
+import { useT } from '../../../i18n';
 import { cdnUrl } from '../../../store';
 import {
   changePassword,
@@ -48,6 +49,7 @@ export function PasswordPrompt({
   onClose: () => void;
   onSubmit: (password: string) => Promise<void>;
 }) {
+  const t = useT();
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -59,7 +61,7 @@ export function PasswordPrompt({
   }, [open]);
   const submit = async () => {
     if (!password) {
-      setError('Enter your password.');
+      setError(t('settings.account.enterPassword'));
       return;
     }
     setBusy(true);
@@ -82,7 +84,7 @@ export function PasswordPrompt({
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t('settings.account.cancel')}
           </Button>
           <Button
             variant={danger ? 'danger' : 'primary'}
@@ -101,7 +103,7 @@ export function PasswordPrompt({
         }}
       >
         <PasswordInput
-          label="Current password"
+          label={t('settings.account.currentPassword')}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           error={error}
@@ -115,15 +117,16 @@ export function PasswordPrompt({
 
 /** The ten recovery codes, shown once (copy / download). */
 export function RecoveryCodes({ codes, onDone }: { codes: string[]; onDone: () => void }) {
+  const t = useT();
   const toast = useToast();
   const text = codes.join('\n');
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(text);
-      toast.show({ title: 'Copied recovery codes', duration: 2000 });
+      toast.show({ title: t('settings.account.codesCopied'), duration: 2000 });
     } catch {
       toast.show({
-        title: "Couldn't copy. Select the codes and copy them by hand.",
+        title: t('settings.account.copyFailed'),
         variant: 'warning',
       });
     }
@@ -140,22 +143,22 @@ export function RecoveryCodes({ codes, onDone }: { codes: string[]; onDone: () =
   };
   return (
     <div>
-      <Notice variant="warning" title="Save these now">
-        Each code works once if you lose your authenticator. They are shown only this time.
+      <Notice variant="warning" title={t('settings.account.saveNowTitle')}>
+        {t('settings.account.saveNowBody')}
       </Notice>
-      <ul className="us-codes" aria-label="Recovery codes">
+      <ul className="us-codes" aria-label={t('settings.account.recoveryCodesAria')}>
         {codes.map((c) => (
           <li key={c}>{c}</li>
         ))}
       </ul>
       <div className="us-actions">
         <Button variant="secondary" onClick={() => void copy()}>
-          Copy codes
+          {t('settings.account.copyCodes')}
         </Button>
         <Button variant="secondary" onClick={download}>
-          Download codes
+          {t('settings.account.downloadCodes')}
         </Button>
-        <Button onClick={onDone}>I have saved them</Button>
+        <Button onClick={onDone}>{t('settings.account.savedThem')}</Button>
       </div>
     </div>
   );
@@ -170,6 +173,7 @@ function TotpWizard({
   onClose: () => void;
   onEnabled: () => void;
 }) {
+  const t = useT();
   const [enroll, setEnroll] = useState<TotpEnrollment | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [code, setCode] = useState('');
@@ -191,12 +195,12 @@ function TotpWizard({
     return () => {
       live = false;
     };
-  }, [open]);
+  }, [open, t]);
 
   const verify = async () => {
     const clean = code.replace(/\s+/g, '');
     if (!/^\d{6}$/.test(clean)) {
-      setCodeError('Enter the 6-digit code from your app.');
+      setCodeError(t('settings.account.enterCode'));
       return;
     }
     setBusy(true);
@@ -216,18 +220,20 @@ function TotpWizard({
     <Modal
       open={open}
       onClose={onClose}
-      title={codes ? 'Your recovery codes' : 'Enable authenticator app'}
+      title={
+        codes ? t('settings.account.recoveryCodesTitle') : t('settings.account.enableAuthTitle')
+      }
       size="md"
       closeOnBackdrop={false}
     >
       {codes ? (
         <RecoveryCodes codes={codes} onDone={onClose} />
       ) : loadError ? (
-        <Notice variant="danger" title="Couldn't start setup">
+        <Notice variant="danger" title={t('settings.account.setupError')}>
           {loadError}
         </Notice>
       ) : !enroll ? (
-        <p className="us-muted">Preparing your key...</p>
+        <p className="us-muted">{t('settings.account.preparingKey')}</p>
       ) : (
         <form
           className="us-stack"
@@ -236,16 +242,16 @@ function TotpWizard({
             void verify();
           }}
         >
-          <p>Scan this code with an authenticator app, then enter the 6-digit code it shows.</p>
+          <p>{t('settings.account.scanCode')}</p>
           <div className="us-qr">
-            <QRCode value={enroll.otpauth_uri} label="QR code for your authenticator app" />
-            <p className="us-muted">Can&apos;t scan? Enter this key by hand:</p>
-            <code className="us-key" aria-label="Manual entry key">
+            <QRCode value={enroll.otpauth_uri} label={t('settings.account.qrLabel')} />
+            <p className="us-muted">{t('settings.account.cantScan')}</p>
+            <code className="us-key" aria-label={t('settings.account.manualKey')}>
               {enroll.manual_entry_key}
             </code>
           </div>
           <TextInput
-            label="Authentication code"
+            label={t('settings.account.authCode')}
             inputMode="numeric"
             autoComplete="one-time-code"
             maxLength={7}
@@ -256,10 +262,10 @@ function TotpWizard({
           />
           <div className="us-actions">
             <Button variant="ghost" onClick={onClose}>
-              Cancel
+              {t('settings.account.cancel')}
             </Button>
             <Button type="submit" loading={busy}>
-              Verify and enable
+              {t('settings.account.verifyEnable')}
             </Button>
           </div>
         </form>
@@ -269,6 +275,7 @@ function TotpWizard({
 }
 
 function TwoFactorCard({ me, reload }: { me: Me; reload: () => void }) {
+  const t = useT();
   const toast = useToast();
   const [wizard, setWizard] = useState(false);
   const [regen, setRegen] = useState(false);
@@ -278,35 +285,35 @@ function TwoFactorCard({ me, reload }: { me: Me; reload: () => void }) {
   return (
     <Card
       id="us-2fa"
-      title="Two-factor authentication"
-      description="Protect your account with a code from an authenticator app."
+      title={t('settings.account.twoFactorTitle')}
+      description={t('settings.account.twoFactorDesc')}
       actions={
         on ? (
           <>
             <Button variant="secondary" onClick={() => setRegen(true)}>
-              Regenerate recovery codes
+              {t('settings.account.regenCodes')}
             </Button>
             <Button variant="danger" onClick={() => setDisable(true)}>
-              Remove authenticator
+              {t('settings.account.removeAuth')}
             </Button>
           </>
         ) : (
-          <Button onClick={() => setWizard(true)}>Enable authenticator app</Button>
+          <Button onClick={() => setWizard(true)}>{t('settings.account.enableAuth')}</Button>
         )
       }
     >
       <p>
-        Status:{' '}
+        {t('settings.account.status')}{' '}
         <span className="us-badge" data-tone={on ? 'good' : undefined}>
-          {on ? 'Enabled' : 'Off'}
+          {on ? t('settings.account.enabled') : t('settings.account.off')}
         </span>
       </p>
       <TotpWizard open={wizard} onClose={() => setWizard(false)} onEnabled={() => reload()} />
       <PasswordPrompt
         open={regen}
-        title="Regenerate recovery codes"
-        description="This replaces your current codes. Enter your password to continue."
-        confirmLabel="Regenerate"
+        title={t('settings.account.regenCodes')}
+        description={t('settings.account.regenDesc')}
+        confirmLabel={t('settings.account.regenConfirm')}
         onClose={() => setRegen(false)}
         onSubmit={async (pw) => {
           const res = await regenerateRecoveryCodes(pw);
@@ -317,7 +324,7 @@ function TwoFactorCard({ me, reload }: { me: Me; reload: () => void }) {
       <Modal
         open={newCodes !== null}
         onClose={() => setNewCodes(null)}
-        title="Your new recovery codes"
+        title={t('settings.account.newCodesTitle')}
         size="md"
         closeOnBackdrop={false}
       >
@@ -326,14 +333,14 @@ function TwoFactorCard({ me, reload }: { me: Me; reload: () => void }) {
       <PasswordPrompt
         open={disable}
         danger
-        title="Remove authenticator"
-        description="You will sign in with only your password. Enter it to confirm."
-        confirmLabel="Remove"
+        title={t('settings.account.removeAuth')}
+        description={t('settings.account.removeAuthDesc')}
+        confirmLabel={t('settings.account.removeConfirm')}
         onClose={() => setDisable(false)}
         onSubmit={async (pw) => {
           await totpDisable(pw);
           setDisable(false);
-          toast.show({ title: 'Two-factor authentication removed', duration: 3000 });
+          toast.show({ title: t('settings.account.twoFactorRemoved'), duration: 3000 });
           reload();
         }}
       />
@@ -342,6 +349,7 @@ function TwoFactorCard({ me, reload }: { me: Me; reload: () => void }) {
 }
 
 function PasswordCard({ me }: { me: Me }) {
+  const t = useT();
   const toast = useToast();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
@@ -355,7 +363,11 @@ function PasswordCard({ me }: { me: Me }) {
     setErrors({});
     try {
       await sendPasswordReset(me.email);
-      toast.show({ title: 'Reset link sent', description: `Check ${me.email}.`, duration: 4000 });
+      toast.show({
+        title: t('settings.account.resetSent'),
+        description: t('settings.account.checkEmail', { email: me.email }),
+        duration: 4000,
+      });
     } catch (e) {
       setErrors({ link: errorText(e) });
     } finally {
@@ -363,8 +375,8 @@ function PasswordCard({ me }: { me: Me }) {
     }
   };
   const submit = async () => {
-    if (!current) return setErrors({ current: 'Enter your current password.' });
-    if (!next) return setErrors({ next: 'Enter a new password.' });
+    if (!current) return setErrors({ current: t('settings.account.enterCurrent') });
+    if (!next) return setErrors({ next: t('settings.account.enterNew') });
     setBusy(true);
     setErrors({});
     try {
@@ -376,8 +388,8 @@ function PasswordCard({ me }: { me: Me }) {
       setCurrent('');
       setNext('');
       toast.show({
-        title: 'Password changed',
-        description: others ? 'Your other devices were signed out.' : undefined,
+        title: t('settings.account.passwordChanged'),
+        description: others ? t('settings.account.othersSignedOut') : undefined,
         duration: 4000,
       });
     } catch (e) {
@@ -392,26 +404,26 @@ function PasswordCard({ me }: { me: Me }) {
   return (
     <Card
       id="us-password"
-      title="Password"
-      description="Choose a strong password you don't use anywhere else."
+      title={t('settings.account.passwordTitle')}
+      description={t('settings.account.passwordDesc')}
     >
       <form
         className="us-stack"
-        aria-label="Change password"
+        aria-label={t('settings.account.changePasswordAria')}
         onSubmit={(e) => {
           e.preventDefault();
           void submit();
         }}
       >
         <PasswordInput
-          label="Current password"
+          label={t('settings.account.currentPassword')}
           value={current}
           onChange={(e) => setCurrent(e.target.value)}
           error={errors.current}
           autoComplete="current-password"
         />
         <PasswordInput
-          label="New password"
+          label={t('settings.account.newPassword')}
           value={next}
           onChange={(e) => setNext(e.target.value)}
           error={errors.next}
@@ -419,14 +431,14 @@ function PasswordCard({ me }: { me: Me }) {
           autoComplete="new-password"
         />
         <Switch
-          label="Sign out my other devices"
-          description="Ends every other session and trusted device. This device stays signed in."
+          label={t('settings.account.signOutOthers')}
+          description={t('settings.account.signOutOthersDesc')}
           checked={others}
           onChange={(e) => setOthers(e.target.checked)}
         />
         <div className="us-actions">
           <Button type="submit" loading={busy}>
-            Change password
+            {t('settings.account.changePassword')}
           </Button>
           <Button
             variant="secondary"
@@ -435,11 +447,11 @@ function PasswordCard({ me }: { me: Me }) {
             disabled={!me.email}
             onClick={() => void sendLink()}
           >
-            Email me a reset link
+            {t('settings.account.emailReset')}
           </Button>
         </div>
         {errors.link && (
-          <Notice variant="danger" title="Couldn't send the link">
+          <Notice variant="danger" title={t('settings.account.sendLinkError')}>
             {errors.link}
           </Notice>
         )}
@@ -449,6 +461,7 @@ function PasswordCard({ me }: { me: Me }) {
 }
 
 function IdentityCard({ me, reload }: { me: Me; reload: () => void }) {
+  const t = useT();
   const [reveal, setReveal] = useState(false);
   const [editName, setEditName] = useState(false);
   const [editUser, setEditUser] = useState(false);
@@ -471,7 +484,7 @@ function IdentityCard({ me, reload }: { me: Me; reload: () => void }) {
     (_m, a: string, b: string) => `${a}${'*'.repeat(6)}${b}`,
   );
   return (
-    <Card id="us-identity" title="Account">
+    <Card id="us-identity" title={t('settings.account.identityTitle')}>
       <div className="us-account-head">
         <div
           className="us-account-banner"
@@ -481,26 +494,28 @@ function IdentityCard({ me, reload }: { me: Me; reload: () => void }) {
           }
         />
         <Avatar
-          name={me.global_name || me.username || 'You'}
+          name={me.global_name || me.username || t('settings.account.you')}
           src={avatar}
           size={80}
           className="us-account-avatar"
         />
       </div>
       <dl>
-        <Field label="Username">
+        <Field label={t('settings.account.username')}>
           <span>{me.username ?? ''}</span>{' '}
           <Button variant="link" size="sm" onClick={() => setEditUser(true)}>
-            Edit<span className="us-sr"> username</span>
+            {t('settings.account.edit')}
+            <span className="us-sr"> {t('settings.account.usernameSr')}</span>
           </Button>
         </Field>
-        <Field label="Display name">
-          <span>{me.global_name || me.display_name || 'Not set'}</span>{' '}
+        <Field label={t('settings.account.displayName')}>
+          <span>{me.global_name || me.display_name || t('settings.account.notSet')}</span>{' '}
           <Button variant="link" size="sm" onClick={() => setEditName(true)}>
-            Edit<span className="us-sr"> display name</span>
+            {t('settings.account.edit')}
+            <span className="us-sr"> {t('settings.account.displayNameSr')}</span>
           </Button>
         </Field>
-        <Field label="Email">
+        <Field label={t('settings.account.email')}>
           <span>{reveal ? email : masked}</span>{' '}
           <Button
             variant="link"
@@ -508,13 +523,13 @@ function IdentityCard({ me, reload }: { me: Me; reload: () => void }) {
             aria-pressed={reveal}
             onClick={() => setReveal((r) => !r)}
           >
-            {reveal ? 'Hide' : 'Reveal'}
+            {reveal ? t('settings.account.hide') : t('settings.account.reveal')}
           </Button>{' '}
           <Button variant="link" size="sm" onClick={() => setChanging(true)}>
-            Change email
+            {t('settings.account.changeEmail')}
           </Button>
           <span className="us-badge" data-tone={me.verified ? 'good' : 'bad'}>
-            {me.verified ? 'Verified' : 'Not verified'}
+            {me.verified ? t('settings.account.verified') : t('settings.account.notVerified')}
           </span>
         </Field>
       </dl>
@@ -526,12 +541,12 @@ function IdentityCard({ me, reload }: { me: Me; reload: () => void }) {
             disabled={sent === 'sent'}
             onClick={() => void resend()}
           >
-            Resend verification email
+            {t('settings.account.resend')}
           </Button>
           <span role="status" className="us-muted">
-            {sent === 'sent' && 'Check your inbox for the link.'}
-            {sent === 'wait' && 'A link was sent a moment ago. Try again in a minute.'}
-            {sent === 'error' && "We couldn't send the link. Try again in a moment."}
+            {sent === 'sent' && t('settings.account.resendSent')}
+            {sent === 'wait' && t('settings.account.resendWait')}
+            {sent === 'error' && t('settings.account.resendError')}
           </span>
         </div>
       )}
@@ -558,10 +573,11 @@ function IdentityCard({ me, reload }: { me: Me; reload: () => void }) {
 }
 
 export function AccountSection({ me }: { me: Resource<Me>; onSignedOut: () => void }) {
+  const t = useT();
   return (
     <>
-      <SectionTitle>My Account</SectionTitle>
-      <Loaded res={me} what="your account">
+      <SectionTitle>{t('settings.account.title')}</SectionTitle>
+      <Loaded res={me} what={t('settings.account.whatAccount')}>
         {(m) => (
           <>
             <IdentityCard me={m} reload={me.reload} />
@@ -570,13 +586,10 @@ export function AccountSection({ me }: { me: Resource<Me>; onSignedOut: () => vo
             <PasskeysCard />
             <Card
               id="us-removal"
-              title="Account removal"
-              description="Deleting your account is permanent: your messages stay in the servers they were posted in, and you need a new invite to return."
+              title={t('settings.account.removalTitle')}
+              description={t('settings.account.removalDesc')}
             >
-              <Unavailable>
-                The server cannot delete accounts yet (it needs the deletion process and a data
-                scrub). Ask a server owner or the staff to remove your account in the meantime.
-              </Unavailable>
+              <Unavailable>{t('settings.account.removalUnavailable')}</Unavailable>
             </Card>
           </>
         )}

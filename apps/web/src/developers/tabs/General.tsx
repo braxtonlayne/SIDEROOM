@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { useRef, useState } from 'react';
 import { AppIcon } from '../Applications';
 import { errorText } from '../api';
+import { t as translate, useT } from '../../i18n';
 import { useDeleteApp, usePatchApp } from '../hooks';
 import { policyUrlError } from '../oauth';
 import type { DevApp } from '../types';
@@ -14,12 +15,13 @@ function readDataUri(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(String(r.result));
-    r.onerror = () => reject(new Error('Could not read that file.'));
+    r.onerror = () => reject(new Error(translate('developers.general.readFailed')));
     r.readAsDataURL(file);
   });
 }
 
 export function GeneralTab({ app }: { app: DevApp }) {
+  const t = useT();
   const toast = useToast();
   const navigate = useNavigate();
   const patch = usePatchApp(app.id);
@@ -36,7 +38,7 @@ export function GeneralTab({ app }: { app: DevApp }) {
 
   const trimmed = name.trim();
   const nameError =
-    trimmed.length < 2 || trimmed.length > 32 ? 'Use 2 to 32 characters.' : undefined;
+    trimmed.length < 2 || trimmed.length > 32 ? t('developers.general.nameError') : undefined;
   const privacyError = policyUrlError(privacy) ?? undefined;
   const termsError = policyUrlError(terms) ?? undefined;
   const dirty =
@@ -50,18 +52,18 @@ export function GeneralTab({ app }: { app: DevApp }) {
   const pick = async (f: File | undefined) => {
     if (!f) return;
     if (!/\.(png|jpe?g|gif|webp)$/i.test(f.name)) {
-      setIconError(`${f.name} is not a PNG, JPEG, GIF or WebP image.`);
+      setIconError(t('developers.general.iconBadType', { name: f.name }));
       return;
     }
     if (f.size > MAX_ICON_BYTES) {
-      setIconError(`${f.name} is larger than 2 MB.`);
+      setIconError(t('developers.general.iconTooLarge', { name: f.name }));
       return;
     }
     try {
       setIcon(await readDataUri(f));
       setIconError(null);
     } catch (e) {
-      setIconError(e instanceof Error ? e.message : 'Could not read that file.');
+      setIconError(e instanceof Error ? e.message : t('developers.general.readFailed'));
     }
   };
 
@@ -82,9 +84,9 @@ export function GeneralTab({ app }: { app: DevApp }) {
       {
         onSuccess: () => {
           setIcon(undefined);
-          toast.show({ title: 'Saved.', variant: 'success' });
+          toast.show({ title: t('developers.general.saved'), variant: 'success' });
         },
-        onError: (e) => setError(errorText(e, 'Could not save your changes.')),
+        onError: (e) => setError(errorText(e, t('developers.general.saveFailed'))),
       },
     );
   };
@@ -93,7 +95,7 @@ export function GeneralTab({ app }: { app: DevApp }) {
     <div className="dev-stack">
       <section className="dev-card" aria-labelledby="dev-general-h">
         <h2 id="dev-general-h" className="dev-card-title">
-          General information
+          {t('developers.general.heading')}
         </h2>
         <div className="dev-icon-row">
           {shownIcon?.startsWith('data:') ? (
@@ -103,11 +105,11 @@ export function GeneralTab({ app }: { app: DevApp }) {
           )}
           <div className="dev-actions">
             <Button variant="secondary" onClick={() => file.current?.click()}>
-              {shownIcon ? 'Change icon' : 'Upload icon'}
+              {shownIcon ? t('developers.general.changeIcon') : t('developers.general.uploadIcon')}
             </Button>
             {shownIcon && (
               <Button variant="ghost" onClick={() => setIcon(null)}>
-                Remove icon
+                {t('developers.general.removeIcon')}
               </Button>
             )}
           </div>
@@ -116,7 +118,7 @@ export function GeneralTab({ app }: { app: DevApp }) {
             type="file"
             hidden
             accept=".png,.jpg,.jpeg,.gif,.webp"
-            aria-label="Icon file"
+            aria-label={t('developers.general.iconFile')}
             onChange={(e) => {
               void pick(e.target.files?.[0]);
               e.target.value = '';
@@ -129,37 +131,37 @@ export function GeneralTab({ app }: { app: DevApp }) {
           </p>
         )}
         <TextInput
-          label="Name"
-          hint="Also the display name of the bot."
+          label={t('developers.general.nameLabel')}
+          hint={t('developers.general.nameHint')}
           value={name}
           maxLength={40}
           onChange={(e) => setName(e.target.value)}
           error={nameError}
         />
         <TextArea
-          label="Description"
-          hint="Shown on the authorize screen and in the app directory."
+          label={t('developers.general.descriptionLabel')}
+          hint={t('developers.general.descriptionHint')}
           value={description}
           maxLength={400}
           onChange={(e) => setDescription(e.target.value)}
         />
         <TextInput
-          label="Privacy policy URL"
-          placeholder="https://example.com/privacy"
+          label={t('developers.general.privacyLabel')}
+          placeholder={t('developers.general.privacyPlaceholder')}
           value={privacy}
           onChange={(e) => setPrivacy(e.target.value)}
           error={privacyError}
           inputMode="url"
         />
         <TextInput
-          label="Terms of service URL"
-          placeholder="https://example.com/terms"
+          label={t('developers.general.termsLabel')}
+          placeholder={t('developers.general.termsPlaceholder')}
           value={terms}
           onChange={(e) => setTerms(e.target.value)}
           error={termsError}
           inputMode="url"
         />
-        <TextInput label="Application ID" value={app.id} readOnly />
+        <TextInput label={t('developers.general.applicationId')} value={app.id} readOnly />
         {error && (
           <p className="dev-error" role="alert">
             {error}
@@ -171,18 +173,18 @@ export function GeneralTab({ app }: { app: DevApp }) {
             loading={patch.isPending}
             onClick={save}
           >
-            Save changes
+            {t('developers.general.saveChanges')}
           </Button>
         </div>
       </section>
 
       <section className="dev-card" aria-labelledby="dev-public-h">
         <h2 id="dev-public-h" className="dev-card-title">
-          Who can add the bot
+          {t('developers.general.whoHeading')}
         </h2>
         <Switch
-          label="Public bot"
-          description="Anyone can add the bot to a server they manage. Turn off to keep it to you."
+          label={t('developers.general.publicBot')}
+          description={t('developers.general.publicBotDescription')}
           checked={app.bot_public}
           disabled={patch.isPending}
           onChange={(e) =>
@@ -196,24 +198,21 @@ export function GeneralTab({ app }: { app: DevApp }) {
 
       <section className="dev-card dev-danger" aria-labelledby="dev-delete-h">
         <h2 id="dev-delete-h" className="dev-card-title">
-          Delete application
+          {t('developers.general.deleteHeading')}
         </h2>
-        <p className="dev-muted">
-          Deleting removes the bot from every server and revokes its token, every authorization and
-          all commands. This cannot be undone.
-        </p>
+        <p className="dev-muted">{t('developers.general.deleteWarning')}</p>
         <div className="dev-actions">
           <Button variant="danger" onClick={() => setConfirmDelete(true)}>
-            Delete application
+            {t('developers.general.deleteHeading')}
           </Button>
         </div>
       </section>
       <PasswordConfirm
         open={confirmDelete}
-        title={`Delete ${app.name}?`}
-        description="The bot is removed from every server and everyone who authorized the app loses that access."
+        title={t('developers.general.deleteTitle', { name: app.name })}
+        description={t('developers.general.deleteDescription')}
         requireText={app.name}
-        confirmLabel="Delete application"
+        confirmLabel={t('developers.general.deleteHeading')}
         onCancel={() => setConfirmDelete(false)}
         onSubmit={async (password) => {
           await del.mutateAsync({ appId: app.id, password });

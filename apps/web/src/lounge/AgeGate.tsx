@@ -11,6 +11,7 @@ import { Button, Icon } from '@sideroom/ui';
 import { useCallback, useState } from 'react';
 import { create } from 'zustand';
 import { apiFetch } from '../api/client';
+import { useT } from '../i18n';
 import { useStore } from '../store';
 
 export type AgeAnswer = 'yes' | 'no' | null;
@@ -42,7 +43,7 @@ export const postAgeGate = (over18: boolean) =>
 
 /** The question and its two buttons. */
 export function AgeConfirmPrompt({
-  title = 'This content is age-restricted',
+  title,
   busy,
   error,
   onAnswer,
@@ -52,11 +53,12 @@ export function AgeConfirmPrompt({
   error?: string | null;
   onAnswer: (over18: boolean) => void;
 }) {
+  const t = useT();
   return (
     <div className="lng-agegate" role="group" aria-labelledby="agegate-h">
       <Icon name="alert" size={24} />
-      <h2 id="agegate-h">{title}</h2>
-      <p>Are you 18 or older? Your answer is saved to your account.</p>
+      <h2 id="agegate-h">{title ?? t('lounge.ageGate.defaultTitle')}</h2>
+      <p>{t('lounge.ageGate.question')}</p>
       {error && (
         <p role="alert" className="lng-failed">
           {error}
@@ -64,10 +66,10 @@ export function AgeConfirmPrompt({
       )}
       <div className="lng-agegate-actions">
         <Button variant="ghost" disabled={busy} onClick={() => onAnswer(false)}>
-          No, take me back
+          {t('lounge.ageGate.no')}
         </Button>
         <Button loading={busy} onClick={() => onAnswer(true)}>
-          Yes, I am 18 or older
+          {t('lounge.ageGate.yes')}
         </Button>
       </div>
     </div>
@@ -92,6 +94,7 @@ export type GateState = 'open' | 'ask' | 'blocked' | 'wait';
  * `ask` before any answer, `blocked` after a no.
  */
 export function useAgeGate(restricted: boolean | undefined) {
+  const t = useT();
   const userId = useStore((s) => s.currentUserId);
   const answer = useAgeAnswers((s) => s.answers[userId ?? ''] ?? readAgeAnswer(userId));
   const [busy, setBusy] = useState(false);
@@ -108,13 +111,13 @@ export function useAgeGate(restricted: boolean | undefined) {
         useAgeAnswers.setState((s) => ({ answers: { ...s.answers, [userId ?? '']: a } }));
         return over18;
       } catch {
-        setError('Could not save your answer. Try again.');
+        setError(t('lounge.ageGate.saveFailed'));
         return null;
       } finally {
         setBusy(false);
       }
     },
-    [userId],
+    [userId, t],
   );
 
   // The saved answer is keyed by account, so a restricted channel waits until the account is known (a page

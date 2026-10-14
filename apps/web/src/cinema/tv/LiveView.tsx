@@ -5,6 +5,7 @@
 import { Button, EmptyState, Icon, Spinner } from '@sideroom/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useT } from '../../i18n';
 import { formatClock } from '../player/model';
 import { PauseGlyph, PlayGlyph, VolumeGlyph, Fullscreen, ExitFullscreen } from '../player/icons';
 import { Feedback } from '../player/Overlays';
@@ -80,6 +81,7 @@ export function LiveView({
   onSwitch,
   onExit,
 }: LiveViewProps) {
+  const tr = useT();
   const s = playerSession();
   const rootRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -218,8 +220,8 @@ export function LiveView({
     const w = win;
     if (w) s.seek(Math.max(w.start, w.end - 2), false);
     void s.play();
-    s.say('Back to live');
-  }, [s, win]);
+    s.say(tr('cinema.liveView.backToLiveSay'));
+  }, [s, win, tr]);
 
   /* ---- stalls and reconnects ---- */
   const gaveUp = reconnects >= MAX_RECONNECTS;
@@ -341,10 +343,22 @@ export function LiveView({
     onExit();
   };
   const frameReady = !!info && status !== 'idle';
-  const title = now?.title ?? info?.title ?? 'Live TV';
-  const rootLabel = `Live TV: ${channel ? `channel ${channel.number} ${channel.call_sign}` : 'channel'}`;
+  const title = now?.title ?? info?.title ?? tr('cinema.liveView.liveTv');
+  const rootLabel = channel
+    ? tr('cinema.liveView.rootLabelChannel', {
+        number: channel.number,
+        callSign: channel.call_sign,
+      })
+    : tr('cinema.liveView.rootLabelNone');
   const volPct = Math.round((muted ? 0 : volume) * 100);
-  const failed = failure ?? (!onSlate && (status === 'error' || gaveUp) ? STOPPED : null);
+  const failed =
+    failure ??
+    (!onSlate && (status === 'error' || gaveUp)
+      ? {
+          title: tr('cinema.liveView.droppedTitle'),
+          description: tr('cinema.liveView.droppedBody'),
+        }
+      : null);
   const winSpan = win ? win.end - win.start : 0;
   const crtClass = useMemo(() => (prefs.crt ? 'ltv-crt-on' : ''), [prefs.crt]);
 
@@ -373,13 +387,23 @@ export function LiveView({
       {onSlate && now && <Slate title={now.title} />}
 
       <div className="cpl-top">
-        <button type="button" className="cpl-btn" aria-label="Back to the guide" onClick={leave}>
+        <button
+          type="button"
+          className="cpl-btn"
+          aria-label={tr('cinema.liveView.backToGuide')}
+          onClick={leave}
+        >
           <Icon name="close" size={20} />
         </button>
         <div className="cpl-titleblock">
           <h1 className="cpl-title">{title}</h1>
           <p className="cpl-subtitle">
-            {channel ? `Channel ${channel.number} · ${channel.call_sign}` : 'Live TV'}
+            {channel
+              ? tr('cinema.liveWatch.channelLabel', {
+                  number: channel.number,
+                  callSign: channel.call_sign,
+                })
+              : tr('cinema.liveView.liveTv')}
           </p>
         </div>
       </div>
@@ -398,7 +422,7 @@ export function LiveView({
                   onRetune();
                 }}
               >
-                Try again
+                {tr('cinema.liveView.tryAgain')}
               </Button>
             }
           />
@@ -420,10 +444,12 @@ export function LiveView({
         <div className="cpl-center">
           {reconnecting ? (
             <p role="status" className="ltv-reconnect">
-              Signal lost. Reconnecting…
+              {tr('cinema.liveView.reconnecting')}
             </p>
           ) : (
-            <Spinner label={tuning ? 'Tuning' : 'Buffering'} />
+            <Spinner
+              label={tuning ? tr('cinema.liveView.tuning') : tr('cinema.liveView.buffering')}
+            />
           )}
         </div>
       )}
@@ -447,7 +473,7 @@ export function LiveView({
             <button
               type="button"
               className="cpl-btn"
-              aria-label={playing ? 'Pause' : 'Play'}
+              aria-label={playing ? tr('cinema.liveView.pause') : tr('cinema.liveView.play')}
               onClick={() => s.toggle()}
             >
               {playing ? <PauseGlyph /> : <PlayGlyph />}
@@ -455,7 +481,7 @@ export function LiveView({
             <button
               type="button"
               className="cpl-btn"
-              aria-label="Channel down"
+              aria-label={tr('cinema.liveView.channelDown')}
               aria-keyshortcuts="ArrowDown"
               onClick={() => step(-1)}
             >
@@ -464,7 +490,7 @@ export function LiveView({
             <button
               type="button"
               className="cpl-btn"
-              aria-label="Channel up"
+              aria-label={tr('cinema.liveView.channelUp')}
               aria-keyshortcuts="ArrowUp"
               onClick={() => step(1)}
             >
@@ -473,7 +499,7 @@ export function LiveView({
             <button
               type="button"
               className="cpl-btn"
-              aria-label={muted ? 'Unmute' : 'Mute'}
+              aria-label={muted ? tr('cinema.liveView.unmute') : tr('cinema.liveView.mute')}
               onClick={() => s.toggleMute()}
             >
               <VolumeGlyph muted={muted || volume === 0} level={volume} />
@@ -481,7 +507,7 @@ export function LiveView({
             <input
               type="range"
               className="ltv-volume"
-              aria-label="Volume"
+              aria-label={tr('cinema.liveView.volume')}
               min={0}
               max={100}
               value={volPct}
@@ -489,23 +515,25 @@ export function LiveView({
             />
             {live ? (
               <span className="ltv-live" data-testid="live-badge">
-                <span aria-hidden="true">●</span> LIVE
+                <span aria-hidden="true">●</span> {tr('cinema.liveView.live')}
               </span>
             ) : (
               <button type="button" className="ltv-golive" onClick={goLive}>
-                Back to live
-                <span className="cpl-sr-only">, {formatClock(behind)} behind</span>
+                {tr('cinema.liveView.backToLive')}
+                <span className="cpl-sr-only">
+                  {tr('cinema.liveView.behind', { time: formatClock(behind) })}
+                </span>
               </button>
             )}
             {dvr && win && (
               <input
                 type="range"
                 className="ltv-dvr"
-                aria-label="Rewind within the live window"
+                aria-label={tr('cinema.liveView.rewind')}
                 aria-valuetext={
                   behind <= LIVE_EDGE_LABEL_S
-                    ? 'At the live edge'
-                    : `${formatClock(behind)} behind live`
+                    ? tr('cinema.liveView.atLiveEdge')
+                    : tr('cinema.liveView.behindLive', { time: formatClock(behind) })
                 }
                 min={Math.floor(win.start)}
                 max={Math.floor(win.end)}
@@ -527,12 +555,12 @@ export function LiveView({
               aria-keyshortcuts="g"
               onClick={() => setGuideOpen((o) => !o)}
             >
-              Guide
+              {tr('cinema.liveView.guide')}
             </button>
             <button
               type="button"
               className="cpl-btn"
-              aria-label="Live settings"
+              aria-label={tr('cinema.liveView.settings')}
               aria-expanded={settingsOpen}
               onClick={() => setSettingsOpen((o) => !o)}
             >
@@ -542,7 +570,11 @@ export function LiveView({
               <button
                 type="button"
                 className="cpl-btn"
-                aria-label={fullscreen ? 'Exit full screen' : 'Full screen'}
+                aria-label={
+                  fullscreen
+                    ? tr('cinema.liveView.exitFullscreen')
+                    : tr('cinema.liveView.fullscreen')
+                }
                 onClick={toggleFullscreen}
               >
                 {fullscreen ? <ExitFullscreen /> : <Fullscreen />}
@@ -550,14 +582,14 @@ export function LiveView({
             )}
           </div>
           {settingsOpen && (
-            <div className="ltv-settings" role="group" aria-label="Live settings">
+            <div className="ltv-settings" role="group" aria-label={tr('cinema.liveView.settings')}>
               <label>
                 <input
                   type="checkbox"
                   checked={prefs.crt}
                   onChange={(e) => setLivePrefs({ crt: e.target.checked })}
                 />
-                CRT filter
+                {tr('cinema.liveView.crt')}
               </label>
               <label>
                 <input
@@ -565,7 +597,7 @@ export function LiveView({
                   checked={prefs.tuningStatic}
                   onChange={(e) => setLivePrefs({ tuningStatic: e.target.checked })}
                 />
-                Static between channels
+                {tr('cinema.liveView.staticBetween')}
               </label>
               <label>
                 <input
@@ -574,12 +606,12 @@ export function LiveView({
                   disabled={!prefs.tuningStatic}
                   onChange={(e) => setLivePrefs({ tuningSound: e.target.checked })}
                 />
-                Static sound
+                {tr('cinema.liveView.staticSound')}
               </label>
               <p className="ltv-settings-note">
                 {dvr
-                  ? `This channel keeps ${formatClock(winSpan)} to rewind.`
-                  : 'This channel has no rewind window; pause and Back to live still work.'}
+                  ? tr('cinema.liveView.keeps', { time: formatClock(winSpan) })
+                  : tr('cinema.liveView.noRewind')}
               </p>
             </div>
           )}
@@ -590,7 +622,3 @@ export function LiveView({
 }
 
 const LIVE_EDGE_LABEL_S = 12;
-const STOPPED = {
-  title: 'The signal dropped',
-  description: 'We could not keep this channel playing. Check your connection and try again.',
-};

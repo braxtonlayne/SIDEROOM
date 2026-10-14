@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useT } from '../../i18n';
 import { EMOJI_CATEGORIES } from './emoji';
 
 /**
@@ -6,6 +7,7 @@ import { EMOJI_CATEGORIES } from './emoji';
  * Server sections, skin tones, favourites and custom emoji are follow-ups (see open questions).
  */
 export function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
+  const t = useT();
   const [q, setQ] = useState('');
   const groups = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -19,14 +21,14 @@ export function EmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
       <input
         type="search"
         className="lng-emoji-search"
-        placeholder="Find the perfect emoji"
-        aria-label="Search emoji"
+        placeholder={t('lounge.emojiPicker.placeholder')}
+        aria-label={t('lounge.emojiPicker.search')}
         value={q}
         onChange={(e) => setQ(e.target.value)}
         data-autofocus
       />
       <div className="lng-emoji-scroll">
-        {groups.length === 0 && <p className="lng-muted">No emoji found.</p>}
+        {groups.length === 0 && <p className="lng-muted">{t('lounge.emojiPicker.none')}</p>}
         {groups.map((g) => (
           <section key={g.name} aria-label={g.name}>
             <h3 className="lng-emoji-h">{g.name}</h3>

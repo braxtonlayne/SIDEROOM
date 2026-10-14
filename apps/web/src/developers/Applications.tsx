@@ -3,17 +3,23 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { ApiError } from '../api/client';
+import { t, useT, type MessageKey } from '../i18n';
 import { cdnUrl } from '../store';
 import { createApp, errorText, isUnavailable, keys, listApps } from './api';
 import { LoadError, Loading, NotAvailable, SecretDialog, type Secret } from './ui';
 import type { DevApp, ReleaseState } from './types';
 
-export const STATE_LABEL: Record<ReleaseState, string> = {
-  development: 'In development',
-  in_review: 'In review',
-  released: 'Released',
-  suspended: 'Suspended',
-};
+const STATE_LABEL_KEY = {
+  development: 'developers.applications.stateDevelopment',
+  in_review: 'developers.applications.stateInReview',
+  released: 'developers.applications.stateReleased',
+  suspended: 'developers.applications.stateSuspended',
+} as const satisfies Record<ReleaseState, MessageKey>;
+
+/** Resolved at call time (the locale is not known at module load). */
+export function stateLabel(state: ReleaseState): string {
+  return t(STATE_LABEL_KEY[state]);
+}
 const STATE_VARIANT = {
   development: 'neutral',
   in_review: 'warning',
@@ -22,7 +28,8 @@ const STATE_VARIANT = {
 } as const;
 
 export function StateBadge({ state }: { state: ReleaseState }) {
-  return <Badge variant={STATE_VARIANT[state]}>{STATE_LABEL[state]}</Badge>;
+  const tt = useT();
+  return <Badge variant={STATE_VARIANT[state]}>{tt(STATE_LABEL_KEY[state])}</Badge>;
 }
 
 export function AppIcon({
@@ -47,6 +54,7 @@ export function AppIcon({
 }
 
 function NewApplicationModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const tt = useT();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const toast = useToast();
@@ -58,23 +66,26 @@ function NewApplicationModal({ open, onClose }: { open: boolean; onClose: () => 
   const trimmed = name.trim();
   const nameError =
     name !== '' && (trimmed.length < 2 || trimmed.length > 32)
-      ? 'Use 2 to 32 characters.'
+      ? tt('developers.applications.nameError')
       : undefined;
 
   const create = useMutation({
     mutationFn: () => createApp(trimmed),
     onSuccess: (r) => {
       void qc.invalidateQueries({ queryKey: keys.apps });
-      toast.show({ title: `Created ${r.application.name}.`, variant: 'success' });
+      toast.show({
+        title: tt('developers.applications.created', { name: r.application.name }),
+        variant: 'success',
+      });
       setCreated({
         id: r.application.id,
         secrets: [
-          { label: 'Client secret', value: r.client_secret },
-          { label: 'Bot token', value: r.bot_token },
+          { label: tt('developers.applications.clientSecret'), value: r.client_secret },
+          { label: tt('developers.applications.botToken'), value: r.bot_token },
         ],
       });
     },
-    onError: (e) => setError(errorText(e, 'Could not create the application.')),
+    onError: (e) => setError(errorText(e, tt('developers.applications.createFailed'))),
   });
   const reset = () => {
     setName('');
@@ -95,12 +106,12 @@ function NewApplicationModal({ open, onClose }: { open: boolean; onClose: () => 
       <Modal
         open={open && created === null}
         onClose={reset}
-        title="New application"
-        description="Give it a name people will recognise. You can change everything else later."
+        title={tt('developers.applications.newTitle')}
+        description={tt('developers.applications.newDescription')}
         footer={
           <>
             <Button variant="ghost" onClick={reset}>
-              Cancel
+              {tt('developers.applications.cancel')}
             </Button>
             <Button
               loading={create.isPending}
@@ -110,7 +121,7 @@ function NewApplicationModal({ open, onClose }: { open: boolean; onClose: () => 
                 create.mutate();
               }}
             >
-              Create
+              {tt('developers.applications.create')}
             </Button>
           </>
         }
@@ -122,7 +133,7 @@ function NewApplicationModal({ open, onClose }: { open: boolean; onClose: () => 
           }}
         >
           <TextInput
-            label="Name"
+            label={tt('developers.applications.nameLabel')}
             value={name}
             maxLength={40}
             onChange={(e) => setName(e.target.value)}
@@ -130,7 +141,7 @@ function NewApplicationModal({ open, onClose }: { open: boolean; onClose: () => 
             autoComplete="off"
           />
           <Checkbox
-            label="I agree to the developer terms and will keep my secrets private."
+            label={tt('developers.applications.agree')}
             checked={agree}
             onChange={(e) => setAgree(e.target.checked)}
           />
@@ -142,8 +153,8 @@ function NewApplicationModal({ open, onClose }: { open: boolean; onClose: () => 
         </form>
       </Modal>
       <SecretDialog
-        title="Save your credentials"
-        description="Your app and its bot are ready. These two values are shown only now."
+        title={tt('developers.applications.saveTitle')}
+        description={tt('developers.applications.saveDescription')}
         secrets={created?.secrets ?? null}
         onClose={finish}
       />
@@ -152,50 +163,54 @@ function NewApplicationModal({ open, onClose }: { open: boolean; onClose: () => 
 }
 
 export function ApplicationsPage() {
+  const tt = useT();
   const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
   const apps = useQuery({ queryKey: keys.apps, queryFn: listApps });
 
   let body;
-  if (apps.isPending) body = <Loading what="your applications" />;
+  if (apps.isPending) body = <Loading what={tt('developers.applications.yourApplications')} />;
   else if (apps.error instanceof ApiError && apps.error.status === 401)
     body = (
       <EmptyState
-        title="Sign in to build apps"
-        description="Applications belong to your account."
+        title={tt('developers.applications.signInTitle')}
+        description={tt('developers.applications.signInDescription')}
         action={
           <Button
             onClick={() =>
               void navigate({ to: '/login', search: { next: '/developers/applications' } })
             }
           >
-            Log in
+            {tt('developers.applications.logIn')}
           </Button>
         }
       />
     );
   else if (isUnavailable(apps.error))
-    body = (
-      <NotAvailable>
-        This server does not have the developer platform switched on yet, so applications cannot be
-        created or listed. The documentation is still available.
-      </NotAvailable>
-    );
+    body = <NotAvailable>{tt('developers.applications.notAvailable')}</NotAvailable>;
   else if (apps.error)
     body = (
-      <LoadError what="your applications" error={apps.error} onRetry={() => void apps.refetch()} />
+      <LoadError
+        what={tt('developers.applications.yourApplications')}
+        error={apps.error}
+        onRetry={() => void apps.refetch()}
+      />
     );
   else if (apps.data.length === 0)
     body = (
       <EmptyState
-        title="No applications yet"
-        description="Create one to get an OAuth2 client, a bot user and slash commands."
-        action={<Button onClick={() => setCreating(true)}>New application</Button>}
+        title={tt('developers.applications.emptyTitle')}
+        description={tt('developers.applications.emptyDescription')}
+        action={
+          <Button onClick={() => setCreating(true)}>
+            {tt('developers.applications.newButton')}
+          </Button>
+        }
       />
     );
   else
     body = (
-      <ul className="dev-app-grid" aria-label="Applications">
+      <ul className="dev-app-grid" aria-label={tt('developers.applications.listLabel')}>
         {apps.data.map((a) => (
           <li key={a.id}>
             <Link
@@ -206,7 +221,9 @@ export function ApplicationsPage() {
               <AppIcon app={a} />
               <span className="dev-app-card-text">
                 <strong>{a.name}</strong>
-                <span className="dev-muted">Bot: {a.bot.username}</span>
+                <span className="dev-muted">
+                  {tt('developers.applications.botLine', { username: a.bot.username })}
+                </span>
               </span>
               <StateBadge state={a.release_state} />
             </Link>
@@ -219,9 +236,11 @@ export function ApplicationsPage() {
   return (
     <>
       <div className="dev-head">
-        <h1 className="dev-title">Applications</h1>
+        <h1 className="dev-title">{tt('developers.applications.heading')}</h1>
         {canCreate && apps.data && apps.data.length > 0 && (
-          <Button onClick={() => setCreating(true)}>New application</Button>
+          <Button onClick={() => setCreating(true)}>
+            {tt('developers.applications.newButton')}
+          </Button>
         )}
       </div>
       {body}

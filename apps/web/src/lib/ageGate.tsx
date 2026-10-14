@@ -17,6 +17,7 @@ import {
   type ReactNode,
 } from 'react';
 import { ApiError, apiPost } from '../api/client';
+import { useT } from '../i18n';
 
 /** Error code the API answers with when an account has not yet confirmed it is 18 or older. */
 export const AGE_CONFIRMATION_REQUIRED = 900011;
@@ -61,6 +62,7 @@ export function useOptionalAgeGate(): AgeGateApi | null {
 }
 
 export function AgeGateProvider({ children }: { children: ReactNode }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,7 +94,7 @@ export function AgeGateProvider({ children }: { children: ReactNode }) {
       if (over18) confirmed.current = true;
       settle(over18);
     } catch {
-      setError('We could not save your answer. Try again.');
+      setError(t('lib.ageGate.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -105,16 +107,16 @@ export function AgeGateProvider({ children }: { children: ReactNode }) {
       <Modal
         open={open}
         onClose={() => settle(false)}
-        title="Are you 18 or older?"
-        description="This title is for adults. We ask once and remember your answer."
+        title={t('lib.ageGate.title')}
+        description={t('lib.ageGate.description')}
         size="sm"
         footer={
           <>
             <Button variant="secondary" disabled={busy} onClick={() => void answer(false)}>
-              No
+              {t('lib.ageGate.no')}
             </Button>
             <Button disabled={busy} onClick={() => void answer(true)}>
-              Yes
+              {t('lib.ageGate.yes')}
             </Button>
           </>
         }

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { isUnavailable, listGrants, revokeGrant } from '../../../developers/api';
 import { scopeSentence } from '../../../developers/oauth';
 import type { OAuthGrant } from '../../../developers/types';
+import { useT } from '../../../i18n';
 import { cdnUrl } from '../../../store';
 import { errorText, useResource } from '../api';
 import { Card, fmtDate, Loaded, SectionTitle, Unavailable } from '../parts';
@@ -12,6 +13,7 @@ import { Card, fmtDate, Loaded, SectionTitle, Unavailable } from '../parts';
  * Deauthorize. When the server has no OAuth2 provider the card says so instead of showing a fake list.
  */
 export function AuthorizedAppsSection() {
+  const t = useT();
   const toast = useToast();
   const res = useResource(listGrants);
   const [target, setTarget] = useState<OAuthGrant | null>(null);
@@ -25,7 +27,10 @@ export function AuthorizedAppsSection() {
     try {
       await revokeGrant(target.id);
       res.setData((d) => d?.filter((x) => x.id !== target.id));
-      toast.show({ title: `${target.application.name} no longer has access`, duration: 3000 });
+      toast.show({
+        title: t('settings.authorizedApps.revoked', { name: target.application.name }),
+        duration: 3000,
+      });
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -36,22 +41,19 @@ export function AuthorizedAppsSection() {
 
   return (
     <>
-      <SectionTitle>Authorized Apps</SectionTitle>
+      <SectionTitle>{t('settings.authorizedApps.title')}</SectionTitle>
       <Card
         id="us-apps"
-        title="Apps with access to your account"
-        description="Apps you signed in to with SIDE ROOM, with the access they have. Remove one and it stops working at once."
+        title={t('settings.authorizedApps.cardTitle')}
+        description={t('settings.authorizedApps.cardDesc')}
       >
         {isUnavailable(res.error) ? (
-          <Unavailable>
-            This server cannot authorize third-party apps yet, so no app can have access to your
-            account. This list will appear once it can.
-          </Unavailable>
+          <Unavailable>{t('settings.authorizedApps.unavailable')}</Unavailable>
         ) : (
-          <Loaded res={res} what="authorized apps">
+          <Loaded res={res} what={t('settings.authorizedApps.what')}>
             {(rows) =>
               rows.length === 0 ? (
-                <p className="us-muted">You have not authorized any apps.</p>
+                <p className="us-muted">{t('settings.authorizedApps.empty')}</p>
               ) : (
                 <ul className="us-list">
                   {rows.map((g) => {
@@ -73,15 +75,25 @@ export function AuthorizedAppsSection() {
                             )}
                             {g.application.name}
                           </strong>
-                          <p className="us-muted">Authorized {fmtDate(g.created_at)}</p>
-                          <ul className="us-scope-list" aria-label={`${g.application.name} can`}>
+                          <p className="us-muted">
+                            {t('settings.authorizedApps.authorizedOn', {
+                              date: fmtDate(g.created_at),
+                            })}
+                          </p>
+                          <ul
+                            className="us-scope-list"
+                            aria-label={t('settings.authorizedApps.canAria', {
+                              name: g.application.name,
+                            })}
+                          >
                             {g.scopes.map((s) => (
                               <li key={s}>{scopeSentence(s)}</li>
                             ))}
                           </ul>
                         </div>
                         <Button variant="danger" size="sm" onClick={() => setTarget(g)}>
-                          Deauthorize<span className="us-sr"> {g.application.name}</span>
+                          {t('settings.authorizedApps.deauthorize')}
+                          <span className="us-sr"> {g.application.name}</span>
                         </Button>
                       </li>
                     );
@@ -92,7 +104,7 @@ export function AuthorizedAppsSection() {
           </Loaded>
         )}
         {error && (
-          <Notice variant="danger" title="Couldn't remove the app">
+          <Notice variant="danger" title={t('settings.authorizedApps.removeError')}>
             {error}
           </Notice>
         )}
@@ -100,9 +112,11 @@ export function AuthorizedAppsSection() {
       <ConfirmDialog
         open={target !== null}
         danger
-        title={`Deauthorize ${target?.application.name ?? 'app'}?`}
-        description="It loses the access you gave it and its tokens for your account stop working. You can authorize it again later."
-        confirmLabel="Deauthorize"
+        title={t('settings.authorizedApps.confirmTitle', {
+          name: target?.application.name ?? t('settings.authorizedApps.appFallback'),
+        })}
+        description={t('settings.authorizedApps.confirmDesc')}
+        confirmLabel={t('settings.authorizedApps.deauthorize')}
         loading={busy}
         onCancel={() => setTarget(null)}
         onConfirm={() => void deauthorize()}

@@ -11,6 +11,7 @@ import {
 } from '@sideroom/ui';
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import pkg from '../../../package.json';
+import { useT } from '../../i18n';
 import { ApiError } from '../../api/client';
 import { errorText, getMe, logout, useResource } from './api';
 import { USER_SETTINGS_SECTIONS, type UserSettingsSectionId } from './nav';
@@ -54,6 +55,7 @@ function Body({
   draft,
   setDraft,
 }: UserSettingsProps & { draft: UserPrefs; setDraft: Dispatch<SetStateAction<UserPrefs>> }) {
+  const t = useT();
   const toast = useToast();
   const saved = useSavedPrefs();
   const savePrefs = usePrefsStore((s) => s.save);
@@ -76,11 +78,11 @@ function Body({
   // Search picked a card: once its section is on screen, bring the card into view.
   useEffect(() => {
     if (!scrollTo) return;
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       document.getElementById(scrollTo)?.scrollIntoView?.({ block: 'start' });
       setScrollTo(null);
     }, 0);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [scrollTo, section]);
   const onSearchPick = (e: SettingsEntry) => {
     onSelect(e.section);
@@ -95,10 +97,10 @@ function Body({
     try {
       if (prefsDirty) savePrefs(draft);
       if (profile.dirty) await profile.save();
-      toast.show({ title: 'Settings saved', duration: 2000 });
+      toast.show({ title: t('settings.saved'), duration: 2000 });
     } catch (e) {
       toast.show({
-        title: "Couldn't save everything",
+        title: t('settings.userSettings.saveError'),
         description: e instanceof Error ? e.message : undefined,
         variant: 'danger',
       });
@@ -129,7 +131,7 @@ function Body({
     <>
       <SettingsLayout
         inline={inline}
-        title="User Settings"
+        title={t('settings.group.user')}
         sections={USER_SETTINGS_SECTIONS.map((s) => ({ id: s.id, label: s.label, group: s.group }))}
         activeId={section}
         onSelect={(id) => onSelect(id as UserSettingsSectionId)}
@@ -142,10 +144,10 @@ function Body({
         sidebarFooter={
           <>
             <Button variant="secondary" onClick={() => setNews(true)}>
-              What&apos;s New
+              {t('settings.userSettings.whatsNew')}
             </Button>
             <Button variant="danger" className="us-logout" onClick={() => setConfirmOut(true)}>
-              Log Out
+              {t('settings.userSettings.logOut')}
             </Button>
             <p className="us-version">SIDE ROOM {pkg.version}</p>
           </>
@@ -168,7 +170,12 @@ function Body({
         {section === 'language' && <LanguageSection {...prefsProps} />}
         {section === 'advanced' && <AdvancedSection {...prefsProps} />}
       </SettingsLayout>
-      <Modal open={news} onClose={() => setNews(false)} title="What's New" size="md">
+      <Modal
+        open={news}
+        onClose={() => setNews(false)}
+        title={t('settings.userSettings.whatsNew')}
+        size="md"
+      >
         {WHATS_NEW.map((n) => (
           <section key={n.title}>
             <h3>{n.title}</h3>
@@ -184,11 +191,9 @@ function Body({
         open={confirmOut}
         danger
         loading={outBusy}
-        title="Log out?"
-        description={
-          outError ? undefined : 'You will need to sign in again to use SIDE ROOM on this device.'
-        }
-        confirmLabel="Log Out"
+        title={t('settings.userSettings.logOutTitle')}
+        description={outError ? undefined : t('settings.userSettings.logOutDescription')}
+        confirmLabel={t('settings.userSettings.logOut')}
         onConfirm={() => void doLogout()}
         onCancel={() => {
           setConfirmOut(false);
@@ -196,7 +201,7 @@ function Body({
         }}
       />
       {confirmOut && outError && (
-        <Notice variant="danger" title="Couldn't log out" role="alert">
+        <Notice variant="danger" title={t('settings.userSettings.logOutError')} role="alert">
           {outError}
         </Notice>
       )}

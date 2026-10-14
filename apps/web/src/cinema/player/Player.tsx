@@ -3,6 +3,7 @@
 // when the viewer navigates away while it is playing.
 import { Button, EmptyState, Icon, Spinner } from '@sideroom/ui';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useT } from '../../i18n';
 import { Controls } from './Controls';
 import { PlayGlyph } from './icons';
 import {
@@ -34,6 +35,7 @@ export interface PlayerViewProps {
 }
 
 export function PlayerView({ resumeAt, onResumeHandled, navigate, onExit }: PlayerViewProps) {
+  const tr = useT();
   const s = playerSession();
   const rootRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -106,9 +108,7 @@ export function PlayerView({ resumeAt, onResumeHandled, navigate, onExit }: Play
   const togglePip = () => {
     if (document.pictureInPictureElement) void document.exitPictureInPicture();
     else
-      void video
-        .requestPictureInPicture?.()
-        .catch(() => s.say('Picture in picture is not available'));
+      void video.requestPictureInPicture?.().catch(() => s.say(tr('cinema.player.pipUnavailable')));
   };
   const remote = () => {
     const w = video as HTMLVideoElement & {
@@ -116,7 +116,7 @@ export function PlayerView({ resumeAt, onResumeHandled, navigate, onExit }: Play
       webkitShowPlaybackTargetPicker?: () => void;
     };
     if (w.webkitShowPlaybackTargetPicker) w.webkitShowPlaybackTargetPicker();
-    else void w.remote?.prompt().catch(() => s.say('No devices found'));
+    else void w.remote?.prompt().catch(() => s.say(tr('cinema.player.noDevices')));
   };
 
   /* --------------------------------------------------------- next card */
@@ -216,7 +216,9 @@ export function PlayerView({ resumeAt, onResumeHandled, navigate, onExit }: Play
       ref={rootRef}
       className="cpl-player"
       role="region"
-      aria-label={info ? `Video player: ${info.title}` : 'Video player'}
+      aria-label={
+        info ? tr('cinema.player.labelWithTitle', { title: info.title }) : tr('cinema.player.label')
+      }
       data-chrome={chromeOn ? 'on' : 'off'}
       data-engine={engineKind}
       style={cueVars(subtitleStyle) as React.CSSProperties}
@@ -237,7 +239,7 @@ export function PlayerView({ resumeAt, onResumeHandled, navigate, onExit }: Play
 
       {!info && (
         <div className="cpl-center">
-          <Spinner label="Opening title" />
+          <Spinner label={tr('cinema.player.opening')} />
         </div>
       )}
       {info && (
@@ -246,7 +248,7 @@ export function PlayerView({ resumeAt, onResumeHandled, navigate, onExit }: Play
             <button
               type="button"
               className="cpl-btn"
-              aria-label="Back"
+              aria-label={tr('cinema.player.back')}
               onClick={() => exitFullscreenThen(onExit)}
             >
               <Icon name="close" size={20} />
@@ -260,15 +262,15 @@ export function PlayerView({ resumeAt, onResumeHandled, navigate, onExit }: Play
           {status === 'error' && (
             <div className="cpl-center">
               <EmptyState
-                title="Playback stopped"
-                description={error ?? 'Something went wrong while playing this.'}
+                title={tr('cinema.player.stoppedTitle')}
+                description={error ?? tr('cinema.player.stoppedBody')}
                 action={
                   <Button
                     onClick={() =>
                       void s.start(info, { startAt: s.state.currentTime, autoplay: true })
                     }
                   >
-                    Try again
+                    {tr('cinema.player.tryAgain')}
                   </Button>
                 }
               />
@@ -292,7 +294,7 @@ export function PlayerView({ resumeAt, onResumeHandled, navigate, onExit }: Play
           )}
           {status !== 'error' && (waiting || status === 'loading') && !needsGesture && (
             <div className="cpl-center" aria-hidden={false}>
-              <Spinner label="Buffering" />
+              <Spinner label={tr('cinema.player.buffering')} />
             </div>
           )}
 
@@ -361,7 +363,7 @@ export function PlayerView({ resumeAt, onResumeHandled, navigate, onExit }: Play
                 checked={autoplayNext}
                 onChange={(e) => s.setAutoplayNext(e.target.checked)}
               />
-              <span>Autoplay next episode</span>
+              <span>{tr('cinema.player.autoplayNext')}</span>
             </label>
           )}
         </>

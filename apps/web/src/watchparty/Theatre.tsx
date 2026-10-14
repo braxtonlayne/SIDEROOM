@@ -4,6 +4,7 @@
 import { Badge, Button, Icon, Modal, Tabs } from '@sideroom/ui';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { playerSession } from '../cinema/player/session';
+import { useT } from '../i18n';
 import { httpPartyApi } from './api';
 import { ChatPanel } from './ChatPanel';
 import { ControlBar } from './ControlBar';
@@ -16,6 +17,7 @@ import { clock } from './sync';
 import './watchparty.css';
 
 export function Theatre({ onExit }: { onExit: () => void }) {
+  const tr = useT();
   const s = playerSession();
   const c = partyController();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -73,7 +75,7 @@ export function Theatre({ onExit }: { onExit: () => void }) {
         <Button
           variant="ghost"
           iconOnly
-          aria-label="Leave the theatre (the party keeps playing in the mini player)"
+          aria-label={tr('watchparty.theatre.leaveTheatre')}
           onClick={onExit}
         >
           <Icon name="close" size={20} />
@@ -82,24 +84,26 @@ export function Theatre({ onExit }: { onExit: () => void }) {
           <h1 className="wp-title">{media.title}</h1>
           {media.episode_label && <p className="wp-sub">{media.episode_label}</p>}
         </div>
-        <Badge variant="accent">{party.participants.length} watching</Badge>
+        <Badge variant="accent">
+          {tr('watchparty.theatre.watching', { n: party.participants.length })}
+        </Badge>
         {media.age_restricted && <Badge variant="danger">18+</Badge>}
         <span className="wp-spacer" />
         <Button size="sm" variant="secondary" onClick={() => setShare(true)}>
-          Invite
+          {tr('watchparty.theatre.invite')}
         </Button>
         {you?.can_manage && (
           <Button size="sm" variant="danger" onClick={() => setConfirmEnd(true)}>
-            End party
+            {tr('watchparty.theatre.endParty')}
           </Button>
         )}
         <Button size="sm" variant="ghost" onClick={() => void leave()}>
-          Leave
+          {tr('watchparty.theatre.leave')}
         </Button>
       </header>
 
       <div className="wp-body">
-        <section className="wp-stage-wrap" aria-label="Shared player">
+        <section className="wp-stage-wrap" aria-label={tr('watchparty.theatre.sharedPlayer')}>
           <div ref={stageRef} className="wp-stage" />
           <ReactionsOverlay />
           <WaitingBanner />
@@ -116,27 +120,35 @@ export function Theatre({ onExit }: { onExit: () => void }) {
             onShare={() => setShare(true)}
           />
           <p className="wp-sr-only" role="status">
-            {party.playback.playing ? 'Playing' : party.playback.auto_paused ? 'Waiting' : 'Paused'}
-            {` at ${clock(party.playback.expected_position_ms)}`}
+            {tr(
+              party.playback.playing
+                ? 'watchparty.theatre.playingAt'
+                : party.playback.auto_paused
+                  ? 'watchparty.theatre.waitingAt'
+                  : 'watchparty.theatre.pausedAt',
+              { pos: clock(party.playback.expected_position_ms) },
+            )}
           </p>
           <p className="wp-drift" aria-hidden="true" data-testid="drift">
             {Math.abs(drift) >= 250 ? `${drift > 0 ? '+' : ''}${drift} ms` : ''}
           </p>
         </section>
 
-        <aside className="wp-panel" aria-label="Party panel">
+        <aside className="wp-panel" aria-label={tr('watchparty.theatre.panel')}>
           <Tabs
-            label="Party panel"
+            label={tr('watchparty.theatre.panel')}
             value={tab}
             onValueChange={setTab}
             items={[
-              { id: 'chat', label: 'Chat', content: <ChatPanel /> },
+              { id: 'chat', label: tr('watchparty.theatre.tabChat'), content: <ChatPanel /> },
               {
                 id: 'queue',
-                label: party.queue.length ? `Queue (${party.queue.length})` : 'Queue',
+                label: party.queue.length
+                  ? tr('watchparty.theatre.tabQueueCount', { n: party.queue.length })
+                  : tr('watchparty.theatre.tabQueue'),
                 content: <QueuePanel />,
               },
-              { id: 'people', label: 'People', content: <PeoplePanel /> },
+              { id: 'people', label: tr('watchparty.theatre.tabPeople'), content: <PeoplePanel /> },
             ]}
           />
         </aside>
@@ -146,16 +158,16 @@ export function Theatre({ onExit }: { onExit: () => void }) {
       <Modal
         open={confirmEnd}
         onClose={() => setConfirmEnd(false)}
-        title="End the party?"
-        description="Everyone is taken out of the party."
+        title={tr('watchparty.theatre.endTitle')}
+        description={tr('watchparty.theatre.endDescription')}
         size="sm"
         footer={
           <>
             <Button variant="ghost" onClick={() => setConfirmEnd(false)}>
-              Keep watching
+              {tr('watchparty.theatre.keepWatching')}
             </Button>
             <Button variant="danger" onClick={() => void end()}>
-              End party
+              {tr('watchparty.theatre.endParty')}
             </Button>
           </>
         }

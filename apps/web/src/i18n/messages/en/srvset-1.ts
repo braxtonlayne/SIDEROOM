@@ -1,0 +1,22 @@
+export default {
+  'settings.serverSettings.support': 'Server Support',
+  'settings.serverSettings.groupServer': 'SERVER',
+  'settings.serverSettings.groupExpression': 'EXPRESSION',
+  'settings.serverSettings.groupPeople': 'PEOPLE',
+  'settings.serverSettings.groupApps': 'APPS',
+  'settings.serverSettings.groupModeration': 'MODERATION',
+  'settings.serverSettings.groupCommunity': 'COMMUNITY',
+  'settings.serverSettings.groupDanger': 'DANGER',
+  'settings.serverSettings.dangerZone': 'DANGER ZONE',
+  'settings.serverSettings.loading': 'Loading server settings',
+  'settings.serverSettings.noAccessTitle': 'You do not have access to server settings',
+  'settings.serverSettings.noAccessDescription':
+    'Ask a server admin for a role with Manage Server, Manage Roles, Manage Channels, Ban Members or View Audit Log.',
+  'settings.serverSettings.backToServer': 'Back to the server',
+  'settings.serverSettings.title': '{name} settings',
+  'settings.serverSettings.defaultName': 'Server',
+  'settings.ui.loading': 'Loading',
+  'settings.ui.loadErrorTitle': 'Could not load this section',
+  'settings.ui.tryAgain': 'Try again',
+  'settings.ui.notAvailable': 'Not available yet.',
+} satisfies Record<string, string>;

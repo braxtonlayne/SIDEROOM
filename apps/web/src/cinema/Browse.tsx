@@ -17,6 +17,7 @@ import {
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
+import { useT } from '../i18n';
 import { useAgeGate } from '../lib/ageGate';
 import { browseTitles, getCollections, getFacets, keys, searchTitles } from './api';
 import { validateBrowseSearch, type BrowseSearch } from './browseSearch';
@@ -24,16 +25,16 @@ import type { AgeFilter, BrowseParams, SortKey, Title } from './types';
 import { CardSkeletons, label, TitleCard } from './ui';
 
 const SORTS: { value: SortKey; label: string }[] = [
-  { value: 'updated', label: 'Recently updated' },
-  { value: 'newest', label: 'Newest added' },
-  { value: 'title', label: 'A to Z' },
-  { value: 'year', label: 'Release year' },
-  { value: 'runtime', label: 'Shortest first' },
+  { value: 'updated', label: 'cinema.browse.sortUpdated' },
+  { value: 'newest', label: 'cinema.browse.sortNewest' },
+  { value: 'title', label: 'cinema.browse.sortTitle' },
+  { value: 'year', label: 'cinema.browse.sortYear' },
+  { value: 'runtime', label: 'cinema.browse.sortRuntime' },
 ];
 const AGES: { value: AgeFilter; label: string }[] = [
-  { value: 'include', label: 'Show age-restricted titles' },
-  { value: 'hide', label: 'Hide age-restricted titles' },
-  { value: 'only', label: 'Only age-restricted titles' },
+  { value: 'include', label: 'cinema.browse.ageInclude' },
+  { value: 'hide', label: 'cinema.browse.ageHide' },
+  { value: 'only', label: 'cinema.browse.ageOnly' },
 ];
 
 type Page = 'movies' | 'series' | 'anime';
@@ -42,6 +43,7 @@ interface KindCopy {
   kind: 'movie' | 'series' | 'anime';
   /** `surface` of `GET /cinema/collections`. */
   surface: Page;
+  /** Catalog keys (heading, accent, sub), resolved at render time. */
   heading: string;
   accent?: string;
   sub: string;
@@ -51,24 +53,24 @@ export const KIND_COPY: Record<Page, KindCopy> = {
     path: '/cinema/movies',
     kind: 'movie',
     surface: 'movies',
-    heading: 'The cinema.',
-    sub: 'Films for a night well spent.',
+    heading: 'cinema.browse.moviesHeading',
+    sub: 'cinema.browse.moviesSub',
   },
   series: {
     path: '/cinema/series',
     kind: 'series',
     surface: 'series',
-    heading: 'One more',
-    accent: 'episode.',
-    sub: 'Stories that take their time.',
+    heading: 'cinema.browse.seriesHeading',
+    accent: 'cinema.browse.seriesAccent',
+    sub: 'cinema.browse.seriesSub',
   },
   anime: {
     path: '/cinema/anime',
     kind: 'anime',
     surface: 'anime',
-    heading: 'The anime',
-    accent: 'room. ✦',
-    sub: 'Quiet journeys and worlds on the edge.',
+    heading: 'cinema.browse.animeHeading',
+    accent: 'cinema.browse.animeAccent',
+    sub: 'cinema.browse.animeSub',
   },
 };
 
@@ -100,6 +102,7 @@ function FiltersDrawer({
   apply: (patch: BrowseSearch) => void;
   kind?: KindCopy['kind'];
 }) {
+  const t = useT();
   const { ensureAdult } = useAgeGate();
   const facets = useQuery({
     queryKey: keys.facets(kind),
@@ -149,7 +152,7 @@ function FiltersDrawer({
     <Drawer
       open={open}
       onClose={onClose}
-      title="Filters"
+      title={t('cinema.browse.filtersTitle')}
       side="right"
       footer={
         <>
@@ -169,61 +172,61 @@ function FiltersDrawer({
               onClose();
             }}
           >
-            Reset
+            {t('cinema.browse.reset')}
           </Button>
-          <Button onClick={() => void submit()}>Apply</Button>
+          <Button onClick={() => void submit()}>{t('cinema.browse.apply')}</Button>
         </>
       }
     >
       <div className="cin-filters">
-        {numField('year_from', 'Year from')}
-        {numField('year_to', 'Year to')}
-        {numField('runtime_max', 'Longest runtime', 'In minutes')}
+        {numField('year_from', t('cinema.browse.yearFrom'))}
+        {numField('year_to', t('cinema.browse.yearTo'))}
+        {numField('runtime_max', t('cinema.browse.longestRuntime'), t('cinema.browse.inMinutes'))}
         <Select
-          aria-label="Rating"
-          placeholder="Rating"
+          aria-label={t('cinema.browse.rating')}
+          placeholder={t('cinema.browse.rating')}
           value={d.rating ?? ANY}
           onValueChange={(v) => setD((x) => ({ ...x, rating: v === ANY ? undefined : v }))}
           options={choice(
             facets.data?.ratings.map((r) => r.name),
-            'Any rating',
+            t('cinema.browse.anyRating'),
           )}
         />
         <Select
-          aria-label="Audio language"
-          placeholder="Audio language"
+          aria-label={t('cinema.browse.audioLanguage')}
+          placeholder={t('cinema.browse.audioLanguage')}
           value={d.language ?? ANY}
           onValueChange={(v) => setD((x) => ({ ...x, language: v === ANY ? undefined : v }))}
           options={choice(
             facets.data?.languages.map((l) => l.name),
-            'Any language',
+            t('cinema.browse.anyLanguage'),
           )}
         />
         <Select
-          aria-label="Subtitles"
-          placeholder="Subtitles"
+          aria-label={t('cinema.browse.subtitles')}
+          placeholder={t('cinema.browse.subtitles')}
           value={d.subtitle_language ?? ANY}
           onValueChange={(v) =>
             setD((x) => ({ ...x, subtitle_language: v === ANY ? undefined : v }))
           }
           options={choice(
             facets.data?.subtitle_languages.map((l) => l.name),
-            'Any subtitles',
+            t('cinema.browse.anySubtitles'),
           )}
         />
         <Select
-          aria-label="Age-restricted titles"
-          placeholder="Age-restricted titles"
+          aria-label={t('cinema.browse.ageRestricted')}
+          placeholder={t('cinema.browse.ageRestricted')}
           value={d.age ?? 'include'}
           onValueChange={(v) => setD((x) => ({ ...x, age: v as AgeFilter }))}
-          options={AGES}
+          options={AGES.map((a) => ({ ...a, label: t(a.label) }))}
         />
         <Select
-          aria-label="Sort by"
-          placeholder="Sort by"
+          aria-label={t('cinema.browse.sortBy')}
+          placeholder={t('cinema.browse.sortBy')}
           value={d.sort ?? 'updated'}
           onValueChange={(v) => setD((x) => ({ ...x, sort: v as SortKey }))}
-          options={SORTS}
+          options={SORTS.map((o) => ({ ...o, label: t(o.label) }))}
         />
       </div>
     </Drawer>
@@ -244,6 +247,7 @@ const activeFilters = (s: BrowseSearch) =>
   ].filter((v) => v !== undefined).length;
 
 export function Browse({ page, search }: { page: Page | 'search'; search: BrowseSearch }) {
+  const t = useT();
   const navigate = useNavigate();
   const copy = page === 'search' ? null : KIND_COPY[page];
   const [more, setMore] = useState(false);
@@ -320,17 +324,17 @@ export function Browse({ page, search }: { page: Page | 'search'; search: Browse
   return (
     <div className="cin-page" data-anime={anime || undefined}>
       <header className="cin-browse-head">
-        <Eyebrow>THE SIDE ROOM LIBRARY</Eyebrow>
+        <Eyebrow>{t('cinema.browse.eyebrow')}</Eyebrow>
         {copy ? (
-          <DisplayHeading as="h1" size="xl" accent={copy.accent}>
-            {copy.heading}
+          <DisplayHeading as="h1" size="xl" accent={copy.accent ? t(copy.accent) : undefined}>
+            {t(copy.heading)}
           </DisplayHeading>
         ) : (
           <DisplayHeading as="h1" size="xl">
-            {q ? `Results for “${q}”` : 'Search.'}
+            {q ? t('cinema.browse.resultsFor', { q }) : t('cinema.browse.searchHeading')}
           </DisplayHeading>
         )}
-        <p className="cin-sub">{copy?.sub ?? 'Everything in the room that matches.'}</p>
+        <p className="cin-sub">{copy ? t(copy.sub) : t('cinema.browse.searchSub')}</p>
       </header>
 
       {!searching && (
@@ -341,10 +345,10 @@ export function Browse({ page, search }: { page: Page | 'search'; search: Browse
             aria-pressed={!search.genres}
             onClick={() => setSearch({ genres: undefined })}
           >
-            All
+            {t('cinema.browse.all')}
           </button>
           <FilterChips
-            label="Genres"
+            label={t('cinema.browse.genres')}
             options={genres.map((g) => ({ value: g, label: label(g) }))}
             value={search.genres ?? null}
             onValueChange={(v) => setSearch({ genres: v ?? undefined })}
@@ -356,14 +360,14 @@ export function Browse({ page, search }: { page: Page | 'search'; search: Browse
               aria-expanded={more}
               onClick={() => setMore((m) => !m)}
             >
-              {more ? 'Fewer' : 'More'}
+              {more ? t('cinema.browse.fewer') : t('cinema.browse.more')}
             </button>
           )}
           <DropdownChip
-            label="Room selection"
+            label={t('cinema.browse.roomSelection')}
             value={search.collection ?? ALL_ROOMS}
             options={[
-              { value: ALL_ROOMS, label: 'All rooms' },
+              { value: ALL_ROOMS, label: t('cinema.browse.allRooms') },
               ...(collections.data?.items ?? []).map((c) => ({ value: c.id, label: c.title })),
             ]}
             onValueChange={(v) => setSearch({ collection: v === ALL_ROOMS ? undefined : v })}
@@ -374,36 +378,35 @@ export function Browse({ page, search }: { page: Page | 'search'; search: Browse
             aria-haspopup="dialog"
             onClick={() => setDrawer(true)}
           >
-            <Icon name="filter" size={16} /> Filters{nFilters ? ` (${nFilters})` : ''}
+            <Icon name="filter" size={16} /> {t('cinema.browse.filters')}
+            {nFilters ? ` (${nFilters})` : ''}
           </button>
         </div>
       )}
 
       <p className="cin-count" aria-live="polite">
-        {done ? `${total} ${total === 1 ? 'title' : 'titles'}` : ' '}
+        {done ? t('cinema.browse.count', { n: total }) : ' '}
       </p>
 
       {pending && <CardSkeletons n={6} />}
       {failed && (
-        <Notice variant="danger" title="Could not load titles">
-          Try again in a moment.
+        <Notice variant="danger" title={t('cinema.browse.loadErrorTitle')}>
+          {t('cinema.browse.loadErrorBody')}
         </Notice>
       )}
       {done && items.length === 0 && (
         <EmptyState
-          title="No titles match"
-          description={
-            searching ? 'Try another search.' : 'Try a different genre, or clear the filters.'
-          }
+          title={t('cinema.browse.emptyTitle')}
+          description={searching ? t('cinema.browse.emptySearch') : t('cinema.browse.emptyBrowse')}
         />
       )}
       {items.length > 0 && (
         <>
-          <h2 className="cin-sr-only">Titles</h2>
+          <h2 className="cin-sr-only">{t('cinema.browse.titlesHeading')}</h2>
           <ul className="cin-grid">
-            {items.map((t) => (
-              <li key={t.id}>
-                <TitleCard title={t} />
+            {items.map((it) => (
+              <li key={it.id}>
+                <TitleCard title={it} />
               </li>
             ))}
           </ul>
@@ -416,7 +419,7 @@ export function Browse({ page, search }: { page: Page | 'search'; search: Browse
             disabled={list.isFetchingNextPage}
             onClick={() => void list.fetchNextPage()}
           >
-            {list.isFetchingNextPage ? 'Loading…' : 'Load more'}
+            {list.isFetchingNextPage ? t('cinema.browse.loading') : t('cinema.browse.loadMore')}
           </Button>
         </div>
       )}

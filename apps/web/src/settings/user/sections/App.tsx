@@ -8,6 +8,7 @@ import {
   useToast,
 } from '@sideroom/ui';
 import { useState } from 'react';
+import { useT } from '../../../i18n';
 import { useLoungeUi } from '../../../lounge/store';
 import { rest, useStore } from '../../../store';
 import { errorText } from '../api';
@@ -40,16 +41,17 @@ export const LOCALES = [
 ];
 
 export function LanguageSection({ prefs, setPrefs }: PrefsFormProps) {
+  const t = useT();
   const sample = new Date(2026, 0, 31, 15, 5);
   const locale = prefs.locale === 'auto' ? undefined : prefs.locale;
   const hour12 = prefs.timeFormat === 'auto' ? undefined : prefs.timeFormat === '12h';
   return (
     <>
-      <SectionTitle>Language</SectionTitle>
-      <Card id="us-lang" title="Language and region">
+      <SectionTitle>{t('settings.app.languageTitle')}</SectionTitle>
+      <Card id="us-lang" title={t('settings.app.languageRegion')}>
         <div className="us-stack">
           <label className="us-muted" id="us-lang-label">
-            Region and date format
+            {t('settings.app.regionLabel')}
           </label>
           <Select
             aria-labelledby="us-lang-label"
@@ -59,26 +61,31 @@ export function LanguageSection({ prefs, setPrefs }: PrefsFormProps) {
             onValueChange={(v) => setPrefs({ locale: v })}
           />
           <Notice variant="info" className="us-gap">
-            Dates and times follow this choice. The interface text is English only for now; more
-            languages are planned.
+            {t('settings.app.languageNotice')}
           </Notice>
         </div>
       </Card>
-      <Card id="us-time" title="Time format">
+      <Card id="us-time" title={t('settings.app.timeFormat')}>
         <div className="us-stack">
           <SegmentedControl
-            label="Time format"
+            label={t('settings.app.timeFormat')}
             value={prefs.timeFormat}
             onValueChange={(v) => setPrefs({ timeFormat: v as TimeFormat })}
             options={[
-              { value: 'auto', label: 'Automatic' },
-              { value: '12h', label: '12-hour' },
-              { value: '24h', label: '24-hour' },
+              { value: 'auto', label: t('settings.app.timeAuto') },
+              { value: '12h', label: t('settings.app.time12') },
+              { value: '24h', label: t('settings.app.time24') },
             ]}
           />
           <p className="us-muted" aria-live="polite">
-            Example: {sample.toLocaleDateString(locale, { dateStyle: 'medium' })},{' '}
-            {sample.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit', hour12 })}
+            {t('settings.app.timeExample', {
+              date: sample.toLocaleDateString(locale, { dateStyle: 'medium' }),
+              time: sample.toLocaleTimeString(locale, {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12,
+              }),
+            })}
           </p>
         </div>
       </Card>
@@ -111,6 +118,7 @@ const LAYOUT_KEYS = [
 ];
 
 function ResetCard() {
+  const t = useT();
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -126,7 +134,7 @@ function ResetCard() {
       useStore.getState().applyDispatch('SR_USER_SETTINGS_UPDATE', saved);
       useLoungeUi.setState(UI_DEFAULTS);
       setOpen(false);
-      toast.show({ title: 'Layout reset', duration: 2500 });
+      toast.show({ title: t('settings.app.layoutReset'), duration: 2500 });
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -136,14 +144,14 @@ function ResetCard() {
   return (
     <Card
       id="us-reset"
-      title="Reset UI state"
-      description="Forget the server order and folders, collapsed categories, panel sizes, dismissed banners and the last place you were. Your messages and settings stay."
+      title={t('settings.app.resetTitle')}
+      description={t('settings.app.resetDesc')}
     >
       <Button variant="danger" onClick={() => setOpen(true)}>
-        Reset UI state
+        {t('settings.app.resetTitle')}
       </Button>
       {error && !open && (
-        <Notice variant="danger" title="Couldn't reset">
+        <Notice variant="danger" title={t('settings.app.resetError')}>
           {error}
         </Notice>
       )}
@@ -151,9 +159,9 @@ function ResetCard() {
         open={open}
         danger
         loading={busy}
-        title="Reset UI state?"
-        description={error ?? 'The layout goes back to how it was on your first visit.'}
-        confirmLabel="Reset"
+        title={t('settings.app.resetConfirmTitle')}
+        description={error ?? t('settings.app.resetConfirmDesc')}
+        confirmLabel={t('settings.app.resetConfirm')}
         onConfirm={() => void reset()}
         onCancel={() => {
           setOpen(false);
@@ -165,13 +173,14 @@ function ResetCard() {
 }
 
 export function AdvancedSection({ prefs, setPrefs }: PrefsFormProps) {
+  const t = useT();
   return (
     <>
-      <SectionTitle>Advanced</SectionTitle>
-      <Card id="us-dev" title="Developer mode">
+      <SectionTitle>{t('settings.app.advancedTitle')}</SectionTitle>
+      <Card id="us-dev" title={t('settings.app.devMode')}>
         <Switch
-          label="Developer mode"
-          description="Saved for developer tools as they arrive. Copy ID items are already in every menu."
+          label={t('settings.app.devMode')}
+          description={t('settings.app.devModeDesc')}
           checked={prefs.developerMode}
           onChange={(e) => setPrefs({ developerMode: e.target.checked })}
         />

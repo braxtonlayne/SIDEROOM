@@ -11,6 +11,7 @@ import {
 } from 'react';
 import type { ChangeEvent, ClipboardEvent, KeyboardEvent } from 'react';
 import { ApiError, apiFetch } from '../api/client';
+import { useT } from '../i18n';
 import { useStore } from '../store';
 import { usePrefsStore, useSavedPrefs } from '../settings/user/prefs';
 import { convertEmoticons } from './emoticons';
@@ -113,25 +114,61 @@ export interface ComposerProps {
   canStartThread?: boolean | undefined;
 }
 
-const FORMATS: { label: string; run: (v: string, s: number, e: number) => TextEdit }[] = [
-  { label: 'Bold', run: (v, s, e) => toggleWrap(v, s, e, '**') },
-  { label: 'Italic', run: (v, s, e) => toggleWrap(v, s, e, '*') },
-  { label: 'Underline', run: (v, s, e) => toggleWrap(v, s, e, '__') },
-  { label: 'Strikethrough', run: (v, s, e) => toggleWrap(v, s, e, '~~') },
-  { label: 'Spoiler', run: (v, s, e) => toggleWrap(v, s, e, '||') },
-  { label: 'Code', run: (v, s, e) => toggleWrap(v, s, e, '`') },
-  { label: 'Quote', run: (v, s, e) => prefixLines(v, s, e, '> ') },
-  { label: 'List', run: (v, s, e) => prefixLines(v, s, e, '- ') },
+const FORMATS: {
+  id: string;
+  labelKey: string;
+  run: (v: string, s: number, e: number) => TextEdit;
+}[] = [
+  {
+    id: 'bold',
+    labelKey: 'lounge.composer.formatBold',
+    run: (v, s, e) => toggleWrap(v, s, e, '**'),
+  },
+  {
+    id: 'italic',
+    labelKey: 'lounge.composer.formatItalic',
+    run: (v, s, e) => toggleWrap(v, s, e, '*'),
+  },
+  {
+    id: 'underline',
+    labelKey: 'lounge.composer.formatUnderline',
+    run: (v, s, e) => toggleWrap(v, s, e, '__'),
+  },
+  {
+    id: 'strikethrough',
+    labelKey: 'lounge.composer.formatStrikethrough',
+    run: (v, s, e) => toggleWrap(v, s, e, '~~'),
+  },
+  {
+    id: 'spoiler',
+    labelKey: 'lounge.composer.formatSpoiler',
+    run: (v, s, e) => toggleWrap(v, s, e, '||'),
+  },
+  {
+    id: 'code',
+    labelKey: 'lounge.composer.formatCode',
+    run: (v, s, e) => toggleWrap(v, s, e, '`'),
+  },
+  {
+    id: 'quote',
+    labelKey: 'lounge.composer.formatQuote',
+    run: (v, s, e) => prefixLines(v, s, e, '> '),
+  },
+  {
+    id: 'list',
+    labelKey: 'lounge.composer.formatList',
+    run: (v, s, e) => prefixLines(v, s, e, '- '),
+  },
 ];
 const FORMAT_GLYPH: Record<string, string> = {
-  Bold: 'B',
-  Italic: 'I',
-  Underline: 'U',
-  Strikethrough: 'S',
-  Spoiler: '▒',
-  Code: '<>',
-  Quote: '❝',
-  List: '•',
+  bold: 'B',
+  italic: 'I',
+  underline: 'U',
+  strikethrough: 'S',
+  spoiler: '▒',
+  code: '<>',
+  quote: '❝',
+  list: '•',
 };
 
 let fileCounter = 0;
@@ -154,6 +191,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   },
   handle,
 ) {
+  const t = useT();
   const actions = useLoungeActions();
   const me = useCurrentUser();
   const users = useUsers();
@@ -202,11 +240,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const cooldownLeft = Math.max(0, Math.ceil((cooldownEnd - now) / 1000));
   useEffect(() => {
     if (cooldownEnd <= Date.now()) return;
-    const t = setInterval(() => {
+    const timer = setInterval(() => {
       setNow(Date.now());
-      if (Date.now() >= cooldownEnd) clearInterval(t);
+      if (Date.now() >= cooldownEnd) clearInterval(timer);
     }, 250);
-    return () => clearInterval(t);
+    return () => clearInterval(timer);
   }, [cooldownEnd]);
 
   // Auto-grow up to ~40% of the viewport, then scroll inside the box.
@@ -249,7 +287,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         const room = MAX_FILES - cur.length;
         if (list.length > room) {
           toast.show({
-            title: `You can attach up to ${MAX_FILES} files per message`,
+            title: t('lounge.composer.tooManyFiles', { max: MAX_FILES }),
             variant: 'info',
             duration: 3000,
           });
@@ -271,7 +309,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         return [...cur, ...added];
       });
     },
-    [toast],
+    [toast, t],
   );
   useImperativeHandle(handle, () => ({ addFiles }), [addFiles]);
 
@@ -336,7 +374,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       })
       .catch((e: unknown) => {
         if (ctl.signal.aborted) return;
-        const msg = e instanceof Error ? e.message : 'Upload failed.';
+        const msg = e instanceof Error ? e.message : t('lounge.composer.uploadFailed');
         toast.show({ title: msg, variant: 'danger', duration: 5000 });
       })
       .finally(() => {
@@ -400,7 +438,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               roles: members.find((m) => m.user.id === me.id)?.roleIds ?? [],
             });
             toast.show({
-              title: r.nick ? `Your nickname is now ${r.nick}` : 'Your nickname was reset',
+              title: r.nick
+                ? t('lounge.composer.nickSet', { nick: r.nick })
+                : t('lounge.composer.nickReset'),
               variant: 'success',
               duration: 3000,
             });
@@ -408,8 +448,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           .catch((e: unknown) =>
             fail(
               e instanceof ApiError && e.status === 403
-                ? 'You cannot change your nickname in this server.'
-                : 'Could not change your nickname.',
+                ? t('lounge.composer.nickForbidden')
+                : t('lounge.composer.nickFailed'),
             ),
           );
         done();
@@ -423,9 +463,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           .then((dm) => {
             rememberDm(dm);
             actions.sendMessage(dm.id, r.content, null);
-            toast.show({ title: 'Message sent', variant: 'success', duration: 2500 });
+            toast.show({ title: t('lounge.composer.dmSent'), variant: 'success', duration: 2500 });
           })
-          .catch(() => fail('Could not send that direct message.'));
+          .catch(() => fail(t('lounge.composer.dmFailed')));
         done();
         return;
       case 'remind': {
@@ -443,7 +483,9 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           at,
         );
         toast.show({
-          title: `I will remind you at ${at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`,
+          title: t('lounge.composer.remindAt', {
+            time: at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+          }),
           variant: 'success',
           duration: 3000,
         });
@@ -491,7 +533,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       .catch((e: unknown) => {
         if (ctl.signal.aborted) return;
         toast.show({
-          title: e instanceof Error ? e.message : 'The voice message could not be sent.',
+          title: e instanceof Error ? e.message : t('lounge.composer.voiceFailed'),
           variant: 'danger',
           duration: 5000,
         });
@@ -531,19 +573,19 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     suggestions = mentionSuggestions(trigger.query, members, roles, {
       everyone: !!canMentionEveryone,
     });
-    acTitle = 'Members';
+    acTitle = t('lounge.composer.acMembers');
   } else if (trigger?.kind === '#') {
     suggestions = channelSuggestions(trigger.query, channels);
-    acTitle = 'Text channels';
+    acTitle = t('lounge.composer.acChannels');
   } else if (trigger?.kind === ':') {
     suggestions = emojiSuggestions(
       trigger.query,
       EMOJI_CATEGORIES.flatMap((c) => c.emoji),
     );
-    acTitle = 'Emoji matching';
+    acTitle = t('lounge.composer.acEmoji');
   } else if (trigger?.kind === '/') {
     suggestions = commandSuggestions(trigger.query, slashCtx);
-    acTitle = 'Commands';
+    acTitle = t('lounge.composer.acCommands');
   }
   const acOpen = suggestions.length > 0;
   const activeIdx = Math.min(acIndex, Math.max(0, suggestions.length - 1));
@@ -629,7 +671,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
 
   const typingNames = typingIds
     .filter((id) => id !== me.id)
-    .map((id) => users[id]?.displayName ?? 'Someone');
+    .map((id) => users[id]?.displayName ?? t('lounge.composer.someone'));
   const typing = typingLabel(typingNames);
   const remaining = MAX_MESSAGE_LENGTH - text.length;
   const showCounter = remaining <= 200;
@@ -641,8 +683,13 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         <div className="lng-composer lng-composer-locked" role="note">
           <Icon name={timedOutUntil ? 'clock' : 'lock'} size={20} />
           {timedOutUntil
-            ? `You are timed out and cannot send messages until ${new Date(timedOutUntil).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}.`
-            : 'You do not have permission to send messages in this channel.'}
+            ? t('lounge.composer.timedOut', {
+                date: new Date(timedOutUntil).toLocaleString([], {
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                }),
+              })
+            : t('lounge.composer.noPermission')}
         </div>
       </div>
     );
@@ -653,22 +700,25 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       {replyTo && (
         <div className="lng-bar" role="status">
           <span>
-            Replying to <strong>{replyTo.author.displayName}</strong>
+            {t('lounge.composer.replyingTo')}
+            <strong>{replyTo.author.displayName}</strong>
           </span>
           <span className="lng-bar-actions">
             <button
               type="button"
               className="lng-ping"
               aria-pressed={ping}
-              aria-label={`Mention ${replyTo.author.displayName}: ${ping ? 'on' : 'off'}`}
+              aria-label={t(ping ? 'lounge.composer.mentionOn' : 'lounge.composer.mentionOff', {
+                name: replyTo.author.displayName,
+              })}
               onClick={() => setPing((p) => !p)}
             >
-              @ {ping ? 'ON' : 'OFF'}
+              {ping ? t('lounge.composer.pingOn') : t('lounge.composer.pingOff')}
             </button>
             <button
               type="button"
               className="lng-icon-btn"
-              aria-label="Cancel reply"
+              aria-label={t('lounge.composer.cancelReply')}
               onClick={onCancelReply}
             >
               <Icon name="close" size={16} />
@@ -678,13 +728,13 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       )}
       <UploadTray files={files} busy={sending} onChange={patchFile} onRemove={removeFile} />
       {hasSel && (
-        <div className="lng-format" role="toolbar" aria-label="Text formatting">
+        <div className="lng-format" role="toolbar" aria-label={t('lounge.composer.textFormatting')}>
           {FORMATS.map((f) => (
             <button
-              key={f.label}
+              key={f.id}
               type="button"
               className="lng-format-btn"
-              aria-label={f.label}
+              aria-label={t(f.labelKey)}
               // Keep the selection in the textarea while the button is pressed.
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
@@ -693,7 +743,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                 ref.current?.focus();
               }}
             >
-              <span aria-hidden="true">{FORMAT_GLYPH[f.label]}</span>
+              <span aria-hidden="true">{FORMAT_GLYPH[f.id]}</span>
             </button>
           ))}
         </div>
@@ -710,26 +760,30 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           />
         )}
         <DropdownMenu
-          label="Add to message"
+          label={t('lounge.composer.addToMessage')}
           placement="top-start"
           items={[
-            { label: 'Upload a File', onSelect: () => fileInput.current?.click() },
+            { label: t('lounge.composer.uploadFile'), onSelect: () => fileInput.current?.click() },
             ...(canStartThread && guildId
               ? [
                   {
-                    label: 'Create Thread',
+                    label: t('lounge.composer.createThread'),
                     onSelect: () => openDialog({ kind: 'createThread', guildId, channelId }),
                   },
                 ]
               : []),
-            { label: 'Create Poll', onSelect: () => setPollOpen(true) },
+            { label: t('lounge.composer.createPoll'), onSelect: () => setPollOpen(true) },
             { type: 'separator' as const },
-            { label: 'Use Apps (no apps installed)', disabled: true },
-            { label: 'Share from Cinema (coming soon)', disabled: true },
-            { label: 'Share from Library (coming soon)', disabled: true },
+            { label: t('lounge.composer.useApps'), disabled: true },
+            { label: t('lounge.composer.shareCinema'), disabled: true },
+            { label: t('lounge.composer.shareLibrary'), disabled: true },
           ]}
           trigger={
-            <button type="button" className="lng-icon-btn" aria-label="Add to message">
+            <button
+              type="button"
+              className="lng-icon-btn"
+              aria-label={t('lounge.composer.addToMessage')}
+            >
               <Icon name="plus" size={20} />
             </button>
           }
@@ -739,7 +793,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           type="file"
           multiple
           hidden
-          aria-label="Upload files"
+          aria-label={t('lounge.composer.uploadFiles')}
           data-testid="file-input"
           onChange={(e) => {
             addFiles(Array.from(e.target.files ?? []));
@@ -758,13 +812,13 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             className="lng-textarea"
             data-composer
             rows={1}
-            aria-label={`Message ${target}`}
+            aria-label={t('lounge.composer.message', { target })}
             aria-controls={acOpen ? acId : undefined}
             aria-activedescendant={acOpen ? `${acId}-${activeIdx}` : undefined}
             placeholder={
               cooldownLeft > 0
-                ? `Slowmode is on. You can send another message in ${cooldownLeft}s`
-                : `Message ${target}`
+                ? t('lounge.composer.slowmodePlaceholder', { seconds: cooldownLeft })
+                : t('lounge.composer.message', { target })
             }
             value={text}
             onChange={onChange}
@@ -780,17 +834,17 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             className="lng-counter"
             data-over={remaining < 0 || undefined}
             role="status"
-            aria-label={`${remaining} characters remaining`}
+            aria-label={t('lounge.composer.charsRemaining', { count: remaining })}
           >
             {remaining}
           </span>
         )}
         {canVoice && !recording && (
-          <Tooltip content="Record a voice message">
+          <Tooltip content={t('lounge.composer.recordVoice')}>
             <button
               type="button"
               className="lng-icon-btn"
-              aria-label="Record a voice message"
+              aria-label={t('lounge.composer.recordVoice')}
               onClick={(e) => {
                 // Touch: hold to record (below); mouse and keyboard: click to start.
                 if (e.detail === 0 || (e.nativeEvent as PointerEvent).pointerType !== 'touch')
@@ -810,12 +864,16 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         {!recording && (
           <>
             <Popover
-              label="GIF picker"
+              label={t('lounge.composer.gifPicker')}
               placement="top-end"
               trigger={
-                <button type="button" className="lng-icon-btn" aria-label="Open GIF picker">
+                <button
+                  type="button"
+                  className="lng-icon-btn"
+                  aria-label={t('lounge.composer.openGifPicker')}
+                >
                   <span aria-hidden="true" className="lng-gif-glyph">
-                    GIF
+                    {t('lounge.composer.gifGlyph')}
                   </span>
                 </button>
               }
@@ -832,10 +890,14 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
               />
             </Popover>
             <Popover
-              label="Sticker picker"
+              label={t('lounge.composer.stickerPicker')}
               placement="top-end"
               trigger={
-                <button type="button" className="lng-icon-btn" aria-label="Open sticker picker">
+                <button
+                  type="button"
+                  className="lng-icon-btn"
+                  aria-label={t('lounge.composer.openStickerPicker')}
+                >
                   <Icon name="image" size={20} />
                 </button>
               }
@@ -854,10 +916,14 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           </>
         )}
         <Popover
-          label="Emoji picker"
+          label={t('lounge.composer.emojiPicker')}
           placement="top-end"
           trigger={
-            <button type="button" className="lng-icon-btn" aria-label="Open emoji picker">
+            <button
+              type="button"
+              className="lng-icon-btn"
+              aria-label={t('lounge.composer.openEmojiPicker')}
+            >
               <Icon name="smile" size={20} />
             </button>
           }
@@ -871,11 +937,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           />
         </Popover>
         {showSendButton && (
-          <Tooltip content="Send message">
+          <Tooltip content={t('lounge.composer.send')}>
             <button
               type="button"
               className="lng-icon-btn lng-send"
-              aria-label="Send message"
+              aria-label={t('lounge.composer.send')}
               disabled={!hasContent || remaining < 0 || sending || cooldownLeft > 0}
               onClick={send}
             >
@@ -886,15 +952,15 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       </div>
       {remaining < 0 && (
         <p className="lng-over" role="alert">
-          Your message is {-remaining} characters over the limit.{' '}
+          {t('lounge.composer.overLimit', { count: -remaining })}{' '}
           <Button variant="link" size="sm" onClick={sendAsFile}>
-            Upload as a file instead
+            {t('lounge.composer.uploadAsFile')}
           </Button>
         </p>
       )}
       {cooldownLeft > 0 && (
         <p className="lng-muted lng-slow" role="status">
-          Slowmode: you can send another message in {cooldownLeft}s.
+          {t('lounge.composer.slowmodeNote', { seconds: cooldownLeft })}
         </p>
       )}
       <div className="lng-typing" aria-live="polite">

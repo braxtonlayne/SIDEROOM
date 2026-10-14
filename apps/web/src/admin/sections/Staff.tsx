@@ -1,6 +1,7 @@
 import { Badge, Button, Checkbox, ConfirmDialog, Notice, TextInput } from '@sideroom/ui';
 import { useState } from 'react';
 import * as api from '../api';
+import { useT } from '../../i18n';
 import { canAssignRole, parsePerms, permNames } from '../permissions';
 import {
   ActionStatus,
@@ -22,10 +23,11 @@ function RolePicker({
   selected: string[];
   onChange: (ids: string[]) => void;
 }) {
+  const t = useT();
   const viewer = useAdminViewer();
   return (
     <fieldset className="adm-check-row" style={{ border: 0, padding: 0, margin: 0 }}>
-      <legend className="ss-sub">Staff roles</legend>
+      <legend className="ss-sub">{t('admin.staff.rolesLegend')}</legend>
       {roles.map((r) => {
         const bits = parsePerms(r.platform_permissions);
         const allowed = canAssignRole(viewer, bits);
@@ -38,8 +40,8 @@ function RolePicker({
               allowed
                 ? permNames(bits).join(', ').toLowerCase().replace(/_/g, ' ')
                 : viewer.isOwner
-                  ? 'The Owner role cannot be assigned. Use sr-cli staff transfer-owner.'
-                  : 'Only the Owner, or someone who holds all of its permissions, can assign this role.'
+                  ? t('admin.staff.ownerRoleNote')
+                  : t('admin.staff.roleNeedsOwner')
             }
             checked={checked}
             // A role already held stays removable even if the viewer could not grant it.
@@ -55,6 +57,7 @@ function RolePicker({
 }
 
 export function StaffSection() {
+  const t = useT();
   const viewer = useAdminViewer();
   const staff = useResource('admin:staff', api.listStaff);
   const roles = useResource('admin:staff-roles', api.listStaffRoles);
@@ -80,9 +83,9 @@ export function StaffSection() {
   return (
     <>
       <SectionHeader
-        title="Staff & roles"
-        description="Staff powers come from roles in the Staff Server and only apply to accounts with an active appointment. Removing someone takes effect on their next request."
-        actions={<Button onClick={openAppoint}>Appoint staff</Button>}
+        title={t('admin.staff.title')}
+        description={t('admin.staff.description')}
+        actions={<Button onClick={openAppoint}>{t('admin.staff.appointButton')}</Button>}
       />
       {notice && (
         <Notice variant="success" role="status" className="ss-status">
@@ -90,20 +93,22 @@ export function StaffSection() {
         </Notice>
       )}
       <ActionStatus error={action.error} />
-      <Async res={staff} label="Loading staff">
+      <Async res={staff} label={t('admin.staff.loading')}>
         {(list) => (
-          <ul className="ss-list" aria-label="Staff">
+          <ul className="ss-list" aria-label={t('admin.staff.listLabel')}>
             {list.map((m) => (
               <li key={m.account_id} className="ss-row">
                 <div className="ss-grow">
                   <div className="ss-name">
                     {m.display_name || m.username} <span className="ss-meta">@{m.username}</span>{' '}
-                    {m.is_owner && <Badge variant="accent">Owner</Badge>}
+                    {m.is_owner && <Badge variant="accent">{t('admin.staff.owner')}</Badge>}
                   </div>
                   <div className="ss-meta">
-                    {m.roles.length ? m.roles.map((r) => r.name).join(', ') : 'No roles'} ·
-                    appointed {fmtMs(m.appointed_at_ms)}
-                    {m.reason ? ` · “${m.reason}”` : ''}
+                    {m.roles.length
+                      ? m.roles.map((r) => r.name).join(', ')
+                      : t('admin.staff.noRoles')}{' '}
+                    · {t('admin.staff.appointed', { when: fmtMs(m.appointed_at_ms) })}
+                    {m.reason ? ` · ${t('admin.staff.reasonQuoted', { reason: m.reason })}` : ''}
                   </div>
                 </div>
                 {!m.is_owner && (
@@ -111,18 +116,18 @@ export function StaffSection() {
                     <Button
                       size="sm"
                       variant="secondary"
-                      aria-label={`Change roles for ${m.username}`}
+                      aria-label={t('admin.staff.changeRolesAria', { username: m.username })}
                       onClick={() => openEdit(m)}
                     >
-                      Roles
+                      {t('admin.staff.roles')}
                     </Button>
                     <Button
                       size="sm"
                       variant="danger"
-                      aria-label={`Remove ${m.username} from staff`}
+                      aria-label={t('admin.staff.removeAria', { username: m.username })}
                       onClick={() => setRevoking(m)}
                     >
-                      Remove
+                      {t('admin.staff.remove')}
                     </Button>
                   </>
                 )}
@@ -133,51 +138,51 @@ export function StaffSection() {
       </Async>
       {!viewer.isOwner && (
         <p className="ss-sub" style={{ marginTop: 16 }}>
-          Only the Owner can grant Read private content, Appoint staff, View access log or Operator.
-          Ownership itself moves only with <code>sr-cli staff transfer-owner</code>.
+          {t('admin.staff.ownerOnlyNote')} {t('admin.staff.ownershipMovesWith')}{' '}
+          <code>sr-cli staff transfer-owner</code>.
         </p>
       )}
 
       <ReasonDialog
         open={appointing}
-        title="Appoint staff"
-        description="The account joins the Staff Server with these roles. Everything is logged."
-        confirmLabel="Appoint"
+        title={t('admin.staff.appointTitle')}
+        description={t('admin.staff.appointDescription')}
+        confirmLabel={t('admin.staff.appoint')}
         valid={/^\d+$/.test(accountId.trim()) && picked.length > 0}
         onCancel={() => setAppointing(false)}
         onConfirm={async (reason) => {
           await api.appoint(accountId.trim(), picked, reason);
           setAppointing(false);
-          setNotice('Staff member appointed.');
+          setNotice(t('admin.staff.appointedNotice'));
           await staff.reload();
         }}
       >
         <TextInput
-          label="Account id"
-          hint="Find the id under Accounts."
+          label={t('admin.staff.accountId')}
+          hint={t('admin.staff.accountIdHint')}
           inputMode="numeric"
           value={accountId}
           onChange={(e) => setAccountId(e.target.value)}
         />
-        <Async res={roles} label="Loading roles">
+        <Async res={roles} label={t('admin.staff.loadingRoles')}>
           {(rs) => <RolePicker roles={rs} selected={picked} onChange={setPicked} />}
         </Async>
       </ReasonDialog>
 
       <ReasonDialog
         open={!!editing}
-        title={`Roles for @${editing?.username ?? ''}`}
-        confirmLabel="Save roles"
+        title={t('admin.staff.rolesFor', { username: editing?.username ?? '' })}
+        confirmLabel={t('admin.staff.saveRoles')}
         onCancel={() => setEditing(null)}
         onConfirm={async (reason) => {
           if (!editing) return;
           await api.setStaffRoles(editing.account_id, editRoles, reason);
           setEditing(null);
-          setNotice('Roles updated.');
+          setNotice(t('admin.staff.rolesUpdated'));
           await staff.reload();
         }}
       >
-        <Async res={roles} label="Loading roles">
+        <Async res={roles} label={t('admin.staff.loadingRoles')}>
           {(rs) => <RolePicker roles={rs} selected={editRoles} onChange={setEditRoles} />}
         </Async>
       </ReasonDialog>
@@ -185,9 +190,9 @@ export function StaffSection() {
       <ConfirmDialog
         open={!!revoking}
         danger
-        title={`Remove @${revoking?.username ?? ''} from staff`}
-        description="Their appointment closes, their admin access ends on the next request and they leave the Staff Server."
-        confirmLabel="Remove from staff"
+        title={t('admin.staff.removeTitle', { username: revoking?.username ?? '' })}
+        description={t('admin.staff.removeDescription')}
+        confirmLabel={t('admin.staff.removeConfirm')}
         loading={action.busy}
         onCancel={() => setRevoking(null)}
         onConfirm={() => {
@@ -199,7 +204,7 @@ export function StaffSection() {
             })
             .then(async (ok) => {
               if (ok) {
-                setNotice(`@${revoking.username} was removed from staff.`);
+                setNotice(t('admin.staff.removedNotice', { username: revoking.username }));
                 setRevoking(null);
                 await staff.reload();
               } else {

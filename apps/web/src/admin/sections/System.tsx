@@ -1,6 +1,7 @@
 import { Badge, Button, ConfirmDialog, EmptyState, Select } from '@sideroom/ui';
 import { useState } from 'react';
 import * as api from '../api';
+import { useT, type MessageKey } from '../../i18n';
 import {
   ActionStatus,
   Async,
@@ -15,44 +16,47 @@ import {
 } from '../ui';
 
 export function SystemSection() {
+  const t = useT();
   const res = useResource('admin:system', api.getSystem);
   return (
     <>
       <SectionHeader
-        title="System"
-        description="Version and readiness probes. Probe errors name the dependency, never its credentials."
+        title={t('admin.system.title')}
+        description={t('admin.system.description')}
         actions={
           <Button variant="secondary" onClick={() => void res.reload()}>
-            Refresh
+            {t('admin.system.refresh')}
           </Button>
         }
       />
-      <Async res={res} label="Loading system status">
+      <Async res={res} label={t('admin.system.loading')}>
         {(s) => (
           <>
             <div className="adm-stats">
-              <Stat label="Version" value={s.version} />
+              <Stat label={t('admin.system.version')} value={s.version} />
               <Stat
-                label="Gateway connections"
+                label={t('admin.system.gatewayConnections')}
                 value={s.gateway_sessions == null ? '–' : s.gateway_sessions.toLocaleString()}
               />
               <Stat
-                label="Jobs queued"
+                label={t('admin.system.jobsQueued')}
                 value={s.counts.jobs_queued}
-                hint={`${s.counts.jobs_running} running`}
+                hint={t('admin.system.jobsRunning', { count: s.counts.jobs_running })}
               />
-              <Stat label="Dead jobs" value={s.counts.jobs_dead} />
+              <Stat label={t('admin.system.deadJobs')} value={s.counts.jobs_dead} />
             </div>
             <section className="ss-card" aria-labelledby="sys-probes">
-              <h2 id="sys-probes">Readiness probes</h2>
-              <ul className="ss-list" aria-label="Readiness probes">
+              <h2 id="sys-probes">{t('admin.system.probesTitle')}</h2>
+              <ul className="ss-list" aria-label={t('admin.system.probesTitle')}>
                 {s.probes.map((p) => (
                   <li key={p.name} className="ss-row">
                     <div className="ss-grow">
                       <div className="ss-name">{p.name}</div>
                       {!p.ok && p.error && <div className="ss-meta">{p.error}</div>}
                     </div>
-                    <Badge variant={p.ok ? 'success' : 'danger'}>{p.ok ? 'ok' : 'failing'}</Badge>
+                    <Badge variant={p.ok ? 'success' : 'danger'}>
+                      {p.ok ? t('admin.system.probeOk') : t('admin.system.probeFailing')}
+                    </Badge>
                   </li>
                 ))}
               </ul>
@@ -64,15 +68,17 @@ export function SystemSection() {
   );
 }
 
-const JOB_STATES = [
-  { value: '', label: 'Any state' },
-  { value: 'queued', label: 'Queued' },
-  { value: 'running', label: 'Running' },
-  { value: 'dead', label: 'Dead' },
-  { value: 'done', label: 'Done' },
+const JOB_STATES: { value: string; label: MessageKey }[] = [
+  { value: '', label: 'admin.jobs.stateAny' },
+  { value: 'queued', label: 'admin.jobs.stateQueued' },
+  { value: 'running', label: 'admin.jobs.stateRunning' },
+  { value: 'dead', label: 'admin.jobs.stateDead' },
+  { value: 'done', label: 'admin.jobs.stateDone' },
 ];
 
 export function JobsSection() {
+  const t = useT();
+  const stateOptions = JOB_STATES.map((o) => ({ value: o.value, label: t(o.label) }));
   const [state, setState] = useState('dead');
   const [del, setDel] = useState<api.JobRow | null>(null);
   const action = useAction();
@@ -82,34 +88,34 @@ export function JobsSection() {
   });
   return (
     <>
-      <SectionHeader
-        title="Jobs"
-        description="Background work (transcoding, ingest, cleanup). Retry a dead job once its cause is fixed, or delete it."
-      />
+      <SectionHeader title={t('admin.jobs.title')} description={t('admin.jobs.description')} />
       <div className="ss-toolbar">
         <Select
-          aria-label="Filter by job state"
-          options={JOB_STATES}
+          aria-label={t('admin.jobs.filterByState')}
+          options={stateOptions}
           value={state}
           onValueChange={setState}
         />
       </div>
       <ActionStatus error={action.error ?? paged.error} done={action.done} />
       {!paged.error && !paged.loading && paged.items.length === 0 && (
-        <EmptyState title="No jobs" description="Nothing matches this filter." />
+        <EmptyState
+          title={t('admin.jobs.emptyTitle')}
+          description={t('admin.jobs.emptyDescription')}
+        />
       )}
       {paged.items.length > 0 && (
         <div className="adm-table-wrap">
-          <table className="adm-table" aria-label="Jobs">
+          <table className="adm-table" aria-label={t('admin.jobs.tableLabel')}>
             <thead>
               <tr>
-                <th scope="col">Job</th>
-                <th scope="col">State</th>
-                <th scope="col">Attempts</th>
-                <th scope="col">Next run</th>
-                <th scope="col">Last error</th>
+                <th scope="col">{t('admin.jobs.colJob')}</th>
+                <th scope="col">{t('admin.jobs.colState')}</th>
+                <th scope="col">{t('admin.jobs.colAttempts')}</th>
+                <th scope="col">{t('admin.jobs.colNextRun')}</th>
+                <th scope="col">{t('admin.jobs.colLastError')}</th>
                 <th scope="col">
-                  <span className="adm-vh">Actions</span>
+                  <span className="adm-vh">{t('admin.jobs.colActions')}</span>
                 </th>
               </tr>
             </thead>
@@ -134,22 +140,22 @@ export function JobsSection() {
                         <Button
                           size="sm"
                           variant="secondary"
-                          aria-label={`Retry job ${j.id}`}
+                          aria-label={t('admin.jobs.retryAria', { id: j.id })}
                           onClick={() =>
                             void action
-                              .run(() => api.retryJob(j.id), 'Job re-queued.')
+                              .run(() => api.retryJob(j.id), t('admin.jobs.requeued'))
                               .then(() => paged.reload())
                           }
                         >
-                          Retry
+                          {t('admin.jobs.retry')}
                         </Button>
                         <Button
                           size="sm"
                           variant="danger"
-                          aria-label={`Delete job ${j.id}`}
+                          aria-label={t('admin.jobs.deleteAria', { id: j.id })}
                           onClick={() => setDel(j)}
                         >
-                          Delete
+                          {t('admin.jobs.delete')}
                         </Button>
                       </div>
                     )}
@@ -164,15 +170,15 @@ export function JobsSection() {
       <ConfirmDialog
         open={!!del}
         danger
-        title="Delete this dead job"
-        description="Its record is removed; the work is not retried."
-        confirmLabel="Delete job"
+        title={t('admin.jobs.deleteTitle')}
+        description={t('admin.jobs.deleteDescription')}
+        confirmLabel={t('admin.jobs.deleteConfirm')}
         loading={action.busy}
         onCancel={() => setDel(null)}
         onConfirm={() => {
           if (!del) return;
           void action
-            .run(() => api.deleteJob(del.id), 'Job deleted.')
+            .run(() => api.deleteJob(del.id), t('admin.jobs.deleted'))
             .then(() => {
               setDel(null);
               paged.reload();

@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup, configure } from '@testing-library/react';
+import '../i18n/messages/en.rest';
 import { setMarkdownEngine, testFallbackEngine } from '../lounge/markdown';
 import { server } from './server';
 

@@ -1,6 +1,7 @@
 import { Modal } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { apiFetch } from '../../api/client';
+import { useT } from '../../i18n';
 import type { Poll } from '../data';
 import { timeLeft } from './format';
 
@@ -22,6 +23,7 @@ interface Voter {
 
 /** Poll widget (LNG-MSGUI-021): vote, results bars, voters list, time left, End Poll. */
 export function PollView({ poll, channelId, messageId, isOwn, onVote, onEnd }: PollViewProps) {
+  const t = useT();
   const total = poll.answers.reduce((n, a) => n + a.count, 0);
   const closed =
     poll.finalized || (!!poll.expiresAt && new Date(poll.expiresAt).getTime() <= Date.now());
@@ -44,13 +46,16 @@ export function PollView({ poll, channelId, messageId, isOwn, onVote, onEnd }: P
     }
   };
 
-  const left = closed ? 'Poll closed' : timeLeft(poll.expiresAt);
+  const left = closed ? t('lounge.poll.closed') : timeLeft(poll.expiresAt);
   const vlabel = voters ? (poll.answers.find((a) => a.id === voters.answer)?.text ?? '') : '';
   return (
-    <section className="lng-poll" aria-label={`Poll: ${poll.question}`}>
+    <section
+      className="lng-poll"
+      aria-label={t('lounge.poll.ariaLabel', { question: poll.question })}
+    >
       <h3 className="lng-poll-q">{poll.question}</h3>
       <p className="lng-muted lng-poll-hint">
-        {poll.multi ? 'Select one or more answers' : 'Select one answer'}
+        {poll.multi ? t('lounge.poll.selectMultiple') : t('lounge.poll.selectOne')}
       </p>
       <ul className="lng-poll-answers">
         {poll.answers.map((a) => {
@@ -84,7 +89,10 @@ export function PollView({ poll, channelId, messageId, isOwn, onVote, onEnd }: P
                   className="lng-link-btn lng-poll-voters"
                   onClick={() => void openVoters(a.id)}
                 >
-                  Voters<span className="lng-sr-only"> for {a.text}</span>
+                  {t('lounge.poll.voters')}
+                  <span className="lng-sr-only">
+                    {t('lounge.poll.votersFor', { text: a.text })}
+                  </span>
                 </button>
               )}
             </li>
@@ -93,28 +101,28 @@ export function PollView({ poll, channelId, messageId, isOwn, onVote, onEnd }: P
       </ul>
       <footer className="lng-poll-foot">
         <span className="lng-muted">
-          {total} {total === 1 ? 'vote' : 'votes'}
+          {t('lounge.poll.voteCount', { n: total })}
           {left ? ` • ${left}` : ''}
         </span>
         {!closed && !voted && (
           <button type="button" className="lng-link-btn" onClick={() => setShowResults((v) => !v)}>
-            {showResults ? 'Hide results' : 'Show results'}
+            {showResults ? t('lounge.poll.hideResults') : t('lounge.poll.showResults')}
           </button>
         )}
         {!closed && isOwn && onEnd && (
           <button type="button" className="lng-link-btn lng-danger" onClick={onEnd}>
-            End Poll
+            {t('lounge.poll.endPoll')}
           </button>
         )}
       </footer>
       <Modal
         open={voters !== null}
         onClose={() => setVoters(null)}
-        title={`Voters for "${vlabel}"`}
+        title={t('lounge.poll.votersTitle', { answer: vlabel })}
         size="sm"
       >
         {voters && voters.users.length === 0 ? (
-          <p className="lng-muted">Nobody to show.</p>
+          <p className="lng-muted">{t('lounge.poll.nobody')}</p>
         ) : (
           <ul className="lng-voter-list">
             {voters?.users.map((u) => (

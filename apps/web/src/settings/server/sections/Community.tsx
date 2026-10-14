@@ -1,5 +1,6 @@
 import { Button, Checkbox, MultiSelect, Switch, Tabs, TextArea, TextInput } from '@sideroom/ui';
 import { useCallback, useMemo } from 'react';
+import { t as translate, useT } from '../../../i18n';
 import { useChannels, useGuild } from '../../../store';
 import * as api from '../api';
 import { useDraft, useGuildEvents, useResource, useSettingsForm } from '../hooks';
@@ -7,19 +8,32 @@ import type { SectionProps } from '../ServerSettings';
 import { ActionStatus, Async, NotAvailable, SectionHeader, useAction } from '../ui';
 
 export function CommunitySection({ guildId }: SectionProps) {
+  const t = useT();
   return (
     <>
       <SectionHeader
-        title="Community"
-        description="Community features, onboarding and the welcome screen."
+        title={t('settings.community.title')}
+        description={t('settings.community.description')}
       />
       <Tabs
-        label="Community settings"
+        label={t('settings.community.settingsLabel')}
         items={[
-          { id: 'overview', label: 'Overview', content: <CommunityOverview guildId={guildId} /> },
-          { id: 'onboarding', label: 'Onboarding', content: <OnboardingTab guildId={guildId} /> },
-          { id: 'welcome', label: 'Welcome Screen', content: <WelcomeTab guildId={guildId} /> },
-          { id: 'more', label: 'More', content: <NotYet /> },
+          {
+            id: 'overview',
+            label: t('settings.community.tabOverview'),
+            content: <CommunityOverview guildId={guildId} />,
+          },
+          {
+            id: 'onboarding',
+            label: t('settings.community.tabOnboarding'),
+            content: <OnboardingTab guildId={guildId} />,
+          },
+          {
+            id: 'welcome',
+            label: t('settings.community.tabWelcome'),
+            content: <WelcomeTab guildId={guildId} />,
+          },
+          { id: 'more', label: t('settings.community.tabMore'), content: <NotYet /> },
         ]}
       />
     </>
@@ -27,12 +41,13 @@ export function CommunitySection({ guildId }: SectionProps) {
 }
 
 function NotYet() {
+  const t = useT();
   return (
     <div className="ss-form">
-      <NotAvailable>Server Guide editor (welcome message, to-dos, resource pages).</NotAvailable>
-      <NotAvailable>Rules screening and membership applications.</NotAvailable>
-      <NotAvailable>Server Insights.</NotAvailable>
-      <NotAvailable>Directory listing requests.</NotAvailable>
+      <NotAvailable>{t('settings.community.notYetGuide')}</NotAvailable>
+      <NotAvailable>{t('settings.community.notYetRules')}</NotAvailable>
+      <NotAvailable>{t('settings.community.notYetInsights')}</NotAvailable>
+      <NotAvailable>{t('settings.community.notYetDirectory')}</NotAvailable>
     </div>
   );
 }
@@ -43,7 +58,7 @@ function ChannelSelect({
   value,
   onChange,
   channels,
-  none = 'None',
+  none,
 }: {
   id: string;
   label: string;
@@ -52,6 +67,7 @@ function ChannelSelect({
   channels: { id: string; name?: string | null }[];
   none?: string;
 }) {
+  const t = useT();
   return (
     <div>
       <label className="ss-field-label" htmlFor={id}>
@@ -63,7 +79,7 @@ function ChannelSelect({
         value={value}
         onChange={(e) => onChange(e.target.value)}
       >
-        <option value="">{none}</option>
+        <option value="">{none ?? t('settings.community.none')}</option>
         {channels.map((c) => (
           <option key={c.id} value={c.id}>
             #{c.name}
@@ -77,10 +93,11 @@ function ChannelSelect({
 // ---- Overview ----
 
 function CommunityOverview({ guildId }: { guildId: string }) {
+  const t = useT();
   const res = useResource(`community:${guildId}`, () => api.getCommunity(guildId));
   useGuildEvents(guildId, ['GUILD_UPDATE'], () => void res.reload());
   return (
-    <Async res={res} label="Loading community settings">
+    <Async res={res} label={t('settings.community.loading')}>
       {(c) => <CommunityForm guildId={guildId} community={c} onSaved={(n) => res.set(n)} />}
     </Async>
   );
@@ -119,6 +136,7 @@ function CommunityForm({
   community: api.CommunityObject;
   onSaved: (c: api.CommunityObject) => void;
 }) {
+  const t = useT();
   const base = useMemo(() => toCommunityFields(community), [community]);
   const draft = useDraft(base);
   const action = useAction();
@@ -127,9 +145,7 @@ function CommunityForm({
   const v = draft.value;
   const needsChannels =
     v.community_enabled && (!v.rules_channel_id || !v.public_updates_channel_id);
-  const error = needsChannels
-    ? 'Choose a rules channel and a community updates channel to enable Community.'
-    : null;
+  const error = needsChannels ? t('settings.community.needsChannels') : null;
 
   const save = useCallback(async () => {
     if (error) {
@@ -152,13 +168,13 @@ function CommunityForm({
     if (c.age_restricted !== undefined) body.age_restricted = c.age_restricted;
     const next = await action.run(
       () => api.modifyCommunity(guildId, body),
-      'Community settings saved.',
+      t('settings.community.saved'),
     );
     if (next) {
       onSaved(next);
       draft.reset();
     }
-  }, [error, action, draft, guildId, onSaved]);
+  }, [error, action, draft, guildId, onSaved, t]);
 
   useSettingsForm({
     dirty: draft.dirty,
@@ -171,53 +187,55 @@ function CommunityForm({
     <div className="ss-form">
       <ActionStatus error={action.error} done={action.done} />
       <Switch
-        label="Enable Community"
-        description={`Turn ${guild?.name ?? 'this server'} into a community with rules, updates and onboarding.`}
+        label={t('settings.community.enable')}
+        description={t('settings.community.enableDescription', {
+          name: guild?.name ?? t('settings.community.thisServer'),
+        })}
         checked={v.community_enabled}
         onChange={(e) => draft.set('community_enabled', e.target.checked)}
       />
       <ChannelSelect
         id="ss-rules-channel"
-        label="Rules channel"
+        label={t('settings.community.rulesChannel')}
         value={v.rules_channel_id}
         channels={channels}
         onChange={(x) => draft.set('rules_channel_id', x)}
       />
       <ChannelSelect
         id="ss-updates-channel"
-        label="Community updates channel"
+        label={t('settings.community.updatesChannel')}
         value={v.public_updates_channel_id}
         channels={channels}
         onChange={(x) => draft.set('public_updates_channel_id', x)}
       />
       <ChannelSelect
         id="ss-safety-channel"
-        label="Safety notifications channel"
+        label={t('settings.community.safetyChannel')}
         value={v.safety_alerts_channel_id}
         channels={channels}
         onChange={(x) => draft.set('safety_alerts_channel_id', x)}
       />
       <TextArea
-        label="Community description"
+        label={t('settings.community.descriptionLabel')}
         value={v.description}
         maxLength={300}
         onChange={(e) => draft.set('description', e.target.value)}
       />
       <TextInput
-        label="Primary language"
-        hint="A locale code such as en-US."
+        label={t('settings.community.language')}
+        hint={t('settings.community.languageHint')}
         value={v.preferred_locale}
         maxLength={16}
         onChange={(e) => draft.set('preferred_locale', e.target.value)}
       />
       <Switch
-        label="Server guide"
+        label={t('settings.community.guide')}
         checked={v.guide_enabled}
         onChange={(e) => draft.set('guide_enabled', e.target.checked)}
       />
       <TextInput
-        label="Raid alert: joins per minute"
-        hint="Alert the safety channel when more people than this join in a minute. 0 turns the alert off."
+        label={t('settings.community.raidLabel')}
+        hint={t('settings.community.raidHint')}
         type="number"
         min={0}
         value={String(v.raid_alert_joins_per_minute)}
@@ -226,7 +244,7 @@ function CommunityForm({
         }
       />
       <Switch
-        label="Age-restricted server"
+        label={t('settings.community.ageRestricted')}
         checked={v.age_restricted}
         onChange={(e) => draft.set('age_restricted', e.target.checked)}
       />
@@ -237,9 +255,10 @@ function CommunityForm({
 // ---- Onboarding ----
 
 function OnboardingTab({ guildId }: { guildId: string }) {
+  const t = useT();
   const res = useResource(`onboarding:${guildId}`, () => api.getOnboarding(guildId));
   return (
-    <Async res={res} label="Loading onboarding">
+    <Async res={res} label={t('settings.community.loadingOnboarding')}>
       {(o) => <OnboardingForm guildId={guildId} onboarding={o} onSaved={(n) => res.set(n)} />}
     </Async>
   );
@@ -262,10 +281,11 @@ const blankPrompt = (): api.OnboardingPrompt => ({
 
 export function validateOnboarding(f: OnboardingFields): string | null {
   for (const [i, p] of f.prompts.entries()) {
-    if (!p.title.trim()) return `Question ${i + 1} needs a title.`;
-    if (p.options.length < 2) return `Question ${i + 1} needs at least two answers.`;
+    if (!p.title.trim()) return translate('settings.community.questionNeedsTitle', { n: i + 1 });
+    if (p.options.length < 2)
+      return translate('settings.community.questionNeedsAnswers', { n: i + 1 });
     if (p.options.some((o) => !o.title.trim()))
-      return `Every answer in question ${i + 1} needs a title.`;
+      return translate('settings.community.answerNeedsTitle', { n: i + 1 });
   }
   return null;
 }
@@ -287,6 +307,7 @@ function OnboardingForm({
     }),
     [onboarding],
   );
+  const t = useT();
   const draft = useDraft(base);
   const action = useAction();
   const { roles } = useGuild(guildId);
@@ -310,13 +331,13 @@ function OnboardingForm({
           default_channel_ids: f.default_channel_ids,
           prompts: f.prompts,
         }),
-      'Onboarding saved.',
+      t('settings.community.onboardingSaved'),
     );
     if (next) {
       onSaved(next);
       draft.reset();
     }
-  }, [problem, action, guildId, f, onSaved, draft]);
+  }, [problem, action, guildId, f, onSaved, draft, t]);
 
   useSettingsForm({
     dirty: draft.dirty,
@@ -339,66 +360,66 @@ function OnboardingForm({
     <div className="ss-form" style={{ maxWidth: 720 }}>
       <ActionStatus error={action.error} done={action.done} />
       <Switch
-        label="Enable onboarding"
-        description="New members pick channels and roles when they join."
+        label={t('settings.community.enableOnboarding')}
+        description={t('settings.community.enableOnboardingDescription')}
         checked={f.enabled}
         onChange={(e) => draft.set('enabled', e.target.checked)}
       />
       <MultiSelect
-        aria-label="Default channels"
-        placeholder="Default channels everyone sees"
+        aria-label={t('settings.community.defaultChannels')}
+        placeholder={t('settings.community.defaultChannelsPlaceholder')}
         options={channelOptions}
         values={f.default_channel_ids}
         onValuesChange={(v) => draft.set('default_channel_ids', v)}
       />
       {f.prompts.map((p, i) => (
         <fieldset key={i} className="ss-card">
-          <legend>Question {i + 1}</legend>
+          <legend>{t('settings.community.questionN', { n: i + 1 })}</legend>
           <TextInput
-            label="Question"
+            label={t('settings.community.question')}
             value={p.title}
             maxLength={100}
             onChange={(e) => setPrompt(i, { title: e.target.value })}
           />
           <Checkbox
-            label="Members can pick only one answer"
+            label={t('settings.community.singleSelect')}
             checked={p.single_select}
             onChange={(e) => setPrompt(i, { single_select: e.target.checked })}
           />
           <Checkbox
-            label="Required"
+            label={t('settings.community.required')}
             checked={p.required}
             onChange={(e) => setPrompt(i, { required: e.target.checked })}
           />
           <Checkbox
-            label="Show during onboarding"
+            label={t('settings.community.showDuring')}
             checked={p.in_onboarding}
             onChange={(e) => setPrompt(i, { in_onboarding: e.target.checked })}
           />
           {p.options.map((o, k) => (
             <div key={k} className="ss-card">
               <TextInput
-                label={`Answer ${k + 1} of question ${i + 1}`}
+                label={t('settings.community.answerOf', { k: k + 1, i: i + 1 })}
                 value={o.title}
                 maxLength={50}
                 onChange={(e) => setOption(i, k, { title: e.target.value })}
               />
               <TextInput
-                label={`Description of answer ${k + 1}`}
+                label={t('settings.community.answerDescription', { k: k + 1 })}
                 value={o.description ?? ''}
                 maxLength={100}
                 onChange={(e) => setOption(i, k, { description: e.target.value })}
               />
               <MultiSelect
-                aria-label={`Channels for answer ${k + 1} of question ${i + 1}`}
-                placeholder="Channels"
+                aria-label={t('settings.community.channelsFor', { k: k + 1, i: i + 1 })}
+                placeholder={t('settings.community.channels')}
                 options={channelOptions}
                 values={o.channel_ids}
                 onValuesChange={(v) => setOption(i, k, { channel_ids: v })}
               />
               <MultiSelect
-                aria-label={`Roles for answer ${k + 1} of question ${i + 1}`}
-                placeholder="Roles"
+                aria-label={t('settings.community.rolesFor', { k: k + 1, i: i + 1 })}
+                placeholder={t('settings.community.roles')}
                 options={roleOptions}
                 values={o.role_ids}
                 onValuesChange={(v) => setOption(i, k, { role_ids: v })}
@@ -409,7 +430,7 @@ function OnboardingForm({
                   variant="ghost"
                   onClick={() => setPrompt(i, { options: p.options.filter((_, j) => j !== k) })}
                 >
-                  Remove answer {k + 1}
+                  {t('settings.community.removeAnswer', { k: k + 1 })}
                 </Button>
               </div>
             </div>
@@ -420,7 +441,7 @@ function OnboardingForm({
               variant="secondary"
               onClick={() => setPrompt(i, { options: [...p.options, blankOption()] })}
             >
-              Add answer
+              {t('settings.community.addAnswer')}
             </Button>
             <Button
               size="sm"
@@ -432,7 +453,7 @@ function OnboardingForm({
                 )
               }
             >
-              Remove question {i + 1}
+              {t('settings.community.removeQuestion', { i: i + 1 })}
             </Button>
           </div>
         </fieldset>
@@ -443,7 +464,7 @@ function OnboardingForm({
           disabled={f.prompts.length >= 5}
           onClick={() => draft.set('prompts', [...f.prompts, blankPrompt()])}
         >
-          Add question
+          {t('settings.community.addQuestion')}
         </Button>
       </div>
     </div>
@@ -453,9 +474,10 @@ function OnboardingForm({
 // ---- Welcome screen ----
 
 function WelcomeTab({ guildId }: { guildId: string }) {
+  const t = useT();
   const res = useResource(`welcome:${guildId}`, () => api.getWelcomeScreen(guildId));
   return (
-    <Async res={res} label="Loading welcome screen">
+    <Async res={res} label={t('settings.community.loadingWelcome')}>
       {(w) => <WelcomeForm guildId={guildId} welcome={w} onSaved={(n) => res.set(n)} />}
     </Async>
   );
@@ -484,12 +506,13 @@ function WelcomeForm({
     }),
     [welcome],
   );
+  const t = useT();
   const draft = useDraft(base);
   const action = useAction();
   const channels = useChannels(guildId).filter((c) => c.type === 0 || c.type === 5);
   const f = draft.value;
   const problem = f.welcome_channels.some((c) => !c.channel_id || !c.description.trim())
-    ? 'Every welcome channel needs a channel and a description.'
+    ? t('settings.community.welcomeProblem')
     : null;
 
   const save = useCallback(async () => {
@@ -504,13 +527,13 @@ function WelcomeForm({
           description: f.description.trim() || null,
           welcome_channels: f.welcome_channels,
         }),
-      'Welcome screen saved.',
+      t('settings.community.welcomeSaved'),
     );
     if (next) {
       onSaved(next);
       draft.reset();
     }
-  }, [problem, action, guildId, f, onSaved, draft]);
+  }, [problem, action, guildId, f, onSaved, draft, t]);
 
   useSettingsForm({
     dirty: draft.dirty,
@@ -529,35 +552,35 @@ function WelcomeForm({
     <div className="ss-form">
       <ActionStatus error={action.error} done={action.done} />
       <Switch
-        label="Enable welcome screen"
+        label={t('settings.community.enableWelcome')}
         checked={f.enabled}
         onChange={(e) => draft.set('enabled', e.target.checked)}
       />
       <TextArea
-        label="Server description"
+        label={t('settings.community.serverDescription')}
         value={f.description}
         maxLength={140}
         onChange={(e) => draft.set('description', e.target.value)}
       />
       {f.welcome_channels.map((c, i) => (
         <fieldset key={i} className="ss-card">
-          <legend>Welcome channel {i + 1}</legend>
+          <legend>{t('settings.community.welcomeChannelN', { n: i + 1 })}</legend>
           <ChannelSelect
             id={`ss-welcome-ch-${i}`}
-            label={`Channel ${i + 1}`}
+            label={t('settings.community.channelN', { n: i + 1 })}
             value={c.channel_id}
             channels={channels}
-            none="Choose a channel"
+            none={t('settings.community.chooseChannel')}
             onChange={(v) => setCh(i, { channel_id: v })}
           />
           <TextInput
-            label={`Description of channel ${i + 1}`}
+            label={t('settings.community.channelDescription', { n: i + 1 })}
             value={c.description}
             maxLength={50}
             onChange={(e) => setCh(i, { description: e.target.value })}
           />
           <TextInput
-            label={`Emoji for channel ${i + 1}`}
+            label={t('settings.community.channelEmoji', { n: i + 1 })}
             value={c.emoji_name ?? ''}
             maxLength={8}
             onChange={(e) => setCh(i, { emoji_name: e.target.value || null })}
@@ -573,7 +596,7 @@ function WelcomeForm({
                 )
               }
             >
-              Remove channel {i + 1}
+              {t('settings.community.removeChannel', { n: i + 1 })}
             </Button>
           </div>
         </fieldset>
@@ -589,7 +612,7 @@ function WelcomeForm({
             ])
           }
         >
-          Add channel
+          {t('settings.community.addChannel')}
         </Button>
       </div>
     </div>

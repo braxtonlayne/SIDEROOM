@@ -1,6 +1,7 @@
 import { ConfirmDialog } from '@sideroom/ui';
 import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
+import { useT } from '../../i18n';
 import { useChannels } from '../data';
 import { useLoungeRoute } from '../nav';
 import { channelErrorText, deleteChannelAndForget } from './channelActions';
@@ -15,6 +16,7 @@ export function DeleteChannelDialog({
   channelId: string;
   onClose: () => void;
 }) {
+  const t = useT();
   const channel = useChannels(guildId).find((c) => c.id === channelId);
   const { channelId: current } = useLoungeRoute();
   const navigate = useNavigate();
@@ -32,7 +34,7 @@ export function DeleteChannelDialog({
       if (current === channelId)
         void navigate({ to: '/channels/$guildId', params: { guildId }, replace: true });
     } catch (e) {
-      setError(channelErrorText(e, 'Could not delete it. Try again.'));
+      setError(channelErrorText(e, t('lounge.deleteChannel.error')));
       setBusy(false);
     }
   };
@@ -41,12 +43,12 @@ export function DeleteChannelDialog({
     <ConfirmDialog
       open
       danger
-      title={cat ? 'Delete Category' : 'Delete Channel'}
+      title={cat ? t('lounge.deleteChannel.categoryTitle') : t('lounge.deleteChannel.channelTitle')}
       description={
         <>
           {cat
-            ? `Delete the category ${channel.name}? Its channels are kept and move to the top level.`
-            : `Are you sure you want to delete #${channel.name}? This cannot be undone.`}
+            ? t('lounge.deleteChannel.categoryBody', { name: channel.name })
+            : t('lounge.deleteChannel.channelBody', { name: channel.name })}
           {error && (
             <span role="alert" className="lng-form-error">
               {error}
@@ -54,7 +56,9 @@ export function DeleteChannelDialog({
           )}
         </>
       }
-      confirmLabel={cat ? 'Delete Category' : 'Delete Channel'}
+      confirmLabel={
+        cat ? t('lounge.deleteChannel.categoryTitle') : t('lounge.deleteChannel.channelTitle')
+      }
       loading={busy}
       onConfirm={() => void confirm()}
       onCancel={onClose}

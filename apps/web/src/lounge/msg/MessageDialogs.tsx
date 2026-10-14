@@ -1,12 +1,16 @@
 import { Button, ConfirmDialog, Modal } from '@sideroom/ui';
 import { useMemo, useState } from 'react';
+import { useT } from '../../i18n';
 import { dmTitle } from '../channels';
 import { useAllChannels, useDms, useUsers, type Message, type Snowflake } from '../data';
 
 function Preview({ message }: { message: Message }) {
+  const t = useT();
   const text =
     message.content.slice(0, 200) ||
-    (message.attachments?.length ? `${message.attachments.length} attachment(s)` : '');
+    (message.attachments?.length
+      ? t('lounge.messageDialogs.attachmentCount', { n: message.attachments.length })
+      : '');
   return (
     <span className="lng-preview">
       <strong>{message.author.displayName}</strong>
@@ -25,19 +29,20 @@ export function DeleteMessageDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   return (
     <ConfirmDialog
       open={!!message}
-      title="Delete Message"
+      title={t('lounge.messageDialogs.deleteTitle')}
       description={
         message ? (
           <>
-            Are you sure you want to delete this message?
+            {t('lounge.messageDialogs.deleteConfirm')}
             <Preview message={message} />
           </>
         ) : undefined
       }
-      confirmLabel="Delete"
+      confirmLabel={t('lounge.messageDialogs.delete')}
       danger
       onConfirm={onConfirm}
       onCancel={onCancel}
@@ -56,16 +61,15 @@ export function PinMessageDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   return (
     <ConfirmDialog
       open={!!message}
-      title={pinned ? 'Unpin Message' : 'Pin It. Pin It Good.'}
+      title={pinned ? t('lounge.messageDialogs.unpinTitle') : t('lounge.messageDialogs.pinTitle')}
       description={
-        pinned
-          ? 'Do you want to unpin this message from the channel?'
-          : 'Do you want to pin this message to the channel? Anyone can then find it in the pinned messages.'
+        pinned ? t('lounge.messageDialogs.unpinConfirm') : t('lounge.messageDialogs.pinConfirm')
       }
-      confirmLabel={pinned ? 'Unpin' : 'Pin'}
+      confirmLabel={pinned ? t('lounge.messageDialogs.unpin') : t('lounge.messageDialogs.pin')}
       onConfirm={onConfirm}
       onCancel={onCancel}
     />
@@ -90,6 +94,7 @@ export function ForwardDialog({
   onForward: (targets: Snowflake[], note: string) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const channelsByGuild = useAllChannels();
   const dms = useDms();
   const users = useUsers();
@@ -102,18 +107,22 @@ export function ForwardDialog({
     for (const list of Object.values(channelsByGuild)) {
       for (const c of list) {
         if ((c.type === 'text' || c.type === 'announcement') && c.canSend)
-          out.push({ id: c.id, label: `#${c.name}`, group: 'Channels' });
+          out.push({
+            id: c.id,
+            label: `#${c.name}`,
+            group: t('lounge.messageDialogs.groupChannels'),
+          });
       }
     }
     for (const d of dms) {
       out.push({
         id: d.id,
-        label: dmTitle(d, (id) => users[id]?.displayName ?? 'Unknown'),
-        group: 'Direct Messages',
+        label: dmTitle(d, (id) => users[id]?.displayName ?? t('lounge.messageDialogs.unknownUser')),
+        group: t('lounge.messageDialogs.groupDirectMessages'),
       });
     }
     return out;
-  }, [channelsByGuild, dms, users]);
+  }, [channelsByGuild, dms, users, t]);
 
   const shown = dests.filter((d) => d.label.toLowerCase().includes(q.trim().toLowerCase()));
   const toggle = (id: Snowflake) =>
@@ -130,12 +139,12 @@ export function ForwardDialog({
     <Modal
       open={!!message}
       onClose={close}
-      title="Forward To"
+      title={t('lounge.messageDialogs.forwardTo')}
       size="sm"
       footer={
         <>
           <Button variant="ghost" onClick={close}>
-            Cancel
+            {t('lounge.messageDialogs.cancel')}
           </Button>
           <Button
             disabled={picked.length === 0}
@@ -144,7 +153,9 @@ export function ForwardDialog({
               close();
             }}
           >
-            Send{picked.length > 0 ? ` (${picked.length})` : ''}
+            {picked.length > 0
+              ? t('lounge.messageDialogs.sendCount', { n: picked.length })
+              : t('lounge.messageDialogs.send')}
           </Button>
         </>
       }
@@ -153,13 +164,15 @@ export function ForwardDialog({
       <input
         type="search"
         className="lng-emoji-search"
-        aria-label="Search for channels or people"
-        placeholder="Search for channels or people"
+        aria-label={t('lounge.messageDialogs.searchTargets')}
+        placeholder={t('lounge.messageDialogs.searchTargets')}
         value={q}
         onChange={(e) => setQ(e.target.value)}
       />
-      <ul className="lng-forward-list" aria-label="Destinations">
-        {shown.length === 0 && <li className="lng-muted">No matches.</li>}
+      <ul className="lng-forward-list" aria-label={t('lounge.messageDialogs.destinations')}>
+        {shown.length === 0 && (
+          <li className="lng-muted">{t('lounge.messageDialogs.noMatches')}</li>
+        )}
         {shown.map((d) => {
           const on = picked.includes(d.id);
           return (
@@ -181,8 +194,8 @@ export function ForwardDialog({
       <input
         type="text"
         className="lng-emoji-search"
-        aria-label="Add an optional message"
-        placeholder="Add an optional message"
+        aria-label={t('lounge.messageDialogs.optionalMessage')}
+        placeholder={t('lounge.messageDialogs.optionalMessage')}
         value={note}
         maxLength={2000}
         onChange={(e) => setNote(e.target.value)}

@@ -1,5 +1,6 @@
 // The now-playing panel (TV-UI-002): CRT preview frame, channel eyebrow, programme, actions, reception dot.
 import { Suspense, lazy, useState } from 'react';
+import { useT } from '../../i18n';
 import { kindYear, watchChannelHref } from './model';
 import { useBlockInfo } from './api';
 import type { ChannelNow, TvBlock, TvChannel } from './types';
@@ -24,6 +25,7 @@ export function NowPanel({
   canManage,
   onDetails,
 }: NowPanelProps) {
+  const t = useT();
   // Synopsis and artwork come from the catalog (the schedule block carries neither).
   const now = useBlockInfo(nowBlock);
   const [hover, setHover] = useState(false);
@@ -34,7 +36,7 @@ export function NowPanel({
   const picture = now?.backdrop_url ?? now?.poster_url ?? null;
   const reception = healthy === null ? null : healthy && preview !== 'error';
   return (
-    <section className="tv-now" aria-label={`On now, channel ${channel.number}`}>
+    <section className="tv-now" aria-label={t('cinema.nowPanel.onNow', { n: channel.number })}>
       <div
         className="tv-crt"
         data-live={preview === 'live' || undefined}
@@ -63,7 +65,7 @@ export function NowPanel({
             {channel.logo_url ? <img src={channel.logo_url} alt="" /> : channel.call_sign}
           </span>
           <span className="tv-crt-label" aria-hidden="true">
-            CHANNEL PREVIEW
+            {t('cinema.nowPanel.preview')}
           </span>
           <span className="tv-scan" aria-hidden="true" />
         </div>
@@ -76,7 +78,8 @@ export function NowPanel({
         </p>
         {reception !== null && (
           <p className="tv-reception" data-ok={reception || undefined} role="status">
-            <span aria-hidden="true">●</span> {reception ? 'GOOD RECEPTION' : 'NO SIGNAL'}
+            <span aria-hidden="true">●</span>{' '}
+            {reception ? t('cinema.nowPanel.goodReception') : t('cinema.nowPanel.noSignal')}
           </p>
         )}
         {now ? (
@@ -90,27 +93,28 @@ export function NowPanel({
           </>
         ) : (
           <>
-            <h2 className="tv-now-title">Off the air</h2>
+            <h2 className="tv-now-title">{t('cinema.nowPanel.offAir')}</h2>
             <p className="tv-now-syn">
-              Nothing is scheduled on this channel right now
-              {next ? `. Up next: ${next.title}.` : '.'}
+              {next
+                ? t('cinema.nowPanel.offAirNext', { title: next.title })
+                : t('cinema.nowPanel.offAirBody')}
             </p>
           </>
         )}
         <div className="tv-now-actions">
           {now && (
             <button type="button" className="tv-btn" onClick={() => onDetails(now)}>
-              <span aria-hidden="true">ⓘ</span> Program details
+              <span aria-hidden="true">ⓘ</span> {t('cinema.nowPanel.details')}
             </button>
           )}
           {now && (
             <a className="tv-btn tv-btn-primary" href={watchChannelHref(channel.id)}>
-              <span aria-hidden="true">▶</span> Tune in
+              <span aria-hidden="true">▶</span> {t('cinema.nowPanel.tuneIn')}
             </a>
           )}
           {canManage && (
             <a className="tv-btn" href="/admin/cinema-live-tv">
-              Edit lineup
+              {t('cinema.nowPanel.editLineup')}
             </a>
           )}
         </div>

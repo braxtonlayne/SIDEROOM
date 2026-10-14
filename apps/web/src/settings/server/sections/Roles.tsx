@@ -11,6 +11,7 @@ import {
   type TriState,
 } from '@sideroom/ui';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { t as translate, useT } from '../../../i18n';
 import { cdnUrl, useMembers, useStore } from '../../../store';
 import * as api from '../api';
 import {
@@ -35,15 +36,15 @@ export function roleEditReason(
   role: api.RoleObject,
   guildId: string,
 ): string | undefined {
-  if (!viewer.can('MANAGE_ROLES')) return 'You need the Manage Roles permission.';
+  if (!viewer.can('MANAGE_ROLES')) return translate('settings.roles.needManageRoles');
   if (role.id === guildId) return undefined; // @everyone: permissions only
   if (viewer.isOwner) return undefined;
-  if (viewer.topPosition <= role.position)
-    return 'You cannot edit this role because it is at or above your highest role.';
+  if (viewer.topPosition <= role.position) return translate('settings.roles.aboveHighest');
   return undefined;
 }
 
 export function RolesSection({ guildId, viewer }: SectionProps) {
+  const t = useT();
   const res = useResource(`roles:${guildId}`, () => api.listRoles(guildId));
   useGuildEvents(
     guildId,
@@ -53,10 +54,10 @@ export function RolesSection({ guildId, viewer }: SectionProps) {
   return (
     <>
       <SectionHeader
-        title="Roles"
-        description="Use roles to group your members and assign permissions. Roles higher in the list outrank the ones below."
+        title={t('settings.roles.title')}
+        description={t('settings.roles.description')}
       />
-      <Async res={res} label="Loading roles">
+      <Async res={res} label={t('settings.roles.loading')}>
         {(roles) => (
           <RolesEditor
             guildId={guildId}
@@ -84,6 +85,7 @@ function RolesEditor({
   reload: () => Promise<void>;
   set: (r: api.RoleObject[]) => void;
 }) {
+  const t = useT();
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editorDirty, setEditorDirty] = useState(false);
@@ -159,7 +161,7 @@ function RolesEditor({
     if (own) return own;
     const target = ordered[targetIndex];
     if (target && !viewer.isOwner && viewer.topPosition <= target.position)
-      return 'You cannot move a role to or above your own highest role.';
+      return t('settings.roles.cannotMove');
     return undefined;
   };
 
@@ -171,24 +173,24 @@ function RolesEditor({
         <div className="ss-toolbar">
           <div className="ss-search">
             <TextInput
-              label="Search roles"
+              label={t('settings.roles.searchLabel')}
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search roles"
+              placeholder={t('settings.roles.searchLabel')}
             />
           </div>
           <Button onClick={() => void create()} loading={action.busy}>
-            Create Role
+            {t('settings.roles.create')}
           </Button>
         </div>
         <ActionStatus error={action.error} />
         {blocked && (
           <Notice variant="warning" onDismiss={() => setBlocked(false)}>
-            Save or reset your changes before selecting another role.
+            {t('settings.roles.saveFirst')}
           </Notice>
         )}
-        <ul className="ss-list" aria-label="Roles">
+        <ul className="ss-list" aria-label={t('settings.roles.listLabel')}>
           {shown.map((r) => {
             const idx = ordered.indexOf(r);
             const canUp = idx > 0 && !moveReason(r, idx - 1) && !query.trim();
@@ -227,14 +229,16 @@ function RolesEditor({
                 >
                   {r.name}
                 </button>
-                <span className="ss-meta">{counts.get(r.id) ?? 0} members</span>
+                <span className="ss-meta">
+                  {t('settings.roles.memberCount', { count: String(counts.get(r.id) ?? 0) })}
+                </span>
                 {!query.trim() && (
                   <>
                     <Button
                       size="sm"
                       variant="ghost"
                       iconOnly
-                      aria-label={`Move ${r.name} up`}
+                      aria-label={t('settings.roles.moveUp', { name: r.name })}
                       disabled={!canUp}
                       onClick={() => void move(r.id, idx - 1)}
                     >
@@ -244,7 +248,7 @@ function RolesEditor({
                       size="sm"
                       variant="ghost"
                       iconOnly
-                      aria-label={`Move ${r.name} down`}
+                      aria-label={t('settings.roles.moveDown', { name: r.name })}
                       disabled={!canDown}
                       onClick={() => void move(r.id, idx + 1)}
                     >
@@ -264,15 +268,15 @@ function RolesEditor({
                   aria-current={selected?.id === everyone.id ? 'true' : undefined}
                   onClick={() => select(everyone.id)}
                 >
-                  Default permissions
+                  {t('settings.roles.defaultPermissions')}
                 </button>
                 <span className="ss-meta"> @everyone</span>
               </span>
-              <span className="ss-meta">All members</span>
+              <span className="ss-meta">{t('settings.roles.allMembers')}</span>
             </li>
           )}
         </ul>
-        {shown.length === 0 && <p className="ss-na">No roles match your search.</p>}
+        {shown.length === 0 && <p className="ss-na">{t('settings.roles.noMatch')}</p>}
       </div>
       {selected && (
         <RoleEditor
@@ -319,6 +323,7 @@ function RoleEditor({
   onChanged: () => Promise<void>;
   onDeleted: () => void;
 }) {
+  const t = useT();
   const isEveryone = role.id === guildId;
   const reason = roleEditReason(viewer, role, guildId);
   const locked = !!reason || (role.managed && !isEveryone);
@@ -340,7 +345,7 @@ function RoleEditor({
   const name = draft.value.name.trim();
   const nameError =
     !isEveryone && draft.changed.name !== undefined && (name.length < 1 || name.length > 100)
-      ? 'Role name must be between 1 and 100 characters.'
+      ? t('settings.roles.nameError')
       : undefined;
 
   const save = useCallback(async () => {
@@ -354,12 +359,15 @@ function RoleEditor({
     if (c.permissions !== undefined) body.permissions = c.permissions;
     if (c.unicode_emoji !== undefined) body.unicode_emoji = c.unicode_emoji.trim() || null;
     if (c.icon !== undefined) body.icon = c.icon;
-    const next = await action.run(() => api.modifyRole(guildId, role.id, body), 'Role saved.');
+    const next = await action.run(
+      () => api.modifyRole(guildId, role.id, body),
+      t('settings.roles.saved'),
+    );
     if (next) {
       draft.reset();
       await onChanged();
     }
-  }, [nameError, locked, draft, isEveryone, name, action, guildId, role.id, onChanged]);
+  }, [nameError, locked, draft, isEveryone, name, action, guildId, role.id, onChanged, t]);
 
   useSettingsForm({
     dirty: draft.dirty,
@@ -377,9 +385,9 @@ function RoleEditor({
   };
   const lockedReason = (id: string) =>
     locked
-      ? 'Read only.'
+      ? t('settings.roles.readOnlyShort')
       : !viewer.canGrant(PERM[id]!)
-        ? 'You cannot change a permission you do not have.'
+        ? t('settings.roles.cannotChange')
         : undefined;
 
   const remove = async () => {
@@ -399,11 +407,11 @@ function RoleEditor({
       ? [
           {
             id: 'display',
-            label: 'Display',
+            label: t('settings.roles.tabDisplay'),
             content: (
               <div className="ss-form">
                 <TextInput
-                  label="Role name"
+                  label={t('settings.roles.nameLabel')}
                   value={draft.value.name}
                   maxLength={100}
                   disabled={locked}
@@ -411,9 +419,9 @@ function RoleEditor({
                   onChange={(e) => draft.set('name', e.target.value)}
                 />
                 <div>
-                  <span className="ss-field-label">Role color</span>
+                  <span className="ss-field-label">{t('settings.roles.colorLabel')}</span>
                   <ColorPicker
-                    label="Role color"
+                    label={t('settings.roles.colorLabel')}
                     value={draft.value.color ? hexFromInt(draft.value.color) : '#99aab5'}
                     onValueChange={(hex) => !locked && draft.set('color', intFromHex(hex))}
                   />
@@ -423,12 +431,12 @@ function RoleEditor({
                     disabled={locked || draft.value.color === 0}
                     onClick={() => draft.set('color', 0)}
                   >
-                    Use default color
+                    {t('settings.roles.defaultColor')}
                   </Button>
                 </div>
                 <ImageField
-                  label="Role icon"
-                  hint="Shown next to the role name in the member list and on messages. Replaces the emoji."
+                  label={t('settings.roles.iconLabel')}
+                  hint={t('settings.roles.iconHint')}
                   ownerId={guildId}
                   shape="square"
                   value={draft.value.icon}
@@ -439,8 +447,8 @@ function RoleEditor({
                   }}
                 />
                 <TextInput
-                  label="Role emoji"
-                  hint="Or use one emoji instead of an image."
+                  label={t('settings.roles.emojiLabel')}
+                  hint={t('settings.roles.emojiHint')}
                   value={draft.value.unicode_emoji}
                   maxLength={16}
                   disabled={locked}
@@ -450,13 +458,13 @@ function RoleEditor({
                   }}
                 />
                 <Switch
-                  label="Display role members separately from online members"
+                  label={t('settings.roles.hoist')}
                   checked={draft.value.hoist}
                   disabled={locked}
                   onChange={(e) => draft.set('hoist', e.target.checked)}
                 />
                 <Switch
-                  label="Allow anyone to @mention this role"
+                  label={t('settings.roles.mentionable')}
                   checked={draft.value.mentionable}
                   disabled={locked}
                   onChange={(e) => draft.set('mentionable', e.target.checked)}
@@ -468,13 +476,14 @@ function RoleEditor({
       : []),
     {
       id: 'permissions',
-      label: isEveryone ? 'Default permissions' : 'Permissions',
+      label: isEveryone
+        ? t('settings.roles.defaultPermissions')
+        : t('settings.roles.tabPermissions'),
       content: (
         <div className="ss-form">
           {has(perms, PERM.ADMINISTRATOR!) && (
-            <Notice variant="warning" title="Administrator">
-              Members with this role have every permission and bypass channel overwrites. Only give
-              it to people you trust.
+            <Notice variant="warning" title={t('settings.roles.adminTitle')}>
+              {t('settings.roles.adminBody')}
             </Notice>
           )}
           <PermissionMatrix
@@ -490,7 +499,7 @@ function RoleEditor({
                 disabled={locked || perms === 0n}
                 onClick={() => draft.set('permissions', '0')}
               >
-                Clear permissions
+                {t('settings.roles.clearPermissions')}
               </Button>
             }
           />
@@ -501,56 +510,57 @@ function RoleEditor({
       ? [
           {
             id: 'members',
-            label: 'Manage Members',
+            label: t('settings.roles.tabMembers'),
             content: <RoleMembers guildId={guildId} viewer={viewer} role={role} />,
           },
           {
             id: 'links',
-            label: 'Links',
-            content: (
-              <NotAvailable>
-                Linked roles (granting this role from an app connection) arrive with the developer
-                platform.
-              </NotAvailable>
-            ),
+            label: t('settings.roles.tabLinks'),
+            content: <NotAvailable>{t('settings.roles.linksNote')}</NotAvailable>,
           },
         ]
       : []),
   ];
 
   return (
-    <section aria-label={isEveryone ? 'Default permissions' : `Edit role ${role.name}`}>
-      <h2 className="ss-title">{isEveryone ? 'Default permissions (@everyone)' : role.name}</h2>
+    <section
+      aria-label={
+        isEveryone
+          ? t('settings.roles.defaultPermissions')
+          : t('settings.roles.editRole', { name: role.name })
+      }
+    >
+      <h2 className="ss-title">{isEveryone ? t('settings.roles.defaultEveryone') : role.name}</h2>
       {reason && (
-        <Notice variant="info" title="Read only" className="ss-status">
+        <Notice variant="info" title={t('settings.roles.readOnlyTitle')} className="ss-status">
           {reason}
         </Notice>
       )}
       {role.managed && !isEveryone && (
         <Notice variant="info" className="ss-status">
-          This role is managed by an integration. Its permissions cannot be edited.
+          {t('settings.roles.managed')}
         </Notice>
       )}
       <ActionStatus error={action.error} done={action.done} />
-      <Tabs items={tabs} label="Role settings" className="ss-tabs" />
+      <Tabs items={tabs} label={t('settings.roles.settingsLabel')} className="ss-tabs" />
       {!isEveryone && !role.managed && (
         <div className="ss-actions" style={{ marginTop: 24 }}>
           <Button
             variant="danger"
             disabled={!!reason}
             onClick={() => setConfirmDelete(true)}
-            aria-label={`Delete role ${role.name}`}
+            aria-label={t('settings.roles.deleteNamed', { name: role.name })}
           >
-            Delete role
+            {t('settings.roles.delete')}
           </Button>
         </div>
       )}
       <ConfirmDialog
         open={confirmDelete}
         danger
-        title={`Delete ${role.name}`}
-        description="Members lose this role and its permissions. This cannot be undone."
-        confirmLabel="Delete role"
+        title={t('settings.roles.deleteTitle', { name: role.name })}
+        description={t('settings.roles.deleteDescription')}
+        confirmLabel={t('settings.roles.delete')}
         loading={action.busy}
         onConfirm={() => void remove()}
         onCancel={() => setConfirmDelete(false)}
@@ -568,12 +578,13 @@ function RoleMembers({
   viewer: Viewer;
   role: api.RoleObject;
 }) {
+  const t = useT();
   const { members } = useMembers(guildId);
   const [query, setQuery] = useState('');
   const action = useAction();
   const reason =
     roleEditReason(viewer, role, guildId) ??
-    (role.managed ? 'Managed roles cannot be assigned by hand.' : undefined);
+    (role.managed ? t('settings.roles.managedAssign') : undefined);
   const holders = members.filter((m) => m.member.roles.includes(role.id));
   const others = members.filter((m) => !m.member.roles.includes(role.id));
   const nameOf = (m: (typeof members)[number]) =>
@@ -611,20 +622,20 @@ function RoleMembers({
       {reason && <p className="ss-lock">{reason}</p>}
       <ActionStatus error={action.error} />
       <Combobox
-        aria-label="Add a member to this role"
-        placeholder="Add a member"
+        aria-label={t('settings.roles.addMemberLabel')}
+        placeholder={t('settings.roles.addMember')}
         disabled={!!reason}
         options={others.map((m) => ({ value: m.member.user_id, label: nameOf(m) }))}
         value={null}
         onValueChange={(id) => void assign(id)}
       />
       <TextInput
-        label="Search members with this role"
+        label={t('settings.roles.searchMembers')}
         type="search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
-      <ul className="ss-list" aria-label={`Members with ${role.name}`}>
+      <ul className="ss-list" aria-label={t('settings.roles.membersWith', { name: role.name })}>
         {shown.map((m) => (
           <li key={m.member.user_id} className="ss-row">
             <span className="ss-grow ss-name">{nameOf(m)}</span>
@@ -632,15 +643,15 @@ function RoleMembers({
               size="sm"
               variant="secondary"
               disabled={!!reason}
-              aria-label={`Remove ${nameOf(m)} from ${role.name}`}
+              aria-label={t('settings.roles.removeFrom', { member: nameOf(m), role: role.name })}
               onClick={() => void unassign(m.member.user_id)}
             >
-              Remove
+              {t('settings.roles.remove')}
             </Button>
           </li>
         ))}
       </ul>
-      {shown.length === 0 && <p className="ss-na">No members have this role.</p>}
+      {shown.length === 0 && <p className="ss-na">{t('settings.roles.noHolders')}</p>}
     </div>
   );
 }

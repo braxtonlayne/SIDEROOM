@@ -10,6 +10,7 @@ import {
   type TriState,
 } from '@sideroom/ui';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { t as translate, useT } from '../../../i18n';
 import { CreateChannelDialog } from '../../../lounge/CreateChannelDialog';
 import { useGuild, useMembers } from '../../../store';
 import * as api from '../api';
@@ -36,7 +37,13 @@ const bySort = (a: api.ChannelObject, b: api.ChannelObject) =>
 
 export const SLOWMODE = [0, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 21600];
 const slowLabel = (s: number) =>
-  s === 0 ? 'Off' : s < 60 ? `${s}s` : s < 3600 ? `${s / 60}m` : `${s / 3600}h`;
+  s === 0
+    ? translate('settings.channelTabs.slowOff')
+    : s < 60
+      ? `${s}s`
+      : s < 3600
+        ? `${s / 60}m`
+        : `${s / 3600}h`;
 
 /** Permissions that make sense as overwrites on this channel type. */
 export function overwriteApplies(id: string, channel: api.ChannelObject): boolean {
@@ -50,6 +57,7 @@ export function overwriteApplies(id: string, channel: api.ChannelObject): boolea
 }
 
 export function ChannelsSection({ guildId, viewer }: SectionProps) {
+  const t = useT();
   const res = useResource(`channels:${guildId}`, () => api.listChannels(guildId));
   useGuildEvents(
     guildId,
@@ -60,18 +68,18 @@ export function ChannelsSection({ guildId, viewer }: SectionProps) {
   return (
     <>
       <SectionHeader
-        title="Channels & Categories"
-        description="Organize channels into categories and control who can see and use them."
+        title={t('settings.channels.title')}
+        description={t('settings.channels.description')}
         actions={
           <>
             <Button variant="secondary" onClick={() => setCreate({ category: true })}>
-              Create Category
+              {t('settings.channels.createCategory')}
             </Button>
-            <Button onClick={() => setCreate({})}>Create Channel</Button>
+            <Button onClick={() => setCreate({})}>{t('settings.channels.createChannel')}</Button>
           </>
         }
       />
-      <Async res={res} label="Loading channels">
+      <Async res={res} label={t('settings.channels.loading')}>
         {(channels) => (
           <ChannelsEditor
             guildId={guildId}
@@ -110,6 +118,7 @@ function ChannelsEditor({
   res: { reload: () => Promise<void> };
   onCreate: (c: { parentId?: string; category?: boolean }) => void;
 }) {
+  const t = useT();
   const action = useAction();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -164,17 +173,17 @@ function ChannelsEditor({
           <Button
             size="sm"
             variant="ghost"
-            aria-label={`Create channel in ${label}`}
+            aria-label={t('settings.channels.createIn', { name: label })}
             onClick={() => onCreate({ parentId: c.id })}
           >
-            Add channel
+            {t('settings.channels.addChannel')}
           </Button>
         )}
         <Button
           size="sm"
           variant="ghost"
           iconOnly
-          aria-label={`Move ${label} up`}
+          aria-label={t('settings.channels.moveUp', { name: label })}
           disabled={i <= 0}
           onClick={() => void move(siblings, c.id, -1)}
         >
@@ -184,7 +193,7 @@ function ChannelsEditor({
           size="sm"
           variant="ghost"
           iconOnly
-          aria-label={`Move ${label} down`}
+          aria-label={t('settings.channels.moveDown', { name: label })}
           disabled={i < 0 || i >= siblings.length - 1}
           onClick={() => void move(siblings, c.id, 1)}
         >
@@ -200,14 +209,14 @@ function ChannelsEditor({
         <ActionStatus error={action.error} />
         {blocked && (
           <Notice variant="warning" onDismiss={() => setBlocked(false)}>
-            Save or reset your changes before selecting another channel.
+            {t('settings.channels.saveFirst')}
           </Notice>
         )}
-        <ul className="ss-list" aria-label="Channels and categories">
+        <ul className="ss-list" aria-label={t('settings.channels.listLabel')}>
           {top.map((c) =>
             isCategory(c) ? (
               <li key={c.id} className="ss-tree-group">
-                <ul className="ss-list" aria-label={c.name ?? 'Category'}>
+                <ul className="ss-list" aria-label={c.name ?? t('settings.channels.category')}>
                   {row(c, top, false)}
                   {(() => {
                     const kids = children(c.id);
@@ -220,7 +229,7 @@ function ChannelsEditor({
             ),
           )}
         </ul>
-        {top.length === 0 && <p className="ss-na">This server has no channels yet.</p>}
+        {top.length === 0 && <p className="ss-na">{t('settings.channels.none')}</p>}
       </div>
       {selected ? (
         <ChannelEditor
@@ -238,7 +247,7 @@ function ChannelsEditor({
           }}
         />
       ) : (
-        <p className="ss-na">Select a channel or category to edit it.</p>
+        <p className="ss-na">{t('settings.channels.select')}</p>
       )}
     </div>
   );
@@ -272,6 +281,7 @@ export function ChannelEditor({
   onChanged: () => Promise<void>;
   onDeleted: () => void;
 }) {
+  const t = useT();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const action = useAction();
   const cat = isCategory(channel);
@@ -291,7 +301,7 @@ export function ChannelEditor({
   const tabs = [
     {
       id: 'overview',
-      label: 'Overview',
+      label: t('settings.channels.tabOverview'),
       content: (
         <ChannelOverview
           guildId={guildId}
@@ -304,7 +314,7 @@ export function ChannelEditor({
     },
     {
       id: 'permissions',
-      label: 'Permissions',
+      label: t('settings.channels.tabPermissions'),
       content: (
         <ChannelPermissions
           guildId={guildId}
@@ -321,41 +331,51 @@ export function ChannelEditor({
       : [
           {
             id: 'invites',
-            label: 'Invites',
+            label: t('settings.channels.tabInvites'),
             content: <ChannelInvites channel={channel} />,
           },
           {
             id: 'integrations',
-            label: 'Integrations',
+            label: t('settings.channels.tabIntegrations'),
             content: <ChannelIntegrations guildId={guildId} channel={channel} />,
           },
           {
             id: 'features',
-            label: 'Features',
+            label: t('settings.channels.tabFeatures'),
             content: <ChannelFeatures channel={channel} onChanged={onChanged} />,
           },
         ]),
   ];
   return (
-    <section aria-label={`Edit ${cat ? 'category' : 'channel'} ${channel.name ?? ''}`}>
+    <section
+      aria-label={
+        cat
+          ? t('settings.channels.editCategory', { name: channel.name ?? '' })
+          : t('settings.channels.editChannel', { name: channel.name ?? '' })
+      }
+    >
       <h2 className="ss-title">{cat ? channel.name : `# ${channel.name}`}</h2>
       <ActionStatus error={action.error} />
-      <Tabs items={tabs} label="Channel settings" className="ss-tabs" />
+      <Tabs items={tabs} label={t('settings.channels.settingsLabel')} className="ss-tabs" />
       <div className="ss-actions" style={{ marginTop: 24 }}>
         <Button variant="danger" onClick={() => setConfirmDelete(true)}>
-          {cat ? 'Delete category' : 'Delete channel'}
+          {cat ? t('settings.channels.deleteCategory') : t('settings.channels.deleteChannel')}
         </Button>
       </div>
       <ConfirmDialog
         open={confirmDelete}
         danger
-        title={`Delete ${channel.name ?? 'channel'}`}
+        title={t('settings.channels.deleteTitle', {
+          name: channel.name ?? t('settings.channels.channelWord'),
+        })}
         description={
           cat
-            ? 'Channels in this category are kept and move to the top level.'
-            : 'Messages in this channel are removed. This cannot be undone.'
+            ? t('settings.channels.deleteCategoryDescription')
+            : t('settings.channels.deleteChannelDescription')
         }
-        confirmLabel={cat ? 'Delete category' : 'Delete channel'}
+        confirmLabel={
+          cat ? t('settings.channels.deleteCategory') : t('settings.channels.deleteChannel')
+        }
         loading={action.busy}
         onConfirm={() => void remove()}
         onCancel={() => setConfirmDelete(false)}
@@ -376,6 +396,7 @@ function ChannelOverview({
   onDirty: (d: boolean) => void;
   onChanged: () => Promise<void>;
 }) {
+  const t = useT();
   const base = useMemo<ChannelFields>(
     () => ({
       name: channel.name ?? '',
@@ -393,7 +414,7 @@ function ChannelOverview({
   const name = draft.value.name.trim();
   const nameError =
     draft.changed.name !== undefined && (name.length < 1 || name.length > 100)
-      ? 'Name must be between 1 and 100 characters.'
+      ? t('settings.channels.nameError')
       : undefined;
 
   const save = useCallback(async () => {
@@ -405,12 +426,15 @@ function ChannelOverview({
     if (c.nsfw !== undefined) body.nsfw = c.nsfw;
     if (c.rate_limit_per_user !== undefined) body.rate_limit_per_user = c.rate_limit_per_user;
     if (c.parent_id !== undefined) body.parent_id = c.parent_id || null;
-    const ok = await action.run(() => api.modifyChannel(channel.id, body), 'Channel saved.');
+    const ok = await action.run(
+      () => api.modifyChannel(channel.id, body),
+      t('settings.channels.saved'),
+    );
     if (ok) {
       draft.reset();
       await onChanged();
     }
-  }, [nameError, draft, name, action, channel.id, onChanged]);
+  }, [nameError, draft, name, action, channel.id, onChanged, t]);
 
   useSettingsForm({
     dirty: draft.dirty,
@@ -424,7 +448,7 @@ function ChannelOverview({
     <div className="ss-form">
       <ActionStatus error={action.error} done={action.done} />
       <TextInput
-        label={cat ? 'Category name' : 'Channel name'}
+        label={cat ? t('settings.channels.categoryName') : t('settings.channels.channelName')}
         value={draft.value.name}
         maxLength={100}
         error={nameError}
@@ -433,14 +457,14 @@ function ChannelOverview({
       {isText(channel) && (
         <>
           <TextInput
-            label="Channel topic"
+            label={t('settings.channels.topic')}
             value={draft.value.topic}
             maxLength={1024}
             onChange={(e) => draft.set('topic', e.target.value)}
           />
           <div>
             <label className="ss-field-label" htmlFor="ss-slowmode">
-              Slowmode
+              {t('settings.channels.slowmode')}
             </label>
             <select
               id="ss-slowmode"
@@ -456,7 +480,7 @@ function ChannelOverview({
             </select>
           </div>
           <Switch
-            label="Age-restricted channel"
+            label={t('settings.channels.ageRestricted')}
             checked={draft.value.nsfw}
             onChange={(e) => draft.set('nsfw', e.target.checked)}
           />
@@ -465,7 +489,7 @@ function ChannelOverview({
       {!cat && (
         <div>
           <label className="ss-field-label" htmlFor="ss-parent">
-            Category
+            {t('settings.channels.categoryLabel')}
           </label>
           <select
             id="ss-parent"
@@ -473,7 +497,7 @@ function ChannelOverview({
             value={draft.value.parent_id}
             onChange={(e) => draft.set('parent_id', e.target.value)}
           >
-            <option value="">No category</option>
+            <option value="">{t('settings.channels.noCategory')}</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -507,6 +531,7 @@ function ChannelPermissions({
   onDirty: (d: boolean) => void;
   onChanged: () => Promise<void>;
 }) {
+  const t = useT();
   const { roles } = useGuild(guildId);
   const { members } = useMembers(guildId);
   const action = useAction();
@@ -517,55 +542,61 @@ function ChannelPermissions({
   const parent = channel.parent_id ? channels.find((c) => c.id === channel.parent_id) : undefined;
   const synced = !!parent && sameOverwrites(overwrites, parent.permission_overwrites);
 
-  const nameOf = (t: Target) => {
-    if (t.type === 0) return roles.find((r) => r.id === t.id)?.name ?? `Role ${t.id}`;
-    const m = members.find((x) => x.member.user_id === t.id);
-    return m ? m.member.nick || m.user?.global_name || m.user?.username || t.id : `Member ${t.id}`;
+  const nameOf = (tg: Target) => {
+    if (tg.type === 0)
+      return (
+        roles.find((r) => r.id === tg.id)?.name ??
+        t('settings.channels.roleFallback', { id: tg.id })
+      );
+    const m = members.find((x) => x.member.user_id === tg.id);
+    return m
+      ? m.member.nick || m.user?.global_name || m.user?.username || tg.id
+      : t('settings.channels.memberFallback', { id: tg.id });
   };
   const targets: Target[] = [
     ...overwrites.map((o) => ({ id: o.id, type: (o.type === 1 ? 1 : 0) as 0 | 1 })),
     ...pending.filter((p) => !overwrites.some((o) => o.id === p.id && o.type === p.type)),
   ];
-  const current = targets.find((t) => tkey(t) === targetKey) ?? targets[0];
+  const current = targets.find((tg) => tkey(tg) === targetKey) ?? targets[0];
 
   const needsManageRoles = !viewer.can('MANAGE_ROLES');
   const sync = async () => {
     const ok = await action.run(async () => {
       await api.modifyChannel(channel.id, { lock_permissions: true });
       return true;
-    }, 'Permissions synced with the category.');
+    }, t('settings.channels.synced'));
     if (ok) await onChanged();
   };
 
   const roleOptions = roles
-    .filter((r) => !targets.some((t) => t.type === 0 && t.id === r.id))
+    .filter((r) => !targets.some((tg) => tg.type === 0 && tg.id === r.id))
     .map((r) => ({ value: r.id, label: r.name }));
   const memberOptions = members
-    .filter((m) => !targets.some((t) => t.type === 1 && t.id === m.member.user_id))
+    .filter((m) => !targets.some((tg) => tg.type === 1 && tg.id === m.member.user_id))
     .map((m) => ({
       value: m.member.user_id,
       label: m.member.nick || m.user?.global_name || m.user?.username || m.member.user_id,
     }));
-  const add = (t: Target) => {
-    setPending((p) => [...p, t]);
-    setTargetKey(tkey(t));
+  const add = (tg: Target) => {
+    setPending((p) => [...p, tg]);
+    setTargetKey(tkey(tg));
   };
 
   return (
     <div className="ss-form">
       {needsManageRoles && (
-        <Notice variant="info" title="Read only">
-          You need the Manage Roles permission to change who can use this channel.
+        <Notice variant="info" title={t('settings.channels.readOnlyTitle')}>
+          {t('settings.channels.readOnlyBody')}
         </Notice>
       )}
       <ActionStatus error={action.error} done={action.done} />
       {parent && (
         <Switch
-          label="Sync permissions with category"
+          label={t('settings.channels.syncLabel')}
           description={
             synced
-              ? `Synced with ${parent.name}. Editing any overwrite below un-syncs this channel.`
-              : `Turn on to replace this channel's overwrites with those of ${parent.name}.`
+              ? t('settings.channels.syncedWith', { name: parent.name ?? '' })
+              : t('settings.channels.syncTurnOn', { name: parent.name ?? '' })
           }
           checked={synced}
           disabled={needsManageRoles || synced || action.busy}
@@ -574,16 +605,16 @@ function ChannelPermissions({
       )}
       <div className="ss-toolbar">
         <Combobox
-          aria-label="Add a role"
-          placeholder="Add a role"
+          aria-label={t('settings.channels.addRole')}
+          placeholder={t('settings.channels.addRole')}
           disabled={needsManageRoles}
           options={roleOptions}
           value={null}
           onValueChange={(id) => add({ id, type: 0 })}
         />
         <Combobox
-          aria-label="Add a member"
-          placeholder="Add a member"
+          aria-label={t('settings.channels.addMember')}
+          placeholder={t('settings.channels.addMember')}
           disabled={needsManageRoles}
           options={memberOptions}
           value={null}
@@ -591,20 +622,20 @@ function ChannelPermissions({
         />
       </div>
       {targets.length === 0 ? (
-        <p className="ss-na">No overwrites. Everyone uses the server role permissions here.</p>
+        <p className="ss-na">{t('settings.channels.noOverwrites')}</p>
       ) : (
         <>
-          <ul className="ss-chips" aria-label="Roles and members with overwrites">
-            {targets.map((t) => (
-              <li key={tkey(t)} style={{ listStyle: 'none' }}>
+          <ul className="ss-chips" aria-label={t('settings.channels.overwritesLabel')}>
+            {targets.map((tg) => (
+              <li key={tkey(tg)} style={{ listStyle: 'none' }}>
                 <button
                   type="button"
                   className="ss-role-chip ss-link"
-                  aria-pressed={current !== undefined && tkey(current) === tkey(t)}
-                  onClick={() => setTargetKey(tkey(t))}
+                  aria-pressed={current !== undefined && tkey(current) === tkey(tg)}
+                  onClick={() => setTargetKey(tkey(tg))}
                 >
-                  {t.type === 1 ? '@' : ''}
-                  {nameOf(t)}
+                  {tg.type === 1 ? '@' : ''}
+                  {nameOf(tg)}
                 </button>
               </li>
             ))}
@@ -680,6 +711,7 @@ function OverwriteEditor({
     }),
     [existing],
   );
+  const t = useT();
   const draft = useDraft(base);
   const action = useAction();
   const role = target.type === 0 ? roles.find((r) => r.id === target.id) : undefined;
@@ -702,12 +734,12 @@ function OverwriteEditor({
           deny: deny.toString(),
         });
       return true;
-    }, 'Permissions saved.');
+    }, t('settings.channels.permsSaved'));
     if (ok) {
       draft.reset();
       await onSaved();
     }
-  }, [draft, action, existing, channel.id, target, onSaved]);
+  }, [draft, action, existing, channel.id, target, onSaved, t]);
 
   useSettingsForm({
     dirty: draft.dirty,
@@ -729,18 +761,20 @@ function OverwriteEditor({
     if (hierarchyBlock) return undefined;
     const bit = PERM[id]!;
     if (!viewer.canGrant(bit) && !has(viewer.perms, PERM.ADMINISTRATOR!))
-      return 'You cannot change a permission you do not have.';
+      return t('settings.channels.cannotChange');
     return undefined;
   };
 
   return (
     <div>
       <h3 className="ss-title" style={{ fontSize: '1rem' }}>
-        {target.type === 1 ? 'Member' : 'Role'}: {name}
+        {target.type === 1
+          ? t('settings.channels.memberHeading', { name })
+          : t('settings.channels.roleHeading', { name })}
       </h3>
       {hierarchyBlock && (
         <Notice variant="info" className="ss-status">
-          You cannot edit overwrites for a role at or above your highest role.
+          {t('settings.channels.hierarchy')}
         </Notice>
       )}
       <ActionStatus error={action.error} done={action.done} />
@@ -749,7 +783,7 @@ function OverwriteEditor({
         values={draft.value.values}
         mode="tristate"
         hidden={(id) => !overwriteApplies(id, channel)}
-        lockedReason={(id) => (locked ? 'Read only.' : lockedReason(id))}
+        lockedReason={(id) => (locked ? t('settings.channels.readOnlyShort') : lockedReason(id))}
         onChange={(id, v) => {
           if (locked) return;
           const next = { ...draft.value.values };
@@ -759,7 +793,7 @@ function OverwriteEditor({
         }}
         toolbar={
           <Button size="sm" variant="secondary" disabled={locked} onClick={() => void remove()}>
-            Remove overwrite
+            {t('settings.channels.removeOverwrite')}
           </Button>
         }
       />

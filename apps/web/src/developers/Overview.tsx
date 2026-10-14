@@ -4,10 +4,12 @@ import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { ApiError } from '../api/client';
 import { applyAsDeveloper, errorText, getDeveloperStatus, isUnavailable, keys } from './api';
+import { useT } from '../i18n';
 import { fmtDate } from './format';
 import { Loading } from './ui';
 
 function ApplyForm() {
+  const t = useT();
   const qc = useQueryClient();
   const toast = useToast();
   const [pitch, setPitch] = useState('');
@@ -23,9 +25,9 @@ function ApplyForm() {
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: keys.status });
-      toast.show({ title: 'Application sent.', variant: 'success' });
+      toast.show({ title: t('developers.overview.applicationSent'), variant: 'success' });
     },
-    onError: (e) => setError(errorText(e, 'Could not send your application.')),
+    onError: (e) => setError(errorText(e, t('developers.overview.sendFailed'))),
   });
   const ok = pitch.trim().length > 0 && pitch.length <= 2000 && agree;
   return (
@@ -40,27 +42,24 @@ function ApplyForm() {
       }}
     >
       <h2 id="dev-apply-h" className="dev-card-title">
-        Apply to build apps
+        {t('developers.overview.applyHeading')}
       </h2>
-      <p className="dev-muted">
-        You can already make apps and try them in small test servers. Approval is a mark of trust
-        that staff give after reading this.
-      </p>
+      <p className="dev-muted">{t('developers.overview.applyIntro')}</p>
       <TextArea
-        label="What do you want to build?"
+        label={t('developers.overview.pitchLabel')}
         value={pitch}
         maxLength={2000}
         onChange={(e) => setPitch(e.target.value)}
         required
       />
       <TextArea
-        label="Anything you have built before? (optional)"
+        label={t('developers.overview.priorLabel')}
         value={prior}
         maxLength={2000}
         onChange={(e) => setPrior(e.target.value)}
       />
       <Checkbox
-        label="I agree to the developer terms."
+        label={t('developers.overview.agree')}
         checked={agree}
         onChange={(e) => setAgree(e.target.checked)}
       />
@@ -71,7 +70,7 @@ function ApplyForm() {
       )}
       <div className="dev-actions">
         <Button type="submit" disabled={!ok} loading={send.isPending}>
-          Send application
+          {t('developers.overview.sendButton')}
         </Button>
       </div>
     </form>
@@ -79,39 +78,40 @@ function ApplyForm() {
 }
 
 function Status() {
+  const t = useT();
   const q = useQuery({ queryKey: keys.status, queryFn: getDeveloperStatus });
-  if (q.isPending) return <Loading what="your developer status" />;
+  if (q.isPending) return <Loading what={t('developers.overview.yourDeveloperStatus')} />;
   if (q.error instanceof ApiError && q.error.status === 401)
     return (
-      <Notice variant="info" title="Sign in to apply">
+      <Notice variant="info" title={t('developers.overview.signInTitle')}>
         <Link to="/login" search={{ next: '/developers' }} className="dev-link">
-          Log in
+          {t('developers.overview.logIn')}
         </Link>{' '}
-        to apply and to manage your applications.
+        {t('developers.overview.signInRest')}
       </Notice>
     );
   if (isUnavailable(q.error))
     return (
-      <Notice variant="info" title="Not available yet">
-        This server does not take developer applications yet.
+      <Notice variant="info" title={t('developers.overview.notAvailableTitle')}>
+        {t('developers.overview.notAvailableBody')}
       </Notice>
     );
   if (q.error)
     return (
-      <Notice variant="danger" title="Couldn't load your developer status">
+      <Notice variant="danger" title={t('developers.overview.loadErrorTitle')}>
         {errorText(q.error)}{' '}
         <Button variant="link" size="sm" onClick={() => void q.refetch()}>
-          Try again
+          {t('developers.overview.tryAgain')}
         </Button>
       </Notice>
     );
   const { is_developer: dev, request: r } = q.data;
   if (dev)
     return (
-      <Notice variant="success" title="You are an approved developer">
-        Thank you for building here.{' '}
+      <Notice variant="success" title={t('developers.overview.approvedTitle')}>
+        {t('developers.overview.approvedThanks')}{' '}
         <Link to="/developers/applications" className="dev-link">
-          Go to your applications
+          {t('developers.overview.goToApplications')}
         </Link>
         .
       </Notice>
@@ -120,21 +120,26 @@ function Status() {
     return (
       <section className="dev-card" aria-labelledby="dev-status-h">
         <h2 id="dev-status-h" className="dev-card-title">
-          Your application <Badge variant="warning">Waiting for review</Badge>
+          {t('developers.overview.pendingHeading')}{' '}
+          <Badge variant="warning">{t('developers.overview.waitingForReview')}</Badge>
         </h2>
-        <p className="dev-muted">Sent {fmtDate(r.created_at)}. Staff will look at it soon.</p>
+        <p className="dev-muted">
+          {t('developers.overview.pendingSent', { date: fmtDate(r.created_at) })}
+        </p>
       </section>
     );
   return (
     <>
       {r?.state === 'rejected' && (
-        <Notice variant="warning" title="Your last application was not approved">
-          {r.reviewer_note ?? 'No reason was given.'} You can apply again below.
+        <Notice variant="warning" title={t('developers.overview.rejectedTitle')}>
+          {t('developers.overview.rejectedBody', {
+            note: r.reviewer_note ?? t('developers.overview.noReason'),
+          })}
         </Notice>
       )}
       {r?.state === 'suspended' && (
-        <Notice variant="danger" title="Developer access suspended">
-          {r.reviewer_note ?? 'Contact staff for details.'}
+        <Notice variant="danger" title={t('developers.overview.suspendedTitle')}>
+          {r.reviewer_note ?? t('developers.overview.contactStaff')}
         </Notice>
       )}
       {r?.state !== 'suspended' && <ApplyForm />}
@@ -144,21 +149,17 @@ function Status() {
 
 /** /developers landing: what the platform offers, where to start, and the developer application. */
 export function OverviewPage() {
+  const t = useT();
   return (
     <>
-      <h1 className="dev-title">Build on SIDE ROOM</h1>
-      <p className="dev-lede">
-        Bots, slash commands and sign-in with SIDE ROOM, over an API shaped like Discord&apos;s so
-        existing libraries and bots port with a base URL change.
-      </p>
-      <ul className="dev-doc-grid" aria-label="Where to start">
+      <h1 className="dev-title">{t('developers.overview.heading')}</h1>
+      <p className="dev-lede">{t('developers.overview.lede')}</p>
+      <ul className="dev-doc-grid" aria-label={t('developers.overview.startLabel')}>
         <li>
           <Link to="/developers/applications" className="dev-app-card">
             <span className="dev-app-card-text">
-              <strong>Your applications</strong>
-              <span className="dev-muted">
-                Create an app, get OAuth2 credentials, a bot and a way to release it.
-              </span>
+              <strong>{t('developers.overview.cardApplicationsTitle')}</strong>
+              <span className="dev-muted">{t('developers.overview.cardApplicationsBody')}</span>
             </span>
           </Link>
         </li>
@@ -169,18 +170,16 @@ export function OverviewPage() {
             className="dev-app-card"
           >
             <span className="dev-app-card-text">
-              <strong>Getting started</strong>
-              <span className="dev-muted">Make a bot and send your first request in minutes.</span>
+              <strong>{t('developers.overview.cardStartTitle')}</strong>
+              <span className="dev-muted">{t('developers.overview.cardStartBody')}</span>
             </span>
           </Link>
         </li>
         <li>
           <Link to="/developers/docs" className="dev-app-card">
             <span className="dev-app-card-text">
-              <strong>Documentation</strong>
-              <span className="dev-muted">
-                Authentication, gateway, REST, rate limits and interactions.
-              </span>
+              <strong>{t('developers.overview.cardDocsTitle')}</strong>
+              <span className="dev-muted">{t('developers.overview.cardDocsBody')}</span>
             </span>
           </Link>
         </li>

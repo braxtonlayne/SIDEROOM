@@ -4,9 +4,11 @@
 import { Button, TextInput } from '@sideroom/ui';
 import { useRouter } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
+import { useT } from '../i18n';
 import { partyController, useParty } from './runtime';
 
 export function ChatPanel() {
+  const tr = useT();
   const c = partyController();
   const router = useRouter();
   const party = useParty((s) => s.party);
@@ -20,7 +22,7 @@ export function ChatPanel() {
   if (!party) return null;
   const name = (id: string) => {
     const p = party.participants.find((x) => x.user_id === id);
-    return p ? p.display_name || p.username : 'Someone';
+    return p ? p.display_name || p.username : tr('watchparty.chat.someone');
   };
   const send = async () => {
     const t = text.trim();
@@ -30,7 +32,7 @@ export function ChatPanel() {
       await c.say(t);
       setText('');
     } catch {
-      setError('Could not send. Slow down a little.');
+      setError(tr('watchparty.chat.sendFailed'));
     }
   };
   const channelHref =
@@ -41,8 +43,8 @@ export function ChatPanel() {
         : null;
   return (
     <div className="wp-chat">
-      <ul className="wp-chat-lines" aria-label="Party chat" aria-live="polite">
-        {lines.length === 0 && <li className="wp-muted">Say something to the room.</li>}
+      <ul className="wp-chat-lines" aria-label={tr('watchparty.chat.label')} aria-live="polite">
+        {lines.length === 0 && <li className="wp-muted">{tr('watchparty.chat.empty')}</li>}
         {lines.map((l) => (
           <li key={l.id} className="wp-line">
             <strong>{name(l.userId)}</strong> {l.content}
@@ -58,14 +60,14 @@ export function ChatPanel() {
         }}
       >
         <TextInput
-          label="Message"
+          label={tr('watchparty.chat.messageLabel')}
           value={text}
           maxLength={500}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Message the party"
+          placeholder={tr('watchparty.chat.placeholder')}
         />
         <Button type="submit" size="sm" disabled={!text.trim()}>
-          Send
+          {tr('watchparty.chat.send')}
         </Button>
       </form>
       {error && (
@@ -73,10 +75,10 @@ export function ChatPanel() {
           {error}
         </p>
       )}
-      <p className="wp-muted">Party chat is not saved.</p>
+      <p className="wp-muted">{tr('watchparty.chat.notSaved')}</p>
       {channelHref && (
         <Button size="sm" variant="secondary" onClick={() => router.history.push(channelHref)}>
-          Open the channel chat
+          {tr('watchparty.chat.openChannel')}
         </Button>
       )}
     </div>

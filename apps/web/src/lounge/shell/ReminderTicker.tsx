@@ -1,5 +1,6 @@
 import { useToast } from '@sideroom/ui';
 import { useContext, useEffect } from 'react';
+import { useT } from '../../i18n';
 import { LoungeDataContext } from '../data';
 import { useLoungeGoto } from '../nav';
 import { dueReminders, useSaved, useSavedSync } from './savedMessages';
@@ -11,6 +12,7 @@ export const REMINDER_CHECK_MS = 15_000;
  * saved maps in step with the settings blob. Reminders that fell due while the app was closed show on load.
  */
 export function ReminderTicker() {
+  const t = useT();
   const mock = useContext(LoungeDataContext);
   const toast = useToast();
   const goto = useLoungeGoto();
@@ -25,7 +27,7 @@ export function ReminderTicker() {
       for (const r of dueReminders(reminders)) {
         dismissReminder(r.message_id);
         toast.show({
-          title: 'Reminder',
+          title: t('lounge.reminderTicker.title'),
           description: (
             <>
               <strong>{r.author}</strong>: {r.preview}{' '}
@@ -36,7 +38,7 @@ export function ReminderTicker() {
                   goto(r.guild_id ?? '@me', r.channel_id);
                 }}
               >
-                Go to message
+                {t('lounge.reminderTicker.goToMessage')}
               </a>
             </>
           ),
@@ -46,8 +48,8 @@ export function ReminderTicker() {
       }
     };
     check();
-    const t = setInterval(check, REMINDER_CHECK_MS);
-    return () => clearInterval(t);
-  }, [mock, toast, goto, reminders]);
+    const timer = setInterval(check, REMINDER_CHECK_MS);
+    return () => clearInterval(timer);
+  }, [mock, toast, goto, reminders, t]);
   return null;
 }

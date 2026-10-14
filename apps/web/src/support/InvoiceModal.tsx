@@ -3,6 +3,7 @@
 // "I've paid" check. Status arrives as SR_PAYMENT_UPDATE over the gateway, with polling as the fallback.
 import { Badge, Button, Modal, Notice, QRCode, useToast } from '@sideroom/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { t, useT } from '../i18n';
 import { onDispatch } from '../store/events';
 import * as api from './api';
 import { errorText, sats, usd, type Invoice } from './api';
@@ -12,14 +13,15 @@ const POLL_MS = 15_000;
 function useNow(everyMs: number): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), everyMs);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setNow(Date.now()), everyMs);
+    return () => clearInterval(timer);
   }, [everyMs]);
   return now;
 }
 
 /** Keeps one invoice fresh: gateway hint, polling while the chain can still change it, manual check. */
 export function useLiveInvoice(initial: Invoice) {
+  const t = useT();
   const [invoice, setInvoice] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
@@ -40,9 +42,9 @@ export function useLiveInvoice(initial: Invoice) {
         setError(null);
       }
     } catch (e) {
-      if (live.current) setError(errorText(e, 'Could not refresh the status.'));
+      if (live.current) setError(errorText(e, t('support.invoice.refreshError')));
     }
-  }, [id]);
+  }, [id, t]);
 
   useEffect(
     () =>
@@ -56,8 +58,8 @@ export function useLiveInvoice(initial: Invoice) {
   const liveState = api.isLive(invoice.state);
   useEffect(() => {
     if (!liveState) return;
-    const t = setInterval(() => void refresh(), POLL_MS);
-    return () => clearInterval(t);
+    const timer = setInterval(() => void refresh(), POLL_MS);
+    return () => clearInterval(timer);
   }, [liveState, refresh]);
 
   const check = useCallback(async () => {
@@ -69,16 +71,21 @@ export function useLiveInvoice(initial: Invoice) {
         setError(null);
       }
     } catch (e) {
-      if (live.current) setError(errorText(e, 'Could not check the payment.'));
+      if (live.current) setError(errorText(e, t('support.invoice.checkError')));
     } finally {
       if (live.current) setChecking(false);
     }
-  }, [id]);
+  }, [id, t]);
 
   return { invoice, setInvoice, error, checking, check, refresh };
 }
 
-const STEPS = ['Waiting for payment', 'Seen in the mempool', 'Confirming', 'Paid'] as const;
+const STEPS = [
+  'support.invoice.stepWaiting',
+  'support.invoice.stepMempool',
+  'support.invoice.stepConfirming',
+  'support.invoice.stepPaid',
+] as const;
 
 function stepIndex(inv: Invoice): number {
   switch (inv.state) {
@@ -97,18 +104,22 @@ function stepIndex(inv: Invoice): number {
 }
 
 function Steps({ inv }: { inv: Invoice }) {
+  const t = useT();
   const at = stepIndex(inv);
   return (
-    <ol className="sup-steps" aria-label="Payment progress">
+    <ol className="sup-steps" aria-label={t('support.invoice.progressAria')}>
       {STEPS.map((label, i) => (
         <li
           key={label}
           className={i < at ? 'done' : i === at ? 'now' : ''}
           aria-current={i === at ? 'step' : undefined}
         >
-          {label}
+          {t(label)}
           {i === 2 && inv.state === 'confirming' && inv.confirmations !== null
-            ? ` (${inv.confirmations} of ${inv.confirmations_required})`
+            ? ` ${t('support.invoice.confirmProgress', {
+                done: inv.confirmations,
+                total: inv.confirmations_required,
+              })}`
             : ''}
         </li>
       ))}
@@ -124,13 +135,13 @@ function mmss(ms: number): string {
 export function purposeLine(inv: Invoice): string {
   switch (inv.purpose) {
     case 'patron':
-      return `Patron, ${inv.months} month${inv.months === 1 ? '' : 's'}`;
+      return t('support.invoice.purposePatron', { months: inv.months });
     case 'server_level':
-      return 'Support for a server';
+      return t('support.invoice.purposeServer');
     case 'invite_credit':
-      return `${inv.credits} invite credit${inv.credits === 1 ? '' : 's'}`;
+      return t('support.invoice.purposeCredits', { credits: inv.credits });
     default:
-      return 'Donation to the community';
+      return t('support.invoice.purposeDonation');
   }
 }
 
@@ -144,6 +155,7 @@ export function InvoiceModal({
   /** Called after the invoice changed so the page can refresh its history and status. */
   onChanged?: (inv: Invoice) => void;
 }) {
+  const t = useT();
   const toast = useToast();
   const { invoice, setInvoice, error, checking, check } = useLiveInvoice(initial);
   const now = useNow(1000);
@@ -161,9 +173,9 @@ export function InvoiceModal({
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(invoice.address);
-      toast.show({ title: 'Address copied', duration: 2000 });
+      toast.show({ title: t('support.invoice.addressCopied'), duration: 2000 });
     } catch {
-      toast.show({ title: 'Copy failed. Select the address and copy it by hand.', duration: 4000 });
+      toast.show({ title: t('support.invoice.copyFailed'), duration: 4000 });
     }
   };
   const cancel = async () => {
@@ -174,7 +186,7 @@ export function InvoiceModal({
       setInvoice(next);
       onChanged?.(next);
     } catch (e) {
-      setCancelError(errorText(e, 'Could not cancel the invoice.'));
+      setCancelError(errorText(e, t('support.invoice.cancelError')));
     } finally {
       setBusy(false);
     }
@@ -183,24 +195,29 @@ export function InvoiceModal({
   const paid = api.isPaid(invoice.state) || invoice.resolution === 'mark_paid';
   const waiting = invoice.state === 'open' || invoice.state === 'underpaid';
   const remaining = invoice.expires_at_ms - now;
-  const tx = invoice.txs.find((t) => !t.dropped);
-  const title = paid ? 'Payment received' : 'Pay with Bitcoin';
+  const tx = invoice.txs.find((x) => !x.dropped);
+  const title = paid ? t('support.invoice.titlePaid') : t('support.invoice.titlePay');
 
   return (
     <Modal
       open
       onClose={onClose}
       title={title}
-      description={`${purposeLine(invoice)}. ${usd(invoice.usd_cents)}.`}
+      description={t('support.invoice.description', {
+        purpose: purposeLine(invoice),
+        amount: usd(invoice.usd_cents),
+      })}
       size="md"
       footer={
         <>
           {invoice.state === 'open' && invoice.received_sats === 0 && (
             <Button variant="secondary" onClick={() => void cancel()} disabled={busy}>
-              Cancel invoice
+              {t('support.invoice.cancelInvoice')}
             </Button>
           )}
-          <Button onClick={onClose}>{paid ? 'Done' : 'Close'}</Button>
+          <Button onClick={onClose}>
+            {paid ? t('support.invoice.done') : t('support.invoice.close')}
+          </Button>
         </>
       }
     >
@@ -217,9 +234,11 @@ export function InvoiceModal({
           </Badge>
         </div>
         <p className="sup-muted">
-          Rate locked at {usd(invoice.rate.cents_per_btc)} per BTC ({invoice.rate.source}).
-          {invoice.rate.stale &&
-            ' The price sources were unreachable, so the last known price was used.'}
+          {t('support.invoice.rateLocked', {
+            price: usd(invoice.rate.cents_per_btc),
+            source: invoice.rate.source,
+          })}
+          {invoice.rate.stale && ` ${t('support.invoice.rateStale')}`}
         </p>
 
         {!paid && invoice.state !== 'cancelled' && (
@@ -227,37 +246,38 @@ export function InvoiceModal({
             <div className="sup-pay">
               <QRCode
                 value={invoice.bip21}
-                label={`QR code to pay ${sats(invoice.sats)} to ${invoice.address}`}
+                label={t('support.invoice.qrLabel', {
+                  amount: sats(invoice.sats),
+                  address: invoice.address,
+                })}
                 size={176}
               />
               <div className="sup-address">
-                <label htmlFor="sup-address-field">Send exactly this amount to</label>
+                <label htmlFor="sup-address-field">{t('support.invoice.sendExactly')}</label>
                 <code id="sup-address-field" className="sup-code" data-testid="invoice-address">
                   {invoice.address}
                 </code>
                 <div className="sup-actions">
                   <Button size="sm" variant="secondary" onClick={() => void copy()}>
-                    Copy address
+                    {t('support.invoice.copyAddress')}
                   </Button>
                   <a className="sup-link" href={invoice.bip21}>
-                    Open in wallet
+                    {t('support.invoice.openWallet')}
                   </a>
                 </div>
                 <p className="sup-muted">
-                  This address is for this invoice only; do not reuse it. Amount:{' '}
-                  <strong>{invoice.btc} BTC</strong>
+                  {t('support.invoice.addressNote')} <strong>{invoice.btc} BTC</strong>
                 </p>
               </div>
             </div>
             {invoice.state === 'open' &&
               (remaining > 0 ? (
                 <p role="timer" className="sup-muted">
-                  Expires in <strong>{mmss(remaining)}</strong>
+                  {t('support.invoice.expiresIn')} <strong>{mmss(remaining)}</strong>
                 </p>
               ) : (
-                <Notice variant="warning" title="This invoice has expired">
-                  If you already sent the payment it is still credited when it confirms, and staff
-                  are told it came late. Otherwise create a new invoice.
+                <Notice variant="warning" title={t('support.invoice.expiredTitle')}>
+                  {t('support.invoice.expiredBody')}
                 </Notice>
               ))}
           </>
@@ -266,65 +286,68 @@ export function InvoiceModal({
         <Steps inv={invoice} />
 
         {invoice.state === 'underpaid' && (
-          <Notice variant="warning" title="Not enough was received">
-            We saw {sats(invoice.received_sats)}. Send {sats(invoice.shortfall_sats)} more to the
-            same address to complete it; staff can also sort it out by hand.
+          <Notice variant="warning" title={t('support.invoice.underTitle')}>
+            {t('support.invoice.underBody', {
+              received: sats(invoice.received_sats),
+              shortfall: sats(invoice.shortfall_sats),
+            })}
           </Notice>
         )}
         {invoice.state === 'overpaid' && (
-          <Notice variant="info" title="You sent more than needed">
-            Your {purposeLine(invoice).toLowerCase()} is active. The extra{' '}
-            {sats(invoice.excess_sats)} is noted for staff; they will contact you if it is to be
-            returned.
+          <Notice variant="info" title={t('support.invoice.overTitle')}>
+            {t('support.invoice.overBody', {
+              purpose: purposeLine(invoice).toLowerCase(),
+              excess: sats(invoice.excess_sats),
+            })}
           </Notice>
         )}
         {invoice.state === 'late_paid' && (
-          <Notice variant="info" title="It arrived after the invoice expired">
-            It has still been credited. Staff were told it came late.
+          <Notice variant="info" title={t('support.invoice.lateTitle')}>
+            {t('support.invoice.lateBody')}
           </Notice>
         )}
         {invoice.state === 'expired' && invoice.received_sats === 0 && (
-          <Notice variant="warning" title="No payment arrived in time">
-            Create a new invoice to try again. A payment that is still on its way will be credited
-            when it confirms.
+          <Notice variant="warning" title={t('support.invoice.noneTitle')}>
+            {t('support.invoice.noneBody')}
           </Notice>
         )}
         {waiting || invoice.state === 'seen' || invoice.state === 'confirming' ? (
-          <p className="sup-muted">
-            Tip: a normal network fee confirms in the next block or two. Very low fees can wait for
-            hours.
-          </p>
+          <p className="sup-muted">{t('support.invoice.tip')}</p>
         ) : null}
 
         {(tx || invoice.explorer_url) && (
           <p className="sup-muted">
             {tx && (
               <>
-                Transaction <code className="sup-code-inline">{tx.txid.slice(0, 16)}…</code>{' '}
+                {t('support.invoice.transaction')}{' '}
+                <code className="sup-code-inline">{tx.txid.slice(0, 16)}…</code>{' '}
               </>
             )}
             {invoice.explorer_url && (
               <a className="sup-link" href={invoice.explorer_url} target="_blank" rel="noreferrer">
-                View on a block explorer
+                {t('support.invoice.explorer')}
               </a>
             )}
           </p>
         )}
         {paid && (
-          <dl className="sup-receipt" aria-label="Receipt">
+          <dl className="sup-receipt" aria-label={t('support.invoice.receiptAria')}>
             <div>
-              <dt>Receipt</dt>
+              <dt>{t('support.invoice.receipt')}</dt>
               <dd>#{invoice.id}</dd>
             </div>
             <div>
-              <dt>Paid</dt>
+              <dt>{t('support.invoice.paid')}</dt>
               <dd>
-                {sats(invoice.confirmed_sats || invoice.received_sats)} for {usd(invoice.usd_cents)}
+                {t('support.invoice.paidFor', {
+                  amount: sats(invoice.confirmed_sats || invoice.received_sats),
+                  total: usd(invoice.usd_cents),
+                })}
               </dd>
             </div>
             {invoice.credited_at_ms && (
               <div>
-                <dt>Credited</dt>
+                <dt>{t('support.invoice.credited')}</dt>
                 <dd>{new Date(invoice.credited_at_ms).toLocaleString()}</dd>
               </div>
             )}
@@ -334,10 +357,10 @@ export function InvoiceModal({
         {(waiting || invoice.state === 'seen' || invoice.state === 'confirming') && (
           <div className="sup-actions">
             <Button variant="secondary" onClick={() => void check()} disabled={checking}>
-              {checking ? 'Checking...' : "I've paid"}
+              {checking ? t('support.invoice.checking') : t('support.invoice.ivePaid')}
             </Button>
             <span className="sup-muted" role="status">
-              This page updates by itself.
+              {t('support.invoice.autoUpdates')}
             </span>
           </div>
         )}

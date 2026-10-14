@@ -14,6 +14,7 @@ import {
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
+import { useT, type MessageKey } from '../i18n';
 import { browseSeries, searchLibrary } from './api';
 import { defaultAgeFilter, useLibrarySettings } from './prefs';
 import type { AgeFilter, BrowseParams, SeriesKind, SeriesStatus, SortKey } from './types';
@@ -37,11 +38,11 @@ export interface BrowseSearch {
 
 const KINDS = Object.keys(KIND_LABEL) as SeriesKind[];
 const STATUSES = Object.keys(STATUS_LABEL) as SeriesStatus[];
-const SORTS: { value: SortKey; label: string }[] = [
-  { value: 'updated', label: 'Recently updated' },
-  { value: 'newest', label: 'Newest' },
-  { value: 'title', label: 'A to Z' },
-  { value: 'followers', label: 'Most followed' },
+const SORTS: { value: SortKey; labelKey: MessageKey }[] = [
+  { value: 'updated', labelKey: 'library.browse.sort.updated' },
+  { value: 'newest', labelKey: 'library.browse.sort.newest' },
+  { value: 'title', labelKey: 'library.browse.sort.title' },
+  { value: 'followers', labelKey: 'library.browse.sort.followers' },
 ];
 const AGES: AgeFilter[] = ['include', 'hide', 'only'];
 const PAGE = 24;
@@ -106,13 +107,14 @@ export function toParams(s: BrowseSearch): BrowseParams {
   };
 }
 
-const AGE_LABEL: Record<AgeFilter, string> = {
-  include: 'Show 18+ titles',
-  hide: 'Hide 18+ titles',
-  only: 'Only 18+ titles',
+const AGE_LABEL: Record<AgeFilter, MessageKey> = {
+  include: 'library.browse.age.include',
+  hide: 'library.browse.age.hide',
+  only: 'library.browse.age.only',
 };
 
 export function Browse({ search }: { search: BrowseSearch }) {
+  const t = useT();
   const navigate = useNavigate();
   const [filters, setFilters] = useState(false);
   const { hideRestricted } = useLibrarySettings();
@@ -134,10 +136,12 @@ export function Browse({ search }: { search: BrowseSearch }) {
   return (
     <div className="lib-browse">
       <div className="lib-page-head">
-        <h1 className="lib-h1">{search.q ? `Results for “${search.q}”` : 'Browse'}</h1>
+        <h1 className="lib-h1">
+          {search.q ? t('library.browse.resultsFor', { q: search.q }) : t('library.browse.title')}
+        </h1>
         {search.q && (
           <Link to="/library/browse" search={{}} className="lib-link">
-            Clear search
+            {t('library.browse.clearSearch')}
           </Link>
         )}
       </div>
@@ -148,21 +152,21 @@ export function Browse({ search }: { search: BrowseSearch }) {
         <>
           <div className="lib-browse-bar">
             <FilterChips
-              label="Kind"
+              label={t('library.browse.kind')}
               value={search.kind ?? null}
               onValueChange={(v) => go({ kind: (v as SeriesKind | null) ?? undefined })}
               options={KINDS.map((k) => ({ value: k, label: KIND_LABEL[k] }))}
             />
             <div className="lib-browse-tools">
               <label className="lib-select">
-                <span className="lib-sr-only">Sort by</span>
+                <span className="lib-sr-only">{t('library.browse.sortBy')}</span>
                 <select
                   value={search.sort ?? 'updated'}
                   onChange={(e) => go({ sort: e.target.value as SortKey })}
                 >
                   {SORTS.map((s) => (
                     <option key={s.value} value={s.value}>
-                      {s.label}
+                      {t(s.labelKey)}
                     </option>
                   ))}
                 </select>
@@ -170,24 +174,30 @@ export function Browse({ search }: { search: BrowseSearch }) {
               <button
                 type="button"
                 className="lib-icon-btn"
-                aria-label={search.order === 'asc' ? 'Sorted ascending' : 'Sorted descending'}
+                aria-label={
+                  search.order === 'asc'
+                    ? t('library.browse.sortedAsc')
+                    : t('library.browse.sortedDesc')
+                }
                 aria-pressed={search.order === 'asc'}
                 onClick={() => go({ order: search.order === 'asc' ? 'desc' : 'asc' })}
               >
                 <Icon name="filter" size={20} />
               </button>
               <SegmentedControl
-                label="Layout"
+                label={t('library.browse.layout')}
                 size="sm"
                 value={view}
                 onValueChange={(v) => go({ view: v as 'grid' | 'list' })}
                 options={[
-                  { value: 'grid', label: 'Grid' },
-                  { value: 'list', label: 'List' },
+                  { value: 'grid', label: t('library.browse.grid') },
+                  { value: 'list', label: t('library.browse.list') },
                 ]}
               />
               <Button variant="secondary" size="sm" onClick={() => setFilters(true)}>
-                Filters{active ? ` (${active})` : ''}
+                {active
+                  ? t('library.browse.filtersCount', { n: active })
+                  : t('library.browse.filters')}
               </Button>
             </div>
           </div>
@@ -219,6 +229,7 @@ export function Browse({ search }: { search: BrowseSearch }) {
 /* ---------------------------------------------------------------- results */
 
 function Results({ params, view }: { params: BrowseParams; view: 'grid' | 'list' }) {
+  const t = useT();
   const q = useInfiniteQuery({
     queryKey: ['library', 'browse', 'infinite', params],
     queryFn: ({ pageParam }) => browseSeries({ ...params, limit: PAGE, offset: pageParam }),
@@ -246,9 +257,9 @@ function Results({ params, view }: { params: BrowseParams; view: 'grid' | 'list'
   if (q.isPending) return <SkeletonGrid />;
   if (q.isError)
     return (
-      <Notice variant="danger" title="We could not load the library">
+      <Notice variant="danger" title={t('library.browse.loadError')}>
         <Button size="sm" onClick={() => void q.refetch()}>
-          Try again
+          {t('library.browse.tryAgain')}
         </Button>
       </Notice>
     );
@@ -257,14 +268,14 @@ function Results({ params, view }: { params: BrowseParams; view: 'grid' | 'list'
   if (items.length === 0)
     return (
       <EmptyState
-        title="Nothing matches"
-        description="Try removing a filter or searching for something else."
+        title={t('library.browse.noMatchTitle')}
+        description={t('library.browse.noMatchDescription')}
       />
     );
   return (
     <>
       <p className="lib-count" role="status">
-        {total} series
+        {t('library.browse.count', { total })}
       </p>
       <SeriesList items={items} view={view} />
       <div ref={sentinel} />
@@ -275,7 +286,7 @@ function Results({ params, view }: { params: BrowseParams; view: 'grid' | 'list'
             disabled={isFetchingNextPage}
             onClick={() => void fetchNextPage()}
           >
-            {isFetchingNextPage ? 'Loading…' : 'Load more'}
+            {isFetchingNextPage ? t('library.browse.loading') : t('library.browse.loadMore')}
           </Button>
         </div>
       )}
@@ -284,19 +295,26 @@ function Results({ params, view }: { params: BrowseParams; view: 'grid' | 'list'
 }
 
 function SearchResults({ q, view }: { q: string; view: 'grid' | 'list' }) {
+  const t = useT();
   const res = useQuery({
     queryKey: ['library', 'search-page', q],
     queryFn: () => searchLibrary(q, 50),
   });
   if (res.isPending) return <SkeletonGrid />;
-  if (res.isError) return <Notice variant="danger" title="Search is unavailable right now." />;
+  if (res.isError) return <Notice variant="danger" title={t('library.browse.searchUnavailable')} />;
   if (res.data.series.length === 0)
-    return <EmptyState title="Nothing found" description={`No series match “${q}”.`} />;
+    return (
+      <EmptyState
+        title={t('library.browse.nothingFound')}
+        description={t('library.browse.noSeriesMatch', { q })}
+      />
+    );
   return <SeriesList items={res.data.series} view={view} />;
 }
 
 function SeriesList({ items, view }: { items: import('./types').Series[]; view: 'grid' | 'list' }) {
-  const heading = <h2 className="lib-sr-only">Series</h2>;
+  const t = useT();
+  const heading = <h2 className="lib-sr-only">{t('library.browse.seriesHeading')}</h2>;
   if (view === 'list')
     return (
       <>
@@ -327,7 +345,11 @@ function SeriesList({ items, view }: { items: import('./types').Series[]; view: 
                 </Link>
                 {s.age_restricted && <AgeBadge />}
                 <span className="lib-muted">
-                  {KIND_LABEL[s.kind]} · {STATUS_LABEL[s.status]} · {s.chapter_count} chapters
+                  {t('library.browse.listMeta', {
+                    kind: KIND_LABEL[s.kind],
+                    status: STATUS_LABEL[s.status],
+                    n: s.chapter_count,
+                  })}
                 </span>
                 <span className="lib-muted">{s.genres.map(label).join(' · ')}</span>
               </div>
@@ -375,6 +397,7 @@ function FilterDrawer({
   onApply: (patch: Partial<BrowseSearch>) => void;
   onReset: () => void;
 }) {
+  const t = useT();
   const [draft, setDraft] = useState<Record<string, string>>({});
   useEffect(() => {
     if (open)
@@ -420,32 +443,32 @@ function FilterDrawer({
     <Drawer
       open={open}
       onClose={onClose}
-      title="Filters"
+      title={t('library.browse.filters')}
       side="right"
       footer={
         <>
           <Button variant="secondary" onClick={onReset}>
-            Reset
+            {t('library.browse.reset')}
           </Button>
-          <Button onClick={apply}>Show results</Button>
+          <Button onClick={apply}>{t('library.browse.showResults')}</Button>
         </>
       }
     >
       <div className="lib-filters">
         <TextInput
-          label="Genres to include"
-          hint="Comma separated, e.g. action, fantasy"
+          label={t('library.browse.genresInclude')}
+          hint={t('library.browse.genresHint')}
           {...field('genres')}
         />
-        <TextInput label="Genres to exclude" {...field('exclude')} />
-        <TextInput label="Tags" {...field('tags')} />
+        <TextInput label={t('library.browse.genresExclude')} {...field('exclude')} />
+        <TextInput label={t('library.browse.tags')} {...field('tags')} />
         <label className="lib-select lib-select-block">
-          <span>Status</span>
+          <span>{t('library.browse.status')}</span>
           <select
             value={draft.status ?? ''}
             onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value }))}
           >
-            <option value="">Any</option>
+            <option value="">{t('library.browse.any')}</option>
             {STATUSES.map((s) => (
               <option key={s} value={s}>
                 {STATUS_LABEL[s]}
@@ -453,20 +476,28 @@ function FilterDrawer({
             ))}
           </select>
         </label>
-        <TextInput label="Language" hint="e.g. en" {...field('language')} />
+        <TextInput
+          label={t('library.browse.language')}
+          hint={t('library.browse.languageHint')}
+          {...field('language')}
+        />
         <div className="lib-filters-years">
-          <TextInput label="Year from" inputMode="numeric" {...field('year_from')} />
-          <TextInput label="Year to" inputMode="numeric" {...field('year_to')} />
+          <TextInput
+            label={t('library.browse.yearFrom')}
+            inputMode="numeric"
+            {...field('year_from')}
+          />
+          <TextInput label={t('library.browse.yearTo')} inputMode="numeric" {...field('year_to')} />
         </div>
         <label className="lib-select lib-select-block">
-          <span>Age-restricted titles</span>
+          <span>{t('library.browse.ageRestricted')}</span>
           <select
             value={draft.age ?? ageDefault}
             onChange={(e) => setDraft((d) => ({ ...d, age: e.target.value }))}
           >
             {AGES.map((a) => (
               <option key={a} value={a}>
-                {AGE_LABEL[a]}
+                {t(AGE_LABEL[a])}
               </option>
             ))}
           </select>

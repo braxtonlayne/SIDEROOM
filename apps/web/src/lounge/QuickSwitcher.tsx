@@ -1,6 +1,7 @@
 import { Icon, Modal, type IconName } from '@sideroom/ui';
 import { useEffect, useId, useMemo, useState } from 'react';
 import type { KeyboardEvent } from 'react';
+import { useT } from '../i18n';
 import { useAllChannels, useCurrentUser, useDms, useGuilds, useUsers } from './data';
 import { useLoungeGoto } from './nav';
 import {
@@ -21,6 +22,7 @@ const ICON: Record<SwitcherKind, IconName> = {
 };
 
 export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const t = useT();
   const guilds = useGuilds();
   const channelsByGuild = useAllChannels();
   const dms = useDms();
@@ -72,7 +74,7 @@ export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () =>
     <Modal
       open={open}
       onClose={onClose}
-      title="Where would you like to go?"
+      title={t('lounge.quickSwitcher.title')}
       size="md"
       className="lng-switcher"
     >
@@ -83,8 +85,8 @@ export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () =>
         aria-expanded="true"
         aria-controls={listId}
         aria-activedescendant={results[clamped] ? `${listId}-${clamped}` : undefined}
-        aria-label="Search for servers, channels, or people"
-        placeholder="Where would you like to go?"
+        aria-label={t('lounge.quickSwitcher.searchLabel')}
+        placeholder={t('lounge.quickSwitcher.title')}
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
@@ -92,10 +94,15 @@ export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () =>
         }}
         onKeyDown={onKeyDown}
       />
-      <ul id={listId} role="listbox" aria-label="Results" className="lng-switcher-list">
+      <ul
+        id={listId}
+        role="listbox"
+        aria-label={t('lounge.quickSwitcher.results')}
+        className="lng-switcher-list"
+      >
         {results.length === 0 && (
           <li className="lng-muted lng-pad" role="presentation">
-            No results found.
+            {t('lounge.quickSwitcher.noResults')}
           </li>
         )}
         {results.map((r, i) => (
@@ -117,8 +124,8 @@ export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () =>
       </ul>
       <p className="lng-switcher-tip">
         {hasPrefix || query
-          ? 'Enter to go, arrow keys to move.'
-          : 'PROTIP: Start searches with @ for people, # for channels, ! for voice, * for servers.'}
+          ? t('lounge.quickSwitcher.tipActive')
+          : t('lounge.quickSwitcher.tipIdle')}
       </p>
     </Modal>
   );

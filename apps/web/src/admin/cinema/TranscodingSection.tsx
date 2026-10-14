@@ -14,6 +14,7 @@ import {
   TextInput,
 } from '@sideroom/ui';
 import { useState } from 'react';
+import { useT } from '../../i18n';
 import {
   LoadMore,
   ReasonDialog,
@@ -28,25 +29,26 @@ import { Banner, LoadProblem, useLoad, useRun } from './hooks';
 import * as tx from './transcodeApi';
 
 export function TranscodingSection() {
+  const t = useT();
   const allowed = useAdminViewer().can('MANAGE_TRANSCODE');
   return (
     <>
       <SectionHeader
-        title="Cinema transcoding"
-        description="Transcode workers, the tokens they sign in with, and the job queue. Re-running a job reuses the stored original."
+        title={t('admin.transcoding.title')}
+        description={t('admin.transcoding.description')}
       />
       {!allowed ? (
         <EmptyState
-          title="You do not have access"
-          description="Transcoding takes the Manage transcode permission."
+          title={t('admin.transcoding.noAccess.title')}
+          description={t('admin.transcoding.noAccess.description')}
         />
       ) : (
         <Tabs
-          label="Transcoding"
+          label={t('admin.transcoding.tabs')}
           items={[
-            { id: 'queue', label: 'Queue', content: <QueueTab /> },
-            { id: 'workers', label: 'Workers', content: <WorkersTab /> },
-            { id: 'tokens', label: 'Worker tokens', content: <TokensTab /> },
+            { id: 'queue', label: t('admin.transcoding.tab.queue'), content: <QueueTab /> },
+            { id: 'workers', label: t('admin.transcoding.tab.workers'), content: <WorkersTab /> },
+            { id: 'tokens', label: t('admin.transcoding.tab.tokens'), content: <TokensTab /> },
           ]}
         />
       )}
@@ -72,49 +74,59 @@ function useTx<T>(key: string, fetcher: () => Promise<T>) {
 }
 
 function WorkersTab() {
+  const t = useT();
   const { res, unavailable } = useTx('tx-workers', tx.listWorkers);
   const { error, notice, run } = useRun();
-  if (unavailable) return <NotAvailableYet what="The worker list" />;
+  if (unavailable) return <NotAvailableYet what={t('admin.transcoding.workers.whatList')} />;
   if (res.error && !res.data)
     return (
       <LoadProblem
         error={res.error}
         status={res.status}
         onRetry={() => void res.reload()}
-        what="workers"
+        what={t('admin.transcoding.workers.what')}
       />
     );
-  if (!res.data) return <p className="ss-loading">Loading workers…</p>;
+  if (!res.data) return <p className="ss-loading">{t('admin.transcoding.workers.loading')}</p>;
   const workers = res.data.items;
   return (
     <>
       <Banner error={error} notice={notice} />
       {workers.length === 0 ? (
         <EmptyState
-          title="No workers"
-          description="A worker appears here after it registers with one of the tokens on the next tab."
+          title={t('admin.transcoding.workers.empty.title')}
+          description={t('admin.transcoding.workers.empty.description')}
         />
       ) : (
-        <ul className="ss-list" aria-label="Workers">
+        <ul className="ss-list" aria-label={t('admin.transcoding.tab.workers')}>
           {workers.map((w) => (
             <li key={w.id} className="ss-row">
               <div className="ss-grow">
                 <div className="ss-name">
                   {w.name}{' '}
                   <Badge variant={w.online ? 'success' : 'neutral'}>
-                    {w.online ? 'online' : 'offline'}
+                    {w.online
+                      ? t('admin.transcoding.workers.online')
+                      : t('admin.transcoding.workers.offline')}
                   </Badge>{' '}
-                  {w.drain && <Badge variant="warning">draining</Badge>}
+                  {w.drain && (
+                    <Badge variant="warning">{t('admin.transcoding.workers.draining')}</Badge>
+                  )}
                 </div>
                 <div className="ss-meta">
-                  v{w.version} · {w.active_jobs} active job{w.active_jobs === 1 ? '' : 's'} · seen{' '}
-                  {fmtMs(w.last_seen_ms)}
+                  {t('admin.transcoding.workers.meta', {
+                    version: w.version,
+                    n: w.active_jobs,
+                    seen: fmtMs(w.last_seen_ms),
+                  })}
                   {w.capabilities.nvenc ? ' · NVENC' : ''}
-                  {w.capabilities.concurrency ? ` · ${w.capabilities.concurrency} at once` : ''}
+                  {w.capabilities.concurrency
+                    ? ` · ${t('admin.transcoding.workers.atOnce', { n: w.capabilities.concurrency })}`
+                    : ''}
                 </div>
               </div>
               <Switch
-                label={`Drain ${w.name}`}
+                label={t('admin.transcoding.workers.drain', { name: w.name })}
                 checked={w.drain}
                 onChange={(e) =>
                   void run(
@@ -124,8 +136,8 @@ function WorkersTab() {
                       return true;
                     },
                     e.target.checked
-                      ? `${w.name} will finish its jobs and take no more.`
-                      : `${w.name} is taking jobs again.`,
+                      ? t('admin.transcoding.workers.draining.on', { name: w.name })
+                      : t('admin.transcoding.workers.draining.off', { name: w.name }),
                   )
                 }
               />
@@ -138,28 +150,29 @@ function WorkersTab() {
 }
 
 function TokensTab() {
+  const t = useT();
   const { res, unavailable } = useTx('tx-tokens', tx.listTokens);
   const { busy, error, notice, run } = useRun();
   const [name, setName] = useState('');
   const [secret, setSecret] = useState<string | null>(null);
   const [revoke, setRevoke] = useState<tx.WorkerToken | null>(null);
-  if (unavailable) return <NotAvailableYet what="Worker tokens" />;
+  if (unavailable) return <NotAvailableYet what={t('admin.transcoding.tab.tokens')} />;
   if (res.error && !res.data)
     return (
       <LoadProblem
         error={res.error}
         status={res.status}
         onRetry={() => void res.reload()}
-        what="worker tokens"
+        what={t('admin.transcoding.tokens.what')}
       />
     );
-  if (!res.data) return <p className="ss-loading">Loading tokens…</p>;
+  if (!res.data) return <p className="ss-loading">{t('admin.transcoding.tokens.loading')}</p>;
   return (
     <>
       <Banner error={error} notice={notice} />
       <form
         className="ss-toolbar"
-        aria-label="New worker token"
+        aria-label={t('admin.transcoding.tokens.newAria')}
         onSubmit={(e) => {
           e.preventDefault();
           void run(async () => {
@@ -172,51 +185,56 @@ function TokensTab() {
         }}
       >
         <TextInput
-          label="Token name"
+          label={t('admin.transcoding.tokens.name')}
           value={name}
           onChange={(e) => setName(e.target.value)}
-          hint="For example the machine it runs on"
+          hint={t('admin.transcoding.tokens.nameHint')}
         />
         <Button type="submit" loading={busy} disabled={!name.trim()}>
-          Create token
+          {t('admin.transcoding.tokens.create')}
         </Button>
       </form>
       {secret && (
-        <Notice variant="warning" title="Copy this token now" role="status">
-          It is shown once and only its hash is stored. <span className="adm-mono">{secret}</span>{' '}
+        <Notice variant="warning" title={t('admin.transcoding.tokens.copy.title')} role="status">
+          {t('admin.transcoding.tokens.copy.body')} <span className="adm-mono">{secret}</span>{' '}
           <Button size="sm" variant="secondary" onClick={() => setSecret(null)}>
-            I have copied it
+            {t('admin.transcoding.tokens.copy.done')}
           </Button>
         </Notice>
       )}
       {res.data.items.length === 0 ? (
-        <EmptyState title="No worker tokens" description="Create one for each transcode machine." />
+        <EmptyState
+          title={t('admin.transcoding.tokens.empty.title')}
+          description={t('admin.transcoding.tokens.empty.description')}
+        />
       ) : (
-        <ul className="ss-list" aria-label="Worker tokens">
-          {res.data.items.map((t) => (
-            <li key={t.id} className="ss-row">
+        <ul className="ss-list" aria-label={t('admin.transcoding.tab.tokens')}>
+          {res.data.items.map((tk) => (
+            <li key={tk.id} className="ss-row">
               <div className="ss-grow">
                 <div className="ss-name">
-                  {t.name}{' '}
-                  {t.revoked_at_ms ? (
-                    <Badge>revoked</Badge>
+                  {tk.name}{' '}
+                  {tk.revoked_at_ms ? (
+                    <Badge>{t('admin.transcoding.tokens.revoked')}</Badge>
                   ) : (
-                    <Badge variant="success">active</Badge>
+                    <Badge variant="success">{t('admin.transcoding.tokens.active')}</Badge>
                   )}
                 </div>
                 <div className="ss-meta">
-                  created {fmtMs(t.created_at_ms)}
-                  {t.last_used_ms ? ` · last used ${fmtMs(t.last_used_ms)}` : ' · never used'}
+                  {t('admin.transcoding.tokens.created', { time: fmtMs(tk.created_at_ms) })}
+                  {tk.last_used_ms
+                    ? ` · ${t('admin.transcoding.tokens.lastUsed', { time: fmtMs(tk.last_used_ms) })}`
+                    : ` · ${t('admin.transcoding.tokens.neverUsed')}`}
                 </div>
               </div>
-              {!t.revoked_at_ms && (
+              {!tk.revoked_at_ms && (
                 <Button
                   size="sm"
                   variant="danger"
-                  aria-label={`Revoke token ${t.name}`}
-                  onClick={() => setRevoke(t)}
+                  aria-label={t('admin.transcoding.tokens.revokeAria', { name: tk.name })}
+                  onClick={() => setRevoke(tk)}
                 >
-                  Revoke
+                  {t('admin.transcoding.tokens.revoke')}
                 </Button>
               )}
             </li>
@@ -226,19 +244,24 @@ function TokensTab() {
       <ConfirmDialog
         open={!!revoke}
         danger
-        title={`Revoke ${revoke?.name ?? 'token'}`}
-        description="Workers using this token are refused from now on."
-        confirmLabel="Revoke token"
+        title={t('admin.transcoding.tokens.revokeTitle', {
+          name: revoke?.name ?? t('admin.transcoding.tokens.tokenWord'),
+        })}
+        description={t('admin.transcoding.tokens.revokeDescription')}
+        confirmLabel={t('admin.transcoding.tokens.revokeConfirm')}
         loading={busy}
         onCancel={() => setRevoke(null)}
         onConfirm={() => {
-          const t = revoke;
-          if (!t) return;
-          void run(async () => {
-            await tx.revokeToken(t.id);
-            await res.reload();
-            return true;
-          }, `${t.name} revoked.`).then(() => setRevoke(null));
+          const tk = revoke;
+          if (!tk) return;
+          void run(
+            async () => {
+              await tx.revokeToken(tk.id);
+              await res.reload();
+              return true;
+            },
+            t('admin.transcoding.tokens.revoked.done', { name: tk.name }),
+          ).then(() => setRevoke(null));
         }}
       />
     </>
@@ -246,12 +269,12 @@ function TokensTab() {
 }
 
 const ALL = '__all';
-const STATE_OPTIONS = [
-  { value: ALL, label: 'All states' },
-  ...tx.JOB_STATES.map((s) => ({ value: s, label: s })),
-];
-
 function QueueTab() {
+  const t = useT();
+  const stateOptions = [
+    { value: ALL, label: t('admin.transcoding.queue.allStates') },
+    ...tx.JOB_STATES.map((s) => ({ value: s, label: s })),
+  ];
   const [state, setState] = useState(ALL);
   const [unavailable, setUnavailable] = useState(false);
   const [failure, setFailure] = useState<number | null>(null);
@@ -274,38 +297,46 @@ function QueueTab() {
   const [cancel, setCancel] = useState<tx.TranscodeJob | null>(null);
   const [rerun, setRerun] = useState<tx.TranscodeJob | null>(null);
 
-  if (unavailable) return <NotAvailableYet what="The transcode queue" />;
+  if (unavailable) return <NotAvailableYet what={t('admin.transcoding.queue.whatQueue')} />;
   return (
     <>
       <div className="ss-toolbar">
         <Select
-          aria-label="Job state"
-          options={STATE_OPTIONS}
+          aria-label={t('admin.transcoding.queue.jobState')}
+          options={stateOptions}
           value={state}
           onValueChange={setState}
         />
         <Button variant="secondary" onClick={paged.reload}>
-          Refresh
+          {t('admin.transcoding.queue.refresh')}
         </Button>
       </div>
       <Banner error={error} notice={notice} />
       {paged.error && (
-        <LoadProblem error={paged.error} status={failure} onRetry={paged.reload} what="the queue" />
+        <LoadProblem
+          error={paged.error}
+          status={failure}
+          onRetry={paged.reload}
+          what={t('admin.transcoding.queue.what')}
+        />
       )}
       {!paged.error && !paged.loading && paged.items.length === 0 && (
-        <EmptyState title="The queue is empty" description="No jobs match this filter." />
+        <EmptyState
+          title={t('admin.transcoding.queue.empty.title')}
+          description={t('admin.transcoding.queue.empty.description')}
+        />
       )}
       {paged.items.length > 0 && (
         <div className="adm-table-wrap">
-          <table className="adm-table" aria-label="Transcode jobs">
+          <table className="adm-table" aria-label={t('admin.transcoding.queue.table')}>
             <thead>
               <tr>
-                <th scope="col">Job</th>
-                <th scope="col">Asset</th>
-                <th scope="col">State</th>
-                <th scope="col">Worker</th>
-                <th scope="col">Created</th>
-                <th scope="col">Actions</th>
+                <th scope="col">{t('admin.transcoding.col.job')}</th>
+                <th scope="col">{t('admin.transcoding.col.asset')}</th>
+                <th scope="col">{t('admin.transcoding.col.state')}</th>
+                <th scope="col">{t('admin.transcoding.col.worker')}</th>
+                <th scope="col">{t('admin.transcoding.col.created')}</th>
+                <th scope="col">{t('admin.transcoding.col.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -314,7 +345,7 @@ function QueueTab() {
                   <td>
                     <span className="adm-mono">{j.id}</span>
                     <div className="ss-meta">
-                      {j.kind} · attempt {j.attempt}
+                      {j.kind} · {t('admin.transcoding.queue.attempt', { n: j.attempt })}
                     </div>
                   </td>
                   <td>
@@ -336,29 +367,29 @@ function QueueTab() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        aria-label={`Logs for job ${j.id}`}
+                        aria-label={t('admin.transcoding.queue.logsAria', { id: j.id })}
                         onClick={() => setLogs(j)}
                       >
-                        Logs
+                        {t('admin.transcoding.queue.logs')}
                       </Button>
                       {(j.state === 'queued' || j.state === 'running') && (
                         <Button
                           size="sm"
                           variant="danger"
-                          aria-label={`Cancel job ${j.id}`}
+                          aria-label={t('admin.transcoding.queue.cancelAria', { id: j.id })}
                           onClick={() => setCancel(j)}
                         >
-                          Cancel
+                          {t('admin.transcoding.queue.cancel')}
                         </Button>
                       )}
                       {(j.state === 'failed' || j.state === 'cancelled') && (
                         <Button
                           size="sm"
                           variant="secondary"
-                          aria-label={`Re-run job ${j.id}`}
+                          aria-label={t('admin.transcoding.queue.rerunAria', { id: j.id })}
                           onClick={() => setRerun(j)}
                         >
-                          Re-run
+                          {t('admin.transcoding.queue.rerun')}
                         </Button>
                       )}
                     </div>
@@ -374,9 +405,9 @@ function QueueTab() {
       <ConfirmDialog
         open={!!cancel}
         danger
-        title="Cancel this job"
-        description="A queued job stops at once. A running one is told to stop and answers within a heartbeat."
-        confirmLabel="Cancel job"
+        title={t('admin.transcoding.queue.cancelDialog.title')}
+        description={t('admin.transcoding.queue.cancelDialog.description')}
+        confirmLabel={t('admin.transcoding.queue.cancelDialog.confirm')}
         loading={busy}
         onCancel={() => setCancel(null)}
         onConfirm={() => {
@@ -386,14 +417,14 @@ function QueueTab() {
             await tx.cancelJob(j.id);
             paged.reload();
             return true;
-          }, 'Cancel requested.').then(() => setCancel(null));
+          }, t('admin.transcoding.queue.cancelRequested')).then(() => setCancel(null));
         }}
       />
       <ReasonDialog
         open={!!rerun}
-        title="Re-run the transcode"
-        description="Queues a fresh ladder job for this asset from the stored original."
-        confirmLabel="Queue transcode"
+        title={t('admin.transcoding.queue.rerunDialog.title')}
+        description={t('admin.transcoding.queue.rerunDialog.description')}
+        confirmLabel={t('admin.transcoding.queue.rerunDialog.confirm')}
         reasonOptional
         onCancel={() => setRerun(null)}
         onConfirm={async (reason) => {
@@ -408,13 +439,14 @@ function QueueTab() {
 }
 
 function JobLogs({ job, onClose }: { job: tx.TranscodeJob | null; onClose: () => void }) {
+  const t = useT();
   return (
     <Modal
       open={!!job}
       onClose={onClose}
-      title={`Logs for job ${job?.id ?? ''}`}
+      title={t('admin.transcoding.queue.logsAria', { id: job?.id ?? '' })}
       size="lg"
-      footer={<Button onClick={onClose}>Done</Button>}
+      footer={<Button onClick={onClose}>{t('admin.transcoding.logs.done')}</Button>}
     >
       {job && <JobLogBody id={job.id} />}
     </Modal>
@@ -422,17 +454,22 @@ function JobLogs({ job, onClose }: { job: tx.TranscodeJob | null; onClose: () =>
 }
 
 function JobLogBody({ id }: { id: string }) {
+  const t = useT();
   const { res, unavailable } = useTx(`tx-job:${id}`, () => tx.getJob(id));
-  if (unavailable) return <NotAvailableYet what="Job logs" />;
+  if (unavailable) return <NotAvailableYet what={t('admin.transcoding.logs.whatLogs')} />;
   if (res.error && !res.data)
-    return <LoadProblem error={res.error} status={res.status} what="job logs" />;
-  if (!res.data) return <p className="ss-loading">Loading logs…</p>;
+    return (
+      <LoadProblem error={res.error} status={res.status} what={t('admin.transcoding.logs.what')} />
+    );
+  if (!res.data) return <p className="ss-loading">{t('admin.transcoding.logs.loading')}</p>;
   const j = res.data;
   return (
     <>
-      {j.encoder && <p className="ss-meta">Encoder {j.encoder}</p>}
-      <pre className="adm-pre" aria-label="Log output" tabIndex={0}>
-        {j.log_tail?.trim() ? j.log_tail : 'No log output was kept for this job.'}
+      {j.encoder && (
+        <p className="ss-meta">{t('admin.transcoding.logs.encoder', { name: j.encoder })}</p>
+      )}
+      <pre className="adm-pre" aria-label={t('admin.transcoding.logs.output')} tabIndex={0}>
+        {j.log_tail?.trim() ? j.log_tail : t('admin.transcoding.logs.none')}
       </pre>
     </>
   );

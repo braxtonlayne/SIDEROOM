@@ -1,6 +1,7 @@
 import { Badge, Button, Notice, Switch, TextInput, useToast } from '@sideroom/ui';
 import { useState } from 'react';
 import { errorText, keys, renameBot, resetBotToken } from '../api';
+import { useT, type MessageKey } from '../../i18n';
 import { usePatchApp } from '../hooks';
 import { INTENTS } from '../oauth';
 import type { DevApp, IntentName } from '../types';
@@ -15,12 +16,13 @@ export function intentStatus(app: DevApp, key: IntentName): 'off' | 'pending' | 
 }
 
 const STATUS = {
-  off: { label: 'Off', variant: 'neutral' },
-  pending: { label: 'Waiting for approval', variant: 'warning' },
-  approved: { label: 'Approved', variant: 'success' },
-} as const;
+  off: { label: 'developers.bot.statusOff', variant: 'neutral' },
+  pending: { label: 'developers.bot.statusPending', variant: 'warning' },
+  approved: { label: 'developers.bot.statusApproved', variant: 'success' },
+} as const satisfies Record<string, { label: MessageKey; variant: string }>;
 
 export function BotTab({ app }: { app: DevApp }) {
+  const t = useT();
   const toast = useToast();
   const qc = useQueryClient();
   const patch = usePatchApp(app.id);
@@ -31,7 +33,7 @@ export function BotTab({ app }: { app: DevApp }) {
   const [error, setError] = useState<string | null>(null);
   const nameError =
     username.trim().length < 2 || username.trim().length > 32
-      ? 'Use 2 to 32 characters.'
+      ? t('developers.bot.nameError')
       : undefined;
 
   const rename = async () => {
@@ -40,9 +42,9 @@ export function BotTab({ app }: { app: DevApp }) {
     try {
       await renameBot(app.id, username.trim());
       await qc.invalidateQueries({ queryKey: keys.app(app.id) });
-      toast.show({ title: 'Bot renamed.', variant: 'success' });
+      toast.show({ title: t('developers.bot.renamed'), variant: 'success' });
     } catch (e) {
-      setError(errorText(e, 'Could not rename the bot.'));
+      setError(errorText(e, t('developers.bot.renameFailed')));
     } finally {
       setRenaming(false);
     }
@@ -51,20 +53,17 @@ export function BotTab({ app }: { app: DevApp }) {
   return (
     <div className="dev-stack">
       {error && (
-        <Notice variant="danger" title="That did not work">
+        <Notice variant="danger" title={t('developers.bot.didNotWork')}>
           {error}
         </Notice>
       )}
       <section className="dev-card" aria-labelledby="dev-bot-h">
         <h2 id="dev-bot-h" className="dev-card-title">
-          Bot user
+          {t('developers.bot.userHeading')}
         </h2>
-        <p className="dev-muted">
-          Every application comes with a bot account (ID {app.bot.id}). Its token is stored hashed
-          and cannot be shown again. If it leaks, or you lost it, reset it.
-        </p>
+        <p className="dev-muted">{t('developers.bot.userIntro', { id: app.bot.id })}</p>
         <TextInput
-          label="Bot name"
+          label={t('developers.bot.nameLabel')}
           value={username}
           maxLength={40}
           onChange={(e) => setUsername(e.target.value)}
@@ -77,23 +76,19 @@ export function BotTab({ app }: { app: DevApp }) {
             loading={renaming}
             onClick={() => void rename()}
           >
-            Save bot name
+            {t('developers.bot.saveName')}
           </Button>
           <Button variant="danger" onClick={() => setConfirmReset(true)}>
-            Reset token
+            {t('developers.bot.resetToken')}
           </Button>
         </div>
       </section>
 
       <section className="dev-card" aria-labelledby="dev-intents-h">
         <h2 id="dev-intents-h" className="dev-card-title">
-          Privileged gateway intents
+          {t('developers.bot.intentsHeading')}
         </h2>
-        <p className="dev-muted">
-          While the app is in development these work in your test servers. Once released, only
-          intents staff have approved are allowed; asking for one outside that closes the connection
-          with code 4014.
-        </p>
+        <p className="dev-muted">{t('developers.bot.intentsIntro')}</p>
         <ul className="dev-intents">
           {INTENTS.map((i) => {
             const status = intentStatus(app, i.key);
@@ -116,21 +111,19 @@ export function BotTab({ app }: { app: DevApp }) {
                     )
                   }
                 />
-                <Badge variant={STATUS[status].variant}>{STATUS[status].label}</Badge>
+                <Badge variant={STATUS[status].variant}>{t(STATUS[status].label)}</Badge>
               </li>
             );
           })}
         </ul>
-        <p className="dev-muted">
-          Approval happens with a version review: use the Review tab to submit one.
-        </p>
+        <p className="dev-muted">{t('developers.bot.approvalNote')}</p>
       </section>
 
       <PasswordConfirm
         open={confirmReset}
-        title="Reset the bot token?"
-        description="The current token stops working immediately; a connected bot is dropped at its next reconnect. You will get a new token to copy. Confirm with your password."
-        confirmLabel="Yes, reset it"
+        title={t('developers.bot.resetTitle')}
+        description={t('developers.bot.resetDescription')}
+        confirmLabel={t('developers.bot.resetConfirm')}
         onCancel={() => setConfirmReset(false)}
         onSubmit={async (password) => {
           const r = await resetBotToken(app.id, password);
@@ -139,9 +132,9 @@ export function BotTab({ app }: { app: DevApp }) {
         }}
       />
       <SecretDialog
-        title="Bot token"
-        description="Your bot uses this to log in. Treat it like a password."
-        secrets={token === null ? null : [{ label: 'Bot token', value: token }]}
+        title={t('developers.bot.tokenTitle')}
+        description={t('developers.bot.tokenDescription')}
+        secrets={token === null ? null : [{ label: t('developers.bot.tokenTitle'), value: token }]}
         onClose={() => setToken(null)}
       />
     </div>

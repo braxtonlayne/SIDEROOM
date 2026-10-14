@@ -1,5 +1,6 @@
 import { useNavigate } from '@tanstack/react-router';
 import { Icon, type IconName } from '@sideroom/ui';
+import { useT } from '../../i18n';
 import { firstTextChannel } from '../channels';
 import { useChannels, useGuild } from '../data';
 import { useLoungeGoto } from '../nav';
@@ -20,6 +21,7 @@ interface Card {
  * Steps that cannot be detected from client data are ticked when the person does them from here.
  */
 export function ServerWelcome({ guildId }: { guildId: string }) {
+  const t = useT();
   const guild = useGuild(guildId);
   const channels = useChannels(guildId);
   const goto = useLoungeGoto();
@@ -35,8 +37,8 @@ export function ServerWelcome({ guildId }: { guildId: string }) {
   const cards: Card[] = [
     {
       id: 'invite',
-      title: 'Invite your friends',
-      blurb: 'A server is better with people in it.',
+      title: t('lounge.serverWelcome.inviteTitle'),
+      blurb: t('lounge.serverWelcome.inviteBlurb'),
       icon: 'users',
       done: !!done[key('invite')],
       disabled: !p.createInvite,
@@ -47,8 +49,8 @@ export function ServerWelcome({ guildId }: { guildId: string }) {
     },
     {
       id: 'icon',
-      title: 'Personalize your server with an icon',
-      blurb: 'Give it a face in Server Settings.',
+      title: t('lounge.serverWelcome.iconTitle'),
+      blurb: t('lounge.serverWelcome.iconBlurb'),
       icon: 'palette',
       done: !!guild.iconUrl,
       disabled: !(p.serverSettings ?? p.manageGuild),
@@ -60,8 +62,8 @@ export function ServerWelcome({ guildId }: { guildId: string }) {
     },
     {
       id: 'message',
-      title: 'Send your first message',
-      blurb: 'Say hello in the first channel.',
+      title: t('lounge.serverWelcome.messageTitle'),
+      blurb: t('lounge.serverWelcome.messageBlurb'),
       icon: 'hash',
       done: !!done[key('message')],
       disabled: !first,
@@ -73,13 +75,16 @@ export function ServerWelcome({ guildId }: { guildId: string }) {
   ];
 
   return (
-    <section className="lng-channel-view lng-welcome" aria-label={`Welcome to ${guild.name}`}>
+    <section
+      className="lng-channel-view lng-welcome"
+      aria-label={t('lounge.serverWelcome.welcome', { name: guild.name })}
+    >
       <div className="lng-welcome-body">
-        <h1 className="lng-welcome-title">Welcome to {guild.name}</h1>
-        <p className="lng-muted">
-          This is your new server. Here are a few steps to get it ready for people.
-        </p>
-        <ul className="lng-welcome-cards" aria-label="Getting started">
+        <h1 className="lng-welcome-title">
+          {t('lounge.serverWelcome.welcome', { name: guild.name })}
+        </h1>
+        <p className="lng-muted">{t('lounge.serverWelcome.intro')}</p>
+        <ul className="lng-welcome-cards" aria-label={t('lounge.serverWelcome.gettingStarted')}>
           {cards.map((c) => (
             <li key={c.id}>
               <button
@@ -94,7 +99,9 @@ export function ServerWelcome({ guildId }: { guildId: string }) {
                   <strong>{c.title}</strong>
                   <small>{c.blurb}</small>
                 </span>
-                {c.done ? <Icon name="check" size={20} label="Done" /> : null}
+                {c.done ? (
+                  <Icon name="check" size={20} label={t('lounge.serverWelcome.done')} />
+                ) : null}
               </button>
             </li>
           ))}

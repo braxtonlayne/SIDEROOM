@@ -3,6 +3,7 @@
 // player's engine, loaded on demand) lets staff scrub and copy the current time into a field.
 import { Button, EmptyState, Select, TextInput } from '@sideroom/ui';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { t, useT } from '../../i18n';
 import { useAdminViewer } from '../ui';
 import * as api from './api';
 import { Banner, LoadProblem, Section, fmtClock, useLoad, useRun } from './hooks';
@@ -41,9 +42,9 @@ export function validateRows(rows: Rows): Partial<Record<api.MarkerKind, string>
     if (!start.trim() && !end.trim()) continue;
     const s = sec(start);
     const e = sec(end);
-    if (s === null || e === null) out[k] = 'Enter both a start and an end in seconds.';
-    else if (e <= s) out[k] = 'The end must be after the start.';
-    else if (e > DAY_MS) out[k] = 'Windows must lie within 24 hours.';
+    if (s === null || e === null) out[k] = t('admin.markersPanel.errBoth');
+    else if (e <= s) out[k] = t('admin.markersPanel.errOrder');
+    else if (e > DAY_MS) out[k] = t('admin.markersPanel.errDay');
   }
   return out;
 }
@@ -64,6 +65,7 @@ interface Props {
 }
 
 export function MarkersPanel({ detail, reload }: Props) {
+  const t = useT();
   const episodic = detail.title.kind !== 'movie' && detail.episodes.length > 0;
   const episodes = useMemo(
     () =>
@@ -74,16 +76,16 @@ export function MarkersPanel({ detail, reload }: Props) {
   if (detail.title.kind !== 'movie' && !episodic)
     return (
       <EmptyState
-        title="No episodes yet"
-        description="Add episodes first. Skip markers belong to an episode."
+        title={t('admin.markersPanel.noEpisodes.title')}
+        description={t('admin.markersPanel.noEpisodes.description')}
       />
     );
   const ep = episodes.find((e) => e.id === target);
   return (
-    <Section title="Skip markers">
+    <Section title={t('admin.markersPanel.title')}>
       {episodic && (
         <Select
-          aria-label="Episode"
+          aria-label={t('admin.markersPanel.episode')}
           value={target}
           onValueChange={setTarget}
           options={episodes.map((e) => ({
@@ -120,6 +122,7 @@ function MarkerEditor({
   initial: api.Marker[] | undefined;
   reload: () => Promise<void>;
 }) {
+  const t = useT();
   const canEdit = useAdminViewer().can('PUBLISH_MEDIA');
   const loaded = useLoad<api.Marker[]>(`markers:${episodeId ?? titleId}`, async () =>
     episodeId ? (await api.getEpisodeMarkers(episodeId)).markers : (initial ?? []),
@@ -154,7 +157,7 @@ function MarkerEditor({
       setDirty(false);
       await reload();
       return true;
-    }, 'Markers saved.');
+    }, t('admin.markersPanel.saved'));
 
   if (loaded.error && !loaded.data)
     return (
@@ -162,7 +165,7 @@ function MarkerEditor({
         error={loaded.error}
         status={loaded.status}
         onRetry={() => void loaded.reload()}
-        what="these markers"
+        what={t('admin.markersPanel.whatMarkers')}
       />
     );
 
@@ -182,7 +185,7 @@ function MarkerEditor({
 
   return (
     <div className="adm-cin-markers">
-      <div className="adm-cin-timeline" role="img" aria-label="Marker timeline">
+      <div className="adm-cin-timeline" role="img" aria-label={t('admin.markersPanel.timeline')}>
         {segs.map((s) => (
           <span
             key={s.k}
@@ -206,13 +209,13 @@ function MarkerEditor({
         onReady={setReady}
       />
       <div className="adm-table-wrap">
-        <table className="adm-table" aria-label="Skip windows">
+        <table className="adm-table" aria-label={t('admin.markersPanel.windows')}>
           <thead>
             <tr>
-              <th scope="col">Window</th>
-              <th scope="col">Start (seconds)</th>
-              <th scope="col">End (seconds)</th>
-              <th scope="col">Length</th>
+              <th scope="col">{t('admin.markersPanel.col.window')}</th>
+              <th scope="col">{t('admin.markersPanel.col.start')}</th>
+              <th scope="col">{t('admin.markersPanel.col.end')}</th>
+              <th scope="col">{t('admin.markersPanel.col.length')}</th>
             </tr>
           </thead>
           <tbody>
@@ -224,7 +227,7 @@ function MarkerEditor({
                   <th scope="row">{k}</th>
                   <td>
                     <TimeField
-                      label={`${k} start`}
+                      label={t('admin.markersPanel.startLabel', { kind: k })}
                       value={rows[k].start}
                       disabled={!canEdit}
                       onChange={(v) => set(k, 'start', v)}
@@ -237,7 +240,7 @@ function MarkerEditor({
                   </td>
                   <td>
                     <TimeField
-                      label={`${k} end`}
+                      label={t('admin.markersPanel.endLabel', { kind: k })}
                       value={rows[k].end}
                       disabled={!canEdit}
                       onChange={(v) => set(k, 'end', v)}
@@ -260,14 +263,12 @@ function MarkerEditor({
           </tbody>
         </table>
       </div>
-      <p className="ss-meta">
-        Leave both fields empty for no window. One window per kind, inside 24 hours.
-      </p>
+      <p className="ss-meta">{t('admin.markersPanel.hint')}</p>
       <Banner error={error} notice={notice} />
       {canEdit ? (
         <div className="adm-actions">
           <Button onClick={save} loading={busy} disabled={bad || !dirty}>
-            Save markers
+            {t('admin.markersPanel.save')}
           </Button>
           <Button
             variant="ghost"
@@ -277,11 +278,11 @@ function MarkerEditor({
               setDirty(false);
             }}
           >
-            Revert
+            {t('admin.markersPanel.revert')}
           </Button>
         </div>
       ) : (
-        <p className="ss-na">You can view markers but not change them.</p>
+        <p className="ss-na">{t('admin.markersPanel.readOnly')}</p>
       )}
     </div>
   );
@@ -300,6 +301,7 @@ function TimeField({
   onUseCurrent: (() => void) | undefined;
   disabled: boolean;
 }) {
+  const t = useT();
   return (
     <div className="adm-cin-time">
       <TextInput
@@ -315,10 +317,10 @@ function TimeField({
         <Button
           size="sm"
           variant="ghost"
-          aria-label={`Use the current time for ${label}`}
+          aria-label={t('admin.markersPanel.useCurrent', { label })}
           onClick={onUseCurrent}
         >
-          Now
+          {t('admin.markersPanel.now')}
         </Button>
       )}
     </div>
@@ -339,17 +341,13 @@ function Preview({
   onTime: (s: number) => void;
   onReady: (ready: boolean) => void;
 }) {
+  const t = useT();
   const [state, setState] = useState<'idle' | 'loading' | 'ready' | 'failed'>('idle');
   const [message, setMessage] = useState<string | null>(null);
   const engineRef = useRef<{ destroy: () => void } | null>(null);
   useEffect(() => () => engineRef.current?.destroy(), []);
 
-  if (!assetId)
-    return (
-      <p className="ss-na">
-        No video is linked, so there is nothing to preview. Enter times by hand.
-      </p>
-    );
+  if (!assetId) return <p className="ss-na">{t('admin.markersPanel.preview.noVideo')}</p>;
 
   const load = async () => {
     setState('loading');
@@ -370,9 +368,7 @@ function Preview({
       onReady(true);
     } catch {
       setState('failed');
-      setMessage(
-        'The preview could not be loaded. The video may still be transcoding. Enter times by hand.',
-      );
+      setMessage(t('admin.markersPanel.preview.failed'));
     }
   };
 
@@ -383,7 +379,7 @@ function Preview({
         controls={state === 'ready'}
         preload="metadata"
         className={state === 'ready' ? 'adm-cin-video' : 'adm-vh'}
-        aria-label="Preview"
+        aria-label={t('admin.markersPanel.preview.label')}
         onLoadedMetadata={(e) => onDuration(e.currentTarget.duration || 0)}
         onTimeUpdate={(e) => onTime(e.currentTarget.currentTime)}
       />
@@ -394,7 +390,7 @@ function Preview({
           loading={state === 'loading'}
           onClick={() => void load()}
         >
-          Load preview
+          {t('admin.markersPanel.preview.load')}
         </Button>
       )}
       {message && (

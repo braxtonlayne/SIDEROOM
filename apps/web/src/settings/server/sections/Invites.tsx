@@ -1,5 +1,6 @@
 import { Button, EmptyState, Switch } from '@sideroom/ui';
 import { useState } from 'react';
+import { useT } from '../../../i18n';
 import { InviteDialog } from '../../../lounge/InviteDialog';
 import { expiryLabel, inviteUrl } from '../../../lounge/inviteFlow';
 import * as api from '../api';
@@ -8,6 +9,7 @@ import type { SectionProps } from '../ServerSettings';
 import { ActionStatus, Async, SectionHeader, formatDate, useAction } from '../ui';
 
 export function InvitesSection({ guildId }: SectionProps) {
+  const t = useT();
   const res = useResource(`invites:${guildId}`, () => api.listGuildInvites(guildId));
   const community = useResource(`community:${guildId}`, () => api.getCommunity(guildId));
   useGuildEvents(guildId, ['INVITE_CREATE', 'INVITE_DELETE'], () => void res.reload());
@@ -29,7 +31,7 @@ export function InvitesSection({ guildId }: SectionProps) {
       setCopied(code);
       setTimeout(() => setCopied((c) => (c === code ? null : c)), 2000);
     } catch {
-      action.setError('Copying is blocked by the browser. Select the link and copy it by hand.');
+      action.setError(t('settings.invites.copyBlocked'));
     }
   };
   const togglePause = async (paused: boolean) => {
@@ -40,52 +42,59 @@ export function InvitesSection({ guildId }: SectionProps) {
   return (
     <>
       <SectionHeader
-        title="Invites"
-        description="Everyone who joined through one of these links. Revoke a link to stop new joins."
-        actions={<Button onClick={() => setCreating(true)}>Create invite</Button>}
+        title={t('settings.invites.title')}
+        description={t('settings.invites.description')}
+        actions={<Button onClick={() => setCreating(true)}>{t('settings.invites.create')}</Button>}
       />
       <div className="ss-card" style={{ marginBottom: 16 }}>
         {community.data ? (
           <Switch
-            label="Pause invites"
-            description="While paused nobody can join with an invite link. Existing members are not affected."
+            label={t('settings.invites.pauseLabel')}
+            description={t('settings.invites.pauseDescription')}
             checked={community.data.invites_paused}
             disabled={pause.busy}
             onChange={(e) => void togglePause(e.target.checked)}
           />
         ) : community.error ? (
-          <p className="ss-na">Could not load the pause setting: {community.error}</p>
+          <p className="ss-na">
+            {t('settings.invites.pauseLoadFailed', { error: community.error })}
+          </p>
         ) : (
-          <p className="ss-na">Loading invite settings...</p>
+          <p className="ss-na">{t('settings.invites.loadingSettings')}</p>
         )}
         <ActionStatus error={pause.error} />
       </div>
       <ActionStatus error={action.error} />
-      <Async res={res} label="Loading invites">
+      <Async res={res} label={t('settings.invites.loading')}>
         {(invites) =>
           invites.length === 0 ? (
             <EmptyState
-              title="No active invites"
-              description="Create an invite to bring people in."
+              title={t('settings.invites.emptyTitle')}
+              description={t('settings.invites.emptyDescription')}
             />
           ) : (
             <table className="ss-table">
               <thead>
                 <tr>
-                  <th scope="col">Inviter</th>
-                  <th scope="col">Code</th>
-                  <th scope="col">Uses</th>
-                  <th scope="col">Expires</th>
-                  <th scope="col">Channel</th>
+                  <th scope="col">{t('settings.invites.colInviter')}</th>
+                  <th scope="col">{t('settings.invites.colCode')}</th>
+                  <th scope="col">{t('settings.invites.colUses')}</th>
+                  <th scope="col">{t('settings.invites.colExpires')}</th>
+                  <th scope="col">{t('settings.invites.colChannel')}</th>
                   <th scope="col">
-                    <span className="ss-sr">Actions</span>
+                    <span className="ss-sr">{t('settings.invites.colActions')}</span>
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {invites.map((i) => (
                   <tr key={i.code}>
-                    <td>{api.userName(i.inviter as api.UserRef | undefined, 'Unknown')}</td>
+                    <td>
+                      {api.userName(
+                        i.inviter as api.UserRef | undefined,
+                        t('settings.invites.unknown'),
+                      )}
+                    </td>
                     <td>
                       <code>{i.code}</code>
                       <div className="ss-meta">{formatDate(i.created_at)}</div>
@@ -101,18 +110,20 @@ export function InvitesSection({ guildId }: SectionProps) {
                         <Button
                           size="sm"
                           variant="ghost"
-                          aria-label={`Copy link for ${i.code}`}
+                          aria-label={t('settings.invites.copyFor', { code: i.code })}
                           onClick={() => void copy(i.code)}
                         >
-                          {copied === i.code ? 'Copied!' : 'Copy link'}
+                          {copied === i.code
+                            ? t('settings.invites.copied')
+                            : t('settings.invites.copyLink')}
                         </Button>
                         <Button
                           size="sm"
                           variant="danger"
-                          aria-label={`Revoke invite ${i.code}`}
+                          aria-label={t('settings.invites.revokeFor', { code: i.code })}
                           onClick={() => void revoke(i.code)}
                         >
-                          Revoke
+                          {t('settings.invites.revoke')}
                         </Button>
                       </span>
                     </td>

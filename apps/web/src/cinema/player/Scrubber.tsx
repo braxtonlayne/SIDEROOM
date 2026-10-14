@@ -2,6 +2,7 @@
 // track, marker ticks for intro and credits, and a hover/focus preview with the sprite thumbnail.
 import { useQuery } from '@tanstack/react-query';
 import { useRef, useState, type PointerEvent } from 'react';
+import { useT } from '../../i18n';
 import { getSprites } from './api';
 import { clamp, formatClock, spokenClock, spriteAt } from './model';
 import type { Marker } from './types';
@@ -23,6 +24,7 @@ export function Scrubber({
   spritesUrl,
   onSeek,
 }: ScrubberProps) {
+  const tr = useT();
   const wrap = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<{ t: number; x: number } | null>(null);
   const sprites = useQuery({
@@ -66,12 +68,15 @@ export function Scrubber({
       <input
         type="range"
         className="cpl-scrub-input"
-        aria-label="Seek"
+        aria-label={tr('cinema.scrubber.seek')}
         min={0}
         max={dur || 1}
         step={1}
         value={clamp(currentTime, 0, dur || 1)}
-        aria-valuetext={`${spokenClock(currentTime)} of ${spokenClock(dur)}`}
+        aria-valuetext={tr('cinema.scrubber.valueText', {
+          current: spokenClock(currentTime),
+          total: spokenClock(dur),
+        })}
         disabled={dur === 0}
         onChange={(e) => onSeek(Number(e.target.value))}
       />

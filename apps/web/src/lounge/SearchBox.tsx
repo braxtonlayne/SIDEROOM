@@ -2,6 +2,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { Icon } from '@sideroom/ui';
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { ApiError } from '../api/client';
+import { useT } from '../i18n';
 import { rest } from '../store';
 import { HOME } from './channels';
 import { useChannels, useUsers } from './data';
@@ -39,13 +40,14 @@ function HitRow({
   onJump: () => void;
   children: ReactNode;
 }) {
+  const t = useT();
   const { ref, ctx } = useHitContext(hit.channel_id, hit.id);
   return (
     <li ref={ref} className="lng-search-row">
       <ContextLine n={ctx?.before} side="before" />
       <button type="button" className="lng-search-hit" onClick={onJump}>
         {children}
-        <span className="lng-search-jump">Jump</span>
+        <span className="lng-search-jump">{t('lounge.searchBox.jump')}</span>
       </button>
       <ContextLine n={ctx?.after} side="after" />
     </li>
@@ -68,6 +70,7 @@ export function SearchBox({
   channelId: string;
   label: string;
 }) {
+  const t = useT();
   const isDm = !guildId || guildId === HOME;
   const navigate = useNavigate();
   const users = useUsers();
@@ -136,8 +139,8 @@ export function SearchBox({
         kind: 'error',
         message:
           err instanceof ApiError && err.status === 400
-            ? 'That search could not be understood. Check your filters.'
-            : 'Search failed. Try again.',
+            ? t('lounge.searchBox.badQuery')
+            : t('lounge.searchBox.failed'),
       });
     }
   };
@@ -160,14 +163,14 @@ export function SearchBox({
   };
 
   const addChip = (chip: string) => {
-    setText((t) => (t && !t.endsWith(' ') ? `${t} ${chip}` : `${t}${chip}`));
+    setText((prev) => (prev && !prev.endsWith(' ') ? `${prev} ${chip}` : `${prev}${chip}`));
     input.current?.focus();
   };
 
   const pickOption = (i: number) => {
     const o = options[i];
     if (!o) return;
-    setText((t) => applyFilterOption(t, o));
+    setText((prev) => applyFilterOption(prev, o));
     setOptIndex(0);
     input.current?.focus();
   };
@@ -197,7 +200,7 @@ export function SearchBox({
         <input
           ref={input}
           type="search"
-          placeholder="Search"
+          placeholder={t('lounge.searchBox.placeholder')}
           aria-label={label}
           aria-controls={open ? panelId : undefined}
           aria-activedescendant={options.length ? `${listId}-${optActive}` : undefined}
@@ -222,8 +225,12 @@ export function SearchBox({
         />
       </form>
       {open && (
-        <section className="lng-search-panel" id={panelId} aria-label="Search results">
-          <div className="lng-search-chips" role="group" aria-label="Search filters">
+        <section
+          className="lng-search-panel"
+          id={panelId}
+          aria-label={t('lounge.searchBox.results')}
+        >
+          <div className="lng-search-chips" role="group" aria-label={t('lounge.searchBox.filters')}>
             {CHIPS.filter((c) => !isDm || c !== 'in:').map((c) => (
               <button type="button" key={c} className="lng-chip" onClick={() => addChip(c)}>
                 {c}
@@ -231,7 +238,12 @@ export function SearchBox({
             ))}
           </div>
           {options.length > 0 && (
-            <ul id={listId} role="listbox" aria-label="Filter suggestions" className="lng-ac-list">
+            <ul
+              id={listId}
+              role="listbox"
+              aria-label={t('lounge.searchBox.suggestions')}
+              className="lng-ac-list"
+            >
               {options.map((o, i) => (
                 <li
                   key={o.insert}
@@ -253,14 +265,16 @@ export function SearchBox({
           )}
           {open && /^(before|during|after):/i.test(token) && (
             <label className="lng-search-date">
-              <span>Pick a date</span>
+              <span>{t('lounge.searchBox.pickDate')}</span>
               <input
                 type="date"
-                aria-label="Pick a date"
+                aria-label={t('lounge.searchBox.pickDate')}
                 onChange={(e) => {
                   if (!e.target.value) return;
                   const key = /^(w+):/.exec(token)![1];
-                  setText((t) => `${t.slice(0, currentToken(t).start)}${key}:${e.target.value} `);
+                  setText(
+                    (prev) => `${prev.slice(0, currentToken(prev).start)}${key}:${e.target.value} `,
+                  );
                   input.current?.focus();
                 }}
               />
@@ -269,7 +283,7 @@ export function SearchBox({
           {showHistory && (
             <div className="lng-search-history">
               <div className="lng-search-history-head">
-                <h2 className="lng-search-count">Recent searches</h2>
+                <h2 className="lng-search-count">{t('lounge.searchBox.recent')}</h2>
                 <button
                   type="button"
                   className="lng-link-btn"
@@ -278,7 +292,7 @@ export function SearchBox({
                     setHistory([]);
                   }}
                 >
-                  Clear history
+                  {t('lounge.searchBox.clearHistory')}
                 </button>
               </div>
               <ul className="lng-search-results">
@@ -299,18 +313,23 @@ export function SearchBox({
               </ul>
             </div>
           )}
-          {hasText && status.kind === 'loading' && <p role="status">Searching…</p>}
+          {hasText && status.kind === 'loading' && (
+            <p role="status">{t('lounge.searchBox.searching')}</p>
+          )}
           {hasText && status.kind === 'error' && <p role="alert">{status.message}</p>}
           {hasText && status.kind === 'done' && (
             <>
               <div className="lng-search-bar">
                 <h2 className="lng-search-count">
                   {status.total === 0
-                    ? 'No results'
-                    : `${status.total.toLocaleString()} result${status.total === 1 ? '' : 's'}`}
+                    ? t('lounge.searchBox.noResults')
+                    : t('lounge.searchBox.resultCount', {
+                        count: status.total,
+                        formatted: status.total.toLocaleString(),
+                      })}
                 </h2>
                 <label className="lng-search-sort">
-                  <span className="lng-sr-only">Sort by</span>
+                  <span className="lng-sr-only">{t('lounge.searchBox.sortBy')}</span>
                   <select value={sort} onChange={(e) => changeSort(e.target.value as SearchSort)}>
                     {(Object.keys(SORT_LABELS) as SearchSort[]).map((s) => (
                       <option key={s} value={s}>
@@ -329,7 +348,9 @@ export function SearchBox({
                       {g.hits.map((m) => {
                         const snippet = m.sr_snippet ?? { text: m.content, highlights: [] };
                         const name =
-                          users[m.author.id]?.displayName ?? m.author.username ?? 'Unknown';
+                          users[m.author.id]?.displayName ??
+                          m.author.username ??
+                          t('lounge.searchBox.unknown');
                         return (
                           <HitRow key={m.id} hit={m} onJump={() => jump(m)}>
                             <span className="lng-search-meta">
@@ -353,17 +374,17 @@ export function SearchBox({
                 );
               })}
               {pages > 1 && (
-                <nav className="lng-search-pages" aria-label="Search result pages">
+                <nav className="lng-search-pages" aria-label={t('lounge.searchBox.pages')}>
                   <button
                     type="button"
                     className="lng-link-btn"
                     disabled={page === 0}
                     onClick={() => goPage(page - 1)}
                   >
-                    Previous
+                    {t('lounge.searchBox.previous')}
                   </button>
                   <span aria-live="polite">
-                    Page {page + 1} of {pages}
+                    {t('lounge.searchBox.pageOf', { page: page + 1, pages })}
                   </span>
                   <button
                     type="button"
@@ -371,7 +392,7 @@ export function SearchBox({
                     disabled={page + 1 >= pages}
                     onClick={() => goPage(page + 1)}
                   >
-                    Next
+                    {t('lounge.searchBox.next')}
                   </button>
                 </nav>
               )}

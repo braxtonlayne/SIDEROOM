@@ -3,6 +3,7 @@
 // and full screen are always the viewer's own.
 import { Icon } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
+import { useT } from '../i18n';
 import { formatClock } from '../cinema/player/model';
 import { playerSession, usePlayer } from '../cinema/player/session';
 import { partyController, useParty } from './runtime';
@@ -19,6 +20,7 @@ export interface ControlBarProps {
 }
 
 export function ControlBar({ onFullscreen, canFullscreen, onShare }: ControlBarProps) {
+  const tr = useT();
   const c = partyController();
   const s = playerSession();
   const party = useParty((x) => x.party);
@@ -44,14 +46,16 @@ export function ControlBar({ onFullscreen, canFullscreen, onShare }: ControlBarP
   const live = pb.live;
   const durMs = pb.duration_ms ?? 0;
   const posMs = scrub ?? t * 1000;
-  const why = can ? undefined : 'Only the host and controllers can control playback.';
+  const why = can ? undefined : tr('watchparty.controls.hostOnly');
 
   return (
-    <div className="wp-controls" role="group" aria-label="Playback controls">
+    <div className="wp-controls" role="group" aria-label={tr('watchparty.controls.label')}>
       <button
         type="button"
         className="wp-btn wp-btn-main"
-        aria-label={running ? 'Pause for everyone' : 'Play for everyone'}
+        aria-label={
+          running ? tr('watchparty.controls.pauseAll') : tr('watchparty.controls.playAll')
+        }
         aria-disabled={!can || live}
         title={why}
         onClick={() => can && !live && void c.toggle()}
@@ -61,7 +65,7 @@ export function ControlBar({ onFullscreen, canFullscreen, onShare }: ControlBarP
       <button
         type="button"
         className="wp-btn"
-        aria-label="Back 10 seconds"
+        aria-label={tr('watchparty.controls.back10')}
         aria-disabled={!can || live}
         title={why}
         onClick={() => can && !live && void c.seek(posMs - 10_000)}
@@ -71,7 +75,7 @@ export function ControlBar({ onFullscreen, canFullscreen, onShare }: ControlBarP
       <button
         type="button"
         className="wp-btn"
-        aria-label="Forward 10 seconds"
+        aria-label={tr('watchparty.controls.forward10')}
         aria-disabled={!can || live}
         title={why}
         onClick={() => can && !live && void c.seek(posMs + 10_000)}
@@ -80,14 +84,19 @@ export function ControlBar({ onFullscreen, canFullscreen, onShare }: ControlBarP
       </button>
 
       <span className="wp-time" aria-hidden="true">
-        {live ? 'LIVE' : `${formatClock(posMs / 1000)} / ${formatClock(durMs / 1000)}`}
+        {live
+          ? tr('watchparty.controls.live')
+          : `${formatClock(posMs / 1000)} / ${formatClock(durMs / 1000)}`}
       </span>
       {!live && (
         <input
           className="wp-scrub"
           type="range"
-          aria-label="Position"
-          aria-valuetext={`${clock(posMs)} of ${clock(durMs)}`}
+          aria-label={tr('watchparty.controls.position')}
+          aria-valuetext={tr('watchparty.controls.positionText', {
+            pos: clock(posMs),
+            dur: clock(durMs),
+          })}
           min={0}
           max={Math.max(1, Math.round(durMs / 1000))}
           step={1}
@@ -114,9 +123,9 @@ export function ControlBar({ onFullscreen, canFullscreen, onShare }: ControlBarP
 
       {!live && (
         <label className="wp-inline">
-          <span className="wp-sr-only">Speed</span>
+          <span className="wp-sr-only">{tr('watchparty.controls.speed')}</span>
           <select
-            aria-label="Speed"
+            aria-label={tr('watchparty.controls.speed')}
             value={String(pb.rate)}
             disabled={!can}
             title={why}
@@ -135,7 +144,7 @@ export function ControlBar({ onFullscreen, canFullscreen, onShare }: ControlBarP
         <button
           type="button"
           className="wp-btn"
-          aria-label="Next in queue"
+          aria-label={tr('watchparty.controls.nextInQueue')}
           aria-disabled={!can}
           title={why}
           onClick={() => can && void c.skip()}
@@ -150,19 +159,19 @@ export function ControlBar({ onFullscreen, canFullscreen, onShare }: ControlBarP
           className="wp-btn wp-btn-text"
           onClick={() => void c.requestControl()}
         >
-          Request control
+          {tr('watchparty.controls.requestControl')}
         </button>
       )}
 
       <span className="wp-spacer" />
 
-      <div className="wp-emoji" role="group" aria-label="Send a reaction">
+      <div className="wp-emoji" role="group" aria-label={tr('watchparty.controls.sendReaction')}>
         {EMOJI.map((e) => (
           <button
             key={e}
             type="button"
             className="wp-btn wp-emoji-btn"
-            aria-label={`React ${e}`}
+            aria-label={tr('watchparty.controls.react', { emoji: e })}
             disabled={cooling}
             onClick={() => {
               setCooling(true);
@@ -177,7 +186,9 @@ export function ControlBar({ onFullscreen, canFullscreen, onShare }: ControlBarP
       <button
         type="button"
         className="wp-btn"
-        aria-label={muted || volume === 0 ? 'Unmute' : 'Mute'}
+        aria-label={
+          muted || volume === 0 ? tr('watchparty.controls.unmute') : tr('watchparty.controls.mute')
+        }
         aria-pressed={muted}
         onClick={() => s.toggleMute()}
       >
@@ -186,7 +197,7 @@ export function ControlBar({ onFullscreen, canFullscreen, onShare }: ControlBarP
       <input
         className="wp-vol"
         type="range"
-        aria-label="Volume"
+        aria-label={tr('watchparty.controls.volume')}
         min={0}
         max={100}
         value={Math.round((muted ? 0 : volume) * 100)}
@@ -199,14 +210,24 @@ export function ControlBar({ onFullscreen, canFullscreen, onShare }: ControlBarP
           aria-pressed={subtitleId !== null}
           onClick={() => s.toggleCaptions()}
         >
-          CC
+          {tr('watchparty.controls.captions')}
         </button>
       )}
-      <button type="button" className="wp-btn" aria-label="Invite people" onClick={onShare}>
+      <button
+        type="button"
+        className="wp-btn"
+        aria-label={tr('watchparty.controls.invite')}
+        onClick={onShare}
+      >
         <Icon name="link" size={20} />
       </button>
       {canFullscreen && (
-        <button type="button" className="wp-btn" aria-label="Full screen" onClick={onFullscreen}>
+        <button
+          type="button"
+          className="wp-btn"
+          aria-label={tr('watchparty.controls.fullScreen')}
+          onClick={onFullscreen}
+        >
           <Icon name="grid" size={20} />
         </button>
       )}

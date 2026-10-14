@@ -4,6 +4,7 @@ import { Icon } from '@sideroom/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useT, type MessageKey } from '../i18n';
 import { keys, searchLibrary } from './api';
 import { AgeBadge, label } from './ui';
 
@@ -17,16 +18,17 @@ interface Option {
   restricted?: boolean;
 }
 
-const GROUPS: { kind: Kind; title: string }[] = [
-  { kind: 'series', title: 'Series' },
-  { kind: 'author', title: 'Authors' },
-  { kind: 'genre', title: 'Genres' },
-  { kind: 'tag', title: 'Tags' },
+const GROUPS: { kind: Kind; title: MessageKey }[] = [
+  { kind: 'series', title: 'library.searchBox.group.series' },
+  { kind: 'author', title: 'library.searchBox.group.authors' },
+  { kind: 'genre', title: 'library.searchBox.group.genres' },
+  { kind: 'tag', title: 'library.searchBox.group.tags' },
 ];
 
 export const SEARCH_DEBOUNCE_MS = 150;
 
 export function SearchBox() {
+  const t = useT();
   const navigate = useNavigate();
   const uid = useId();
   const listId = `${uid}-list`;
@@ -37,8 +39,8 @@ export function SearchBox() {
   const wrap = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const t = setTimeout(() => setDebounced(text.trim()), SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setDebounced(text.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
   }, [text]);
 
   const enabled = debounced.length >= 2;
@@ -62,7 +64,7 @@ export function SearchBox() {
       })),
       ...d.authors.slice(0, 3).map((a) => ({ id: `a-${a}`, kind: 'author' as const, text: a })),
       ...d.genres.slice(0, 3).map((g) => ({ id: `g-${g}`, kind: 'genre' as const, text: g })),
-      ...d.tags.slice(0, 3).map((t) => ({ id: `t-${t}`, kind: 'tag' as const, text: t })),
+      ...d.tags.slice(0, 3).map((tag) => ({ id: `t-${tag}`, kind: 'tag' as const, text: tag })),
     ];
   }, [result.data, enabled]);
 
@@ -127,8 +129,8 @@ export function SearchBox() {
         type="search"
         role="combobox"
         className="lib-search-input"
-        placeholder="Search manga, authors, and genres…"
-        aria-label="Search the library"
+        placeholder={t('library.searchBox.placeholder')}
+        aria-label={t('library.searchBox.label')}
         aria-expanded={showList}
         aria-controls={listId}
         aria-autocomplete="list"
@@ -145,25 +147,27 @@ export function SearchBox() {
       <div
         id={listId}
         role="listbox"
-        aria-label="Search results"
+        aria-label={t('library.searchBox.results')}
         className="lib-search-list"
         hidden={!showList}
       >
-        {showList && result.isPending && <p className="lib-search-note">Searching…</p>}
+        {showList && result.isPending && (
+          <p className="lib-search-note">{t('library.searchBox.searching')}</p>
+        )}
         {showList && result.isError && (
-          <p className="lib-search-note">Search is unavailable right now.</p>
+          <p className="lib-search-note">{t('library.searchBox.unavailable')}</p>
         )}
         {showList && result.isSuccess && options.length === 0 && (
-          <p className="lib-search-note">Nothing found for “{debounced}”.</p>
+          <p className="lib-search-note">{t('library.searchBox.nothingFound', { q: debounced })}</p>
         )}
         {showList &&
           GROUPS.map((g) => {
             const items = options.filter((o) => o.kind === g.kind);
             if (items.length === 0) return null;
             return (
-              <div key={g.kind} role="group" aria-label={g.title}>
+              <div key={g.kind} role="group" aria-label={t(g.title)}>
                 <p className="lib-search-group" aria-hidden="true">
-                  {g.title}
+                  {t(g.title)}
                 </p>
                 {items.map((o) => (
                   <div

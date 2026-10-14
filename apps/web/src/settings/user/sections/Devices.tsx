@@ -1,5 +1,6 @@
 import { Button, ConfirmDialog, Notice, useToast } from '@sideroom/ui';
 import { useState } from 'react';
+import { useT } from '../../../i18n';
 import {
   errorText,
   listSessions,
@@ -12,6 +13,7 @@ import {
 import { Card, fmtDate, Loaded, SectionTitle } from '../parts';
 
 export function TrustedDevicesCard() {
+  const t = useT();
   const toast = useToast();
   const res = useResource(listTrustedDevices);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +22,7 @@ export function TrustedDevicesCard() {
     try {
       await revokeTrustedDevice(id);
       res.setData((d) => d?.filter((x) => x.id !== id));
-      toast.show({ title: 'Device removed', duration: 2000 });
+      toast.show({ title: t('settings.devices.removed'), duration: 2000 });
     } catch (e) {
       setError(errorText(e));
     }
@@ -28,25 +30,32 @@ export function TrustedDevicesCard() {
   return (
     <Card
       id="us-trusted"
-      title="Trusted devices"
-      description="Devices that skip the two-factor prompt."
+      title={t('settings.devices.trustedTitle')}
+      description={t('settings.devices.trustedDesc')}
     >
-      <Loaded res={res} what="trusted devices">
+      <Loaded res={res} what={t('settings.devices.trustedWhat')}>
         {(rows) =>
           rows.length === 0 ? (
-            <p className="us-muted">No trusted devices.</p>
+            <p className="us-muted">{t('settings.devices.trustedEmpty')}</p>
           ) : (
             <ul className="us-list">
               {rows.map((d) => (
                 <li key={d.id}>
                   <div className="us-row-main">
-                    <strong>{d.device_name || 'Unknown device'}</strong>
+                    <strong>{d.device_name || t('settings.devices.unknownDevice')}</strong>
                     <p className="us-muted">
-                      Added {fmtDate(d.created_at)}, expires {fmtDate(d.expires_at)}
+                      {t('settings.devices.trustedDates', {
+                        created: fmtDate(d.created_at),
+                        expires: fmtDate(d.expires_at),
+                      })}
                     </p>
                   </div>
                   <Button variant="secondary" size="sm" onClick={() => void revoke(d.id)}>
-                    Revoke<span className="us-sr"> {d.device_name || 'device'}</span>
+                    {t('settings.devices.revoke')}
+                    <span className="us-sr">
+                      {' '}
+                      {d.device_name || t('settings.devices.deviceFallback')}
+                    </span>
                   </Button>
                 </li>
               ))}
@@ -55,7 +64,7 @@ export function TrustedDevicesCard() {
         }
       </Loaded>
       {error && (
-        <Notice variant="danger" title="Couldn't remove the device">
+        <Notice variant="danger" title={t('settings.devices.removeError')}>
           {error}
         </Notice>
       )}
@@ -64,6 +73,7 @@ export function TrustedDevicesCard() {
 }
 
 export function SessionsCard({ onSignedOut }: { onSignedOut: () => void }) {
+  const t = useT();
   const toast = useToast();
   const res = useResource(listSessions);
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +85,7 @@ export function SessionsCard({ onSignedOut }: { onSignedOut: () => void }) {
     try {
       await revokeSession(id);
       res.setData((d) => d?.filter((x) => x.id !== id));
-      toast.show({ title: 'Session ended', duration: 2000 });
+      toast.show({ title: t('settings.devices.sessionEnded'), duration: 2000 });
     } catch (e) {
       setError(errorText(e));
     }
@@ -89,7 +99,7 @@ export function SessionsCard({ onSignedOut }: { onSignedOut: () => void }) {
         await revokeSession(s.id);
         res.setData((d) => d?.filter((x) => x.id !== s.id));
       }
-      toast.show({ title: 'Logged out of your other devices', duration: 2500 });
+      toast.show({ title: t('settings.devices.othersLoggedOut'), duration: 2500 });
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -112,8 +122,8 @@ export function SessionsCard({ onSignedOut }: { onSignedOut: () => void }) {
   return (
     <Card
       id="us-sessions"
-      title="Devices and sessions"
-      description="Where you're signed in."
+      title={t('settings.devices.sessionsTitle')}
+      description={t('settings.devices.sessionsDesc')}
       actions={
         <>
           <Button
@@ -121,15 +131,15 @@ export function SessionsCard({ onSignedOut }: { onSignedOut: () => void }) {
             disabled={!(res.data ?? []).some((x) => !x.current)}
             onClick={() => setConfirmOthers(true)}
           >
-            Log out other devices
+            {t('settings.devices.logOutOthers')}
           </Button>
           <Button variant="danger" onClick={() => setConfirm(true)}>
-            Log out everywhere
+            {t('settings.devices.logOutEverywhere')}
           </Button>
         </>
       }
     >
-      <Loaded res={res} what="sessions">
+      <Loaded res={res} what={t('settings.devices.sessionsWhat')}>
         {(rows) => (
           <ul className="us-list">
             {[...rows]
@@ -137,13 +147,21 @@ export function SessionsCard({ onSignedOut }: { onSignedOut: () => void }) {
               .map((s) => (
                 <li key={s.id}>
                   <div className="us-row-main">
-                    <strong>{s.device_name || 'Unknown device'}</strong>
-                    {s.current && <span className="us-badge">This device</span>}
-                    <p className="us-muted">Last active {fmtDate(s.last_seen_at)}</p>
+                    <strong>{s.device_name || t('settings.devices.unknownDevice')}</strong>
+                    {s.current && (
+                      <span className="us-badge">{t('settings.devices.thisDevice')}</span>
+                    )}
+                    <p className="us-muted">
+                      {t('settings.devices.lastActive', { date: fmtDate(s.last_seen_at) })}
+                    </p>
                   </div>
                   {!s.current && (
                     <Button variant="secondary" size="sm" onClick={() => void revoke(s.id)}>
-                      Log out<span className="us-sr"> {s.device_name || 'session'}</span>
+                      {t('settings.devices.logOut')}
+                      <span className="us-sr">
+                        {' '}
+                        {s.device_name || t('settings.devices.sessionFallback')}
+                      </span>
                     </Button>
                   )}
                 </li>
@@ -152,16 +170,16 @@ export function SessionsCard({ onSignedOut }: { onSignedOut: () => void }) {
         )}
       </Loaded>
       {error && (
-        <Notice variant="danger" title="Something went wrong">
+        <Notice variant="danger" title={t('settings.devices.genericError')}>
           {error}
         </Notice>
       )}
       <ConfirmDialog
         open={confirmOthers}
         loading={busy}
-        title="Log out your other devices?"
-        description="Every other browser and app is signed out. This device stays signed in."
-        confirmLabel="Log out other devices"
+        title={t('settings.devices.othersTitle')}
+        description={t('settings.devices.othersDesc')}
+        confirmLabel={t('settings.devices.logOutOthers')}
         onConfirm={() => void others()}
         onCancel={() => setConfirmOthers(false)}
       />
@@ -169,9 +187,9 @@ export function SessionsCard({ onSignedOut }: { onSignedOut: () => void }) {
         open={confirm}
         danger
         loading={busy}
-        title="Log out everywhere?"
-        description="This ends every session, including this one. You will need to sign in again."
-        confirmLabel="Log out everywhere"
+        title={t('settings.devices.everywhereTitle')}
+        description={t('settings.devices.everywhereDesc')}
+        confirmLabel={t('settings.devices.logOutEverywhere')}
         onConfirm={() => void everywhere()}
         onCancel={() => setConfirm(false)}
       />
@@ -180,9 +198,10 @@ export function SessionsCard({ onSignedOut }: { onSignedOut: () => void }) {
 }
 
 export function DevicesSection({ onSignedOut }: { onSignedOut: () => void }) {
+  const t = useT();
   return (
     <>
-      <SectionTitle>Devices</SectionTitle>
+      <SectionTitle>{t('settings.devices.title')}</SectionTitle>
       <SessionsCard onSignedOut={onSignedOut} />
       <TrustedDevicesCard />
     </>

@@ -3,6 +3,7 @@ import { Avatar, ContextMenu, CounterBadge, Icon, Tooltip, type MenuEntry } from
 import { useState, type ReactNode } from 'react';
 import { RailPill, type RailPillState } from '@sideroom/ui';
 import { ComingSoon } from '@sideroom/ui';
+import { useT } from '../i18n';
 import { firstTextChannel, HOME } from './channels';
 import {
   useAllChannels,
@@ -40,6 +41,7 @@ function GuildLink({
   children: ReactNode;
   className: string;
 }) {
+  const t = useT();
   const channels = useAllChannels()[guild.id] ?? [];
   const remembered = useLoungeUi((s) => s.lastChannelByGuild[guild.id]);
   const target =
@@ -48,7 +50,11 @@ function GuildLink({
       : firstTextChannel(channels)?.id) ?? null;
   const label =
     guild.name +
-    (guild.mentionCount ? `, ${guild.mentionCount} mentions` : guild.unread ? ', unread' : '');
+    (guild.mentionCount
+      ? t('lounge.guildRail.mentionsSuffix', { count: guild.mentionCount })
+      : guild.unread
+        ? t('lounge.guildRail.unreadSuffix')
+        : '');
   return target ? (
     <Link
       to="/channels/$guildId/$channelId"
@@ -89,6 +95,7 @@ function GuildIcon({
   dnd: DndBits;
   inFolder?: string;
 }) {
+  const t = useT();
   const inVoice = useVoiceSession((s) => s.guildId === guild.id && s.status !== 'idle');
   const voice = inVoice || guild.voiceConnected;
   const pill: RailPillState = selected ? 'selected' : guild.unread ? 'unread' : 'none';
@@ -110,21 +117,27 @@ function GuildIcon({
     ...(inFolder
       ? [
           {
-            label: 'Remove from Folder',
+            label: t('lounge.guildRail.removeFromFolder'),
             onSelect: () => setLayout(removeFromFolder(rail, guild.id)),
           } as MenuEntry,
         ]
       : [
-          { label: 'Move Up', onSelect: () => setLayout(moveBy(rail, guild.id, -1)) } as MenuEntry,
-          { label: 'Move Down', onSelect: () => setLayout(moveBy(rail, guild.id, 1)) } as MenuEntry,
+          {
+            label: t('lounge.guildRail.moveUp'),
+            onSelect: () => setLayout(moveBy(rail, guild.id, -1)),
+          } as MenuEntry,
+          {
+            label: t('lounge.guildRail.moveDown'),
+            onSelect: () => setLayout(moveBy(rail, guild.id, 1)),
+          } as MenuEntry,
         ]),
     ...(folders.length
       ? [
           {
             type: 'submenu',
-            label: 'Add to Folder',
+            label: t('lounge.guildRail.addToFolder'),
             items: folders.map((f) => ({
-              label: f.name ?? 'Folder',
+              label: f.name ?? t('lounge.guildRail.folder'),
               onSelect: () => setLayout(addToFolder(rail, guild.id, f.id)),
             })),
           } as MenuEntry,
@@ -135,7 +148,7 @@ function GuildIcon({
     core.copyId,
   ];
   return (
-    <ContextMenu items={menu} label={`${guild.name} menu`}>
+    <ContextMenu items={menu} label={t('lounge.guildRail.guildMenu', { name: guild.name })}>
       <div
         className="lng-rail-item"
         data-selected={selected || undefined}
@@ -145,7 +158,11 @@ function GuildIcon({
         {...dnd.props}
       >
         <RailPill state={pill} />
-        <Tooltip content={guild.name + (voice ? ' (in voice)' : '')} placement="right" delay={150}>
+        <Tooltip
+          content={guild.name + (voice ? t('lounge.guildRail.inVoiceSuffix') : '')}
+          placement="right"
+          delay={150}
+        >
           <GuildLink
             guild={guild}
             className={`lng-guild${guild.isStaff ? ' lng-guild-staff' : ''}`}
@@ -156,14 +173,18 @@ function GuildIcon({
               <span aria-hidden="true">{acronym(guild.name)}</span>
             )}
             {voice && (
-              <span className="lng-guild-voice" title="Connected to voice">
+              <span className="lng-guild-voice" title={t('lounge.guildRail.connectedToVoice')}>
                 <Icon name="volume" size={16} />
               </span>
             )}
-            {guild.isNew && <span className="lng-new-badge">NEW</span>}
+            {guild.isNew && <span className="lng-new-badge">{t('lounge.guildRail.newBadge')}</span>}
           </GuildLink>
         </Tooltip>
-        <CounterBadge count={guild.mentionCount} noun="mentions" className="lng-mention-badge" />
+        <CounterBadge
+          count={guild.mentionCount}
+          noun={t('lounge.guildRail.mentionsNoun')}
+          className="lng-mention-badge"
+        />
       </div>
     </ContextMenu>
   );
@@ -186,6 +207,7 @@ function Folder({
   mark: DropMark;
   dragging: string | null;
 }) {
+  const t = useT();
   const open = useLoungeUi((s) => !!s.openFolders[entry.id]);
   const toggle = useLoungeUi((s) => s.toggleFolder);
   const setLayout = useLoungeUi((s) => s.setRailLayout);
@@ -199,19 +221,19 @@ function Folder({
   const name = entry.name ?? members.map((g) => g.name).join(', ');
   const menu: MenuEntry[] = [
     {
-      label: 'Mark Folder As Read',
+      label: t('lounge.guildRail.markFolderRead'),
       disabled: !unread,
       onSelect: () => members.forEach((g) => g.unread && actions.markGuildRead(g.id)),
     },
     {
-      label: 'Folder Settings',
+      label: t('lounge.guildRail.folderSettings'),
       onSelect: () => openDialog({ kind: 'folder', folderId: entry.id }),
     },
     { type: 'separator' },
-    { label: 'Move Up', onSelect: () => setLayout(moveBy(rail, entry.id, -1)) },
-    { label: 'Move Down', onSelect: () => setLayout(moveBy(rail, entry.id, 1)) },
+    { label: t('lounge.guildRail.moveUp'), onSelect: () => setLayout(moveBy(rail, entry.id, -1)) },
+    { label: t('lounge.guildRail.moveDown'), onSelect: () => setLayout(moveBy(rail, entry.id, 1)) },
     {
-      label: 'Ungroup Folder',
+      label: t('lounge.guildRail.ungroupFolder'),
       danger: true,
       onSelect: () => setLayout(deleteFolder(rail, entry.id)),
     },
@@ -224,7 +246,7 @@ function Folder({
       data-open={open || undefined}
       style={{ ['--folder-color' as string]: entry.color }}
     >
-      <ContextMenu items={menu} label={`${name} folder menu`}>
+      <ContextMenu items={menu} label={t('lounge.guildRail.folderMenu', { name })}>
         <div
           className="lng-rail-item"
           data-dragging={dragging === entry.id || undefined}
@@ -237,7 +259,7 @@ function Folder({
               type="button"
               className="lng-guild lng-folder-btn"
               aria-expanded={open}
-              aria-label={`${name} folder${mentions ? `, ${mentions} mentions` : unread ? ', unread' : ''}`}
+              aria-label={`${t('lounge.guildRail.folderLabel', { name })}${mentions ? t('lounge.guildRail.mentionsSuffix', { count: mentions }) : unread ? t('lounge.guildRail.unreadSuffix') : ''}`}
               onClick={() => toggle(entry.id)}
             >
               {open ? (
@@ -251,7 +273,13 @@ function Folder({
               )}
             </button>
           </Tooltip>
-          {!open && <CounterBadge count={mentions} noun="mentions" className="lng-mention-badge" />}
+          {!open && (
+            <CounterBadge
+              count={mentions}
+              noun={t('lounge.guildRail.mentionsNoun')}
+              className="lng-mention-badge"
+            />
+          )}
         </div>
       </ContextMenu>
       {open && (
@@ -287,6 +315,7 @@ function Folder({
 }
 
 export function GuildRail() {
+  const t = useT();
   const guilds = useGuilds();
   const rail = useRail();
   useLoadNotifSettings(guilds.map((g) => g.id));
@@ -300,27 +329,31 @@ export function GuildRail() {
   const unreadDms = dms.filter((d) => d.unread);
   const homeSelected = guildId === HOME || guildId === undefined;
   return (
-    <nav className="lng-rail" aria-label="Servers">
+    <nav className="lng-rail" aria-label={t('lounge.guildRail.servers')}>
       <ul className="lng-rail-list">
         <li>
           <div className="lng-rail-item" data-selected={homeSelected || undefined}>
             <RailPill state={homeSelected ? 'selected' : unreadDms.length ? 'unread' : 'none'} />
-            <Tooltip content="Direct Messages" placement="right" delay={150}>
+            <Tooltip content={t('lounge.guildRail.directMessages')} placement="right" delay={150}>
               <Link
                 to="/channels/$guildId"
                 params={{ guildId: HOME }}
                 className="lng-guild lng-home"
-                aria-label={`Direct Messages${dmMentions ? `, ${dmMentions} mentions` : ''}`}
+                aria-label={`${t('lounge.guildRail.directMessages')}${dmMentions ? t('lounge.guildRail.mentionsSuffix', { count: dmMentions }) : ''}`}
               >
                 <Icon name="door" size={24} />
               </Link>
             </Tooltip>
-            <CounterBadge count={dmMentions} noun="mentions" className="lng-mention-badge" />
+            <CounterBadge
+              count={dmMentions}
+              noun={t('lounge.guildRail.mentionsNoun')}
+              className="lng-mention-badge"
+            />
           </div>
         </li>
         {unreadDms.map((d) => {
           const u = users[d.recipientIds[0] ?? ''];
-          const name = d.name ?? u?.displayName ?? 'Direct message';
+          const name = d.name ?? u?.displayName ?? t('lounge.guildRail.directMessage');
           return (
             <li key={d.id}>
               <div className="lng-rail-item">
@@ -329,14 +362,14 @@ export function GuildRail() {
                     to="/channels/$guildId/$channelId"
                     params={{ guildId: HOME, channelId: d.id }}
                     className="lng-guild lng-dm-unread"
-                    aria-label={`${name}, unread direct message`}
+                    aria-label={t('lounge.guildRail.unreadDm', { name })}
                   >
                     <Avatar name={name} size={40} />
                   </Link>
                 </Tooltip>
                 <CounterBadge
                   count={d.mentionCount}
-                  noun="mentions"
+                  noun={t('lounge.guildRail.mentionsNoun')}
                   className="lng-mention-badge"
                 />
               </div>
@@ -378,11 +411,11 @@ export function GuildRail() {
         })}
         <li>
           <div className="lng-rail-item">
-            <Tooltip content="Add a Server" placement="right" delay={150}>
+            <Tooltip content={t('lounge.guildRail.addServer')} placement="right" delay={150}>
               <button
                 type="button"
                 className="lng-guild lng-rail-action"
-                aria-label="Add a Server"
+                aria-label={t('lounge.guildRail.addServer')}
                 onClick={() => openDialog({ kind: 'addServer' })}
               >
                 <Icon name="plus" size={24} />
@@ -392,11 +425,11 @@ export function GuildRail() {
         </li>
         <li>
           <div className="lng-rail-item">
-            <Tooltip content="Discover" placement="right" delay={150}>
+            <Tooltip content={t('lounge.guildRail.discover')} placement="right" delay={150}>
               <button
                 type="button"
                 className="lng-guild lng-rail-action"
-                aria-label="Discover"
+                aria-label={t('lounge.guildRail.discover')}
                 onClick={() => setModal('discover')}
               >
                 <Icon name="compass" size={24} />
@@ -408,9 +441,9 @@ export function GuildRail() {
       <ComingSoon
         open={modal === 'discover'}
         onClose={() => setModal(null)}
-        title="Server Directory"
+        title={t('lounge.guildRail.serverDirectory')}
       >
-        <p>The Server Directory ships with LNG-GLD-028.</p>
+        <p>{t('lounge.guildRail.directoryNote')}</p>
       </ComingSoon>
     </nav>
   );

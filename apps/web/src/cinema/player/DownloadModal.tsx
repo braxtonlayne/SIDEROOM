@@ -5,6 +5,7 @@ import { Button, Modal, ProgressBar, Radio, RadioGroup } from '@sideroom/ui';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { ApiError } from '../../api/client';
+import { t, useT } from '../../i18n';
 import { getDownloadJob, getDownloadOptions, startDownload } from './api';
 import { formatBytes } from './model';
 import type { DownloadJob } from './types';
@@ -22,13 +23,14 @@ const POLL_MS = 2000;
 
 const errorCopy = (e: unknown): string => {
   if (e instanceof ApiError) {
-    if (e.status === 429) return 'You have reached today’s download limit. Try again tomorrow.';
-    if (e.status === 403) return 'Downloads are for Patrons.';
+    if (e.status === 429) return t('cinema.download.limit');
+    if (e.status === 403) return t('cinema.download.patronsOnly');
   }
-  return 'Something went wrong. Try again.';
+  return t('cinema.download.genericError');
 };
 
 export function DownloadModal({ open, onClose, titleId, episodeId, title }: DownloadModalProps) {
+  const tr = useT();
   const options = useQuery({
     queryKey: ['cinema', 'downloads', titleId, episodeId ?? null],
     queryFn: () => getDownloadOptions(titleId, episodeId),
@@ -79,44 +81,48 @@ export function DownloadModal({ open, onClose, titleId, episodeId, title }: Down
   const notPatron = options.error instanceof ApiError && options.error.status === 403;
 
   let body;
-  if (options.isPending) body = <p className="cpl-my-muted">Loading the available files…</p>;
-  else if (notPatron)
-    body = (
-      <p role="alert">Downloads are for Patrons. Support SIDE ROOM to take titles with you.</p>
-    );
-  else if (options.isError) body = <p role="alert">We could not load the download options.</p>;
-  else if (rows.length === 0) body = <p>There is nothing to download for this title yet.</p>;
+  if (options.isPending) body = <p className="cpl-my-muted">{tr('cinema.download.loading')}</p>;
+  else if (notPatron) body = <p role="alert">{tr('cinema.download.patronsPitch')}</p>;
+  else if (options.isError) body = <p role="alert">{tr('cinema.download.optionsError')}</p>;
+  else if (rows.length === 0) body = <p>{tr('cinema.download.nothing')}</p>;
   else if (job) {
     body = (
       <div>
         {(job.state === 'queued' || job.state === 'preparing') && (
           <>
-            <p>{job.state === 'queued' ? 'Waiting in line…' : 'Preparing your file…'}</p>
-            <ProgressBar value={Math.round(job.progress * 100)} label="Download preparation" />
+            <p>
+              {job.state === 'queued'
+                ? tr('cinema.download.waiting')
+                : tr('cinema.download.preparing')}
+            </p>
+            <ProgressBar
+              value={Math.round(job.progress * 100)}
+              label={tr('cinema.download.preparation')}
+            />
           </>
         )}
         {job.state === 'ready' && job.url && (
           <p>
-            Your file is ready.{' '}
+            {tr('cinema.download.ready')}{' '}
             <a className="cpl-primary" href={job.url} download>
-              Download
+              {tr('cinema.download.download')}
             </a>
           </p>
         )}
         {job.state === 'failed' && (
-          <p role="alert">{job.error ?? 'We could not prepare this file.'}</p>
+          <p role="alert">{job.error ?? tr('cinema.download.prepareError')}</p>
         )}
       </div>
     );
   } else {
     body = (
-      <RadioGroup legend="File" value={choice} onValueChange={setChoice}>
+      <RadioGroup legend={tr('cinema.download.file')} value={choice} onValueChange={setChoice}>
         {rows.map((r) => (
           <Radio
             key={r.id}
             value={r.id}
-            label={`${r.label}${r.kind === 'original' ? ' (original)' : ''} · ${formatBytes(r.size_bytes)}`}
-            description={r.cached ? 'Ready to download' : 'Prepared when you ask, kept for 7 days'}
+            label={`${r.label}${r.kind === 'original' ? tr('cinema.download.original') : ''} · ${formatBytes(r.size_bytes)}`}
+            description={r.cached ? tr('cinema.download.cached') : tr('cinema.download.notCached')}
           />
         ))}
       </RadioGroup>
@@ -128,17 +134,17 @@ export function DownloadModal({ open, onClose, titleId, episodeId, title }: Down
     <Modal
       open={open}
       onClose={onClose}
-      title={`Download ${title}`}
-      description="A single file you can keep on this device."
+      title={tr('cinema.download.title', { title })}
+      description={tr('cinema.download.description')}
       size="sm"
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
-            Close
+            {tr('cinema.download.close')}
           </Button>
           {picking && (
             <Button disabled={!choice} loading={start.isPending} onClick={() => start.mutate()}>
-              Prepare download
+              {tr('cinema.download.prepare')}
             </Button>
           )}
         </>

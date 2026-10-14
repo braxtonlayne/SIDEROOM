@@ -13,6 +13,7 @@ import {
   TextInput,
 } from '@sideroom/ui';
 import { useCallback, useMemo, useState } from 'react';
+import { t as translate, useT, type MessageKey } from '../../../i18n';
 import { useChannels, useGuild } from '../../../store';
 import * as api from '../api';
 import { ACTION, TRIGGER } from '../api';
@@ -20,26 +21,37 @@ import { useDraft, useGuildEvents, useResource, useSettingsForm } from '../hooks
 import type { SectionProps } from '../ServerSettings';
 import { ActionStatus, Async, SectionHeader, useAction } from '../ui';
 
-export const VERIFICATION_LEVELS = [
-  { value: 0, label: 'None', hint: 'Unrestricted.' },
-  { value: 1, label: 'Low', hint: 'Must have a verified email address.' },
-  { value: 2, label: 'Medium', hint: 'Also registered for more than 5 minutes.' },
-  { value: 3, label: 'High', hint: 'Also a member of this server for more than 10 minutes.' },
-  { value: 4, label: 'Highest', hint: 'Must have two-factor authentication enabled.' },
+/** `label` and `hint` are message keys, resolved at render time. */
+export const VERIFICATION_LEVELS: { value: number; label: MessageKey; hint: MessageKey }[] = [
+  { value: 0, label: 'settings.moderation.verifyNone', hint: 'settings.moderation.verifyNoneHint' },
+  { value: 1, label: 'settings.moderation.verifyLow', hint: 'settings.moderation.verifyLowHint' },
+  {
+    value: 2,
+    label: 'settings.moderation.verifyMedium',
+    hint: 'settings.moderation.verifyMediumHint',
+  },
+  { value: 3, label: 'settings.moderation.verifyHigh', hint: 'settings.moderation.verifyHighHint' },
+  {
+    value: 4,
+    label: 'settings.moderation.verifyHighest',
+    hint: 'settings.moderation.verifyHighestHint',
+  },
 ];
-export const CONTENT_FILTERS = [
-  { value: 0, label: "Don't scan any media content" },
-  { value: 1, label: 'Scan media from members without a role' },
-  { value: 2, label: 'Scan media from all members' },
+/** `label` is a message key, resolved at render time. */
+export const CONTENT_FILTERS: { value: number; label: MessageKey }[] = [
+  { value: 0, label: 'settings.moderation.filterNone' },
+  { value: 1, label: 'settings.moderation.filterNoRole' },
+  { value: 2, label: 'settings.moderation.filterAll' },
 ];
 
-export const TRIGGER_LABEL: Record<number, string> = {
-  [TRIGGER.KEYWORD]: 'Block custom words',
-  [TRIGGER.SPAM]: 'Block spam content',
-  [TRIGGER.PRESET]: 'Block preset word lists',
-  [TRIGGER.MENTION_SPAM]: 'Block mention spam',
-  [TRIGGER.MEMBER_PROFILE]: 'Flag words in profiles',
-  [TRIGGER.LINKS]: 'Block links',
+/** Message keys, resolved at render time. */
+export const TRIGGER_LABEL: Record<number, MessageKey> = {
+  [TRIGGER.KEYWORD]: 'settings.moderation.triggerKeyword',
+  [TRIGGER.SPAM]: 'settings.moderation.triggerSpam',
+  [TRIGGER.PRESET]: 'settings.moderation.triggerPreset',
+  [TRIGGER.MENTION_SPAM]: 'settings.moderation.triggerMention',
+  [TRIGGER.MEMBER_PROFILE]: 'settings.moderation.triggerProfile',
+  [TRIGGER.LINKS]: 'settings.moderation.triggerLinks',
 };
 const CREATABLE = [
   TRIGGER.KEYWORD,
@@ -48,18 +60,19 @@ const CREATABLE = [
   TRIGGER.SPAM,
   TRIGGER.PRESET,
 ];
-const PRESETS = [
-  { id: 1, label: 'Profanity' },
-  { id: 2, label: 'Sexual content' },
-  { id: 3, label: 'Slurs' },
+const PRESETS: { id: number; label: MessageKey }[] = [
+  { id: 1, label: 'settings.moderation.presetProfanity' },
+  { id: 2, label: 'settings.moderation.presetSexual' },
+  { id: 3, label: 'settings.moderation.presetSlurs' },
 ];
-export const TIMEOUT_OPTIONS = [
-  { seconds: 60, label: '60 seconds' },
-  { seconds: 300, label: '5 minutes' },
-  { seconds: 600, label: '10 minutes' },
-  { seconds: 3600, label: '1 hour' },
-  { seconds: 86400, label: '1 day' },
-  { seconds: 604800, label: '1 week' },
+/** `label` is a message key, resolved at render time. */
+export const TIMEOUT_OPTIONS: { seconds: number; label: MessageKey }[] = [
+  { seconds: 60, label: 'settings.moderation.timeout60s' },
+  { seconds: 300, label: 'settings.moderation.timeout5m' },
+  { seconds: 600, label: 'settings.moderation.timeout10m' },
+  { seconds: 3600, label: 'settings.moderation.timeout1h' },
+  { seconds: 86400, label: 'settings.moderation.timeout1d' },
+  { seconds: 604800, label: 'settings.moderation.timeout1w' },
 ];
 
 const lines = (s: string) =>
@@ -69,6 +82,7 @@ const lines = (s: string) =>
     .filter(Boolean);
 
 export function ModerationSection({ guildId }: SectionProps) {
+  const t = useT();
   const rules = useResource(`automod:${guildId}`, () => api.listRules(guildId));
   useGuildEvents(
     guildId,
@@ -98,48 +112,55 @@ export function ModerationSection({ guildId }: SectionProps) {
   return (
     <>
       <SectionHeader
-        title="AutoMod"
-        description="Let AutoMod catch unwanted messages before anyone sees them."
+        title={t('settings.moderation.title')}
+        description={t('settings.moderation.description')}
       />
       <SafetyForm guildId={guildId} />
       <h2 className="ss-title" style={{ fontSize: '1rem', margin: '32px 0 12px' }}>
-        Rules
+        {t('settings.moderation.rules')}
       </h2>
       <div className="ss-actions" style={{ marginBottom: 12 }}>
-        <Button onClick={() => setEditing('new')}>Create rule</Button>
+        <Button onClick={() => setEditing('new')}>{t('settings.moderation.createRule')}</Button>
       </div>
       <ActionStatus error={action.error} />
-      <Async res={rules} label="Loading rules">
+      <Async res={rules} label={t('settings.moderation.loadingRules')}>
         {(list) =>
           list.length === 0 ? (
             <EmptyState
-              title="No AutoMod rules"
-              description="Create a rule to block words, links or mention spam."
+              title={t('settings.moderation.noRulesTitle')}
+              description={t('settings.moderation.noRulesDescription')}
             />
           ) : (
-            <ul className="ss-list" aria-label="AutoMod rules">
+            <ul className="ss-list" aria-label={t('settings.moderation.rulesLabel')}>
               {list.map((r) => (
                 <li key={r.id} className="ss-row">
                   <div className="ss-grow">
                     <div className="ss-name">{r.name}</div>
                     <div className="ss-meta">
-                      {TRIGGER_LABEL[r.trigger_type] ?? `Trigger ${r.trigger_type}`} -{' '}
+                      {TRIGGER_LABEL[r.trigger_type]
+                        ? t(TRIGGER_LABEL[r.trigger_type]!)
+                        : t('settings.moderation.triggerFallback', { type: r.trigger_type })}{' '}
+                      -{' '}
                       {r.actions
                         .map((a) =>
                           a.type === ACTION.BLOCK
-                            ? 'Block'
+                            ? t('settings.moderation.actionBlock')
                             : a.type === ACTION.ALERT
-                              ? 'Alert'
-                              : 'Timeout',
+                              ? t('settings.moderation.actionAlert')
+                              : t('settings.moderation.actionTimeout'),
                         )
-                        .join(', ') || 'No actions'}
+                        .join(', ') || t('settings.moderation.noActions')}
                     </div>
                   </div>
                   <Badge variant={r.enabled ? 'success' : 'neutral'}>
-                    {r.enabled ? 'On' : 'Off'}
+                    {r.enabled ? t('settings.moderation.on') : t('settings.moderation.off')}
                   </Badge>
                   <Switch
-                    label={<span className="ss-sr">{`Enable ${r.name}`}</span>}
+                    label={
+                      <span className="ss-sr">
+                        {t('settings.moderation.enableNamed', { name: r.name })}
+                      </span>
+                    }
                     checked={r.enabled}
                     disabled={action.busy}
                     onChange={(e) => void toggle(r, e.target.checked)}
@@ -147,18 +168,18 @@ export function ModerationSection({ guildId }: SectionProps) {
                   <Button
                     size="sm"
                     variant="secondary"
-                    aria-label={`Edit rule ${r.name}`}
+                    aria-label={t('settings.moderation.editRule', { name: r.name })}
                     onClick={() => setEditing(r)}
                   >
-                    Edit
+                    {t('settings.moderation.edit')}
                   </Button>
                   <Button
                     size="sm"
                     variant="danger"
-                    aria-label={`Delete rule ${r.name}`}
+                    aria-label={t('settings.moderation.deleteRuleNamed', { name: r.name })}
                     onClick={() => setToDelete(r)}
                   >
-                    Delete
+                    {t('settings.moderation.delete')}
                   </Button>
                 </li>
               ))}
@@ -180,9 +201,11 @@ export function ModerationSection({ guildId }: SectionProps) {
       <ConfirmDialog
         open={!!toDelete}
         danger
-        title={`Delete ${toDelete?.name ?? 'rule'}`}
-        description="AutoMod stops enforcing this rule immediately."
-        confirmLabel="Delete rule"
+        title={t('settings.moderation.deleteTitle', {
+          name: toDelete?.name ?? t('settings.moderation.ruleWord'),
+        })}
+        description={t('settings.moderation.deleteDescription')}
+        confirmLabel={t('settings.moderation.deleteRule')}
         loading={action.busy}
         onConfirm={() => void remove()}
         onCancel={() => setToDelete(null)}
@@ -192,10 +215,11 @@ export function ModerationSection({ guildId }: SectionProps) {
 }
 
 function SafetyForm({ guildId }: { guildId: string }) {
+  const t = useT();
   const guild = useResource(`guild:${guildId}`, () => api.getGuild(guildId));
   useGuildEvents(guildId, ['GUILD_UPDATE'], () => void guild.reload());
   return (
-    <Async res={guild} label="Loading safety settings">
+    <Async res={guild} label={t('settings.moderation.loadingSafety')}>
       {(g) => <SafetyFields guildId={guildId} guild={g} onSaved={(n) => guild.set(n)} />}
     </Async>
   );
@@ -217,18 +241,19 @@ function SafetyFields({
     }),
     [guild],
   );
+  const t = useT();
   const draft = useDraft(base);
   const action = useAction();
   const save = useCallback(async () => {
     const next = await action.run(
       () => api.modifyGuild(guildId, draft.changed),
-      'Safety settings saved.',
+      t('settings.moderation.safetySaved'),
     );
     if (next) {
       onSaved(next);
       draft.reset();
     }
-  }, [action, guildId, draft, onSaved]);
+  }, [action, guildId, draft, onSaved, t]);
   useSettingsForm({
     dirty: draft.dirty,
     saving: action.busy,
@@ -239,21 +264,21 @@ function SafetyFields({
     <div className="ss-form">
       <ActionStatus error={action.error} done={action.done} />
       <RadioGroup
-        legend="Verification level"
+        legend={t('settings.moderation.verificationLevel')}
         value={String(draft.value.verification_level)}
         onValueChange={(v) => draft.set('verification_level', Number(v))}
       >
         {VERIFICATION_LEVELS.map((l) => (
-          <Radio key={l.value} value={String(l.value)} label={l.label} description={l.hint} />
+          <Radio key={l.value} value={String(l.value)} label={t(l.label)} description={t(l.hint)} />
         ))}
       </RadioGroup>
       <RadioGroup
-        legend="Explicit media content filter"
+        legend={t('settings.moderation.contentFilter')}
         value={String(draft.value.explicit_content_filter)}
         onValueChange={(v) => draft.set('explicit_content_filter', Number(v))}
       >
         {CONTENT_FILTERS.map((l) => (
-          <Radio key={l.value} value={String(l.value)} label={l.label} />
+          <Radio key={l.value} value={String(l.value)} label={t(l.label)} />
         ))}
       </RadioGroup>
     </div>
@@ -338,30 +363,30 @@ export function ruleToForm(r: api.AutoModRule): RuleForm {
 /** Validation message for a rule form, or null when it can be sent. */
 export function validateRule(f: RuleForm): string | null {
   if (f.name.trim().length < 1 || f.name.trim().length > 100)
-    return 'Give the rule a name (up to 100 characters).';
-  if (!f.block && !f.alert && !f.timeout) return 'Choose at least one action.';
-  if (f.alert && !f.alertChannel) return 'Choose a channel for the alert.';
+    return translate('settings.moderation.vName');
+  if (!f.block && !f.alert && !f.timeout) return translate('settings.moderation.vAction');
+  if (f.alert && !f.alertChannel) return translate('settings.moderation.vAlertChannel');
   if (f.trigger === TRIGGER.KEYWORD) {
     if (lines(f.keywords).length === 0 && lines(f.regex).length === 0)
-      return 'Add at least one keyword or regular expression.';
-    if (lines(f.keywords).length > 1000) return 'A rule can have at most 1000 keywords.';
-    if (lines(f.regex).length > 10) return 'A rule can have at most 10 regular expressions.';
+      return translate('settings.moderation.vKeyword');
+    if (lines(f.keywords).length > 1000) return translate('settings.moderation.vMaxKeywords');
+    if (lines(f.regex).length > 10) return translate('settings.moderation.vMaxRegex');
     for (const p of lines(f.regex)) {
       try {
         new RegExp(p);
       } catch {
-        return `"${p}" is not a valid regular expression.`;
+        return translate('settings.moderation.vBadRegex', { pattern: p });
       }
     }
   }
   if (f.trigger === TRIGGER.PRESET && f.presets.length === 0)
-    return 'Choose at least one word list.';
+    return translate('settings.moderation.vWordList');
   if (f.trigger === TRIGGER.MENTION_SPAM && (f.mentionLimit < 1 || f.mentionLimit > 50))
-    return 'The mention limit must be between 1 and 50.';
+    return translate('settings.moderation.vMention');
   if (f.trigger === TRIGGER.LINKS && !f.blockAllLinks && lines(f.blockDomains).length === 0)
-    return 'Block all links or list at least one domain.';
+    return translate('settings.moderation.vLinks');
   if (f.block && f.blockMessage.length > 150)
-    return 'The custom message can be at most 150 characters.';
+    return translate('settings.moderation.vCustomMessage');
   return null;
 }
 
@@ -421,6 +446,7 @@ function RuleEditor({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const t = useT();
   const [f, setF] = useState<RuleForm>(() => (rule ? ruleToForm(rule) : emptyRule()));
   const set = <K extends keyof RuleForm>(k: K, v: RuleForm[K]) =>
     setF((cur) => ({ ...cur, [k]: v }));
@@ -447,12 +473,13 @@ function RuleEditor({
     if (!sample || pats.length === 0) return null;
     for (const p of pats) {
       try {
-        if (new RegExp(p, 'i').test(sample)) return `Matches /${p}/`;
+        if (new RegExp(p, 'i').test(sample))
+          return t('settings.moderation.regexMatches', { pattern: p });
       } catch {
-        return `/${p}/ is not valid`;
+        return t('settings.moderation.regexInvalid', { pattern: p });
       }
     }
-    return 'No match';
+    return t('settings.moderation.regexNoMatch');
   })();
 
   return (
@@ -460,14 +487,18 @@ function RuleEditor({
       open
       onClose={onClose}
       size="lg"
-      title={rule ? `Edit ${rule.name}` : 'Create AutoMod rule'}
+      title={
+        rule
+          ? t('settings.moderation.editTitle', { name: rule.name })
+          : t('settings.moderation.createTitle')
+      }
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t('settings.moderation.cancel')}
           </Button>
           <Button loading={action.busy} onClick={() => void submit()}>
-            {rule ? 'Save rule' : 'Create rule'}
+            {rule ? t('settings.moderation.saveRule') : t('settings.moderation.createRule')}
           </Button>
         </>
       }
@@ -476,7 +507,7 @@ function RuleEditor({
         <ActionStatus error={action.error} />
         {touched && problem && <ActionStatus error={problem} />}
         <TextInput
-          label="Rule name"
+          label={t('settings.moderation.ruleName')}
           value={f.name}
           maxLength={100}
           onChange={(e) => set('name', e.target.value)}
@@ -484,7 +515,7 @@ function RuleEditor({
         {creating ? (
           <div>
             <label className="ss-field-label" htmlFor="ss-rule-trigger">
-              Trigger
+              {t('settings.moderation.trigger')}
             </label>
             <select
               id="ss-rule-trigger"
@@ -492,43 +523,45 @@ function RuleEditor({
               value={f.trigger}
               onChange={(e) => set('trigger', Number(e.target.value))}
             >
-              {CREATABLE.map((t) => (
-                <option key={t} value={t}>
-                  {TRIGGER_LABEL[t]}
+              {CREATABLE.map((tr) => (
+                <option key={tr} value={tr}>
+                  {t(TRIGGER_LABEL[tr]!)}
                 </option>
               ))}
             </select>
           </div>
         ) : (
           <p className="ss-sub">
-            Trigger: {TRIGGER_LABEL[f.trigger] ?? f.trigger} (cannot be changed)
+            {t('settings.moderation.triggerFixed', {
+              trigger: TRIGGER_LABEL[f.trigger] ? t(TRIGGER_LABEL[f.trigger]!) : f.trigger,
+            })}
           </p>
         )}
 
         {(f.trigger === TRIGGER.KEYWORD || f.trigger === TRIGGER.MEMBER_PROFILE) && (
           <>
             <TextArea
-              label="Keywords"
-              hint="One per line or separated by commas. Use * as a wildcard, for example *bad*. Up to 1000."
+              label={t('settings.moderation.keywords')}
+              hint={t('settings.moderation.keywordsHint')}
               value={f.keywords}
               onChange={(e) => set('keywords', e.target.value)}
             />
             <TextArea
-              label="Regular expressions"
-              hint="One per line, up to 10. Rust regex syntax; the tester below uses your browser's engine, which differs in edge cases."
+              label={t('settings.moderation.regex')}
+              hint={t('settings.moderation.regexHint')}
               value={f.regex}
               onChange={(e) => set('regex', e.target.value)}
             />
             <TextInput
-              label="Regex tester"
-              placeholder="Type a sample message"
+              label={t('settings.moderation.regexTester')}
+              placeholder={t('settings.moderation.regexSample')}
               value={sample}
               onChange={(e) => setSample(e.target.value)}
               hint={regexResult ?? undefined}
             />
             <TextArea
-              label="Allowed words"
-              hint="Messages containing only these words are never blocked."
+              label={t('settings.moderation.allowedWords')}
+              hint={t('settings.moderation.allowedWordsHint')}
               value={f.allow}
               onChange={(e) => set('allow', e.target.value)}
             />
@@ -536,11 +569,11 @@ function RuleEditor({
         )}
         {f.trigger === TRIGGER.PRESET && (
           <fieldset className="ss-card">
-            <legend>Word lists</legend>
+            <legend>{t('settings.moderation.wordLists')}</legend>
             {PRESETS.map((p) => (
               <Checkbox
                 key={p.id}
-                label={p.label}
+                label={t(p.label)}
                 checked={f.presets.includes(p.id)}
                 onChange={(e) =>
                   set(
@@ -555,7 +588,7 @@ function RuleEditor({
         {f.trigger === TRIGGER.MENTION_SPAM && (
           <>
             <TextInput
-              label="Mention limit per message"
+              label={t('settings.moderation.mentionLimit')}
               type="number"
               min={1}
               max={50}
@@ -563,8 +596,8 @@ function RuleEditor({
               onChange={(e) => set('mentionLimit', Number(e.target.value))}
             />
             <Switch
-              label="Mention raid protection"
-              description="Also block bursts of mentions across several messages."
+              label={t('settings.moderation.raidProtection')}
+              description={t('settings.moderation.raidProtectionHint')}
               checked={f.raidProtection}
               onChange={(e) => set('raidProtection', e.target.checked)}
             />
@@ -573,54 +606,52 @@ function RuleEditor({
         {f.trigger === TRIGGER.LINKS && (
           <>
             <Switch
-              label="Block all links"
+              label={t('settings.moderation.blockAllLinks')}
               checked={f.blockAllLinks}
               onChange={(e) => set('blockAllLinks', e.target.checked)}
             />
             <TextArea
-              label="Blocked domains"
-              hint="One per line."
+              label={t('settings.moderation.blockedDomains')}
+              hint={t('settings.moderation.blockedDomainsHint')}
               value={f.blockDomains}
               onChange={(e) => set('blockDomains', e.target.value)}
             />
             <TextArea
-              label="Allowed domains"
-              hint="Links to these domains are never blocked."
+              label={t('settings.moderation.allowedDomains')}
+              hint={t('settings.moderation.allowedDomainsHint')}
               value={f.allowDomains}
               onChange={(e) => set('allowDomains', e.target.value)}
             />
           </>
         )}
         {f.trigger === TRIGGER.SPAM && (
-          <p className="ss-sub">
-            Blocks duplicate messages and message floods. It has no extra settings.
-          </p>
+          <p className="ss-sub">{t('settings.moderation.spamNote')}</p>
         )}
 
         <fieldset className="ss-card">
-          <legend>Actions</legend>
+          <legend>{t('settings.moderation.actions')}</legend>
           <Checkbox
-            label="Block message"
+            label={t('settings.moderation.blockMessage')}
             checked={f.block}
             onChange={(e) => set('block', e.target.checked)}
           />
           {f.block && (
             <TextInput
-              label="Custom message shown to the member"
+              label={t('settings.moderation.customMessage')}
               value={f.blockMessage}
               maxLength={150}
               onChange={(e) => set('blockMessage', e.target.value)}
             />
           )}
           <Checkbox
-            label="Send alert to a channel"
+            label={t('settings.moderation.sendAlert')}
             checked={f.alert}
             onChange={(e) => set('alert', e.target.checked)}
           />
           {f.alert && (
             <div>
               <label className="ss-field-label" htmlFor="ss-rule-alert">
-                Alert channel
+                {t('settings.moderation.alertChannel')}
               </label>
               <select
                 id="ss-rule-alert"
@@ -628,7 +659,7 @@ function RuleEditor({
                 value={f.alertChannel}
                 onChange={(e) => set('alertChannel', e.target.value)}
               >
-                <option value="">Choose a channel</option>
+                <option value="">{t('settings.moderation.chooseChannel')}</option>
                 {channels.map((c) => (
                   <option key={c.id} value={c.id}>
                     #{c.name}
@@ -638,14 +669,14 @@ function RuleEditor({
             </div>
           )}
           <Checkbox
-            label="Timeout member"
+            label={t('settings.moderation.timeoutMember')}
             checked={f.timeout}
             onChange={(e) => set('timeout', e.target.checked)}
           />
           {f.timeout && (
             <div>
               <label className="ss-field-label" htmlFor="ss-rule-timeout">
-                Timeout duration
+                {t('settings.moderation.timeoutDuration')}
               </label>
               <select
                 id="ss-rule-timeout"
@@ -653,9 +684,9 @@ function RuleEditor({
                 value={f.timeoutSeconds}
                 onChange={(e) => set('timeoutSeconds', Number(e.target.value))}
               >
-                {TIMEOUT_OPTIONS.map((t) => (
-                  <option key={t.seconds} value={t.seconds}>
-                    {t.label}
+                {TIMEOUT_OPTIONS.map((o) => (
+                  <option key={o.seconds} value={o.seconds}>
+                    {t(o.label)}
                   </option>
                 ))}
               </select>
@@ -664,10 +695,10 @@ function RuleEditor({
         </fieldset>
 
         <fieldset className="ss-card">
-          <legend>Exemptions</legend>
+          <legend>{t('settings.moderation.exemptions')}</legend>
           <MultiSelect
-            aria-label="Exempt roles"
-            placeholder="Exempt roles"
+            aria-label={t('settings.moderation.exemptRoles')}
+            placeholder={t('settings.moderation.exemptRoles')}
             options={roles
               .filter((r) => r.id !== guildId)
               .map((r) => ({ value: r.id, label: r.name }))}
@@ -675,15 +706,15 @@ function RuleEditor({
             onValuesChange={(v) => set('exemptRoles', v)}
           />
           <MultiSelect
-            aria-label="Exempt channels"
-            placeholder="Exempt channels"
+            aria-label={t('settings.moderation.exemptChannels')}
+            placeholder={t('settings.moderation.exemptChannels')}
             options={channels.map((c) => ({ value: c.id, label: `#${c.name}` }))}
             values={f.exemptChannels}
             onValuesChange={(v) => set('exemptChannels', v)}
           />
         </fieldset>
         <Switch
-          label="Rule enabled"
+          label={t('settings.moderation.ruleEnabled')}
           checked={f.enabled}
           onChange={(e) => set('enabled', e.target.checked)}
         />

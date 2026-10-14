@@ -1,6 +1,7 @@
 import { Button, Drawer, EmptyState, Notice, Select, TextInput } from '@sideroom/ui';
 import { useState, type FormEvent } from 'react';
 import * as api from '../api';
+import { useT, type MessageKey } from '../../i18n';
 import {
   Async,
   LoadMore,
@@ -13,15 +14,17 @@ import {
   useResource,
 } from '../ui';
 
-const STATE_OPTIONS = [
-  { value: '', label: 'Any state' },
-  { value: 'active', label: 'Active' },
-  { value: 'deactivated', label: 'Deactivated' },
-  { value: 'platform_banned', label: 'Platform-banned' },
-  { value: 'deleted', label: 'Deleted' },
+const STATE_OPTIONS: { value: string; label: MessageKey }[] = [
+  { value: '', label: 'admin.accounts.stateAny' },
+  { value: 'active', label: 'admin.accounts.stateActive' },
+  { value: 'deactivated', label: 'admin.accounts.stateDeactivated' },
+  { value: 'platform_banned', label: 'admin.accounts.statePlatformBanned' },
+  { value: 'deleted', label: 'admin.accounts.stateDeleted' },
 ];
 
 export function AccountsSection() {
+  const t = useT();
+  const stateOptions = STATE_OPTIONS.map((o) => ({ value: o.value, label: t(o.label) }));
   const [draft, setDraft] = useState({ q: '', state: '' });
   const [applied, setApplied] = useState({ q: '', state: '' });
   const [open, setOpen] = useState<string | null>(null);
@@ -40,29 +43,34 @@ export function AccountsSection() {
   return (
     <>
       <SectionHeader
-        title="Accounts"
-        description="Search by username, display name, email fragment or exact account id. Opening an account is logged."
+        title={t('admin.accounts.title')}
+        description={t('admin.accounts.description')}
       />
-      <form className="ss-toolbar" onSubmit={submit} role="search" aria-label="Account search">
+      <form
+        className="ss-toolbar"
+        onSubmit={submit}
+        role="search"
+        aria-label={t('admin.accounts.searchForm')}
+      >
         <div className="ss-search">
           <TextInput
-            label="Search accounts"
+            label={t('admin.accounts.searchLabel')}
             type="search"
             value={draft.q}
-            placeholder="Username, email or id"
+            placeholder={t('admin.accounts.searchPlaceholder')}
             onChange={(e) => setDraft({ ...draft, q: e.target.value })}
           />
         </div>
         <Select
-          aria-label="Filter by state"
-          options={STATE_OPTIONS}
+          aria-label={t('admin.accounts.filterByState')}
+          options={stateOptions}
           value={draft.state}
           onValueChange={(state) => {
             setDraft({ ...draft, state });
             setApplied({ q: draft.q.trim(), state });
           }}
         />
-        <Button type="submit">Search</Button>
+        <Button type="submit">{t('admin.accounts.search')}</Button>
       </form>
       {paged.error && (
         <Notice variant="danger" className="ss-status" role="alert">
@@ -71,21 +79,21 @@ export function AccountsSection() {
       )}
       {!paged.error && !paged.loading && paged.items.length === 0 && (
         <EmptyState
-          title="No accounts match"
-          description="Try a different search or state filter."
+          title={t('admin.accounts.emptyTitle')}
+          description={t('admin.accounts.emptyDescription')}
         />
       )}
       {paged.items.length > 0 && (
         <div className="adm-table-wrap">
-          <table className="adm-table" aria-label="Accounts">
+          <table className="adm-table" aria-label={t('admin.accounts.tableLabel')}>
             <thead>
               <tr>
-                <th scope="col">Account</th>
-                <th scope="col">Email</th>
-                <th scope="col">State</th>
-                <th scope="col">Joined</th>
+                <th scope="col">{t('admin.accounts.colAccount')}</th>
+                <th scope="col">{t('admin.accounts.colEmail')}</th>
+                <th scope="col">{t('admin.accounts.colState')}</th>
+                <th scope="col">{t('admin.accounts.colJoined')}</th>
                 <th scope="col">
-                  <span className="adm-vh">Actions</span>
+                  <span className="adm-vh">{t('admin.accounts.colActions')}</span>
                 </th>
               </tr>
             </thead>
@@ -98,7 +106,9 @@ export function AccountsSection() {
                   </td>
                   <td>
                     {a.email}
-                    {!a.email_verified && <div className="ss-meta">Unverified</div>}
+                    {!a.email_verified && (
+                      <div className="ss-meta">{t('admin.accounts.unverified')}</div>
+                    )}
                   </td>
                   <td>
                     <StateBadge state={a.state} />
@@ -108,10 +118,10 @@ export function AccountsSection() {
                     <Button
                       size="sm"
                       variant="secondary"
-                      aria-label={`View ${a.username}`}
+                      aria-label={t('admin.accounts.viewAria', { username: a.username })}
                       onClick={() => setOpen(a.id)}
                     >
-                      View
+                      {t('admin.accounts.view')}
                     </Button>
                   </td>
                 </tr>
@@ -146,6 +156,7 @@ function AccountDrawer({
   onClose: () => void;
   onChanged: () => void;
 }) {
+  const t = useT();
   const viewer = useAdminViewer();
   const res = useResource(`account:${id}`, () => api.getAccount(id));
   const credits = useResource(`credits:${id}:${viewer.can('MANAGE_INVITES')}`, async () =>
@@ -167,8 +178,12 @@ function AccountDrawer({
   };
 
   return (
-    <Drawer open onClose={onClose} title={d ? `@${d.account.username}` : 'Account'}>
-      <Async res={res} label="Loading account">
+    <Drawer
+      open
+      onClose={onClose}
+      title={d ? `@${d.account.username}` : t('admin.accounts.drawerTitle')}
+    >
+      <Async res={res} label={t('admin.accounts.loadingAccount')}>
         {(det) => {
           const a = det.account;
           return (
@@ -179,109 +194,123 @@ function AccountDrawer({
                 </Notice>
               )}
               <dl className="adm-kv">
-                <dt>State</dt>
+                <dt>{t('admin.accounts.dtState')}</dt>
                 <dd>
                   <StateBadge state={a.state} />
-                  {det.person_banned && ' (Person banned)'}
+                  {det.person_banned && ` ${t('admin.accounts.personBanned')}`}
                 </dd>
-                <dt>Display name</dt>
-                <dd>{a.display_name || 'None'}</dd>
-                <dt>Email</dt>
+                <dt>{t('admin.accounts.dtDisplayName')}</dt>
+                <dd>{a.display_name || t('admin.accounts.none')}</dd>
+                <dt>{t('admin.accounts.dtEmail')}</dt>
                 <dd>
-                  {a.email} {a.email_verified ? '' : '(unverified)'}
+                  {a.email} {a.email_verified ? '' : t('admin.accounts.emailUnverified')}
                 </dd>
-                <dt>Account id</dt>
+                <dt>{t('admin.accounts.dtAccountId')}</dt>
                 <dd className="adm-mono">{a.id}</dd>
-                <dt>Person id</dt>
+                <dt>{t('admin.accounts.dtPersonId')}</dt>
                 <dd className="adm-mono">{a.person_id}</dd>
-                <dt>Joined</dt>
+                <dt>{t('admin.accounts.dtJoined')}</dt>
                 <dd>{fmtMs(a.created_at_ms)}</dd>
-                <dt>State changed</dt>
+                <dt>{t('admin.accounts.dtStateChanged')}</dt>
                 <dd>{fmtMs(a.state_changed_at_ms)}</dd>
-                <dt>Two-factor</dt>
-                <dd>{det.mfa_enabled ? 'On' : 'Off'}</dd>
-                <dt>Active sessions</dt>
+                <dt>{t('admin.accounts.dtTwoFactor')}</dt>
+                <dd>{det.mfa_enabled ? t('admin.accounts.on') : t('admin.accounts.off')}</dd>
+                <dt>{t('admin.accounts.dtActiveSessions')}</dt>
                 <dd>{det.sessions_active}</dd>
-                <dt>Invited by</dt>
-                <dd>{det.invited_by ? `@${det.invited_by.username}` : 'Nobody (root account)'}</dd>
-                <dt>Invites</dt>
+                <dt>{t('admin.accounts.dtInvitedBy')}</dt>
                 <dd>
-                  {det.invites_issued} issued, {det.invites_redeemed} redeemed
+                  {det.invited_by ? `@${det.invited_by.username}` : t('admin.accounts.rootAccount')}
                 </dd>
-                <dt>Suspicion</dt>
+                <dt>{t('admin.accounts.dtInvites')}</dt>
+                <dd>
+                  {t('admin.accounts.invitesSummary', {
+                    issued: det.invites_issued,
+                    redeemed: det.invites_redeemed,
+                  })}
+                </dd>
+                <dt>{t('admin.accounts.dtSuspicion')}</dt>
                 <dd>{det.suspicion_level}</dd>
-                <dt>Invite credits</dt>
+                <dt>{t('admin.accounts.dtInviteCredits')}</dt>
                 <dd>{credits.data ? credits.data.balance : det.credit_balance}</dd>
               </dl>
 
               {viewer.can('MANAGE_ACCOUNTS') && (
-                <div className="adm-actions" role="group" aria-label="Account actions">
+                <div
+                  className="adm-actions"
+                  role="group"
+                  aria-label={t('admin.accounts.actionsGroup')}
+                >
                   {a.state === 'active' && (
                     <Button variant="danger" onClick={() => setPending({ kind: 'suspend' })}>
-                      Suspend
+                      {t('admin.accounts.suspend')}
                     </Button>
                   )}
                   {a.state === 'deactivated' && (
-                    <Button onClick={() => setPending({ kind: 'unsuspend' })}>Reactivate</Button>
+                    <Button onClick={() => setPending({ kind: 'unsuspend' })}>
+                      {t('admin.accounts.reactivate')}
+                    </Button>
                   )}
                   <Button variant="secondary" onClick={() => setPending({ kind: 'logout' })}>
-                    Revoke sessions
+                    {t('admin.accounts.revokeSessions')}
                   </Button>
                   <Button variant="secondary" onClick={() => setPending({ kind: 'reset2fa' })}>
-                    Reset two-factor
+                    {t('admin.accounts.resetTwoFactor')}
                   </Button>
                 </div>
               )}
               {viewer.can('PLATFORM_BAN') && a.state !== 'platform_banned' && (
-                <div className="adm-actions" role="group" aria-label="Platform ban">
+                <div className="adm-actions" role="group" aria-label={t('admin.accounts.banGroup')}>
                   <Button
                     variant="danger"
                     onClick={() => setPending({ kind: 'ban', category: 'standard' })}
                   >
-                    Platform-ban (standard)
+                    {t('admin.accounts.banStandard')}
                   </Button>
                   <Button
                     variant="danger"
                     onClick={() => setPending({ kind: 'ban', category: 'serious' })}
                   >
-                    Platform-ban (serious)
+                    {t('admin.accounts.banSerious')}
                   </Button>
                 </div>
               )}
 
               {tree.data && (
                 <section className="ss-card" aria-labelledby="adm-tree-h">
-                  <h2 id="adm-tree-h">Invite lineage</h2>
+                  <h2 id="adm-tree-h">{t('admin.accounts.lineageTitle')}</h2>
                   <p className="ss-sub">
                     {tree.data.ancestors.length > 0
                       ? tree.data.ancestors.map((n) => `@${n.username}`).join(' → ') +
                         ` → @${tree.data.account.username}`
-                      : 'Root of the invite tree.'}
+                      : t('admin.accounts.lineageRoot')}
                   </p>
                   <p className="ss-sub">
-                    {tree.data.stats.descendants} invited downstream,{' '}
-                    {tree.data.stats.banned_descendants} banned; {tree.data.stats.open} open codes.
+                    {t('admin.accounts.lineageStats', {
+                      descendants: tree.data.stats.descendants,
+                      banned: tree.data.stats.banned_descendants,
+                      open: tree.data.stats.open,
+                    })}
                   </p>
                 </section>
               )}
               {credits.data && (
                 <section className="ss-card" aria-labelledby="adm-cred-h">
-                  <h2 id="adm-cred-h">Invite credits</h2>
+                  <h2 id="adm-cred-h">{t('admin.accounts.creditsTitle')}</h2>
                   <div className="adm-actions">
                     <Button variant="secondary" onClick={() => setPending({ kind: 'credits' })}>
-                      Grant or revoke credits
+                      {t('admin.accounts.grantCredits')}
                     </Button>
                   </div>
                   {credits.data.entries.length === 0 ? (
-                    <p className="ss-sub">No credit history.</p>
+                    <p className="ss-sub">{t('admin.accounts.noCreditHistory')}</p>
                   ) : (
-                    <ul className="ss-list" aria-label="Credit ledger">
+                    <ul className="ss-list" aria-label={t('admin.accounts.creditLedger')}>
                       {credits.data.entries.slice(0, 10).map((e) => (
                         <li key={e.id} className="ss-row">
                           <div className="ss-grow">
                             <div className="ss-name">{e.delta > 0 ? `+${e.delta}` : e.delta}</div>
                             <div className="ss-meta">
-                              {e.reason || 'No reason'} · {fmtMs(e.created_at_ms)}
+                              {e.reason || t('admin.accounts.noReason')} · {fmtMs(e.created_at_ms)}
                             </div>
                           </div>
                         </li>
@@ -292,16 +321,18 @@ function AccountDrawer({
               )}
               {det.recent_logins.length > 0 && (
                 <section className="ss-card" aria-labelledby="adm-login-h">
-                  <h2 id="adm-login-h">Recent sign-ins</h2>
+                  <h2 id="adm-login-h">{t('admin.accounts.recentSignIns')}</h2>
                   <ul className="ss-list">
                     {det.recent_logins.map((l, i) => (
                       <li key={i} className="ss-row">
                         <div className="ss-grow">
                           <div className="ss-name">
-                            {l.success ? 'Signed in' : 'Failed attempt'}
+                            {l.success
+                              ? t('admin.accounts.signedIn')
+                              : t('admin.accounts.failedAttempt')}
                           </div>
                           <div className="ss-meta">
-                            {fmtMs(l.at_ms)} · {l.ip || 'unknown address'}
+                            {fmtMs(l.at_ms)} · {l.ip || t('admin.accounts.unknownAddress')}
                           </div>
                         </div>
                       </li>
@@ -312,82 +343,82 @@ function AccountDrawer({
 
               <ReasonDialog
                 open={pending?.kind === 'suspend'}
-                title={`Suspend @${a.username}`}
-                description="The account is deactivated and its sessions end. Staff accounts can only be suspended by the Owner."
-                confirmLabel="Suspend account"
+                title={t('admin.accounts.suspendTitle', { username: a.username })}
+                description={t('admin.accounts.suspendDescription')}
+                confirmLabel={t('admin.accounts.suspendConfirm')}
                 danger
                 onCancel={() => setPending(null)}
                 onConfirm={async (reason) => {
                   await api.suspendAccount(id, reason);
-                  await finish(`@${a.username} was suspended.`);
+                  await finish(t('admin.accounts.suspended', { username: a.username }));
                 }}
               />
               <ReasonDialog
                 open={pending?.kind === 'unsuspend'}
-                title={`Reactivate @${a.username}`}
-                description="Refused if the account cap has been reached."
-                confirmLabel="Reactivate account"
+                title={t('admin.accounts.reactivateTitle', { username: a.username })}
+                description={t('admin.accounts.reactivateDescription')}
+                confirmLabel={t('admin.accounts.reactivateConfirm')}
                 onCancel={() => setPending(null)}
                 onConfirm={async (reason) => {
                   await api.unsuspendAccount(id, reason);
-                  await finish(`@${a.username} was reactivated.`);
+                  await finish(t('admin.accounts.reactivated', { username: a.username }));
                 }}
               />
               <ReasonDialog
                 open={pending?.kind === 'logout'}
-                title={`Revoke every session of @${a.username}`}
-                description="They are signed out everywhere and must log in again."
-                confirmLabel="Revoke sessions"
+                title={t('admin.accounts.logoutTitle', { username: a.username })}
+                description={t('admin.accounts.logoutDescription')}
+                confirmLabel={t('admin.accounts.revokeSessions')}
                 danger
                 onCancel={() => setPending(null)}
                 onConfirm={async (reason) => {
                   const r = await api.forceLogout(id, reason);
-                  await finish(`${r.sessions_revoked} session(s) revoked.`);
+                  await finish(t('admin.accounts.sessionsRevoked', { count: r.sessions_revoked }));
                 }}
               />
               <ReasonDialog
                 open={pending?.kind === 'reset2fa'}
-                title={`Reset two-factor for @${a.username}`}
-                description="Removes the authenticator, recovery codes and passkeys, and ends all sessions. Use only after verifying the owner of the account."
-                confirmLabel="Reset two-factor"
+                title={t('admin.accounts.reset2faTitle', { username: a.username })}
+                description={t('admin.accounts.reset2faDescription')}
+                confirmLabel={t('admin.accounts.resetTwoFactor')}
                 danger
                 onCancel={() => setPending(null)}
                 onConfirm={async (reason) => {
                   await api.reset2fa(id, reason);
-                  await finish('Two-factor was reset and sessions ended.');
+                  await finish(t('admin.accounts.reset2faDone'));
                 }}
               />
               <ReasonDialog
                 open={pending?.kind === 'ban'}
-                title={`Platform-ban the Person behind @${a.username}`}
+                title={t('admin.accounts.banTitle', { username: a.username })}
                 description={
                   pending?.kind === 'ban' && pending.category === 'serious'
-                    ? 'A serious ban raises suspicion on whoever invited this Person and may freeze their invites.'
-                    : 'Every account of this Person is banned and signed out.'
+                    ? t('admin.accounts.banSeriousDescription')
+                    : t('admin.accounts.banStandardDescription')
                 }
-                confirmLabel="Ban"
+                confirmLabel={t('admin.accounts.banConfirm')}
                 danger
                 onCancel={() => setPending(null)}
                 onConfirm={async (reason) => {
                   if (pending?.kind !== 'ban') return;
                   const r = await api.banAccount(id, pending.category, reason);
-                  await finish(`${r.accounts_banned} account(s) banned.`);
+                  await finish(t('admin.accounts.banned', { count: r.accounts_banned }));
                 }}
               />
               <ReasonDialog
                 open={pending?.kind === 'credits'}
-                title={`Invite credits for @${a.username}`}
-                description="Use a positive number to grant and a negative number to revoke."
-                confirmLabel="Apply"
+                title={t('admin.accounts.creditsDialogTitle', { username: a.username })}
+                description={t('admin.accounts.creditsDialogDescription')}
+                confirmLabel={t('admin.accounts.apply')}
                 valid={Number.isInteger(Number(delta)) && Number(delta) !== 0}
                 onCancel={() => setPending(null)}
                 onConfirm={async (reason) => {
                   const r = await api.adjustCredits(id, Number(delta), reason);
-                  await finish(`Balance is now ${r.balance}.`);
+                  await finish(t('admin.accounts.balanceNow', { balance: r.balance }));
                 }}
               >
                 <TextInput
-                  label="Change"
+                  label={t('admin.accounts.change')}
                   type="number"
                   value={delta}
                   onChange={(e) => setDelta(e.target.value)}

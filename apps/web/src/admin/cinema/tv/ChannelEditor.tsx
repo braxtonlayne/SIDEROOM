@@ -2,6 +2,7 @@
 // the rules (TV-ADM-002). Logo upload and the guide import are not on the server yet; the screen says so.
 import { Button, Notice, Select, Switch, TextInput } from '@sideroom/ui';
 import { useState } from 'react';
+import { useT } from '../../../i18n';
 import { Banner, intOrNull, useLoad, useRun } from '../hooks';
 import { RulesEditor, validateRules } from './RulesEditor';
 import * as tv from './tvApi';
@@ -25,6 +26,7 @@ export interface ChannelEditorProps {
 }
 
 export function ChannelEditor({ channel, onSaved }: ChannelEditorProps) {
+  const t = useT();
   const [number, setNumber] = useState(channel ? String(channel.number) : '');
   const [callSign, setCallSign] = useState(channel?.call_sign ?? '');
   const [name, setName] = useState(channel?.name ?? '');
@@ -45,21 +47,21 @@ export function ChannelEditor({ channel, onSaved }: ChannelEditorProps) {
   const n = intOrNull(number);
   const problem =
     n === null || n < 1 || n > 9999
-      ? 'Give the channel a number between 1 and 9999.'
+      ? t('admin.channelEditor.problem.number')
       : !name.trim()
-        ? 'Name is required.'
+        ? t('admin.channelEditor.problem.name')
         : !validTimezone(timezone, zones.data)
-          ? 'Pick a time zone from the list (an IANA name such as America/New_York).'
+          ? t('admin.channelEditor.problem.timezone')
           : kind === 'rule_based'
             ? validateRules(rules)
             : null;
 
   // Kinds the server can run today; an existing imported_guide channel keeps its kind.
   const kinds = [
-    { value: 'rule_based', label: 'Rule based' },
-    { value: 'manual', label: 'Manual calendar' },
+    { value: 'rule_based', label: t('admin.channelEditor.kind.ruleBased') },
+    { value: 'manual', label: t('admin.channelEditor.kind.manual') },
     ...(channel?.kind === 'imported_guide'
-      ? [{ value: 'imported_guide', label: 'Imported guide' }]
+      ? [{ value: 'imported_guide', label: t('admin.channelEditor.kind.importedGuide') }]
       : []),
   ];
 
@@ -88,13 +90,13 @@ export function ChannelEditor({ channel, onSaved }: ChannelEditorProps) {
         onSaved(saved);
         return saved;
       },
-      channel ? 'Saved.' : 'Channel created.',
+      channel ? t('admin.channelEditor.saved') : t('admin.channelEditor.created'),
     );
 
   return (
     <form
       className="adm-form adm-cin-form"
-      aria-label="Channel details"
+      aria-label={t('admin.channelEditor.aria')}
       onSubmit={(e) => {
         e.preventDefault();
         if (!problem) void save();
@@ -102,7 +104,7 @@ export function ChannelEditor({ channel, onSaved }: ChannelEditorProps) {
     >
       <div className="adm-cin-grid">
         <TextInput
-          label="Channel number"
+          label={t('admin.channelEditor.number')}
           type="number"
           min={1}
           max={9999}
@@ -110,21 +112,25 @@ export function ChannelEditor({ channel, onSaved }: ChannelEditorProps) {
           onChange={(e) => setNumber(e.target.value)}
         />
         <TextInput
-          label="Call sign"
-          hint="The logo text in the guide. Empty uses the name."
+          label={t('admin.channelEditor.callSign')}
+          hint={t('admin.channelEditor.callSignHint')}
           value={callSign}
           onChange={(e) => setCallSign(e.target.value)}
         />
-        <TextInput label="Channel name" value={name} onChange={(e) => setName(e.target.value)} />
         <TextInput
-          label="Era label"
-          hint='Shown under the call sign, for example "Fall 2003".'
+          label={t('admin.channelEditor.name')}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <TextInput
+          label={t('admin.channelEditor.era')}
+          hint={t('admin.channelEditor.eraHint')}
           value={era}
           onChange={(e) => setEra(e.target.value)}
         />
         {zones.data && zones.data.length > 0 ? (
           <Select
-            aria-label="Time zone"
+            aria-label={t('admin.channelEditor.timezone')}
             searchable
             options={zones.data.map((z) => ({ value: z, label: z }))}
             value={timezone}
@@ -132,51 +138,59 @@ export function ChannelEditor({ channel, onSaved }: ChannelEditorProps) {
           />
         ) : (
           <TextInput
-            label="Time zone"
-            hint="The schedule is written in this zone (D-103)."
+            label={t('admin.channelEditor.timezone')}
+            hint={t('admin.channelEditor.timezoneHint')}
             value={timezone}
             onChange={(e) => setTimezone(e.target.value)}
           />
         )}
-        <Select aria-label="Channel kind" options={kinds} value={kind} onValueChange={setKind} />
         <Select
-          aria-label="Filler policy"
+          aria-label={t('admin.channelEditor.kind.label')}
+          options={kinds}
+          value={kind}
+          onValueChange={setKind}
+        />
+        <Select
+          aria-label={t('admin.channelEditor.filler')}
           options={FILLER_POLICIES.map((p) => ({ value: p, label: tv.FILLER_LABELS[p] }))}
           value={filler}
           onValueChange={setFiller}
         />
       </div>
       <Switch
-        label="Age-restricted channel"
+        label={t('admin.channelEditor.ageRestricted')}
         checked={restricted}
         onChange={(e) => setRestricted(e.target.checked)}
       />
-      <Switch label="Enabled" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+      <Switch
+        label={t('admin.channelEditor.enabled')}
+        checked={enabled}
+        onChange={(e) => setEnabled(e.target.checked)}
+      />
 
       {channel?.logo_url ? (
         <figure className="adm-cin-logo">
-          <img src={channel.logo_url} alt="Channel logo" height={48} />
-          <figcaption className="ss-meta">Logo upload is not available yet.</figcaption>
+          <img src={channel.logo_url} alt={t('admin.channelEditor.logoAlt')} height={48} />
+          <figcaption className="ss-meta">{t('admin.channelEditor.logoNotAvailable')}</figcaption>
         </figure>
       ) : (
-        <p className="ss-meta">Logo upload is not available yet; the call sign is shown instead.</p>
+        <p className="ss-meta">{t('admin.channelEditor.logoNotAvailableCallSign')}</p>
       )}
 
       {kind === 'rule_based' && (
-        <section aria-label="Schedule rules" className="ss-card">
-          <h2 className="ss-sub">Schedule rules</h2>
+        <section aria-label={t('admin.channelEditor.rules')} className="ss-card">
+          <h2 className="ss-sub">{t('admin.channelEditor.rules')}</h2>
           <RulesEditor value={rules} onChange={setRules} />
         </section>
       )}
       {kind === 'manual' && (
-        <Notice variant="info" title="Weekly grid not available yet">
-          A drag-and-drop weekly grid is not part of this build. Place programmes at a time from the
-          Now control tab.
+        <Notice variant="info" title={t('admin.channelEditor.manual.title')}>
+          {t('admin.channelEditor.manual.body')}
         </Notice>
       )}
       {kind === 'imported_guide' && (
-        <Notice variant="info" title="Guide import not available yet">
-          Importing a CSV or JSON guide with the mapping report is not part of this build.
+        <Notice variant="info" title={t('admin.channelEditor.guide.title')}>
+          {t('admin.channelEditor.guide.body')}
         </Notice>
       )}
 
@@ -188,7 +202,7 @@ export function ChannelEditor({ channel, onSaved }: ChannelEditorProps) {
       )}
       <div className="adm-actions">
         <Button type="submit" loading={busy} disabled={!!problem}>
-          {channel ? 'Save channel' : 'Create channel'}
+          {channel ? t('admin.channelEditor.save') : t('admin.channelEditor.create')}
         </Button>
       </div>
     </form>

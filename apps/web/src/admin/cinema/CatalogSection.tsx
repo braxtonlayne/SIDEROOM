@@ -12,35 +12,17 @@ import {
   TextInput,
 } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
+import { useT } from '../../i18n';
 import { SectionHeader, LoadMore, useAdminViewer, usePaged } from '../ui';
 import * as api from './api';
 import { Banner, LoadProblem, useRun } from './hooks';
 import { TitleEditor } from './TitleEditor';
 
 const ANY = '__any';
-const KIND_OPTIONS = [
-  { value: ANY, label: 'All kinds' },
-  ...api.TITLE_KINDS.map((k) => ({ value: k, label: k[0]!.toUpperCase() + k.slice(1) })),
-];
-const STATUS_OPTIONS = [
-  { value: ANY, label: 'Published and drafts' },
-  { value: 'true', label: 'Published' },
-  { value: 'false', label: 'Drafts' },
-];
-const AGE_OPTIONS = [
-  { value: 'include', label: 'Any audience' },
-  { value: 'only', label: 'Age-restricted only' },
-  { value: 'hide', label: 'Hide age-restricted' },
-];
-const SORT_OPTIONS = [
-  { value: 'updated', label: 'Recently updated' },
-  { value: 'newest', label: 'Newest first' },
-  { value: 'title', label: 'Title A to Z' },
-  { value: 'year', label: 'Year' },
-];
 const PAGE = 24;
 
 export function CatalogSection() {
+  const t = useT();
   const viewer = useAdminViewer();
   const canPublish = viewer.can('PUBLISH_MEDIA');
   const canDelete = viewer.can('DELETE_CONTENT');
@@ -49,10 +31,10 @@ export function CatalogSection() {
   if (!canPublish && !canDelete)
     return (
       <>
-        <SectionHeader title="Cinema catalog" />
+        <SectionHeader title={t('admin.catalog.title')} />
         <EmptyState
-          title="You do not have access"
-          description="Editing the catalog takes the Publish media permission (the Media Curator role)."
+          title={t('admin.catalog.noAccess.title')}
+          description={t('admin.catalog.noAccess.description')}
         />
       </>
     );
@@ -64,6 +46,29 @@ export function CatalogSection() {
 }
 
 function TitleList({ onOpen }: { onOpen: (id: string | 'new') => void }) {
+  const t = useT();
+  const kindOptions = [
+    { value: ANY, label: t('admin.catalog.kind.all') },
+    { value: 'movie', label: t('admin.titleEditor.kind.movie') },
+    { value: 'series', label: t('admin.titleEditor.kind.series') },
+    { value: 'anime', label: t('admin.titleEditor.kind.anime') },
+  ];
+  const statusOptions = [
+    { value: ANY, label: t('admin.catalog.status.all') },
+    { value: 'true', label: t('admin.catalog.status.published') },
+    { value: 'false', label: t('admin.catalog.status.drafts') },
+  ];
+  const ageOptions = [
+    { value: 'include', label: t('admin.catalog.age.include') },
+    { value: 'only', label: t('admin.catalog.age.only') },
+    { value: 'hide', label: t('admin.catalog.age.hide') },
+  ];
+  const sortOptions = [
+    { value: 'updated', label: t('admin.catalog.sort.updated') },
+    { value: 'newest', label: t('admin.catalog.sort.newest') },
+    { value: 'title', label: t('admin.catalog.sort.title') },
+    { value: 'year', label: t('admin.catalog.sort.year') },
+  ];
   const viewer = useAdminViewer();
   const canPublish = viewer.can('PUBLISH_MEDIA');
   const canDelete = viewer.can('DELETE_CONTENT');
@@ -78,8 +83,8 @@ function TitleList({ onOpen }: { onOpen: (id: string | 'new') => void }) {
   const { busy, error, notice, run, flash, clear } = useRun();
 
   useEffect(() => {
-    const t = setTimeout(() => setDebounced(q.trim()), 250);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setDebounced(q.trim()), 250);
+    return () => clearTimeout(timer);
   }, [q]);
 
   const key = `cinema-titles:${debounced}:${kind}:${status}:${age}:${sort}`;
@@ -104,42 +109,63 @@ function TitleList({ onOpen }: { onOpen: (id: string | 'new') => void }) {
     }
   });
   const [rows, setRows] = useState<Record<string, api.Title>>({});
-  const view = paged.items.map((t) => rows[t.id] ?? t);
+  const view = paged.items.map((ti) => rows[ti.id] ?? ti);
 
-  const toggle = (t: api.Title) =>
+  const toggle = (ti: api.Title) =>
     void run(
       async () => {
-        const next = t.published ? await api.unpublishTitle(t.id) : await api.publishTitle(t.id);
-        setRows((r) => ({ ...r, [t.id]: next }));
+        const next = ti.published ? await api.unpublishTitle(ti.id) : await api.publishTitle(ti.id);
+        setRows((r) => ({ ...r, [ti.id]: next }));
         return true;
       },
-      t.published ? `${t.title} unpublished.` : `${t.title} published.`,
+      ti.published
+        ? t('admin.catalog.unpublished', { title: ti.title })
+        : t('admin.catalog.published', { title: ti.title }),
     );
 
   return (
     <>
       <SectionHeader
-        title="Cinema catalog"
-        description="Titles, seasons, episodes, artwork and skip markers. Drafts stay hidden from members until you publish them."
-        actions={canPublish ? <Button onClick={() => onOpen('new')}>New title</Button> : undefined}
+        title={t('admin.catalog.title')}
+        description={t('admin.catalog.description')}
+        actions={
+          canPublish ? (
+            <Button onClick={() => onOpen('new')}>{t('admin.catalog.newTitle')}</Button>
+          ) : undefined
+        }
       />
       <div className="ss-toolbar">
         <TextInput
-          label="Search titles"
+          label={t('admin.catalog.search')}
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           className="ss-search"
         />
-        <Select aria-label="Kind" options={KIND_OPTIONS} value={kind} onValueChange={setKind} />
         <Select
-          aria-label="Status"
-          options={STATUS_OPTIONS}
+          aria-label={t('admin.catalog.filter.kind')}
+          options={kindOptions}
+          value={kind}
+          onValueChange={setKind}
+        />
+        <Select
+          aria-label={t('admin.catalog.filter.status')}
+          options={statusOptions}
           value={status}
           onValueChange={setStatus}
         />
-        <Select aria-label="Audience" options={AGE_OPTIONS} value={age} onValueChange={setAge} />
-        <Select aria-label="Sort" options={SORT_OPTIONS} value={sort} onValueChange={setSort} />
+        <Select
+          aria-label={t('admin.catalog.filter.audience')}
+          options={ageOptions}
+          value={age}
+          onValueChange={setAge}
+        />
+        <Select
+          aria-label={t('admin.catalog.filter.sort')}
+          options={sortOptions}
+          value={sort}
+          onValueChange={setSort}
+        />
       </div>
       <Banner error={error} notice={notice} />
       {paged.error && (
@@ -147,97 +173,112 @@ function TitleList({ onOpen }: { onOpen: (id: string | 'new') => void }) {
           error={paged.error}
           status={failure}
           onRetry={paged.reload}
-          what="the catalog"
+          what={t('admin.catalog.whatCatalog')}
         />
       )}
       {!paged.error && !paged.loading && view.length === 0 && (
         <EmptyState
-          title="No titles"
+          title={t('admin.catalog.empty.title')}
           description={
             debounced || kind !== ANY || status !== ANY
-              ? 'Nothing matches these filters.'
-              : 'The catalog is empty. Create the first title.'
+              ? t('admin.catalog.empty.filtered')
+              : t('admin.catalog.empty.none')
           }
         />
       )}
       {view.length > 0 && (
         <div className="adm-table-wrap">
-          <table className="adm-table" aria-label="Titles">
+          <table className="adm-table" aria-label={t('admin.catalog.table')}>
             <thead>
               <tr>
-                <th scope="col">Poster</th>
-                <th scope="col">Title</th>
-                <th scope="col">Kind</th>
-                <th scope="col">Status</th>
-                <th scope="col">Actions</th>
+                <th scope="col">{t('admin.catalog.col.poster')}</th>
+                <th scope="col">{t('admin.catalog.col.title')}</th>
+                <th scope="col">{t('admin.catalog.col.kind')}</th>
+                <th scope="col">{t('admin.catalog.col.status')}</th>
+                <th scope="col">{t('admin.catalog.col.actions')}</th>
               </tr>
             </thead>
             <tbody>
-              {view.map((t) => (
-                <tr key={t.id}>
+              {view.map((ti) => (
+                <tr key={ti.id}>
                   <td>
-                    {t.poster_url ? (
-                      <img className="adm-cin-poster" src={t.poster_url} alt="" loading="lazy" />
+                    {ti.poster_url ? (
+                      <img className="adm-cin-poster" src={ti.poster_url} alt="" loading="lazy" />
                     ) : (
                       <span className="adm-cin-poster adm-cin-poster-empty" aria-hidden="true" />
                     )}
                   </td>
                   <td>
-                    <div className="ss-name">{t.title}</div>
+                    <div className="ss-name">{ti.title}</div>
                     <div className="ss-meta">
-                      {[t.year, t.content_rating].filter(Boolean).join(' · ') || 'No year'}
-                      {t.kind !== 'movie' &&
-                        ` · ${t.season_count} season${t.season_count === 1 ? '' : 's'}, ${t.episode_count} episode${t.episode_count === 1 ? '' : 's'}`}
+                      {[ti.year, ti.content_rating].filter(Boolean).join(' · ') ||
+                        t('admin.catalog.noYear')}
+                      {ti.kind !== 'movie' &&
+                        t('admin.catalog.counts', {
+                          seasons: ti.season_count,
+                          episodes: ti.episode_count,
+                        })}
                     </div>
                   </td>
                   <td>
-                    {t.kind} {t.age_restricted && <Badge variant="danger">18+</Badge>}
+                    {ti.kind}{' '}
+                    {ti.age_restricted && (
+                      <Badge variant="danger">{t('admin.catalog.age18')}</Badge>
+                    )}
                   </td>
                   <td>
-                    <Badge variant={t.published ? 'success' : 'neutral'}>
-                      {t.published ? 'published' : 'draft'}
+                    <Badge variant={ti.published ? 'success' : 'neutral'}>
+                      {ti.published
+                        ? t('admin.catalog.statusPublished')
+                        : t('admin.catalog.statusDraft')}
                     </Badge>{' '}
-                    {!t.playable && <Badge variant="warning">nothing playable</Badge>}
+                    {!ti.playable && (
+                      <Badge variant="warning">{t('admin.catalog.nothingPlayable')}</Badge>
+                    )}
                   </td>
                   <td>
                     <div className="adm-actions">
                       <Button
                         size="sm"
                         variant="secondary"
-                        aria-label={`Edit ${t.title}`}
-                        onClick={() => onOpen(t.id)}
+                        aria-label={t('admin.catalog.editAria', { title: ti.title })}
+                        onClick={() => onOpen(ti.id)}
                       >
-                        Edit
+                        {t('admin.catalog.edit')}
                       </Button>
-                      {(canPublish || t.published) && (
+                      {(canPublish || ti.published) && (
                         <Button
                           size="sm"
                           variant="secondary"
                           disabled={busy}
-                          aria-label={`${t.published ? 'Unpublish' : 'Publish'} ${t.title}`}
-                          onClick={() => toggle(t)}
+                          aria-label={
+                            ti.published
+                              ? t('admin.catalog.unpublishAria', { title: ti.title })
+                              : t('admin.catalog.publishAria', { title: ti.title })
+                          }
+                          onClick={() => toggle(ti)}
                         >
-                          {t.published ? 'Unpublish' : 'Publish'}
+                          {ti.published ? t('admin.catalog.unpublish') : t('admin.catalog.publish')}
                         </Button>
                       )}
                       {canPublish && canDelete && (
                         <Button
                           size="sm"
                           variant="secondary"
-                          aria-label={`Merge ${t.title} into another title`}
-                          onClick={() => (clear(), setMerge(t))}
+                          aria-label={t('admin.catalog.mergeAria', { title: ti.title })}
+                          onClick={() => (clear(), setMerge(ti))}
                         >
-                          Merge
+                          {t('admin.catalog.merge')}
                         </Button>
                       )}
                       {canDelete && (
                         <Button
                           size="sm"
                           variant="danger"
-                          aria-label={`Delete ${t.title}`}
-                          onClick={() => (clear(), setRemove(t))}
+                          aria-label={t('admin.catalog.deleteAria', { title: ti.title })}
+                          onClick={() => (clear(), setRemove(ti))}
                         >
-                          Delete
+                          {t('admin.catalog.delete')}
                         </Button>
                       )}
                     </div>
@@ -261,19 +302,24 @@ function TitleList({ onOpen }: { onOpen: (id: string | 'new') => void }) {
       <ConfirmDialog
         open={!!remove}
         danger
-        title={`Delete ${remove?.title ?? 'title'}`}
-        description="This removes the title with its seasons, episodes, variants, trailers and markers, and members lose their lists and progress for it. It cannot be undone. Type the title to confirm."
+        title={t('admin.catalog.deleteTitle', {
+          name: remove?.title ?? t('admin.catalog.titleWord'),
+        })}
+        description={t('admin.catalog.deleteDescription')}
         requireText={remove?.title}
-        confirmLabel="Delete title"
+        confirmLabel={t('admin.catalog.deleteConfirm')}
         loading={busy}
         onCancel={() => setRemove(null)}
         onConfirm={() => {
-          const t = remove;
-          if (!t) return;
-          void run(async () => {
-            await api.deleteTitle(t.id);
-            return true;
-          }, `${t.title} deleted.`).then((ok) => {
+          const ti = remove;
+          if (!ti) return;
+          void run(
+            async () => {
+              await api.deleteTitle(ti.id);
+              return true;
+            },
+            t('admin.catalog.deleted', { title: ti.title }),
+          ).then((ok) => {
             setRemove(null);
             if (ok) paged.reload();
           });
@@ -293,6 +339,7 @@ function MergeDialog({
   onCancel: () => void;
   onDone: (msg: string) => void;
 }) {
+  const t = useT();
   const [q, setQ] = useState('');
   const [results, setResults] = useState<api.Title[]>([]);
   const [target, setTarget] = useState<api.Title | null>(null);
@@ -313,7 +360,7 @@ function MergeDialog({
       return;
     }
     let live = true;
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       api
         .listTitles({ title: q.trim(), limit: 8 })
         .then((p) => live && setResults(p.items.filter((x) => x.id !== source.id)))
@@ -321,7 +368,7 @@ function MergeDialog({
     }, 200);
     return () => {
       live = false;
-      clearTimeout(t);
+      clearTimeout(timer);
     };
   }, [q, source]);
 
@@ -329,13 +376,13 @@ function MergeDialog({
     <Modal
       open={!!source}
       onClose={busy ? () => undefined : onCancel}
-      title={`Merge ${source?.title ?? ''}`}
-      description="Seasons, episodes, variants and member data move to the title you pick. This title is then removed and its address redirects to the target."
+      title={t('admin.catalog.mergeDialog.title', { title: source?.title ?? '' })}
+      description={t('admin.catalog.mergeDialog.description')}
       size="md"
       footer={
         <>
           <Button variant="ghost" onClick={onCancel} disabled={busy}>
-            Cancel
+            {t('admin.catalog.cancel')}
           </Button>
           <Button
             variant="danger"
@@ -345,40 +392,50 @@ function MergeDialog({
               if (!source || !target) return;
               void run(async () => {
                 await api.mergeTitle(source.id, target.id);
-                onDone(`${source.title} merged into ${target.title}.`);
+                onDone(
+                  t('admin.catalog.mergeDialog.done', {
+                    source: source.title,
+                    target: target.title,
+                  }),
+                );
               });
             }}
           >
-            Merge titles
+            {t('admin.catalog.mergeDialog.confirm')}
           </Button>
         </>
       }
     >
       <div className="adm-form">
         <TextInput
-          label="Find the title to keep"
+          label={t('admin.catalog.mergeDialog.find')}
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
         {results.length > 0 && (
-          <ul className="ss-list" aria-label="Merge targets">
+          <ul className="ss-list" aria-label={t('admin.catalog.mergeDialog.targets')}>
             {results.map((r) => (
               <li key={r.id} className="ss-row">
                 <div className="ss-grow">
                   <div className="ss-name">{r.title}</div>
                   <div className="ss-meta">
-                    {r.kind} · {r.year ?? 'no year'} · {r.published ? 'published' : 'draft'}
+                    {r.kind} · {r.year ?? t('admin.catalog.mergeDialog.noYear')} ·{' '}
+                    {r.published
+                      ? t('admin.catalog.statusPublished')
+                      : t('admin.catalog.statusDraft')}
                   </div>
                 </div>
                 <Button
                   size="sm"
                   variant={target?.id === r.id ? 'primary' : 'secondary'}
                   aria-pressed={target?.id === r.id}
-                  aria-label={`Keep ${r.title}`}
+                  aria-label={t('admin.catalog.mergeDialog.keepAria', { title: r.title })}
                   onClick={() => setTarget(r)}
                 >
-                  {target?.id === r.id ? 'Chosen' : 'Choose'}
+                  {target?.id === r.id
+                    ? t('admin.catalog.mergeDialog.chosen')
+                    : t('admin.catalog.mergeDialog.choose')}
                 </Button>
               </li>
             ))}
@@ -386,7 +443,10 @@ function MergeDialog({
         )}
         {target && (
           <Notice variant="warning">
-            {source?.title} will be merged into {target.title}.
+            {t('admin.catalog.mergeDialog.willMerge', {
+              source: source?.title ?? '',
+              target: target.title,
+            })}
           </Notice>
         )}
         <Banner error={error} />

@@ -1,6 +1,7 @@
 // Phone layout of the guide (TV-UI-010): one agenda list per channel, the programme on now first, then what is
 // coming. Tapping a programme opens the same detail as the grid.
 import { Icon } from '@sideroom/ui';
+import { useT } from '../../i18n';
 import { AgeBadge } from '../ui';
 import { isNow, kindYear, timeLabel, watchChannelHref } from './model';
 import type { TvBlock, TvChannel } from './types';
@@ -20,8 +21,9 @@ export interface MobileAgendaProps {
 const PER_CHANNEL = 6;
 
 export function MobileAgenda(p: MobileAgendaProps) {
+  const t = useT();
   return (
-    <ul className="tv-agenda" aria-label="Channels">
+    <ul className="tv-agenda" aria-label={t('cinema.agenda.channels')}>
       {p.channels.map((ch) => {
         const tz = p.tzLocal ? null : ch.timezone;
         const from = Math.max(p.dayStart, Math.min(p.nowMs, p.dayEnd));
@@ -41,19 +43,29 @@ export function MobileAgenda(p: MobileAgendaProps) {
                 type="button"
                 className="tv-fav"
                 aria-pressed={fav}
-                aria-label={`${fav ? 'Remove' : 'Add'} ${ch.name} ${fav ? 'from' : 'to'} favorites`}
+                aria-label={
+                  fav
+                    ? t('cinema.guide.removeFavorite', { name: ch.name })
+                    : t('cinema.guide.addFavorite', { name: ch.name })
+                }
                 onClick={() => p.onToggleFavourite(ch.id)}
               >
                 <Icon name="star" size={20} className={fav ? 'tv-fav-on' : undefined} />
               </button>
               <a className="tv-agenda-tune" href={watchChannelHref(ch.id)}>
-                Tune in<span className="cin-sr-only"> to channel {ch.number}</span>
+                {t('cinema.agenda.tuneIn')}
+                <span className="cin-sr-only">
+                  {t('cinema.agenda.toChannel', { n: ch.number })}
+                </span>
               </a>
             </div>
             {list.length === 0 ? (
-              <p className="cin-muted tv-agenda-empty">Nothing scheduled in this window.</p>
+              <p className="cin-muted tv-agenda-empty">{t('cinema.agenda.empty')}</p>
             ) : (
-              <ul className="tv-agenda-list" aria-label={`${ch.name} schedule`}>
+              <ul
+                className="tv-agenda-list"
+                aria-label={t('cinema.agenda.schedule', { name: ch.name })}
+              >
                 {list.map((b) => (
                   <li key={b.id}>
                     <button
@@ -63,7 +75,7 @@ export function MobileAgenda(p: MobileAgendaProps) {
                       onClick={() => p.onOpen(b, ch)}
                     >
                       <span className="tv-cell-time">
-                        {isNow(b, p.nowMs) ? 'NOW' : timeLabel(b.start_ms, tz)}
+                        {isNow(b, p.nowMs) ? t('cinema.agenda.now') : timeLabel(b.start_ms, tz)}
                       </span>
                       <span className="tv-agenda-title">
                         {b.title}

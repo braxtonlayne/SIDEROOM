@@ -1,6 +1,7 @@
 // Video assets of a title (CIN-ADM-001 asset linking, CIN-ADM-002 transcode status per asset and re-run).
 import { Badge, Button, Notice, TextInput } from '@sideroom/ui';
 import { useState } from 'react';
+import { useT } from '../../i18n';
 import { StateBadge, fmtMs, useAdminViewer } from '../ui';
 import * as api from './api';
 import { Banner, LoadProblem, Section, useLoad, useRun } from './hooks';
@@ -13,22 +14,20 @@ interface Props {
 }
 
 export function AssetPanel({ detail, reload }: Props) {
-  const t = detail.title;
+  const t = useT();
+  const ttl = detail.title;
   const episodes = [...detail.episodes].sort(
     (a, b) => a.season_number - b.season_number || a.number - b.number,
   );
   return (
-    <Section title="Video assets">
-      <p className="ss-desc">
-        Link the uploaded video a film or episode plays. Assets come from the ingest pipeline; paste
-        the asset id here. Unlinking the last playable video unpublishes the title or episode.
-      </p>
-      {(t.kind === 'movie' || episodes.length === 0) && (
+    <Section title={t('admin.assetPanel.title')}>
+      <p className="ss-desc">{t('admin.assetPanel.intro')}</p>
+      {(ttl.kind === 'movie' || episodes.length === 0) && (
         <AssetRow
-          label={t.title}
-          assetId={t.asset_id ?? null}
+          label={ttl.title}
+          assetId={ttl.asset_id ?? null}
           onLink={async (id) => {
-            await api.linkTitleAsset(t.id, id);
+            await api.linkTitleAsset(ttl.id, id);
             await reload();
           }}
         />
@@ -57,23 +56,28 @@ function AssetRow({
   assetId: string | null;
   onLink: (id: string | null) => Promise<void>;
 }) {
+  const t = useT();
   const canEdit = useAdminViewer().can('PUBLISH_MEDIA');
   const [value, setValue] = useState(assetId ?? '');
   const [open, setOpen] = useState(false);
   const { busy, error, notice, run } = useRun();
   const dirty = value.trim() !== (assetId ?? '');
   return (
-    <div className="ss-card adm-cin-asset" role="group" aria-label={`Video for ${label}`}>
+    <div
+      className="ss-card adm-cin-asset"
+      role="group"
+      aria-label={t('admin.assetPanel.videoFor', { label })}
+    >
       <div className="ss-row">
         <div className="ss-grow">
           <div className="ss-name">{label}</div>
           <div className="ss-meta">
             {assetId ? (
               <>
-                Asset <span className="adm-mono">{assetId}</span>
+                {t('admin.assetPanel.asset')} <span className="adm-mono">{assetId}</span>
               </>
             ) : (
-              <Badge variant="warning">no video linked</Badge>
+              <Badge variant="warning">{t('admin.assetPanel.noVideo')}</Badge>
             )}
           </div>
         </div>
@@ -82,33 +86,37 @@ function AssetRow({
             size="sm"
             variant="secondary"
             aria-expanded={open}
-            aria-label={`${open ? 'Hide' : 'Show'} transcode status for ${label}`}
+            aria-label={
+              open
+                ? t('admin.assetPanel.hideStatus', { label })
+                : t('admin.assetPanel.showStatus', { label })
+            }
             onClick={() => setOpen((o) => !o)}
           >
-            Transcode status
+            {t('admin.assetPanel.transcodeStatus')}
           </Button>
         )}
       </div>
       {canEdit && (
         <form
           className="adm-actions"
-          aria-label={`Link video for ${label}`}
+          aria-label={t('admin.assetPanel.linkFor', { label })}
           onSubmit={(e) => {
             e.preventDefault();
             void run(
               () => onLink(value.trim() || null).then(() => true),
-              value.trim() ? 'Linked.' : 'Unlinked.',
+              value.trim() ? t('admin.assetPanel.linked') : t('admin.assetPanel.unlinked'),
             );
           }}
         >
           <TextInput
-            label={<span className="adm-vh">{`Asset id for ${label}`}</span>}
+            label={<span className="adm-vh">{t('admin.assetPanel.assetIdFor', { label })}</span>}
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            placeholder="Asset id"
+            placeholder={t('admin.assetPanel.assetId')}
           />
           <Button type="submit" size="sm" loading={busy} disabled={!dirty}>
-            {value.trim() ? 'Link video' : 'Unlink video'}
+            {value.trim() ? t('admin.assetPanel.linkVideo') : t('admin.assetPanel.unlinkVideo')}
           </Button>
         </form>
       )}
@@ -119,16 +127,17 @@ function AssetRow({
 }
 
 export function NotAvailableYet({ what }: { what: string }) {
+  const t = useT();
   return (
-    <Notice variant="info" role="status" title="Not available yet">
-      {what} needs the transcoding admin API, which this server does not provide yet. Nothing is
-      shown rather than made up.
+    <Notice variant="info" role="status" title={t('admin.assetPanel.notAvailable.title')}>
+      {t('admin.assetPanel.notAvailable.body', { what })}
     </Notice>
   );
 }
 
 /** Status and jobs of one asset, with a re-transcode action for MANAGE_TRANSCODE. */
 export function AssetTranscodeStatus({ assetId }: { assetId: string }) {
+  const t = useT();
   const canRun = useAdminViewer().can('MANAGE_TRANSCODE');
   const [unavailable, setUnavailable] = useState(false);
   const res = useLoad<tx.AssetTranscode | null>(`asset-tx:${assetId}`, async () => {
@@ -151,30 +160,30 @@ export function AssetTranscodeStatus({ assetId }: { assetId: string }) {
         error={res.error}
         status={res.status}
         onRetry={() => void res.reload()}
-        what="transcode status"
+        what={t('admin.assetPanel.whatStatus')}
       />
     );
-  if (unavailable) return <NotAvailableYet what="Transcode status" />;
-  if (!res.data) return <p className="ss-loading">Loading status…</p>;
+  if (unavailable) return <NotAvailableYet what={t('admin.assetPanel.transcodeStatus')} />;
+  if (!res.data) return <p className="ss-loading">{t('admin.assetPanel.loadingStatus')}</p>;
   const a = res.data;
   return (
-    <div className="adm-cin-tx" aria-label="Transcode status">
+    <div className="adm-cin-tx" aria-label={t('admin.assetPanel.transcodeStatus')}>
       <dl className="adm-kv">
-        <dt>State</dt>
+        <dt>{t('admin.assetPanel.state')}</dt>
         <dd>
           <StateBadge state={a.state} />
         </dd>
         {a.profile_version != null && (
           <>
-            <dt>Profile version</dt>
+            <dt>{t('admin.assetPanel.profileVersion')}</dt>
             <dd>{a.profile_version}</dd>
           </>
         )}
       </dl>
       {a.jobs.length === 0 ? (
-        <p className="ss-na">No transcode jobs for this asset.</p>
+        <p className="ss-na">{t('admin.assetPanel.noJobs')}</p>
       ) : (
-        <ul className="ss-list" aria-label="Transcode jobs">
+        <ul className="ss-list" aria-label={t('admin.assetPanel.jobs')}>
           {a.jobs.map((j) => (
             <li key={j.id} className="ss-row">
               <div className="ss-grow">
@@ -183,7 +192,7 @@ export function AssetTranscodeStatus({ assetId }: { assetId: string }) {
                   {j.percent != null && j.state === 'running' ? ` ${Math.round(j.percent)}%` : ''}
                 </div>
                 <div className="ss-meta">
-                  attempt {j.attempt} · {fmtMs(j.created_at_ms)}
+                  {t('admin.assetPanel.attempt', { n: j.attempt })} · {fmtMs(j.created_at_ms)}
                   {j.error ? ` · ${j.error}` : ''}
                 </div>
               </div>
@@ -198,22 +207,22 @@ export function AssetTranscodeStatus({ assetId }: { assetId: string }) {
       )}
       {canRun ? (
         <Button variant="secondary" onClick={() => setRerun(true)}>
-          Re-run transcode
+          {t('admin.assetPanel.rerun')}
         </Button>
       ) : (
-        <p className="ss-meta">Re-running a transcode takes the Manage transcode permission.</p>
+        <p className="ss-meta">{t('admin.assetPanel.rerunNeedsPerm')}</p>
       )}
       <ReasonDialog
         open={rerun}
-        title="Re-run the transcode"
-        description="Queues a fresh ladder job from the stored original. Playback keeps using the current renditions until the new ones are accepted."
-        confirmLabel="Queue transcode"
+        title={t('admin.assetPanel.rerunDialog.title')}
+        description={t('admin.assetPanel.rerunDialog.description')}
+        confirmLabel={t('admin.assetPanel.rerunDialog.confirm')}
         reasonOptional
         onCancel={() => setRerun(false)}
         onConfirm={async (reason) => {
           await tx.retranscodeAsset(assetId, reason);
           setRerun(false);
-          setNotice('Transcode queued.');
+          setNotice(t('admin.assetPanel.queued'));
           await res.reload();
         }}
       />

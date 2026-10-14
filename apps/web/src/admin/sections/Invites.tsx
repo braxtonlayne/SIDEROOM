@@ -1,6 +1,7 @@
 import { Badge, Button, ConfirmDialog, EmptyState, Notice, Select, TextInput } from '@sideroom/ui';
 import { useState } from 'react';
 import * as api from '../api';
+import { useT, type MessageKey } from '../../i18n';
 import {
   ActionStatus,
   Async,
@@ -15,14 +16,16 @@ import {
   useResource,
 } from '../ui';
 
-const INVITE_STATES = [
-  { value: '', label: 'Any state' },
-  { value: 'open', label: 'Open' },
-  { value: 'redeemed', label: 'Redeemed' },
-  { value: 'revoked', label: 'Revoked' },
+const INVITE_STATES: { value: string; label: MessageKey }[] = [
+  { value: '', label: 'admin.invites.stateAny' },
+  { value: 'open', label: 'admin.invites.stateOpen' },
+  { value: 'redeemed', label: 'admin.invites.stateRedeemed' },
+  { value: 'revoked', label: 'admin.invites.stateRevoked' },
 ];
 
 export function InvitesSection() {
+  const t = useT();
+  const stateOptions = INVITE_STATES.map((o) => ({ value: o.value, label: t(o.label) }));
   const viewer = useAdminViewer();
   const [state, setState] = useState('');
   const [issuer, setIssuer] = useState('');
@@ -37,54 +40,57 @@ export function InvitesSection() {
   return (
     <>
       <SectionHeader
-        title="Invites"
-        description="Every platform invite. Invite codes are secrets of their issuers; they are shown here only to staff with Manage Invites."
+        title={t('admin.invites.title')}
+        description={t('admin.invites.description')}
       />
-      <Notice variant="info" className="ss-status" title="Creating invites">
-        Invites are issued from the command line, which bypasses credit rules:{' '}
-        <code>sr-cli invite create --issuer &lt;username&gt; --note &quot;why&quot;</code>.
-        Emergency invites show an <em>emergency</em> tag below. Credits are granted per account from
-        Accounts.
+      <Notice variant="info" className="ss-status" title={t('admin.invites.creatingTitle')}>
+        {t('admin.invites.creatingLead')}{' '}
+        <code>sr-cli invite create --issuer &lt;username&gt; --note &quot;why&quot;</code>.{' '}
+        {t('admin.invites.creatingEmergencyPrefix')} <em>{t('admin.invites.emergencyWord')}</em>{' '}
+        {t('admin.invites.creatingTail')}
       </Notice>
       <form
         className="ss-toolbar"
         role="search"
-        aria-label="Filter invites"
+        aria-label={t('admin.invites.filterForm')}
         onSubmit={(e) => {
           e.preventDefault();
           setIssuerApplied(issuer.trim());
         }}
       >
         <TextInput
-          label="Issuer account id"
+          label={t('admin.invites.issuerLabel')}
           value={issuer}
           inputMode="numeric"
           onChange={(e) => setIssuer(e.target.value)}
         />
         <Select
-          aria-label="Filter by invite state"
-          options={INVITE_STATES}
+          aria-label={t('admin.invites.filterByState')}
+          options={stateOptions}
           value={state}
           onValueChange={setState}
         />
-        <Button type="submit">Filter</Button>
+        <Button type="submit">{t('admin.invites.filter')}</Button>
       </form>
       <ActionStatus error={action.error ?? paged.error} done={action.done} />
       {!paged.error && !paged.loading && paged.items.length === 0 && (
-        <EmptyState title="No invites" description="Nothing matches this filter." />
+        <EmptyState
+          title={t('admin.invites.emptyTitle')}
+          description={t('admin.invites.emptyDescription')}
+        />
       )}
       {paged.items.length > 0 && (
         <div className="adm-table-wrap">
-          <table className="adm-table" aria-label="Invites">
+          <table className="adm-table" aria-label={t('admin.invites.tableLabel')}>
             <thead>
               <tr>
-                <th scope="col">Code</th>
-                <th scope="col">Issuer</th>
-                <th scope="col">State</th>
-                <th scope="col">Note</th>
-                <th scope="col">Created</th>
+                <th scope="col">{t('admin.invites.colCode')}</th>
+                <th scope="col">{t('admin.invites.colIssuer')}</th>
+                <th scope="col">{t('admin.invites.colState')}</th>
+                <th scope="col">{t('admin.invites.colNote')}</th>
+                <th scope="col">{t('admin.invites.colCreated')}</th>
                 <th scope="col">
-                  <span className="adm-vh">Actions</span>
+                  <span className="adm-vh">{t('admin.invites.colActions')}</span>
                 </th>
               </tr>
             </thead>
@@ -92,7 +98,10 @@ export function InvitesSection() {
               {paged.items.map((i) => (
                 <tr key={i.id}>
                   <td className="adm-mono">
-                    {i.code} {i.emergency && <Badge variant="warning">emergency</Badge>}
+                    {i.code}{' '}
+                    {i.emergency && (
+                      <Badge variant="warning">{t('admin.invites.emergencyWord')}</Badge>
+                    )}
                   </td>
                   <td className="adm-mono">{i.issuer_account_id}</td>
                   <td>
@@ -105,10 +114,10 @@ export function InvitesSection() {
                       <Button
                         size="sm"
                         variant="danger"
-                        aria-label={`Revoke invite ${i.code}`}
+                        aria-label={t('admin.invites.revokeAria', { code: i.code })}
                         onClick={() => setRevoke(i)}
                       >
-                        Revoke
+                        {t('admin.invites.revoke')}
                       </Button>
                     )}
                   </td>
@@ -123,18 +132,21 @@ export function InvitesSection() {
       <ConfirmDialog
         open={!!revoke}
         danger
-        title="Revoke this invite"
-        description={`The code ${revoke?.code ?? ''} stops working immediately. This cannot be undone.`}
-        confirmLabel="Revoke invite"
+        title={t('admin.invites.revokeTitle')}
+        description={t('admin.invites.revokeDescription', { code: revoke?.code ?? '' })}
+        confirmLabel={t('admin.invites.revokeConfirm')}
         loading={action.busy}
         onCancel={() => setRevoke(null)}
         onConfirm={() => {
           if (!revoke) return;
           void action
-            .run(async () => {
-              await api.revokeInvite(revoke.id);
-              return true;
-            }, `Invite ${revoke.code} was revoked.`)
+            .run(
+              async () => {
+                await api.revokeInvite(revoke.id);
+                return true;
+              },
+              t('admin.invites.revoked', { code: revoke.code }),
+            )
             .then((ok) => {
               if (ok) {
                 setRevoke(null);
@@ -148,38 +160,41 @@ export function InvitesSection() {
 }
 
 function Suspicion() {
+  const t = useT();
   const res = useResource('admin:suspicion', api.listSuspects);
   const [target, setTarget] = useState<api.SuspectPerson | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   return (
     <section className="ss-card" aria-labelledby="adm-susp-h" style={{ marginTop: 24 }}>
-      <h2 id="adm-susp-h">Suspicion</h2>
-      <p className="ss-sub">
-        People who invited banned accounts. At the freeze threshold their invite creation is frozen.
-      </p>
+      <h2 id="adm-susp-h">{t('admin.invites.suspicionTitle')}</h2>
+      <p className="ss-sub">{t('admin.invites.suspicionIntro')}</p>
       {notice && (
         <Notice variant="success" role="status">
           {notice}
         </Notice>
       )}
-      <Async res={res} label="Loading suspicion">
+      <Async res={res} label={t('admin.invites.loadingSuspicion')}>
         {(list) =>
           list.length === 0 ? (
-            <p className="ss-na">Nobody has raised suspicion.</p>
+            <p className="ss-na">{t('admin.invites.suspicionEmpty')}</p>
           ) : (
-            <ul className="ss-list" aria-label="Suspicious people">
+            <ul className="ss-list" aria-label={t('admin.invites.suspiciousPeople')}>
               {list.map((p) => (
                 <li key={p.person_id} className="ss-row">
                   <div className="ss-grow">
                     <div className="ss-name">
                       {p.accounts.map((a) => `@${a.username}`).join(', ') ||
-                        `Person ${p.person_id}`}{' '}
-                      {p.frozen && <Badge variant="danger">invites frozen</Badge>}
+                        t('admin.invites.personFallback', { id: p.person_id })}{' '}
+                      {p.frozen && (
+                        <Badge variant="danger">{t('admin.invites.invitesFrozen')}</Badge>
+                      )}
                     </div>
-                    <div className="ss-meta">Suspicion level {p.suspicion_level}</div>
+                    <div className="ss-meta">
+                      {t('admin.invites.suspicionLevel', { level: p.suspicion_level })}
+                    </div>
                   </div>
                   <Button size="sm" variant="secondary" onClick={() => setTarget(p)}>
-                    Clear suspicion
+                    {t('admin.invites.clearSuspicion')}
                   </Button>
                 </li>
               ))}
@@ -189,14 +204,14 @@ function Suspicion() {
       </Async>
       <ReasonDialog
         open={!!target}
-        title="Clear suspicion"
-        description="Resets the level to zero."
-        confirmLabel="Clear suspicion"
+        title={t('admin.invites.clearSuspicion')}
+        description={t('admin.invites.clearDescription')}
+        confirmLabel={t('admin.invites.clearSuspicion')}
         onCancel={() => setTarget(null)}
         onConfirm={async (reason) => {
           if (!target) return;
           await api.clearSuspicion(target.person_id, reason);
-          setNotice('Suspicion was cleared.');
+          setNotice(t('admin.invites.cleared'));
           setTarget(null);
           await res.reload();
         }}

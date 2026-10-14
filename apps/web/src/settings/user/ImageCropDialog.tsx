@@ -1,5 +1,6 @@
 import { Button, Modal, Notice, Slider } from '@sideroom/ui';
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { useT } from '../../i18n';
 import { cropWindow, loadImage, type LoadedImage } from './imageCrop';
 
 export interface ImageCropDialogProps {
@@ -32,6 +33,7 @@ export function ImageCropDialog({
   onCancel,
   onApply,
 }: ImageCropDialogProps) {
+  const t = useT();
   const [img, setImg] = useState<LoadedImage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -54,13 +56,13 @@ export function ImageCropDialog({
         else i.release();
       },
       (e: unknown) =>
-        live && setError(e instanceof Error ? e.message : 'Could not read the image.'),
+        live && setError(e instanceof Error ? e.message : t('settings.imageCrop.readError')),
     );
     return () => {
       live = false;
       loaded?.release();
     };
-  }, [open, file]);
+  }, [open, file, t]);
 
   const viewH = VIEW_W / aspect;
   const win = img ? cropWindow(img.width, img.height, aspect, zoom, pan.x, pan.y) : null;
@@ -104,7 +106,7 @@ export function ImageCropDialog({
       const mime = file.type === 'image/jpeg' ? 'image/jpeg' : 'image/png';
       onApply(img.render(win, outWidth, Math.round(outWidth / aspect), mime));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not crop the image.');
+      setError(e instanceof Error ? e.message : t('settings.imageCrop.cropError'));
     } finally {
       setBusy(false);
     }
@@ -115,26 +117,26 @@ export function ImageCropDialog({
       open={open}
       onClose={onCancel}
       title={title}
-      description="Drag the picture, or focus it and use the arrow keys, to choose what shows."
+      description={t('settings.imageCrop.description')}
       size="sm"
       footer={
         <>
           <Button variant="ghost" onClick={onCancel}>
-            Cancel
+            {t('settings.imageCrop.cancel')}
           </Button>
           <Button disabled={!img} loading={busy} onClick={apply}>
-            Apply
+            {t('settings.imageCrop.apply')}
           </Button>
         </>
       }
     >
       {error ? (
-        <Notice variant="danger" title="Couldn't use that image">
+        <Notice variant="danger" title={t('settings.imageCrop.errorTitle')}>
           {error}
         </Notice>
       ) : !img || !win ? (
         <p className="us-muted" role="status">
-          Loading the picture...
+          {t('settings.imageCrop.loading')}
         </p>
       ) : (
         <div className="us-stack">
@@ -142,7 +144,7 @@ export function ImageCropDialog({
             className="us-crop"
             style={{ width: VIEW_W, height: viewH }}
             role="group"
-            aria-label="Crop area"
+            aria-label={t('settings.imageCrop.cropArea')}
             tabIndex={0}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
@@ -163,7 +165,7 @@ export function ImageCropDialog({
             />
           </div>
           <Slider
-            label="Zoom"
+            label={t('settings.imageCrop.zoom')}
             min={1}
             max={4}
             step={0.05}

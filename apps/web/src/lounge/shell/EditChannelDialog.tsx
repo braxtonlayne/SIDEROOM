@@ -1,6 +1,7 @@
 import { Button, Modal, Spinner } from '@sideroom/ui';
 import { useNavigate } from '@tanstack/react-router';
 import { useCallback, useState } from 'react';
+import { useT } from '../../i18n';
 import { useStore } from '../../store';
 import * as api from '../../settings/server/api';
 import { FormContext, useResource, useViewer, type FormHandle } from '../../settings/server/hooks';
@@ -21,6 +22,7 @@ export function EditChannelDialog({
   channelId: string;
   onClose: () => void;
 }) {
+  const t = useT();
   const res = useResource(`channels:${guildId}`, () => api.listChannels(guildId));
   const viewer = useViewer(guildId);
   const [form, setForm] = useState<FormHandle | null>(null);
@@ -50,20 +52,24 @@ export function EditChannelDialog({
       open
       onClose={onClose}
       size="lg"
-      title={channel?.type === 4 ? 'Edit Category' : 'Edit Channel'}
+      title={
+        channel?.type === 4
+          ? t('lounge.editChannel.categoryTitle')
+          : t('lounge.editChannel.channelTitle')
+      }
       footer={
         <>
           {form?.dirty && (
             <Button variant="ghost" onClick={() => form.reset()}>
-              Reset
+              {t('lounge.editChannel.reset')}
             </Button>
           )}
           {form?.dirty && (
             <Button loading={form.saving} onClick={() => form.save()}>
-              Save Changes
+              {t('lounge.editChannel.saveChanges')}
             </Button>
           )}
-          {!form?.dirty && <Button onClick={onClose}>Done</Button>}
+          {!form?.dirty && <Button onClick={onClose}>{t('lounge.editChannel.done')}</Button>}
         </>
       }
     >
@@ -71,7 +77,7 @@ export function EditChannelDialog({
         <LoadError message={res.error} onRetry={() => void res.reload()} />
       ) : !channel ? (
         <p role="status">
-          <Spinner label="Loading channel" />
+          <Spinner label={t('lounge.editChannel.loading')} />
         </p>
       ) : (
         <FormContext.Provider value={setForm}>

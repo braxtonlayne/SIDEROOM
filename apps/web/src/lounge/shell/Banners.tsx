@@ -2,6 +2,7 @@ import { Button } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { ApiError, apiFetch } from '../../api/client';
 import { resendVerification } from '../../api/entrance';
+import { t, useT } from '../../i18n';
 import { useConnectionStatus } from '../../store';
 
 /** True while the browser reports no network. */
@@ -29,16 +30,16 @@ export function connectionMessage(
 ): { text: string; tone: 'info' | 'warn' } | null {
   if (!online)
     return {
-      text: 'You are offline. Showing what was loaded; messages will not send.',
+      text: t('lounge.banners.offline'),
       tone: 'warn',
     };
   switch (status) {
     case 'connecting':
-      return { text: 'Connecting…', tone: 'info' };
+      return { text: t('lounge.banners.connecting'), tone: 'info' };
     case 'reconnecting':
-      return { text: 'Reconnecting…', tone: 'warn' };
+      return { text: t('lounge.banners.reconnecting'), tone: 'warn' };
     case 'closed':
-      return { text: 'Disconnected. Trying again shortly.', tone: 'warn' };
+      return { text: t('lounge.banners.disconnected'), tone: 'warn' };
     default:
       return null;
   }
@@ -46,6 +47,7 @@ export function connectionMessage(
 
 /** Connection state banner (LNG-SHL-008): connecting, reconnecting, offline. */
 export function ConnectionBanner() {
+  useT(); // re-render on locale change; the message text comes from the module-level t
   const status = useConnectionStatus();
   const online = useOnline();
   const m = connectionMessage(status, online);
@@ -64,6 +66,7 @@ type Sent = 'idle' | 'sending' | 'sent' | 'wait' | 'error';
  * address is not confirmed; platform announcements and update prompts join it when their sources exist.
  */
 export function NoticesBar() {
+  const t = useT();
   const [verified, setVerified] = useState(true);
   const [state, setState] = useState<Sent>('idle');
   const [hidden, setHidden] = useState(false);
@@ -90,25 +93,30 @@ export function NoticesBar() {
     }
   };
   const text = {
-    idle: 'Verify your email to keep your account safe.',
-    sending: 'Sending a fresh link…',
-    sent: 'Check your inbox for the link.',
-    wait: 'A link was sent a moment ago. Try again in a minute.',
-    error: 'We could not send the link. Try again in a moment.',
+    idle: t('lounge.banners.verifyIdle'),
+    sending: t('lounge.banners.verifySending'),
+    sent: t('lounge.banners.verifySent'),
+    wait: t('lounge.banners.verifyWait'),
+    error: t('lounge.banners.verifyError'),
   }[state];
 
   return (
-    <div role="region" aria-label="Notices" className="lng-banner" data-tone="info">
+    <div
+      role="region"
+      aria-label={t('lounge.banners.notices')}
+      className="lng-banner"
+      data-tone="info"
+    >
       <span>{text}</span>
       {state !== 'sent' && state !== 'sending' && (
         <Button size="sm" variant="secondary" onClick={() => void resend()}>
-          Resend link
+          {t('lounge.banners.resendLink')}
         </Button>
       )}
       <button
         type="button"
         className="lng-icon-btn"
-        aria-label="Dismiss notice"
+        aria-label={t('lounge.banners.dismissNotice')}
         onClick={() => setHidden(true)}
       >
         {'×'}

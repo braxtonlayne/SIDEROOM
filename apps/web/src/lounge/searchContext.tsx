@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../api/client';
+import { t } from '../i18n';
 import { cmpId } from '../store/reducer';
 
 /** The messages next to a search hit (LNG-SRC-005): one before and one after, read when the row is on screen. */
@@ -28,8 +29,9 @@ const toNeighbor = (m: Wire | undefined): Neighbor | null =>
   m
     ? {
         id: m.id,
-        author: m.author?.global_name || m.author?.username || 'Someone',
-        text: m.content?.trim() || (m.attachments?.length ? 'Attachment' : ''),
+        author: m.author?.global_name || m.author?.username || t('lounge.searchContext.someone'),
+        text:
+          m.content?.trim() || (m.attachments?.length ? t('lounge.searchContext.attachment') : ''),
       }
     : null;
 

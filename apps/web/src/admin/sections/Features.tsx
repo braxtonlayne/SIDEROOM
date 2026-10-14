@@ -1,9 +1,11 @@
 import { Badge, Button, Notice, Switch } from '@sideroom/ui';
 import { useState } from 'react';
 import * as api from '../api';
+import { useT } from '../../i18n';
 import { Async, ReasonDialog, SectionHeader, useResource } from '../ui';
 
 export function FeaturesSection() {
+  const t = useT();
   const res = useResource('admin:features', api.listFeatures);
   const [target, setTarget] = useState<{ f: api.FeatureView; enabled: boolean | 'reset' } | null>(
     null,
@@ -13,33 +15,33 @@ export function FeaturesSection() {
   return (
     <>
       <SectionHeader
-        title="Feature modules"
-        description="Platform-wide kill switches. A disabled feature is hidden from everyone, whatever servers or members have set."
+        title={t('admin.features.title')}
+        description={t('admin.features.description')}
       />
       {notice && (
         <Notice variant="success" role="status" className="ss-status">
           {notice}
         </Notice>
       )}
-      <Async res={res} label="Loading features">
+      <Async res={res} label={t('admin.features.loading')}>
         {(list) =>
           list.length === 0 ? (
-            <p className="ss-na">No feature modules are registered yet.</p>
+            <p className="ss-na">{t('admin.features.empty')}</p>
           ) : (
-            <ul className="ss-list" aria-label="Feature modules">
+            <ul className="ss-list" aria-label={t('admin.features.listLabel')}>
               {list.map((f) => (
                 <li key={f.id} className="ss-row">
                   <div className="ss-grow">
                     <div className="ss-name">
                       {f.name} <Badge>{f.section}</Badge>{' '}
                       {f.enabled !== f.default_enabled && (
-                        <Badge variant="warning">overridden</Badge>
+                        <Badge variant="warning">{t('admin.features.overridden')}</Badge>
                       )}
                     </div>
                     <div className="ss-meta">{f.description}</div>
                   </div>
                   <Switch
-                    label={`${f.name} enabled`}
+                    label={t('admin.features.enabledLabel', { name: f.name })}
                     checked={f.enabled}
                     onChange={(e) => setTarget({ f, enabled: e.target.checked })}
                   />
@@ -47,10 +49,10 @@ export function FeaturesSection() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      aria-label={`Reset ${f.name} to its default`}
+                      aria-label={t('admin.features.resetAria', { name: f.name })}
                       onClick={() => setTarget({ f, enabled: 'reset' })}
                     >
-                      Reset
+                      {t('admin.features.reset')}
                     </Button>
                   )}
                 </li>
@@ -63,18 +65,28 @@ export function FeaturesSection() {
         open={!!target}
         title={
           target?.enabled === 'reset'
-            ? `Reset ${target.f.name}`
-            : `${target?.enabled ? 'Enable' : 'Disable'} ${target?.f.name ?? ''}`
+            ? t('admin.features.resetTitle', { name: target.f.name })
+            : t(target?.enabled ? 'admin.features.enableTitle' : 'admin.features.disableTitle', {
+                name: target?.f.name ?? '',
+              })
         }
         description={
           target?.enabled === false
-            ? 'People lose access to this feature immediately.'
+            ? t('admin.features.disableDescription')
             : target?.enabled === 'reset'
-              ? `Returns to the default (${target.f.default_enabled ? 'on' : 'off'}).`
+              ? t('admin.features.resetDescription', {
+                  state: target.f.default_enabled
+                    ? t('admin.features.stateOn')
+                    : t('admin.features.stateOff'),
+                })
               : undefined
         }
         confirmLabel={
-          target?.enabled === 'reset' ? 'Reset' : target?.enabled ? 'Enable' : 'Disable'
+          target?.enabled === 'reset'
+            ? t('admin.features.reset')
+            : target?.enabled
+              ? t('admin.features.enable')
+              : t('admin.features.disable')
         }
         danger={target?.enabled === false}
         reasonOptional
@@ -85,7 +97,7 @@ export function FeaturesSection() {
             ...(target.enabled === 'reset' ? { reset_enabled: true } : { enabled: target.enabled }),
             ...(reason ? { reason } : {}),
           });
-          setNotice(`${target.f.name} updated.`);
+          setNotice(t('admin.features.updated', { name: target.f.name }));
           setTarget(null);
           await res.reload();
         }}

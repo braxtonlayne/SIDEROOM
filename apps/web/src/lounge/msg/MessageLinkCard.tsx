@@ -1,6 +1,7 @@
 import { Avatar } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { apiFetch } from '../../api/client';
+import { useT } from '../../i18n';
 import { useAllChannels } from '../data';
 import { useLoungeGotoMessage } from '../nav';
 
@@ -43,6 +44,7 @@ interface Linked {
 
 /** Preview of a linked message (LNG-MSGUI-019): author, a short excerpt and where it lives. */
 export function MessageLinkCard({ link }: { link: MessageLinkRef }) {
+  const t = useT();
   const [msg, setMsg] = useState<Linked | null | 'denied'>(null);
   const channels = useAllChannels();
   const goto = useLoungeGotoMessage();
@@ -60,13 +62,23 @@ export function MessageLinkCard({ link }: { link: MessageLinkRef }) {
 
   // Not visible to the viewer, or deleted: no card, the link text stays.
   if (!msg || msg === 'denied') return null;
-  const name = msg.author?.global_name || msg.author?.username || 'Someone';
-  const text = msg.content?.trim() || (msg.attachments?.length ? 'Click to see attachment' : '');
+  const name =
+    msg.author?.global_name || msg.author?.username || t('lounge.messageLinkCard.someone');
+  const text =
+    msg.content?.trim() ||
+    (msg.attachments?.length ? t('lounge.messageLinkCard.clickToSeeAttachment') : '');
   return (
-    <section className="lng-embed lng-msglink" aria-label={`Linked message from ${name}`}>
+    <section
+      className="lng-embed lng-msglink"
+      aria-label={t('lounge.messageLinkCard.linkedFrom', { name })}
+    >
       <div className="lng-embed-main">
         <div className="lng-embed-provider">
-          {link.guildId === '@me' ? 'Direct message' : channel ? `#${channel.name}` : 'Message'}
+          {link.guildId === '@me'
+            ? t('lounge.messageLinkCard.directMessage')
+            : channel
+              ? `#${channel.name}`
+              : t('lounge.messageLinkCard.message')}
         </div>
         <div className="lng-msglink-head">
           <Avatar name={name} size={24} aria-hidden="true" />
@@ -83,7 +95,7 @@ export function MessageLinkCard({ link }: { link: MessageLinkRef }) {
           className="lng-link-btn"
           onClick={() => goto(link.guildId, link.channelId, link.messageId)}
         >
-          Jump to message
+          {t('lounge.messageLinkCard.jumpToMessage')}
         </button>
       </div>
     </section>

@@ -1,5 +1,6 @@
 import { Spinner, useToast } from '@sideroom/ui';
 import { useEffect, useRef, useState } from 'react';
+import { useT } from '../../i18n';
 import type { RawComponent } from '../../store/types';
 import { useChannels, useMembers, useRoles, type Snowflake } from '../data';
 import { isHttpUrl } from './format';
@@ -27,6 +28,7 @@ export function ComponentRows({
   rows: RawComponent[];
   guildId?: Snowflake | undefined;
 }) {
+  const t = useT();
   const toast = useToast();
   const members = useMembers(guildId);
   const roles = useRoles(guildId);
@@ -41,7 +43,11 @@ export function ComponentRows({
     clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       setBusy(null);
-      toast.show({ title: 'This interaction failed', variant: 'danger', duration: 3000 });
+      toast.show({
+        title: t('lounge.components.interactionFailed'),
+        variant: 'danger',
+        duration: 3000,
+      });
     }, interactionConfig.timeoutMs);
   };
 
@@ -73,7 +79,12 @@ export function ComponentRows({
         .filter((r) => r.type === 1)
         .slice(0, 5)
         .map((row, i) => (
-          <div key={i} className="lng-component-row" role="group" aria-label="Message actions">
+          <div
+            key={i}
+            className="lng-component-row"
+            role="group"
+            aria-label={t('lounge.components.messageActions')}
+          >
             {(row.components ?? []).slice(0, 5).map((c, j) => {
               const key = `${i}:${j}`;
               if (c.type === 2) {
@@ -89,7 +100,7 @@ export function ComponentRows({
                       rel="noreferrer noopener"
                       aria-disabled={c.disabled || undefined}
                     >
-                      {c.label ?? 'Link'}
+                      {c.label ?? t('lounge.components.linkDefault')}
                     </a>
                   ) : null;
                 }
@@ -103,13 +114,13 @@ export function ComponentRows({
                     aria-busy={busy === key || undefined}
                     onClick={() => interact(key)}
                   >
-                    {busy === key && <Spinner label="Waiting for the app" />}
-                    {c.label ?? 'Button'}
+                    {busy === key && <Spinner label={t('lounge.components.waitingForApp')} />}
+                    {c.label ?? t('lounge.components.buttonDefault')}
                   </button>
                 );
               }
               if (SELECT_TYPES.includes(c.type)) {
-                const label = c.placeholder ?? 'Select an option';
+                const label = c.placeholder ?? t('lounge.components.selectPlaceholder');
                 return (
                   <span key={j} className="lng-cselect-wrap">
                     <select
@@ -130,7 +141,7 @@ export function ComponentRows({
                         </option>
                       ))}
                     </select>
-                    {busy === key && <Spinner label="Waiting for the app" />}
+                    {busy === key && <Spinner label={t('lounge.components.waitingForApp')} />}
                   </span>
                 );
               }

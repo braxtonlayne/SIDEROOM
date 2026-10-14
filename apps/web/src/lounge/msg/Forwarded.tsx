@@ -1,5 +1,6 @@
 import type { Resolvers } from '@sideroom/markdown-react';
 import { Icon } from '@sideroom/ui';
+import { useT } from '../../i18n';
 import type { ForwardSnapshot } from '../data';
 import { useAllChannels } from '../data';
 import { useLoungeGotoMessage } from '../nav';
@@ -16,6 +17,7 @@ export function ForwardedFrame({
   snapshot: ForwardSnapshot;
   resolvers?: Resolvers;
 }) {
+  const t = useT();
   const channelsByGuild = useAllChannels();
   const goto = useLoungeGotoMessage();
   const src = snapshot.source;
@@ -26,13 +28,13 @@ export function ForwardedFrame({
         .find((x) => x.c.id === src.channelId)
     : undefined;
   return (
-    <div className="lng-forward" role="group" aria-label="Forwarded message">
+    <div className="lng-forward" role="group" aria-label={t('lounge.forwarded.label')}>
       <div className="lng-forward-label">
-        <Icon name="arrow-up-right" size={16} /> Forwarded
+        <Icon name="arrow-up-right" size={16} /> {t('lounge.forwarded.forwarded')}
         {src && known && (
           <>
             {' '}
-            from{' '}
+            {t('lounge.forwarded.from')}{' '}
             <button
               type="button"
               className="lng-link-btn"

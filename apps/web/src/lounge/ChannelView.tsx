@@ -1,6 +1,7 @@
 import { EmptyState, Icon } from '@sideroom/ui';
 import { useRef, useState } from 'react';
 import type { DragEvent } from 'react';
+import { useT } from '../i18n';
 import { ChannelHeader } from './ChannelHeader';
 import { CHANNEL_ICON } from './ChannelSidebar';
 import { Composer, type ComposerHandle } from './Composer';
@@ -31,6 +32,7 @@ export interface ChannelViewProps {
 
 /** One channel or DM: header, message list, composer. Remount (key) per channel. */
 export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
+  const t = useT();
   const isDm = guildId === HOME;
   const channels = useChannels(isDm ? undefined : guildId);
   const dms = useDms();
@@ -60,8 +62,8 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
   if (!channel && !dm) {
     return (
       <EmptyState
-        title="This channel doesn't exist"
-        description="It may have been deleted, or you may not have access."
+        title={t('lounge.channelView.missingTitle')}
+        description={t('lounge.channelView.missingDescription')}
       />
     );
   }
@@ -70,7 +72,9 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
   if (channel?.type === 'voice') return <VoiceChannelView channel={channel} onBack={onBack} />;
 
   const title =
-    isDm && dm ? dmTitle(dm, (id) => users[id]?.displayName ?? 'Unknown') : (channel?.name ?? '');
+    isDm && dm
+      ? dmTitle(dm, (id) => users[id]?.displayName ?? t('lounge.channelView.unknown'))
+      : (channel?.name ?? '');
   const target = isDm ? title : `#${title}`;
 
   const editLast = () => {
@@ -113,7 +117,7 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
         membersOpen={membersOpen}
         onToggleMembers={() => setMembersOpen(!membersOpen)}
         onBack={onBack}
-        searchLabel={`Search ${target}`}
+        searchLabel={t('lounge.channelView.search', { target })}
         guildId={guildId}
         channelId={channelId}
       />
@@ -122,11 +126,11 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
         <div className="lng-agegate-wrap">
           {gate.state === 'wait' ? (
             <p role="status" className="lng-muted">
-              Checking…
+              {t('lounge.channelView.checking')}
             </p>
           ) : gate.state === 'ask' ? (
             <AgeConfirmPrompt
-              title={`#${title} is age-restricted`}
+              title={t('lounge.channelView.restrictedTitle', { title })}
               busy={gate.busy}
               error={gate.error}
               onAnswer={(over18) =>
@@ -137,8 +141,8 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
             />
           ) : (
             <EmptyState
-              title="Age-restricted channel"
-              description="You said you are under 18, so this channel stays hidden. You can change your answer in User Settings."
+              title={t('lounge.channelView.restrictedChannel')}
+              description={t('lounge.channelView.restrictedDescription')}
             />
           )}
         </div>
@@ -197,7 +201,7 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
       {dragging && (
         <div className="lng-drop" aria-hidden="true">
           <Icon name="upload" size={24} />
-          <strong>Upload to {target}</strong>
+          <strong>{t('lounge.channelView.uploadTo', { target })}</strong>
         </div>
       )}
     </section>

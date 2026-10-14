@@ -1,6 +1,7 @@
 import { Button, Modal, Spinner, TextInput } from '@sideroom/ui';
 import { useEffect, useState, type FormEvent } from 'react';
 import { ApiError, apiFetch } from '../../api/client';
+import { useT } from '../../i18n';
 import { useStore } from '../../store';
 import { useMembers } from '../data';
 
@@ -16,6 +17,7 @@ export function NoteDialog({
   name: string;
   onClose: () => void;
 }) {
+  const t = useT();
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -44,7 +46,7 @@ export function NoteDialog({
       });
       onClose();
     } catch {
-      setError('Could not save the note. Try again.');
+      setError(t('lounge.userDialogs.noteError'));
       setBusy(false);
     }
   };
@@ -54,17 +56,17 @@ export function NoteDialog({
       open
       onClose={onClose}
       size="sm"
-      title={`Note for ${name}`}
-      description="Only you can see this."
+      title={t('lounge.userDialogs.noteTitle', { name })}
+      description={t('lounge.userDialogs.noteHint')}
     >
       {loading ? (
         <p role="status">
-          <Spinner label="Loading note" />
+          <Spinner label={t('lounge.userDialogs.noteLoading')} />
         </p>
       ) : (
         <form className="lng-form" onSubmit={(e) => void save(e)}>
           <TextInput
-            label="Note"
+            label={t('lounge.userDialogs.noteLabel')}
             value={note}
             maxLength={NOTE_MAX}
             autoFocus
@@ -73,10 +75,10 @@ export function NoteDialog({
           />
           <div className="lng-form-actions">
             <Button variant="ghost" onClick={onClose}>
-              Cancel
+              {t('lounge.userDialogs.cancel')}
             </Button>
             <Button type="submit" loading={busy}>
-              Save
+              {t('lounge.userDialogs.save')}
             </Button>
           </div>
         </form>
@@ -95,6 +97,7 @@ export function NicknameDialog({
   userId: string;
   onClose: () => void;
 }) {
+  const t = useT();
   const member = useMembers(guildId).find((m) => m.user.id === userId);
   const [nick, setNick] = useState(member?.nick ?? '');
   const [busy, setBusy] = useState(false);
@@ -121,18 +124,18 @@ export function NicknameDialog({
     } catch (err) {
       setError(
         err instanceof ApiError && err.status === 403
-          ? 'You do not have permission to change this nickname.'
-          : 'Could not change the nickname. Try again.',
+          ? t('lounge.userDialogs.nickForbidden')
+          : t('lounge.userDialogs.nickError'),
       );
       setBusy(false);
     }
   };
 
   return (
-    <Modal open onClose={onClose} size="sm" title="Change Nickname">
+    <Modal open onClose={onClose} size="sm" title={t('lounge.userDialogs.nickTitle')}>
       <form className="lng-form" onSubmit={(e) => void save(e)}>
         <TextInput
-          label="Nickname"
+          label={t('lounge.userDialogs.nickLabel')}
           value={nick}
           maxLength={32}
           placeholder={member?.user.displayName ?? ''}
@@ -143,14 +146,14 @@ export function NicknameDialog({
         <div className="lng-form-actions">
           {member?.nick && (
             <Button variant="ghost" onClick={() => setNick('')}>
-              Reset Nickname
+              {t('lounge.userDialogs.nickReset')}
             </Button>
           )}
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t('lounge.userDialogs.cancel')}
           </Button>
           <Button type="submit" loading={busy}>
-            Save
+            {t('lounge.userDialogs.save')}
           </Button>
         </div>
       </form>
