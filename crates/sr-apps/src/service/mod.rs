@@ -90,7 +90,6 @@ pub struct UpdateInput {
 }
 
 /// A created application with its one-time secrets.
-#[derive(Debug)]
 pub struct Created {
     /// The application.
     pub application: Application,
@@ -909,4 +908,10 @@ pub struct InstallRequest {
     pub scopes: Vec<Scope>,
     /// Requested permission bits.
     pub requested_permissions: u64,
+}
+
+impl std::fmt::Debug for Created {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Created(..)")
+    }
 }

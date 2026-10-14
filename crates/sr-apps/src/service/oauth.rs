@@ -82,7 +82,7 @@ impl ValidatedAuthorize {
 }
 
 /// How a client authenticated at the token endpoints.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ClientCredentials {
     /// `client_id` as presented.
     pub client_id: String,
@@ -91,7 +91,7 @@ pub struct ClientCredentials {
 }
 
 /// Success body of `/oauth2/token`.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct TokenResponse {
     /// Access token (shown once).
     pub access_token: String,
@@ -612,5 +612,17 @@ impl AppsService {
             .await?
             .ok_or(AppsError::NotFound("grant"))?;
         self.repo.revoke_grant(g.id).await
+    }
+}
+
+impl std::fmt::Debug for ClientCredentials {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ClientCredentials(..)")
+    }
+}
+
+impl std::fmt::Debug for TokenResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("TokenResponse(..)")
     }
 }

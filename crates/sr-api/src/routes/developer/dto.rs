@@ -151,7 +151,7 @@ impl ApplicationObject {
 }
 
 /// `POST /applications` response: the secrets are shown once.
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Serialize, ToSchema)]
 pub struct CreatedApplication {
     pub application: ApplicationObject,
     pub client_secret: String,
@@ -192,17 +192,17 @@ pub struct PatchBotBody {
 }
 
 /// Re-confirmation of the signed-in user's password.
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Deserialize, ToSchema)]
 pub struct PasswordBody {
     pub password: String,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Serialize, ToSchema)]
 pub struct ResetSecretResult {
     pub client_secret: String,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Serialize, ToSchema)]
 pub struct ResetTokenResult {
     pub token: String,
 }
@@ -506,7 +506,7 @@ pub struct OAuthMe {
     pub user: Option<Value>,
 }
 
-#[derive(Debug, Default, Deserialize, ToSchema)]
+#[derive(Default, Deserialize, ToSchema)]
 pub struct TokenRequestBody {
     pub grant_type: Option<String>,
     pub code: Option<String>,
@@ -519,7 +519,7 @@ pub struct TokenRequestBody {
     pub token_type_hint: Option<String>,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Serialize, ToSchema)]
 pub struct TokenResponseBody {
     pub access_token: String,
     pub token_type: String,
@@ -599,4 +599,40 @@ pub struct CallbackBody {
     #[serde(default)]
     #[schema(value_type = Option<Object>)]
     pub data: Option<Value>,
+}
+
+impl std::fmt::Debug for CreatedApplication {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("CreatedApplication(..)")
+    }
+}
+
+impl std::fmt::Debug for ResetSecretResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ResetSecretResult(..)")
+    }
+}
+
+impl std::fmt::Debug for ResetTokenResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ResetTokenResult(..)")
+    }
+}
+
+impl std::fmt::Debug for TokenRequestBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("TokenRequestBody(..)")
+    }
+}
+
+impl std::fmt::Debug for TokenResponseBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("TokenResponseBody(..)")
+    }
+}
+
+impl std::fmt::Debug for PasswordBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("PasswordBody(..)")
+    }
 }

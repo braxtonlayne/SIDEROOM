@@ -4949,6 +4949,372 @@
         ]
       }
     },
+    "/admin/developers/apps/{application_id}/suspend": {
+      "post": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Staff: switch an application off.",
+        "operationId": "admin_suspend",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuspendBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationObject"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/developers/apps/{application_id}/unsuspend": {
+      "post": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Staff: lift a suspension.",
+        "operationId": "admin_unsuspend",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuspendBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationObject"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/developers/requests": {
+      "get": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Staff: developer requests.",
+        "operationId": "admin_requests",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Default `pending`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 50.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Return rows older than this id.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DeveloperRequestAdmin"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/developers/requests/{request_id}/decision": {
+      "post": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Staff: approve or reject a developer request.",
+        "operationId": "admin_decide_request",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "description": "Request snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeveloperRequestObject"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/developers/versions": {
+      "get": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Staff: version queue.",
+        "operationId": "admin_versions",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Default `pending`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 50.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Return rows older than this id.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AppVersionAdmin"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/developers/versions/{version_id}/decision": {
+      "post": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Staff: approve, reject or send back a version.",
+        "operationId": "admin_decide_version",
+        "parameters": [
+          {
+            "name": "version_id",
+            "in": "path",
+            "description": "Version snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideVersionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppVersionObject"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/features": {
       "get": {
         "tags": [
@@ -10499,6 +10865,1661 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/applications": {
+      "get": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "My applications.",
+        "operationId": "list_apps",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApplicationObject"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Create an application and its bot.",
+        "operationId": "create_app",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApplicationBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedApplication"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/applications/@me": {
+      "get": {
+        "tags": [
+          "bot"
+        ],
+        "summary": "The bot's own application (public fields).",
+        "operationId": "current_application",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationObject"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}": {
+      "get": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "One of my applications.",
+        "operationId": "get_app",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationObject"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Delete my application and remove its bot everywhere.",
+        "operationId": "delete_app",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Change my application's settings.",
+        "operationId": "patch_app",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchApplicationBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}/audit-log": {
+      "get": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "The application's audit trail.",
+        "operationId": "audit_log",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditEntryObject"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}/bot": {
+      "patch": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Rename the bot account.",
+        "operationId": "patch_bot",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchBotBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}/bot/reset-token": {
+      "post": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Replace the bot token (shown once).",
+        "operationId": "reset_token",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResetTokenResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}/commands": {
+      "get": {
+        "tags": [
+          "bot"
+        ],
+        "summary": "Global commands of the application.",
+        "operationId": "list_global",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "bot"
+        ],
+        "summary": "Replace all global commands.",
+        "operationId": "overwrite_global",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "bot"
+        ],
+        "summary": "Create (or update by name) a global command.",
+        "operationId": "create_global",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}/commands/{command_id}": {
+      "get": {
+        "tags": [
+          "bot"
+        ],
+        "summary": "One global command.",
+        "operationId": "get_global",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "command_id",
+            "in": "path",
+            "description": "Command snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "bot"
+        ],
+        "summary": "Delete a global command.",
+        "operationId": "delete_global",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "command_id",
+            "in": "path",
+            "description": "Command snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "bot"
+        ],
+        "summary": "Modify a global command.",
+        "operationId": "patch_global",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "command_id",
+            "in": "path",
+            "description": "Command snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}/guilds/{guild_id}/commands": {
+      "get": {
+        "tags": [
+          "bot"
+        ],
+        "summary": "Commands of the application in one server.",
+        "operationId": "list_guild",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "bot"
+        ],
+        "summary": "Replace all commands of one server.",
+        "operationId": "overwrite_guild",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "bot"
+        ],
+        "summary": "Create (or update by name) a server command.",
+        "operationId": "create_guild",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}/guilds/{guild_id}/commands/permissions": {
+      "get": {
+        "tags": [
+          "bot"
+        ],
+        "summary": "Overwrites of every command in a server.",
+        "operationId": "guild_permissions",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}/guilds/{guild_id}/commands/{command_id}": {
+      "get": {
+        "tags": [
+          "bot"
+        ],
+        "summary": "One server command.",
+        "operationId": "get_guild",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "command_id",
+            "in": "path",
+            "description": "Command snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "bot"
+        ],
+        "summary": "Delete a server command.",
+        "operationId": "delete_guild",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "command_id",
+            "in": "path",
+            "description": "Command snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "bot"
+        ],
+        "summary": "Modify a server command.",
+        "operationId": "patch_guild",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "command_id",
+            "in": "path",
+            "description": "Command snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}/guilds/{guild_id}/commands/{command_id}/permissions": {
+      "get": {
+        "tags": [
+          "bot"
+        ],
+        "summary": "Overwrites of one command.",
+        "operationId": "command_permissions",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "command_id",
+            "in": "path",
+            "description": "Command snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "bot"
+        ],
+        "summary": "Replace the overwrites of one command. Needs a bearer token with\n`applications.commands.permissions.update`, issued to this application, of a user who\nmanages the server. Bot tokens and sessions are refused (as on Discord).",
+        "operationId": "set_command_permissions",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "command_id",
+            "in": "path",
+            "description": "Command snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}/installs": {
+      "get": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Servers the application is installed in.",
+        "operationId": "installs",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InstallObject"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}/reset-secret": {
+      "post": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Replace the client secret (shown once).",
+        "operationId": "reset_secret",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResetSecretResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}/versions": {
+      "get": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Release versions of an application.",
+        "operationId": "list_versions",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AppVersionObject"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Submit the current settings for release review.",
+        "operationId": "submit_version",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitVersionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppVersionObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}/versions/{version_id}/withdraw": {
+      "post": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Withdraw a pending version.",
+        "operationId": "withdraw_version",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "path",
+            "description": "Version snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppVersionObject"
+                }
+              }
+            }
+          },
+          "409": {
             "description": "",
             "content": {
               "application/json": {
@@ -18831,6 +20852,145 @@
         ]
       }
     },
+    "/developers/apply": {
+      "post": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Ask to build apps.",
+        "operationId": "apply",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeveloperRequestObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/developers/status": {
+      "get": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Am I a developer, and where is my request?",
+        "operationId": "status",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeveloperStatus"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/gateway": {
+      "get": {
+        "tags": [
+          "bot"
+        ],
+        "summary": "Where to connect (Discord's unauthenticated `GET /gateway`).",
+        "operationId": "gateway",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayInfo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gateway/bot": {
+      "get": {
+        "tags": [
+          "bot"
+        ],
+        "summary": "Gateway URL and session limits for a bot. There is no sharding: `shards` is always 1.",
+        "operationId": "gateway_bot",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayBotInfo"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          }
+        ]
+      }
+    },
     "/guilds": {
       "post": {
         "tags": [
@@ -23605,6 +25765,139 @@
         ]
       }
     },
+    "/interactions": {
+      "post": {
+        "tags": [
+          "bot"
+        ],
+        "summary": "Use an application: run a command, press a component, ask for autocomplete, submit a modal.",
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInteractionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/interactions/{interaction_id}/{token}/callback": {
+      "post": {
+        "tags": [
+          "bot"
+        ],
+        "summary": "Answer an interaction. Within 3 seconds of its creation, once.",
+        "operationId": "callback",
+        "parameters": [
+          {
+            "name": "interaction_id",
+            "in": "path",
+            "description": "Interaction snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "token",
+            "in": "path",
+            "description": "Interaction token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CallbackBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/invites/{code}": {
       "get": {
         "tags": [
@@ -25128,6 +27421,401 @@
             }
           },
           "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/oauth2/@me": {
+      "get": {
+        "tags": [
+          "oauth2"
+        ],
+        "summary": "The token's application, scopes, expiry and (with `identify`) user.",
+        "operationId": "me",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthMe"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          }
+        ]
+      }
+    },
+    "/oauth2/authorize": {
+      "get": {
+        "tags": [
+          "oauth2"
+        ],
+        "summary": "What the consent screen shows. An invalid client, redirect URI or scope is a 400 with a\nfield error, never a redirect.",
+        "operationId": "authorize_info",
+        "parameters": [
+          {
+            "name": "client_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "redirect_uri",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "response_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "code_challenge",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "code_challenge_method",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "permissions",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "guild_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizeInfo"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "oauth2"
+        ],
+        "summary": "Approve or deny an authorization request. Returns where to send the browser.",
+        "operationId": "authorize",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthorizeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorizeResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/oauth2/introspect": {
+      "post": {
+        "tags": [
+          "oauth2"
+        ],
+        "summary": "Token introspection (RFC 7662) for the client the token was issued to.",
+        "operationId": "introspect",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntrospectionBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/oauth2/token": {
+      "post": {
+        "tags": [
+          "oauth2"
+        ],
+        "summary": "Exchange a code or a refresh token for tokens.",
+        "operationId": "token",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponseBody"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/oauth2/token/revoke": {
+      "post": {
+        "tags": [
+          "oauth2"
+        ],
+        "summary": "Revoke an access or refresh token (RFC 7009). Always 200 for an authenticated client.",
+        "operationId": "revoke",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/oauth2/tokens": {
+      "get": {
+        "tags": [
+          "oauth2"
+        ],
+        "summary": "Applications the user authorized.",
+        "operationId": "list_grants",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuthorizedApp"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/oauth2/tokens/{grant_id}": {
+      "delete": {
+        "tags": [
+          "oauth2"
+        ],
+        "summary": "Revoke a grant and every token of it.",
+        "operationId": "revoke_grant",
+        "parameters": [
+          {
+            "name": "grant_id",
+            "in": "path",
+            "description": "Grant snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
             "description": "",
             "content": {
               "application/json": {
@@ -29347,6 +32035,195 @@
         ]
       }
     },
+    "/webhooks/{application_id}/{token}/messages/{message_id}": {
+      "get": {
+        "tags": [
+          "bot"
+        ],
+        "summary": "Read a message of the interaction.",
+        "operationId": "get_message",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "token",
+            "in": "path",
+            "description": "Interaction token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "message_id",
+            "in": "path",
+            "description": "Message snowflake or @original",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "bot"
+        ],
+        "summary": "Delete a message of the interaction.",
+        "operationId": "delete_message",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "token",
+            "in": "path",
+            "description": "Interaction token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "message_id",
+            "in": "path",
+            "description": "Message snowflake or @original",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "bot"
+        ],
+        "summary": "Edit a message of the interaction. The first edit of `@original` after a deferral creates\nthe message.",
+        "operationId": "edit_message",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "token",
+            "in": "path",
+            "description": "Interaction token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "message_id",
+            "in": "path",
+            "description": "Message snowflake or @original",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/webhooks/{webhook_id}": {
       "get": {
         "tags": [
@@ -30314,6 +33191,233 @@
           }
         }
       },
+      "AppVersionAdmin": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AppVersionObject"
+          },
+          {
+            "type": "object",
+            "required": [
+              "application"
+            ],
+            "properties": {
+              "application": {
+                "$ref": "#/components/schemas/VersionApplication"
+              }
+            }
+          }
+        ],
+        "description": "A version in the staff queue."
+      },
+      "AppVersionObject": {
+        "type": "object",
+        "required": [
+          "id",
+          "application_id",
+          "version",
+          "state",
+          "manifest",
+          "needs_review",
+          "needs_review_reasons",
+          "diff",
+          "created_at"
+        ],
+        "properties": {
+          "application_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "decided_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "diff": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "`[{key, old, new}]` against the last approved manifest."
+          },
+          "id": {
+            "type": "string"
+          },
+          "manifest": {
+            "type": "object"
+          },
+          "needs_review": {
+            "type": "boolean"
+          },
+          "needs_review_reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewer_note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "description": "`pending`, `approved`, `rejected`, `changes_requested` or `withdrawn`."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ApplicationObject": {
+        "type": "object",
+        "description": "An application. The client secret is never part of it.",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "tags",
+          "bot_public",
+          "bot_require_code_grant",
+          "flags",
+          "release_state",
+          "owner",
+          "bot",
+          "privileged_intents",
+          "created_at"
+        ],
+        "properties": {
+          "bot": {
+            "$ref": "#/components/schemas/BotUserObject"
+          },
+          "bot_public": {
+            "type": "boolean"
+          },
+          "bot_require_code_grant": {
+            "type": "boolean"
+          },
+          "client_secret_hint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Last four characters of the client secret (owner view only)."
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "flags": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Discord application flags (`GATEWAY_*` intent bits).",
+            "minimum": 0
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Icon hash, served at `/cdn/avatars/{bot.id}/{hash}.png`."
+          },
+          "id": {
+            "type": "string"
+          },
+          "install_params": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/InstallParamsObject",
+                "description": "Owner view only."
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/OwnerObject"
+          },
+          "privacy_policy_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "privileged_intents": {
+            "$ref": "#/components/schemas/IntentsObject"
+          },
+          "redirect_uris": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Owner view only."
+          },
+          "release_state": {
+            "type": "string",
+            "description": "`development`, `in_review`, `released` or `suspended`."
+          },
+          "suspended_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Staff view of a suspension."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "terms_of_service_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ApplyBody": {
+        "type": "object",
+        "required": [
+          "pitch",
+          "accepted_terms"
+        ],
+        "properties": {
+          "accepted_terms": {
+            "type": "boolean"
+          },
+          "pitch": {
+            "type": "string"
+          },
+          "prior_work": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "AppointBody": {
         "type": "object",
         "required": [
@@ -30865,6 +33969,194 @@
           }
         }
       },
+      "AuthorizeBody": {
+        "type": "object",
+        "required": [
+          "client_id",
+          "authorize"
+        ],
+        "properties": {
+          "authorize": {
+            "type": "boolean"
+          },
+          "client_id": {
+            "type": "string"
+          },
+          "code_challenge": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "code_challenge_method": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "guild_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "permissions": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "redirect_uri": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "response_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scope": {
+            "type": "string"
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "AuthorizeInfo": {
+        "type": "object",
+        "description": "Consent screen data.",
+        "required": [
+          "application",
+          "scopes",
+          "user",
+          "guilds",
+          "permissions",
+          "already_authorized"
+        ],
+        "properties": {
+          "already_authorized": {
+            "type": "boolean"
+          },
+          "application": {
+            "$ref": "#/components/schemas/ApplicationObject"
+          },
+          "bot": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BotUserObject"
+              }
+            ]
+          },
+          "guilds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GuildChoice"
+            }
+          },
+          "permissions": {
+            "type": "string",
+            "description": "Decimal permission bitfield the bot would ask for."
+          },
+          "redirect_uri": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScopeObject"
+            }
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "user": {
+            "$ref": "#/components/schemas/OwnerObject"
+          }
+        }
+      },
+      "AuthorizeResult": {
+        "type": "object",
+        "required": [
+          "location"
+        ],
+        "properties": {
+          "already_installed": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "The bot was already in the guild (only for bot installs)."
+          },
+          "location": {
+            "type": "string",
+            "description": "Where to send the browser."
+          }
+        }
+      },
+      "AuthorizedApp": {
+        "type": "object",
+        "description": "An application a user authorized.",
+        "required": [
+          "id",
+          "application",
+          "scopes",
+          "created_at"
+        ],
+        "properties": {
+          "application": {
+            "$ref": "#/components/schemas/AuthorizedAppInfo"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "AuthorizedAppInfo": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "BanBody": {
         "type": "object",
         "description": "Ban body: the reason is the ban note.",
@@ -31134,6 +34426,42 @@
           }
         }
       },
+      "BotUserObject": {
+        "type": "object",
+        "description": "The bot account of an application.",
+        "required": [
+          "id",
+          "bot"
+        ],
+        "properties": {
+          "avatar": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Avatar hash (`/cdn/avatars/{id}/{hash}.png`)."
+          },
+          "bot": {
+            "type": "boolean",
+            "description": "Always true."
+          },
+          "global_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "BuiltinTemplateObject": {
         "type": "object",
         "description": "A template shipped with the server.",
@@ -31200,6 +34528,24 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "CallbackBody": {
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "data": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "type": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -33571,6 +36917,23 @@
           }
         }
       },
+      "CreateApplicationBody": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "CreateChannelBody": {
         "allOf": [
           {
@@ -33735,6 +37098,49 @@
               "null"
             ],
             "description": "A built-in template id (see `GET /guilds/templates/builtin`) or a template code.\nThe server is created from it in one step."
+          }
+        }
+      },
+      "CreateInteractionBody": {
+        "type": "object",
+        "required": [
+          "type",
+          "application_id",
+          "channel_id",
+          "data"
+        ],
+        "properties": {
+          "application_id": {
+            "type": "string"
+          },
+          "channel_id": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object"
+          },
+          "guild_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "message_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nonce": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": {
+            "type": "integer",
+            "format": "int64",
+            "description": "2 command, 3 component, 4 autocomplete, 5 modal submit."
           }
         }
       },
@@ -34071,6 +37477,26 @@
           }
         }
       },
+      "CreatedApplication": {
+        "type": "object",
+        "description": "`POST /applications` response: the secrets are shown once.",
+        "required": [
+          "application",
+          "client_secret",
+          "bot_token"
+        ],
+        "properties": {
+          "application": {
+            "$ref": "#/components/schemas/ApplicationObject"
+          },
+          "bot_token": {
+            "type": "string"
+          },
+          "client_secret": {
+            "type": "string"
+          }
+        }
+      },
       "CreatedToken": {
         "type": "object",
         "required": [
@@ -34276,6 +37702,48 @@
           }
         }
       },
+      "DecideRequestBody": {
+        "type": "object",
+        "required": [
+          "approve"
+        ],
+        "properties": {
+          "approve": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "DecideVersionBody": {
+        "type": "object",
+        "required": [
+          "decision"
+        ],
+        "properties": {
+          "approved_intents": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Privileged intents to approve (only those the application requested)."
+          },
+          "decision": {
+            "type": "string",
+            "description": "`approve`, `reject` or `request_changes`."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "DecisionInput": {
         "type": "object",
         "description": "A decision with its reason (request changes, reject, approve).",
@@ -34327,6 +37795,90 @@
           },
           "state": {
             "type": "string"
+          }
+        }
+      },
+      "DeveloperRequestAdmin": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DeveloperRequestObject"
+          },
+          {
+            "type": "object",
+            "required": [
+              "account"
+            ],
+            "properties": {
+              "account": {
+                "$ref": "#/components/schemas/OwnerObject"
+              }
+            }
+          }
+        ],
+        "description": "A request with its applicant, for staff."
+      },
+      "DeveloperRequestObject": {
+        "type": "object",
+        "required": [
+          "id",
+          "account_id",
+          "state",
+          "pitch",
+          "prior_work",
+          "created_at"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "pitch": {
+            "type": "string"
+          },
+          "prior_work": {
+            "type": "string"
+          },
+          "reviewed_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewer_note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "description": "`pending`, `approved`, `rejected` or `suspended`."
+          }
+        }
+      },
+      "DeveloperStatus": {
+        "type": "object",
+        "required": [
+          "is_developer"
+        ],
+        "properties": {
+          "is_developer": {
+            "type": "boolean"
+          },
+          "request": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DeveloperRequestObject"
+              }
+            ]
           }
         }
       },
@@ -35345,6 +38897,80 @@
           }
         }
       },
+      "GatewayBotInfo": {
+        "type": "object",
+        "required": [
+          "url",
+          "shards",
+          "session_start_limit"
+        ],
+        "properties": {
+          "session_start_limit": {
+            "$ref": "#/components/schemas/SessionStartLimit"
+          },
+          "shards": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "GatewayInfo": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "GuildChoice": {
+        "type": "object",
+        "description": "A guild on the consent screen.",
+        "required": [
+          "id",
+          "name",
+          "owner",
+          "permissions",
+          "can_install"
+        ],
+        "properties": {
+          "can_install": {
+            "type": "boolean"
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "boolean"
+          },
+          "permissions": {
+            "type": "string",
+            "description": "Decimal permission bitfield of the user in the guild."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why not: `missing_permission`, `app_not_released`, `bot_not_public`, `suspended`."
+          }
+        }
+      },
       "GuildFromTemplateBody": {
         "type": "object",
         "description": "Body of `POST /guilds/templates/{code}`.",
@@ -35619,6 +39245,56 @@
           }
         }
       },
+      "InstallObject": {
+        "type": "object",
+        "required": [
+          "guild_id",
+          "installed_by",
+          "scopes",
+          "permissions",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "guild_id": {
+            "type": "string"
+          },
+          "installed_by": {
+            "type": "string"
+          },
+          "permissions": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "InstallParamsObject": {
+        "type": "object",
+        "description": "Default install scopes and permissions.",
+        "required": [
+          "scopes",
+          "permissions"
+        ],
+        "properties": {
+          "permissions": {
+            "type": "string",
+            "description": "Decimal permission bitfield."
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "InstantSearch": {
         "type": "object",
         "description": "Instant-search result.",
@@ -35652,6 +39328,83 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "IntentsObject": {
+        "type": "object",
+        "description": "Requested and approved privileged intents, by name.",
+        "required": [
+          "requested",
+          "approved"
+        ],
+        "properties": {
+          "approved": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "requested": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "IntrospectionBody": {
+        "type": "object",
+        "required": [
+          "active"
+        ],
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "client_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "exp": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "iat": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "scope": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sub": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "token_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -37386,6 +41139,50 @@
           }
         }
       },
+      "OAuthErrorBody": {
+        "type": "object",
+        "required": [
+          "error",
+          "error_description"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "error_description": {
+            "type": "string"
+          }
+        }
+      },
+      "OAuthMe": {
+        "type": "object",
+        "description": "`GET /oauth2/@me`.",
+        "required": [
+          "application",
+          "scopes",
+          "expires"
+        ],
+        "properties": {
+          "application": {
+            "$ref": "#/components/schemas/ApplicationObject"
+          },
+          "expires": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "user": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        }
+      },
       "OnboardingDto": {
         "type": "object",
         "properties": {
@@ -37544,6 +41341,34 @@
             "format": "int32",
             "description": "0 = role, 1 = member.",
             "minimum": 0
+          }
+        }
+      },
+      "OwnerObject": {
+        "type": "object",
+        "description": "The owner of an application.",
+        "required": [
+          "id",
+          "bot"
+        ],
+        "properties": {
+          "bot": {
+            "type": "boolean"
+          },
+          "global_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -37787,6 +41612,18 @@
           }
         }
       },
+      "PasswordBody": {
+        "type": "object",
+        "description": "Re-confirmation of the signed-in user's password.",
+        "required": [
+          "password"
+        ],
+        "properties": {
+          "password": {
+            "type": "string"
+          }
+        }
+      },
       "PasswordBodyDoc": {
         "type": "object",
         "description": "Documentation stand-in for [`PasswordBody`].",
@@ -37797,6 +41634,99 @@
           "password": {
             "type": "string",
             "description": "The current password."
+          }
+        }
+      },
+      "PatchApplicationBody": {
+        "type": "object",
+        "description": "Body of `PATCH /applications/{id}`; see the spec for the fields.",
+        "properties": {
+          "bot_public": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "bot_require_code_grant": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Image data URI, or `null` to remove."
+          },
+          "install_params": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "privacy_policy_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "privileged_intents": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "redirect_uris": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "tags": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "terms_of_service_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "PatchBotBody": {
+        "type": "object",
+        "required": [
+          "username"
+        ],
+        "properties": {
+          "username": {
+            "type": "string"
           }
         }
       },
@@ -38987,6 +42917,28 @@
           }
         }
       },
+      "ResetSecretResult": {
+        "type": "object",
+        "required": [
+          "client_secret"
+        ],
+        "properties": {
+          "client_secret": {
+            "type": "string"
+          }
+        }
+      },
+      "ResetTokenResult": {
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        }
+      },
       "RetranscodeBody": {
         "type": "object",
         "required": [
@@ -39394,6 +43346,21 @@
             "type": "integer",
             "format": "int32",
             "minimum": 0
+          }
+        }
+      },
+      "ScopeObject": {
+        "type": "object",
+        "required": [
+          "name",
+          "description"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
           }
         }
       },
@@ -39868,6 +43835,37 @@
           "hiatus",
           "cancelled"
         ]
+      },
+      "SessionStartLimit": {
+        "type": "object",
+        "required": [
+          "total",
+          "remaining",
+          "reset_after",
+          "max_concurrency"
+        ],
+        "properties": {
+          "max_concurrency": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "remaining": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "reset_after": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
       },
       "SettingKind": {
         "type": "string",
@@ -40490,6 +44488,17 @@
           "Withdrawn"
         ]
       },
+      "SubmitVersionBody": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "Surface": {
         "type": "string",
         "description": "A page a collection can be placed on.",
@@ -40524,6 +44533,17 @@
           "suspicion_level": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "SuspendBody": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -41336,6 +45356,94 @@
           }
         }
       },
+      "TokenRequestBody": {
+        "type": "object",
+        "properties": {
+          "client_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "client_secret": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "code_verifier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "grant_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "redirect_uri": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "refresh_token": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "token": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "token_type_hint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "TokenResponseBody": {
+        "type": "object",
+        "required": [
+          "access_token",
+          "token_type",
+          "expires_in",
+          "refresh_token",
+          "scope"
+        ],
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "expires_in": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "refresh_token": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string",
+            "description": "Space-separated scopes."
+          },
+          "token_type": {
+            "type": "string"
+          }
+        }
+      },
       "Trailer": {
         "type": "object",
         "required": [
@@ -41927,6 +46035,10 @@
             ],
             "description": "Profile banner hash (`/cdn/avatars/{id}/{hash}.png`), when one is set."
           },
+          "bot": {
+            "type": "boolean",
+            "description": "Present (true) for bot accounts only."
+          },
           "global_name": {
             "type": [
               "string",
@@ -41982,6 +46094,10 @@
           "id"
         ],
         "properties": {
+          "bot": {
+            "type": "boolean",
+            "description": "Present (true) for bot accounts only."
+          },
           "global_name": {
             "type": [
               "string",
@@ -42100,6 +46216,25 @@
               "null"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "VersionApplication": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "owner_id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner_id": {
+            "type": "string"
           }
         }
       },
@@ -42409,5 +46544,19 @@
         "description": "Browser session; non-GET requests also need `X-SR-CSRF`"
       }
     }
-  }
+  },
+  "tags": [
+    {
+      "name": "developer",
+      "description": "Developer portal: applications, bot credentials, release review"
+    },
+    {
+      "name": "oauth2",
+      "description": "OAuth2 authorization code flow with PKCE"
+    },
+    {
+      "name": "bot",
+      "description": "Routes bots call: gateway discovery, application commands, interaction responses"
+    }
+  ]
 }

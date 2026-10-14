@@ -833,3 +833,35 @@ async fn deleting_an_application_removes_the_bot_everywhere() {
     assert_eq!(kept, 1);
     f.db.cleanup().await.unwrap();
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_managed_role_sits_just_above_everyone_and_shifts_the_others() {
+    let f = fx().await;
+    let c = f.app().await;
+    let pool = f.db.pool();
+    let existing = f.ids.generate().get() as i64;
+    sqlx::query("INSERT INTO roles (id, guild_id, name, position, permissions) VALUES ($1, $2, 'Mods', 1, 0)")
+        .bind(existing)
+        .bind(f.guild)
+        .execute(pool)
+        .await
+        .unwrap();
+    let out = f
+        .svc
+        .install(f.install(&c, f.owner, f.guild, Permissions::empty(), 0))
+        .await
+        .unwrap();
+    let bot_pos: i32 = sqlx::query_scalar("SELECT position FROM roles WHERE id = $1")
+        .bind(out.install.role_id.unwrap())
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    let mods_pos: i32 = sqlx::query_scalar("SELECT position FROM roles WHERE id = $1")
+        .bind(existing)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert_eq!((bot_pos, mods_pos), (1, 2));
+    f.db.cleanup().await.unwrap();
+}

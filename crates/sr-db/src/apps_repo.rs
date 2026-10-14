@@ -1180,6 +1180,16 @@ impl AppsRepository for PgAppsRepo {
                     .map_err(db)?;
                 r
             } else {
+                // Like any new role it lands directly above `@everyone`; the roles that were
+                // there move up so positions stay unambiguous (the hierarchy checks rely on it).
+                sqlx::query(
+                    "UPDATE roles SET position = position + 1, updated_at = now() \
+                     WHERE guild_id = $1 AND position >= 1",
+                )
+                .bind(req.guild_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(db)?;
                 sqlx::query(
                     "INSERT INTO roles (id, guild_id, name, position, permissions, managed, tags) \
                      VALUES ($1, $2, $3, 1, $4, TRUE, $5)",

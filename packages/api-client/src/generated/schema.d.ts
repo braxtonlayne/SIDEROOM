@@ -864,6 +864,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/developers/apps/{application_id}/suspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Staff: switch an application off. */
+        post: operations["admin_suspend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/developers/apps/{application_id}/unsuspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Staff: lift a suspension. */
+        post: operations["admin_unsuspend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/developers/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Staff: developer requests. */
+        get: operations["admin_requests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/developers/requests/{request_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Staff: approve or reject a developer request. */
+        post: operations["admin_decide_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/developers/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Staff: version queue. */
+        get: operations["admin_versions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/developers/versions/{version_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Staff: approve, reject or send back a version. */
+        post: operations["admin_decide_version"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/features": {
         parameters: {
             query?: never;
@@ -1997,6 +2099,295 @@ export interface paths {
          */
         put: operations["admin_transcode_drain"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My applications. */
+        get: operations["list_apps"];
+        put?: never;
+        /** Create an application and its bot. */
+        post: operations["create_app"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/@me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The bot's own application (public fields). */
+        get: operations["current_application"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One of my applications. */
+        get: operations["get_app"];
+        put?: never;
+        post?: never;
+        /** Delete my application and remove its bot everywhere. */
+        delete: operations["delete_app"];
+        options?: never;
+        head?: never;
+        /** Change my application's settings. */
+        patch: operations["patch_app"];
+        trace?: never;
+    };
+    "/applications/{application_id}/audit-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The application's audit trail. */
+        get: operations["audit_log"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/bot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Rename the bot account. */
+        patch: operations["patch_bot"];
+        trace?: never;
+    };
+    "/applications/{application_id}/bot/reset-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Replace the bot token (shown once). */
+        post: operations["reset_token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/commands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Global commands of the application. */
+        get: operations["list_global"];
+        /** Replace all global commands. */
+        put: operations["overwrite_global"];
+        /** Create (or update by name) a global command. */
+        post: operations["create_global"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/commands/{command_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One global command. */
+        get: operations["get_global"];
+        put?: never;
+        post?: never;
+        /** Delete a global command. */
+        delete: operations["delete_global"];
+        options?: never;
+        head?: never;
+        /** Modify a global command. */
+        patch: operations["patch_global"];
+        trace?: never;
+    };
+    "/applications/{application_id}/guilds/{guild_id}/commands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Commands of the application in one server. */
+        get: operations["list_guild"];
+        /** Replace all commands of one server. */
+        put: operations["overwrite_guild"];
+        /** Create (or update by name) a server command. */
+        post: operations["create_guild"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/guilds/{guild_id}/commands/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Overwrites of every command in a server. */
+        get: operations["guild_permissions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/guilds/{guild_id}/commands/{command_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One server command. */
+        get: operations["get_guild"];
+        put?: never;
+        post?: never;
+        /** Delete a server command. */
+        delete: operations["delete_guild"];
+        options?: never;
+        head?: never;
+        /** Modify a server command. */
+        patch: operations["patch_guild"];
+        trace?: never;
+    };
+    "/applications/{application_id}/guilds/{guild_id}/commands/{command_id}/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Overwrites of one command. */
+        get: operations["command_permissions"];
+        /**
+         * Replace the overwrites of one command. Needs a bearer token with
+         *     `applications.commands.permissions.update`, issued to this application, of a user who
+         *     manages the server. Bot tokens and sessions are refused (as on Discord).
+         */
+        put: operations["set_command_permissions"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/installs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Servers the application is installed in. */
+        get: operations["installs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/reset-secret": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Replace the client secret (shown once). */
+        post: operations["reset_secret"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Release versions of an application. */
+        get: operations["list_versions"];
+        put?: never;
+        /** Submit the current settings for release review. */
+        post: operations["submit_version"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/versions/{version_id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Withdraw a pending version. */
+        post: operations["withdraw_version"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3480,6 +3871,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/developers/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ask to build apps. */
+        post: operations["apply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/developers/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Am I a developer, and where is my request? */
+        get: operations["status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gateway": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Where to connect (Discord's unauthenticated `GET /gateway`). */
+        get: operations["gateway"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gateway/bot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Gateway URL and session limits for a bot. There is no sharding: `shards` is always 1. */
+        get: operations["gateway_bot"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds": {
         parameters: {
             query?: never;
@@ -4151,6 +4610,40 @@ export interface paths {
         patch: operations["modify_welcome_screen"];
         trace?: never;
     };
+    "/interactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Use an application: run a command, press a component, ask for autocomplete, submit a modal. */
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/interactions/{interaction_id}/{token}/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Answer an interaction. Within 3 seconds of its creation, once. */
+        post: operations["callback"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/invites/{code}": {
         parameters: {
             query?: never;
@@ -4428,6 +4921,129 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/oauth2/@me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The token's application, scopes, expiry and (with `identify`) user. */
+        get: operations["me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/oauth2/authorize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What the consent screen shows. An invalid client, redirect URI or scope is a 400 with a
+         *     field error, never a redirect.
+         */
+        get: operations["authorize_info"];
+        put?: never;
+        /** Approve or deny an authorization request. Returns where to send the browser. */
+        post: operations["authorize"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/oauth2/introspect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Token introspection (RFC 7662) for the client the token was issued to. */
+        post: operations["introspect"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/oauth2/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Exchange a code or a refresh token for tokens. */
+        post: operations["token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/oauth2/token/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke an access or refresh token (RFC 7009). Always 200 for an authenticated client. */
+        post: operations["revoke"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/oauth2/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Applications the user authorized. */
+        get: operations["list_grants"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/oauth2/tokens/{grant_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke a grant and every token of it. */
+        delete: operations["revoke_grant"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5413,6 +6029,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/webhooks/{application_id}/{token}/messages/{message_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a message of the interaction. */
+        get: operations["get_message"];
+        put?: never;
+        post?: never;
+        /** Delete a message of the interaction. */
+        delete: operations["delete_message"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit a message of the interaction. The first edit of `@original` after a deferral creates
+         *     the message.
+         */
+        patch: operations["edit_message"];
+        trace?: never;
+    };
     "/webhooks/{webhook_id}": {
         parameters: {
             query?: never;
@@ -5637,6 +6275,63 @@ export interface components {
             roles?: string[];
             users?: string[];
         };
+        /** @description A version in the staff queue. */
+        AppVersionAdmin: components["schemas"]["AppVersionObject"] & {
+            application: components["schemas"]["VersionApplication"];
+        };
+        AppVersionObject: {
+            application_id: string;
+            created_at: string;
+            decided_at?: string | null;
+            /** @description `[{key, old, new}]` against the last approved manifest. */
+            diff: Record<string, never>[];
+            id: string;
+            manifest: Record<string, never>;
+            needs_review: boolean;
+            needs_review_reasons: string[];
+            note?: string | null;
+            reviewer_note?: string | null;
+            /** @description `pending`, `approved`, `rejected`, `changes_requested` or `withdrawn`. */
+            state: string;
+            /** Format: int32 */
+            version: number;
+        };
+        /** @description An application. The client secret is never part of it. */
+        ApplicationObject: {
+            bot: components["schemas"]["BotUserObject"];
+            bot_public: boolean;
+            bot_require_code_grant: boolean;
+            /** @description Last four characters of the client secret (owner view only). */
+            client_secret_hint?: string | null;
+            created_at: string;
+            description: string;
+            /**
+             * Format: int64
+             * @description Discord application flags (`GATEWAY_*` intent bits).
+             */
+            flags: number;
+            /** @description Icon hash, served at `/cdn/avatars/{bot.id}/{hash}.png`. */
+            icon?: string | null;
+            id: string;
+            install_params?: null | components["schemas"]["InstallParamsObject"];
+            name: string;
+            owner: components["schemas"]["OwnerObject"];
+            privacy_policy_url?: string | null;
+            privileged_intents: components["schemas"]["IntentsObject"];
+            /** @description Owner view only. */
+            redirect_uris?: string[] | null;
+            /** @description `development`, `in_review`, `released` or `suspended`. */
+            release_state: string;
+            /** @description Staff view of a suspension. */
+            suspended_reason?: string | null;
+            tags: string[];
+            terms_of_service_url?: string | null;
+        };
+        ApplyBody: {
+            accepted_terms: boolean;
+            pitch: string;
+            prior_work?: string | null;
+        };
         AppointBody: {
             /** @description Account to appoint. */
             account_id: string;
@@ -5807,6 +6502,49 @@ export interface components {
             users: components["schemas"]["UserRef"][];
             webhooks: Record<string, never>[];
         };
+        AuthorizeBody: {
+            authorize: boolean;
+            client_id: string;
+            code_challenge?: string | null;
+            code_challenge_method?: string | null;
+            guild_id?: string | null;
+            permissions?: string | null;
+            redirect_uri?: string | null;
+            response_type?: string | null;
+            scope?: string;
+            state?: string | null;
+        };
+        /** @description Consent screen data. */
+        AuthorizeInfo: {
+            already_authorized: boolean;
+            application: components["schemas"]["ApplicationObject"];
+            bot?: null | components["schemas"]["BotUserObject"];
+            guilds: components["schemas"]["GuildChoice"][];
+            /** @description Decimal permission bitfield the bot would ask for. */
+            permissions: string;
+            redirect_uri?: string | null;
+            scopes: components["schemas"]["ScopeObject"][];
+            state?: string | null;
+            user: components["schemas"]["OwnerObject"];
+        };
+        AuthorizeResult: {
+            /** @description The bot was already in the guild (only for bot installs). */
+            already_installed?: boolean | null;
+            /** @description Where to send the browser. */
+            location: string;
+        };
+        /** @description An application a user authorized. */
+        AuthorizedApp: {
+            application: components["schemas"]["AuthorizedAppInfo"];
+            created_at: string;
+            id: string;
+            scopes: string[];
+        };
+        AuthorizedAppInfo: {
+            icon?: string | null;
+            id: string;
+            name: string;
+        };
         /** @description Ban body: the reason is the ban note. */
         BanBody: {
             /** @description `serious` raises suspicion on the inviter (D-031); `standard` does not. */
@@ -5890,6 +6628,16 @@ export interface components {
             /** @description Pass back as `before` for the next page; absent at the end. */
             next_before?: string | null;
         };
+        /** @description The bot account of an application. */
+        BotUserObject: {
+            /** @description Avatar hash (`/cdn/avatars/{id}/{hash}.png`). */
+            avatar?: string | null;
+            /** @description Always true. */
+            bot: boolean;
+            global_name?: string | null;
+            id: string;
+            username?: string | null;
+        };
         /** @description A template shipped with the server. */
         BuiltinTemplateObject: {
             description: string;
@@ -5911,6 +6659,11 @@ export interface components {
         };
         BulkDeleteBody: {
             messages: string[];
+        };
+        CallbackBody: {
+            data?: Record<string, never> | null;
+            /** Format: int64 */
+            type: number;
         };
         /** @description Body for `POST /sr/auth/email/cancel`. */
         CancelEmailChangeBody: {
@@ -6622,6 +7375,10 @@ export interface components {
             /** Format: int32 */
             count: number;
         };
+        CreateApplicationBody: {
+            description?: string | null;
+            name: string;
+        };
         CreateChannelBody: components["schemas"]["ForumSettingsBody"] & {
             /** Format: int32 */
             bitrate?: number | null;
@@ -6671,6 +7428,19 @@ export interface components {
              *     The server is created from it in one step.
              */
             template?: string | null;
+        };
+        CreateInteractionBody: {
+            application_id: string;
+            channel_id: string;
+            data: Record<string, never>;
+            guild_id?: string | null;
+            message_id?: string | null;
+            nonce?: string | null;
+            /**
+             * Format: int64
+             * @description 2 command, 3 component, 4 autocomplete, 5 modal submit.
+             */
+            type: number;
         };
         /** @description Body of `POST /channels/{id}/invites`. Every field is optional. */
         CreateInviteBody: {
@@ -6775,6 +7545,12 @@ export interface components {
             /** @description 1-80 characters, no `@everyone`/`@here`. */
             name: string;
         };
+        /** @description `POST /applications` response: the secrets are shown once. */
+        CreatedApplication: {
+            application: components["schemas"]["ApplicationObject"];
+            bot_token: string;
+            client_secret: string;
+        };
         CreatedToken: {
             /** @description The secret. It is shown once and only its SHA-256 is stored. */
             secret: string;
@@ -6840,6 +7616,17 @@ export interface components {
             expires_at?: string | null;
             text?: string | null;
         };
+        DecideRequestBody: {
+            approve: boolean;
+            note?: string | null;
+        };
+        DecideVersionBody: {
+            /** @description Privileged intents to approve (only those the application requested). */
+            approved_intents?: string[];
+            /** @description `approve`, `reject` or `request_changes`. */
+            decision: string;
+            note?: string | null;
+        };
         /** @description A decision with its reason (request changes, reject, approve). */
         DecisionInput: {
             /** @description Required for request changes and reject; optional for approve. */
@@ -6855,6 +7642,25 @@ export interface components {
             created_at_ms: number;
             id: string;
             state: string;
+        };
+        /** @description A request with its applicant, for staff. */
+        DeveloperRequestAdmin: components["schemas"]["DeveloperRequestObject"] & {
+            account: components["schemas"]["OwnerObject"];
+        };
+        DeveloperRequestObject: {
+            account_id: string;
+            created_at: string;
+            id: string;
+            pitch: string;
+            prior_work: string;
+            reviewed_at?: string | null;
+            reviewer_note?: string | null;
+            /** @description `pending`, `approved`, `rejected` or `suspended`. */
+            state: string;
+        };
+        DeveloperStatus: {
+            is_developer: boolean;
+            request?: null | components["schemas"]["DeveloperRequestObject"];
         };
         Discover: {
             /** @description Tonight's feature carousel (display `hero`). */
@@ -7165,6 +7971,27 @@ export interface components {
             /** @description A published submission of the request's section. */
             submission_id: string;
         };
+        GatewayBotInfo: {
+            session_start_limit: components["schemas"]["SessionStartLimit"];
+            /** Format: int32 */
+            shards: number;
+            url: string;
+        };
+        GatewayInfo: {
+            url: string;
+        };
+        /** @description A guild on the consent screen. */
+        GuildChoice: {
+            can_install: boolean;
+            icon?: string | null;
+            id: string;
+            name: string;
+            owner: boolean;
+            /** @description Decimal permission bitfield of the user in the guild. */
+            permissions: string;
+            /** @description Why not: `missing_permission`, `app_not_released`, `bot_not_public`, `suspended`. */
+            reason?: string | null;
+        };
         /** @description Body of `POST /guilds/templates/{code}`. */
         GuildFromTemplateBody: {
             /** @description Accepted for compatibility; icon upload arrives with the media pipeline. */
@@ -7238,12 +8065,42 @@ export interface components {
             /** @description Pass back as `before` for the next page; absent at the end. */
             next_before?: string | null;
         };
+        InstallObject: {
+            created_at: string;
+            guild_id: string;
+            installed_by: string;
+            permissions: string;
+            scopes: string[];
+        };
+        /** @description Default install scopes and permissions. */
+        InstallParamsObject: {
+            /** @description Decimal permission bitfield. */
+            permissions: string;
+            scopes: string[];
+        };
         /** @description Instant-search result. */
         InstantSearch: {
             authors: string[];
             genres: string[];
             series: components["schemas"]["Series"][];
             tags: string[];
+        };
+        /** @description Requested and approved privileged intents, by name. */
+        IntentsObject: {
+            approved: string[];
+            requested: string[];
+        };
+        IntrospectionBody: {
+            active: boolean;
+            client_id?: string | null;
+            /** Format: int64 */
+            exp?: number | null;
+            /** Format: int64 */
+            iat?: number | null;
+            scope?: string | null;
+            sub?: string | null;
+            token_type?: string | null;
+            username?: string | null;
         };
         InviteChannel: {
             id: string;
@@ -7759,6 +8616,17 @@ export interface components {
              */
             message_notifications?: number | null;
         };
+        OAuthErrorBody: {
+            error: string;
+            error_description: string;
+        };
+        /** @description `GET /oauth2/@me`. */
+        OAuthMe: {
+            application: components["schemas"]["ApplicationObject"];
+            expires: string;
+            scopes: string[];
+            user?: Record<string, never> | null;
+        };
         OnboardingDto: {
             default_channel_ids?: string[];
             enabled?: boolean;
@@ -7802,6 +8670,13 @@ export interface components {
              * @description 0 = role, 1 = member.
              */
             type: number;
+        };
+        /** @description The owner of an application. */
+        OwnerObject: {
+            bot: boolean;
+            global_name?: string | null;
+            id: string;
+            username?: string | null;
         };
         PageEntry: {
             blurhash?: string | null;
@@ -7878,10 +8753,32 @@ export interface components {
             /** @description Label. */
             name: string;
         };
+        /** @description Re-confirmation of the signed-in user's password. */
+        PasswordBody: {
+            password: string;
+        };
         /** @description Documentation stand-in for [`PasswordBody`]. */
         PasswordBodyDoc: {
             /** @description The current password. */
             password: string;
+        };
+        /** @description Body of `PATCH /applications/{id}`; see the spec for the fields. */
+        PatchApplicationBody: {
+            bot_public?: boolean | null;
+            bot_require_code_grant?: boolean | null;
+            description?: string | null;
+            /** @description Image data URI, or `null` to remove. */
+            icon?: string | null;
+            install_params?: Record<string, never> | null;
+            name?: string | null;
+            privacy_policy_url?: string | null;
+            privileged_intents?: string[] | null;
+            redirect_uris?: string[] | null;
+            tags?: string[] | null;
+            terms_of_service_url?: string | null;
+        };
+        PatchBotBody: {
+            username: string;
         };
         PatchFeatureBody: {
             /** @description Turn the feature on or off at the platform scope. */
@@ -8277,6 +9174,12 @@ export interface components {
             /** Format: int64 */
             trusted_devices: number;
         };
+        ResetSecretResult: {
+            client_secret: string;
+        };
+        ResetTokenResult: {
+            token: string;
+        };
         RetranscodeBody: {
             /** @description The asset or title id; required unless the scope is `all`. */
             id?: string | null;
@@ -8386,6 +9289,10 @@ export interface components {
             trigger_metadata: components["schemas"]["TriggerMetadata"];
             /** Format: int32 */
             trigger_type: number;
+        };
+        ScopeObject: {
+            description: string;
+            name: string;
         };
         /**
          * @description Discord search response: each result is a one-message group (no context
@@ -8515,6 +9422,16 @@ export interface components {
          * @enum {string}
          */
         SeriesStatus: "ongoing" | "completed" | "hiatus" | "cancelled";
+        SessionStartLimit: {
+            /** Format: int32 */
+            max_concurrency: number;
+            /** Format: int32 */
+            remaining: number;
+            /** Format: int64 */
+            reset_after: number;
+            /** Format: int32 */
+            total: number;
+        };
         /** @enum {string} */
         SettingKind: "integer" | "number" | "boolean" | "text";
         /** @description One platform setting with its current value, for Admin -> Limits. */
@@ -8722,6 +9639,9 @@ export interface components {
          * @enum {string}
          */
         SubmissionState: "Draft" | "Submitted" | "InReview" | "ChangesRequested" | "Approved" | "Rejected" | "Published" | "Withdrawn";
+        SubmitVersionBody: {
+            note?: string | null;
+        };
         /**
          * @description A page a collection can be placed on.
          * @enum {string}
@@ -8733,6 +9653,9 @@ export interface components {
             person_id: string;
             /** Format: int32 */
             suspicion_level: number;
+        };
+        SuspendBody: {
+            reason?: string | null;
         };
         SuspicionChange: {
             /** @description Level reached the escalation threshold. */
@@ -8968,6 +9891,26 @@ export interface components {
              */
             total: number;
         };
+        TokenRequestBody: {
+            client_id?: string | null;
+            client_secret?: string | null;
+            code?: string | null;
+            code_verifier?: string | null;
+            grant_type?: string | null;
+            redirect_uri?: string | null;
+            refresh_token?: string | null;
+            token?: string | null;
+            token_type_hint?: string | null;
+        };
+        TokenResponseBody: {
+            access_token: string;
+            /** Format: int64 */
+            expires_in: number;
+            refresh_token: string;
+            /** @description Space-separated scopes. */
+            scope: string;
+            token_type: string;
+        };
         Trailer: {
             /**
              * @description The title is age-restricted and the account has not confirmed its age, so `asset_id`
@@ -9152,6 +10095,8 @@ export interface components {
             avatar?: string | null;
             /** @description Profile banner hash (`/cdn/avatars/{id}/{hash}.png`), when one is set. */
             banner?: string | null;
+            /** @description Present (true) for bot accounts only. */
+            bot?: boolean;
             global_name?: string | null;
             id: string;
             username?: string | null;
@@ -9168,6 +10113,8 @@ export interface components {
          *     lookup (open question 157); without a row only the id is known.
          */
         UserRef: {
+            /** @description Present (true) for bot accounts only. */
+            bot?: boolean;
             global_name?: string | null;
             id: string;
             username?: string | null;
@@ -9203,6 +10150,11 @@ export interface components {
             position?: number | null;
             /** Format: int32 */
             runtime_min?: number | null;
+        };
+        VersionApplication: {
+            id: string;
+            name: string;
+            owner_id: string;
         };
         Volume: {
             edition_id: string;
@@ -12578,6 +13530,210 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_suspend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuspendBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationObject"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_unsuspend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuspendBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationObject"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_requests: {
+        parameters: {
+            query?: {
+                /** @description Default `pending`. */
+                state?: string;
+                /** @description 1 to 100, default 50. */
+                limit?: number;
+                /** @description Return rows older than this id. */
+                before?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeveloperRequestAdmin"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_decide_request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecideRequestBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeveloperRequestObject"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_versions: {
+        parameters: {
+            query?: {
+                /** @description Default `pending`. */
+                state?: string;
+                /** @description 1 to 100, default 50. */
+                limit?: number;
+                /** @description Return rows older than this id. */
+                before?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppVersionAdmin"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_decide_version: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Version snowflake */
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecideVersionBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppVersionObject"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -16319,6 +17475,972 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_apps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationObject"][];
+                };
+            };
+        };
+    };
+    create_app: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateApplicationBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedApplication"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    current_application: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationObject"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_app: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationObject"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_app: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_app: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchApplicationBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    audit_log: {
+        parameters: {
+            query?: {
+                limit?: number;
+                before?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditEntryObject"][];
+                };
+            };
+        };
+    };
+    patch_bot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchBotBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    reset_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResetTokenResult"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_global: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    overwrite_global: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>[];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_global: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_global: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Command snowflake */
+                command_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_global: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Command snowflake */
+                command_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_global: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Command snowflake */
+                command_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    overwrite_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>[];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    guild_permissions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    get_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Command snowflake */
+                command_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Command snowflake */
+                command_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Command snowflake */
+                command_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    command_permissions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Command snowflake */
+                command_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_command_permissions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Command snowflake */
+                command_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    installs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstallObject"][];
+                };
+            };
+        };
+    };
+    reset_secret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResetSecretResult"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_versions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppVersionObject"][];
+                };
+            };
+        };
+    };
+    submit_version: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitVersionBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppVersionObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    withdraw_version: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Version snowflake */
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppVersionObject"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -21534,6 +23656,110 @@ export interface operations {
             };
         };
     };
+    apply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplyBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeveloperRequestObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeveloperStatus"];
+                };
+            };
+        };
+    };
+    gateway: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GatewayInfo"];
+                };
+            };
+        };
+    };
+    gateway_bot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GatewayBotInfo"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     create_guild: {
         parameters: {
             query?: never;
@@ -24371,6 +26597,101 @@ export interface operations {
             };
         };
     };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInteractionBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    callback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Interaction snowflake */
+                interaction_id: string;
+                /** @description Interaction token */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CallbackBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_invite: {
         parameters: {
             query?: {
@@ -25287,6 +27608,255 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthMe"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    authorize_info: {
+        parameters: {
+            query: {
+                client_id: string;
+                scope?: string;
+                redirect_uri?: string;
+                response_type?: string;
+                state?: string;
+                code_challenge?: string;
+                code_challenge_method?: string;
+                permissions?: string;
+                guild_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthorizeInfo"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    authorize: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthorizeBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthorizeResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    introspect: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TokenRequestBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntrospectionBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthErrorBody"];
+                };
+            };
+        };
+    };
+    token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TokenRequestBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenResponseBody"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthErrorBody"];
+                };
+            };
+        };
+    };
+    revoke: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TokenRequestBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthErrorBody"];
+                };
+            };
+        };
+    };
+    list_grants: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthorizedApp"][];
+                };
+            };
+        };
+    };
+    revoke_grant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Grant snowflake */
+                grant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -28100,6 +30670,118 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProfileObject"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_message: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Interaction token */
+                token: string;
+                /** @description Message snowflake or @original */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_message: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Interaction token */
+                token: string;
+                /** @description Message snowflake or @original */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    edit_message: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Interaction token */
+                token: string;
+                /** @description Message snowflake or @original */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             404: {
