@@ -21,12 +21,13 @@ import {
   clamp,
   formatClock,
   isWatched,
-  refreshDelayMs,
+  refreshInMs,
   stepSpeed,
   type SubtitleStyle,
 } from './model';
 import { progressApi, type WatchProgressApi } from './progress';
 import { refreshSource } from './api';
+import { loadSigningMap, type UrlRewriter } from './signing';
 import type { PlaybackInfo, RefreshedSource } from './types';
 
 export interface PlayerState {
@@ -107,6 +108,8 @@ export interface SessionDeps {
   engineFactory: EngineFactory;
   progress: () => WatchProgressApi;
   refresh: (mediaId: string) => Promise<RefreshedSource>;
+  /** Builds the rewriter that re-signs requests from a fresh master playlist. */
+  signing: (masterUrl: string) => Promise<UrlRewriter>;
 }
 
 export interface StartOptions {
@@ -182,7 +185,7 @@ export class PlayerSession {
   element(): HTMLVideoElement {
     if (this.video) return this.video;
     const v = document.createElement('video');
-    v.className = 'cin-video';
+    v.className = 'cpl-video';
     v.playsInline = true;
     v.preload = 'auto';
     v.crossOrigin = 'anonymous';
@@ -266,7 +269,7 @@ export class PlayerSession {
       engine.setMaxHeight(this.state.dataSaver ? DATA_SAVER_MAX_HEIGHT : null);
       engine.load(info.master_url, opts.startAt);
       this.set({ status: 'ready', engineKind: engine.kind });
-      this.scheduleRefresh(info.expires_at_ms);
+      this.scheduleRefresh(info.expires_at_ms, info.refresh_at_ms);
       this.pickDefaultSubtitle(info);
       if (opts.autoplay) void this.play();
       else this.set({ needsGesture: true });
@@ -396,22 +399,24 @@ export class PlayerSession {
   flush(reason: 'heartbeat' | 'pause' | 'ended' | 'hidden' | 'pagehide' | 'close' | 'seek') {
     const info = this.state.info;
     const v = this.video;
-    if (!info || !v || !this.played) return;
+    if (!info || !v || !this.played || info.trailer) return;
     const duration = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : info.duration_s;
     const position = v.ended ? duration : v.currentTime;
     if (reason !== 'ended' && Math.abs(position - this.lastSavedAt) < 1) return;
     this.lastSavedAt = position;
     const completed = v.ended || isWatched(position, duration);
+    // Only the heartbeat says the picture is still moving; every other save ends the "watching" presence.
+    const playing = reason === 'heartbeat' && !v.paused && !v.ended;
     void this.deps
       .progress()
       .save(
         {
-          mediaId: info.media_id,
           titleId: info.title_id,
           episodeId: info.episode_id,
           positionS: completed ? duration : position,
           durationS: duration,
-          completed,
+          completed: v.ended || undefined,
+          playing,
           title: info.title,
           episodeLabel: info.episode_label,
           posterUrl: info.poster_url,
@@ -423,11 +428,11 @@ export class PlayerSession {
 
   /* ------------------------------------------------- signed URL refresh */
 
-  private scheduleRefresh(expiresAtMs: number) {
+  private scheduleRefresh(expiresAtMs: number, refreshAtMs?: number | null) {
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
     this.refreshTimer = setTimeout(
       () => void this.refreshNow(false),
-      refreshDelayMs(expiresAtMs, Date.now()),
+      refreshInMs(expiresAtMs, refreshAtMs, Date.now()),
     );
   }
 
@@ -442,16 +447,26 @@ export class PlayerSession {
       const next = await this.deps.refresh(info.media_id);
       if (token !== this.token) return;
       this.set({
-        info: { ...info, master_url: next.master_url, expires_at_ms: next.expires_at_ms },
+        info: {
+          ...info,
+          master_url: next.master_url,
+          expires_at_ms: next.expires_at_ms,
+          refresh_at_ms: next.refresh_at_ms,
+        },
       });
-      // hls.js re-signs every later request; native HLS cannot, so it swaps the source at the current position.
+      // hls.js: every later request is re-signed from the fresh playlists, nothing restarts. Native HLS cannot
+      // rewrite requests, so it swaps the source at the current position.
       if (hard || engine.kind === 'native') {
         const v = this.video!;
         const wasPlaying = !v.paused;
         engine.swapSource(next.master_url, v.currentTime);
         if (wasPlaying) void this.play();
-      } else engine.updateSigning(next.master_url);
-      this.scheduleRefresh(next.expires_at_ms);
+      } else {
+        const rewrite = await this.deps.signing(next.master_url);
+        if (token !== this.token) return;
+        engine.updateSigning(rewrite);
+      }
+      this.scheduleRefresh(next.expires_at_ms, next.refresh_at_ms);
     } catch {
       // Try again soon; playback continues on the current signature until it really lapses.
       if (token === this.token)
@@ -685,6 +700,7 @@ const defaultDeps = (): SessionDeps => ({
   engineFactory: createEngine,
   progress: () => progressApi,
   refresh: refreshSource,
+  signing: (masterUrl) => loadSigningMap(masterUrl),
 });
 
 /** The app-wide session (the mini player and the watch route share it). */

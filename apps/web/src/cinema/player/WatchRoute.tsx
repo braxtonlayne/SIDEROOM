@@ -7,5 +7,13 @@ export function WatchRoute() {
   const { id } = useParams({ strict: false }) as { id?: string };
   const search = parseWatchSearch(useSearch({ strict: false }) as Record<string, unknown>);
   if (!id) return null;
-  return <WatchPage titleId={String(id)} episodeId={search.ep} startAt={search.t} />;
+  return (
+    <WatchPage
+      titleId={String(id)}
+      episodeId={search.episode}
+      variantId={search.variant}
+      trailer={search.trailer}
+      startAt={search.t}
+    />
+  );
 }

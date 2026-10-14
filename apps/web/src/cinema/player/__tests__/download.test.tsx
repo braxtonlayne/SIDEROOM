@@ -134,65 +134,97 @@ describe('watch progress store', () => {
     localStorage.clear();
   });
 
-  it('PUTs the position to the server', async () => {
-    let body: unknown;
+  it('PUTs a movie position to the title route and an episode position to the episode route', async () => {
+    const bodies: Record<string, unknown> = {};
     server.use(
-      http.put('*/api/v1/cinema/progress/m1', async ({ request }) => {
-        body = await request.json();
+      http.put('*/api/v1/cinema/titles/t1/progress', async ({ request }) => {
+        bodies.movie = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
+      http.put('*/api/v1/cinema/titles/t1/episodes/e2/progress', async ({ request }) => {
+        bodies.episode = await request.json();
         return new HttpResponse(null, { status: 204 });
       }),
     );
     await progressApi.save({
-      mediaId: 'm1',
       titleId: 't1',
-      episodeId: 'e2',
+      episodeId: null,
       positionS: 61.9,
       durationS: 1500.2,
-      completed: false,
+      playing: true,
     });
-    expect(body).toEqual({
-      title_id: 't1',
-      episode_id: 'e2',
-      position_s: 61,
+    await progressApi.save({
+      titleId: 't1',
+      episodeId: 'e2',
+      positionS: 1500,
+      durationS: 1500,
+      completed: true,
+      playing: false,
+    });
+    expect(bodies.movie).toEqual({ position_secs: 61, duration_secs: 1500, playing: true });
+    expect(bodies.episode).toEqual({
+      position_secs: 1500,
+      duration_secs: 1500,
+      completed: true,
+      playing: false,
+    });
+  });
+
+  it('reads the saved position back', async () => {
+    server.use(
+      http.get('*/api/v1/cinema/titles/t1/episodes/e2/progress', () =>
+        HttpResponse.json({
+          title_id: 't1',
+          episode_id: 'e2',
+          position_secs: 700,
+          duration_secs: 1500,
+          percent: 46.6,
+          completed: false,
+          updated_at_ms: 5,
+        }),
+      ),
+    );
+    expect(await progressApi.get('t1', 'e2')).toEqual({
+      position_s: 700,
       duration_s: 1500,
       completed: false,
+      updated_at_ms: 5,
     });
   });
 
   it('keeps the position locally when the server save fails, and resume reads it back', async () => {
     server.use(
-      http.put('*/api/v1/cinema/progress/m1', () => HttpResponse.json({}, { status: 500 })),
-      http.get('*/api/v1/cinema/progress/m1', () => HttpResponse.json({}, { status: 404 })),
+      http.put('*/api/v1/cinema/titles/t1/progress', () => HttpResponse.json({}, { status: 500 })),
+      http.get('*/api/v1/cinema/titles/t1/progress', () => HttpResponse.json({}, { status: 404 })),
     );
     await expect(
       progressApi.save({
-        mediaId: 'm1',
         titleId: 't1',
         episodeId: null,
         positionS: 700,
         durationS: 6000,
-        completed: false,
+        playing: false,
       }),
     ).rejects.toBeTruthy();
-    expect(await progressApi.get('m1')).toMatchObject({ position_s: 700, completed: false });
+    expect(await progressApi.get('t1', null)).toMatchObject({ position_s: 700, completed: false });
   });
 
   it('the local store lists unfinished items, newest first', async () => {
     setProgressApi(localProgress);
-    const base = { titleId: 't', episodeId: null, durationS: 100 };
+    const base = { titleId: 't', durationS: 100, playing: false };
     vi.useFakeTimers({ toFake: ['Date'] });
     try {
       vi.setSystemTime(1000);
-      await localProgress.save({ ...base, mediaId: 'a', positionS: 10, completed: false });
+      await localProgress.save({ ...base, episodeId: 'a', positionS: 10 });
       vi.setSystemTime(2000);
-      await localProgress.save({ ...base, mediaId: 'b', positionS: 100, completed: true });
+      await localProgress.save({ ...base, episodeId: 'b', positionS: 100, completed: true });
       vi.setSystemTime(3000);
-      await localProgress.save({ ...base, mediaId: 'c', positionS: 20, completed: false });
+      await localProgress.save({ ...base, episodeId: 'c', positionS: 20 });
     } finally {
       vi.useRealTimers();
     }
-    expect(localProgress.recent(10).map((i) => i.mediaId)).toEqual(['c', 'a']);
-    expect(await progressApi.get('b')).toMatchObject({ completed: true });
-    expect(await progressApi.get('zzz')).toBeNull();
+    expect(localProgress.recent(10).map((i) => i.episodeId)).toEqual(['c', 'a']);
+    expect(await progressApi.get('t', 'b')).toMatchObject({ completed: true });
+    expect(await progressApi.get('t', 'zzz')).toBeNull();
   });
 });

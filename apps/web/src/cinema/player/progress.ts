@@ -1,25 +1,32 @@
 // Watch progress (CIN-PLY-007 client side): the one place the player talks to the progress endpoints.
 //
 // Two implementations sit behind one interface, exactly like library/progress.ts:
-//   - `httpProgress`: the server routes (assumed shapes below), so a position follows the account across devices;
+//   - `httpProgress`: the social routes (spec cinema-media section 8.1), so a position follows the account
+//     across devices;
 //   - `localProgress`: localStorage, used by tests and as the fallback when a save fails.
 // Nothing else in the UI imports either one.
 //
-// Routes assumed (docs/specs/cinema-media.md is the contract; adjust only this file if they differ):
-//   PUT /cinema/progress/{mediaId}  {title_id, episode_id?, position_s, duration_s, completed}  -> 204
-//   GET /cinema/progress/{mediaId}  -> WatchProgress (404 when none)
+// Routes (a movie is addressed by its title alone; its episode id is "0" in the data):
+//   GET|PUT /cinema/titles/{title}/progress                        movies
+//   GET|PUT /cinema/titles/{title}/episodes/{episode}/progress     episodes
+//   PUT body {position_secs, duration_secs, completed?, playing}   -> {progress, applied, recorded}
+//   GET -> Progress {title_id, episode_id, position_secs, duration_secs, percent, completed, updated_at_ms} (404: none)
+// `completed` is decided by the server (percent >= 90, sticky); the player sends it only when playback ended.
 import { apiFetch } from '../../api/client';
 import type { WatchProgress } from './types';
 
 export const USE_SERVER_PROGRESS = true;
 
 export interface WatchProgressInput {
-  mediaId: string;
   titleId: string;
+  /** null for a movie. */
   episodeId: string | null;
   positionS: number;
   durationS: number;
-  completed: boolean;
+  /** Set only when playback reached the end. */
+  completed?: boolean;
+  /** True on the heartbeat while the picture is moving; false on pause, stop and leaving (ends "watching"). */
+  playing: boolean;
   /** Display meta so "continue watching" works from the local store alone. */
   title?: string;
   episodeLabel?: string | null;
@@ -33,29 +40,45 @@ export interface LocalWatchItem extends WatchProgressInput {
 export interface WatchProgressApi {
   /** `keepalive` lets the request outlive the page (pagehide / visibilitychange). */
   save(p: WatchProgressInput, opts?: { keepalive?: boolean }): Promise<void>;
-  get(mediaId: string): Promise<WatchProgress | null>;
+  get(titleId: string, episodeId: string | null): Promise<WatchProgress | null>;
+}
+
+const enc = encodeURIComponent;
+const path = (titleId: string, episodeId: string | null) =>
+  episodeId && episodeId !== '0'
+    ? `/cinema/titles/${enc(titleId)}/episodes/${enc(episodeId)}/progress`
+    : `/cinema/titles/${enc(titleId)}/progress`;
+
+interface WireProgress {
+  position_secs: number;
+  duration_secs: number;
+  completed: boolean;
+  updated_at_ms: number;
 }
 
 export const httpProgress: WatchProgressApi = {
   async save(p, opts) {
-    await apiFetch(`/cinema/progress/${encodeURIComponent(p.mediaId)}`, {
+    await apiFetch(path(p.titleId, p.episodeId), {
       method: 'PUT',
       json: {
-        title_id: p.titleId,
-        episode_id: p.episodeId ?? undefined,
-        position_s: Math.floor(p.positionS),
-        duration_s: Math.floor(p.durationS),
-        completed: p.completed,
+        position_secs: Math.floor(p.positionS),
+        duration_secs: Math.floor(p.durationS),
+        completed: p.completed || undefined,
+        playing: p.playing,
       },
       retries: 0,
       keepalive: opts?.keepalive,
     });
   },
-  async get(mediaId) {
+  async get(titleId, episodeId) {
     try {
-      return await apiFetch<WatchProgress>(`/cinema/progress/${encodeURIComponent(mediaId)}`, {
-        retries: 0,
-      });
+      const w = await apiFetch<WireProgress>(path(titleId, episodeId), { retries: 0 });
+      return {
+        position_s: w.position_secs,
+        duration_s: w.duration_secs,
+        completed: w.completed,
+        updated_at_ms: w.updated_at_ms,
+      };
     } catch {
       return null;
     }
@@ -63,6 +86,7 @@ export const httpProgress: WatchProgressApi = {
 };
 
 const PROGRESS_KEY = 'sr.cinema.progress.v1';
+const keyOf = (titleId: string, episodeId: string | null) => `${titleId}:${episodeId ?? '0'}`;
 
 function readAll(): Record<string, LocalWatchItem> {
   try {
@@ -83,18 +107,19 @@ function writeAll(all: Record<string, LocalWatchItem>) {
 export const localProgress: WatchProgressApi & { recent(limit: number): LocalWatchItem[] } = {
   save(p) {
     const all = readAll();
-    all[p.mediaId] = { ...p, updatedAtMs: Date.now() };
+    const k = keyOf(p.titleId, p.episodeId);
+    all[k] = { ...p, completed: p.completed ?? all[k]?.completed, updatedAtMs: Date.now() };
     writeAll(all);
     return Promise.resolve();
   },
-  get(mediaId) {
-    const it = readAll()[mediaId];
+  get(titleId, episodeId) {
+    const it = readAll()[keyOf(titleId, episodeId)];
     return Promise.resolve(
       it
         ? {
             position_s: it.positionS,
             duration_s: it.durationS,
-            completed: it.completed,
+            completed: it.completed ?? false,
             updated_at_ms: it.updatedAtMs,
           }
         : null,
@@ -123,10 +148,10 @@ export const progressApi: WatchProgressApi = {
       throw e;
     }
   },
-  async get(mediaId) {
+  async get(titleId, episodeId) {
     return (
-      (await current.get(mediaId)) ??
-      (current === localProgress ? null : localProgress.get(mediaId))
+      (await current.get(titleId, episodeId)) ??
+      (current === localProgress ? null : localProgress.get(titleId, episodeId))
     );
   },
 };

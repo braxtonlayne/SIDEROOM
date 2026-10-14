@@ -5,11 +5,12 @@ import { Button, ConfirmDialog, EmptyState, PosterCard, Spinner, Switch, Tabs } 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { watchHref } from '../player/model';
-import '../player/cinema-player.css';
+import '../player/player.css';
 import {
   clearHistory,
   getContinue,
   getHistory,
+  getHistorySettings,
   getList,
   getLists,
   getSaved,
@@ -17,16 +18,19 @@ import {
   removeSaved,
   setHistoryPaused,
 } from './api';
-import type { CinemaKind, TitleCard } from './types';
+import type { CinemaKind, EpisodeRef, ListVisibility, TitleRef } from './types';
 
 const KIND_LABEL: Record<CinemaKind, string> = { movie: 'Film', series: 'Series', anime: 'Anime' };
-const titleLine = (t: TitleCard) =>
+const titleLine = (t: TitleRef) =>
   [t.year, KIND_LABEL[t.kind]].filter((x) => x !== null && x !== undefined).join(' · ');
 const titleHref = (id: string) => `/cinema/t/${encodeURIComponent(id)}`;
+const episodeLine = (e: EpisodeRef) =>
+  `S${e.season} · E${e.number}${e.title ? ` · ${e.title}` : ''}`;
+const poster = (t: TitleRef) => t.poster_url ?? null;
 
 function Loading({ label }: { label: string }) {
   return (
-    <div className="cin-my-muted" style={{ padding: '32px 0' }}>
+    <div className="cpl-my-muted" style={{ padding: '32px 0' }}>
       <Spinner label={label} />
     </div>
   );
@@ -43,33 +47,33 @@ function Failed({ what, onRetry }: { what: string; onRetry: () => void }) {
 
 function Saved() {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: keys.saved, queryFn: getSaved });
+  const q = useQuery({ queryKey: keys.saved, queryFn: () => getSaved() });
   const remove = useMutation({
     mutationFn: removeSaved,
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.saved }),
   });
   if (q.isPending) return <Loading label="Loading your list" />;
   if (q.isError) return <Failed what="your list" onRetry={() => void q.refetch()} />;
-  if (q.data.items.length === 0)
+  if (q.data.length === 0)
     return (
       <EmptyState
         title="Nothing saved yet"
         description="Press + on a poster to keep a title here."
         action={
-          <a className="cin-primary" href="/cinema">
+          <a className="cpl-primary" href="/cinema">
             Browse the cinema
           </a>
         }
       />
     );
   return (
-    <ul className="cin-my-grid" aria-label="Saved titles">
-      {q.data.items.map((t) => (
+    <ul className="cpl-my-grid" aria-label="Saved titles">
+      {q.data.map((t) => (
         <li key={t.id}>
           <PosterCard
             title={t.title}
             subtitle={titleLine(t)}
-            src={t.poster_url}
+            src={poster(t)}
             href={titleHref(t.id)}
             tag={t.age_restricted ? '18+' : undefined}
             actions={
@@ -102,20 +106,26 @@ function Continue() {
       />
     );
   return (
-    <ul className="cin-my-grid" aria-label="Continue watching">
-      {q.data.items.map((i) => (
-        <li key={`${i.title.id}:${i.episode_id ?? ''}`}>
-          <PosterCard
-            title={i.title.title}
-            subtitle={i.episode_label ?? titleLine(i.title)}
-            src={i.title.poster_url}
-            href={watchHref(i.title.id, i.episode_id)}
-            progress={
-              i.duration_s > 0 ? Math.min(100, Math.round((i.position_s / i.duration_s) * 100)) : 0
-            }
-          />
-        </li>
-      ))}
+    <ul className="cpl-my-grid" aria-label="Continue watching">
+      {q.data.items.map((i) => {
+        const upNext = i.reason === 'up_next';
+        const sub = i.episode
+          ? `${upNext ? 'Up next · ' : ''}${episodeLine(i.episode)}`
+          : titleLine(i.title);
+        return (
+          <li key={`${i.title.id}:${i.episode?.id ?? ''}`}>
+            <PosterCard
+              title={i.title.title}
+              subtitle={sub}
+              src={poster(i.title)}
+              href={watchHref(i.title.id, i.episode?.id ?? null)}
+              progress={
+                i.progress && !upNext ? Math.min(100, Math.round(i.progress.percent)) : undefined
+              }
+            />
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -124,15 +134,15 @@ function ListItems({ id }: { id: string }) {
   const q = useQuery({ queryKey: keys.list(id), queryFn: () => getList(id) });
   if (q.isPending) return <Loading label="Loading list" />;
   if (q.isError) return <Failed what="this list" onRetry={() => void q.refetch()} />;
-  if (q.data.items.length === 0) return <p className="cin-my-muted">This list is empty.</p>;
+  if (q.data.items.length === 0) return <p className="cpl-my-muted">This list is empty.</p>;
   return (
-    <ul className="cin-my-grid">
-      {q.data.items.map((t) => (
+    <ul className="cpl-my-grid">
+      {q.data.items.map(({ title: t }) => (
         <li key={t.id}>
           <PosterCard
             title={t.title}
             subtitle={titleLine(t)}
-            src={t.poster_url}
+            src={poster(t)}
             href={titleHref(t.id)}
           />
         </li>
@@ -141,14 +151,18 @@ function ListItems({ id }: { id: string }) {
   );
 }
 
-const VISIBILITY = { private: 'Only you', friends: 'Friends', everyone: 'Everyone' } as const;
+const VISIBILITY: Record<ListVisibility, string> = {
+  private: 'Only you',
+  friends: 'Friends',
+  public: 'Everyone',
+};
 
 function Lists() {
   const q = useQuery({ queryKey: keys.lists, queryFn: getLists });
   const [open, setOpen] = useState<string | null>(null);
   if (q.isPending) return <Loading label="Loading your lists" />;
   if (q.isError) return <Failed what="your lists" onRetry={() => void q.refetch()} />;
-  if (q.data.items.length === 0)
+  if (q.data.length === 0)
     return (
       <EmptyState
         title="No lists yet"
@@ -157,17 +171,17 @@ function Lists() {
     );
   return (
     <div>
-      {q.data.items.map((l) => (
-        <div key={l.id} className="cin-my-list-row">
+      {q.data.map((l) => (
+        <div key={l.id} className="cpl-my-list-row">
           <div>
             <h3>{l.name}</h3>
-            <p className="cin-my-muted">
+            <p className="cpl-my-muted">
               {l.item_count} {l.item_count === 1 ? 'title' : 'titles'} · {VISIBILITY[l.visibility]}
             </p>
           </div>
           <button
             type="button"
-            className="cin-my-btn"
+            className="cpl-my-btn"
             aria-expanded={open === l.id}
             onClick={() => setOpen(open === l.id ? null : l.id)}
           >
@@ -187,10 +201,11 @@ function Lists() {
 function History() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: keys.history, queryFn: () => getHistory() });
+  const settings = useQuery({ queryKey: keys.historySettings, queryFn: getHistorySettings });
   const [confirm, setConfirm] = useState(false);
   const pause = useMutation({
     mutationFn: setHistoryPaused,
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.history }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.historySettings }),
   });
   const clear = useMutation({
     mutationFn: clearHistory,
@@ -199,12 +214,22 @@ function History() {
       return qc.invalidateQueries({ queryKey: keys.history });
     },
   });
-  if (q.isPending) return <Loading label="Loading watch history" />;
-  if (q.isError) return <Failed what="your history" onRetry={() => void q.refetch()} />;
-  const { items, paused } = q.data;
+  if (q.isPending || settings.isPending) return <Loading label="Loading watch history" />;
+  if (q.isError || settings.isError)
+    return (
+      <Failed
+        what="your history"
+        onRetry={() => {
+          void q.refetch();
+          void settings.refetch();
+        }}
+      />
+    );
+  const { items } = q.data;
+  const paused = settings.data.paused;
   return (
     <div>
-      <div className="cin-my-toolbar">
+      <div className="cpl-my-toolbar">
         <Switch
           label="Pause watch history"
           description="While paused, new viewing is not added to your history."
@@ -231,19 +256,25 @@ function History() {
           aria-label="Watch history"
         >
           {items.map((h) => (
-            <li key={h.id} className="cin-my-list-row">
+            <li key={`${h.title.id}:${h.episode?.id ?? ''}`} className="cpl-my-list-row">
               <div>
                 <h3>
-                  <a href={watchHref(h.title.id, h.episode_id)}>{h.title.title}</a>
+                  <a href={watchHref(h.title.id, h.episode?.id ?? null)}>{h.title.title}</a>
                 </h3>
-                <p className="cin-my-muted">
-                  {[h.episode_label, h.completed ? 'Watched' : 'In progress']
+                <p className="cpl-my-muted">
+                  {[
+                    h.episode ? episodeLine(h.episode) : null,
+                    h.progress.completed ? 'Watched' : 'In progress',
+                  ]
                     .filter(Boolean)
                     .join(' · ')}
                 </p>
               </div>
-              <time className="cin-my-muted" dateTime={new Date(h.watched_at_ms).toISOString()}>
-                {new Date(h.watched_at_ms).toLocaleDateString()}
+              <time
+                className="cpl-my-muted"
+                dateTime={new Date(h.progress.updated_at_ms).toISOString()}
+              >
+                {new Date(h.progress.updated_at_ms).toLocaleDateString()}
               </time>
             </li>
           ))}
@@ -252,7 +283,7 @@ function History() {
       <ConfirmDialog
         open={confirm}
         title="Clear your watch history?"
-        description="This removes the list of what you watched. Your saved titles and where you stopped are kept."
+        description="This removes the list of what you watched, with where you stopped in each title."
         confirmLabel="Clear history"
         danger
         loading={clear.isPending}
@@ -266,7 +297,7 @@ function History() {
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section aria-label={title}>
-      <h2 className="cin-sr-only">{title}</h2>
+      <h2 className="cpl-sr-only">{title}</h2>
       {children}
     </section>
   );
@@ -274,9 +305,9 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 
 export function MyListPage() {
   return (
-    <main className="cin-my">
-      <p className="cin-my-eyebrow">— Your space</p>
-      <h1 className="cin-my-h1">My list.</h1>
+    <main className="cpl-my">
+      <p className="cpl-my-eyebrow">— Your space</p>
+      <h1 className="cpl-my-h1">My list.</h1>
       <Tabs
         label="My list sections"
         items={[

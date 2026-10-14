@@ -16,7 +16,7 @@ import {
 } from './model';
 import { Feedback, NextCard, ResumePrompt, SkipButton, StillWatching } from './Overlays';
 import { playerSession, usePlayer } from './session';
-import './cinema-player.css';
+import './player.css';
 
 const CHROME_HIDE_MS = 3000;
 
@@ -214,7 +214,7 @@ export function PlayerView({ resumeAt, onResumeHandled, navigate, onExit }: Play
     // The wrapper only forwards pointer activity to the chrome timer and counts as "still watching".
     <div
       ref={rootRef}
-      className="cin-player"
+      className="cpl-player"
       role="region"
       aria-label={info ? `Video player: ${info.title}` : 'Video player'}
       data-chrome={chromeOn ? 'on' : 'off'}
@@ -226,7 +226,7 @@ export function PlayerView({ resumeAt, onResumeHandled, navigate, onExit }: Play
       {/* Click-to-play is a pointer convenience; the keyboard route is the Play button and Space. */}
       <div
         ref={stageRef}
-        className="cin-stage"
+        className="cpl-stage"
         onClick={(e) => {
           if (e.target instanceof HTMLVideoElement) s.toggle();
         }}
@@ -236,29 +236,29 @@ export function PlayerView({ resumeAt, onResumeHandled, navigate, onExit }: Play
       />
 
       {!info && (
-        <div className="cin-center">
+        <div className="cpl-center">
           <Spinner label="Opening title" />
         </div>
       )}
       {info && (
         <>
-          <div className="cin-top">
+          <div className="cpl-top">
             <button
               type="button"
-              className="cin-btn"
+              className="cpl-btn"
               aria-label="Back"
               onClick={() => exitFullscreenThen(onExit)}
             >
               <Icon name="close" size={20} />
             </button>
-            <div className="cin-titleblock">
-              <h1 className="cin-title">{info.title}</h1>
-              {info.episode_label && <p className="cin-subtitle">{info.episode_label}</p>}
+            <div className="cpl-titleblock">
+              <h1 className="cpl-title">{info.title}</h1>
+              {info.episode_label && <p className="cpl-subtitle">{info.episode_label}</p>}
             </div>
           </div>
 
           {status === 'error' && (
-            <div className="cin-center">
+            <div className="cpl-center">
               <EmptyState
                 title="Playback stopped"
                 description={error ?? 'Something went wrong while playing this.'}
@@ -278,7 +278,7 @@ export function PlayerView({ resumeAt, onResumeHandled, navigate, onExit }: Play
           {status !== 'error' && needsGesture && resumeAt === null && (
             <button
               type="button"
-              className="cin-bigplay"
+              className="cpl-bigplay"
               // A pointer shortcut for the Play button in the control bar; hidden from assistive tech so it is not announced twice.
               aria-hidden="true"
               tabIndex={-1}
@@ -291,7 +291,7 @@ export function PlayerView({ resumeAt, onResumeHandled, navigate, onExit }: Play
             </button>
           )}
           {status !== 'error' && (waiting || status === 'loading') && !needsGesture && (
-            <div className="cin-center" aria-hidden={false}>
+            <div className="cpl-center" aria-hidden={false}>
               <Spinner label="Buffering" />
             </div>
           )}
@@ -355,7 +355,7 @@ export function PlayerView({ resumeAt, onResumeHandled, navigate, onExit }: Play
           )}
 
           {info.kind !== 'movie' && (
-            <label className="cin-autoplay">
+            <label className="cpl-autoplay">
               <input
                 type="checkbox"
                 checked={autoplayNext}

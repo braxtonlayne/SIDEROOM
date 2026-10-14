@@ -29,17 +29,85 @@ interface Opts {
 
 function useCinemaApi(o: Opts = {}) {
   const requests: string[] = [];
+  const info = makeInfo(o.info);
+  const epId = info.episode_id;
+  const target = (titleId: string) => ({
+    title_id: titleId,
+    episode_id: epId,
+    variant_id: null,
+    asset_id: info.media_id,
+    title: info.title,
+    episode_title: info.episode_label ? info.episode_label.split(' · ').slice(2).join(' · ') : null,
+    season_number: epId ? 1 : null,
+    episode_number: epId ? 1 : null,
+    runtime_min: Math.round(info.duration_s / 60),
+    age_restricted: info.age_restricted,
+    markers: info.markers.map((m) => ({
+      kind: m.kind,
+      start_ms: m.start_s * 1000,
+      end_ms: m.end_s * 1000,
+    })),
+    next_episode_id: info.next?.episode_id ?? null,
+  });
+  const wireProgress = (id: string, ep: string) =>
+    info.progress
+      ? HttpResponse.json({
+          title_id: id,
+          episode_id: ep,
+          position_secs: info.progress.position_s,
+          duration_secs: info.progress.duration_s,
+          percent: (info.progress.position_s / info.progress.duration_s) * 100,
+          completed: info.progress.completed,
+          updated_at_ms: 1,
+        })
+      : HttpResponse.json({ message: 'none' }, { status: 404 });
   server.use(
     http.get('*/api/v1/users/@me', () => HttpResponse.json({ id: '1', username: 'me' })),
-    http.get('*/api/v1/cinema/titles/:id/playback', ({ request, params }) => {
+    http.get('*/api/v1/cinema/titles/:id/play', ({ request, params }) => {
       const url = new URL(request.url);
-      requests.push(`${params.id}${url.search}`);
-      const custom = o.playback?.(url);
-      if (custom) return custom;
-      return HttpResponse.json(makeInfo({ title_id: String(params.id), ...o.info }));
+      requests.push(`title:${String(params.id)}${url.search}`);
+      return o.playback?.(url) ?? HttpResponse.json(target(String(params.id)));
     }),
-    http.get('*/api/v1/cinema/progress/:id', () => HttpResponse.json({}, { status: 404 })),
-    http.put('*/api/v1/cinema/progress/:id', () => new HttpResponse(null, { status: 204 })),
+    http.get('*/api/v1/cinema/episodes/:id/play', ({ request, params }) => {
+      requests.push(`episode:${String(params.id)}`);
+      return o.playback?.(new URL(request.url)) ?? HttpResponse.json(target(info.title_id));
+    }),
+    http.get('*/api/v1/cinema/episodes/:id', ({ params }) =>
+      HttpResponse.json({
+        id: String(params.id),
+        title_id: info.next?.title_id ?? info.title_id,
+        season_number: info.next?.season ?? 1,
+        number: info.next?.number ?? 2,
+        title: info.next?.title ?? 'Next',
+        still_url: info.next?.still_url ?? null,
+      }),
+    ),
+    http.get('*/api/v1/cinema/assets/:id/playback', () =>
+      HttpResponse.json({
+        master_url: info.master_url,
+        expires_at: Math.floor(info.expires_at_ms / 1000),
+        duration_secs: info.duration_s,
+        sprites_url: info.sprites_url,
+        subtitles: info.subtitle_tracks.map((s) => ({
+          id: s.id,
+          language: s.language,
+          label: s.label,
+          vtt_url: s.vtt_url,
+          ass_url: s.ass_url,
+        })),
+      }),
+    ),
+    http.get('*/api/v1/cinema/titles/:id/progress', ({ params }) =>
+      wireProgress(String(params.id), '0'),
+    ),
+    http.get('*/api/v1/cinema/titles/:id/episodes/:ep/progress', ({ params }) =>
+      wireProgress(String(params.id), String(params.ep)),
+    ),
+    http.put('*/api/v1/cinema/titles/:id/progress', () => new HttpResponse(null, { status: 204 })),
+    http.put(
+      '*/api/v1/cinema/titles/:id/episodes/:ep/progress',
+      () => new HttpResponse(null, { status: 204 }),
+    ),
   );
   return requests;
 }
@@ -71,8 +139,10 @@ async function openAndPlay(path = '/cinema/watch/t1') {
 
 describe('watch page', () => {
   it('opens the title, asks for a gesture instead of autoplaying, then plays; passes axe', async () => {
-    useCinemaApi({ info: { kind: 'series', episode_label: 'S1 · E1 · Pilot' } });
-    const ctx = renderApp('/cinema/watch/t1?ep=e1');
+    useCinemaApi({
+      info: { kind: 'series', episode_id: 'e1', episode_label: 'S1 · E1 · Pilot' },
+    });
+    const ctx = renderApp('/cinema/watch/t1?episode=e1');
     expect(await screen.findByRole('heading', { name: 'Akira' })).toBeInTheDocument();
     expect(screen.getByText('S1 · E1 · Pilot')).toBeInTheDocument();
     // No sound without a gesture: the big Play button is there and nothing is playing.
@@ -89,9 +159,9 @@ describe('watch page', () => {
 
   it('requests the episode and the start time from the link', async () => {
     const requests = useCinemaApi();
-    const ctx = renderApp('/cinema/watch/t1?ep=e5&t=120');
+    const ctx = renderApp('/cinema/watch/t1?episode=e5&t=120');
     await player();
-    expect(requests).toEqual(['t1?episode=e5']);
+    expect(requests).toEqual(['episode:e5']);
     await waitFor(() => expect(ctx.engine.load).toHaveBeenCalledWith(expect.any(String), 120));
     // An explicit start time replaces the resume prompt.
     expect(screen.queryByRole('group', { name: 'Resume playback' })).not.toBeInTheDocument();
@@ -334,7 +404,7 @@ describe('next episode (CIN-PLY-006)', () => {
 
   it('shows the card at the credits with a countdown and goes to the next episode', async () => {
     useCinemaApi({ info: series });
-    const ctx = await openAndPlay('/cinema/watch/t1?ep=e1');
+    const ctx = await openAndPlay('/cinema/watch/t1?episode=e1');
     media.setDuration(ctx.video, 1500);
     expect(screen.queryByRole('region', { name: 'Next episode' })).not.toBeInTheDocument();
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
@@ -355,34 +425,34 @@ describe('next episode (CIN-PLY-006)', () => {
       vi.useRealTimers();
     }
     await waitFor(() => expect(ctx.router.state.location.pathname).toBe('/cinema/watch/t1'));
-    await waitFor(() => expect(ctx.router.state.location.search).toMatchObject({ ep: 'e2' }));
+    await waitFor(() => expect(ctx.router.state.location.search).toMatchObject({ episode: 'e2' }));
   });
 
   it('cancel keeps watching, Play now goes straight away', async () => {
     useCinemaApi({ info: series });
-    const ctx = await openAndPlay('/cinema/watch/t1?ep=e1');
+    const ctx = await openAndPlay('/cinema/watch/t1?episode=e1');
     media.setDuration(ctx.video, 1500);
     act(() => media.tick(ctx.video, 1450));
     await ctx.user.click(await screen.findByRole('button', { name: 'Cancel' }));
     expect(screen.queryByRole('region', { name: 'Next episode' })).not.toBeInTheDocument();
-    expect(ctx.router.state.location.search).toMatchObject({ ep: 'e1' });
+    expect(ctx.router.state.location.search).toMatchObject({ episode: 'e1' });
   });
 
   it('without autoplay the card waits for the viewer', async () => {
     useCinemaApi({ info: series });
-    const ctx = await openAndPlay('/cinema/watch/t1?ep=e1');
+    const ctx = await openAndPlay('/cinema/watch/t1?episode=e1');
     ctx.session.setAutoplayNext(false);
     media.setDuration(ctx.video, 1500);
     act(() => media.tick(ctx.video, 1450));
     const card = await screen.findByRole('region', { name: 'Next episode' });
     expect(within(card).queryByText(/Starts in/)).not.toBeInTheDocument();
     await ctx.user.click(within(card).getByRole('button', { name: 'Play now' }));
-    await waitFor(() => expect(ctx.router.state.location.search).toMatchObject({ ep: 'e2' }));
+    await waitFor(() => expect(ctx.router.state.location.search).toMatchObject({ episode: 'e2' }));
   });
 
   it('asks "Are you still watching?" after three auto-played episodes instead of counting down', async () => {
     useCinemaApi({ info: series });
-    const ctx = await openAndPlay('/cinema/watch/t1?ep=e1');
+    const ctx = await openAndPlay('/cinema/watch/t1?episode=e1');
     act(() => ctx.session.store.setState({ autoplayedCount: 3 }));
     media.setDuration(ctx.video, 1500);
     act(() => media.tick(ctx.video, 1450));
@@ -397,7 +467,7 @@ describe('next episode (CIN-PLY-006)', () => {
 
   it('the autoplay switch is remembered', async () => {
     useCinemaApi({ info: series });
-    const ctx = await openAndPlay('/cinema/watch/t1?ep=e1');
+    const ctx = await openAndPlay('/cinema/watch/t1?episode=e1');
     const box = screen.getByRole('checkbox', { name: 'Autoplay next episode' });
     expect(box).toBeChecked();
     await ctx.user.click(box);
@@ -473,7 +543,7 @@ describe('mini player (CIN-PLY-011)', () => {
     expect(
       screen
         .getByRole('region', { name: /Video player/ })
-        .querySelector('.cin-stage')!
+        .querySelector('.cpl-stage')!
         .contains(ctx.video),
     ).toBe(true);
   });
@@ -487,7 +557,7 @@ describe('mini player (CIN-PLY-011)', () => {
     const mini = await screen.findByRole('region', { name: /Mini player/ });
     await ctx.user.click(within(mini).getByRole('button', { name: 'Close mini player' }));
     expect(screen.queryByRole('region', { name: /Mini player/ })).not.toBeInTheDocument();
-    expect(ctx.progress.saved.at(-1)).toMatchObject({ mediaId: 'm1', positionS: 77 });
+    expect(ctx.progress.saved.at(-1)).toMatchObject({ titleId: 't1', positionS: 77 });
     expect(ctx.session.state.status).toBe('idle');
   });
 

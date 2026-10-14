@@ -45,19 +45,19 @@ export function Scrubber({
   return (
     <div
       ref={wrap}
-      className="cin-scrub"
+      className="cpl-scrub"
       onPointerMove={onMove}
       onPointerLeave={() => setHover(null)}
     >
-      <div className="cin-scrub-track" aria-hidden="true">
-        <div className="cin-scrub-buffer" style={{ width: `${pct(bufferedEnd)}%` }} />
-        <div className="cin-scrub-played" style={{ width: `${pct(currentTime)}%` }} />
+      <div className="cpl-scrub-track" aria-hidden="true">
+        <div className="cpl-scrub-buffer" style={{ width: `${pct(bufferedEnd)}%` }} />
+        <div className="cpl-scrub-played" style={{ width: `${pct(currentTime)}%` }} />
         {markers
           .filter((m) => m.kind === 'intro' || m.kind === 'credits')
           .map((m) => (
             <span
               key={`${m.kind}-${m.start_s}`}
-              className="cin-scrub-marker"
+              className="cpl-scrub-marker"
               data-kind={m.kind}
               style={{ left: `${pct(m.start_s)}%`, width: `${pct(m.end_s) - pct(m.start_s)}%` }}
             />
@@ -65,7 +65,7 @@ export function Scrubber({
       </div>
       <input
         type="range"
-        className="cin-scrub-input"
+        className="cpl-scrub-input"
         aria-label="Seek"
         min={0}
         max={dur || 1}
@@ -77,7 +77,7 @@ export function Scrubber({
       />
       {hover && (
         <div
-          className="cin-scrub-preview"
+          className="cpl-scrub-preview"
           aria-hidden="true"
           style={{
             left: `clamp(${(cue?.w ?? 80) / 2}px, ${hover.x}px, calc(100% - ${(cue?.w ?? 80) / 2}px))`,
@@ -85,7 +85,7 @@ export function Scrubber({
         >
           {cue && (
             <div
-              className="cin-scrub-thumb"
+              className="cpl-scrub-thumb"
               data-testid="scrub-thumb"
               style={{
                 width: cue.w,
@@ -95,7 +95,7 @@ export function Scrubber({
               }}
             />
           )}
-          <span className="cin-scrub-time">{formatClock(hover.t)}</span>
+          <span className="cpl-scrub-time">{formatClock(hover.t)}</span>
         </div>
       )}
     </div>

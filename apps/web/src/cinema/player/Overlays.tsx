@@ -8,7 +8,7 @@ import type { Marker, NextEpisode } from './types';
 
 export function SkipButton({ marker, onSkip }: { marker: Marker; onSkip: () => void }) {
   return (
-    <button type="button" className="cin-skip" onClick={onSkip}>
+    <button type="button" className="cpl-skip" onClick={onSkip}>
       {skipLabel(marker)}
     </button>
   );
@@ -53,17 +53,17 @@ export interface NextCardProps {
 export function NextCard({ next, autoplay, onPlayNext, onCancel }: NextCardProps) {
   const left = useCountdown(autoplay, NEXT_COUNTDOWN_S, () => onPlayNext(true));
   return (
-    <section className="cin-next" aria-label="Next episode">
-      {next.still_url && <img className="cin-next-still" src={next.still_url} alt="" />}
-      <div className="cin-next-body">
-        <p className="cin-next-eyebrow">Up next</p>
-        <p className="cin-next-title">{nextLine(next)}</p>
+    <section className="cpl-next" aria-label="Next episode">
+      {next.still_url && <img className="cpl-next-still" src={next.still_url} alt="" />}
+      <div className="cpl-next-body">
+        <p className="cpl-next-eyebrow">Up next</p>
+        <p className="cpl-next-title">{nextLine(next)}</p>
         {autoplay && (
-          <p className="cin-next-count" role="timer" aria-live="off">
+          <p className="cpl-next-count" role="timer" aria-live="off">
             Starts in {left} s
           </p>
         )}
-        <div className="cin-next-actions">
+        <div className="cpl-next-actions">
           <Button size="sm" leadingIcon={<PlayGlyph size={16} />} onClick={() => onPlayNext(false)}>
             Play now
           </Button>
@@ -116,13 +116,13 @@ export function ResumePrompt({
   const ref = useRef<HTMLButtonElement>(null);
   useEffect(() => ref.current?.focus(), []);
   return (
-    <div className="cin-resume" role="group" aria-label="Resume playback">
-      <p className="cin-resume-text">Pick up where you left off?</p>
-      <div className="cin-next-actions">
-        <button ref={ref} type="button" className="cin-primary" onClick={onResume}>
+    <div className="cpl-resume" role="group" aria-label="Resume playback">
+      <p className="cpl-resume-text">Pick up where you left off?</p>
+      <div className="cpl-next-actions">
+        <button ref={ref} type="button" className="cpl-primary" onClick={onResume}>
           Resume from {formatClock(at)}
         </button>
-        <button type="button" className="cin-secondary" onClick={onStartOver}>
+        <button type="button" className="cpl-secondary" onClick={onStartOver}>
           Start over
         </button>
       </div>
@@ -135,11 +135,11 @@ export function Feedback({ feedback }: { feedback: { id: number; text: string } 
   return (
     <>
       {feedback && (
-        <div key={feedback.id} className="cin-feedback" aria-hidden="true">
+        <div key={feedback.id} className="cpl-feedback" aria-hidden="true">
           {feedback.text}
         </div>
       )}
-      <div className="cin-sr-only" role="status" aria-live="polite">
+      <div className="cpl-sr-only" role="status" aria-live="polite">
         {feedback?.text ?? ''}
       </div>
     </>

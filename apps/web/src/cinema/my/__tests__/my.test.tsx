@@ -4,19 +4,38 @@ import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import { axeViolations } from '../../../../../../packages/ui/src/test-axe';
 import { createAppRouter } from '../../../router';
 import { http, HttpResponse, server } from '../../../test/server';
-import type { CinemaList, ContinueItem, HistoryItem, TitleCard } from '../types';
+import type { CinemaList, ContinueItem, HistoryItem, ListEntry, TitleRef } from '../types';
 
-const card = (id: string, o: Partial<TitleCard> = {}): TitleCard => ({
+const ref = (id: string, o: Partial<TitleRef> = {}): TitleRef => ({
   id,
   title: `Title ${id}`,
   kind: 'movie',
   year: 1998,
-  poster_url: null,
+  age_restricted: false,
+  poster_key: null,
   ...o,
+});
+const progress = (title: string, episode: string, o = {}) => ({
+  title_id: title,
+  episode_id: episode,
+  position_secs: 600,
+  duration_secs: 1500,
+  percent: 40,
+  completed: false,
+  updated_at_ms: Date.UTC(2026, 9, 1, 12),
+  ...o,
+});
+const episode = (title: string, id: string, number: number) => ({
+  id,
+  title_id: title,
+  season: 1,
+  number,
+  title: `Ep ${number}`,
+  runtime_secs: 1500,
 });
 
 interface Fixture {
-  saved?: TitleCard[];
+  saved?: unknown[];
   cont?: ContinueItem[];
   lists?: CinemaList[];
   history?: HistoryItem[];
@@ -27,42 +46,51 @@ function serve(f: Fixture = {}) {
   const calls: string[] = [];
   let paused = f.paused ?? false;
   let history = f.history ?? [];
-  let saved = f.saved ?? [card('1'), card('2', { kind: 'series', year: 2022 })];
+  let saved = f.saved ?? [ref('1'), ref('2', { kind: 'series', year: 2022 })];
   server.use(
     http.get('*/api/v1/users/@me', () => HttpResponse.json({ id: '1', username: 'me' })),
     http.get('*/api/v1/cinema/me/list', () => HttpResponse.json({ items: saved })),
     http.delete('*/api/v1/cinema/me/list/:id', ({ params }) => {
       calls.push(`DELETE list ${String(params.id)}`);
-      saved = saved.filter((t) => t.id !== params.id);
+      saved = saved.filter((t) => (t as TitleRef).id !== params.id);
       return new HttpResponse(null, { status: 204 });
     }),
-    http.get('*/api/v1/cinema/me/continue', () =>
+    http.get('*/api/v1/cinema/me/continue-watching', () =>
       HttpResponse.json({
         items: f.cont ?? [
           {
-            title: card('3', { kind: 'series', title: 'Frieren' }),
-            episode_id: 'e9',
-            episode_label: 'S1 · E9',
-            position_s: 600,
-            duration_s: 1500,
-            updated_at_ms: 1,
+            reason: 'resume',
+            title: ref('3', { kind: 'series', title: 'Frieren' }),
+            episode: episode('3', 'e9', 9),
+            progress: progress('3', 'e9'),
+          },
+          {
+            reason: 'up_next',
+            title: ref('4', { kind: 'anime', title: 'Mushishi' }),
+            episode: episode('4', 'e3', 3),
           },
         ],
       }),
     ),
-    http.get('*/api/v1/cinema/me/lists', () =>
+    http.get('*/api/v1/cinema/lists', () =>
       HttpResponse.json({
-        items: f.lists ?? [{ id: 'l1', name: 'Rainy day', visibility: 'friends', item_count: 2 }],
+        lists: f.lists ?? [
+          { id: 'saved', name: 'My list', kind: 'saved', visibility: 'private', item_count: 2 },
+          { id: 'l1', name: 'Rainy day', kind: 'custom', visibility: 'friends', item_count: 2 },
+        ],
       }),
     ),
-    http.get('*/api/v1/cinema/me/lists/:id', () =>
+    http.get('*/api/v1/cinema/lists/:id', () =>
       HttpResponse.json({
-        list: { id: 'l1', name: 'Rainy day', visibility: 'friends', item_count: 1 },
-        items: [card('7', { title: 'Paprika' })],
+        list: { id: 'l1', name: 'Rainy day', kind: 'custom', visibility: 'friends', item_count: 1 },
+        items: [
+          { title: ref('7', { title: 'Paprika' }), note: null, added_at_ms: 1 } satisfies ListEntry,
+        ],
       }),
     ),
-    http.get('*/api/v1/cinema/me/history', () => HttpResponse.json({ items: history, paused })),
-    http.put('*/api/v1/cinema/me/history', async ({ request }) => {
+    http.get('*/api/v1/cinema/me/history', () => HttpResponse.json({ items: history })),
+    http.get('*/api/v1/cinema/me/history/settings', () => HttpResponse.json({ paused })),
+    http.put('*/api/v1/cinema/me/history/settings', async ({ request }) => {
       paused = ((await request.json()) as { paused: boolean }).paused;
       calls.push(`PUT history paused=${paused}`);
       return new HttpResponse(null, { status: 204 });
@@ -81,13 +109,10 @@ function open() {
   return { router, ...render(<RouterProvider router={router} />) };
 }
 
-const histItem = (id: string, o: Partial<HistoryItem> = {}): HistoryItem => ({
-  id,
-  title: card('3', { title: 'Frieren', kind: 'series' }),
-  episode_id: 'e9',
-  episode_label: 'S1 · E9',
-  watched_at_ms: Date.UTC(2026, 9, 1),
-  completed: true,
+const histItem = (o: Partial<HistoryItem> = {}): HistoryItem => ({
+  title: ref('3', { title: 'Frieren', kind: 'series' }),
+  episode: episode('3', 'e9', 9),
+  progress: progress('3', 'e9', { completed: true, percent: 100 }),
   ...o,
 });
 
@@ -106,6 +131,12 @@ describe('My list (CIN-MY-001)', () => {
     expect(found.map((v) => JSON.stringify(v).slice(0, 500))).toEqual([]);
   });
 
+  it('reads saved items wrapped as {title} too', async () => {
+    serve({ saved: [{ title: ref('9', { title: 'Wrapped' }), added_at_ms: 1 }] });
+    open();
+    expect(await screen.findByRole('link', { name: 'Wrapped' })).toBeInTheDocument();
+  });
+
   it('removes a saved title', async () => {
     const calls = serve();
     open();
@@ -121,7 +152,7 @@ describe('My list (CIN-MY-001)', () => {
     expect(await screen.findByText('Nothing saved yet')).toBeInTheDocument();
   });
 
-  it('continue watching links straight into the player at the episode, with progress', async () => {
+  it('continue watching opens the episode in the player; up next has no progress bar', async () => {
     serve();
     open();
     const user = userEvent.setup();
@@ -129,29 +160,51 @@ describe('My list (CIN-MY-001)', () => {
     const grid = await screen.findByRole('list', { name: 'Continue watching' });
     expect(within(grid).getByRole('link', { name: 'Frieren' })).toHaveAttribute(
       'href',
-      '/cinema/watch/3?ep=e9',
+      '/cinema/watch/3?episode=e9',
     );
+    expect(within(grid).getByText('S1 · E9 · Ep 9')).toBeInTheDocument();
+    expect(within(grid).getAllByRole('progressbar')).toHaveLength(1);
     expect(within(grid).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '40');
+    expect(within(grid).getByText('Up next · S1 · E3 · Ep 3')).toBeInTheDocument();
+    expect(within(grid).getByRole('link', { name: 'Mushishi' })).toHaveAttribute(
+      'href',
+      '/cinema/watch/4?episode=e3',
+    );
   });
 
-  it('shows custom lists and expands one', async () => {
+  it('shows custom lists only (not the saved list) and expands one', async () => {
     serve();
     open();
     const user = userEvent.setup();
     await user.click(await screen.findByRole('tab', { name: 'Lists' }));
     expect(await screen.findByText('2 titles · Friends')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'My list' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Show titles in Rainy day' }));
     expect(await screen.findByRole('link', { name: 'Paprika' })).toBeInTheDocument();
   });
 
   it('pauses and clears the watch history after confirmation', async () => {
-    const calls = serve({ history: [histItem('h1'), histItem('h2', { completed: false })] });
+    const calls = serve({
+      history: [
+        histItem(),
+        histItem({
+          title: ref('5', { title: 'Akira' }),
+          episode: null,
+          progress: progress('5', '0', { completed: false }),
+        }),
+      ],
+    });
     open();
     const user = userEvent.setup();
     await user.click(await screen.findByRole('tab', { name: 'History' }));
     const list = await screen.findByRole('list', { name: 'Watch history' });
     expect(within(list).getAllByRole('listitem')).toHaveLength(2);
-    expect(within(list).getByText('S1 · E9 · In progress')).toBeInTheDocument();
+    expect(within(list).getByText('S1 · E9 · Ep 9 · Watched')).toBeInTheDocument();
+    expect(within(list).getByText('In progress')).toBeInTheDocument();
+    expect(within(list).getByRole('link', { name: 'Akira' })).toHaveAttribute(
+      'href',
+      '/cinema/watch/5',
+    );
 
     await user.click(screen.getByRole('switch', { name: /Pause watch history/ }));
     await waitFor(() => expect(calls).toContain('PUT history paused=true'));

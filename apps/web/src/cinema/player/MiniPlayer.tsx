@@ -8,7 +8,7 @@ import { useAppliedTheme } from '../../settings/user/useAppliedTheme';
 import { Expand, PauseGlyph, PlayGlyph } from './icons';
 import { watchHref } from './model';
 import { playerSession, usePlayer } from './session';
-import './cinema-player.css';
+import './player.css';
 
 export interface MiniPlayerViewProps {
   onExpand: () => void;
@@ -32,12 +32,12 @@ export function MiniPlayerView({ onExpand, onClose }: MiniPlayerViewProps) {
 
   if (!info) return null;
   return (
-    <section className="cin-mini" aria-label={`Mini player: ${info.title}`}>
-      <div ref={stage} className="cin-mini-stage" />
-      <div className="cin-mini-bar">
+    <section className="cpl-mini" aria-label={`Mini player: ${info.title}`}>
+      <div ref={stage} className="cpl-mini-stage" />
+      <div className="cpl-mini-bar">
         <button
           type="button"
-          className="cin-mini-title"
+          className="cpl-mini-title"
           onClick={onExpand}
           aria-label={`Open ${info.title} full screen`}
         >
@@ -46,20 +46,20 @@ export function MiniPlayerView({ onExpand, onClose }: MiniPlayerViewProps) {
         </button>
         <button
           type="button"
-          className="cin-btn"
+          className="cpl-btn"
           aria-label={playing ? 'Pause' : 'Play'}
           onClick={() => s.toggle()}
         >
           {playing ? <PauseGlyph size={18} /> : <PlayGlyph size={18} />}
         </button>
-        <button type="button" className="cin-btn" aria-label="Expand" onClick={onExpand}>
+        <button type="button" className="cpl-btn" aria-label="Expand" onClick={onExpand}>
           <Expand />
         </button>
-        <button type="button" className="cin-btn" aria-label="Close mini player" onClick={onClose}>
+        <button type="button" className="cpl-btn" aria-label="Close mini player" onClick={onClose}>
           <Icon name="close" size={16} />
         </button>
       </div>
-      <div className="cin-mini-progress" aria-hidden="true">
+      <div className="cpl-mini-progress" aria-hidden="true">
         <div style={{ width: `${d > 0 ? Math.min(100, (t / d) * 100) : 0}%` }} />
       </div>
     </section>
@@ -75,7 +75,7 @@ function Themed({ onExpand, onClose }: MiniPlayerViewProps) {
       appearance={theme.appearance}
       style={{ background: 'transparent' }}
       {...theme.data}
-      className="cin-mini-root"
+      className="cpl-mini-root"
     >
       <MiniPlayerView onExpand={onExpand} onClose={onClose} />
     </ThemeProvider>

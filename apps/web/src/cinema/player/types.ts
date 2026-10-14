@@ -9,13 +9,6 @@ export interface Marker {
   end_s: number;
 }
 
-export interface AudioTrackInfo {
-  id: string;
-  language: string;
-  label: string;
-  is_default?: boolean;
-}
-
 export interface SubtitleTrackInfo {
   id: string;
   language: string;
@@ -46,11 +39,15 @@ export interface WatchProgress {
 
 export type TitleKind = 'movie' | 'series' | 'anime';
 
-/** `GET /cinema/titles/{id}/playback[?episode=]`: everything the player needs for one playable item. */
+/**
+ * Everything the player needs for one playable item, composed by api.ts from the catalog's play target, the
+ * ingest playback grant and the viewer's progress.
+ */
 export interface PlaybackInfo {
   title_id: string;
   episode_id: string | null;
-  /** Stable id of the playable asset; signed URL refresh is keyed by it. */
+  variant_id?: string | null;
+  /** The playable asset (PlayTarget.asset_id); signed URL refresh is keyed by it. */
   media_id: string;
   title: string;
   /** "S1 · E3 · The Long Night" for episodes. */
@@ -62,19 +59,67 @@ export interface PlaybackInfo {
   /** Signed HLS master playlist. */
   master_url: string;
   expires_at_ms: number;
-  audio_tracks: AudioTrackInfo[];
+  /** When the player should ask for a new grant; absent means five minutes before expiry. */
+  refresh_at_ms?: number | null;
   subtitle_tracks: SubtitleTrackInfo[];
   markers: Marker[];
   /** WebVTT sprite map (one frame every 10 s), null when none was generated. */
   sprites_url: string | null;
   next: NextEpisode | null;
   progress: WatchProgress | null;
+  /** A trailer: no resume, no progress saving, no next episode. */
+  trailer?: boolean;
 }
 
-/** `POST /cinema/media/{mediaId}/refresh` */
+/** A fresh grant for the same asset (ManifestGrant in sr-media). */
 export interface RefreshedSource {
   master_url: string;
   expires_at_ms: number;
+  refresh_at_ms?: number | null;
+}
+
+/* ---- wire shapes (spec section 8; the asset playback shape is assumed, see api.ts) ---- */
+export interface WirePlayTarget {
+  title_id: string;
+  episode_id?: string | null;
+  variant_id?: string | null;
+  asset_id: string;
+  title: string;
+  episode_title?: string | null;
+  season_number?: number | null;
+  episode_number?: number | null;
+  runtime_min?: number | null;
+  age_restricted: boolean;
+  markers: { kind: MarkerKind; start_ms: number; end_ms: number }[];
+  next_episode_id?: string | null;
+  previous_episode_id?: string | null;
+}
+export interface WireEpisode {
+  id: string;
+  title_id: string;
+  season_number: number;
+  number: number;
+  title: string;
+  still_url?: string | null;
+}
+export interface WireGrant {
+  master_url: string;
+  /** Unix seconds. */
+  expires_at: number;
+  refresh_at?: number | null;
+}
+export interface WireAssetPlayback extends WireGrant {
+  duration_secs?: number | null;
+  subtitles?: {
+    id: string;
+    language?: string | null;
+    label?: string | null;
+    forced?: boolean;
+    is_default?: boolean;
+    vtt_url: string;
+    ass_url?: string | null;
+  }[];
+  sprites_url?: string | null;
 }
 
 export interface SpriteCue {

@@ -58,11 +58,11 @@ describe('progress saving (CIN-PLY-007)', () => {
     vi.advanceTimersByTime(10_000);
     expect(progress.saved).toHaveLength(1);
     expect(progress.saved[0]).toMatchObject({
-      mediaId: 'm1',
       titleId: 't1',
+      episodeId: null,
       positionS: 40,
       durationS: 6000,
-      completed: false,
+      playing: true,
     });
     media.tick(video, 55);
     vi.advanceTimersByTime(10_000);
@@ -76,6 +76,7 @@ describe('progress saving (CIN-PLY-007)', () => {
     media.tick(video, 100);
     session.pause();
     expect(progress.saved).toHaveLength(1);
+    expect(progress.saved[0]!.playing).toBe(false); // a pause ends the "watching" presence
     session.flush('heartbeat');
     expect(progress.saved).toHaveLength(1);
     media.tick(video, 140);
@@ -91,9 +92,18 @@ describe('progress saving (CIN-PLY-007)', () => {
     media.setDuration(video, 1000);
     media.tick(video, 905);
     session.flush('heartbeat');
-    expect(progress.saved.at(-1)).toMatchObject({ completed: true, positionS: 1000 });
+    expect(progress.saved.at(-1)).toMatchObject({ positionS: 1000 });
     media.end(video);
-    expect(progress.saved.at(-1)).toMatchObject({ completed: true });
+    expect(progress.saved.at(-1)).toMatchObject({ completed: true, playing: false });
+  });
+
+  it('does not record progress for a trailer', async () => {
+    const ctx = makeSession();
+    await ctx.session.start(makeInfo({ trailer: true }), { autoplay: true });
+    media.setDuration(ctx.session.element(), 100);
+    media.tick(ctx.session.element(), 50);
+    ctx.session.pause();
+    expect(ctx.progress.saved).toHaveLength(0);
   });
 
   it('never saves an item the viewer did not play, and saves the replaced item when a new one starts', async () => {
@@ -104,7 +114,7 @@ describe('progress saving (CIN-PLY-007)', () => {
     media.setDuration(ctx.video, 6000);
     media.tick(ctx.video, 300);
     await ctx.session.start(makeInfo({ media_id: 'm2', title_id: 't2' }), {});
-    expect(ctx.progress.saved.at(-1)).toMatchObject({ mediaId: 'm1', positionS: 300 });
+    expect(ctx.progress.saved.at(-1)).toMatchObject({ titleId: 't1', positionS: 300 });
   });
 });
 
@@ -120,7 +130,8 @@ describe('signed URL refresh (CIN-PLY-010)', () => {
     expect(ctx.refresh).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(2000);
     expect(ctx.refresh).toHaveBeenCalledWith('m1');
-    expect(ctx.engine.updateSigning).toHaveBeenCalledWith(expect.stringContaining('sig=b'));
+    expect(ctx.signing).toHaveBeenCalledWith(expect.stringContaining('sig=b'));
+    expect(ctx.engine.updateSigning).toHaveBeenCalledWith(expect.any(Function));
     expect(ctx.engine.swapSource).not.toHaveBeenCalled();
     expect(media.isPaused(ctx.session.element())).toBe(false);
     expect(ctx.session.state.info!.master_url).toContain('sig=b');
@@ -132,6 +143,20 @@ describe('signed URL refresh (CIN-PLY-010)', () => {
     ctx.engine.emit({ type: 'error', fatal: false, kind: 'auth', status: 403 });
     await vi.waitFor(() => expect(ctx.engine.swapSource).toHaveBeenCalled());
     expect(ctx.engine.swapSource).toHaveBeenCalledWith(expect.stringContaining('sig=b'), 321);
+  });
+
+  it('follows the refresh_at the server sent instead of its own schedule', async () => {
+    vi.useFakeTimers();
+    const now = Date.now();
+    const ctx = makeSession();
+    await ctx.session.start(
+      makeInfo({ expires_at_ms: now + 6 * 3600_000, refresh_at_ms: now + 60_000 }),
+      { autoplay: true },
+    );
+    await vi.advanceTimersByTimeAsync(59_000);
+    expect(ctx.refresh).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(ctx.refresh).toHaveBeenCalledTimes(1);
   });
 
   it('swaps instead of re-signing on native HLS, which cannot rewrite requests', async () => {
@@ -163,7 +188,8 @@ describe('signed URL refresh (CIN-PLY-010)', () => {
     expect(ctx.refresh).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(30_001);
     expect(ctx.refresh).toHaveBeenCalledTimes(2);
-    expect(ctx.engine.updateSigning).toHaveBeenCalledWith('https://cdn.test/m?sig=c');
+    expect(ctx.signing).toHaveBeenCalledWith('https://cdn.test/m?sig=c');
+    expect(ctx.engine.updateSigning).toHaveBeenCalledTimes(1);
   });
 });
 

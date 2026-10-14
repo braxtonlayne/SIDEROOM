@@ -79,7 +79,7 @@ export function DownloadModal({ open, onClose, titleId, episodeId, title }: Down
   const notPatron = options.error instanceof ApiError && options.error.status === 403;
 
   let body;
-  if (options.isPending) body = <p className="cin-my-muted">Loading the available files…</p>;
+  if (options.isPending) body = <p className="cpl-my-muted">Loading the available files…</p>;
   else if (notPatron)
     body = (
       <p role="alert">Downloads are for Patrons. Support SIDE ROOM to take titles with you.</p>
@@ -98,7 +98,7 @@ export function DownloadModal({ open, onClose, titleId, episodeId, title }: Down
         {job.state === 'ready' && job.url && (
           <p>
             Your file is ready.{' '}
-            <a className="cin-primary" href={job.url} download>
+            <a className="cpl-primary" href={job.url} download>
               Download
             </a>
           </p>

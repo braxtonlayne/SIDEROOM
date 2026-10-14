@@ -9,7 +9,7 @@ import {
   parseSpriteVtt,
   parseWatchSearch,
   refreshDelayMs,
-  resign,
+  refreshInMs,
   resumeOffer,
   spokenClock,
   spriteAt,
@@ -147,29 +147,28 @@ describe('signed URL refresh', () => {
     expect(refreshDelayMs(now + 8 * 60_000, now)).toBe(4 * 60_000);
     expect(refreshDelayMs(now + 1000, now)).toBe(5000); // never a hot loop
   });
-  it('re-signs requests on the same origin only', () => {
-    const fresh = 'https://cdn.test/m1/master.m3u8?sig=NEW&exp=9';
-    expect(resign('https://cdn.test/m1/720p/seg1.m4s?sig=OLD&exp=1', fresh)).toBe(
-      'https://cdn.test/m1/720p/seg1.m4s?sig=NEW&exp=9',
-    );
-    expect(resign('https://other.test/seg.m4s?sig=OLD', fresh)).toBe(
-      'https://other.test/seg.m4s?sig=OLD',
-    );
-    expect(resign('https://cdn.test/seg.m4s', 'https://cdn.test/m.m3u8')).toBe(
-      'https://cdn.test/seg.m4s',
-    );
+  it('uses the refresh time the server sent, never sooner than 5 s', () => {
+    const now = 1_000_000;
+    expect(refreshInMs(now + 6 * 3600_000, now + 120_000, now)).toBe(120_000);
+    expect(refreshInMs(now + 6 * 3600_000, now + 10, now)).toBe(5000);
+    expect(refreshInMs(now + 6 * 3600_000, null, now)).toBe(6 * 3600_000 - 5 * 60_000);
   });
 });
 
 describe('route helpers', () => {
-  it('parses ep and t from the search string', () => {
-    expect(parseWatchSearch({ ep: 'e12', t: 90 })).toEqual({ ep: 'e12', t: 90 });
-    expect(parseWatchSearch({ ep: 12, t: '75.9' })).toEqual({ ep: '12', t: 75 });
-    expect(parseWatchSearch({ ep: '../x', t: -4 })).toEqual({});
+  it('parses the episode, variant, trailer flag and start time from the search string', () => {
+    expect(parseWatchSearch({ episode: 'e12', t: 90 })).toEqual({ episode: 'e12', t: 90 });
+    expect(parseWatchSearch({ ep: 12, t: '75.9', variant: 3, trailer: '1' })).toEqual({
+      episode: '12',
+      t: 75,
+      variant: '3',
+      trailer: true,
+    });
+    expect(parseWatchSearch({ episode: '../x', t: -4, trailer: '0' })).toEqual({});
     expect(parseWatchSearch({})).toEqual({});
   });
   it('builds watch links', () => {
     expect(watchHref('t1')).toBe('/cinema/watch/t1');
-    expect(watchHref('t1', 'e2', 61.7)).toBe('/cinema/watch/t1?ep=e2&t=61');
+    expect(watchHref('t1', 'e2', 61.7)).toBe('/cinema/watch/t1?episode=e2&t=61');
   });
 });

@@ -1,7 +1,7 @@
 // HLS engine wrapper (CIN-PLY-001). The player talks to `PlaybackEngine` only: hls.js (MSE) on most browsers,
 // the browser's own HLS on Safari/iOS, and a fake in tests. hls.js is imported lazily so it only ships with
 // the watch route (it is the bulk of the player chunk).
-import { resign } from './model';
+import type { UrlRewriter } from './signing';
 
 export interface QualityLevel {
   index: number;
@@ -29,8 +29,8 @@ export type EngineEvent =
 export interface PlaybackEngine {
   readonly kind: 'hls.js' | 'native' | 'fake';
   load(url: string, startAt?: number): void;
-  /** Continue with a freshly signed source. Requests made after this carry the new signature. */
-  updateSigning(freshMasterUrl: string): void;
+  /** Continue with freshly signed files: every request made after this goes through `rewrite` first. */
+  updateSigning(rewrite: UrlRewriter): void;
   /** Hard swap to a new URL at the given position (used when the signature already lapsed, and on Safari). */
   swapSource(url: string, startAt: number): void;
   /** 'auto' = ABR. A number is a level index chosen by the viewer. */
@@ -159,17 +159,18 @@ export function createNativeEngine(video: HTMLVideoElement): PlaybackEngine {
 export async function createHlsEngine(video: HTMLVideoElement): Promise<PlaybackEngine> {
   const { default: Hls, Events, ErrorTypes } = await import('hls.js');
   const bus = new Emitter();
-  let signing: string | null = null;
+  let rewriter: UrlRewriter | null = null;
   let levels: QualityLevel[] = [];
   let maxHeight: number | null = null;
   let manual: 'auto' | number = 'auto';
 
-  const rewrite = (url: string) => (signing ? resign(url, signing) : url);
+  const rewrite = (url: string) => (rewriter ? rewriter(url) : url);
   const hls = new Hls({
     startFragPrefetch: true,
     // hls.js uses XHR by default; both hooks are set so the loader choice never matters.
     xhrSetup: (xhr, url) => {
-      if (signing) xhr.open('GET', rewrite(url), true);
+      const to = rewrite(url);
+      if (to !== url) xhr.open('GET', to, true);
     },
     fetchSetup: (context, init) => new Request(rewrite(context.url), init),
   });
@@ -226,11 +227,11 @@ export async function createHlsEngine(video: HTMLVideoElement): Promise<Playback
       hls.config.startPosition = startAt && startAt > 0 ? startAt : -1;
       hls.loadSource(url);
     },
-    updateSigning(fresh) {
-      signing = fresh;
+    updateSigning(fn) {
+      rewriter = fn;
     },
     swapSource(url, startAt) {
-      signing = url;
+      rewriter = null; // the new master's playlists carry their own fresh signatures
       hls.config.startPosition = startAt;
       hls.loadSource(url);
     },

@@ -2,6 +2,7 @@
 // machine, and the HLS engine by a recorder.
 import { vi } from 'vitest';
 import type { EngineEvent, PlaybackEngine, QualityLevel } from '../engine';
+import type { UrlRewriter } from '../signing';
 import { PlayerSession, setPlayerSession } from '../session';
 import type { WatchProgressApi, WatchProgressInput } from '../progress';
 import type { PlaybackInfo } from '../types';
@@ -149,7 +150,7 @@ export class FakeEngine implements PlaybackEngine {
   listeners = new Set<(e: EngineEvent) => void>();
   destroyed = false;
   load = vi.fn((url: string, startAt?: number) => void this.calls.push(['load', url, startAt]));
-  updateSigning = vi.fn((url: string) => void this.calls.push(['updateSigning', url]));
+  updateSigning = vi.fn((fn: UrlRewriter) => void this.calls.push(['updateSigning', fn]));
   swapSource = vi.fn((url: string, at: number) => void this.calls.push(['swapSource', url, at]));
   setQuality = vi.fn((q: 'auto' | number) => void this.calls.push(['setQuality', q]));
   setMaxHeight = vi.fn((h: number | null) => void this.calls.push(['setMaxHeight', h]));
@@ -197,7 +198,7 @@ export function makeInfo(o: Partial<PlaybackInfo> = {}): PlaybackInfo {
     duration_s: 6000,
     master_url: 'https://cdn.test/m1/master.m3u8?sig=a&exp=1',
     expires_at_ms: Date.now() + 6 * 3600_000,
-    audio_tracks: [],
+    refresh_at_ms: null,
     subtitle_tracks: [
       { id: 's-en', language: 'en', label: 'English', vtt_url: 'https://cdn.test/m1/en.vtt' },
       { id: 's-ja', language: 'ja', label: 'Japanese', vtt_url: 'https://cdn.test/m1/ja.vtt' },
@@ -223,13 +224,18 @@ export function makeSession(
           expires_at_ms: Date.now() + 6 * 3600_000,
         })),
   );
+  const signing = vi.fn((url: string): Promise<UrlRewriter> => {
+    void url;
+    return Promise.resolve((u: string) => u);
+  });
   const session = new PlayerSession({
     engineFactory: () => Promise.resolve(engine),
     progress: () => progress.api,
     refresh,
+    signing,
   });
   setPlayerSession(session);
-  return { session, engine, progress, refresh };
+  return { session, engine, progress, refresh, signing };
 }
 
 /** Call in afterEach: drops the session and its parked <video>. */

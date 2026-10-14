@@ -231,7 +231,7 @@ const BG: Record<SubBackground, string> = {
   translucent: 'rgba(0, 0, 0, 0.6)',
   solid: '#000000',
 };
-/** CSS custom properties read by the `video::cue` rule in cinema-player.css. */
+/** CSS custom properties read by the `video::cue` rule in player.css. */
 export function cueVars(s: SubtitleStyle): Record<string, string> {
   return {
     '--sr-cue-size': SIZE_EM[s.size],
@@ -249,46 +249,49 @@ export function refreshDelayMs(expiresAtMs: number, nowMs: number): number {
   const lead = remaining > 2 * REFRESH_LEAD_MS ? REFRESH_LEAD_MS : remaining / 2;
   return Math.max(5_000, remaining - lead);
 }
-
-/**
- * Re-signs a request URL with the fresh signature parameters from a refreshed master URL (hls.js keeps using
- * the playlist it loaded once, so segment requests must carry the current signature). Only URLs on the same
- * origin as `fresh` are touched, and only the parameters `fresh` carries are replaced.
- */
-export function resign(url: string, fresh: string): string {
-  const dummy = 'http://x.invalid';
-  try {
-    const f = new URL(fresh, dummy);
-    const u = new URL(url, dummy);
-    if (f.origin !== u.origin || f.search === '') return url;
-    for (const [k, v] of f.searchParams) u.searchParams.set(k, v);
-    return u.origin === dummy ? `${u.pathname}${u.search}${u.hash}` : u.toString();
-  } catch {
-    return url;
-  }
+/** The server's own `refresh_at` when it sent one, else `refreshDelayMs`. */
+export function refreshInMs(
+  expiresAtMs: number,
+  refreshAtMs: number | null | undefined,
+  nowMs: number,
+) {
+  return refreshAtMs ? Math.max(5_000, refreshAtMs - nowMs) : refreshDelayMs(expiresAtMs, nowMs);
 }
 
 /* ------------------------------------------------------------- route */
 
 export interface WatchSearch {
-  ep?: string;
+  /** Episode id (`?episode=`, the name the title page uses; `?ep=` is accepted too). */
+  episode?: string;
+  variant?: string;
+  /** Play the title's trailer. */
+  trailer?: boolean;
+  /** Start position in seconds. */
   t?: number;
 }
-/** `?ep=ID&t=SECONDS`. The router turns numeric strings into numbers, so ids are stringified back. */
+const ID = /^[A-Za-z0-9_-]{1,64}$/;
+const idOf = (v: unknown) => {
+  if (typeof v !== 'string' && typeof v !== 'number') return undefined;
+  const id = String(v);
+  return ID.test(id) ? id : undefined;
+};
+/** The router turns numeric strings into numbers, so ids are stringified back. */
 export function parseWatchSearch(s: Record<string, unknown>): WatchSearch {
   const out: WatchSearch = {};
-  if (typeof s.ep === 'string' || typeof s.ep === 'number') {
-    const ep = String(s.ep);
-    if (/^[A-Za-z0-9_-]{1,64}$/.test(ep)) out.ep = ep;
-  }
+  const episode = idOf(s.episode ?? s.ep);
+  if (episode) out.episode = episode;
+  const variant = idOf(s.variant);
+  if (variant) out.variant = variant;
+  if (s.trailer === true || s.trailer === 1 || s.trailer === '1' || s.trailer === 'true')
+    out.trailer = true;
   const t = typeof s.t === 'number' ? s.t : typeof s.t === 'string' ? Number(s.t) : NaN;
   if (Number.isFinite(t) && t >= 0) out.t = Math.floor(t);
   return out;
 }
 
-export const watchHref = (titleId: string, ep?: string | null, t?: number) => {
+export const watchHref = (titleId: string, episode?: string | null, t?: number) => {
   const q = new URLSearchParams();
-  if (ep) q.set('ep', ep);
+  if (episode) q.set('episode', episode);
   if (t !== undefined) q.set('t', String(Math.floor(t)));
   const s = q.toString();
   return `/cinema/watch/${encodeURIComponent(titleId)}${s ? `?${s}` : ''}`;

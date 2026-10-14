@@ -16,13 +16,20 @@ import { playerSession } from './session';
 export interface WatchPageProps {
   titleId: string;
   episodeId?: string;
+  variantId?: string;
+  trailer?: boolean;
   /** Start position in seconds from the link (`?t=`). */
   startAt?: number;
 }
 
 export function WatchPage(props: WatchPageProps) {
   // A different title or episode is a different playback: all state starts over.
-  return <WatchLoader key={`${props.titleId}:${props.episodeId ?? ''}`} {...props} />;
+  return (
+    <WatchLoader
+      key={`${props.titleId}:${props.episodeId ?? ''}:${props.variantId ?? ''}:${props.trailer ? 't' : ''}`}
+      {...props}
+    />
+  );
 }
 
 /** Browsers allow sound without a click only after the page has had user activation. */
@@ -31,17 +38,18 @@ const hasActivation = () =>
   (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation
     ?.hasBeenActive === true;
 
-function WatchLoader({ titleId, episodeId, startAt }: WatchPageProps) {
+function WatchLoader({ titleId, episodeId, variantId, trailer, startAt }: WatchPageProps) {
   const router = useRouter();
   const { ensureAdult } = useAgeGate();
   const s = playerSession();
-  const [reuse] = useState(() => s.matches(titleId, episodeId ?? null));
+  const [reuse] = useState(() => s.matches(titleId, episodeId ?? null) && !trailer);
   const [resumeAt, setResumeAt] = useState<number | null>(null);
 
   const query = useQuery({
-    queryKey: ['cinema', 'playback', titleId, episodeId ?? null],
+    queryKey: ['cinema', 'playback', titleId, episodeId ?? null, variantId ?? null, !!trailer],
     // 403 900011 -> "Are you 18 or older?" -> on yes the request runs once more (D-184).
-    queryFn: () => withAgeGate(() => getPlayback(titleId, episodeId), ensureAdult),
+    queryFn: () =>
+      withAgeGate(() => getPlayback({ titleId, episodeId, variantId, trailer }), ensureAdult),
     enabled: !reuse,
     retry: false,
     // Signed URLs: never serve a cached copy.
@@ -67,7 +75,9 @@ function WatchLoader({ titleId, episodeId, startAt }: WatchPageProps) {
     if (reuse || !info) return;
     let dead = false;
     void (async () => {
-      const saved = info.progress ?? (await progressApi.get(info.media_id));
+      const saved =
+        info.progress ??
+        (info.trailer ? null : await progressApi.get(info.title_id, info.episode_id));
       if (dead) return;
       const offer = resumeOffer(saved, startAt);
       setResumeAt(offer);
@@ -86,7 +96,7 @@ function WatchLoader({ titleId, episodeId, startAt }: WatchPageProps) {
   if (query.isError && !declined) {
     const gone = query.error instanceof ApiError && query.error.status === 404;
     return (
-      <div className="cin-player cin-player-msg">
+      <div className="cpl-player cpl-player-msg">
         <EmptyState
           title={gone ? 'This title is not available' : 'We could not open this title'}
           description={
@@ -95,7 +105,7 @@ function WatchLoader({ titleId, episodeId, startAt }: WatchPageProps) {
               : 'Check your connection and try again.'
           }
           action={
-            <a className="cin-primary" href="/cinema">
+            <a className="cpl-primary" href="/cinema">
               Back to the cinema
             </a>
           }
@@ -105,7 +115,7 @@ function WatchLoader({ titleId, episodeId, startAt }: WatchPageProps) {
   }
   if (!info || declined) {
     return (
-      <div className="cin-player cin-player-msg">
+      <div className="cpl-player cpl-player-msg">
         <Spinner label="Opening title" />
       </div>
     );

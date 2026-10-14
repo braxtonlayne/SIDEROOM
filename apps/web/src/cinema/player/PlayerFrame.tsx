@@ -8,7 +8,7 @@ import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { ApiError, apiFetch } from '../../api/client';
 import { AgeGateProvider } from '../../lib/ageGate';
 import { useAppliedTheme } from '../../settings/user/useAppliedTheme';
-import './cinema-player.css';
+import './player.css';
 
 function Session({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
@@ -69,7 +69,7 @@ export function PlayerFrame() {
         appearance={theme.appearance}
         style={theme.style}
         {...theme.data}
-        className="cin-root"
+        className="cpl-root"
         onClick={onClick}
       >
         <ToastProvider>

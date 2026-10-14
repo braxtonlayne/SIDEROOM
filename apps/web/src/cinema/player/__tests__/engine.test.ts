@@ -172,22 +172,25 @@ describe('hls.js engine (CIN-PLY-001)', () => {
     expect(hls.audioTrack).toBe(1);
   });
 
-  it('re-signs later requests after a refresh, and only then', async () => {
+  it('rewrites later requests through the refreshed map, and only then', async () => {
     const { e, hls } = await make();
     const xhr = { open: vi.fn() };
     const setup = hls.config.xhrSetup as (x: typeof xhr, url: string) => void;
-    setup(xhr, 'https://cdn.test/m1/seg1.m4s?sig=old');
+    setup(xhr, 'https://cdn.test/m1/seg1.m4s?ex=1&sig=old');
     expect(xhr.open).not.toHaveBeenCalled(); // hls.js opens the request itself until a refresh happened
-    e.updateSigning('https://cdn.test/m1/master.m3u8?sig=new&exp=9');
-    setup(xhr, 'https://cdn.test/m1/seg2.m4s?sig=old');
-    expect(xhr.open).toHaveBeenCalledWith(
-      'GET',
-      'https://cdn.test/m1/seg2.m4s?sig=new&exp=9',
-      true,
+    e.updateSigning((u) =>
+      u.startsWith('https://cdn.test/m1/seg2.m4s')
+        ? 'https://cdn.test/m1/seg2.m4s?ex=9&sig=new'
+        : u,
     );
+    setup(xhr, 'https://cdn.test/m1/seg2.m4s?ex=1&sig=old');
+    expect(xhr.open).toHaveBeenCalledWith('GET', 'https://cdn.test/m1/seg2.m4s?ex=9&sig=new', true);
+    xhr.open.mockClear();
+    setup(xhr, 'https://cdn.test/m1/other.m4s?ex=1&sig=old'); // unknown files are left alone
+    expect(xhr.open).not.toHaveBeenCalled();
     const fetchSetup = hls.config.fetchSetup as (c: { url: string }, i?: RequestInit) => Request;
-    expect(fetchSetup({ url: 'https://cdn.test/m1/seg3.m4s?sig=old' }).url).toBe(
-      'https://cdn.test/m1/seg3.m4s?sig=new&exp=9',
+    expect(fetchSetup({ url: 'https://cdn.test/m1/seg2.m4s?ex=1&sig=old' }).url).toBe(
+      'https://cdn.test/m1/seg2.m4s?ex=9&sig=new',
     );
   });
 

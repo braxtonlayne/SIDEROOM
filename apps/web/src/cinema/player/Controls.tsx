@@ -69,7 +69,7 @@ function IconButton({
   return (
     <button
       type="button"
-      className="cin-btn"
+      className="cpl-btn"
       aria-label={label}
       aria-pressed={pressed}
       disabled={disabled}
@@ -94,7 +94,7 @@ function MenuButton({
   children: React.ReactNode;
 }) {
   const trigger: ReactElement<{ onClick?: () => void }> = (
-    <button type="button" className="cin-btn" aria-label={label}>
+    <button type="button" className="cpl-btn" aria-label={label}>
       {children}
     </button>
   );
@@ -199,7 +199,7 @@ export function Controls(p: ControlsProps) {
   const level = st.muted ? 0 : st.volume;
   const next = info.next;
   return (
-    <div className="cin-controls">
+    <div className="cpl-controls">
       <Scrubber
         currentTime={st.currentTime}
         duration={st.duration}
@@ -208,7 +208,7 @@ export function Controls(p: ControlsProps) {
         spritesUrl={info.sprites_url}
         onSeek={(t) => s.seek(t, false)}
       />
-      <div className="cin-row">
+      <div className="cpl-row">
         <IconButton label={st.playing ? 'Pause' : 'Play'} onClick={() => s.toggle()}>
           {st.playing ? <PauseGlyph /> : <PlayGlyph />}
         </IconButton>
@@ -223,13 +223,13 @@ export function Controls(p: ControlsProps) {
             <SkipNext />
           </IconButton>
         )}
-        <div className="cin-volume">
+        <div className="cpl-volume">
           <IconButton label={st.muted ? 'Unmute' : 'Mute'} onClick={() => s.toggleMute()}>
             <VolumeGlyph muted={st.muted || st.volume === 0} level={level} />
           </IconButton>
           <input
             type="range"
-            className="cin-volume-input"
+            className="cpl-volume-input"
             aria-label="Volume"
             min={0}
             max={100}
@@ -239,10 +239,10 @@ export function Controls(p: ControlsProps) {
             onChange={(e) => s.setVolume(Number(e.target.value) / 100, false)}
           />
         </div>
-        <span className="cin-time" aria-hidden="true">
+        <span className="cpl-time" aria-hidden="true">
           {formatClock(st.currentTime)} / {formatClock(st.duration)}
         </span>
-        <span className="cin-spacer" />
+        <span className="cpl-spacer" />
         {st.audioTracks.length > 1 && (
           <MenuButton
             label="Audio track"

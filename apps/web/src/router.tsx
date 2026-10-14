@@ -5,7 +5,6 @@ import {
   Outlet,
   type RouterHistory,
 } from '@tanstack/react-router';
-import { createPlayerRootRoutes } from './cinema/player/routes';
 import { createLibraryRoutes } from './library/routes';
 import { createLoungeRoutes } from './routes/lounge';
 import { createUserSettingsRoutes } from './settings/user/routes';
@@ -24,6 +23,7 @@ import { DiscordCallback } from './routes/entrance/DiscordCallback';
 import { VerifyEmail } from './routes/entrance/VerifyEmail';
 import { EmailChangeCancel } from './routes/entrance/EmailChangeCancel';
 import { ServerTemplate } from './routes/entrance/ServerTemplate';
+import { createPlayerRootRoutes } from './cinema/player/routes';
 
 const root = createRootRoute({ component: Outlet });
 const r = <P extends string>(path: P, component: () => React.JSX.Element | null) =>
@@ -89,9 +89,10 @@ const routeTree = root.addChildren([
   ...createUserSettingsRoutes(root),
   ...createServerSettingsRoutes(root),
   r('/cinema', P.Cinema),
-  createPlayerRootRoutes(root),
   createLibraryRoutes(root),
   ...createAdminRoutes(root),
+  // Until the Cinema section layout mounts createPlayerRoutes(layout) (see cinema/player/routes.ts).
+  createPlayerRootRoutes(root),
   r('/developers', P.Developers),
   r('/support', Support),
 ]);
