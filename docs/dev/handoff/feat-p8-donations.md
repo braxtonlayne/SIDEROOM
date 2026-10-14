@@ -70,7 +70,8 @@ by the Patron perk `downloads_per_day` (20, editable in Pricing and perks). Serv
    `finality_confirmations` (6); raise `confirmations` to shrink it.
 9. The existing `/support` route is the entrance help page, not the donation page. The donation "Support page" is
    Settings > Support / Patron; `/support/leaderboards` is new.
-10. Esplora serves at most 25 confirmed transactions per address page; an invoice address with more than that (it
+10. The watch-only descriptor is stored as text in `payment_wallets` and never returned by the API (only its 8-character fingerprint); it is not a secret, but anyone with database access can list every donation address and balance.
+11. Esplora serves at most 25 confirmed transactions per address page; an invoice address with more than that (it
     should not happen) would need paging.
 
 ## Not done / gaps
@@ -86,8 +87,27 @@ by the Patron perk `downloads_per_day` (20, editable in Pricing and perks). Serv
 - The rate source URLs come from the environment, not from Admin; there is no UI to edit them (Admin shows their status).
 
 ## Tests
-See the final report for counts. Postgres-backed (ignored): `cargo test -p sr-db --test payments_repo -- --ignored
+Counts: sr-payments 56, sr-api donations 6, web 39 new (full web suite 1107 passing, workspace `cargo test` green). Postgres-backed (ignored): `cargo test -p sr-db --test payments_repo -- --ignored
 --test-threads=1` (7). Unit/scenario tests: `cargo test -p sr-payments` (descriptor vectors, state machine, reorg
 revert, idempotency, rate staleness, gap limit, grace, events), `cargo test -p sr-api donations` (6 endpoint tests with
 the 401/403 matrices and the access-log trail). Web: `src/support/__tests__`, `src/settings/server/__tests__/support.test.tsx`,
 `src/admin/__tests__/donations.test.tsx`, `src/admin/donations/calculator.test.ts` (axe on the main screens).
+
+## Gates and dependency findings
+- `cargo fmt --check`, `cargo clippy --workspace --all-targets -D warnings`, `cargo test --workspace`: green.
+  `cargo deny check`: bans, licenses and sources pass. **Advisories fail on the base branch too** (RUSTSEC-2026-0346..0349 on
+  `rustls 0.23.45`, unrelated to this work): needs a `cargo update -p rustls` by the owner.
+- New crates in `sr-payments`: `secp256k1 0.29` (CC0-1.0, builds C like `libwebp-sys`), `bitcoin_hashes 0.14` (CC0-1.0),
+  `bech32 0.11` (MIT), plus `reqwest 0.13` (already used elsewhere, rustls), `moka`, `futures`. `cargo tree -i openssl` and
+  `cargo tree -i hex_lit` are both empty. No new npm dependency (the QR code is `@sideroom/ui`'s existing `QRCode`).
+- Web: typecheck, eslint, `prettier --check .`, production build and the bundle budget pass; the new screens are in the
+  lazy admin and settings chunks.
+- Postgres: `cargo test -p sr-db --test payments_repo --test media_repo -- --ignored --test-threads=1` (7 + 8) and
+  `cargo test -p sr-server -- --ignored --test-threads=1` (7) pass on a throwaway database.
+
+## Owner decisions needed
+1. `MITNFA` for `hex_lit` (BDK later) or keep the in-house derivation. 2. Whether the 60-minute price risk (decision 3)
+is acceptable or the dialog should require a refreshed quote after 30 minutes. 3. When to turn off
+`SR_DOWNLOADS_LEGACY_FALLBACK` and drop `cinema_download_grants`. 4. Which Esplora endpoint and price sources the
+installation uses (self-hosted electrs is recommended; mempool.space leaks the invoice addresses to a third party).
+5. Whether Cinema/Library footers should link the leaderboards before contributor boards exist.
