@@ -112,6 +112,7 @@ function GuildIcon({
     core.notifications,
     core.hideMuted,
     { type: 'separator' },
+    ...(guild.isStaff ? [core.platformAdmin] : []),
     core.settings,
     core.createChannel,
     { type: 'separator' },
@@ -160,7 +161,11 @@ function GuildIcon({
       >
         <RailPill state={pill} />
         <Tooltip
-          content={guild.name + (voice ? t('lounge.guildRail.inVoiceSuffix') : '')}
+          content={
+            guild.name +
+            (guild.isStaff ? t('lounge.platformAdmin.railSuffix') : '') +
+            (voice ? t('lounge.guildRail.inVoiceSuffix') : '')
+          }
           placement="right"
           delay={150}
         >
@@ -176,6 +181,11 @@ function GuildIcon({
             {voice && (
               <span className="lng-guild-voice" title={t('lounge.guildRail.connectedToVoice')}>
                 <Icon name="volume" size={16} />
+              </span>
+            )}
+            {guild.isStaff && (
+              <span className="lng-staff-badge" aria-hidden="true">
+                {t('lounge.platformAdmin.badge')}
               </span>
             )}
             {guild.isNew && <span className="lng-new-badge">{t('lounge.guildRail.newBadge')}</span>}
