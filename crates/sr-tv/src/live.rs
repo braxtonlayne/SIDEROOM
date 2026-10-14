@@ -302,7 +302,7 @@ pub fn render_live_master(assets: &[&PlaybackAsset], now_secs: u64) -> Option<St
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::model::{BlockKind, BlockSource};
     use sr_media::playback::sample_asset;
@@ -315,7 +315,7 @@ mod tests {
     }
 
     /// An asset with `n` six-second segments per track.
-    fn asset(id: i64, n: usize) -> PlaybackAsset {
+    pub(crate) fn asset(id: i64, n: usize) -> PlaybackAsset {
         let mut a = sample_asset(id);
         for v in &mut a.media.videos {
             let dir = format!("v/{}", v.name);

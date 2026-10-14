@@ -26,3 +26,6 @@ pub use error::{TvError, TvResult};
 pub use presence::{MemoryPresence, Presence};
 pub use repo::{MemoryTvRepo, TvRepository};
 pub use service::{Actor, LiveDeps, TvService, Viewer};
+
+#[cfg(test)]
+mod service_tests;
