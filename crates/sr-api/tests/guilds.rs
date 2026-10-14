@@ -1411,3 +1411,49 @@ async fn role_emoji_and_icon_replace_each_other_and_clean_up() {
     let (s, _) = patch(&f, &uri, "bob", json!({ "icon": png_uri(40, 40, 3) })).await;
     assert_eq!(s, StatusCode::FORBIDDEN);
 }
+
+#[tokio::test]
+async fn text_channels_become_announcement_channels_and_back() {
+    let f = fixture();
+    let (_gid, created) = guild(&f).await;
+    let general = created["channels"][2]["id"].as_str().unwrap().to_owned();
+    let uri = format!("/channels/{general}");
+
+    // Members cannot convert; only text and announcement channels swap.
+    let (s, _) = patch(&f, &uri, "bob", json!({ "type": 5 })).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (s, e) = patch(&f, &uri, "owner", json!({ "type": 2 })).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");
+    let (s, e) = patch(&f, &uri, "owner", json!({ "type": 4242 })).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");
+
+    // The auto-publish flag only sticks on announcement channels.
+    let auto = 1u64 << 24;
+    let (s, c) = patch(&f, &uri, "owner", json!({ "flags": auto })).await;
+    assert_eq!(s, StatusCode::OK, "{c}");
+    assert_eq!(c["flags"].as_u64().unwrap() & auto, 0, "a text channel ignores it");
+    let (s, c) = patch(&f, &uri, "owner", json!({ "type": 5, "flags": auto })).await;
+    assert_eq!(s, StatusCode::OK, "{c}");
+    assert_eq!(c["type"], 5);
+    assert_eq!(c["flags"].as_u64().unwrap() & auto, auto);
+    // Other edits keep the flag; clearing it is explicit.
+    let (_, c) = patch(&f, &uri, "owner", json!({ "topic": "news" })).await;
+    assert_eq!(c["flags"].as_u64().unwrap() & auto, auto);
+    let (_, c) = patch(&f, &uri, "owner", json!({ "flags": 0 })).await;
+    assert_eq!(c["flags"].as_u64().unwrap() & auto, 0);
+    // Back to text.
+    let (s, c) = patch(&f, &uri, "owner", json!({ "type": 0 })).await;
+    assert_eq!(s, StatusCode::OK, "{c}");
+    assert_eq!(c["type"], 0);
+}
+
+#[tokio::test]
+async fn editing_a_channel_without_changing_its_type_is_not_a_conversion() {
+    let f = fixture();
+    let (_gid, created) = guild(&f).await;
+    let voice = created["channels"][3]["id"].as_str().unwrap().to_owned();
+    // Sending the channel's own type is a no-op, as Discord clients do.
+    let (s, c) = patch(&f, &format!("/channels/{voice}"), "owner", json!({ "type": 2, "name": "lounge" })).await;
+    assert_eq!(s, StatusCode::OK, "{c}");
+    assert_eq!((c["type"].as_u64(), c["name"].as_str()), (Some(2), Some("lounge")));
+}
