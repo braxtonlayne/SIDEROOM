@@ -8,6 +8,7 @@ import { setMemberRole } from './profile/memberRoles';
 import { useOpenDm } from './shell/dm';
 import { useUserMenuEntries } from './shell/userMenu';
 import { useLoungeUi } from './store';
+import { useVoiceMenuEntries } from './voice/useVoiceMenu';
 
 const OFFLINE_HIDE_THRESHOLD = 1000;
 
@@ -32,6 +33,8 @@ function MemberRowView({
   const openDialog = useLoungeUi((s) => s.openDialog);
   const isSelf = u.id === me.id;
   const userEntries = useUserMenuEntries(isSelf ? undefined : { id: u.id, name });
+  // Only people connected to a voice channel get these (volume, mute, and for moderators server mute / move).
+  const voiceEntries = useVoiceMenuEntries(guildId, { id: u.id, name });
   const isOwner = ownerId === u.id;
   // The server enforces the hierarchy; these only hide what would certainly be refused.
   const targetTop = Math.max(
@@ -72,6 +75,7 @@ function MemberRowView({
     },
     ...(userEntries.invite ? [userEntries.invite] : []),
     ...userEntries.relationship,
+    ...(voiceEntries.length ? [{ type: 'separator' } as MenuEntry, ...voiceEntries] : []),
     { type: 'separator' },
     ...(assignable.length > 0 && !isOwner
       ? [

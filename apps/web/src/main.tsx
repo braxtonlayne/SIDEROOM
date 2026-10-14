@@ -6,6 +6,7 @@ import { LiveRegions } from './a11y/announcer';
 import { initLocale } from './i18n';
 import { PwaHost } from './pwa/PwaHost';
 import { registerServiceWorker } from './pwa/register';
+import { VoiceBridge } from './lounge/voice/VoiceBridge';
 import { createAppRouter } from './router';
 import './styles/fonts.css';
 import './styles/tokens.css';
@@ -22,6 +23,8 @@ void initLocale().finally(() => {
         <RouterProvider router={router} />
         <PwaHost />
         <LiveRegions />
+        {/* Outside the router so a voice call survives leaving the Lounge (VOX-CLI-010). */}
+        <VoiceBridge />
       </QueryClientProvider>
     </StrictMode>,
   );

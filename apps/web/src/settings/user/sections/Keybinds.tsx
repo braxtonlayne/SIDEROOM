@@ -1,4 +1,4 @@
-import { Button, KbdCombo, Notice } from '@sideroom/ui';
+import { Button, KbdCombo } from '@sideroom/ui';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import {
   comboFromEvent,
@@ -9,6 +9,8 @@ import {
   SHORTCUTS,
   type ShortcutDef,
 } from '../../../lounge/shortcuts';
+import { KEYBIND_ACTIONS, keybindConflict, useVoiceSettings } from '../../../voice/settings';
+import { KeybindRecorder } from '../KeybindRecorder';
 import { Card, SectionTitle } from '../parts';
 import type { PrefsFormProps } from './Appearance';
 
@@ -135,6 +137,8 @@ function Row({ def, prefs, setPrefs }: PrefsFormProps & { def: ShortcutDef }) {
 export function KeybindsSection({ prefs, setPrefs }: PrefsFormProps) {
   const groups = Array.from(new Set(SHORTCUTS.map((s) => s.group)));
   const customCount = Object.keys(prefs.keybinds).length;
+  const voiceBinds = useVoiceSettings((s) => s.settings.keybinds);
+  const setVoiceKeybind = useVoiceSettings((s) => s.setKeybind);
   return (
     <>
       <SectionTitle>Keybinds</SectionTitle>
@@ -149,6 +153,28 @@ export function KeybindsSection({ prefs, setPrefs }: PrefsFormProps) {
           </Button>
         </p>
       )}
+      <Card
+        id="us-keys-voice"
+        title="Voice"
+        description="These work while this tab is focused. Pressing one while typing in a message box does not type it during a call."
+      >
+        <ul className="us-keybind-list">
+          {KEYBIND_ACTIONS.map((a) => (
+            <li key={a.id} className="us-keybind-row">
+              <div>
+                <strong>{a.label}</strong>
+                <p className="us-muted">{a.description}</p>
+              </div>
+              <KeybindRecorder
+                action={a.label}
+                value={voiceBinds[a.id]}
+                onChange={(b) => setVoiceKeybind(a.id, b)}
+                conflict={(b) => keybindConflict(voiceBinds, a.id, b)}
+              />
+            </li>
+          ))}
+        </ul>
+      </Card>
       {groups.map((g) => (
         <Card key={g} id={`us-keys-${g.toLowerCase()}`} title={g}>
           <dl className="us-keys">
@@ -158,9 +184,6 @@ export function KeybindsSection({ prefs, setPrefs }: PrefsFormProps) {
           </dl>
         </Card>
       ))}
-      <Notice variant="info" title="Voice keybinds">
-        Push to talk and the other call keybinds are set on the Voice &amp; Video page.
-      </Notice>
     </>
   );
 }

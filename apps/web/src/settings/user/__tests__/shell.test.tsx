@@ -55,12 +55,14 @@ describe('User Settings shell', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/settings/user/account'));
   });
 
-  it('shows the keybind table including the settings shortcut, with Change buttons', async () => {
+  it('shows the keybind table with Change buttons and the voice keybind recorders', async () => {
     signedIn();
     openSettings('keybinds');
     expect((await screen.findAllByText('Open user settings')).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('img', { name: /plus ,|Ctrl plus K/ }).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /Change Open user settings/ })).toBeInTheDocument();
+    // Voice keybinds are recorded on this page too.
+    expect(screen.getByRole('button', { name: 'Record Push to Talk keybind' })).toBeInTheDocument();
   });
 
   it('lists the language and region choices', async () => {

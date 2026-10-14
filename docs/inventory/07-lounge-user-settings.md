@@ -87,14 +87,14 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
    - Built: saturation, link underline, role colours (name/dot/off), reduced motion, sticker and emoji animation, high contrast, dyslexia-friendly text, send button. Not built: TTS rate (no TTS reader), autoplay of GIFs (no GIF autoplay control in the client).
 
 ## Voice & Video
-- [ ] **LNG-USET-043** [FE] Input/output device selects, input/output volume sliders, mic test with level meter
+- [x] **LNG-USET-043** [FE] Input/output device selects, input/output volume sliders, mic test with level meter
    - Voice & Video page: owned by the voice client work, not touched here.
-- [ ] **LNG-USET-044** [FE] Input mode: Voice Activity (auto sensitivity toggle / manual threshold slider with live meter) or Push to Talk (keybind recorder, release delay slider)
-- [ ] **LNG-USET-045** [FE] Echo cancellation, auto gain toggles (noise suppression intentionally absent, D-045)
+- [x] **LNG-USET-044** [FE] Input mode: Voice Activity (auto sensitivity toggle / manual threshold slider with live meter) or Push to Talk (keybind recorder, release delay slider)
+- [x] **LNG-USET-045** [FE] Echo cancellation, auto gain toggles (noise suppression intentionally absent, D-045)
 - [ ] **LNG-USET-046** [FE] Attenuation (lower others' volume while speaking)
 - [ ] **LNG-USET-047** [FE] Camera select + preview, always preview video toggle
 - [ ] **LNG-USET-048** [FE] Screen share defaults (resolution/fps within entitlement), share audio default
-- [ ] **LNG-USET-049** [FE] Sounds: join/leave, mute/deafen, PTT sounds, incoming ring, soundboard volume
+- [ ] **LNG-USET-049** [FE] Sounds: join/leave, mute/deafen, PTT sounds, incoming ring, soundboard volume _(partial, feat/p5-voice-client: join/leave, mute/deafen and PTT sounds with a volume; incoming ring and soundboard volume wait for calls and the soundboard)_
 - [ ] **LNG-USET-050** [FE] Advanced: hardware acceleration hint, QoS, E2EE info + "show privacy codes"
 
 ## Chat

@@ -35,6 +35,12 @@ export function snowflakeTime(id: string | null | undefined): string {
 /** Discord permission bits used by the Lounge (sr-core permissions.rs). */
 export const PERM = {
   CREATE_INSTANT_INVITE: 1n << 0n,
+  CONNECT: 1n << 20n,
+  SPEAK: 1n << 21n,
+  MUTE_MEMBERS: 1n << 22n,
+  DEAFEN_MEMBERS: 1n << 23n,
+  MOVE_MEMBERS: 1n << 24n,
+  USE_VAD: 1n << 25n,
   ADMINISTRATOR: 1n << 3n,
   MANAGE_CHANNELS: 1n << 4n,
   MANAGE_GUILD: 1n << 5n,
@@ -146,6 +152,12 @@ export function computeChannelPermissions(
     createInvite: has(PERM.CREATE_INSTANT_INVITE),
     sendTts: has(PERM.SEND_TTS_MESSAGES),
     createThreads: has(PERM.CREATE_PUBLIC_THREADS),
+    connect: has(PERM.CONNECT),
+    speak: has(PERM.SPEAK),
+    useVad: has(PERM.USE_VAD),
+    muteMembers: has(PERM.MUTE_MEMBERS),
+    deafenMembers: has(PERM.DEAFEN_MEMBERS),
+    moveMembers: has(PERM.MOVE_MEMBERS),
   };
 }
 
@@ -200,6 +212,7 @@ export function toLoungeChannel(
     ...(c.nsfw ? { nsfw: true } : {}),
     ...(permissions ? { permissions } : {}),
     ...(c.rate_limit_per_user ? { slowmodeSeconds: c.rate_limit_per_user } : {}),
+    ...(c.user_limit ? { userLimit: c.user_limit } : {}),
   };
 }
 

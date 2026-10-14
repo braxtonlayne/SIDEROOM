@@ -21,6 +21,7 @@ import { AccessibilitySection } from './sections/Accessibility';
 import { AccountSection } from './sections/Account';
 import { ActivitySection } from './sections/Activity';
 import { AdvancedSection, LanguageSection } from './sections/App';
+import { VoiceVideoSection } from './sections/VoiceVideo';
 import { AppearanceSection } from './sections/Appearance';
 import { AuthorizedAppsSection } from './sections/AuthorizedApps';
 import { ConnectionsSection } from './sections/Connections';
@@ -160,6 +161,7 @@ function Body({
         {section === 'accessibility' && <AccessibilitySection {...prefsProps} />}
         {section === 'text' && <TextImagesSection {...prefsProps} />}
         {section === 'notifications' && <NotificationsSection {...prefsProps} />}
+        {section === 'voice' && <VoiceVideoSection />}
         {section === 'keybinds' && <KeybindsSection {...prefsProps} />}
         {section === 'language' && <LanguageSection {...prefsProps} />}
         {section === 'advanced' && <AdvancedSection {...prefsProps} />}

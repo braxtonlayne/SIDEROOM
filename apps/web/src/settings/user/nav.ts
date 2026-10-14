@@ -13,6 +13,7 @@ export const USER_SETTINGS_SECTIONS = [
   { id: 'accessibility', label: 'Accessibility', group: 'App Settings' },
   { id: 'text', label: 'Text & Images', group: 'App Settings' },
   { id: 'notifications', label: 'Notifications', group: 'App Settings' },
+  { id: 'voice', label: 'Voice & Video', group: 'App Settings' },
   { id: 'keybinds', label: 'Keybinds', group: 'App Settings' },
   { id: 'language', label: 'Language', group: 'App Settings' },
   { id: 'advanced', label: 'Advanced', group: 'App Settings' },
