@@ -998,6 +998,27 @@ impl WorkerService {
                     }
                 }
             }
+            for a in &plan.audio {
+                let idx = req
+                    .segment_index
+                    .iter()
+                    .find(|s| s.playlist == a.playlist)
+                    .ok_or_else(|| {
+                        ApiError::BadRequest(format!("missing segment index for {}", a.playlist))
+                    })?;
+                if idx.segments.is_empty() {
+                    return Err(ApiError::BadRequest("empty segment index".into()));
+                }
+                for s in &idx.segments {
+                    let path = format!("{}/{}", a.dir, s.name);
+                    if !finished.contains_key(&path)
+                        || !s.duration_secs.is_finite()
+                        || s.duration_secs <= 0.0
+                    {
+                        return Err(ApiError::BadRequest(format!("segment {path} not uploaded")));
+                    }
+                }
+            }
         }
         let mut req = req;
         req.log_tail = clip_log(req.log_tail.as_deref());
@@ -1992,6 +2013,9 @@ mod tests {
         for r in &plan.rungs {
             paths.push(format!("{}/seg_00000.m4s", r.dir));
         }
+        for a in &plan.audio {
+            paths.push(format!("{}/seg_00000.m4s", a.dir));
+        }
         for p in &paths {
             let init = h
                 .svc
@@ -2024,11 +2048,14 @@ mod tests {
                 size: 1000,
             });
         }
-        let index: Vec<SegmentIndex> = plan
+        let playlists = plan
             .rungs
             .iter()
-            .map(|r| SegmentIndex {
-                playlist: r.playlist.clone(),
+            .map(|r| r.playlist.clone())
+            .chain(plan.audio.iter().map(|a| a.playlist.clone()));
+        let index: Vec<SegmentIndex> = playlists
+            .map(|playlist| SegmentIndex {
+                playlist,
                 init: "init.mp4".into(),
                 segments: vec![SegmentEntry {
                     name: "seg_00000.m4s".into(),

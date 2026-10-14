@@ -431,12 +431,11 @@ pub trait MediaRepository: JobStore {
     async fn mark_original_deleted(&self, id: i64) -> MediaResult<()>;
     async fn mark_proxy_deleted(&self, id: i64) -> MediaResult<()>;
     async fn mark_cold(&self, id: i64) -> MediaResult<()>;
-    /// Storage prefixes waiting for collection.
+    /// Storage prefixes to collect later (a replaced ladder).
+    /// `gc_due` leaves out prefixes some asset references again.
     async fn queue_gc(&self, prefixes: &[String], asset: Option<i64>) -> MediaResult<()>;
     async fn gc_due(&self, before_ms: i64, limit: u32) -> MediaResult<Vec<String>>;
     async fn gc_done(&self, prefixes: &[String]) -> MediaResult<()>;
-    /// The `hls_prefix` values still in use by some asset, for prefixes handed to the GC.
-    async fn live_prefixes(&self) -> MediaResult<Vec<String>>;
 }
 
 /// Stage names for the admin UI.

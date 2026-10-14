@@ -5164,6 +5164,7 @@ dependencies = [
  "sr-cinema",
  "sr-core",
  "sr-library",
+ "sr-media",
  "sr-review",
  "sr-storage",
  "thiserror 2.0.21",

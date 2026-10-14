@@ -977,13 +977,8 @@ impl MediaService {
         if due.is_empty() {
             return Ok(0);
         }
-        let live = self.repo.live_prefixes().await?;
         let mut done = Vec::new();
         for prefix in due {
-            if live.iter().any(|l| *l == prefix) {
-                done.push(prefix);
-                continue;
-            }
             match self.storage.list(&format!("{prefix}/")).await {
                 Ok(objects) => {
                     let mut ok = true;
