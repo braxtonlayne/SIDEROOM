@@ -73,6 +73,10 @@ impl Dir {
             // No CONNECT anywhere: sees channels, cannot join.
             p.insert((u(MUTED_OUT), ch), Permissions::VIEW_CHANNEL);
         }
+        // A crowd of ordinary members for the sender-limit tests.
+        for n in 10..=30 {
+            p.insert((u(n), LOBBY), member_perms());
+        }
         // The staff room is invisible to FRIEND.
         p.insert((u(FRIEND), STAFF_VOICE), Permissions::empty());
         Self {
@@ -89,7 +93,7 @@ impl Dir {
 impl GuildDirectory for Dir {
     async fn guilds_for_user(&self, user: UserId) -> Vec<GuildId> {
         match user.get() {
-            MEMBER | FRIEND | MUTED_OUT | MOD => vec![G],
+            MEMBER | FRIEND | MUTED_OUT | MOD | 10..=30 => vec![G],
             OUTSIDER => vec![OTHER_GUILD],
             _ => vec![],
         }
@@ -101,7 +105,7 @@ impl GuildDirectory for Dir {
         guild: GuildId,
         _needed: Permissions,
     ) -> bool {
-        guild == G && matches!(user.get(), MEMBER | FRIEND | MUTED_OUT | MOD)
+        guild == G && matches!(user.get(), MEMBER | FRIEND | MUTED_OUT | MOD | 10..=30)
     }
 
     async fn can_view_channel(&self, user: UserId, guild: GuildId, ch: ChannelId) -> bool {
@@ -139,7 +143,7 @@ impl GuildDirectory for Dir {
         guild: GuildId,
         ch: ChannelId,
     ) -> Option<Permissions> {
-        if guild != G || !matches!(user.get(), MEMBER | FRIEND | MUTED_OUT | MOD) {
+        if guild != G || !matches!(user.get(), MEMBER | FRIEND | MUTED_OUT | MOD | 10..=30) {
             return None;
         }
         Some(

@@ -1514,3 +1514,44 @@ async fn messages_work_without_a_registered_gate() {
 }
 
 mod rich_tests;
+
+#[tokio::test]
+async fn a_finished_call_becomes_a_call_message_with_its_details() {
+    let e = env().await;
+    let mut events = e.events();
+    super::call_record::post_call_record(
+        &e.deps,
+        e.ch,
+        UserId::new(OWNER),
+        &[UserId::new(OWNER), UserId::new(BOB)],
+        T0,
+        T0 + 90_000,
+    )
+    .await
+    .unwrap();
+
+    // Announced like any message.
+    let DomainEvent::MessageSent { data, author, .. } = next_event(&mut events).await else {
+        panic!("expected MESSAGE_CREATE");
+    };
+    assert_eq!(author, UserId::new(OWNER));
+    assert_eq!(data["type"], 3);
+    assert_eq!(data["content"], "");
+    assert_eq!(data["call"]["participants"], json!(["1", "2"]));
+    assert_eq!(
+        data["call"]["ended_timestamp"],
+        "2027-01-15T08:01:30.000000+00:00"
+    );
+
+    // And listed the same way, as a system message nobody can edit.
+    let (s, list) = e.get("/messages", "bob").await;
+    assert_eq!(s, StatusCode::OK);
+    let m = list.as_array().unwrap().first().unwrap().clone();
+    assert_eq!(m["type"], 3);
+    assert_eq!(m["call"]["participants"], json!(["1", "2"]));
+    let id = m["id"].as_str().unwrap();
+    let (s, _) = e
+        .patch(&format!("/messages/{id}"), "owner", json!({"content": "x"}))
+        .await;
+    assert!(s.is_client_error(), "call records are not editable");
+}

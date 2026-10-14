@@ -8,6 +8,7 @@ pub mod core;
 pub mod governor;
 pub mod keyframe;
 pub mod layers;
+pub mod loadtest;
 pub mod loss;
 pub mod metrics;
 pub mod server;

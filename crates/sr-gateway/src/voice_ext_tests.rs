@@ -1217,3 +1217,52 @@ async fn the_governor_tier_comes_from_the_server_level_and_patron_status() {
         .unwrap();
     assert_eq!(claims.tier, 4);
 }
+
+/// Spec acceptance: the 6th non-Patron camera is refused at level 0; a Patron's camera is
+/// accepted at count 5.
+#[tokio::test]
+async fn the_sixth_camera_is_refused_at_level_zero_and_a_patrons_is_accepted() {
+    let e = env();
+    // The default limits are the free tier: five senders.
+    assert_eq!(e.dir.default_limits.lock().unwrap().video_senders, 5);
+    let mut senders = Vec::new();
+    for n in 10..15 {
+        let mut c = client(&e, n).await;
+        c.voice_video(1, LOBBY, true).await;
+        c.event("VOICE_SERVER_UPDATE").await;
+        senders.push(c);
+    }
+    assert_eq!(e.gw.sender_count(LOBBY, u(99)), 5);
+
+    let mut sixth = client(&e, 15).await;
+    sixth.voice_video(1, LOBBY, true).await;
+    let err = error_code(&mut sixth).await;
+    assert_eq!(err["code"], "video_limit_reached");
+    assert_eq!(
+        (err["limit"].as_u64(), err["count"].as_u64()),
+        (Some(5), Some(5))
+    );
+    assert!(!e.gw.voice_state(u(15)).unwrap().self_video);
+
+    // A Patron\'s camera is accepted at count 5, and it does not use a seat.
+    let mut patron = e.dir.default_limits.lock().unwrap().clone();
+    patron.exempt = true;
+    patron.tier = 4;
+    e.dir.limits.lock().unwrap().insert(u(16), patron);
+    let mut p = client(&e, 16).await;
+    p.voice_video(1, LOBBY, true).await;
+    p.event("VOICE_SERVER_UPDATE").await;
+    assert!(e.gw.voice_state(u(16)).unwrap().self_video);
+    assert_eq!(
+        e.gw.sender_count(LOBBY, u(99)),
+        5,
+        "the Patron holds no seat"
+    );
+
+    // When a member stops, the seat is free again for the next one.
+    senders[0].voice_video(1, LOBBY, false).await;
+    senders[0].drain().await;
+    sixth.voice_video(1, LOBBY, true).await;
+    sixth.drain().await;
+    assert!(e.gw.voice_state(u(15)).unwrap().self_video);
+}
