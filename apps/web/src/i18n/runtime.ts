@@ -125,7 +125,7 @@ export async function initLocale(): Promise<void> {
 }
 
 function messageFor(key: MessageKey): string {
-  return loaded?.[key] ?? en[key];
+  return loaded?.[key] ?? en[key] ?? key;
 }
 
 function compile(key: MessageKey): Node[] {
@@ -148,7 +148,7 @@ export function t(key: MessageKey, values: Values = {}): string {
   try {
     return formatNodes(compile(key), values, intl, opts);
   } catch {
-    return en[key];
+    return en[key] ?? key;
   }
 }
 

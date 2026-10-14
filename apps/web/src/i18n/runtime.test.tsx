@@ -20,7 +20,6 @@ function Probe() {
 describe('runtime', () => {
   it('translates and falls back to the key for unknown keys', () => {
     expect(t('entrance.login.title')).toBe('Come on in.');
-    // @ts-expect-error not a catalog key
     expect(t('no.such.key')).toBe('no.such.key');
     expect(t('entrance.login.tooMany', { minutes: 1 })).toBe(
       'Too many attempts. Try again in 1 minute.',
