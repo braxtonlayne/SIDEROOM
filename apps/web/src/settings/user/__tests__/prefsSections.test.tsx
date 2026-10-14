@@ -332,10 +332,13 @@ describe('Keybinds', () => {
     const user = userEvent.setup();
     usePrefsStore.setState({ prefs: { ...DEFAULT_PREFS, keybinds: { quickSwitcher: 'Mod+J' } } });
     openSettings('keybinds');
-    await user.click(await screen.findByRole('button', { name: /Unbind\s+Find or start/ }));
-    expect(await screen.findByText('Not bound')).toBeInTheDocument();
+    const unbind = await screen.findByRole('button', { name: /Unbind\s+Find or start/ });
+    // The voice keybinds on this page also say "Not bound" when empty: count against that baseline.
+    const before = screen.queryAllByText('Not bound').length;
+    await user.click(unbind);
+    await waitFor(() => expect(screen.queryAllByText('Not bound')).toHaveLength(before + 1));
     await user.click(screen.getByRole('button', { name: /Reset\s+Find or start/ }));
-    expect(screen.queryByText('Not bound')).toBeNull();
+    await waitFor(() => expect(screen.queryAllByText('Not bound')).toHaveLength(before));
     await user.click(screen.getByRole('button', { name: /Unbind\s+Find or start/ }));
     await user.click(screen.getByRole('button', { name: 'Reset all keybinds to the defaults' }));
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
