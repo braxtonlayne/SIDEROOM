@@ -18,9 +18,22 @@ pub enum VoiceCommand {
         deaf: bool,
         ptt_required: bool,
         priority: bool,
+        /// May publish a camera.
+        camera: bool,
+        /// May publish a screen share and its audio.
+        screen: bool,
     },
     /// Remove `user` from `channel` (leave, move, kick, session loss).
     Disconnect { channel: ChannelId, user: UserId },
+    /// Who may receive `owner`'s screen share in `channel`. The SFU forwards the screen
+    /// (and its audio) to nobody else. `live: false` ends it. The gateway sends this when
+    /// a stream starts, when a viewer starts or stops watching, and when it ends.
+    StreamViewers {
+        channel: ChannelId,
+        owner: UserId,
+        viewers: Vec<UserId>,
+        live: bool,
+    },
     /// Drop a whole room (channel deleted).
     CloseRoom { channel: ChannelId },
 }

@@ -1,4 +1,4 @@
-//! The sans-IO SFU core: rooms, participants, SDP negotiation and audio forwarding.
+//! The sans-IO SFU core: rooms, participants, SDP negotiation, and audio and video forwarding.
 //!
 //! Nothing here touches a socket, a clock or a task. The caller feeds it received
 //! datagrams ([`SfuCore::handle_input`]), the time ([`SfuCore::handle_timeout`]) and
@@ -8,31 +8,60 @@
 //! # Model
 //!
 //! * A **room** is a voice channel; it exists while it has participants.
-//! * A **participant** owns one `str0m::Rtc` (ICE-lite, DTLS-SRTP). Its microphone
-//!   arrives on one inbound audio m-line (`mic`).
-//! * Every other participant in the room is a **subscriber** of that microphone through
-//!   its own `sendonly` audio m-line whose msid stream id is the speaker's user id
-//!   ([`OutTrack`]). Negotiating those lines is the SFU's job (server offers).
+//! * A **participant** owns one `str0m::Rtc` (ICE-lite, DTLS-SRTP) and publishes up to four
+//!   **tracks**, each on its own inbound m-line ([`TrackSource`]): the microphone, the
+//!   camera (simulcast, layers `q`/`h`/`f`), the screen and the screen audio. The client
+//!   names which m-line is which with a `VIDEO` publish message ([`SfuCore::handle_video`]).
+//! * Every other participant in the room is a **subscriber**. It receives each source it
+//!   wants through its own `sendonly` m-line ([`OutTrack`]); the SFU offers those lines
+//!   ([`SfuCore::negotiate`]). Which sources a subscriber gets is decided in one place,
+//!   [`SfuCore::reconcile`]:
+//!   * the microphone: always;
+//!   * the camera: unless the client turned it off, at the layer the client's hint, its
+//!     bandwidth estimate and the egress governor allow ([`crate::layers`]);
+//!   * the screen and its audio: only when the client subscribed **and** the gateway listed it
+//!     as a viewer of that stream ([`SfuCore::set_stream_viewers`]), so the viewer cap cannot
+//!     be bypassed from the client side. The two lines share a msid stream id
+//!     (`<user>-screen`), which makes the browser play them as one synchronized stream group.
+//! * A publisher may only send what the gateway allows (`Flags::camera`, `Flags::screen`,
+//!   set from the sender allowance, VOX-SIG-009). Anything else it sends is dropped.
 //!
-//! # Later (not built)
+//! # Video forwarding
 //!
-//! Video, simulcast and screen share extend `TrackSource` (today only `Mic`) and give
-//! `OutTrack` a layer selector driven by the subscriber's viewport hints, its bandwidth
-//! estimate and the egress governor (doc 08 section 3). The forwarding hook is
-//! [`SfuCore::forward_audio`]; the future one sits beside it. End-to-end encryption needs no
-//! change here: frames are forwarded opaque and only header extensions are read.
+//! Frames are forwarded as str0m delivers them (depacketized), never decoded, and
+//! re-packetized for each subscriber. Per subscriber and source a [`LayerSelector`] says
+//! which simulcast layer flows; a layer switch waits for a keyframe of the new layer, which
+//! the core asks the publisher for through a [`KeyframeCoalescer`] (so a crowd of
+//! subscribers costs the publisher one keyframe per half second). PLI and FIR received from
+//! subscribers go through the same coalescer. NACK and RTX are handled by str0m from its
+//! send buffer. End-to-end encryption needs no change here: frames are forwarded opaque and
+//! only header extensions are read (the keyframe flag comes from the codec payload
+//! descriptor, which E2EE leaves in the clear).
+//!
+//! # Egress governor
+//!
+//! Once a second the core feeds the node's egress to the [`EgressGovernor`], which lowers the
+//! layer cap tier by tier when the node runs over its budget. Affected subscribers get a
+//! `QUALITY` message.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
 use sr_core::{ChannelId, GuildId, UserId};
+use sr_voice_proto::video::{Layer, Source, SubscriptionHint, Video};
 use sr_voice_proto::wire::{self, Message, ParticipantInfo, Speaking, UserRef, op, speaking};
+use str0m::bwe::Bitrate;
 use str0m::change::{SdpAnswer, SdpOffer, SdpPendingOffer};
-use str0m::media::{Direction, MediaData, MediaKind, Mid};
+use str0m::media::{Direction, KeyframeRequestKind, MediaData, MediaKind, Mid, Rid};
 use str0m::net::{Protocol, Receive};
 use str0m::{Candidate, Event, IceConnectionState, Input, Output, Rtc};
 use thiserror::Error;
+
+use crate::governor::{EgressGovernor, GovernorConfig, Tier, cap_for, notice};
+use crate::keyframe::{self, KeyframeCoalescer};
+use crate::layers::{Available, Frame, LayerSelector, SelectorConfig, layer_for_viewport};
+use crate::loss::LossBudget;
 
 /// Largest SDP the core will parse (browsers send a few KiB).
 pub const MAX_SDP_BYTES: usize = 64 * 1024;
@@ -41,6 +70,12 @@ pub const PTT_GRACE: Duration = Duration::from_millis(300);
 /// An ICE-disconnected participant is removed after this long without recovering
 /// (an ICE restart from the client revives it before then).
 pub const ICE_DISCONNECT_GRACE: Duration = Duration::from_secs(15);
+/// How often layer selection, the keyframe timer and the governor run.
+pub const MAINTAIN_EVERY: Duration = Duration::from_millis(200);
+/// How long a simulcast layer counts as "being sent" after its last frame.
+const LAYER_LIVE: Duration = Duration::from_secs(3);
+/// Starting bandwidth estimate for a new subscriber (str0m's BWE needs one).
+const INITIAL_BWE: Bitrate = Bitrate::kbps(1_000);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ParticipantId(pub u64);
@@ -56,6 +91,12 @@ pub struct Flags {
     pub ptt_required: bool,
     /// PRIORITY_SPEAKER.
     pub priority: bool,
+    /// May publish a camera (the sender allowance let it start one).
+    pub camera: bool,
+    /// May publish a screen share and its audio.
+    pub screen: bool,
+    /// Which allowance the participant is on, for the egress governor ([`Tier`]).
+    pub tier: u8,
 }
 
 pub struct JoinParams {
@@ -81,6 +122,8 @@ pub enum SfuError {
     Candidate(String),
     #[error("rtc error: {0}")]
     Rtc(String),
+    #[error("bad video message: {0}")]
+    Video(&'static str),
 }
 
 /// Why a participant left the core.
@@ -118,6 +161,8 @@ pub enum CoreEvent {
         channel: ChannelId,
         reason: CloseReason,
     },
+    /// The participant just started speaking (feeds the guild's AFK timer).
+    Active { user: UserId, channel: ChannelId },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -136,13 +181,59 @@ pub struct Snapshot {
     /// Mean packet-loss fraction (0..1) the receivers report for what we send them.
     pub loss_ratio: f64,
     pub forwarded_packets: u64,
+    /// Video frames forwarded to subscribers.
+    pub forwarded_frames: u64,
+    /// The egress governor's severity (0 = not engaged).
+    pub governor_severity: u8,
+    /// Keyframe requests sent to publishers.
+    pub keyframe_requests: u64,
 }
 
-/// What a remote m-line carries. Only the microphone exists today.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum TrackSource {
+/// What a remote m-line carries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum TrackSource {
     Mic,
-    // TODO(video): Camera, Screen, ScreenAudio.
+    Camera,
+    Screen,
+    ScreenAudio,
+}
+
+impl TrackSource {
+    pub const ALL: [TrackSource; 4] = [Self::Mic, Self::Camera, Self::Screen, Self::ScreenAudio];
+
+    pub const fn kind(self) -> MediaKind {
+        match self {
+            Self::Camera | Self::Screen => MediaKind::Video,
+            Self::Mic | Self::ScreenAudio => MediaKind::Audio,
+        }
+    }
+
+    pub const fn from_proto(s: Source) -> Self {
+        match s {
+            Source::Camera => Self::Camera,
+            Source::Screen => Self::Screen,
+            Source::ScreenAudio => Self::ScreenAudio,
+        }
+    }
+
+    pub const fn proto(self) -> Option<Source> {
+        match self {
+            Self::Mic => None,
+            Self::Camera => Some(Source::Camera),
+            Self::Screen => Some(Source::Screen),
+            Self::ScreenAudio => Some(Source::ScreenAudio),
+        }
+    }
+
+    /// The msid stream id of the subscriber's line. The screen and its audio share one, so
+    /// the browser plays them as one stream; `-` is a legal token character, `:` is not.
+    pub fn stream_id(self, user: UserId) -> String {
+        match self {
+            Self::Mic => user.to_string(),
+            Self::Camera => format!("{user}-camera"),
+            Self::Screen | Self::ScreenAudio => format!("{user}-screen"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -167,9 +258,9 @@ impl OutState {
 
 /// One participant's subscription to another's track.
 struct OutTrack {
-    #[allow(dead_code)] // read by the future video selector
-    source: TrackSource,
     state: OutState,
+    /// Video only: which simulcast layer flows.
+    selector: Option<LayerSelector>,
 }
 
 #[derive(Default)]
@@ -180,16 +271,95 @@ struct Rates {
     loss: Option<f32>,
 }
 
+/// Bitrate and liveness of one simulcast layer of a published track.
+#[derive(Debug, Clone, Copy, Default)]
+struct LayerStat {
+    window_start: Option<Instant>,
+    bytes: u64,
+    bps: f64,
+    last_seen: Option<Instant>,
+}
+
+impl LayerStat {
+    fn note(&mut self, now: Instant, len: usize) {
+        self.last_seen = Some(now);
+        let start = *self.window_start.get_or_insert(now);
+        self.bytes += len as u64;
+        let dt = now.saturating_duration_since(start);
+        if dt >= Duration::from_secs(1) {
+            self.bps = self.bytes as f64 * 8.0 / dt.as_secs_f64();
+            self.bytes = 0;
+            self.window_start = Some(now);
+        }
+    }
+
+    /// The bitrate if frames arrived recently (`Some(0.0)` while the first window is open).
+    fn live_bps(&self, now: Instant) -> Option<f64> {
+        let seen = self.last_seen?;
+        (now.saturating_duration_since(seen) <= LAYER_LIVE).then_some(self.bps)
+    }
+}
+
+/// An inbound m-line of a participant.
+struct Inbound {
+    kind: MediaKind,
+    /// The remote sends simulcast layers on it.
+    simulcast: bool,
+    /// The line is still in a receiving direction.
+    receiving: bool,
+    /// What it carries; `None` until the client says (video) or it is taken for the mic (audio).
+    source: Option<TrackSource>,
+    /// The client announced it as live.
+    declared_active: bool,
+    width: u32,
+    height: u32,
+    fps: u32,
+    stats: [LayerStat; 3],
+}
+
+impl Inbound {
+    fn available(&self, now: Instant) -> Available {
+        let mut a = Available::default();
+        for l in Layer::ALL {
+            a.bps[l.index()] = self.stats[l.index()].live_bps(now);
+        }
+        a
+    }
+}
+
+/// A client's `publish` announcement, kept until its m-line shows up (or after).
+#[derive(Debug, Clone, Copy)]
+struct Declared {
+    source: TrackSource,
+    active: bool,
+    width: u32,
+    height: u32,
+    fps: u32,
+}
+
 struct Participant {
     user: UserId,
     guild: Option<GuildId>,
     channel: ChannelId,
     flags: Flags,
     rtc: Rtc,
-    /// Inbound microphone m-line.
-    mic: Option<Mid>,
-    /// Subscriptions, keyed by the speaker.
-    out: HashMap<ParticipantId, OutTrack>,
+    /// Inbound m-lines by the client's mid.
+    tracks: HashMap<Mid, Inbound>,
+    declared: HashMap<Mid, Declared>,
+    /// Which sources the other participants know are live (to announce changes once).
+    announced: HashSet<TrackSource>,
+    /// Subscriptions, keyed by the publisher and what they publish.
+    out: HashMap<(ParticipantId, TrackSource), OutTrack>,
+    /// What this participant asked for from each source (client hints).
+    hints: HashMap<(UserId, Source), SubscriptionHint>,
+    /// The bandwidth estimate towards this participant, bits per second (TWCC, when enabled).
+    bwe_bps: Option<f64>,
+    /// The loss-based budget, the fallback when the TWCC estimator is off.
+    loss: LossBudget,
+    /// The layer cap the governor currently sets for this participant.
+    cap: Layer,
+    /// The participant was told the room is busy.
+    told_reduced: bool,
     /// A server offer waiting for the client's answer.
     pending: Option<SdpPendingOffer>,
     /// The client has sent at least one offer, so server offers are possible.
@@ -230,6 +400,45 @@ impl Participant {
                 0
             }
     }
+
+    /// The gateway lets this participant publish `source`.
+    fn allowed(&self, source: TrackSource) -> bool {
+        match source {
+            TrackSource::Mic => true,
+            TrackSource::Camera => self.flags.camera,
+            TrackSource::Screen | TrackSource::ScreenAudio => self.flags.screen,
+        }
+    }
+
+    /// The inbound line carrying `source` when it is live and allowed.
+    fn live_track(&self, source: TrackSource) -> Option<(Mid, &Inbound)> {
+        self.tracks
+            .iter()
+            .find(|(_, t)| {
+                t.source == Some(source)
+                    && t.receiving
+                    && (source == TrackSource::Mic || t.declared_active)
+                    && self.allowed(source)
+            })
+            .map(|(m, t)| (*m, t))
+    }
+
+    fn mic_mid(&self) -> Option<Mid> {
+        self.tracks
+            .iter()
+            .find(|(_, t)| t.source == Some(TrackSource::Mic))
+            .map(|(m, _)| *m)
+    }
+
+    fn video_outs(&self) -> usize {
+        self.out
+            .iter()
+            .filter(|((_, s), t)| {
+                s.kind() == MediaKind::Video
+                    && matches!(t.state, OutState::Open(_) | OutState::Negotiating(_))
+            })
+            .count()
+    }
 }
 
 pub struct SfuCore {
@@ -242,6 +451,19 @@ pub struct SfuCore {
     max_participants: usize,
     max_room_size: usize,
     forwarded: u64,
+    forwarded_frames: u64,
+    keyframe_requests: u64,
+    /// Who may receive each screen share: `(channel, owner) -> viewers`.
+    acl: HashMap<(ChannelId, UserId), HashSet<UserId>>,
+    /// Participants whose subscriptions must be re-derived before the next negotiation.
+    dirty: HashSet<ParticipantId>,
+    selector_cfg: SelectorConfig,
+    /// str0m's TWCC estimator on every connection (see [`SfuCore::with_bwe`]).
+    bwe: bool,
+    keyframes: KeyframeCoalescer<(ParticipantId, TrackSource, Layer)>,
+    governor: EgressGovernor,
+    last_maintain: Option<Instant>,
+    last_governor: Option<Instant>,
 }
 
 impl SfuCore {
@@ -258,7 +480,42 @@ impl SfuCore {
             max_participants,
             max_room_size,
             forwarded: 0,
+            forwarded_frames: 0,
+            keyframe_requests: 0,
+            acl: HashMap::new(),
+            dirty: HashSet::new(),
+            selector_cfg: SelectorConfig::default(),
+            bwe: false,
+            keyframes: KeyframeCoalescer::new(keyframe::Config::default()),
+            governor: EgressGovernor::new(GovernorConfig::default()),
+            last_maintain: None,
+            last_governor: None,
         }
+    }
+
+    /// Set the egress budget (VOX-SFU-008). A zero budget leaves the governor off.
+    pub fn with_governor(mut self, cfg: GovernorConfig) -> Self {
+        self.governor = EgressGovernor::new(cfg);
+        self
+    }
+
+    /// Turn on str0m's TWCC bandwidth estimator for every connection. It gives the layer
+    /// selector a real per-subscriber estimate, but str0m then pads each sending connection
+    /// to 50 kbit/s to keep the estimate alive, audio-only ones included, so it is off by
+    /// default; the loss-based fallback ([`crate::loss`]) is used instead.
+    pub fn with_bwe(mut self, on: bool) -> Self {
+        self.bwe = on;
+        self
+    }
+
+    pub fn with_selector(mut self, cfg: SelectorConfig) -> Self {
+        self.selector_cfg = cfg;
+        self
+    }
+
+    pub fn with_keyframes(mut self, cfg: keyframe::Config) -> Self {
+        self.keyframes = KeyframeCoalescer::new(cfg);
+        self
     }
 
     // ---- queries ----------------------------------------------------------------------
@@ -295,6 +552,36 @@ impl SfuCore {
         self.parts.get(&pid).is_some_and(|p| p.rtc.is_connected())
     }
 
+    /// The layer currently forwarded from `publisher`'s `source` to `subscriber`, if any.
+    pub fn layer_of(
+        &self,
+        subscriber: ParticipantId,
+        publisher: ParticipantId,
+        source: TrackSource,
+    ) -> Option<Layer> {
+        self.parts
+            .get(&subscriber)?
+            .out
+            .get(&(publisher, source))?
+            .selector
+            .as_ref()?
+            .current()
+    }
+
+    /// Whether `subscriber` has an open (or opening) line for `publisher`'s `source`.
+    pub fn subscribes(
+        &self,
+        subscriber: ParticipantId,
+        publisher: ParticipantId,
+        source: TrackSource,
+    ) -> bool {
+        self.parts.get(&subscriber).is_some_and(|p| {
+            p.out.get(&(publisher, source)).is_some_and(|t| {
+                !matches!(t.state, OutState::ToStop(_) | OutState::NegotiatingStop(_))
+            })
+        })
+    }
+
     /// The other participants of `pid`'s room, as READY lists them.
     pub fn others(&self, pid: ParticipantId) -> Vec<ParticipantInfo> {
         let Some(me) = self.parts.get(&pid) else {
@@ -320,6 +607,9 @@ impl SfuCore {
             rooms: self.rooms.len(),
             participants: self.parts.len(),
             forwarded_packets: self.forwarded,
+            forwarded_frames: self.forwarded_frames,
+            governor_severity: self.governor.severity(),
+            keyframe_requests: self.keyframe_requests,
             ..Snapshot::default()
         };
         let (mut loss, mut n) = (0.0f64, 0u32);
@@ -344,6 +634,14 @@ impl SfuCore {
 
     /// When [`handle_timeout`](Self::handle_timeout) must run next.
     pub fn next_timeout(&self) -> Option<Instant> {
+        let maintain = self
+            .parts
+            .values()
+            .any(|p| !p.out.is_empty() || !p.tracks.is_empty())
+            .then(|| {
+                self.last_maintain
+                    .map_or_else(Instant::now, |t| t + MAINTAIN_EVERY)
+            });
         self.parts
             .values()
             .flat_map(|p| {
@@ -354,6 +652,8 @@ impl SfuCore {
                 ]
             })
             .flatten()
+            .chain(maintain)
+            .chain(self.keyframes.next_deadline())
             .min()
     }
 
@@ -370,13 +670,21 @@ impl SfuCore {
         if self.rooms.get(&p.channel).map_or(0, Vec::len) >= self.max_room_size {
             return Err(SfuError::RoomFull);
         }
-        let mut rtc = Rtc::builder()
+        let mut builder = Rtc::builder()
             .set_ice_lite(true)
-            // Audio only for now; video codecs come back with the video work.
+            // Opus for voice; VP8 and H.264 (with RTX, so NACKs are answered from the send
+            // buffer) for camera and screen.
             .clear_codecs()
             .enable_opus(true, false)
-            .set_stats_interval(Some(Duration::from_secs(1)))
-            .build(now);
+            .enable_vp8(true)
+            .enable_h264(true)
+            .set_send_buffer_video(1_000)
+            .set_stats_interval(Some(Duration::from_secs(1)));
+        if self.bwe {
+            // TWCC bandwidth estimation per subscriber drives layer selection.
+            builder = builder.enable_bwe(Some(INITIAL_BWE));
+        }
+        let mut rtc = builder.build(now);
         for c in p.candidates {
             rtc.add_local_candidate(c);
         }
@@ -386,6 +694,7 @@ impl SfuCore {
         let existing = room.clone();
         room.push(pid);
         self.by_user.insert(p.user, pid);
+        let cap = cap_for(self.governor.severity(), Tier(p.flags.tier));
         self.parts.insert(
             pid,
             Participant {
@@ -394,8 +703,15 @@ impl SfuCore {
                 channel: p.channel,
                 flags: p.flags,
                 rtc,
-                mic: None,
+                tracks: HashMap::new(),
+                declared: HashMap::new(),
+                announced: HashSet::new(),
                 out: HashMap::new(),
+                hints: HashMap::new(),
+                bwe_bps: None,
+                loss: LossBudget::default(),
+                cap,
+                told_reduced: false,
                 pending: None,
                 negotiated: false,
                 detector: crate::speaking::SpeakingDetector::default(),
@@ -407,20 +723,16 @@ impl SfuCore {
                 rates: Rates::default(),
             },
         );
-        // Existing participants whose microphone is already open become this one's subscriptions.
+        // Existing participants' tracks become this one's subscriptions, and it learns what
+        // they publish.
         for other in existing {
-            let has_mic = self.parts.get(&other).is_some_and(|o| o.mic.is_some());
-            if has_mic && let Some(me) = self.parts.get_mut(&pid) {
-                me.out.insert(
-                    other,
-                    OutTrack {
-                        source: TrackSource::Mic,
-                        state: OutState::ToOpen,
-                    },
-                );
-            }
             self.signal(other, op::CLIENT_CONNECT, &UserRef { user_id: p.user });
+            self.dirty.insert(other);
+            for msg in self.published_messages(other) {
+                self.signal(pid, op::VIDEO, &msg);
+            }
         }
+        self.dirty.insert(pid);
         Ok(pid)
     }
 
@@ -442,6 +754,7 @@ impl SfuCore {
         for pid in self.rooms.get(&channel).cloned().unwrap_or_default() {
             self.remove(pid, CloseReason::RoomClosed);
         }
+        self.acl.retain(|(c, _), _| *c != channel);
     }
 
     pub fn close_all(&mut self) {
@@ -458,6 +771,12 @@ impl SfuCore {
         p.rtc.disconnect();
         self.by_user.remove(&p.user);
         self.by_addr.retain(|_, v| *v != pid);
+        self.dirty.remove(&pid);
+        self.keyframes.forget_where(|(who, _, _)| *who == pid);
+        self.acl.remove(&(p.channel, p.user));
+        for viewers in self.acl.values_mut() {
+            viewers.remove(&p.user);
+        }
         if let Some(room) = self.rooms.get_mut(&p.channel) {
             room.retain(|x| *x != pid);
             if room.is_empty() {
@@ -466,15 +785,9 @@ impl SfuCore {
         }
         let members = self.rooms.get(&p.channel).cloned().unwrap_or_default();
         for m in members {
-            if let Some(q) = self.parts.get_mut(&m) {
-                // The speaker's line is stopped by the next negotiation (see `negotiate`).
-                if matches!(
-                    q.out.get(&pid).map(|t| t.state),
-                    Some(OutState::ToOpen) | None
-                ) {
-                    q.out.remove(&pid);
-                }
-            }
+            // The speaker's lines are stopped by the next negotiation: `reconcile` sees the
+            // publisher is gone.
+            self.dirty.insert(m);
             if p.detector.is_speaking() {
                 self.signal(
                     m,
@@ -485,6 +798,22 @@ impl SfuCore {
                         audio_level: None,
                     },
                 );
+            }
+            for source in [Source::Camera, Source::Screen, Source::ScreenAudio] {
+                if p.announced.contains(&TrackSource::from_proto(source)) {
+                    self.signal(
+                        m,
+                        op::VIDEO,
+                        &Video::Published {
+                            user_id: p.user,
+                            source,
+                            active: false,
+                            width: 0,
+                            height: 0,
+                            fps: 0,
+                        },
+                    );
+                }
             }
             self.signal(m, op::CLIENT_DISCONNECT, &UserRef { user_id: p.user });
         }
@@ -530,6 +859,7 @@ impl SfuCore {
             .accept_offer(offer)
             .map_err(|e| SfuError::Rtc(e.to_string()))?;
         p.negotiated = true;
+        self.dirty.insert(pid);
         self.pump(now);
         Ok(answer.to_sdp_string())
     }
@@ -564,6 +894,8 @@ impl SfuCore {
         }
         p.out
             .retain(|_, t| !matches!(t.state, OutState::NegotiatingStop(_)));
+        // Lines opened by this answer may already be unwanted again, or wanted ones missing.
+        self.dirty.insert(pid);
         self.pump(now);
         Ok(())
     }
@@ -601,6 +933,14 @@ impl SfuCore {
         }
     }
 
+    /// Override the bandwidth estimate for `pid` (bits per second), as the TWCC estimator
+    /// does when it is on. `None` clears it. Used by tests and by other estimators.
+    pub fn set_bandwidth_estimate(&mut self, pid: ParticipantId, bps: Option<f64>) {
+        if let Some(p) = self.parts.get_mut(&pid) {
+            p.bwe_bps = bps;
+        }
+    }
+
     /// The client's `SPEAKING` bitmask (push-to-talk state).
     pub fn set_client_speaking(&mut self, now: Instant, pid: ParticipantId, bits: u8) {
         if let Some(p) = self.parts.get_mut(&pid) {
@@ -611,7 +951,93 @@ impl SfuCore {
         }
     }
 
-    /// Apply new media-path flags (server mute, deafen, permission change).
+    /// A client's `VIDEO` message (op 12): declare a track or change subscriptions.
+    pub fn handle_video(
+        &mut self,
+        now: Instant,
+        pid: ParticipantId,
+        msg: Video,
+    ) -> Result<(), SfuError> {
+        match msg {
+            Video::Publish {
+                mid,
+                source,
+                active,
+                width,
+                height,
+                fps,
+            } => {
+                let source = TrackSource::from_proto(source);
+                let mid = Mid::from(mid.as_str());
+                let p = self
+                    .parts
+                    .get_mut(&pid)
+                    .ok_or(SfuError::UnknownParticipant)?;
+                if let Some(t) = p.tracks.get(&mid)
+                    && t.kind != source.kind()
+                {
+                    return Err(SfuError::Video("source does not match the m-line kind"));
+                }
+                // One m-line per source.
+                if p.declared
+                    .iter()
+                    .any(|(m, d)| *m != mid && d.source == source && d.active && active)
+                {
+                    return Err(SfuError::Video("that source is already published"));
+                }
+                p.declared.insert(
+                    mid,
+                    Declared {
+                        source,
+                        active,
+                        width,
+                        height,
+                        fps,
+                    },
+                );
+                self.apply_declaration(pid, mid);
+            }
+            Video::Subscribe { subscriptions } => {
+                let p = self
+                    .parts
+                    .get_mut(&pid)
+                    .ok_or(SfuError::UnknownParticipant)?;
+                for h in subscriptions {
+                    p.hints.insert((h.user_id, h.source), h);
+                }
+                self.dirty.insert(pid);
+                self.apply_hints(pid);
+            }
+            // Server-to-client messages are not accepted from clients.
+            Video::Published { .. } | Video::Layer { .. } => {
+                return Err(SfuError::Video("server message from a client"));
+            }
+        }
+        self.pump(now);
+        Ok(())
+    }
+
+    /// The gateway lists who may receive `owner`'s screen share in `channel`. The SFU sends
+    /// the screen (and its audio) to nobody else; `live: false` ends it.
+    pub fn set_stream_viewers(
+        &mut self,
+        now: Instant,
+        channel: ChannelId,
+        owner: UserId,
+        viewers: Vec<UserId>,
+        live: bool,
+    ) {
+        if live {
+            self.acl
+                .insert((channel, owner), viewers.into_iter().collect());
+        } else {
+            self.acl.remove(&(channel, owner));
+        }
+        self.mark_room_dirty(channel);
+        self.pump(now);
+    }
+
+    /// Apply new media-path flags (server mute, deafen, permission change, sender allowance).
     /// Returns whether `user` is in `channel` (and so the flags were applied).
     pub fn set_flags(
         &mut self,
@@ -630,11 +1056,16 @@ impl SfuCore {
             return false;
         }
         let was_speaking = p.detector.is_speaking();
+        let publish_changed = p.flags.camera != flags.camera || p.flags.screen != flags.screen;
         p.flags = flags;
         // A speaker who may no longer send stops speaking for everyone at once.
         if !p.may_send(now) && p.detector.reset() && was_speaking {
             self.announce_speaking(pid, false, None);
         }
+        if publish_changed {
+            self.refresh_published(pid);
+        }
+        self.pump(now);
         true
     }
 
@@ -709,6 +1140,13 @@ impl SfuCore {
                 self.announce_speaking(id, false, None);
             }
         }
+        if self
+            .last_maintain
+            .is_none_or(|t| now.saturating_duration_since(t) >= MAINTAIN_EVERY)
+        {
+            self.last_maintain = Some(now);
+            self.maintain(now);
+        }
         self.pump(now);
     }
 
@@ -719,6 +1157,12 @@ impl SfuCore {
             to,
             msg: Message::new(op, d),
         }));
+    }
+
+    fn mark_room_dirty(&mut self, channel: ChannelId) {
+        if let Some(room) = self.rooms.get(&channel) {
+            self.dirty.extend(room.iter().copied());
+        }
     }
 
     fn announce_speaking(&mut self, src: ParticipantId, on: bool, level: Option<i8>) {
@@ -740,6 +1184,7 @@ impl SfuCore {
             speaking: bits,
             audio_level: if on { level } else { None },
         };
+        let (user, channel) = (p.user, p.channel);
         let audience: Vec<_> = self
             .rooms
             .get(&p.channel)
@@ -751,6 +1196,323 @@ impl SfuCore {
         for to in audience {
             self.signal(to, op::SPEAKING, &msg);
         }
+        if on {
+            self.out
+                .push_back(CoreOutput::Event(CoreEvent::Active { user, channel }));
+        }
+    }
+
+    /// The `Published` messages describing `pid`'s live camera and screen tracks.
+    fn published_messages(&self, pid: ParticipantId) -> Vec<Video> {
+        let Some(p) = self.parts.get(&pid) else {
+            return Vec::new();
+        };
+        [
+            TrackSource::Camera,
+            TrackSource::Screen,
+            TrackSource::ScreenAudio,
+        ]
+        .into_iter()
+        .filter_map(|s| {
+            let (_, t) = p.live_track(s)?;
+            Some(Video::Published {
+                user_id: p.user,
+                source: s.proto()?,
+                active: true,
+                width: t.width,
+                height: t.height,
+                fps: t.fps,
+            })
+        })
+        .collect()
+    }
+
+    /// Re-check which of `pid`'s tracks are live and tell the room about changes.
+    fn refresh_published(&mut self, pid: ParticipantId) {
+        let Some(p) = self.parts.get_mut(&pid) else {
+            return;
+        };
+        let mut changes: Vec<Video> = Vec::new();
+        for s in [
+            TrackSource::Camera,
+            TrackSource::Screen,
+            TrackSource::ScreenAudio,
+        ] {
+            let live = p.live_track(s).map(|(_, t)| (t.width, t.height, t.fps));
+            let known = p.announced.contains(&s);
+            let Some(proto) = s.proto() else { continue };
+            match (live, known) {
+                (Some((width, height, fps)), false) => {
+                    p.announced.insert(s);
+                    changes.push(Video::Published {
+                        user_id: p.user,
+                        source: proto,
+                        active: true,
+                        width,
+                        height,
+                        fps,
+                    });
+                }
+                (None, true) => {
+                    p.announced.remove(&s);
+                    changes.push(Video::Published {
+                        user_id: p.user,
+                        source: proto,
+                        active: false,
+                        width: 0,
+                        height: 0,
+                        fps: 0,
+                    });
+                }
+                _ => {}
+            }
+        }
+        if changes.is_empty() {
+            return;
+        }
+        let (channel, me) = (p.channel, pid);
+        let audience: Vec<_> = self
+            .rooms
+            .get(&channel)
+            .into_iter()
+            .flatten()
+            .copied()
+            .filter(|id| *id != me)
+            .collect();
+        for to in audience {
+            for c in &changes {
+                self.signal(to, op::VIDEO, c);
+            }
+        }
+        self.mark_room_dirty(channel);
+    }
+
+    /// Bind a declaration to its inbound line (when both are known) and refresh.
+    fn apply_declaration(&mut self, pid: ParticipantId, mid: Mid) {
+        if let Some(p) = self.parts.get_mut(&pid)
+            && let (Some(d), Some(t)) = (p.declared.get(&mid).copied(), p.tracks.get_mut(&mid))
+            && t.kind == d.source.kind()
+        {
+            t.source = Some(d.source);
+            t.declared_active = d.active;
+            t.width = d.width;
+            t.height = d.height;
+            t.fps = d.fps;
+        }
+        self.refresh_published(pid);
+    }
+
+    /// Recompute each video subscription's hint cap from the client's hints.
+    fn apply_hints(&mut self, id: ParticipantId) {
+        let users: HashMap<ParticipantId, (UserId, [Option<u32>; 4])> = self
+            .parts
+            .iter()
+            .map(|(k, v)| {
+                let mut heights = [None; 4];
+                for s in TrackSource::ALL {
+                    heights[s as usize] = v.live_track(s).map(|(_, t)| t.height);
+                }
+                (*k, (v.user, heights))
+            })
+            .collect();
+        let Some(q) = self.parts.get_mut(&id) else {
+            return;
+        };
+        for ((pubid, src), t) in &mut q.out {
+            let (Some(sel), Some((user, heights))) = (t.selector.as_mut(), users.get(pubid)) else {
+                continue;
+            };
+            let Some(proto) = src.proto() else { continue };
+            let hint = q.hints.get(&(*user, proto));
+            let full = heights[*src as usize].unwrap_or(0);
+            sel.set_hint_cap(hint_cap(hint, full, *src));
+        }
+    }
+
+    /// Re-derive `id`'s subscriptions from who publishes what, the client's hints and the
+    /// viewer lists. This is the single place that decides which lines a subscriber has.
+    fn reconcile(&mut self, id: ParticipantId) {
+        let Some(q) = self.parts.get(&id) else { return };
+        let (channel, my_user) = (q.channel, q.user);
+        let room = self.rooms.get(&channel).cloned().unwrap_or_default();
+        let mut want: HashSet<(ParticipantId, TrackSource)> = HashSet::new();
+        for o in room {
+            if o == id {
+                continue;
+            }
+            let Some(p) = self.parts.get(&o) else {
+                continue;
+            };
+            let enabled =
+                |s: Source, default: bool| q.hints.get(&(p.user, s)).map_or(default, |h| h.enabled);
+            if p.live_track(TrackSource::Mic).is_some() {
+                want.insert((o, TrackSource::Mic));
+            }
+            if p.live_track(TrackSource::Camera).is_some() && enabled(Source::Camera, true) {
+                want.insert((o, TrackSource::Camera));
+            }
+            let may_watch = self
+                .acl
+                .get(&(channel, p.user))
+                .is_some_and(|v| v.contains(&my_user));
+            if p.live_track(TrackSource::Screen).is_some()
+                && may_watch
+                && enabled(Source::Screen, false)
+            {
+                want.insert((o, TrackSource::Screen));
+                if p.live_track(TrackSource::ScreenAudio).is_some() {
+                    want.insert((o, TrackSource::ScreenAudio));
+                }
+            }
+        }
+        let cfg = self.selector_cfg;
+        let cap = self.parts.get(&id).map_or(Layer::High, |p| p.cap);
+        let Some(q) = self.parts.get_mut(&id) else {
+            return;
+        };
+        for key in &want {
+            q.out.entry(*key).or_insert_with(|| {
+                let selector = (key.1.kind() == MediaKind::Video).then(|| {
+                    let mut s = LayerSelector::new(cfg);
+                    s.set_governor_cap(cap);
+                    s
+                });
+                OutTrack {
+                    state: OutState::ToOpen,
+                    selector,
+                }
+            });
+        }
+        let unwanted: Vec<_> = q
+            .out
+            .keys()
+            .filter(|k| !want.contains(k))
+            .copied()
+            .collect();
+        for key in unwanted {
+            let Some(t) = q.out.get_mut(&key) else {
+                continue;
+            };
+            match t.state {
+                OutState::ToOpen => {
+                    q.out.remove(&key);
+                }
+                OutState::Open(m) => t.state = OutState::ToStop(m),
+                // Mid-negotiation lines settle first; the answer marks `id` dirty again.
+                _ => {}
+            }
+        }
+        self.apply_hints(id);
+    }
+
+    /// Once per [`MAINTAIN_EVERY`]: governor, layer selection, keyframe timers, notices.
+    fn maintain(&mut self, now: Instant) {
+        // Governor: node egress against the budget, evaluated about once a second.
+        if self
+            .last_governor
+            .is_none_or(|t| now.saturating_duration_since(t) >= Duration::from_secs(1))
+        {
+            self.last_governor = Some(now);
+            let egress: f64 = self.parts.values().map(|p| p.rates.tx_bps).sum();
+            self.governor.update(now, egress);
+        }
+        let severity = self.governor.severity();
+        let ids: Vec<ParticipantId> = self.parts.keys().copied().collect();
+        // Publishers' availability, gathered first (the loop below borrows subscribers mutably).
+        type Key = (ParticipantId, TrackSource);
+        let avail: HashMap<Key, (Available, u32)> = self
+            .parts
+            .iter()
+            .flat_map(|(pid, p)| {
+                p.tracks.values().filter_map(move |t| {
+                    let s = t.source.filter(|s| s.kind() == MediaKind::Video)?;
+                    Some(((*pid, s), (t.available(now), t.height)))
+                })
+            })
+            .collect();
+        let mut requests: Vec<(ParticipantId, TrackSource, Layer)> = Vec::new();
+        for id in ids {
+            let Some(q) = self.parts.get_mut(&id) else {
+                continue;
+            };
+            let cap = cap_for(severity, Tier(q.flags.tier));
+            q.cap = cap;
+            let n_video = q.video_outs().max(1);
+            let budget = match (q.bwe_bps, q.loss.budget()) {
+                (Some(a), Some(b)) => Some(a.min(b)),
+                (a, b) => a.or(b),
+            };
+            let share = budget.map(|b| b / n_video as f64);
+            let mut any_video = false;
+            for ((pubid, src), t) in &mut q.out {
+                let Some(sel) = t.selector.as_mut() else {
+                    continue;
+                };
+                any_video = true;
+                sel.set_governor_cap(cap);
+                let Some((a, _)) = avail.get(&(*pubid, *src)) else {
+                    continue;
+                };
+                if let Some(layer) = sel.update(now, a, share) {
+                    requests.push((*pubid, *src, layer));
+                }
+            }
+            // QUALITY notices when the cap bites or lifts for someone who receives video.
+            let reduced_now = any_video && cap != Layer::High;
+            if reduced_now != q.told_reduced {
+                q.told_reduced = reduced_now;
+                let msg = notice(cap);
+                self.signal(id, op::QUALITY, &msg);
+            }
+        }
+        for (pubid, src, layer) in requests {
+            self.request_keyframe(now, pubid, src, layer, keyframe::Kind::Pli);
+        }
+        for ((pubid, src, layer), kind) in self.keyframes.poll(now) {
+            self.send_keyframe_request(pubid, src, layer, kind);
+        }
+    }
+
+    /// Ask `publisher` for a keyframe of `layer`, coalesced with everyone else's asks.
+    fn request_keyframe(
+        &mut self,
+        now: Instant,
+        publisher: ParticipantId,
+        source: TrackSource,
+        layer: Layer,
+        kind: keyframe::Kind,
+    ) {
+        if let Some(kind) = self
+            .keyframes
+            .request((publisher, source, layer), kind, now)
+        {
+            self.send_keyframe_request(publisher, source, layer, kind);
+        }
+    }
+
+    fn send_keyframe_request(
+        &mut self,
+        publisher: ParticipantId,
+        source: TrackSource,
+        layer: Layer,
+        kind: keyframe::Kind,
+    ) {
+        let Some(p) = self.parts.get_mut(&publisher) else {
+            return;
+        };
+        let Some((mid, simulcast)) = p.live_track(source).map(|(m, t)| (m, t.simulcast)) else {
+            return;
+        };
+        let rid = simulcast.then(|| Rid::from(layer.rid()));
+        let kind = match kind {
+            keyframe::Kind::Pli => KeyframeRequestKind::Pli,
+            keyframe::Kind::Fir => KeyframeRequestKind::Fir,
+        };
+        if let Some(mut w) = p.rtc.writer(mid)
+            && w.request_keyframe(rid, kind).is_ok()
+        {
+            self.keyframe_requests += 1;
+        }
     }
 
     /// Drive every Rtc until nothing more happens, forwarding as media arrives.
@@ -758,6 +1520,11 @@ impl SfuCore {
         // Bounded: forwarding feeds other Rtcs, which can then have output of their own.
         for _ in 0..32 {
             let mut work = false;
+            // Subscriptions that must be re-derived come first, so one offer covers them all.
+            let dirty: Vec<_> = self.dirty.drain().collect();
+            for id in dirty {
+                self.reconcile(id);
+            }
             let ids: Vec<_> = self.parts.keys().copied().collect();
             for id in ids {
                 if self.negotiate(id) {
@@ -807,6 +1574,9 @@ impl SfuCore {
                 self.remove(id, reason);
                 work = true;
             }
+            if !self.dirty.is_empty() {
+                work = true;
+            }
             if !work {
                 break;
             }
@@ -824,36 +1594,97 @@ impl SfuCore {
                 }
             }
             Event::MediaAdded(m) => {
-                if m.kind != MediaKind::Audio || !m.direction.is_receiving() {
+                if !m.direction.is_receiving() {
                     return;
                 }
                 let Some(p) = self.parts.get_mut(&id) else {
                     return;
                 };
-                if p.mic.is_some() {
-                    return;
-                }
-                p.mic = Some(m.mid);
+                // What it carries: the client's declaration, or (audio) the microphone.
+                let declared = p.declared.get(&m.mid).copied();
+                let has_mic = p.mic_mid().is_some();
+                let source = match (declared, m.kind) {
+                    (Some(d), _) if d.source.kind() == m.kind => Some(d.source),
+                    (_, MediaKind::Audio) if !has_mic => Some(TrackSource::Mic),
+                    _ => None,
+                };
+                p.tracks.insert(
+                    m.mid,
+                    Inbound {
+                        kind: m.kind,
+                        simulcast: m.simulcast.is_some(),
+                        receiving: true,
+                        source,
+                        declared_active: declared.is_some_and(|d| d.active),
+                        width: declared.map_or(0, |d| d.width),
+                        height: declared.map_or(0, |d| d.height),
+                        fps: declared.map_or(0, |d| d.fps),
+                        stats: [LayerStat::default(); 3],
+                    },
+                );
                 let channel = p.channel;
-                // The new microphone becomes a subscription for everyone else.
-                let others: Vec<_> = self
-                    .rooms
-                    .get(&channel)
-                    .into_iter()
-                    .flatten()
-                    .copied()
-                    .filter(|o| *o != id)
-                    .collect();
-                for o in others {
-                    if let Some(q) = self.parts.get_mut(&o) {
-                        q.out.entry(id).or_insert(OutTrack {
-                            source: TrackSource::Mic,
-                            state: OutState::ToOpen,
-                        });
+                self.refresh_published(id);
+                self.mark_room_dirty(channel);
+            }
+            Event::MediaChanged(m) => {
+                let Some(p) = self.parts.get_mut(&id) else {
+                    return;
+                };
+                if let Some(t) = p.tracks.get_mut(&m.mid) {
+                    t.receiving = m.direction.is_receiving();
+                }
+                let channel = p.channel;
+                self.refresh_published(id);
+                self.mark_room_dirty(channel);
+            }
+            Event::MediaData(d) => {
+                let kind = self
+                    .parts
+                    .get(&id)
+                    .and_then(|p| p.tracks.get(&d.mid))
+                    .and_then(|t| t.source);
+                match kind {
+                    Some(TrackSource::Mic) => self.forward_audio(id, TrackSource::Mic, d, now),
+                    Some(TrackSource::ScreenAudio) => {
+                        self.forward_audio(id, TrackSource::ScreenAudio, d, now);
                     }
+                    Some(s @ (TrackSource::Camera | TrackSource::Screen)) => {
+                        self.forward_video(id, s, &d, now);
+                    }
+                    None => {}
                 }
             }
-            Event::MediaData(d) => self.forward_audio(id, d, now),
+            Event::KeyframeRequest(k) => {
+                // A subscriber lost the picture on one of its lines: find whose it is.
+                let Some(q) = self.parts.get(&id) else { return };
+                let hit = q.out.iter().find_map(|((pubid, src), t)| {
+                    (t.state.mid() == Some(k.mid) && src.kind() == MediaKind::Video).then(|| {
+                        (
+                            *pubid,
+                            *src,
+                            t.selector.as_ref().and_then(LayerSelector::current),
+                        )
+                    })
+                });
+                if let Some((pubid, src, layer)) = hit {
+                    let layer = layer.unwrap_or(Layer::Low);
+                    let kind = match k.kind {
+                        KeyframeRequestKind::Pli => keyframe::Kind::Pli,
+                        KeyframeRequestKind::Fir => keyframe::Kind::Fir,
+                    };
+                    self.request_keyframe(now, pubid, src, layer, kind);
+                }
+            }
+            Event::EgressBitrateEstimate(kind) => {
+                let est = match kind {
+                    str0m::bwe::BweKind::Twcc { estimate, .. }
+                    | str0m::bwe::BweKind::Remb { estimate, .. } => estimate.as_f64(),
+                    _ => return,
+                };
+                if let Some(p) = self.parts.get_mut(&id) {
+                    p.bwe_bps = Some(est);
+                }
+            }
             Event::PeerStats(s) => {
                 if let Some(p) = self.parts.get_mut(&id) {
                     if let Some((t0, rx0, tx0)) = p.rates.last {
@@ -867,6 +1698,9 @@ impl SfuCore {
                     }
                     p.rates.last = Some((s.timestamp, s.peer_bytes_rx, s.peer_bytes_tx));
                     p.rates.loss = s.egress_loss_fraction;
+                    if let Some(l) = s.egress_loss_fraction {
+                        p.loss.on_report(now, l, p.rates.tx_bps);
+                    }
                 }
             }
             Event::Closed => {
@@ -874,25 +1708,39 @@ impl SfuCore {
                     p.dead = Some(CloseReason::Connection);
                 }
             }
-            // TODO(video): KeyframeRequest coalescing, EgressBitrateEstimate -> layer selection.
             _ => {}
         }
     }
 
-    /// Forward one microphone frame to the room, and run speaking detection.
-    fn forward_audio(&mut self, src: ParticipantId, d: MediaData, now: Instant) {
+    /// Forward one audio frame (microphone or screen audio) to the room.
+    fn forward_audio(
+        &mut self,
+        src: ParticipantId,
+        source: TrackSource,
+        d: MediaData,
+        now: Instant,
+    ) {
         let Some(p) = self.parts.get_mut(&src) else {
             return;
         };
-        if p.mic != Some(d.mid) || !p.may_send(now) {
+        let Some(track) = p.tracks.get(&d.mid) else {
+            return;
+        };
+        let allowed = match source {
+            TrackSource::Mic => p.may_send(now),
+            _ => track.declared_active && track.receiving && p.allowed(source),
+        };
+        if !allowed {
             return;
         }
         let channel = p.channel;
         let level = d.ext_vals.audio_level;
         let vad = d.ext_vals.voice_activity;
-        let transition = p.detector.on_packet(now, level, vad);
-        if let Some(on) = transition {
-            self.announce_speaking(src, on, level);
+        if source == TrackSource::Mic {
+            let transition = p.detector.on_packet(now, level, vad);
+            if let Some(on) = transition {
+                self.announce_speaking(src, on, level);
+            }
         }
         let targets: Vec<_> = self
             .rooms
@@ -909,15 +1757,19 @@ impl SfuCore {
             if q.flags.deaf {
                 continue;
             }
-            // TODO(egress-governor): consult the room budget here before writing.
-            let Some(mid) = q.out.get(&src).and_then(|t| t.state.mid()) else {
+            let Some(mid) = q.out.get(&(src, source)).and_then(|t| match t.state {
+                OutState::Open(m) => Some(m),
+                _ => None,
+            }) else {
                 continue;
             };
             let Some(mut w) = q.rtc.writer(mid) else {
                 continue;
             };
             // Pass the level on so receiving clients can draw meters without decoding.
-            if let (Some(l), v) = (level, vad) {
+            if source == TrackSource::Mic
+                && let (Some(l), v) = (level, vad)
+            {
                 w = w.audio_level(l, v.unwrap_or(true));
             }
             let Some(pt) = w.match_params(d.params) else {
@@ -929,9 +1781,97 @@ impl SfuCore {
         }
     }
 
+    /// Forward one video frame (camera or screen) to the subscribers whose selector wants
+    /// this layer.
+    fn forward_video(
+        &mut self,
+        src: ParticipantId,
+        source: TrackSource,
+        d: &MediaData,
+        now: Instant,
+    ) {
+        let layer = d
+            .rid
+            .and_then(|r| Layer::from_rid(&r))
+            // A line without simulcast is one full-size layer.
+            .unwrap_or(Layer::High);
+        let keyframe = d.is_keyframe();
+        let Some(p) = self.parts.get_mut(&src) else {
+            return;
+        };
+        let channel = p.channel;
+        let user = p.user;
+        let live = p.allowed(source);
+        let Some(track) = p.tracks.get_mut(&d.mid) else {
+            return;
+        };
+        if !live || !track.declared_active || !track.receiving {
+            return;
+        }
+        track.stats[layer.index()].note(now, d.data.len());
+        if keyframe {
+            self.keyframes.keyframe_seen((src, source, layer));
+        }
+        let targets: Vec<_> = self
+            .rooms
+            .get(&channel)
+            .into_iter()
+            .flatten()
+            .copied()
+            .filter(|o| *o != src)
+            .collect();
+        let mut switched: Vec<(ParticipantId, Layer)> = Vec::new();
+        for o in targets {
+            let Some(q) = self.parts.get_mut(&o) else {
+                continue;
+            };
+            let Some(t) = q.out.get_mut(&(src, source)) else {
+                continue;
+            };
+            let OutState::Open(mid) = t.state else {
+                continue;
+            };
+            let Some(sel) = t.selector.as_mut() else {
+                continue;
+            };
+            // A source with only one layer (a screen share) needs no selection.
+            if sel.current().is_none() && sel.pending().is_none() && !d.rid.is_some() {
+                sel.force_single(layer);
+            }
+            let decision = sel.on_frame(layer, keyframe);
+            match decision {
+                Frame::Drop => continue,
+                Frame::Switched(l) => switched.push((o, l)),
+                Frame::Forward => {}
+            }
+            let Some(w) = q.rtc.writer(mid) else {
+                continue;
+            };
+            let Some(pt) = w.match_params(d.params) else {
+                continue;
+            };
+            if w.write(pt, d.network_time, d.time, d.data.clone()).is_ok() {
+                self.forwarded_frames += 1;
+            }
+        }
+        for (o, l) in switched {
+            if let Some(proto) = source.proto() {
+                self.signal(
+                    o,
+                    op::VIDEO,
+                    &Video::Layer {
+                        user_id: user,
+                        source: proto,
+                        layer: l,
+                        reason: sr_voice_proto::video::LayerReason::Hint,
+                    },
+                );
+            }
+        }
+    }
+
     /// Start a server offer for `id` if its subscriptions changed. Returns whether it did.
     fn negotiate(&mut self, id: ParticipantId) -> bool {
-        let alive: HashSet<ParticipantId> = self.parts.keys().copied().collect();
         let users: HashMap<ParticipantId, UserId> =
             self.parts.iter().map(|(k, v)| (*k, v.user)).collect();
         let Some(p) = self.parts.get_mut(&id) else {
@@ -939,26 +1879,6 @@ impl SfuCore {
         };
         if !p.negotiated || p.pending.is_some() {
             return false;
-        }
-        // Lines whose speaker left are stopped; lines not yet opened for a gone speaker are dropped.
-        let gone: Vec<_> = p
-            .out
-            .keys()
-            .copied()
-            .filter(|s| !alive.contains(s))
-            .collect();
-        for s in gone {
-            match p.out.get(&s).map(|t| t.state) {
-                Some(OutState::Open(m)) => {
-                    if let Some(t) = p.out.get_mut(&s) {
-                        t.state = OutState::ToStop(m);
-                    }
-                }
-                Some(OutState::ToOpen) => {
-                    p.out.remove(&s);
-                }
-                _ => {}
-            }
         }
         if !p
             .out
@@ -968,12 +1888,12 @@ impl SfuCore {
             return false;
         }
         let mut change = p.rtc.sdp_api();
-        for (src, t) in p.out.iter_mut() {
+        for ((publisher, source), t) in p.out.iter_mut() {
             match t.state {
                 OutState::ToOpen => {
-                    let stream = users.get(src).map(ToString::to_string);
+                    let stream = users.get(publisher).map(|u| source.stream_id(*u));
                     let mid =
-                        change.add_media(MediaKind::Audio, Direction::SendOnly, stream, None, None);
+                        change.add_media(source.kind(), Direction::SendOnly, stream, None, None);
                     t.state = OutState::Negotiating(mid);
                 }
                 OutState::ToStop(m) => {
@@ -990,5 +1910,26 @@ impl SfuCore {
         let sdp = offer.to_sdp_string();
         self.signal(id, op::SDP_OFFER, &wire::Sdp { sdp });
         true
+    }
+}
+
+/// The largest layer a subscriber's hint allows.
+fn hint_cap(hint: Option<&SubscriptionHint>, full_height: u32, source: TrackSource) -> Layer {
+    match hint {
+        Some(h) => match (h.layer, h.viewport) {
+            (Some(l), _) => l,
+            (None, Some(vp)) => layer_for_viewport(vp, full_height),
+            (None, None) => default_cap(source),
+        },
+        None => default_cap(source),
+    }
+}
+
+/// Cameras start as thumbnails; a screen is a single layer anyway.
+fn default_cap(source: TrackSource) -> Layer {
+    if source == TrackSource::Screen {
+        Layer::High
+    } else {
+        Layer::Low
     }
 }

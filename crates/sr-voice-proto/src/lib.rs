@@ -6,11 +6,13 @@
 //! * [`turn`]: coturn REST-style ephemeral credentials (ADR-0004).
 //! * [`control`]: commands the gateway sends to the SFU (server mute, disconnect, ...).
 //! * [`select`]: SFU node selection for a channel.
+//! * [`video`]: camera and screen tracks, subscriber hints and the governor notice.
 
 pub mod control;
 pub mod select;
 pub mod token;
 pub mod turn;
+pub mod video;
 pub mod wire;
 
 pub use control::{VoiceCommand, VoiceRelay};
