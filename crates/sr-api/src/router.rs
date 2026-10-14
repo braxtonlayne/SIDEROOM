@@ -167,6 +167,7 @@ fn with_common_layers(app: Router<AppState>, state: &AppState) -> Router<AppStat
                     .on_response(DefaultOnResponse::new().level(Level::INFO)),
             )
             .layer(from_fn(observability::http_metrics))
+            .layer(from_fn(audit_reason_scope))
             .layer(from_fn_with_state(
                 SecurityHeaderConfig {
                     hsts: state.settings().secure_cookies,
@@ -215,5 +216,48 @@ mod redact_tests {
             "/api/v1/channels/1/messages"
         );
         assert_eq!(redact_path("/api/v1/interactions"), "/api/v1/interactions");
+    }
+}
+
+/// Scope the request's `X-Audit-Log-Reason` for audit writes made while serving it
+/// (LNG-SSET-056): guild mutations record the reason without each route passing it on.
+async fn audit_reason_scope(
+    req: Request<axum::body::Body>,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    match crate::routes::settings::deps::audit_reason(req.headers()) {
+        Some(reason) => sr_chat::settings::audit::with_ambient_reason(reason, next.run(req)).await,
+        None => next.run(req).await,
+    }
+}
+
+#[cfg(test)]
+mod audit_reason_tests {
+    use super::audit_reason_scope;
+    use axum::{Router, body::Body, http::Request, middleware::from_fn, routing::get};
+    use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn the_header_reaches_audit_writes_percent_decoded() {
+        let app: Router = Router::new()
+            .route(
+                "/",
+                get(|| async { sr_chat::settings::audit::ambient_reason().unwrap_or_default() }),
+            )
+            .layer(from_fn(audit_reason_scope));
+        let call = |reason: Option<&'static str>| {
+            let app = app.clone();
+            async move {
+                let mut req = Request::builder().uri("/");
+                if let Some(r) = reason {
+                    req = req.header("x-audit-log-reason", r);
+                }
+                let res = app.oneshot(req.body(Body::empty()).unwrap()).await.unwrap();
+                let bytes = axum::body::to_bytes(res.into_body(), 1024).await.unwrap();
+                String::from_utf8(bytes.to_vec()).unwrap()
+            }
+        };
+        assert_eq!(call(Some("raid%20cleanup")).await, "raid cleanup");
+        assert_eq!(call(None).await, "");
     }
 }
