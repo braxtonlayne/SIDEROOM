@@ -5,6 +5,7 @@ import { Link } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import { ApiError } from '../api/client';
 import { useT } from '../i18n';
+import { ReportButton } from '../moderation/reports';
 import { followSeries, getChapters, getSeries, keys, unfollowSeries } from './api';
 import { pickContinue, progressOf, readMark, type ProgressMap } from './continue';
 import { progressApi } from './progress';
@@ -258,6 +259,7 @@ function Actions({
         <Icon name="bell" size={16} />
         {following ? t('library.series.following') : t('library.series.follow')}
       </Button>
+      <ReportButton target={{ kind: 'library', id: series.id }} />
       {toggle.isError && <Notice variant="danger">{t('library.series.followError')}</Notice>}
     </div>
   );

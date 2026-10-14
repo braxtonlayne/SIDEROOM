@@ -10,6 +10,7 @@ import {
 } from '@sideroom/ui';
 import { memo, useMemo, type CSSProperties } from 'react';
 import { useT } from '../i18n';
+import { useReportEntry } from '../moderation/reports';
 import { useSavedPrefs } from '../settings/user/prefs';
 import { EmojiPicker } from './components/EmojiPicker';
 import type { Message, Snowflake } from './data';
@@ -215,6 +216,7 @@ function MessageItemImpl(props: MessageItemProps) {
     onOpenProfile,
   } = props;
   const t = useT();
+  const reportEntry = useReportEntry();
   const prefs = useSavedPrefs();
   const compact = prefs.messageDisplay === 'compact';
   // Role colours: on the name (default), as a dot before it, or off (User Settings > Accessibility).
@@ -307,6 +309,8 @@ function MessageItemImpl(props: MessageItemProps) {
         onSelect: () => onDelete!(m, false),
       });
     }
+    const report = reportEntry({ kind: 'message', id: m.id });
+    if (report) entries.push({ type: 'separator' }, report);
     entries.push({ type: 'separator' });
     entries.push({ label: t('lounge.messageItem.copyMessageId'), onSelect: () => copy(m.id) });
     return entries;
@@ -330,6 +334,7 @@ function MessageItemImpl(props: MessageItemProps) {
     onRemind,
     onCreateThread,
     onOpenThread,
+    reportEntry,
   ]);
 
   if (isSystemMessage(m)) {

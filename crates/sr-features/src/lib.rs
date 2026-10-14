@@ -2,6 +2,7 @@
 //! feature flags. See docs/11-extensibility-and-developer-platform.md section 1.
 
 pub mod feature;
+pub mod moderation;
 pub mod schema;
 pub mod service;
 pub mod store;
@@ -9,6 +10,7 @@ pub mod store;
 pub use feature::{
     Feature, FeatureCtx, FeatureError, FeatureMeta, FeatureRegistry, Scope, ScopeRef,
 };
+pub use moderation::{ModerationReportsFeature, REPORTS_FEATURE_ID};
 pub use schema::{Field, FieldKind, SettingsSchema, ValidationError};
 pub use service::FeatureService;
 pub use store::{InMemorySettingsStore, SettingsRecord, SettingsStore};
