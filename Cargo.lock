@@ -5379,6 +5379,7 @@ dependencies = [
  "sr-unfurl",
  "sr-voice",
  "sr-voice-proto",
+ "sr-watchparty",
  "thiserror 2.0.21",
  "tokio",
  "tokio-stream",

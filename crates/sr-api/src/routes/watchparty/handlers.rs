@@ -20,7 +20,7 @@ const PARTY: &str = "Watch party snowflake";
 /// The server clock. Clients sample it (with their own round-trip time) to estimate their clock offset
 /// before and while they are in a party.
 #[utoipa::path(
-    get, path = "/watch-parties/time", operation_id = "watch_party_time",
+    get, path = "/watch-parties/time", tag = "watch_party", operation_id = "watch_party_time",
     responses((status = 200, body = TimeView), (status = 401, body = ErrorBody)),
     security(("session" = []))
 )]
@@ -30,7 +30,7 @@ pub async fn time(ctx: Ctx) -> Json<TimeView> {
 
 /// The party the caller is in now.
 #[utoipa::path(
-    get, path = "/watch-parties/me", operation_id = "watch_party_mine",
+    get, path = "/watch-parties/me", tag = "watch_party", operation_id = "watch_party_mine",
     responses((status = 200, body = PartyView), (status = 401, body = ErrorBody),
               (status = 404, body = ErrorBody, description = "Not in a party.")),
     security(("session" = []))
@@ -43,7 +43,7 @@ pub async fn mine(ctx: Ctx) -> WpResult<Json<PartyView>> {
 /// (shareable link). The title must be published and playable; a restricted one needs the caller's age
 /// confirmation (403, code 900011). The caller becomes the host and leaves any other party.
 #[utoipa::path(
-    post, path = "/watch-parties", operation_id = "watch_party_create", request_body = CreateInput,
+    post, path = "/watch-parties", tag = "watch_party", operation_id = "watch_party_create", request_body = CreateInput,
     responses((status = 201, body = PartyView), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody),
               (status = 403, body = ErrorBody, description = "No START_WATCH_PARTY, or age confirmation required (900011)."),
               (status = 404, body = ErrorBody, description = "Unknown channel or title."),
@@ -64,7 +64,7 @@ pub async fn create(
 /// A party. Members, and people who can see the bound channel, may read it; restricted content is masked for
 /// viewers without age confirmation.
 #[utoipa::path(
-    get, path = "/watch-parties/{party_id}", operation_id = "watch_party_get",
+    get, path = "/watch-parties/{party_id}", tag = "watch_party", operation_id = "watch_party_get",
     params(("party_id" = String, Path, description = PARTY)),
     responses((status = 200, body = PartyView), (status = 401, body = ErrorBody), (status = 404, body = ErrorBody)),
     security(("session" = []))
@@ -79,7 +79,7 @@ pub async fn get_party(ctx: Ctx, Path(party_id): Path<String>) -> WpResult<Json<
 
 /// The live party of a channel or DM.
 #[utoipa::path(
-    get, path = "/channels/{channel_id}/watch-party", operation_id = "watch_party_in_channel",
+    get, path = "/channels/{channel_id}/watch-party", tag = "watch_party", operation_id = "watch_party_in_channel",
     params(("channel_id" = String, Path, description = "Channel snowflake")),
     responses((status = 200, body = PartyView), (status = 401, body = ErrorBody),
               (status = 404, body = ErrorBody, description = "No party, or the channel is not visible.")),
@@ -95,7 +95,7 @@ pub async fn in_channel(ctx: Ctx, Path(channel_id): Path<String>) -> WpResult<Js
 
 /// Change the settings (host or channel manager).
 #[utoipa::path(
-    patch, path = "/watch-parties/{party_id}", operation_id = "watch_party_update", request_body = SettingsInput,
+    patch, path = "/watch-parties/{party_id}", tag = "watch_party", operation_id = "watch_party_update", request_body = SettingsInput,
     params(("party_id" = String, Path, description = PARTY)),
     responses((status = 200, body = PartyView), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody),
               (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
@@ -115,7 +115,7 @@ pub async fn update_settings(
 
 /// End the party for everybody (host or channel manager).
 #[utoipa::path(
-    delete, path = "/watch-parties/{party_id}", operation_id = "watch_party_end",
+    delete, path = "/watch-parties/{party_id}", tag = "watch_party", operation_id = "watch_party_end",
     params(("party_id" = String, Path, description = PARTY)),
     responses((status = 204), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
     security(("session" = []))
@@ -130,7 +130,7 @@ pub async fn end(ctx: Ctx, Path(party_id): Path<String>) -> WpResult<StatusCode>
 /// Join. A private party needs `invite_code`; a bound party needs access to its channel; a restricted title
 /// needs the caller's age confirmation (403, 900011). Joining leaves the caller's other party.
 #[utoipa::path(
-    post, path = "/watch-parties/{party_id}/join", operation_id = "watch_party_join", request_body = JoinInput,
+    post, path = "/watch-parties/{party_id}/join", tag = "watch_party", operation_id = "watch_party_join", request_body = JoinInput,
     params(("party_id" = String, Path, description = PARTY)),
     responses((status = 200, body = PartyView), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody),
               (status = 409, body = ErrorBody, description = "The party is full."), (status = 429, body = ErrorBody)),
@@ -151,7 +151,7 @@ pub async fn join(
 
 /// Leave. The host role passes to the next person; an empty party ends after 5 minutes unless persistent.
 #[utoipa::path(
-    post, path = "/watch-parties/{party_id}/leave", operation_id = "watch_party_leave",
+    post, path = "/watch-parties/{party_id}/leave", tag = "watch_party", operation_id = "watch_party_leave",
     params(("party_id" = String, Path, description = PARTY)),
     responses((status = 204), (status = 404, body = ErrorBody)),
     security(("session" = []))
@@ -165,7 +165,7 @@ pub async fn leave(ctx: Ctx, Path(party_id): Path<String>) -> WpResult<StatusCod
 
 /// Hand the host role to another participant (host or channel manager).
 #[utoipa::path(
-    post, path = "/watch-parties/{party_id}/host", operation_id = "watch_party_transfer_host", request_body = TransferInput,
+    post, path = "/watch-parties/{party_id}/host", tag = "watch_party", operation_id = "watch_party_transfer_host", request_body = TransferInput,
     params(("party_id" = String, Path, description = PARTY)),
     responses((status = 200, body = PartyView), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody),
               (status = 404, body = ErrorBody)),
@@ -185,7 +185,7 @@ pub async fn transfer_host(
 
 /// Name or unname a controller (host or channel manager).
 #[utoipa::path(
-    put, path = "/watch-parties/{party_id}/controllers/{user_id}", operation_id = "watch_party_set_controller",
+    put, path = "/watch-parties/{party_id}/controllers/{user_id}", tag = "watch_party", operation_id = "watch_party_set_controller",
     request_body = ControllerInput,
     params(("party_id" = String, Path, description = PARTY), ("user_id" = String, Path, description = "User snowflake")),
     responses((status = 200, body = PartyView), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
@@ -210,7 +210,7 @@ pub async fn set_controller(
 
 /// Remove a participant and bar them from rejoining (host or channel manager).
 #[utoipa::path(
-    delete, path = "/watch-parties/{party_id}/members/{user_id}", operation_id = "watch_party_kick",
+    delete, path = "/watch-parties/{party_id}/members/{user_id}", tag = "watch_party", operation_id = "watch_party_kick",
     params(("party_id" = String, Path, description = PARTY), ("user_id" = String, Path, description = "User snowflake")),
     responses((status = 204), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
     security(("session" = []))
@@ -233,7 +233,7 @@ pub async fn kick(
 /// the host and, per the shared-control setting, controllers or everybody; otherwise 403. A stale
 /// `expected_version` answers 409 with the current playback. The answer is the state after the command.
 #[utoipa::path(
-    post, path = "/watch-parties/{party_id}/playback", operation_id = "watch_party_command", request_body = CommandInput,
+    post, path = "/watch-parties/{party_id}/playback", tag = "watch_party", operation_id = "watch_party_command", request_body = CommandInput,
     params(("party_id" = String, Path, description = PARTY)),
     responses((status = 200, body = PlaybackView), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody),
               (status = 404, body = ErrorBody),
@@ -256,7 +256,7 @@ pub async fn command(
 /// Change what is playing (controllers). The title must be published and playable. For a restricted title,
 /// participants without age confirmation are removed from the party.
 #[utoipa::path(
-    put, path = "/watch-parties/{party_id}/media", operation_id = "watch_party_change_media", request_body = ChangeMediaInput,
+    put, path = "/watch-parties/{party_id}/media", tag = "watch_party", operation_id = "watch_party_change_media", request_body = ChangeMediaInput,
     params(("party_id" = String, Path, description = PARTY)),
     responses((status = 200, body = PartyView), (status = 400, body = ErrorBody),
               (status = 403, body = ErrorBody, description = "Not a controller, or age confirmation required (900011)."),
@@ -277,7 +277,7 @@ pub async fn change_media(
 
 /// Add to the queue (per the queue policy).
 #[utoipa::path(
-    post, path = "/watch-parties/{party_id}/queue", operation_id = "watch_party_queue_add", request_body = QueueAddInput,
+    post, path = "/watch-parties/{party_id}/queue", tag = "watch_party", operation_id = "watch_party_queue_add", request_body = QueueAddInput,
     params(("party_id" = String, Path, description = PARTY)),
     responses((status = 200, body = PartyView), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody),
               (status = 409, body = ErrorBody, description = "The queue is full.")),
@@ -297,7 +297,7 @@ pub async fn queue_add(
 
 /// Reorder the queue (controllers): move an entry to `position`.
 #[utoipa::path(
-    patch, path = "/watch-parties/{party_id}/queue/{item_id}", operation_id = "watch_party_queue_move",
+    patch, path = "/watch-parties/{party_id}/queue/{item_id}", tag = "watch_party", operation_id = "watch_party_queue_move",
     request_body = QueueMoveInput,
     params(("party_id" = String, Path, description = PARTY), ("item_id" = String, Path, description = "Queue entry snowflake")),
     responses((status = 200, body = PartyView), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
@@ -322,7 +322,7 @@ pub async fn queue_move(
 
 /// Remove a queue entry (per the queue policy; the person who added it may always).
 #[utoipa::path(
-    delete, path = "/watch-parties/{party_id}/queue/{item_id}", operation_id = "watch_party_queue_remove",
+    delete, path = "/watch-parties/{party_id}/queue/{item_id}", tag = "watch_party", operation_id = "watch_party_queue_remove",
     params(("party_id" = String, Path, description = PARTY), ("item_id" = String, Path, description = "Queue entry snowflake")),
     responses((status = 200, body = PartyView), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
     security(("session" = []))
@@ -344,7 +344,7 @@ pub async fn queue_remove(
 
 /// Skip to the next queue entry (controllers).
 #[utoipa::path(
-    post, path = "/watch-parties/{party_id}/next", operation_id = "watch_party_next",
+    post, path = "/watch-parties/{party_id}/next", tag = "watch_party", operation_id = "watch_party_next",
     params(("party_id" = String, Path, description = PARTY)),
     responses((status = 200, body = PartyView), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody),
               (status = 409, body = ErrorBody, description = "The queue is empty.")),
@@ -361,7 +361,7 @@ pub async fn next(ctx: Ctx, Path(party_id): Path<String>) -> WpResult<Json<Party
 /// The participant's heartbeat (every 15 to 30 s): liveness, round-trip estimate, buffering and ready
 /// flags. Answers with the server clock and the current playback. A participant silent for 90 s is dropped.
 #[utoipa::path(
-    post, path = "/watch-parties/{party_id}/heartbeat", operation_id = "watch_party_heartbeat", request_body = HeartbeatInput,
+    post, path = "/watch-parties/{party_id}/heartbeat", tag = "watch_party", operation_id = "watch_party_heartbeat", request_body = HeartbeatInput,
     params(("party_id" = String, Path, description = PARTY)),
     responses((status = 200, body = HeartbeatResult), (status = 404, body = ErrorBody), (status = 429, body = ErrorBody)),
     security(("session" = []))
@@ -381,7 +381,7 @@ pub async fn heartbeat(
 
 /// Send a floating emoji reaction to the party (rate limited).
 #[utoipa::path(
-    post, path = "/watch-parties/{party_id}/reactions", operation_id = "watch_party_react", request_body = ReactionInput,
+    post, path = "/watch-parties/{party_id}/reactions", tag = "watch_party", operation_id = "watch_party_react", request_body = ReactionInput,
     params(("party_id" = String, Path, description = PARTY)),
     responses((status = 204), (status = 400, body = ErrorBody), (status = 404, body = ErrorBody), (status = 429, body = ErrorBody)),
     security(("session" = []))
@@ -400,7 +400,7 @@ pub async fn react(
 /// Send an ephemeral message to the party's own chat (used by private parties; parties bound to a channel
 /// use that channel's text chat). Not stored.
 #[utoipa::path(
-    post, path = "/watch-parties/{party_id}/messages", operation_id = "watch_party_say", request_body = MessageInput,
+    post, path = "/watch-parties/{party_id}/messages", tag = "watch_party", operation_id = "watch_party_say", request_body = MessageInput,
     params(("party_id" = String, Path, description = PARTY)),
     responses((status = 204), (status = 400, body = ErrorBody), (status = 404, body = ErrorBody), (status = 429, body = ErrorBody)),
     security(("session" = []))
@@ -418,7 +418,7 @@ pub async fn say(
 
 /// The audit trail of party-level actions, newest first (host or channel manager).
 #[utoipa::path(
-    get, path = "/watch-parties/{party_id}/audit", operation_id = "watch_party_audit",
+    get, path = "/watch-parties/{party_id}/audit", tag = "watch_party", operation_id = "watch_party_audit",
     params(("party_id" = String, Path, description = PARTY)),
     responses((status = 200, body = Vec<AuditEntry>), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
     security(("session" = []))
