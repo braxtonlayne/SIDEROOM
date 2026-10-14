@@ -8,10 +8,12 @@ use sr_chat::settings::audit::{AuditEntry, AuditQuery};
 use sr_chat::settings::automod::AutoModRule;
 use sr_chat::settings::community::{CommunitySettings, Onboarding, WelcomeScreen};
 use sr_chat::settings::expressions::{Emoji, Sticker};
+use sr_chat::settings::insights::Insights;
 use sr_chat::settings::invites::GuildInvite;
 use sr_chat::settings::repo::{
     AuditRepository, AutoModRepository, CommunityRepository, ExpressionRepository,
-    InviteRepository, SettingsRepository, TagRepository, TemplateRepository, WebhookRepository,
+    InsightsRepository, InviteRepository, SettingsRepository, TagRepository, TemplateRepository,
+    WebhookRepository,
 };
 use sr_chat::settings::tags::GuildTag;
 use sr_chat::settings::templates::GuildTemplate;
@@ -199,5 +201,12 @@ impl TagRepository for DynRepo {
     }
     async fn set_primary_guild(&self, user: UserId, guild: Option<GuildId>) -> RepoResult<()> {
         self.0.set_primary_guild(user, guild).await
+    }
+}
+
+#[async_trait]
+impl InsightsRepository for DynRepo {
+    async fn insights(&self, guild: GuildId, days: u32, now_ms: i64) -> RepoResult<Insights> {
+        self.0.insights(guild, days, now_ms).await
     }
 }

@@ -28,6 +28,7 @@ pub mod community;
 pub mod deps;
 pub mod events;
 pub mod expressions;
+pub mod insights;
 pub mod invites;
 pub mod join;
 pub mod presence;
@@ -67,6 +68,7 @@ pub fn router() -> Router<AppState> {
         .merge(templates::routes())
         .merge(community::routes())
         .merge(tags::routes())
+        .merge(insights::routes())
 }
 
 /// OpenAPI fragment for these routes; merge into [`crate::openapi::base`].
@@ -127,6 +129,7 @@ pub fn router() -> Router<AppState> {
         tags::delete_tag,
         tags::get_primary_guild,
         tags::put_primary_guild,
+        insights::get_insights,
     ),
     components(schemas(
         ErrorBody,
@@ -171,6 +174,9 @@ pub fn router() -> Router<AppState> {
         tags::PutGuildTagBody,
         tags::PrimaryGuildResponse,
         tags::PutPrimaryGuildBody,
+        insights::InsightsObject,
+        insights::InsightsDayObject,
+        insights::InsightsChannelObject,
         crate::routes::social::model::PrimaryGuildObject,
     ))
 )]

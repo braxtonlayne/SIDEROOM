@@ -12,6 +12,7 @@ pub mod automod;
 pub mod community;
 pub mod error;
 pub mod expressions;
+pub mod insights;
 pub mod invites;
 pub mod join;
 pub mod repo;

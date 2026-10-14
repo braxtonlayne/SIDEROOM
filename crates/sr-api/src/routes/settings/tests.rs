@@ -2432,3 +2432,16 @@ async fn server_tags_are_managed_by_managers_and_adopted_by_members() {
     assert!(p["primary_guild"].is_null());
     assert!(e.audit_actions().await.contains(&1));
 }
+
+#[tokio::test]
+async fn insights_need_a_manager_or_the_insights_permission() {
+    let e = env().await;
+    let url = e.g("/sr/insights?days=7");
+    assert_eq!(e.get(&url, "bob").await.0, StatusCode::FORBIDDEN);
+    assert_eq!(e.get(&url, "carol").await.0, StatusCode::FORBIDDEN);
+    let (s, body) = e.get(&url, "mod").await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    // Nothing computed yet.
+    assert_eq!(body["days"], json!([]));
+    assert_eq!(body["top_channels"], json!([]));
+}

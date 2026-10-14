@@ -15,7 +15,7 @@ use super::expressions::{Emoji, Sticker};
 use super::invites::{GuildInvite, InviteStatus};
 use super::repo::{
     AuditRepository, AutoModRepository, CommunityRepository, ExpressionRepository,
-    InviteRepository, TagRepository, TemplateRepository, WebhookRepository,
+    InsightsRepository, InviteRepository, TagRepository, TemplateRepository, WebhookRepository,
 };
 use super::tags::GuildTag;
 use super::templates::GuildTemplate;
@@ -36,6 +36,7 @@ pub struct Store {
     pub welcome: HashMap<GuildId, WelcomeScreen>,
     pub tags: HashMap<GuildId, GuildTag>,
     pub primary_guilds: HashMap<UserId, GuildId>,
+    pub insights: HashMap<GuildId, super::insights::Insights>,
 }
 
 #[derive(Default)]
@@ -401,6 +402,25 @@ impl CommunityRepository for MemorySettingsRepo {
     async fn put_welcome_screen(&self, screen: &WelcomeScreen) -> RepoResult<()> {
         self.with(|s| s.welcome.insert(screen.guild_id, screen.clone()));
         Ok(())
+    }
+}
+
+#[async_trait]
+impl InsightsRepository for MemorySettingsRepo {
+    async fn insights(
+        &self,
+        guild: GuildId,
+        days: u32,
+        _now_ms: i64,
+    ) -> RepoResult<super::insights::Insights> {
+        Ok(self.with(|s| {
+            let mut i = s.insights.get(&guild).cloned().unwrap_or_default();
+            let keep = days as usize;
+            if i.days.len() > keep {
+                i.days.drain(..i.days.len() - keep);
+            }
+            i
+        }))
     }
 }
 

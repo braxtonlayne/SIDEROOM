@@ -285,6 +285,54 @@ pub async fn schedule_audit_purge(pool: &PgPool) -> DbResult<()> {
     Ok(())
 }
 
+/// Reserved singleton id for `insights.daily`.
+pub const INSIGHTS_JOB_ID: i64 = 630;
+/// Kind of the daily Server Insights computation (LNG-SSET-068).
+pub const INSIGHTS_KIND: &str = "insights.daily";
+const INSIGHTS_HOUR_UTC: u32 = 0;
+const INSIGHTS_MINUTE_UTC: u32 = 20;
+/// Completed days recomputed on each run, so a missed run heals itself.
+const INSIGHTS_CATCH_UP_DAYS: i64 = 2;
+
+fn insights_delay() -> Duration {
+    jobs::delay_until_daily_utc(now_unix_ms(), INSIGHTS_HOUR_UTC, INSIGHTS_MINUTE_UTC)
+}
+
+async fn insights_handler(pool: PgPool, job: Job) -> Result<(), HandlerError> {
+    const DAY_MS: i64 = 86_400_000;
+    let today = now_unix_ms().div_euclid(DAY_MS) * DAY_MS;
+    for back in (1..=INSIGHTS_CATCH_UP_DAYS).rev() {
+        let guilds = sr_db::settings_repo::compute_insights_day(&pool, today - back * DAY_MS)
+            .await
+            .map_err(|e| HandlerError::from(e.to_string()))?;
+        tracing::debug!(guilds, back, "server insights computed");
+    }
+    jobs::reschedule_running(&pool, job.id, insights_delay()).await?;
+    Ok(())
+}
+
+/// Register the daily Server Insights job on `runner`. Pair with [`schedule_insights`].
+pub fn register_insights(runner: JobRunner, pool: &PgPool) -> JobRunner {
+    let pool = pool.clone();
+    runner.register(INSIGHTS_KIND, 1, move |job| {
+        Box::pin(insights_handler(pool.clone(), job))
+    })
+}
+
+/// Create or re-arm the insights singleton. Call only when [`register_insights`] is on
+/// the runner.
+pub async fn schedule_insights(pool: &PgPool) -> DbResult<()> {
+    jobs::schedule_singleton(
+        pool,
+        INSIGHTS_JOB_ID,
+        INSIGHTS_KIND,
+        &json!({}),
+        insights_delay(),
+    )
+    .await?;
+    Ok(())
+}
+
 /// Reserved singleton id for `threads.auto_archive`.
 pub const THREAD_ARCHIVE_JOB_ID: i64 = 110;
 /// Kind of the recurring sweep that archives idle threads (LNG-THR-001).

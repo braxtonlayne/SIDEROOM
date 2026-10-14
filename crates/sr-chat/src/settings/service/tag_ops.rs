@@ -145,3 +145,20 @@ impl<R: SettingsRepository> SettingsService<R> {
             .map(|t| PrimaryGuild::from(&t)))
     }
 }
+
+impl<R: SettingsRepository> SettingsService<R> {
+    /// Server Insights for the last `days` completed days (`MANAGE_GUILD` or
+    /// `VIEW_GUILD_INSIGHTS`).
+    pub async fn insights(
+        &self,
+        perms: Permissions,
+        guild: GuildId,
+        days: Option<u32>,
+    ) -> SettingsResult<super::super::insights::Insights> {
+        if !perms.has(Permissions::MANAGE_GUILD) && !perms.has(Permissions::VIEW_GUILD_INSIGHTS) {
+            return Err(SettingsError::MissingPermissions);
+        }
+        let days = super::super::insights::clamp_days(days);
+        Ok(self.repo.insights(guild, days, self.now()).await?)
+    }
+}

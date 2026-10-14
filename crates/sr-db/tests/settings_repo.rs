@@ -414,3 +414,78 @@ async fn server_tag_adoption_shows_only_for_members_while_allowed() {
     assert_eq!(repo.get_primary_guild(owner).await.unwrap(), None);
     assert!(!repo.delete_guild_tag(gid).await.unwrap());
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn insights_are_computed_per_day_and_read_back() {
+    use sr_chat::settings::repo::InsightsRepository;
+    use sr_db::settings_repo::compute_insights_day;
+
+    let pool = pool().await;
+    let test_ids = ids(8);
+    let repo = PgSettingsRepo::new(pool.clone());
+    let (gid, general, _owner) = guild(&pool, &test_ids).await;
+    let _: String = sqlx::query_scalar("SELECT sr_ensure_message_partition(CURRENT_DATE - 1)")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    // Two messages at noon yesterday UTC.
+    let day_start_ms: i64 = sqlx::query_scalar(
+        "SELECT (extract(epoch FROM date_trunc('day', now() AT TIME ZONE 'UTC') - interval '1 day') * 1000)::bigint",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let noon_floor: i64 = sqlx::query_scalar(
+        "SELECT sr_snowflake_floor(to_timestamp($1::double precision / 1000.0) + interval '12 hours')",
+    )
+    .bind(day_start_ms)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let author = account(&pool, &test_ids).await;
+    // Distinct ids per run: the floor is the same for every run on a shared database.
+    let jitter = i64::from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .subsec_nanos(),
+    ) % 1_000_000
+        * 2;
+    for k in 0..2 {
+        sqlx::query(
+            "INSERT INTO messages (id, channel_id, guild_id, author_id, content) \
+             VALUES ($1, $2, $3, $4, 'hi')",
+        )
+        .bind(noon_floor + jitter + k)
+        .bind(general.get() as i64)
+        .bind(gid.get() as i64)
+        .bind(author.get() as i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    sqlx::query(
+        "UPDATE guild_members SET joined_at = now() - interval '2 days' WHERE guild_id = $1",
+    )
+    .bind(gid.get() as i64)
+    .execute(&pool)
+    .await
+    .unwrap();
+    compute_insights_day(&pool, day_start_ms).await.unwrap();
+    // Recomputing replaces rather than doubles.
+    compute_insights_day(&pool, day_start_ms).await.unwrap();
+
+    let now_ms = day_start_ms + 86_400_000 + 3_600_000;
+    let ins = repo.insights(gid, 7, now_ms).await.unwrap();
+    assert_eq!(ins.days.len(), 1);
+    assert_eq!(ins.days[0].messages, 2);
+    assert_eq!((ins.days[0].members, ins.days[0].joins), (1, 0));
+    assert_eq!(ins.days[0].voice_minutes, 0);
+    assert_eq!(ins.top_channels.len(), 1);
+    assert_eq!(ins.top_channels[0].channel_id, general);
+    assert_eq!(ins.top_channels[0].messages, 2);
+    // A window that ends before that day sees nothing.
+    let earlier = repo.insights(gid, 7, day_start_ms).await.unwrap();
+    assert!(earlier.days.is_empty());
+}

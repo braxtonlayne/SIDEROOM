@@ -16,10 +16,11 @@ use sr_chat::settings::community::{
     CommunitySettings, Onboarding, OnboardingPrompt, WelcomeChannel, WelcomeScreen,
 };
 use sr_chat::settings::expressions::{Emoji, Sticker, StickerFormat};
+use sr_chat::settings::insights::{Insights, InsightsDay, TOP_CHANNELS, TopChannel};
 use sr_chat::settings::invites::GuildInvite;
 use sr_chat::settings::repo::{
     AuditRepository, AutoModRepository, CommunityRepository, ExpressionRepository,
-    InviteRepository, TagRepository, TemplateRepository, WebhookRepository,
+    InsightsRepository, InviteRepository, TagRepository, TemplateRepository, WebhookRepository,
 };
 use sr_chat::settings::tags::GuildTag;
 use sr_chat::settings::templates::{GuildTemplate, TemplateSnapshot};
@@ -1164,4 +1165,114 @@ impl TagRepository for PgSettingsRepo {
         }
         Ok(())
     }
+}
+
+#[async_trait]
+impl InsightsRepository for PgSettingsRepo {
+    async fn insights(&self, guild: GuildId, days: u32, now_ms: i64) -> RepoResult<Insights> {
+        // The window is the `days` completed UTC days before today.
+        const WINDOW: &str = "day >= (to_timestamp($2::double precision / 1000.0) AT TIME ZONE 'UTC')::date - $3::int \
+             AND day < (to_timestamp($2::double precision / 1000.0) AT TIME ZONE 'UTC')::date";
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT to_char(day, 'YYYY-MM-DD') AS d, members, joins, messages, voice_minutes \
+             FROM guild_insights_daily WHERE guild_id = $1 AND {WINDOW} ORDER BY day"
+        )))
+        .bind(i(guild.get()))
+        .bind(now_ms)
+        .bind(i32::try_from(days).unwrap_or(30))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        let mut out = Insights::default();
+        for r in &rows {
+            let n = |col: &str| -> RepoResult<i64> { Ok(i64::from(get::<i32>(r, col)?)) };
+            out.days.push(InsightsDay {
+                day: get(r, "d")?,
+                members: n("members")?,
+                joins: n("joins")?,
+                messages: n("messages")?,
+                voice_minutes: n("voice_minutes")?,
+            });
+        }
+        let top = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT channel_id, sum(messages)::bigint AS n FROM guild_insights_channel_daily \
+             WHERE guild_id = $1 AND {WINDOW} GROUP BY channel_id ORDER BY n DESC, channel_id \
+             LIMIT {TOP_CHANNELS}"
+        )))
+        .bind(i(guild.get()))
+        .bind(now_ms)
+        .bind(i32::try_from(days).unwrap_or(30))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        for r in &top {
+            out.top_channels.push(TopChannel {
+                channel_id: ChannelId::new(u(get(r, "channel_id")?)),
+                messages: get(r, "n")?,
+            });
+        }
+        Ok(out)
+    }
+}
+
+/// How many days of insights are kept.
+pub const INSIGHTS_KEEP_DAYS: i32 = 90;
+
+/// Compute the counters of the UTC day that starts at `day_start_ms` for every live
+/// guild (LNG-SSET-068), replacing any earlier numbers for that day. Returns how many
+/// guilds were written. Also drops rows older than [`INSIGHTS_KEEP_DAYS`].
+pub async fn compute_insights_day(pool: &PgPool, day_start_ms: i64) -> RepoResult<u64> {
+    let mut tx = pool.begin().await.map_err(db)?;
+    // Message ids embed their creation time, so the id range prunes partitions.
+    const DAY: &str = "(to_timestamp($1::double precision / 1000.0) AT TIME ZONE 'UTC')::date";
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "DELETE FROM guild_insights_channel_daily WHERE day = {DAY}"
+    )))
+    .bind(day_start_ms)
+    .execute(&mut *tx)
+    .await
+    .map_err(db)?;
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO guild_insights_channel_daily (guild_id, day, channel_id, messages) \
+         SELECT c.guild_id, {DAY}, m.channel_id, count(*) \
+         FROM messages m JOIN channels c ON c.id = m.channel_id \
+         JOIN guilds g ON g.id = c.guild_id AND g.deleted_at IS NULL \
+         WHERE m.id >= sr_snowflake_floor(to_timestamp($1::double precision / 1000.0)) \
+           AND m.id < sr_snowflake_floor(to_timestamp(($1::double precision + 86400000) / 1000.0)) \
+         GROUP BY c.guild_id, m.channel_id"
+    )))
+    .bind(day_start_ms)
+    .execute(&mut *tx)
+    .await
+    .map_err(db)?;
+    let n = sqlx::query(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO guild_insights_daily (guild_id, day, members, joins, messages) \
+         SELECT g.id, {DAY}, \
+           (SELECT count(*) FROM guild_members m WHERE m.guild_id = g.id \
+              AND m.joined_at < to_timestamp(($1::double precision + 86400000) / 1000.0)), \
+           (SELECT count(*) FROM guild_members m WHERE m.guild_id = g.id \
+              AND m.joined_at >= to_timestamp($1::double precision / 1000.0) \
+              AND m.joined_at < to_timestamp(($1::double precision + 86400000) / 1000.0)), \
+           COALESCE((SELECT sum(d.messages) FROM guild_insights_channel_daily d \
+                     WHERE d.guild_id = g.id AND d.day = {DAY}), 0) \
+         FROM guilds g WHERE g.deleted_at IS NULL \
+         ON CONFLICT (guild_id, day) DO UPDATE SET members = EXCLUDED.members, \
+           joins = EXCLUDED.joins, messages = EXCLUDED.messages"
+    )))
+    .bind(day_start_ms)
+    .execute(&mut *tx)
+    .await
+    .map_err(db)?
+    .rows_affected();
+    for table in ["guild_insights_daily", "guild_insights_channel_daily"] {
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "DELETE FROM {table} WHERE day < {DAY} - {INSIGHTS_KEEP_DAYS}"
+        )))
+        .bind(day_start_ms)
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
+    }
+    tx.commit().await.map_err(db)?;
+    Ok(n)
 }

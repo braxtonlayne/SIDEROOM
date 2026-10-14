@@ -10,6 +10,7 @@ use super::audit::{AuditEntry, AuditQuery};
 use super::automod::AutoModRule;
 use super::community::{CommunitySettings, Onboarding, WelcomeScreen};
 use super::expressions::{Emoji, Sticker};
+use super::insights::Insights;
 use super::invites::GuildInvite;
 use super::tags::GuildTag;
 use super::templates::GuildTemplate;
@@ -110,6 +111,13 @@ pub trait TagRepository: Send + Sync {
     async fn set_primary_guild(&self, user: UserId, guild: Option<GuildId>) -> RepoResult<()>;
 }
 
+#[async_trait]
+pub trait InsightsRepository: Send + Sync {
+    /// The last `days` completed UTC days before `now_ms` and the busiest channels in
+    /// them.
+    async fn insights(&self, guild: GuildId, days: u32, now_ms: i64) -> RepoResult<Insights>;
+}
+
 /// Everything the settings service needs.
 pub trait SettingsRepository:
     InviteRepository
@@ -120,6 +128,7 @@ pub trait SettingsRepository:
     + TemplateRepository
     + CommunityRepository
     + TagRepository
+    + InsightsRepository
 {
 }
 impl<
@@ -130,7 +139,8 @@ impl<
         + WebhookRepository
         + TemplateRepository
         + CommunityRepository
-        + TagRepository,
+        + TagRepository
+        + InsightsRepository,
 > SettingsRepository for T
 {
 }
