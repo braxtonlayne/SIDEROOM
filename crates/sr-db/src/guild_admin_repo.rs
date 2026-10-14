@@ -106,13 +106,54 @@ impl GuildAdminRepository for PgChatRepo {
     }
 
     async fn delete_guild(&self, id: GuildId) -> RepoResult<()> {
-        // Roles, members, bans and channels cascade.
-        sqlx::query("DELETE FROM guilds WHERE id = $1 AND NOT is_staff_guild")
+        // LNG-SSET-073: soft delete. Messages become `user_deleted` with the 30-day
+        // purge window (held ones keep no purge time, D-122); the guild row and its
+        // channels stay until the purge job finds nothing left (see sr-server jobs).
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        let stamped = sqlx::query(
+            "UPDATE guilds SET deleted_at = now() \
+             WHERE id = $1 AND NOT is_staff_guild AND deleted_at IS NULL",
+        )
+        .bind(i(id.get()))
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?
+        .rows_affected();
+        if stamped == 0 {
+            return tx.commit().await.map_err(db);
+        }
+        sqlx::query(
+            "DELETE FROM pins WHERE channel_id IN (SELECT id FROM channels WHERE guild_id = $1)",
+        )
+        .bind(i(id.get()))
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
+        sqlx::query(
+            "UPDATE messages SET visibility = 'user_deleted', pinned = FALSE, deleted_at = now(), \
+             purge_after = CASE WHEN hold_id IS NULL THEN now() + interval '30 days' END \
+             WHERE visibility = 'visible' \
+               AND channel_id IN (SELECT id FROM channels WHERE guild_id = $1)",
+        )
+        .bind(i(id.get()))
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
+        for table in [
+            "guild_members",
+            "guild_invites",
+            "webhooks",
+            "application_installs",
+        ] {
+            sqlx::query(sqlx::AssertSqlSafe(format!(
+                "DELETE FROM {table} WHERE guild_id = $1"
+            )))
             .bind(i(id.get()))
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await
             .map_err(db)?;
-        Ok(())
+        }
+        tx.commit().await.map_err(db)
     }
 
     async fn list_user_guilds(&self, user: UserId) -> RepoResult<Vec<Guild>> {

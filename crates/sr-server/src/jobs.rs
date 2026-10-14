@@ -57,6 +57,21 @@ edits AS ( \
     RETURNING id) \
 SELECT (SELECT count(*) FROM doomed)";
 
+/// Hard-deletes soft-deleted guilds (LNG-SSET-073) whose messages are all gone. Held
+/// messages are never purged (D-122), so a guild that still owns one stays; the cascade
+/// then takes channels, roles and the guild's audit log with it.
+pub(crate) const REAP_GUILDS_SQL: &str = "\
+DELETE FROM guilds g WHERE g.deleted_at IS NOT NULL AND NOT g.is_staff_guild \
+  AND NOT EXISTS (SELECT 1 FROM messages m JOIN channels c ON c.id = m.channel_id \
+                  WHERE c.guild_id = g.id)";
+
+async fn reap_deleted_guilds(pool: &PgPool) -> DbResult<u64> {
+    Ok(sqlx::query(REAP_GUILDS_SQL)
+        .execute(pool)
+        .await?
+        .rows_affected())
+}
+
 fn now_unix_ms() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -92,6 +107,10 @@ async fn purge_deleted_messages(pool: &PgPool) -> DbResult<i64> {
 
 async fn purge_handler(pool: PgPool, job: Job) -> Result<(), HandlerError> {
     let purged = purge_deleted_messages(&pool).await?;
+    let reaped = reap_deleted_guilds(&pool).await?;
+    if reaped > 0 {
+        tracing::info!(reaped, "removed deleted guilds");
+    }
     if purged > 0 {
         tracing::info!(purged, "purged deleted messages");
     }
@@ -512,6 +531,75 @@ mod hold_guard_tests {
             .await
             .expect("delete");
         assert_eq!(removed, 1, "the held row is not deletable by the sweep");
+        db.cleanup().await.expect("cleanup");
+    }
+
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn reap_removes_deleted_guilds_only_once_their_messages_are_gone() {
+        let db = TestDb::new().await.expect("test db");
+        let pool = db.pool();
+        exec(pool, "INSERT INTO persons (id) VALUES (1)", &[]).await;
+        exec(
+            pool,
+            "INSERT INTO accounts (id, person_id, username, email, password_hash) \
+             VALUES (1, 1, 'u1', 'u1@example.test', 'x')",
+            &[],
+        )
+        .await;
+        exec(
+            pool,
+            "INSERT INTO moderation_holds (id, reason) VALUES (7, 'case')",
+            &[],
+        )
+        .await;
+        // 20: deleted and empty; 21: deleted with a held message; 22: not deleted.
+        for (gid, deleted) in [(20_i64, "now()"), (21, "now()"), (22, "NULL")] {
+            exec(
+                pool,
+                &format!(
+                    "INSERT INTO guilds (id, name, owner_id, deleted_at) \
+                     VALUES ({gid}, 'guild{gid}', 1, {deleted})"
+                ),
+                &[],
+            )
+            .await;
+            exec(
+                pool,
+                &format!(
+                    "INSERT INTO channels (id, guild_id, type) VALUES ({}, {gid}, 0)",
+                    gid * 10
+                ),
+                &[],
+            )
+            .await;
+        }
+        let _: String = sqlx::query_scalar("SELECT sr_ensure_message_partition(CURRENT_DATE)")
+            .fetch_one(pool)
+            .await
+            .expect("partition");
+        let base: i64 =
+            sqlx::query_scalar("SELECT sr_snowflake_floor(date_trunc('month', now())) + 2000")
+                .fetch_one(pool)
+                .await
+                .expect("floor");
+        exec(
+            pool,
+            "INSERT INTO messages (id, channel_id, author_id, visibility, deleted_at, hold_id) \
+             VALUES ($1, 210, 1, 'user_deleted', now(), 7)",
+            &[base],
+        )
+        .await;
+        assert_eq!(reap_deleted_guilds(pool).await.expect("reap"), 1);
+        let left: Vec<i64> = sqlx::query_scalar("SELECT id FROM guilds ORDER BY id")
+            .fetch_all(pool)
+            .await
+            .expect("ids");
+        assert_eq!(
+            left,
+            vec![21, 22],
+            "held message keeps its guild; live guild stays"
+        );
         db.cleanup().await.expect("cleanup");
     }
 }

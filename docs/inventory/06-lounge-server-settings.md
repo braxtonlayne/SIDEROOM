@@ -115,4 +115,4 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 
 ## Delete Server
 - [ ] **LNG-SSET-072** [FE] Delete modal (type server name, 2FA code if enabled), owner only
-- [ ] **LNG-SSET-073** [BE] Guild deletion → channels/messages to user_deleted (30-day window), members removed, GUILD_DELETE
+- [x] **LNG-SSET-073** [BE] Guild deletion → channels/messages to user_deleted (30-day window), members removed, GUILD_DELETE *(p10: soft delete in `guild_admin_repo.rs` + migration 0630: messages to user_deleted with a 30-day purge, members/invites/webhooks/installs removed, GUILD_DELETE emitted; the purge job reaps the guild once no message is left; tests `delete_guild_soft_deletes_messages_and_removes_members`, `reap_removes_deleted_guilds_only_once_their_messages_are_gone`)*

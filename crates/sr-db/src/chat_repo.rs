@@ -444,7 +444,7 @@ impl GuildRepository for PgChatRepo {
 
     async fn get_guild(&self, id: GuildId) -> RepoResult<Option<Guild>> {
         let row = sqlx::query(sqlx::AssertSqlSafe(format!(
-            "SELECT {GUILD_COLS} FROM guilds WHERE id = $1"
+            "SELECT {GUILD_COLS} FROM guilds WHERE id = $1 AND deleted_at IS NULL"
         )))
         .bind(i(id.get()))
         .fetch_optional(&self.pool)
