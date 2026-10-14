@@ -62,20 +62,20 @@ Phase 5. Spec: [cinema-media](../specs/cinema-media.md). Mockups: `cinema-discov
 - [ ] **CIN-PLY-004** [FE] ASS subtitle renderer (JASSUB, worker) + WebVTT
 - [ ] **CIN-PLY-005** [FE] Skip intro / skip credits buttons (markers)
 - [ ] **CIN-PLY-006** [FE] Next episode card with countdown, autoplay toggle, "Are you still watching?"
-- [ ] **CIN-PLY-007** [BE] Watch progress API (10s heartbeat, ≥ 90% watched) + cross-device sync
+- [x] **CIN-PLY-007** [BE] Watch progress API (10s heartbeat, ≥ 90% watched) + cross-device sync *(phase 6: `/cinema/titles/{id}[/episodes/{eid}]/progress`, history, continue watching, `SR_CINEMA_UPDATE`; spec section 8)*
 - [ ] **CIN-PLY-008** [FE] Resume prompt ("Resume from 42:10 / Start over")
-- [ ] **CIN-PLY-009** [BE] "Watching" presence emission (privacy-aware)
+- [x] **CIN-PLY-009** [BE] "Watching" presence emission (privacy-aware) *(phase 6: `SR_ACTIVITY_UPDATE` and `GET /cinema/me/friends-watching`, setting `cinema.share_watching`; folding it into `PRESENCE_UPDATE.activities` is a gateway follow-up)*
 - [ ] **CIN-PLY-010** [FE] Signed URL refresh without playback interruption
 - [ ] **CIN-PLY-011** [FE] Mini player (continue while navigating, also used by watch parties)
 
 ## CIN-MY — My list & history
 - [ ] **CIN-MY-001** [FE] My list page (saved, continue watching, custom lists, history with pause/clear)
-- [ ] **CIN-MY-002** [BE] Lists API (shared with Library lists implementation where possible)
+- [x] **CIN-MY-002** [BE] Lists API (shared with Library lists implementation where possible) *(phase 6: My list and custom lists in `sr-cinema-social`; the Library has no lists yet, so nothing was shared)*
 
 ## CIN-SOC — Social
-- [ ] **CIN-SOC-001** [BE] Ratings, reviews, episode comments (reuse LIB-SOC services generically)
-- [ ] **CIN-SOC-002** [BE] Trending (scoped) + recommendations
-- [ ] **CIN-SOC-003** [BE] Contribution credits for movies/episodes
+- [x] **CIN-SOC-001** [BE] Ratings, reviews, episode comments (reuse LIB-SOC services generically) *(phase 6: ratings 1-10, reviews with spoiler flag and helpful votes, threaded comments with likes, reports and a moderation hook; no staff HTTP surface yet)*
+- [x] **CIN-SOC-002** [BE] Trending (scoped) + recommendations *(phase 6: scoped trending and "because you watched" recommendations)*
+- [ ] **CIN-SOC-003** [BE] Contribution credits for movies/episodes *(not built in phase 6: needs the cinema submissions pipeline, see cinema-media section 8.8)*
 
 ## CIN-DL — Patron downloads
 - [ ] **CIN-DL-001** [BE] On-demand MP4 remux job of chosen rendition (cached 7 days), original download when allowed, signed single-user link, daily limit

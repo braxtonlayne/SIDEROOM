@@ -83,6 +83,7 @@ The tables keep plain `title_id` / `episode_id` columns **without foreign keys**
 alone; its `episode_id` is `"0"` everywhere** (progress, ratings, comments, history).
 
 Shared shapes:
+- Every schema of this section is `Cinema`-prefixed in the OpenAPI document (`CinemaProgress`, `CinemaReview`, `CinemaTitleRef`, ...) so it cannot clash with the Library's `Progress`, `HistoryPage` and friends.
 - `TitleRef` `{id, kind: movie|series|anime, title, year?, age_restricted, poster_key?}` and `EpisodeRef`
   `{id, title_id, season, number, title?, runtime_secs?}` come from the catalog at read time (a title that is unpublished or
   gone is left out of lists).
@@ -189,7 +190,8 @@ who is not `off`, and a title needs at least 2 viewers to appear in it. Age-rest
 adults only and are never in `known` or `global`.
 `GET /cinema/me/recommendations` answers `{rows: [{because: TitleRef, items: [{title, score, reasons}]}]}` ("Because you watched X"):
 candidates are the titles other viewers of X also watched (at least 2 of them) plus catalog titles sharing tags with X
-(`CatalogLookup::titles_with_tags`), scored together, minus what the caller already started.
+(`CatalogLookup::titles_with_tags`), scored together (co-watchers count 1 each up to 10, tag overlap up to 3), minus what the
+caller already started. People with `cinema.share_watching = off` are not counted as co-watchers, and age-restricted titles are never recommended.
 
 ### 8.8 Gaps
 
