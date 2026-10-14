@@ -49,7 +49,10 @@ export function Avatar({ name, src, animatedSrc, size = 40, status, speaking, de
           )}
         </>
       ) : (
-        <span className={styles.fallback} role="img" aria-label={name}>
+        <span
+          className={styles.fallback}
+          {...(name ? { role: 'img', 'aria-label': name } : { 'aria-hidden': true })}
+        >
           {initials(name)}
         </span>
       )}

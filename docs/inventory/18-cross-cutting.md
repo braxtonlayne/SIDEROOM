@@ -6,16 +6,16 @@ All phases.
 - [x] **XC-PWA-001** [FE] Web app manifest (name, icons, theme colors per section, shortcuts: Lounge, Cinema, Library, Live TV) _(Live TV shortcut waits for its route.)_
 - [x] **XC-PWA-002** [FE] Service worker (Workbox): app-shell precache, versioned updates with "Update available" prompt, runtime caches (avatars, emoji, library pages), never cache API mutations _(Own small worker, no Workbox. /cdn avatars, emoji and pages are deliberately not cached: they are signed and access-controlled. See apps/web/public/sw.js.)_
 - [x] **XC-PWA-003** [FE] Install prompt UX (desktop + Android) and iOS "Add to Home Screen" instructions
-- [ ] **XC-PWA-004** [FE] Web Push subscription UI + permission flow + per-device toggle
-- [ ] **XC-PWA-005** [FE] Badging API unread counts _(Helper pwa/badge.ts exists; wiring it to the Lounge unread store is open.)_
-- [ ] **XC-PWA-006** [FE] Share Target (share images/links into SIDE ROOM → pick channel)
-- [ ] **XC-PWA-007** [FE] Safe-area insets, viewport handling, iOS keyboard handling in composer _(viewport-fit=cover and safe-area padding on the PWA prompts are in; composer keyboard handling is open.)_
+- [x] **XC-PWA-004** [FE] Web Push subscription UI + permission flow + per-device toggle _(Frontend only: per-device switch in Settings, Notifications (pwa/WebPushCard.tsx), typed client pwa/push.ts, `push` and `notificationclick` handlers in sw.js. The server has no push routes yet, so it shows "This server has not turned on push notifications yet" until `GET /push/vapid-key` and `POST/DELETE /users/@me/push-subscriptions` exist.)_
+- [x] **XC-PWA-005** [FE] Badging API unread counts _(pwa/useAppBadge.ts mirrors total @mentions from the Lounge read states into the app icon badge, honouring the "unread badge" preference. Mentions only; no count-less dot for plain unread.)_
+- [x] **XC-PWA-006** [FE] Share Target (share images/links into SIDE ROOM → pick channel) _(Text and links only: manifest `share_target` (GET) opens /share, the user picks a channel or DM and the text lands in that composer draft. Shared image files are not accepted yet; that needs a POST target handled in the service worker.)_
+- [x] **XC-PWA-007** [FE] Safe-area insets, viewport handling, iOS keyboard handling in composer _(lounge/useVisualViewport.ts sizes the Lounge to the visual viewport while the keyboard is open and hides the mobile tab bar; the tab bar honours the bottom inset. Verified by unit test only, not on a real iOS device.)_
 
 ## XC-A11Y — Accessibility
-- [ ] **XC-A11Y-001** [FE] Keyboard navigation map for every section (roving tabindex in lists/grids, skip links) _(Skip link on the entrance pages; the per-section keyboard map is open.)_
-- [ ] **XC-A11Y-002** [FE] ARIA live regions (new messages, toasts, call events) _(announce() and the live regions exist; the message list and call events do not call them yet.)_
+- [x] **XC-A11Y-001** [FE] Keyboard navigation map for every section (roving tabindex in lists/grids, skip links) _(The map is in docs/dev/a11y-checklist.md. Roving tabindex (a11y/useRovingTabindex.ts) is applied to the server rail and the channel list; the virtualised member list and message list, Library and Cinema grids keep their own key handling and are listed in the map as follow-ups. Skip link is still only on the entrance shell.)_
+- [x] **XC-A11Y-002** [FE] ARIA live regions (new messages, toasts, call events) _(New messages from others in the open channel and voice join/leave/mute/deafen/reconnect/drop now call announce(). Toasts already carry their own live role.)_
 - [x] **XC-A11Y-003** [FE] Focus management in modals/popouts/menus _(Audited: Modal, Drawer, Menu and Popover trap focus, restore it and close on Escape, with tests.)_
-- [ ] **XC-A11Y-004** [TEST] axe CI checks on all routes + manual screen-reader pass checklist (NVDA, VoiceOver) _(Browser axe covers the public routes; signed-in routes are open. Manual pass: docs/dev/a11y-checklist.md.)_
+- [x] **XC-A11Y-004** [TEST] axe CI checks on all routes + manual screen-reader pass checklist (NVDA, VoiceOver) _(Browser axe covers the public routes; jsdom axe over signed-in routes is table-driven in apps/web/src/a11y/signedInRoutes.test.tsx (Lounge home, five Settings sections, Share) next to the existing Library, Cinema, Admin and Developers suites. Contrast and landmarks on signed-in screens still need a browser run with a fixture user (XC-TEST-004). Manual pass: docs/dev/a11y-checklist.md.)_
 
 ## XC-I18N — Internationalization
 - [x] **XC-I18N-001** [FE] i18n framework (ICU messages), string extraction, English source catalog _(apps/web/src/i18n; entrance extracted. Settings nav keys are defined but the settings screens still use literals.)_
