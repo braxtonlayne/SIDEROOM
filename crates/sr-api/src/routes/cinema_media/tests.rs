@@ -241,6 +241,9 @@ impl MediaRepository for Stub {
     async fn playback(&self, _: i64) -> MediaResult<Option<AssetPlayback>> {
         Ok(None)
     }
+    async fn playback_by_prefix(&self, _: &str) -> MediaResult<Option<AssetPlayback>> {
+        Ok(None)
+    }
     async fn retention_facts(&self, _: u32) -> MediaResult<Vec<sr_media::retention::AssetFacts>> {
         Ok(vec![])
     }
@@ -436,7 +439,7 @@ async fn env_with(media: bool) -> Env {
         .extension(Arc::new(AdminDeps::new(svc)))
         .extension(Arc::new(cinema));
     if media {
-        b = b.extension(Arc::new(MediaDeps::new(media_svc, downloads)));
+        b = b.extension(Arc::new(MediaDeps::new(media_svc, Arc::new(downloads))));
     }
     Env {
         app: build_router(b.build(), router()),

@@ -622,6 +622,19 @@ impl MediaRepository for PgMediaRepo {
         }))
     }
 
+    async fn playback_by_prefix(&self, prefix: &str) -> MediaResult<Option<AssetPlayback>> {
+        let id: Option<i64> =
+            sqlx::query_scalar("SELECT id FROM video_assets WHERE hls_prefix = $1")
+                .bind(prefix)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(be)?;
+        match id {
+            Some(id) => self.playback(id).await,
+            None => Ok(None),
+        }
+    }
+
     async fn retention_facts(&self, limit: u32) -> MediaResult<Vec<AssetFacts>> {
         let rows = sqlx::query(
             "SELECT a.id, a.state, a.original_tier, (a.original_deleted_at IS NULL) AS has_original, \
@@ -805,4 +818,24 @@ fn token_from_row(r: &PgRow) -> MediaResult<WorkerToken> {
         last_used_at_ms: r.try_get("used_ms").map_err(be)?,
         revoked_at_ms: r.try_get("revoked_ms").map_err(be)?,
     })
+}
+
+/// What the Cinema review kinds need to know about an uploaded video.
+#[async_trait]
+impl sr_cinema::submissions::AssetLookup for PgMediaRepo {
+    async fn asset(&self, id: i64) -> Result<Option<sr_cinema::submissions::AssetFacts>, String> {
+        let row = sqlx::query(
+            "SELECT uploaded_by, (hls_prefix IS NOT NULL AND state = 'published') AS playable \
+             FROM video_assets WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+        let Some(row) = row else { return Ok(None) };
+        Ok(Some(sr_cinema::submissions::AssetFacts {
+            playable: row.try_get("playable").map_err(|e| e.to_string())?,
+            uploaded_by: row.try_get("uploaded_by").map_err(|e| e.to_string())?,
+        }))
+    }
 }

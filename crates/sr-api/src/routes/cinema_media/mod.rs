@@ -42,11 +42,11 @@ use utoipa::OpenApi;
 /// Collaborators of the media endpoints.
 pub struct MediaDeps {
     pub media: MediaService,
-    pub downloads: DownloadService,
+    pub downloads: Arc<DownloadService>,
 }
 
 impl MediaDeps {
-    pub fn new(media: MediaService, downloads: DownloadService) -> Self {
+    pub fn new(media: MediaService, downloads: Arc<DownloadService>) -> Self {
         Self { media, downloads }
     }
 }

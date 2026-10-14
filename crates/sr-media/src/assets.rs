@@ -415,6 +415,9 @@ pub trait MediaRepository: JobStore {
     async fn list_workers(&self) -> MediaResult<Vec<WorkerView>>;
     async fn set_worker_drain(&self, worker_id: &str, drain: bool) -> MediaResult<bool>;
 
+    /// The playable asset whose published prefix is `prefix` (`transcode/<job>/<attempt>`); the CDN
+    /// renders playlists from it. `None` for a replaced or unknown prefix.
+    async fn playback_by_prefix(&self, prefix: &str) -> MediaResult<Option<AssetPlayback>>;
     /// The playable form of a ready asset (`None` while no ladder exists).
     async fn playback(&self, asset_id: i64) -> MediaResult<Option<AssetPlayback>>;
 

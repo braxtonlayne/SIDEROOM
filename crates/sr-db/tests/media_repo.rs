@@ -726,7 +726,10 @@ async fn upload_probe_plan_transcode_and_playback_data() {
     );
     assert!(grant.sprites_url.is_some());
 
-    w.svc.cancel_job(proxy.job_id.parse().unwrap()).await.unwrap();
+    w.svc
+        .cancel_job(proxy.job_id.parse().unwrap())
+        .await
+        .unwrap();
     // A re-transcode replaces the files and queues the old prefix for collection.
     let out = w
         .svc

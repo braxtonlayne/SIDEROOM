@@ -511,12 +511,101 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .map_err(|e| anyhow::anyhow!("indexing the cinema catalog: {e}"))?;
     tracing::info!(titles = cinema_titles, "cinema search index rebuilt");
     let cinema_deps = Arc::new(
-        routes::cinema::CinemaDeps::new(cinema_service)
+        routes::cinema::CinemaDeps::new(cinema_service.clone())
             .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone())))
             .with_prefs(Arc::new(crate::settings_pg::PgCinemaPrefs::new(
                 pool.clone(),
             ))),
     );
+
+    // Cinema media (CIN-ING-004/010, CIN-DL-001): the Postgres job store behind the Worker API
+    // (`/api/v1/transcode/worker`, bearer worker tokens), the staff upload and transcoding admin,
+    // Patron downloads, and the playlist renderer behind `/cdn/hls`. Outputs go to the bucket with
+    // presigned multipart uploads (`SR_MEDIA_SINGLE_PUT=1` falls back to one presigned PUT per
+    // output for storage that cannot presign parts). `ffprobe` is read from `SR_FFPROBE`.
+    let media_repo = Arc::new(sr_db::media_repo::PgMediaRepo::new(
+        pool.clone(),
+        id_src.clone(),
+    ));
+    let secs_clock: sr_media::service::Clock = Arc::new(|| {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs())
+    });
+    let single_put = std::env::var("SR_MEDIA_SINGLE_PUT").is_ok_and(|v| v == "1");
+    let (media_outputs, worker_config): (Arc<dyn sr_media::worker_api::OutputStorage>, _) =
+        if single_put {
+            tracing::warn!(
+                "SR_MEDIA_SINGLE_PUT is on: transcode outputs and originals upload as single presigned PUTs"
+            );
+            (
+                Arc::new(sr_media::output_storage::SinglePutStorage::new(
+                    storage.clone(),
+                )),
+                sr_media::worker_api::ServiceConfig::default().single_part(),
+            )
+        } else {
+            let s3 = sr_storage::s3multipart::S3Multipart::new(
+                &s.endpoint,
+                &s.bucket,
+                &s.region,
+                s.access_key.expose(),
+                s.secret_key.expose(),
+            )
+            .context("configuring multipart uploads")?;
+            (
+                Arc::new(sr_media::output_storage::S3OutputStorage::new(s3)),
+                sr_media::worker_api::ServiceConfig::default(),
+            )
+        };
+    let media_service = sr_media::service::MediaService::new(
+        media_repo.clone(),
+        storage.clone(),
+        media_outputs.clone(),
+        Arc::new(sr_media::runner::ProcessRunner),
+        Arc::new(crate::media_jobs::PgMediaSettings::new(pool.clone())),
+        Arc::new(crate::media_jobs::PgProbeQueue::new(
+            pool.clone(),
+            id_src.clone(),
+        )),
+        id_src.clone(),
+        secs_clock.clone(),
+        Arc::new(|| sr_auth::random::bytes::<32>().ok()),
+    );
+    let media_service = if single_put {
+        media_service.with_part_size(u64::MAX / 4)
+    } else {
+        media_service
+    };
+    let download_service = Arc::new(sr_media::downloads::DownloadService::new(
+        media_repo.clone(),
+        media_repo.clone(),
+        Arc::new(sr_db::media_repo::PgDownloadEntitlements::new(pool.clone())),
+        Arc::new(cdn_signer.clone()),
+        storage.clone(),
+        id_src.clone(),
+        secs_clock.clone(),
+    ));
+    let media_service_shared = Arc::new(media_service.clone());
+    let media_deps = Arc::new(routes::cinema_media::MediaDeps::new(
+        media_service,
+        download_service.clone(),
+    ));
+    let hls_deps = Arc::new(routes::cdn::HlsDeps(Arc::new(
+        crate::media_jobs::PgPlaylistRenderer::new(
+            media_repo.clone(),
+            Arc::new(cdn_signer.clone()),
+        ),
+    )));
+    let worker_routes = with_request_id(sr_media::http::router(Arc::new(
+        sr_media::worker_api::WorkerService {
+            store: media_repo.clone(),
+            outputs: media_outputs,
+            downloads: Arc::new(cdn_signer.clone()),
+            clock: secs_clock,
+            config: worker_config,
+        },
+    )));
 
     // Cinema social and progress (CIN-PLY-007/009, CIN-MY-002, CIN-SOC-001/002). The catalog port is
     // empty until `sr-cinema` provides the real `CatalogLookup`; swap `NoCatalog` for it there.
@@ -545,6 +634,14 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                     )))
                     .with(Arc::new(sr_library::submissions::LibraryKind::items(
                         library_service.clone(),
+                    )))
+                    .with(Arc::new(sr_cinema::submissions::CinemaKind::title(
+                        cinema_service.clone(),
+                        media_repo.clone(),
+                    )))
+                    .with(Arc::new(sr_cinema::submissions::CinemaKind::episodes(
+                        cinema_service.clone(),
+                        media_repo.clone(),
                     ))),
                 clock.clone(),
                 id_src.clone(),
@@ -662,6 +759,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(search_deps)
         .extension(library_deps)
         .extension(cinema_deps)
+        .extension(media_deps)
+        .extension(hls_deps)
         .extension(cinema_social_deps)
         .extension(review_deps)
         .extension(Arc::new(routes::media::MediaDeps::new(storage.clone())))
@@ -738,6 +837,13 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::rich_jobs::register(runner, &pool, messages.clone());
     let runner = crate::external_jobs::register(runner, &pool, storage.clone());
     let runner = crate::library_jobs::register(runner, &pool, library_service.clone());
+    let runner = crate::media_jobs::register(
+        runner,
+        &pool,
+        media_repo.clone(),
+        media_service_shared,
+        download_service,
+    );
     crate::jobs::schedule_recurring(&pool).await?;
     crate::jobs::schedule_audit_purge(&pool).await?;
     crate::jobs::schedule_thread_archive(&pool).await?;
@@ -746,6 +852,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::rich_jobs::schedule_poll_sweep(&pool).await?;
     crate::external_jobs::schedule(&pool).await?;
     crate::library_jobs::schedule_gc(&pool).await?;
+    crate::media_jobs::schedule(&pool).await?;
     let jobs_task = tokio::spawn(runner.run(job_rx));
 
     // REST: every feature module, feature-owned routes, and the guild backend.
@@ -790,7 +897,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     }
     let mut app = build_router(state, api)
         .merge(gateway_routes)
-        .merge(cdn_routes);
+        .merge(cdn_routes)
+        .merge(worker_routes);
     // The SFU's WebSocket (`/voice/ws`) is served beside the gateway; media uses its own sockets.
     let sfu = voice_setup.map(|v| v.sfu);
     if let Some(s) = &sfu {

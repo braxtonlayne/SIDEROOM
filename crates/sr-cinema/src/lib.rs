@@ -18,6 +18,7 @@ pub mod rows;
 pub mod rules;
 pub mod search;
 pub mod service;
+pub mod submissions;
 
 pub use error::{CinemaError, CinemaResult};
 pub use repo::CinemaRepository;
