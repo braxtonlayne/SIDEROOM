@@ -4,6 +4,7 @@
 //! |---|---|---|
 //! | `SR_VOICE_HTTP_BIND` | WebSocket + `/metrics` listener | `127.0.0.1:8081` |
 //! | `SR_VOICE_TOKEN_SECRET` | shared join-token secret (required) | none |
+//! | `SR_VOICE_TOKEN_SECRET_FILE` | file holding the secret (wins over the variable above) | none |
 //! | `SR_VOICE_UDP_MIN` / `SR_VOICE_UDP_MAX` | media UDP range | `50000` / `50099` |
 //! | `SR_VOICE_TCP_PORT` | ICE-TCP port (0 = off) | off |
 //! | `SR_VOICE_ANNOUNCE_IPS` | comma list of candidate IPs | `127.0.0.1` |
@@ -26,9 +27,7 @@ async fn main() -> anyhow::Result<()> {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
     let mut cfg = sr_voice::SfuConfig {
-        token_secret: env("SR_VOICE_TOKEN_SECRET")
-            .context("SR_VOICE_TOKEN_SECRET is required")?
-            .into_bytes(),
+        token_secret: token_secret()?.into_bytes(),
         ..sr_voice::SfuConfig::default()
     };
     if let Some(v) = env("SR_VOICE_UDP_MIN") {
@@ -73,4 +72,18 @@ async fn main() -> anyhow::Result<()> {
     handle.drain().await;
     handle.shutdown().await;
     Ok(())
+}
+
+/// The join-token secret from `SR_VOICE_TOKEN_SECRET_FILE` (Docker/Kubernetes secret
+/// mount, trailing newline trimmed) or `SR_VOICE_TOKEN_SECRET`.
+fn token_secret() -> anyhow::Result<String> {
+    if let Some(path) = env("SR_VOICE_TOKEN_SECRET_FILE") {
+        let raw = std::fs::read_to_string(&path)
+            .with_context(|| format!("reading SR_VOICE_TOKEN_SECRET_FILE ({path})"))?;
+        let s = raw.trim_end_matches(['\r', '\n']).to_owned();
+        anyhow::ensure!(!s.is_empty(), "SR_VOICE_TOKEN_SECRET_FILE is empty");
+        return Ok(s);
+    }
+    env("SR_VOICE_TOKEN_SECRET")
+        .context("SR_VOICE_TOKEN_SECRET (or SR_VOICE_TOKEN_SECRET_FILE) is required")
 }
