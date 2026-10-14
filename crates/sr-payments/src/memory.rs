@@ -218,6 +218,22 @@ impl PaymentRepo for MemoryRepo {
         Ok(w)
     }
 
+    async fn gap_used(&self, wallet_id: i64) -> PayResult<u32> {
+        let m = self.m();
+        let w = m
+            .wallets
+            .iter()
+            .find(|w| w.id == wallet_id)
+            .ok_or(PayError::NotFound)?;
+        let used_max = m
+            .invoices
+            .iter()
+            .filter(|i| i.wallet_id == wallet_id && m.txs.iter().any(|t| t.invoice_id == i.id))
+            .map(|i| i.derivation_index)
+            .max();
+        Ok(w.next_index - used_max.map_or(0, |u| u + 1))
+    }
+
     async fn set_gap_limit(&self, wallet_id: i64, gap_limit: u32) -> PayResult<()> {
         let mut m = self.m();
         let w = m

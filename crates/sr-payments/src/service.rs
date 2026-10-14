@@ -111,6 +111,7 @@ pub struct PaymentService {
     clock: Clock,
     ids: IdSource,
     checks: Mutex<HashMap<i64, i64>>,
+    chain_configured: bool,
 }
 
 /// The credit plan of an invoice under the current configuration.
@@ -166,7 +167,19 @@ impl PaymentService {
             clock,
             ids,
             checks: Mutex::new(HashMap::new()),
+            chain_configured: true,
         }
+    }
+
+    /// Mark whether a chain source is configured. Without one no payment could be detected, so
+    /// invoices are not created (the default is configured, which tests rely on).
+    pub fn with_chain_configured(mut self, configured: bool) -> Self {
+        self.chain_configured = configured;
+        self
+    }
+
+    pub fn chain_configured(&self) -> bool {
+        self.chain_configured
     }
 
     pub fn repo(&self) -> &Arc<dyn PaymentRepo> {
@@ -235,7 +248,7 @@ impl PaymentService {
     pub async fn create_invoice(&self, user_id: i64, req: InvoiceRequest) -> PayResult<Invoice> {
         let cfg = self.ents.config().await?;
         let wallet = self.repo.active_wallet().await?.ok_or(PayError::Disabled)?;
-        if !cfg.enabled {
+        if !cfg.enabled || !self.chain_configured {
             return Err(PayError::Disabled);
         }
         let usd_cents: u64 = match req.purpose {
@@ -396,18 +409,20 @@ impl PaymentService {
 
     /// Polls every due invoice once.
     pub async fn poll_due(&self, limit: u32) -> PayResult<PollSummary> {
-        use futures::StreamExt;
         let now = self.now();
         let due = self.repo.due_invoices(now, limit).await?;
         let mut sum = PollSummary::default();
         if due.is_empty() {
             return Ok(sum);
         }
-        let results: Vec<PayResult<SaveOutcome>> = futures::stream::iter(due.iter())
-            .map(|inv| self.poll_invoice(inv))
-            .buffer_unordered(4)
-            .collect()
-            .await;
+        let mut results: Vec<PayResult<SaveOutcome>> = Vec::with_capacity(due.len());
+        for chunk in due.chunks(4) {
+            let mut futs = Vec::with_capacity(chunk.len());
+            for inv in chunk {
+                futs.push(self.poll_invoice(inv));
+            }
+            results.extend(futures::future::join_all(futs).await);
+        }
         for r in results {
             sum.polled += 1;
             match r {
@@ -674,4 +689,31 @@ pub fn payment_payload(inv: &Invoice) -> Value {
         "credited": inv.state.is_credited(),
         "late": inv.late,
     })
+}
+
+/// A payment rail (DON-PAY-002). Bitcoin on-chain is the only one built; Lightning and Monero
+/// (doc 08 section 1) implement the same two operations later, and a BTCPay adapter could too.
+#[async_trait]
+pub trait PaymentProvider: Send + Sync {
+    /// Short name of the rail, stored with nothing yet (`btc`).
+    fn rail(&self) -> &'static str;
+    /// Open an invoice for `user_id`.
+    async fn create_invoice(&self, user_id: i64, req: InvoiceRequest) -> PayResult<Invoice>;
+    /// Read the rail for one invoice and store the result (crediting or reverting exactly once).
+    async fn poll_invoice(&self, invoice: &Invoice) -> PayResult<SaveOutcome>;
+}
+
+#[async_trait]
+impl PaymentProvider for PaymentService {
+    fn rail(&self) -> &'static str {
+        "btc"
+    }
+
+    async fn create_invoice(&self, user_id: i64, req: InvoiceRequest) -> PayResult<Invoice> {
+        PaymentService::create_invoice(self, user_id, req).await
+    }
+
+    async fn poll_invoice(&self, invoice: &Invoice) -> PayResult<SaveOutcome> {
+        PaymentService::poll_invoice(self, invoice).await
+    }
 }

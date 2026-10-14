@@ -398,6 +398,20 @@ impl PaymentRepo for PgPaymentRepo {
         wallet_from(&row)
     }
 
+    async fn gap_used(&self, wallet_id: i64) -> PayResult<u32> {
+        let row = sqlx::query(
+            "SELECT w.next_index - COALESCE((SELECT max(i.derivation_index) + 1 FROM payment_invoices i \
+             WHERE i.wallet_id = w.id AND EXISTS (SELECT 1 FROM payment_txs t WHERE t.invoice_id = i.id)), 0) AS run \
+             FROM payment_wallets w WHERE w.id = $1",
+        )
+        .bind(wallet_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(pe)?
+        .ok_or(PayError::NotFound)?;
+        Ok(u32_of(row.try_get("run").map_err(pe)?).unwrap_or(0))
+    }
+
     async fn set_gap_limit(&self, wallet_id: i64, gap_limit: u32) -> PayResult<()> {
         let n = sqlx::query("UPDATE payment_wallets SET gap_limit = $2 WHERE id = $1")
             .bind(wallet_id)

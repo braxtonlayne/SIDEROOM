@@ -204,6 +204,8 @@ pub trait PaymentRepo: Send + Sync {
         now_ms: i64,
     ) -> PayResult<Wallet>;
     async fn set_gap_limit(&self, wallet_id: i64, gap_limit: u32) -> PayResult<()>;
+    /// Consecutive unused addresses at the end of the allocated range (compare with `gap_limit`).
+    async fn gap_used(&self, wallet_id: i64) -> PayResult<u32>;
     async fn config(&self) -> PayResult<DonationConfig>;
     async fn set_config(&self, cfg: &DonationConfig, by: i64, now_ms: i64) -> PayResult<()>;
 
