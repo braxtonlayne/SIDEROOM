@@ -108,6 +108,9 @@ export function StaffSection() {
                       ? m.roles.map((r) => r.name).join(', ')
                       : t('admin.staff.noRoles')}{' '}
                     · {t('admin.staff.appointed', { when: fmtMs(m.appointed_at_ms) })}
+                    {m.appointed_by
+                      ? `  · ${t('admin.staff.appointedBy', { id: m.appointed_by })}`
+                      : ''}
                     {m.reason ? ` · ${t('admin.staff.reasonQuoted', { reason: m.reason })}` : ''}
                   </div>
                 </div>

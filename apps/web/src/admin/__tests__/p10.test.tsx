@@ -1,0 +1,387 @@
+// Phase-10 admin front end: shared table, account drawer extras, person record, invite graph.
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { buildCsv, csvField, DataTable, type Column } from '../DataTable';
+import { buildTree } from '../sections/InviteGraph';
+import type { Paged } from '../ui';
+import {
+  account,
+  asStaff,
+  detail,
+  http,
+  HttpResponse,
+  openAdmin,
+  readJson,
+  server,
+} from './helpers';
+
+describe('csv', () => {
+  it('quotes separators and defuses spreadsheet formulas', () => {
+    expect(csvField('plain')).toBe('plain');
+    expect(csvField('a,b')).toBe('"a,b"');
+    expect(csvField('say "hi"')).toBe('"say ""hi"""');
+    expect(csvField('=SUM(A1)')).toBe("'=SUM(A1)");
+    expect(csvField('-2+3')).toBe("'-2+3");
+    expect(csvField(-5)).toBe('-5');
+    expect(csvField(null)).toBe('');
+  });
+
+  it('exports only columns with a csv value', () => {
+    const cols: Column<{ n: string; k: number }>[] = [
+      { id: 'n', header: 'Name', cell: (r) => r.n, csv: (r) => r.n },
+      { id: 'ui', header: 'Open', cell: () => 'x' },
+      { id: 'k', header: 'Count', cell: (r) => r.k, csv: (r) => r.k },
+    ];
+    expect(
+      buildCsv(
+        [
+          { n: 'a', k: 1 },
+          { n: 'b,c', k: 2 },
+        ],
+        cols,
+      ),
+    ).toBe('Name,Count\r\na,1\r\n"b,c",2\r\n');
+  });
+});
+
+describe('DataTable', () => {
+  interface Row {
+    id: string;
+    name: string;
+    email: string;
+  }
+  const columns: Column<Row>[] = [
+    { id: 'name', header: 'Name', locked: true, cell: (r) => r.name, csv: (r) => r.name },
+    { id: 'email', header: 'Email', cell: (r) => r.email, csv: (r) => r.email },
+    { id: 'id', header: 'Id', defaultHidden: true, cell: (r) => r.id, csv: (r) => r.id },
+  ];
+  const paged = (over: Partial<Paged<Row>> = {}): Paged<Row> => ({
+    items: [{ id: '1', name: 'Ann', email: 'ann@example.test' }],
+    loading: false,
+    error: null,
+    more: false,
+    loadMore: () => undefined,
+    reload: () => undefined,
+    ...over,
+  });
+  const view = (p: Paged<Row>) =>
+    render(
+      <DataTable
+        tableId="test-table"
+        label="People"
+        columns={columns}
+        paged={p}
+        rowKey={(r) => r.id}
+        emptyTitle="Nobody"
+      />,
+    );
+
+  beforeEach(() => localStorage.clear());
+
+  it('hides default-hidden columns and lets the staff member show them, remembering the choice', async () => {
+    const user = userEvent.setup();
+    const first = view(paged());
+    const table = screen.getByRole('table', { name: 'People' });
+    expect(within(table).queryByRole('columnheader', { name: 'Id' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Columns' }));
+    expect(screen.getByRole('checkbox', { name: 'Name' })).toBeDisabled();
+    await user.click(screen.getByRole('checkbox', { name: 'Id' }));
+    expect(within(table).getByRole('columnheader', { name: 'Id' })).toBeInTheDocument();
+    first.unmount();
+    view(paged());
+    expect(screen.getByRole('columnheader', { name: 'Id' })).toBeInTheDocument();
+  });
+
+  it('shows the empty state, an error, the loaded count and Load more', async () => {
+    const loadMore = vi.fn();
+    const user = userEvent.setup();
+    const { rerender } = view(paged({ items: [] }));
+    expect(screen.getByText('Nobody')).toBeInTheDocument();
+    rerender(
+      <DataTable
+        tableId="test-table"
+        label="People"
+        columns={columns}
+        paged={paged({ more: true, loadMore })}
+        rowKey={(r) => r.id}
+        emptyTitle="Nobody"
+      />,
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('1 row loaded');
+    await user.click(screen.getByRole('button', { name: 'Load more' }));
+    expect(loadMore).toHaveBeenCalled();
+  });
+
+  it('exports the visible columns as a CSV download', async () => {
+    const created: Blob[] = [];
+    const orig = URL.createObjectURL;
+    URL.createObjectURL = (b: Blob | MediaSource) => {
+      created.push(b as Blob);
+      return 'blob:test';
+    };
+    URL.revokeObjectURL = () => undefined;
+    const user = userEvent.setup();
+    view(paged());
+    await user.click(screen.getByRole('button', { name: 'Export CSV' }));
+    URL.createObjectURL = orig;
+    expect(created).toHaveLength(1);
+    const text = await new Promise<string>((res) => {
+      const r = new FileReader();
+      r.onload = () => res(String(r.result));
+      r.readAsText(created[0]!);
+    });
+    expect(text).toBe('Name,Email\r\nAnn,ann@example.test\r\n');
+  });
+});
+
+describe('account drawer extras', () => {
+  it('shows entitlements and the audit trail to staff who may read them, and opens the person record', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_ACCOUNTS', 'MANAGE_DONATIONS', 'VIEW_ACCESS_LOG'] });
+    let grantQuery = '';
+    let logQuery = '';
+    server.use(
+      http.get('*/api/v1/admin/accounts', () =>
+        HttpResponse.json({ items: [account()], next_after: null }),
+      ),
+      http.get('*/api/v1/admin/accounts/100', () => HttpResponse.json(detail())),
+      http.get('*/api/v1/admin/donations/entitlements', ({ request }) => {
+        grantQuery = new URL(request.url).search;
+        return HttpResponse.json({
+          items: [
+            {
+              id: '9',
+              kind: 'patron',
+              user_id: '100',
+              guild_id: null,
+              source: 'admin',
+              source_id: null,
+              days: null,
+              ends_at_ms: null,
+              permanent: true,
+              usd_cents: null,
+              starts_at_ms: 1,
+              revoked_at_ms: null,
+              reason: null,
+            },
+          ],
+          next_before: null,
+        });
+      }),
+      http.get('*/api/v1/admin/access-log', ({ request }) => {
+        const u = new URL(request.url);
+        logQuery = u.search;
+        return HttpResponse.json({
+          items: [
+            {
+              seq: 5,
+              at_us: 1_700_000_000_000_000,
+              actor_id: '1',
+              kind: 'admin_action',
+              action: 'accounts.suspend',
+              target_kind: 'account',
+              target_id: '100',
+              reason: 'spam wave',
+              detail: '',
+              ip: null,
+              prev_hash: 'a',
+              hash: 'b',
+            },
+          ],
+          next_before: null,
+        });
+      }),
+      http.get('*/api/v1/admin/persons/500', () =>
+        HttpResponse.json({
+          id: '500',
+          accounts: [
+            account({ id: '101', username: 'newer', created_at_ms: 2_000 }),
+            account({ id: '100', username: 'older', created_at_ms: 1_000 }),
+          ],
+          ban: null,
+          notes: 'watch this one',
+          suspicion_level: 2,
+        }),
+      ),
+    );
+    openAdmin('accounts');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'View alice' }));
+    expect(await screen.findByText('Permanent')).toBeInTheDocument();
+    expect(await screen.findByText('accounts.suspend')).toBeInTheDocument();
+    expect(grantQuery).toContain('user_id=100');
+    expect(logQuery).toContain('target_id=100');
+
+    await user.click(screen.getByRole('button', { name: 'Open person record' }));
+    const chain = await screen.findByRole('list', { name: 'Account chain' });
+    const names = within(chain)
+      .getAllByRole('listitem')
+      .map((li) => li.textContent);
+    expect(names[0]).toContain('@older');
+    expect(names[1]).toContain('@newer');
+    expect(screen.getByText('watch this one')).toBeInTheDocument();
+  });
+
+  it('hides those sections from staff without the permissions', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_ACCOUNTS'] });
+    server.use(
+      http.get('*/api/v1/admin/accounts', () =>
+        HttpResponse.json({ items: [account()], next_after: null }),
+      ),
+      http.get('*/api/v1/admin/accounts/100', () => HttpResponse.json(detail())),
+    );
+    openAdmin('accounts');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'View alice' }));
+    await screen.findByText('Open person record');
+    expect(screen.queryByText('Entitlements')).toBeNull();
+    expect(screen.queryByText('Audit trail')).toBeNull();
+  });
+});
+
+describe('invite graph', () => {
+  const node = (id: string, parent: string | null, over: Record<string, unknown> = {}) => ({
+    account_id: id,
+    username: `user${id}`,
+    state: 'active',
+    person_id: `p${id}`,
+    suspicion_level: 0,
+    parent_id: parent,
+    depth: parent === '1' ? 1 : 2,
+    ...over,
+  });
+
+  it('nests descendants under their inviters', () => {
+    const root = node('1', null, { depth: 0 }) as never;
+    const tree = buildTree(root, [node('2', '1'), node('3', '2'), node('4', '1')] as never);
+    expect(tree.children.map((c) => c.node.account_id)).toEqual(['2', '4']);
+    expect(tree.children[0]!.children.map((c) => c.node.account_id)).toEqual(['3']);
+  });
+
+  const seed = () => {
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_INVITES', 'MANAGE_ACCOUNTS'] });
+    server.use(
+      http.get('*/api/v1/admin/accounts/1/invite-tree', () =>
+        HttpResponse.json({
+          account: node('1', null, { depth: 0 }),
+          ancestors: [],
+          stats: {
+            issued: 3,
+            open: 1,
+            redeemed: 2,
+            revoked: 0,
+            descendants: 3,
+            banned_descendants: 1,
+          },
+        }),
+      ),
+      http.get('*/api/v1/admin/accounts/1/invite-descendants', () =>
+        HttpResponse.json({
+          nodes: [
+            node('2', '1'),
+            node('3', '2', { state: 'platform_banned', suspicion_level: 3 }),
+            node('4', '1'),
+          ],
+          truncated: false,
+        }),
+      ),
+      http.get('*/api/v1/admin/accounts/3/invite-tree', () =>
+        HttpResponse.json({
+          account: node('3', '2'),
+          ancestors: [node('1', null, { depth: -2 }), node('2', '1', { depth: -1 })],
+          stats: {
+            issued: 0,
+            open: 0,
+            redeemed: 0,
+            revoked: 0,
+            descendants: 0,
+            banned_descendants: 0,
+          },
+        }),
+      ),
+      http.get('*/api/v1/admin/accounts/3/invite-descendants', () =>
+        HttpResponse.json({ nodes: [], truncated: false }),
+      ),
+      http.get('*/api/v1/admin/accounts/:id', ({ params }) =>
+        HttpResponse.json(
+          detail(
+            { suspicion_level: params.id === '3' ? 3 : 0 },
+            {
+              id: params.id,
+              username: `user${String(params.id)}`,
+              person_id: `p${String(params.id)}`,
+            },
+          ),
+        ),
+      ),
+      http.get('*/api/v1/admin/invites', ({ request }) => {
+        const issuer = new URL(request.url).searchParams.get('issuer_id');
+        return HttpResponse.json({
+          items:
+            issuer === '3'
+              ? [
+                  {
+                    id: '70',
+                    code: 'OPENCODE',
+                    issuer_account_id: '3',
+                    state: 'open',
+                    emergency: false,
+                    note: '',
+                    created_at_ms: 1,
+                  },
+                ]
+              : [],
+          next_after: null,
+        });
+      }),
+      http.get('*/api/v1/admin/accounts/:id/credits', () =>
+        HttpResponse.json({ balance: 4, entries: [] }),
+      ),
+    );
+  };
+
+  it('shows the tree with banned and suspicion markers, collapses a subtree, and switches to the list', async () => {
+    seed();
+    openAdmin('invite-graph');
+    const user = userEvent.setup();
+    const tree = await screen.findByRole('tree', { name: 'Invite tree' });
+    expect(within(tree).getAllByRole('treeitem')).toHaveLength(3);
+    expect(within(tree).getByText('Banned')).toBeInTheDocument();
+    expect(within(tree).getByText('Suspicion 3')).toBeInTheDocument();
+    await user.click(within(tree).getByRole('button', { name: 'Collapse @user2' }));
+    expect(within(tree).getAllByRole('treeitem')).toHaveLength(2);
+    await user.click(screen.getByRole('button', { name: 'List' }));
+    const table = screen.getByRole('table', { name: 'Invited accounts' });
+    expect(within(table).getAllByRole('row')).toHaveLength(4);
+  });
+
+  it('selects a node, shows its open codes, re-roots on it with a breadcrumb, and adjusts credits with a reason', async () => {
+    seed();
+    let sent: unknown;
+    server.use(
+      http.post('*/api/v1/admin/accounts/3/credits', async ({ request }) => {
+        sent = await readJson(request);
+        return HttpResponse.json({ balance: 6 });
+      }),
+    );
+    openAdmin('invite-graph');
+    const user = userEvent.setup();
+    await screen.findByRole('tree', { name: 'Invite tree' });
+    await user.click(screen.getByRole('button', { name: 'Select @user3' }));
+    const panel = screen.getByRole('complementary', { name: 'Selected account' });
+    expect(await within(panel).findByText('OPENCODE')).toBeInTheDocument();
+
+    await user.click(within(panel).getByRole('button', { name: 'Grant or revoke credits' }));
+    const dialog = await screen.findByRole('dialog', { name: /Invite credits for @user3/ });
+    await user.clear(within(dialog).getByLabelText('Change'));
+    await user.type(within(dialog).getByLabelText('Change'), '2');
+    await user.type(within(dialog).getByLabelText(/Reason/), 'goodwill');
+    await user.click(within(dialog).getByRole('button', { name: 'Apply' }));
+    await waitFor(() => expect(sent).toEqual({ delta: 2, reason: 'goodwill' }));
+
+    await user.click(within(panel).getByRole('button', { name: 'Make this the root' }));
+    const crumbs = await screen.findByRole('navigation', { name: 'Path to the root' });
+    expect(within(crumbs).getByRole('button', { name: '@user1' })).toBeInTheDocument();
+    expect(within(crumbs).getByRole('button', { name: '@user2' })).toBeInTheDocument();
+    expect(await screen.findByText('This account has not invited anyone yet.')).toBeInTheDocument();
+  });
+});

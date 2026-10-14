@@ -31,6 +31,7 @@ import { BansSection } from './sections/Bans';
 import { CliParitySection } from './sections/CliParity';
 import { DashboardSection } from './sections/Dashboard';
 import { FeaturesSection } from './sections/Features';
+import { InviteGraphSection } from './sections/InviteGraph';
 import { InvitesSection } from './sections/Invites';
 import { LimitsSection } from './sections/Limits';
 import { StaffSection } from './sections/Staff';
@@ -74,6 +75,13 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     group: 'admin.adminApp.group.people',
     visible: (v) => v.can('MANAGE_INVITES'),
     component: InvitesSection,
+  },
+  {
+    id: 'invite-graph',
+    label: 'admin.adminApp.section.inviteGraph',
+    group: 'admin.adminApp.group.people',
+    visible: (v) => v.can('MANAGE_INVITES'),
+    component: InviteGraphSection,
   },
   {
     id: 'staff',

@@ -364,3 +364,11 @@ export const listAccessLog = (p: {
   limit?: number;
 }) => get<AccessLogPage>(`/admin/access-log${qs(p)}`);
 export const verifyAccessLog = () => get<ChainReport>('/admin/access-log/verify');
+
+export interface InviteDescendants {
+  nodes: InviteNode[];
+  /** True when the server's node cap cut the result short. */
+  truncated: boolean;
+}
+export const getInviteDescendants = (accountId: string, depth: number) =>
+  get<InviteDescendants>(`/admin/accounts/${accountId}/invite-descendants${qs({ depth })}`);
