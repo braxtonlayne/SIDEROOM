@@ -536,8 +536,10 @@ async fn grants_config_prefs_and_constraints() {
     ));
 
     // Configuration round trip.
-    let mut cfg = DonationConfig::default();
-    cfg.patron_price_cents = 700;
+    let cfg = DonationConfig {
+        patron_price_cents: 700,
+        ..DonationConfig::default()
+    };
     r.repo.set_config(&cfg, staff, 1).await.unwrap();
     assert_eq!(r.repo.config().await.unwrap().patron_price_cents, 700);
     r.svc.entitlements().invalidate_config().await;
