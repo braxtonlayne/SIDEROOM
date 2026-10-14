@@ -172,7 +172,10 @@ async fn now_and_next_follow_the_wall_clock_and_joining_17_minutes_in_is_17_minu
     let id = channel(&e, 101, marathon()).await;
     let first = e.svc.now(id).await.unwrap();
     let cur = first.current.unwrap();
-    assert_eq!((cur.start_ms, cur.end_ms), (utc(2025, 6, 2, 20, 0), utc(2025, 6, 2, 20, 30)));
+    assert_eq!(
+        (cur.start_ms, cur.end_ms),
+        (utc(2025, 6, 2, 20, 0), utc(2025, 6, 2, 20, 30))
+    );
     assert_eq!(cur.episode_number, Some(1));
     assert_eq!(cur.source, BlockSource::Generated);
     assert_eq!(first.next.unwrap().episode_number, Some(2));
@@ -203,11 +206,7 @@ async fn the_schedule_is_extended_a_day_ahead_and_stays_contiguous_across_calls(
     let e = env();
     let id = channel(&e, 101, marathon()).await;
     e.svc.now(id).await.unwrap();
-    let blocks = e
-        .repo
-        .blocks_overlapping(&[id], 0, i64::MAX)
-        .await
-        .unwrap();
+    let blocks = e.repo.blocks_overlapping(&[id], 0, i64::MAX).await.unwrap();
     assert!(blocks.last().unwrap().end_ms >= utc(2025, 6, 3, 20, 0));
     // Time passes; the next read extends from where the schedule ended, with the next episodes.
     e.clock.advance_ms(20 * 3_600_000);
@@ -233,12 +232,20 @@ async fn the_guide_returns_blocks_per_channel_and_validates_the_window() {
     assert_eq!(g.to_ms, g.from_ms + 4 * 3_600_000);
     assert_eq!(g.channels.len(), 2);
     assert_eq!(g.channels[0].blocks.len(), 8);
-    assert!(g.channels[0].channel.now.is_none(), "the guide carries no now/next");
+    assert!(
+        g.channels[0].channel.now.is_none(),
+        "the guide carries no now/next"
+    );
     let only = e.svc.guide(None, None, &[b]).await.unwrap();
     assert_eq!(only.channels.len(), 1);
     assert_eq!(only.channels[0].channel.id, b);
     assert!(e.svc.guide(Some(10), Some(5), &[]).await.is_err());
-    assert!(e.svc.guide(Some(0), Some(49 * 3_600_000), &[a]).await.is_err());
+    assert!(
+        e.svc
+            .guide(Some(0), Some(49 * 3_600_000), &[a])
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test]
@@ -269,7 +276,10 @@ async fn preview_stores_nothing_and_publish_replaces_unstarted_generated_blocks_
             )],
         },
     );
-    e.svc.update_channel(e.staff, id, changed.clone()).await.unwrap();
+    e.svc
+        .update_channel(e.staff, id, changed.clone())
+        .await
+        .unwrap();
     let p = e
         .svc
         .preview(e.staff, id, None, Some(utc(2025, 6, 3, 8, 0)))
@@ -301,12 +311,20 @@ async fn preview_stores_nothing_and_publish_replaces_unstarted_generated_blocks_
     assert_eq!(placed.source, BlockSource::Override);
     changed.name = "Films".into();
     let done = e.svc.publish(e.staff, id, Some(48)).await.unwrap();
-    assert_eq!(done.from_ms, utc(2025, 6, 2, 20, 30), "after the programme on air");
+    assert_eq!(
+        done.from_ms,
+        utc(2025, 6, 2, 20, 30),
+        "after the programme on air"
+    );
     assert!(done.removed > 0 && done.written > 0, "{done:?}");
     let after = e.repo.blocks_overlapping(&[id], 0, i64::MAX).await.unwrap();
     assert_eq!(after[0].episode_number, Some(1), "the block on air stays");
     assert!(after[1..].iter().any(|b| b.title.starts_with("Film")));
-    assert!(after.iter().any(|b| b.id == placed.id && b.start_ms == placed.start_ms));
+    assert!(
+        after
+            .iter()
+            .any(|b| b.id == placed.id && b.start_ms == placed.start_ms)
+    );
     for w in after.windows(2) {
         assert!(w[0].end_ms <= w[1].start_ms, "overlap: {w:?}");
     }
@@ -314,7 +332,10 @@ async fn preview_stores_nothing_and_publish_replaces_unstarted_generated_blocks_
     let mut manual = input(300, ChannelRules::default());
     manual.kind = ChannelKind::Manual;
     let m = e.svc.create_channel(e.staff, manual).await.unwrap().id;
-    assert!(matches!(e.svc.publish(e.staff, m, None).await, Err(TvError::Invalid(_))));
+    assert!(matches!(
+        e.svc.publish(e.staff, m, None).await,
+        Err(TvError::Invalid(_))
+    ));
 }
 
 #[tokio::test]
@@ -361,11 +382,22 @@ async fn staff_place_programmes_cut_the_air_and_remove_blocks() {
         .await
         .unwrap()
         .iter()
-        .map(|b| (b.start_ms - t, b.end_ms - t, b.offset_ms, b.episode_number.unwrap()))
+        .map(|b| {
+            (
+                b.start_ms - t,
+                b.end_ms - t,
+                b.offset_ms,
+                b.episode_number.unwrap(),
+            )
+        })
         .collect();
     assert_eq!(
         spans,
-        [(0, 10 * MIN, 0, 1), (10 * MIN, 20 * MIN, 0, 2), (20 * MIN, 30 * MIN, 20 * MIN, 1)]
+        [
+            (0, 10 * MIN, 0, 1),
+            (10 * MIN, 20 * MIN, 0, 2),
+            (20 * MIN, 30 * MIN, 20 * MIN, 1)
+        ]
     );
     // Too long, unplayable, or inverted placements are refused.
     let bad = |start: i64, end: Option<i64>, title: i64| PlaceInput {
@@ -374,8 +406,18 @@ async fn staff_place_programmes_cut_the_air_and_remove_blocks() {
         start_ms: start,
         end_ms: end,
     };
-    assert!(e.svc.place_block(e.staff, id, bad(t, Some(t - 1), 7)).await.is_err());
-    assert!(e.svc.place_block(e.staff, id, bad(t, None, 999)).await.is_err());
+    assert!(
+        e.svc
+            .place_block(e.staff, id, bad(t, Some(t - 1), 7))
+            .await
+            .is_err()
+    );
+    assert!(
+        e.svc
+            .place_block(e.staff, id, bad(t, None, 999))
+            .await
+            .is_err()
+    );
 
     // "On now": a film from 5 minutes in, cutting whatever is on.
     e.clock.advance_ms(12 * MIN);
@@ -401,7 +443,11 @@ async fn staff_place_programmes_cut_the_air_and_remove_blocks() {
     assert_eq!(cur.current.as_ref().unwrap().title, "Film");
     assert_eq!(cur.offset_ms, Some(5 * MIN));
     // The simulate-now read looks at any moment.
-    let past = e.svc.admin_now(e.staff, id, Some(t + 5 * MIN)).await.unwrap();
+    let past = e
+        .svc
+        .admin_now(e.staff, id, Some(t + 5 * MIN))
+        .await
+        .unwrap();
     assert_eq!(past.current.unwrap().episode_number, Some(1));
 
     // Removing a block leaves a hole.
@@ -420,14 +466,22 @@ async fn the_report_lists_what_aired() {
     let id = channel(&e, 101, marathon()).await;
     e.svc.now(id).await.unwrap();
     e.clock.advance_ms(95 * MIN);
-    let r = e.svc.report(e.staff, Some(utc(2025, 6, 2, 20, 0)), None, None).await.unwrap();
+    let r = e
+        .svc
+        .report(e.staff, Some(utc(2025, 6, 2, 20, 0)), None, None)
+        .await
+        .unwrap();
     assert_eq!(r.to_ms, utc(2025, 6, 2, 21, 35), "the future has not aired");
     assert_eq!(r.channels.len(), 1);
     assert_eq!(r.channels[0].aired_ms, 95 * MIN);
     assert_eq!(r.channels[0].programmes, 4);
     assert_eq!(r.channels[0].overrides, 0);
     assert_eq!(r.items.len(), 4);
-    assert_eq!(r.items[3].aired_ms, 5 * MIN, "the last one is clipped to now");
+    assert_eq!(
+        r.items[3].aired_ms,
+        5 * MIN,
+        "the last one is clipped to now"
+    );
     assert!(e.svc.report(e.staff, None, None, Some(1)).await.is_err());
 }
 
@@ -460,7 +514,10 @@ async fn restricted_programmes_are_listed_but_opening_them_needs_age_confirmatio
     let list = e.svc.channels().await.unwrap();
     assert!(list[0].now.as_ref().unwrap().age_restricted);
     // But the stream refuses an unconfirmed account (the source has no asset 8000 yet: the gate comes first).
-    assert_eq!(e.svc.tune(MEMBER, id).await, Err(TvError::AgeConfirmationRequired));
+    assert_eq!(
+        e.svc.tune(MEMBER, id).await,
+        Err(TvError::AgeConfirmationRequired)
+    );
     assert_eq!(
         e.svc.live_media(MEMBER, id, Track::Video(720)).await,
         Err(TvError::AgeConfirmationRequired)
@@ -497,12 +554,19 @@ async fn tuning_and_the_live_playlists_end_to_end() {
 
     // Master: the rungs of the asset on air, relative links.
     let master = e.svc.live_master(MEMBER, id).await.unwrap();
-    assert!(master.contains("\nv/720.m3u8\n") && master.contains("\nv/1080.m3u8\n"), "{master}");
+    assert!(
+        master.contains("\nv/720.m3u8\n") && master.contains("\nv/1080.m3u8\n"),
+        "{master}"
+    );
     assert!(master.contains("URI=\"audio.m3u8\""));
 
     // Media playlist 6 s into the second programme; the first one's tail is in the window.
     e.clock.advance_ms(30 * MIN + 7_000);
-    let first = e.svc.live_media(MEMBER, id, Track::Video(720)).await.unwrap();
+    let first = e
+        .svc
+        .live_media(MEMBER, id, Track::Video(720))
+        .await
+        .unwrap();
     assert!(first.contains("#EXT-X-DISCONTINUITY\n"), "{first}");
     assert!(first.contains("/cdn/hls/7101/v/720p/seg_00299.m4s"));
     assert!(first.contains("/cdn/hls/7102/v/720p/seg_00000.m4s"));
@@ -515,7 +579,11 @@ async fn tuning_and_the_live_playlists_end_to_end() {
     };
     // Six seconds later the window moved by exactly one segment.
     e.clock.advance_ms(6_000);
-    let second = e.svc.live_media(ADULT, id, Track::Video(720)).await.unwrap();
+    let second = e
+        .svc
+        .live_media(ADULT, id, Track::Video(720))
+        .await
+        .unwrap();
     assert_eq!(seq(&second), seq(&first) + 1);
     // Audio uses the same numbering rules.
     let audio = e.svc.live_media(MEMBER, id, Track::Audio).await.unwrap();

@@ -85,7 +85,12 @@ async fn channels_round_trip_and_numbers_are_unique() {
     );
     let clash = repo.update_channel(1, &input(102), 0).await;
     assert!(matches!(clash, Err(sr_tv::TvError::Conflict(_))));
-    assert!(repo.update_channel(99, &input(5), 0).await.unwrap().is_none());
+    assert!(
+        repo.update_channel(99, &input(5), 0)
+            .await
+            .unwrap()
+            .is_none()
+    );
     let nums: Vec<_> = repo
         .list_channels()
         .await
@@ -120,7 +125,10 @@ async fn blocks_apply_query_and_number_atomically() {
     assert_eq!(got.iter().map(|b| b.id).collect::<Vec<_>>(), [11, 12]);
     assert_eq!(got[0].cursor_after.as_ref().unwrap().seq["All day"], 3);
     assert_eq!(got[0].media_kind, Some(MediaKind::Anime));
-    assert_eq!(repo.blocks_overlapping(&[1, 2], 0, 1).await.unwrap().len(), 2);
+    assert_eq!(
+        repo.blocks_overlapping(&[1, 2], 0, 1).await.unwrap().len(),
+        2
+    );
     assert_eq!(repo.last_block(1).await.unwrap().unwrap().id, 13);
     assert_eq!(repo.cursor_block(1, 250).await.unwrap().unwrap().id, 12);
     assert!(repo.cursor_block(1, 50).await.unwrap().is_none());
@@ -173,8 +181,16 @@ async fn blocks_apply_query_and_number_atomically() {
 
     // Deleting a channel takes its blocks along.
     repo.delete_channel(1).await.unwrap();
-    assert!(repo.blocks_overlapping(&[1], 0, 1000).await.unwrap().is_empty());
-    assert_eq!(repo.blocks_overlapping(&[2], 0, 1000).await.unwrap().len(), 1);
+    assert!(
+        repo.blocks_overlapping(&[1], 0, 1000)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        repo.blocks_overlapping(&[2], 0, 1000).await.unwrap().len(),
+        1
+    );
     db.cleanup().await.unwrap();
 }
 
