@@ -38,6 +38,8 @@ lounge-be (LNG-GLD-011) and sset-be (LNG-SSET-011/012) both built server tags an
   - Stream-op errors arrive with `channel_id: null`. The client used to drop them as "another channel", and would otherwise have ended the call.
   - Op 13 `QUALITY` (`{reduced, max_layer, reason}`) already matched the client's `{reduced}`.
 
+- **Soft delete versus lounge-be data:** sset-be made guild deletion a soft delete (0630), so lounge-be's directory listing (which went with the row through `ON DELETE CASCADE`) stayed, and the vanity code stayed claimed and stayed resolvable by vanity lookups that do not filter deleted servers. `delete_guild` now removes the `guild_directory` row and clears `vanity_code`. This was caught by sr-db `directory_listings_round_trip_and_filter`, which now also checks that the vanity code is released.
+
 ## Open
 
 - LNG-SSET-011 (tag editor UI) and the user-side tag picker are not built. The API is ready.

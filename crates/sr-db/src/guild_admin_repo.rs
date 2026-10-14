@@ -129,8 +129,10 @@ impl GuildAdminRepository for PgChatRepo {
         // purge window (held ones keep no purge time, D-122); the guild row and its
         // channels stay until the purge job finds nothing left (see sr-server jobs).
         let mut tx = self.pool.begin().await.map_err(db)?;
+        // The vanity code is released at once: vanity lookups do not filter deleted
+        // servers, and another server may want the code.
         let stamped = sqlx::query(
-            "UPDATE guilds SET deleted_at = now() \
+            "UPDATE guilds SET deleted_at = now(), vanity_code = NULL \
              WHERE id = $1 AND NOT is_staff_guild AND deleted_at IS NULL",
         )
         .bind(i(id.get()))
@@ -163,6 +165,8 @@ impl GuildAdminRepository for PgChatRepo {
             "guild_invites",
             "webhooks",
             "application_installs",
+            // A deleted server leaves the Server Directory at once (LNG-GLD-013).
+            "guild_directory",
         ] {
             sqlx::query(sqlx::AssertSqlSafe(format!(
                 "DELETE FROM {table} WHERE guild_id = $1"

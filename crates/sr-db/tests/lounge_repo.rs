@@ -487,9 +487,15 @@ async fn directory_listings_round_trip_and_filter() {
     );
     assert!(repo.delete_listing(other).await.unwrap());
     assert!(!repo.delete_listing(other).await.unwrap());
-    // A listing goes with its server.
+    // A listing and the vanity code go with their server (soft delete, LNG-SSET-073).
+    let code = format!("Gone-{}", f.ids.generate().get());
+    assert!(f.chat.set_vanity(f.guild, Some(&code)).await.unwrap());
     f.chat.delete_guild(f.guild).await.unwrap();
     assert!(repo.get_listing(f.guild).await.unwrap().is_none());
+    assert!(
+        f.chat.set_vanity(other, Some(&code)).await.unwrap(),
+        "the deleted server released its vanity code"
+    );
 }
 
 #[tokio::test]
