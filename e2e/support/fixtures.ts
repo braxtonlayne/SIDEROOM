@@ -65,9 +65,10 @@ const headers = (token?: string): Record<string, string> => ({
   ...(token ? { 'X-SR-CSRF': token } : {}),
 });
 
-async function csrf(request: APIRequestContext): Promise<string> {
+/** CSRF token for the cookie session, or undefined when anonymous (register/login need none). */
+async function csrf(request: APIRequestContext): Promise<string | undefined> {
   const res = await request.get(`${API}/sr/csrf`, { headers: headers() });
-  expect(res.ok(), 'GET /sr/csrf').toBeTruthy();
+  if (!res.ok()) return undefined;
   return ((await res.json()) as { token: string }).token;
 }
 
