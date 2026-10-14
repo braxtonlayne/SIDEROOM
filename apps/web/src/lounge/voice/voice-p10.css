@@ -236,3 +236,12 @@
     grid-column: span 1;
   }
 }
+
+/* dragging people between voice channels (VOX-UI-009) */
+.lng-voice-members li[data-draggable] {
+  cursor: grab;
+}
+.lng-channel[data-voice-drop] {
+  outline: 2px dashed var(--ui-status-online);
+  outline-offset: -2px;
+}

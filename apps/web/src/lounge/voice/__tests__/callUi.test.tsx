@@ -391,3 +391,87 @@ describe('call controls', () => {
     expect(await axeViolations(bar)).toEqual([]);
   });
 });
+
+describe('voice user menu (VOX-UI-008)', () => {
+  it('offers Profile, Mention, Message, Add Note, volume, Mute and Copy User ID on a tile', async () => {
+    const user = userEvent.setup();
+    await joined(user);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    const tile = await screen.findByRole('group', { name: /^Mara/ });
+    await user.pointer({ keys: '[MouseRight]', target: tile });
+    const menu = await screen.findByRole('menu', { name: 'Mara voice actions' });
+    for (const name of ['Profile', 'Mention', 'Message', 'Add Note', 'Copy User ID'])
+      expect(within(menu).getByRole('menuitem', { name })).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitem', { name: 'User Volume' })).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitemcheckbox', { name: 'Mute' })).toBeInTheDocument();
+    await user.click(within(menu).getByRole('menuitem', { name: 'Mention' }));
+    expect(writeText).toHaveBeenCalledWith('<@2>');
+  });
+
+  it('has no menu on your own tile', async () => {
+    const user = userEvent.setup();
+    await joined(user);
+    const tile = await screen.findByTestId('voice-tile-1');
+    await user.pointer({ keys: '[MouseRight]', target: tile });
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+});
+
+describe('dragging people between channels (VOX-UI-009)', () => {
+  it('moves a dragged person with the moderator route and ignores other servers or the same channel', async () => {
+    const { dropVoiceUser } = await import('../voiceDrag');
+    let body: unknown;
+    let url = '';
+    server.use(
+      http.patch('*/api/v1/guilds/g1/voice-states/u2', async ({ request }) => {
+        url = new URL(request.url).pathname;
+        body = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
+      http.get('*/api/v1/sr/csrf', () => HttpResponse.json({ token: 'csrf' })),
+    );
+    await dropVoiceUser({ userId: 'u2', guildId: 'g1', fromChannelId: 'v1' }, 'g1', 'v1');
+    await dropVoiceUser({ userId: 'u2', guildId: 'other', fromChannelId: 'v1' }, 'g1', 'v2');
+    expect(body).toBeUndefined();
+    await dropVoiceUser({ userId: 'u2', guildId: 'g1', fromChannelId: 'v1' }, 'g1', 'v2');
+    expect(url).toBe('/api/v1/guilds/g1/voice-states/u2');
+    expect(body).toEqual({ channel_id: 'v2' });
+  });
+
+  it('highlights a voice channel under a dragged person and sends the move on drop', async () => {
+    const { VOICE_USER_MIME } = await import('../voiceDrag');
+    const { fireEvent } = await import('@testing-library/react');
+    let body: unknown;
+    server.use(
+      http.patch('*/api/v1/guilds/1001/voice-states/2', async ({ request }) => {
+        body = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
+      http.get('*/api/v1/sr/csrf', () => HttpResponse.json({ token: 'csrf' })),
+    );
+    at('/channels/1001/2001');
+    const sidebar = await screen.findByTestId('channel-sidebar');
+    const target = within(sidebar).getByRole('button', { name: /^Movie night/ });
+    const payload = JSON.stringify({ userId: '2', guildId: '1001', fromChannelId: '2011' });
+    const dataTransfer = {
+      types: [VOICE_USER_MIME],
+      getData: (t: string) => (t === VOICE_USER_MIME ? payload : ''),
+      dropEffect: 'none',
+    };
+    fireEvent.dragOver(target, { dataTransfer });
+    expect(target).toHaveAttribute('data-voice-drop');
+    fireEvent.drop(target, { dataTransfer });
+    await waitFor(() => expect(body).toEqual({ channel_id: '2012' }));
+    expect(target).not.toHaveAttribute('data-voice-drop');
+  });
+
+  it('ignores a file dragged over a voice channel', async () => {
+    const { fireEvent } = await import('@testing-library/react');
+    at('/channels/1001/2001');
+    const sidebar = await screen.findByTestId('channel-sidebar');
+    const target = within(sidebar).getByRole('button', { name: /^Movie night/ });
+    fireEvent.dragOver(target, { dataTransfer: { types: ['Files'] } });
+    expect(target).not.toHaveAttribute('data-voice-drop');
+  });
+});

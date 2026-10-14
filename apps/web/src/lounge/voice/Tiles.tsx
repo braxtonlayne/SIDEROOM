@@ -6,7 +6,7 @@ import { useVoiceSettings, userVolumeOf } from '../../voice/settings';
 import { presetLabel, setWatching, useLocalVideo, useRemoteVideo } from '../../voice/video';
 import { useCurrentUser, useUsers, type VoiceMember } from '../data';
 import { QualityBars } from './QualityBars';
-import { useVoiceMenuEntries } from './useVoiceMenu';
+import { useVoiceUserMenu } from './useVoiceUserMenu';
 import { VideoSurface } from './VideoSurface';
 import './voice-p10.css';
 
@@ -96,7 +96,7 @@ export function ParticipantTile({
   const self = p.userId === me.id;
   const stream = self ? (sessionCamera ? localCamera?.stream : undefined) : remoteCamera;
   const hasVideo = !!stream;
-  const menu = useVoiceMenuEntries(guildId, { id: p.userId, name }, onError, channelId);
+  const menu = useVoiceUserMenu(guildId, { id: p.userId, name }, onError, channelId);
   const label = stateLabel({ ...p, video: p.video || hasVideo }, name, self);
   return (
     <li className="vc-tile-item" data-focused={focused || undefined}>

@@ -74,4 +74,6 @@ export default {
   'lounge.voicePanel.cameraOff': 'Turn off camera',
   'lounge.voicePanel.share': 'Share your screen',
   'lounge.voicePanel.stopShare': 'Stop sharing',
+  'lounge.voiceMenu.dmFailed': 'Could not open the conversation.',
+  'lounge.channelSidebar.moveFailed': 'Could not move that person.',
 } satisfies Record<string, string>;
