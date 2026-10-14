@@ -32,6 +32,7 @@ pub mod admin;
 pub mod auth;
 pub mod cdn;
 pub mod cinema;
+pub mod cinema_media;
 pub mod cinema_social;
 pub mod guilds;
 pub mod library;
@@ -98,6 +99,7 @@ pub fn all() -> Router<AppState> {
         .merge(threads::router())
         .merge(library::router())
         .merge(cinema::router())
+        .merge(cinema_media::router())
         .merge(review::router())
         .merge(voice::router())
         .merge(cinema_social::router())
@@ -127,6 +129,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(threads::openapi());
     doc.merge(library::openapi());
     doc.merge(cinema::openapi());
+    doc.merge(cinema_media::openapi());
     doc.merge(review::openapi());
     doc.merge(voice::openapi());
     doc.merge(cinema_social::openapi());

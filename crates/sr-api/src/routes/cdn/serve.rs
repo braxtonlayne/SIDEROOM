@@ -141,6 +141,26 @@ pub(super) async fn serve(State(state): State<AppState>, req: Request) -> Respon
         format!("private, max-age={max_age}")
     };
 
+    // Transcode prefixes: the playlists and the sprite map are rendered with signed URLs.
+    if parsed.key.starts_with("transcode/")
+        && let Some(hls) = state.extension::<super::HlsDeps>()
+        && let Some(r) = hls.0.render(&parsed.key, now).await
+    {
+        let mut headers = HeaderMap::new();
+        put(&mut headers, header::CONTENT_TYPE, r.content_type);
+        put(&mut headers, header::CACHE_CONTROL, "private, max-age=60");
+        put(&mut headers, header::X_CONTENT_TYPE_OPTIONS, "nosniff");
+        put(
+            &mut headers,
+            header::CONTENT_LENGTH,
+            &r.body.len().to_string(),
+        );
+        if head_only {
+            return (StatusCode::OK, headers).into_response();
+        }
+        return (StatusCode::OK, headers, r.body).into_response();
+    }
+
     if !params.is_empty() || parsed.format_hint.is_some() {
         match variant::serve(
             deps.as_ref(),
@@ -179,7 +199,7 @@ pub(super) async fn serve(State(state): State<AppState>, req: Request) -> Respon
     }
 
     // Type: extension allow-list, else a sniff of the first bytes, else download.
-    let presentation = match content::from_extension(&parsed.filename) {
+    let mut presentation = match content::from_extension(&parsed.filename) {
         Some(p) => p,
         None if info.size == 0 => content::from_mime(""),
         None => match deps
@@ -195,6 +215,10 @@ pub(super) async fn serve(State(state): State<AppState>, req: Request) -> Respon
             }
         },
     };
+    // `dl=1` asks for a download instead of inline playback (Patron downloads).
+    if query.split('&').any(|p| p == "dl=1") {
+        presentation.inline = false;
+    }
     put(
         &mut headers,
         header::CONTENT_TYPE,

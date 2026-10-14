@@ -27,7 +27,7 @@ mod admin;
 mod member;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 use crate::{
     auth::UserOnly,

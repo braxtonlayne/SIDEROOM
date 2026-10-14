@@ -102,6 +102,23 @@ impl CdnDeps {
     }
 }
 
+/// Renders the HLS playlists and the sprite map of a transcode prefix on request (their stored
+/// versions name segments relatively, which the signed CDN cannot serve). `key` is the storage key
+/// (`transcode/<job>/<attempt>/master.m3u8`); `None` means "serve the stored object".
+#[async_trait::async_trait]
+pub trait PlaylistRenderer: Send + Sync {
+    async fn render(&self, key: &str, now: u64) -> Option<RenderedPlaylist>;
+}
+
+/// A rendered playlist or VTT.
+pub struct RenderedPlaylist {
+    pub content_type: &'static str,
+    pub body: String,
+}
+
+/// Register with `AppStateBuilder::extension` to let the `hls` kind render playlists.
+pub struct HlsDeps(pub Arc<dyn PlaylistRenderer>);
+
 /// The bare route (`/cdn/{*path}`), GET and HEAD. Axum answers HEAD from GET
 /// routes, but the handler distinguishes it to avoid reading the body.
 pub fn router() -> Router<AppState> {

@@ -102,7 +102,7 @@ struct Browsed {
 }
 
 #[derive(Default)]
-struct Stub {
+pub(crate) struct Stub {
     browses: Mutex<Vec<Browsed>>,
 }
 

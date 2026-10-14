@@ -251,6 +251,11 @@ impl DownloadService {
             .ok_or_else(|| MediaError::Forbidden("Downloads are for Patrons.".into()))
     }
 
+    /// Fails with `Forbidden` unless the member holds the download perk.
+    pub async fn check_entitled(&self, user: i64) -> MediaResult<()> {
+        self.allowance(user).await.map(|_| ())
+    }
+
     /// The picker for an asset the caller may open.
     pub async fn options(&self, user: i64, asset_id: i64) -> MediaResult<DownloadOptions> {
         let allowance = self.allowance(user).await?;
