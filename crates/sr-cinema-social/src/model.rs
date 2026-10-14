@@ -10,6 +10,7 @@ use crate::ids::{id, id_vec, opt_id};
 
 /// Body of `PUT /cinema/titles/{id}[/episodes/{eid}]/progress`.
 #[derive(Debug, Clone, Deserialize, ToSchema)]
+#[schema(as = CinemaProgressInput)]
 pub struct ProgressInput {
     /// Where the player is, in seconds.
     pub position_secs: i32,
@@ -40,6 +41,7 @@ pub struct ProgressWrite {
 
 /// A member's progress in one movie or episode.
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaProgress)]
 pub struct Progress {
     #[serde(with = "id")]
     #[schema(value_type = String)]
@@ -57,6 +59,7 @@ pub struct Progress {
 
 /// Answer of a progress save.
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaProgressSaved)]
 pub struct ProgressSaved {
     /// What is stored now (or, when paused, what was sent).
     pub progress: Progress,
@@ -68,12 +71,14 @@ pub struct ProgressSaved {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaWatchState)]
 pub struct WatchState {
     pub items: Vec<Progress>,
 }
 
 /// Body of `POST /cinema/titles/{id}/watched`.
 #[derive(Debug, Clone, Deserialize, ToSchema)]
+#[schema(as = CinemaWatchedInput)]
 pub struct WatchedInput {
     pub watched: bool,
     /// One episode.
@@ -85,6 +90,7 @@ pub struct WatchedInput {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[schema(as = CinemaWatchedResult)]
 pub struct WatchedResult {
     /// Items whose mark changed.
     pub changed: u64,
@@ -93,6 +99,7 @@ pub struct WatchedResult {
 // ---- history and continue watching ----------------------------------------
 
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaHistoryItem)]
 pub struct HistoryItem {
     pub title: TitleRef,
     pub episode: Option<EpisodeRef>,
@@ -100,6 +107,7 @@ pub struct HistoryItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaHistoryPage)]
 pub struct HistoryPage {
     pub items: Vec<HistoryItem>,
     /// Pass back as `before` for the next page; absent at the end.
@@ -107,12 +115,14 @@ pub struct HistoryPage {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[schema(as = CinemaHistorySettings)]
 pub struct HistorySettings {
     pub paused: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
+#[schema(as = CinemaContinueReason)]
 pub enum ContinueReason {
     /// An unfinished item with its progress.
     Resume,
@@ -121,6 +131,7 @@ pub enum ContinueReason {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaContinueItem)]
 pub struct ContinueItem {
     pub reason: ContinueReason,
     pub title: TitleRef,
@@ -129,6 +140,7 @@ pub struct ContinueItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaContinueWatching)]
 pub struct ContinueWatching {
     pub items: Vec<ContinueItem>,
 }
@@ -137,6 +149,7 @@ pub struct ContinueWatching {
 
 /// One friend who is watching something now.
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaFriendWatching)]
 pub struct FriendWatching {
     #[serde(with = "id")]
     #[schema(value_type = String)]
@@ -148,6 +161,7 @@ pub struct FriendWatching {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaFriendsWatching)]
 pub struct FriendsWatching {
     pub items: Vec<FriendWatching>,
 }
@@ -156,6 +170,7 @@ pub struct FriendsWatching {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
+#[schema(as = CinemaVisibility)]
 pub enum Visibility {
     Private,
     /// Shared with friends.
@@ -184,6 +199,7 @@ impl Visibility {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
+#[schema(as = CinemaListKind)]
 pub enum ListKind {
     /// "My list": one per account.
     Saved,
@@ -208,6 +224,7 @@ pub struct CinemaList {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaListItem)]
 pub struct ListItem {
     pub title: TitleRef,
     pub note: String,
@@ -215,12 +232,14 @@ pub struct ListItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaListItemsPage)]
 pub struct ListItemsPage {
     pub items: Vec<ListItem>,
     pub next_before: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaListDetail)]
 pub struct ListDetail {
     pub list: CinemaList,
     pub items: Vec<ListItem>,
@@ -228,11 +247,13 @@ pub struct ListDetail {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaListsResponse)]
 pub struct ListsResponse {
     pub lists: Vec<CinemaList>,
 }
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]
+#[schema(as = CinemaListInput)]
 pub struct ListInput {
     pub name: String,
     pub description: Option<String>,
@@ -240,6 +261,7 @@ pub struct ListInput {
 }
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]
+#[schema(as = CinemaListPatch)]
 pub struct ListPatch {
     pub name: Option<String>,
     pub description: Option<String>,
@@ -247,11 +269,13 @@ pub struct ListPatch {
 }
 
 #[derive(Debug, Clone, Default, Deserialize, ToSchema)]
+#[schema(as = CinemaListItemInput)]
 pub struct ListItemInput {
     pub note: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]
+#[schema(as = CinemaListOrderInput)]
 pub struct ListOrderInput {
     #[serde(with = "id_vec")]
     #[schema(value_type = Vec<String>)]
@@ -261,18 +285,21 @@ pub struct ListOrderInput {
 // ---- ratings, reviews -------------------------------------------------------
 
 #[derive(Debug, Clone, Copy, Deserialize, ToSchema)]
+#[schema(as = CinemaRatingInput)]
 pub struct RatingInput {
     /// 1 to 10.
     pub score: i32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaRatingAggregate)]
 pub struct RatingAggregate {
     pub average: Option<f64>,
     pub count: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaRatings)]
 pub struct Ratings {
     /// The caller's own score.
     pub mine: Option<i32>,
@@ -283,6 +310,7 @@ pub struct Ratings {
 }
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]
+#[schema(as = CinemaReviewInput)]
 pub struct ReviewInput {
     pub body: String,
     pub spoiler: Option<bool>,
@@ -291,6 +319,7 @@ pub struct ReviewInput {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaReview)]
 pub struct Review {
     #[serde(with = "id")]
     #[schema(value_type = String)]
@@ -313,6 +342,7 @@ pub struct Review {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaReviewPage)]
 pub struct ReviewPage {
     pub items: Vec<Review>,
     pub next_before: Option<String>,
@@ -320,6 +350,7 @@ pub struct ReviewPage {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
+#[schema(as = CinemaReviewSort)]
 pub enum ReviewSort {
     Helpful,
     Recent,
@@ -328,6 +359,7 @@ pub enum ReviewSort {
 // ---- comments ---------------------------------------------------------------
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]
+#[schema(as = CinemaCommentInput)]
 pub struct CommentInput {
     pub body: String,
     pub spoiler: Option<bool>,
@@ -338,12 +370,14 @@ pub struct CommentInput {
 }
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]
+#[schema(as = CinemaCommentPatch)]
 pub struct CommentPatch {
     pub body: Option<String>,
     pub spoiler: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaComment)]
 pub struct Comment {
     #[serde(with = "id")]
     #[schema(value_type = String)]
@@ -372,12 +406,14 @@ pub struct Comment {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaCommentPage)]
 pub struct CommentPage {
     pub items: Vec<Comment>,
     pub next_before: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, ToSchema)]
+#[schema(as = CinemaReportInput)]
 pub struct ReportInput {
     pub reason: String,
 }
@@ -386,6 +422,7 @@ pub struct ReportInput {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
+#[schema(as = CinemaTrendScope)]
 pub enum TrendScope {
     Global,
     Friends,
@@ -404,6 +441,7 @@ impl TrendScope {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaTrendingItem)]
 pub struct TrendingItem {
     pub title: TitleRef,
     pub score: f64,
@@ -412,12 +450,14 @@ pub struct TrendingItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaTrending)]
 pub struct Trending {
     pub scope: TrendScope,
     pub items: Vec<TrendingItem>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaRecommendation)]
 pub struct Recommendation {
     pub title: TitleRef,
     pub score: f64,
@@ -426,6 +466,7 @@ pub struct Recommendation {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaRecommendationRow)]
 pub struct RecommendationRow {
     /// "Because you watched ...".
     pub because: TitleRef,
@@ -433,6 +474,7 @@ pub struct RecommendationRow {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaRecommendations)]
 pub struct Recommendations {
     pub rows: Vec<RecommendationRow>,
 }

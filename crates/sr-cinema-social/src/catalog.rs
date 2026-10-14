@@ -22,6 +22,7 @@ pub type CatalogResult<T> = Result<T, CatalogError>;
 /// What a title is. Movies are played directly (`episode_id` 0); series and anime by episode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
+#[schema(as = CinemaTitleKind)]
 pub enum TitleKind {
     Movie,
     Series,
@@ -108,6 +109,7 @@ pub trait CatalogLookup: Send + Sync {
 
 /// A title for display, resolved from the catalog at read time.
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaTitleRef)]
 pub struct TitleRef {
     #[serde(with = "id")]
     #[schema(value_type = String)]
@@ -134,6 +136,7 @@ impl From<&CatalogTitle> for TitleRef {
 
 /// An episode for display.
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = CinemaEpisodeRef)]
 pub struct EpisodeRef {
     #[serde(with = "id")]
     #[schema(value_type = String)]
@@ -303,5 +306,41 @@ impl CatalogLookup for MemoryCatalog {
         out.sort_by_key(|t| t.id);
         out.truncate(limit as usize);
         Ok(out)
+    }
+}
+
+/// A catalog without titles: every lookup finds nothing, so every item answers 404. The composition
+/// root uses it until `sr-cinema` provides the real [`CatalogLookup`].
+pub struct NoCatalog;
+
+#[async_trait]
+impl CatalogLookup for NoCatalog {
+    async fn title(&self, _id: i64) -> CatalogResult<Option<CatalogTitle>> {
+        Ok(None)
+    }
+
+    async fn titles(&self, _ids: &[i64]) -> CatalogResult<Vec<CatalogTitle>> {
+        Ok(vec![])
+    }
+
+    async fn episode(&self, _t: i64, _e: i64) -> CatalogResult<Option<CatalogEpisode>> {
+        Ok(None)
+    }
+
+    async fn episodes(&self, _t: i64, _s: Option<i32>) -> CatalogResult<Vec<CatalogEpisode>> {
+        Ok(vec![])
+    }
+
+    async fn next_episode(&self, _t: i64, _after: i64) -> CatalogResult<Option<CatalogEpisode>> {
+        Ok(None)
+    }
+
+    async fn titles_with_tags(
+        &self,
+        _tags: &[String],
+        _exclude: &[i64],
+        _limit: u32,
+    ) -> CatalogResult<Vec<CatalogTitle>> {
+        Ok(vec![])
     }
 }

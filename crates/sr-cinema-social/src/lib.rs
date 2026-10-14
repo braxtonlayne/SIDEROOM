@@ -25,7 +25,7 @@ pub mod social;
 
 pub use catalog::{
     CatalogEpisode, CatalogError, CatalogLookup, CatalogResult, CatalogTitle, EpisodeRef,
-    MemoryCatalog, TitleKind, TitleRef,
+    MemoryCatalog, NoCatalog, TitleKind, TitleRef,
 };
 pub use error::{SocialError, SocialResult};
 pub use model::Viewer;
