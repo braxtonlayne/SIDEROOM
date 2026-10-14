@@ -28,6 +28,7 @@ import {
   type VoiceMember,
 } from './data';
 import { useLoungeRoute } from './nav';
+import { NestedThreads } from './threads/NestedThreads';
 import { useGuildMenuCore } from './shell/useGuildMenu';
 import { useChannelDnd, type ChannelDropMark } from './shell/useChannelDnd';
 import { useChannelMenu } from './shell/useChannelMenu';
@@ -74,9 +75,17 @@ function VoiceMemberRow({
           <span className="lng-voice-name">{u.displayName}</span>
           {m.streaming && <span className="lng-live">{t('lounge.channelSidebar.live')}</span>}
           {m.video && <Icon name="video" size={16} label={t('lounge.channelSidebar.cameraOn')} />}
-          {m.muted && <Icon name="mic-off" size={16} label={t('lounge.channelSidebar.muted')} />}
-          {m.deafened && (
-            <Icon name="volume-off" size={16} label={t('lounge.channelSidebar.deafened')} />
+          {m.serverMuted ? (
+            <Icon name="mic-off" size={16} label={t('lounge.channelSidebar.serverMuted')} />
+          ) : (
+            m.muted && <Icon name="mic-off" size={16} label={t('lounge.channelSidebar.muted')} />
+          )}
+          {m.serverDeafened ? (
+            <Icon name="volume-off" size={16} label={t('lounge.channelSidebar.serverDeafened')} />
+          ) : (
+            m.deafened && (
+              <Icon name="volume-off" size={16} label={t('lounge.channelSidebar.deafened')} />
+            )
           )}
         </div>
       </ContextMenu>
@@ -233,6 +242,7 @@ function ChannelRow({
           )}
         </span>
       </ContextMenu>
+      {!isVoiceLike(channel) && <NestedThreads guildId={guild.id} channelId={channel.id} />}
     </li>
   );
 }

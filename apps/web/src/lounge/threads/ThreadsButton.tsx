@@ -9,7 +9,8 @@ export function ThreadsButton({ guildId, channelId }: { guildId: string; channel
   const t = useT();
   const byId = useThreads((s) => s.byId);
   const loaded = useThreads((s) => !!s.loadedGuilds[guildId]);
-  const [tab, setTab] = useState<'active' | 'archived'>('active');
+  const [tab, setTab] = useState<'joined' | 'active' | 'archived'>('active');
+  const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [error, setError] = useState(false);
   const [more, setMore] = useState(false);
@@ -36,7 +37,10 @@ export function ThreadsButton({ guildId, channelId }: { guildId: string; channel
       .catch(() => setError(true));
   }, [open, tab, channelId]);
 
-  const list: ThreadInfo[] = tab === 'active' ? active : archived;
+  const base: ThreadInfo[] =
+    tab === 'archived' ? archived : tab === 'joined' ? active.filter((th) => th.joined) : active;
+  const needle = query.trim().toLowerCase();
+  const list = needle ? base.filter((th) => th.name.toLowerCase().includes(needle)) : base;
   const loadMore = () => {
     const last = archived[archived.length - 1]?.archiveTimestamp;
     useThreads
@@ -68,7 +72,7 @@ export function ThreadsButton({ guildId, channelId }: { guildId: string; channel
           aria-label={t('lounge.threadsButton.lists')}
           className="lng-threads-tabs"
         >
-          {(['active', 'archived'] as const).map((which) => (
+          {(['joined', 'active', 'archived'] as const).map((which) => (
             <button
               key={which}
               type="button"
@@ -78,10 +82,20 @@ export function ThreadsButton({ guildId, channelId }: { guildId: string; channel
             >
               {which === 'active'
                 ? t('lounge.threadsButton.tabActive')
-                : t('lounge.threadsButton.tabArchived')}
+                : which === 'joined'
+                  ? t('lounge.threadsButton.tabJoined')
+                  : t('lounge.threadsButton.tabArchived')}
             </button>
           ))}
         </div>
+        <input
+          type="search"
+          className="lng-threads-search"
+          value={query}
+          placeholder={t('lounge.threadsButton.search')}
+          aria-label={t('lounge.threadsButton.search')}
+          onChange={(e) => setQuery(e.target.value)}
+        />
         {error && (
           <p className="lng-muted" role="alert">
             {t('lounge.threadsButton.loadError')}
@@ -89,16 +103,22 @@ export function ThreadsButton({ guildId, channelId }: { guildId: string; channel
         )}
         {list.length === 0 && !error && (
           <p className="lng-muted">
-            {tab === 'active'
-              ? t('lounge.threadsButton.emptyActive')
-              : t('lounge.threadsButton.emptyArchived')}
+            {needle
+              ? t('lounge.threadsButton.emptySearch')
+              : tab === 'archived'
+                ? t('lounge.threadsButton.emptyArchived')
+                : tab === 'joined'
+                  ? t('lounge.threadsButton.emptyJoined')
+                  : t('lounge.threadsButton.emptyActive')}
           </p>
         )}
         <ul className="lng-threads-list">
           {list.map((th) => (
             <li key={th.id}>
               <button type="button" onClick={() => openThread(guildId, channelId, th.id)}>
-                <strong>{th.name}</strong>
+                <strong>
+                  {th.isPrivate && <Icon name="lock" size={16} />} {th.name}
+                </strong>
                 <span className="lng-muted">
                   {t('lounge.threadsButton.messageCount', { count: th.messageCount })}
                   {th.joined ? t('lounge.threadsButton.followingSuffix') : ''}
