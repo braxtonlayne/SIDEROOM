@@ -38,6 +38,11 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
     if p.starts_with("/sr/") {
         return !matches!(p, "/sr/csrf" | "/sr/voice/turn");
     }
+    // The Server Directory is for signed-in members (D-012), and the server tag a person shows
+    // is their own choice.
+    if p.starts_with("/directory") || p.starts_with("/users/@me/primary-guild") {
+        return true;
+    }
     // Account-level user routes.
     if p.starts_with("/users/@me/relationships")
         || p.starts_with("/users/@me/settings")

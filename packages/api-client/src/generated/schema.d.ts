@@ -966,6 +966,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/directory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The directory queue for staff with `MANAGE_DIRECTORY`, oldest request first. */
+        get: operations["admin_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/directory/{guild_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Decide a listing: approve or reject a request, take an approved listing down, and
+         *     feature approved ones (`MANAGE_DIRECTORY`). The decision is written to the platform access
+         *     log.
+         */
+        patch: operations["admin_decide"];
+        trace?: never;
+    };
     "/admin/donations/config": {
         parameters: {
             query?: never;
@@ -2841,6 +2879,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/channels/{channel_id}/followers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Follow an announcement channel: its published messages are copied into
+         *     `webhook_channel_id`. Following twice returns the existing subscription. The source must be
+         *     an announcement channel you can see, the target a text or announcement channel where you
+         *     hold `MANAGE_WEBHOOKS`.
+         */
+        post: operations["follow_channel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/channels/{channel_id}/invites": {
         parameters: {
             query?: never;
@@ -2971,6 +3031,27 @@ export interface paths {
          *     message and `mention_count` is restored.
          */
         post: operations["ack_message"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/messages/{message_id}/crosspost": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish an announcement to the channels that follow this one. Needs `SEND_MESSAGES` for
+         *     your own message and `MANAGE_MESSAGES` for someone else's. Answers the updated message
+         *     (flag `CROSSPOSTED`).
+         */
+        post: operations["crosspost"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4316,6 +4397,81 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/directory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search the directory: approved listings of servers that still are Community, featured
+         *     first, then by member count. Visible to every signed-in member (D-012).
+         */
+        get: operations["search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/directory/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The categories a listing may use. */
+        get: operations["list_categories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/directory/{guild_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One listed server (the card behind a preview). 404 unless it is approved and Community. */
+        get: operations["get_listed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/directory/{guild_id}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Join a listed server straight from the directory, without an invite. Banned users,
+         *     servers with invites paused and unlisted servers answer 403 or 404 like an invite would.
+         *     A server with membership screening admits the member as `pending`.
+         */
+        post: operations["join"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/donations/config": {
         parameters: {
             query?: never;
@@ -4517,6 +4673,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/tag-badges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The badge icons a server tag may carry (LNG-GLD-011). */
+        get: operations["list_tag_badges"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/templates/builtin": {
         parameters: {
             query?: never;
@@ -4690,6 +4863,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/bulk-ban": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ban up to 200 users at once (LNG-GLD-006). Needs `BAN_MEMBERS` and `MANAGE_GUILD`
+         *     like Discord; each user is subject to the same hierarchy rules as a single ban and
+         *     the ones that fail are listed rather than failing the request. Every banned user
+         *     produces the usual `GUILD_BAN_ADD`, audit entry and member removal.
+         */
+        post: operations["bulk_ban"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/channels": {
         parameters: {
             query?: never;
@@ -4707,6 +4902,32 @@ export interface paths {
         head?: never;
         /** Bulk update `position` and `parent_id`. Needs `MANAGE_CHANNELS`. */
         patch: operations["reorder_channels"];
+        trace?: never;
+    };
+    "/guilds/{guild_id}/directory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The listing of the caller's server and where it stands (`MANAGE_GUILD`). 404 when the
+         *     server never asked.
+         */
+        get: operations["get_own_listing"];
+        /**
+         * Ask to be listed in the directory, or edit the request (`MANAGE_GUILD`). The server needs
+         *     Community; a new request waits for staff, and changing an approved listing sends it back for
+         *     review (D-012).
+         */
+        put: operations["request_listing"];
+        post?: never;
+        /** Take the server out of the directory, or cancel the request (`MANAGE_GUILD`). */
+        delete: operations["withdraw_listing"];
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/guilds/{guild_id}/emojis": {
@@ -4786,6 +5007,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/member-verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The membership screening form of a server. Any member (also a pending one) can read it;
+         *     editing it goes through `PATCH /guilds/{id}/sr/community` (`screening_*`).
+         */
+        get: operations["get_member_verification"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/members": {
         parameters: {
             query?: never;
@@ -4804,6 +5045,27 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/members/@me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit the caller\'s own per-server profile: nickname, avatar, banner and bio
+         *     (LNG-GLD-012). Images arrive as data URIs and are stored under the user with a hash that
+         *     is specific to this server, so the same picture in two servers stays independent.
+         */
+        patch: operations["modify_own_member"];
         trace?: never;
     };
     "/guilds/{guild_id}/members/search": {
@@ -4902,6 +5164,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/onboarding-responses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit the onboarding answers (LNG-GLD-008): the roles of the chosen options are granted
+         *     and the channels to show come back. Needs onboarding to be on; required questions must be
+         *     answered, single-select questions take one answer.
+         */
+        post: operations["post_onboarding_responses"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/prune": {
         parameters: {
             query?: never;
@@ -4917,6 +5200,26 @@ export interface paths {
          *     for a bigger backlog.
          */
         post: operations["prune"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/requests/@me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Agree to the server rules and stop being `pending` (LNG-GLD-008). Pending members can
+         *     read but not write until they do. Answers the member object; accepting again is harmless.
+         */
+        put: operations["accept_screening"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5126,6 +5429,28 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/vanity-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The vanity code of a server and its use count (`MANAGE_GUILD`). */
+        get: operations["get_vanity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Claim, change or release the vanity code (`MANAGE_GUILD`). The code is unique across
+         *     servers and may not shadow an existing invite code or a reserved word; a taken code
+         *     answers 400 `VANITY_URL_TAKEN`. Emits `GUILD_UPDATE`.
+         */
+        patch: operations["set_vanity"];
         trace?: never;
     };
     "/guilds/{guild_id}/voice-states/{user_id}": {
@@ -6498,6 +6823,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/@me/guilds/{guild_id}/member": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's own member object in a server (`GET /users/@me/guilds/{id}/member`). */
+        get: operations["get_own_member"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/@me/guilds/{guild_id}/settings": {
         parameters: {
             query?: never;
@@ -6620,6 +6962,26 @@ export interface paths {
          *     `duration_seconds`) and set or clear the custom status.
          */
         patch: operations["patch_presence"];
+        trace?: never;
+    };
+    "/users/@me/primary-guild": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Choose which server\'s tag is shown next to your name everywhere (LNG-GLD-011). You must
+         *     be a member of the server and it must have a tag. Returns your public user reference.
+         */
+        patch: operations["set_primary_guild"];
         trace?: never;
     };
     "/users/@me/privacy": {
@@ -7189,6 +7551,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description Body of `PUT /guilds/{id}/requests/@me`. */
+        AcceptScreeningBody: {
+            /** @description Must be true (or absent): the member agrees to the rules. */
+            agreed?: boolean | null;
+        };
         /**
          * @description Why an access-log row exists.
          * @enum {string}
@@ -7332,6 +7699,15 @@ export interface components {
             resolved_by?: string | null;
             user_id: string;
             user_name?: string | null;
+        };
+        /** @description A listing in the staff queue. */
+        AdminListingObject: components["schemas"]["ListingObject"] & {
+            /** Format: int64 */
+            approximate_member_count: number;
+            /** @description Community is still on; a listing of a server that switched it off stays hidden. */
+            community_enabled: boolean;
+            guild_name?: string | null;
+            requested_by: string;
         };
         /** @description Everything about a title, unpublished parts included (staff). */
         AdminTitleDetail: {
@@ -7768,6 +8144,25 @@ export interface components {
         BulkAckEntry: {
             channel_id: string;
             message_id: string;
+        };
+        /** @description Body of `POST /guilds/{id}/bulk-ban`. */
+        BulkBanBody: {
+            /**
+             * Format: int32
+             * @description Seconds of message history to delete for every banned user, 0 to 604800.
+             */
+            delete_message_seconds?: number | null;
+            /** @description Convenience; Discord carries the reason in `X-Audit-Log-Reason`. */
+            reason?: string | null;
+            /** @description Users to ban, 1 to 200 snowflakes. */
+            user_ids: string[];
+        };
+        /** @description Result of a bulk ban. */
+        BulkBanResult: {
+            /** @description Users that are now banned. */
+            banned_users: string[];
+            /** @description Users that could not be banned (hierarchy, owner, self or unknown). */
+            failed_users: string[];
         };
         BulkDeleteBody: {
             messages: string[];
@@ -8450,6 +8845,13 @@ export interface components {
             raid_alert_joins_per_minute: number;
             rules_channel_id?: string | null;
             safety_alerts_channel_id?: string | null;
+            screening_description?: string | null;
+            /**
+             * @description Membership screening is on: new members stay pending until they agree to the rules
+             *     (LNG-GLD-008).
+             */
+            screening_enabled: boolean;
+            screening_rules: string[];
             welcome_screen_enabled: boolean;
         };
         CompleteUploadRequest: {
@@ -8773,6 +9175,15 @@ export interface components {
             decision: string;
             note?: string | null;
         };
+        /** @description Body of `PATCH /admin/directory/{guild_id}`. */
+        DecisionBody: {
+            /** @description `approve`, `reject` or `remove`. */
+            decision: string;
+            /** @description Pin the server to the top (approved listings only). */
+            featured?: boolean | null;
+            /** @description A note to the server's managers, up to 500 characters. */
+            note?: string | null;
+        };
         /** @description A decision with its reason (request changes, reject, approve). */
         DecisionInput: {
             /** @description Required for request changes and reject; optional for approve. */
@@ -8807,6 +9218,30 @@ export interface components {
         DeveloperStatus: {
             is_developer: boolean;
             request?: null | components["schemas"]["DeveloperRequestObject"];
+        };
+        /** @description A server card in the directory. */
+        DirectoryGuildObject: {
+            /** Format: int64 */
+            approximate_member_count: number;
+            /**
+             * Format: int64
+             * @description Visibly online members; only while the gateway can tell (small servers).
+             */
+            approximate_presence_count?: number | null;
+            banner?: string | null;
+            category: string;
+            /** @description The listing's blurb, else the server description. */
+            description?: string | null;
+            /** @description Staff pinned this server. */
+            featured: boolean;
+            icon?: string | null;
+            id: string;
+            /** @description The caller already is a member. */
+            joined: boolean;
+            name: string;
+            preferred_locale: string;
+            splash?: string | null;
+            vanity_url_code?: string | null;
         };
         Discover: {
             /** @description Tonight's feature carousel (display `hero`). */
@@ -9089,10 +9524,10 @@ export interface components {
             notify: boolean;
             shelf: components["schemas"]["Shelf"];
         };
+        /** @description Body of `POST /channels/{id}/followers`. */
         FollowBody: {
-            /** @description New-chapter notifications; default on. */
-            notify?: boolean | null;
-            shelf?: null | components["schemas"]["Shelf"];
+            /** @description The channel that should receive the announcements (needs `MANAGE_WEBHOOKS` there). */
+            webhook_channel_id: string;
         };
         FollowPage: {
             items: components["schemas"]["FollowedSeries"][];
@@ -9102,6 +9537,13 @@ export interface components {
             offset: number;
             /** Format: int64 */
             total: number;
+        };
+        /** @description The new subscription. */
+        FollowedChannelObject: {
+            /** @description The announcement channel being followed. */
+            channel_id: string;
+            /** @description The follower webhook in the target channel; delete it to stop following. */
+            webhook_id: string;
         };
         FollowedSeries: {
             follow: components["schemas"]["Follow"];
@@ -9240,6 +9682,12 @@ export interface components {
             /** @description Invite splash hash, same URL shape as the icon. */
             splash?: string | null;
             system_channel_id?: string | null;
+            /** @description Server tag (LNG-GLD-011). */
+            tag?: string | null;
+            /** @description Server tag badge slug. */
+            tag_badge?: string | null;
+            /** @description Vanity invite code (LNG-INV-004). */
+            vanity_url_code?: string | null;
             /** Format: int32 */
             verification_level: number;
         };
@@ -9366,9 +9814,16 @@ export interface components {
             truncated: boolean;
         };
         InviteGuild: {
+            /** @description Banner hash, same URL shape as the icon. */
+            banner?: string | null;
+            description?: string | null;
             icon?: string | null;
             id: string;
             name: string;
+            /** @description Invite splash hash, same URL shape as the icon (LNG-INV-004). */
+            splash?: string | null;
+            /** @description The server's vanity code, when it has one. */
+            vanity_url_code?: string | null;
         };
         /** @description A node of the invite graph. */
         InviteNode: {
@@ -9607,6 +10062,26 @@ export interface components {
             /** @description The title the asset belongs to (a film, or the series for bookkeeping). */
             title_id?: string | null;
         };
+        /** @description Body of `PUT /guilds/{id}/directory`. */
+        ListingBody: {
+            /** @description One of `GET /directory/categories`. */
+            category: string;
+            /** @description The card's blurb, up to 300 characters; empty falls back to the server description. */
+            description?: string | null;
+        };
+        /** @description A server's own listing request. */
+        ListingObject: {
+            category: string;
+            decided_at?: string | null;
+            /** @description Staff's note on the decision. */
+            decision_note?: string | null;
+            description: string;
+            featured: boolean;
+            guild_id: string;
+            requested_at: string;
+            /** @description `pending`, `approved`, `rejected` or `removed`. */
+            status: string;
+        };
         /** @description Body for `POST /sr/auth/passkeys/login/begin`. */
         LoginBeginBody: {
             /**
@@ -9674,6 +10149,10 @@ export interface components {
         };
         MemberObject: {
             avatar?: string | null;
+            /** @description Per-server banner hash (LNG-GLD-012). */
+            banner?: string | null;
+            /** @description Per-server bio (LNG-GLD-012). */
+            bio?: string | null;
             communication_disabled_until?: string | null;
             deaf: boolean;
             /** Format: int32 */
@@ -9687,6 +10166,13 @@ export interface components {
             premium_since?: string | null;
             roles: string[];
             user: components["schemas"]["UserRef"];
+        };
+        /** @description What a new member sees before they may talk (`GET /guilds/{id}/member-verification`). */
+        MemberVerificationObject: {
+            description?: string | null;
+            /** @description Screening is on and the server is a Community; otherwise members join straight in. */
+            enabled: boolean;
+            form_fields: components["schemas"]["VerificationField"][];
         };
         MergeBody: {
             /** @description The series that stays; this one is merged into it. */
@@ -9786,6 +10272,12 @@ export interface components {
             /** Format: int32 */
             rate_limit_per_user?: number | null;
             topic?: string | null;
+            /**
+             * Format: int32
+             * @description Convert a text channel (0) to an announcement channel (5) or back; no other change of
+             *     type is allowed.
+             */
+            type?: number | null;
             /** Format: int32 */
             user_limit?: number | null;
         };
@@ -9802,6 +10294,9 @@ export interface components {
             raid_alert_joins_per_minute?: number | null;
             rules_channel_id?: string | null;
             safety_alerts_channel_id?: string | null;
+            screening_description?: string | null;
+            screening_enabled?: boolean | null;
+            screening_rules?: string[] | null;
             welcome_screen_enabled?: boolean | null;
         };
         ModifyEmojiBody: {
@@ -9835,6 +10330,13 @@ export interface components {
             /** @description Invite splash image data URI; `null` removes it. */
             splash?: string | null;
             system_channel_id?: string | null;
+            /**
+             * @description Server tag, 2 to 4 letters or digits; `null` or an empty string removes it
+             *     (`MANAGE_GUILD`, LNG-GLD-011).
+             */
+            tag?: string | null;
+            /** @description Server tag badge slug (see `GET /guilds/tag-badges`); `null` removes it. */
+            tag_badge?: string | null;
             /** Format: int32 */
             verification_level?: number | null;
         };
@@ -9843,6 +10345,23 @@ export interface components {
             communication_disabled_until?: string | null;
             nick?: string | null;
             roles?: string[] | null;
+        };
+        /**
+         * @description Body of `PATCH /guilds/{id}/members/@me`: the caller's per-server profile
+         *     (LNG-GLD-012). Absent fields stay; `null` clears one.
+         */
+        ModifyOwnMemberBody: {
+            /**
+             * @description Per-server avatar as an image data URI (PNG, JPEG, GIF or WebP, 8 MiB at most,
+             *     cropped to a square).
+             */
+            avatar?: string | null;
+            /** @description Per-server banner as an image data URI. */
+            banner?: string | null;
+            /** @description Per-server bio, up to 190 characters. */
+            bio?: string | null;
+            /** @description Nickname, 1 to 32 characters (needs `CHANGE_NICKNAME`). */
+            nick?: string | null;
         };
         ModifyRoleBody: {
             /** Format: int32 */
@@ -9963,6 +10482,18 @@ export interface components {
             enabled: boolean;
             guild_id: string;
             prompts: components["schemas"]["PromptDto"][];
+        };
+        /** @description Body of `POST /guilds/{id}/onboarding-responses`. */
+        OnboardingResponseBody: {
+            /** @description The chosen answers (option ids of the onboarding questions). */
+            option_ids: string[];
+        };
+        /** @description What a member's onboarding answers unlock. */
+        OnboardingResultObject: {
+            /** @description Channels to show: the default ones plus those of the chosen answers. */
+            channel_ids: string[];
+            /** @description Roles newly granted by the answers (roles with moderation power are never granted). */
+            role_ids: string[];
         };
         OptionDto: {
             channel_ids?: string[];
@@ -10247,6 +10778,21 @@ export interface components {
         /** @description What the kind shows reviewers: for the Library kinds the series facts, editions and chapters. */
         PreviewBody: {
             preview: Record<string, never>;
+        };
+        /** @description Body of `PATCH /users/@me/primary-guild`. */
+        PrimaryGuildBody: {
+            /** @description Show the tag (default true while a server is chosen). */
+            identity_enabled?: boolean | null;
+            /** @description The server whose tag to show; `null` stops showing any. */
+            identity_guild_id?: string | null;
+        };
+        /** @description Discord's `primary_guild`: the server tag a user chose to show. */
+        PrimaryGuildObject: {
+            /** @description Badge slug, one of the tag badges (see `GET /guilds/tag-badges`). */
+            badge?: string | null;
+            identity_enabled: boolean;
+            identity_guild_id: string;
+            tag: string;
         };
         /** @description Who may send the caller friend requests and DMs. */
         PrivacyObject: {
@@ -11833,6 +12379,21 @@ export interface components {
              */
             version: number;
         };
+        /** @description Body of `PATCH /guilds/{id}/vanity-url`. */
+        VanityBody: {
+            /** @description 3 to 32 letters, digits or hyphens; `null` or an empty string releases the code. */
+            code?: string | null;
+        };
+        /** @description The vanity URL of a server. */
+        VanityObject: {
+            /** @description The code; `null` while the server has none. */
+            code?: string | null;
+            /**
+             * Format: int32
+             * @description Members who joined through it.
+             */
+            uses: number;
+        };
         Variant: {
             asset_id?: string | null;
             id: string;
@@ -11854,6 +12415,14 @@ export interface components {
             position?: number | null;
             /** Format: int32 */
             runtime_min?: number | null;
+        };
+        /** @description One field of the membership screening form (Discord's `form_fields`). */
+        VerificationField: {
+            /** @description Always `TERMS`: the rules the member agrees to. */
+            field_type: string;
+            label: string;
+            required: boolean;
+            values: string[];
         };
         VersionApplication: {
             id: string;
@@ -15739,6 +16308,110 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_list: {
+        parameters: {
+            query?: {
+                /** @description pending (default), approved, rejected or removed */
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminListingObject"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_decide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecisionBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListingObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -22083,6 +22756,56 @@ export interface operations {
             };
         };
     };
+    follow_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Announcement channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FollowBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FollowedChannelObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_channel_invites: {
         parameters: {
             query?: never;
@@ -22588,6 +23311,55 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AckResponse"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    crosspost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Announcement channel snowflake */
+                channel_id: string;
+                /** @description Message snowflake */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageObject"];
+                };
+            };
+            /** @description Not an announcement channel (50024) or already published (40033) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             403: {
@@ -27153,6 +27925,153 @@ export interface operations {
             };
         };
     };
+    search: {
+        parameters: {
+            query?: {
+                /** @description Words in the name or description */
+                query?: string;
+                /** @description One of GET /directory/categories */
+                category?: string;
+                /** @description 1 to 50, default 24 */
+                limit?: number;
+                /** @description Entries to skip */
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectoryGuildObject"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_categories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_listed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectoryGuildObject"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    join: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     donations_config: {
         parameters: {
             query?: never;
@@ -27574,6 +28493,33 @@ export interface operations {
                 };
             };
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_tag_badges: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -28297,6 +29243,59 @@ export interface operations {
             };
         };
     };
+    bulk_ban: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Stored as the ban reason */
+                "X-Audit-Log-Reason"?: string | null;
+            };
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkBanBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkBanResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_channels: {
         parameters: {
             query?: never;
@@ -28415,6 +29414,131 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_own_listing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListingObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    request_listing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ListingBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListingObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    withdraw_listing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Withdrawn */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             403: {
                 headers: {
@@ -28744,6 +29868,44 @@ export interface operations {
             };
         };
     };
+    get_member_verification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberVerificationObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_members: {
         parameters: {
             query?: {
@@ -28771,6 +29933,56 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MemberObject"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modify_own_member: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifyOwnMemberBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             403: {
@@ -29214,6 +30426,56 @@ export interface operations {
             };
         };
     };
+    post_onboarding_responses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnboardingResponseBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingResultObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     prune_count: {
         parameters: {
             query?: {
@@ -29287,6 +30549,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PruneResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    accept_screening: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        /** @description Optional */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptScreeningBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberObject"];
                 };
             };
             400: {
@@ -30283,6 +31596,94 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ThreadList"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_vanity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VanityObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_vanity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VanityBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VanityObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             403: {
@@ -34212,6 +35613,44 @@ export interface operations {
             };
         };
     };
+    get_own_member: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_settings: {
         parameters: {
             query?: never;
@@ -34547,6 +35986,53 @@ export interface operations {
                 };
             };
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_primary_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PrimaryGuildBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserRef"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

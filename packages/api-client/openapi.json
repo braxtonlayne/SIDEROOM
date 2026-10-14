@@ -5315,6 +5315,159 @@
         ]
       }
     },
+    "/admin/directory": {
+      "get": {
+        "tags": [],
+        "summary": "The directory queue for staff with `MANAGE_DIRECTORY`, oldest request first.",
+        "operationId": "admin_list",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "description": "pending (default), approved, rejected or removed",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminListingObject"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/directory/{guild_id}": {
+      "patch": {
+        "tags": [],
+        "summary": "Decide a listing: approve or reject a request, take an approved listing down, and\nfeature approved ones (`MANAGE_DIRECTORY`). The decision is written to the platform access\nlog.",
+        "operationId": "admin_decide",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/donations/config": {
       "get": {
         "tags": [
@@ -15055,6 +15208,86 @@
         ]
       }
     },
+    "/channels/{channel_id}/followers": {
+      "post": {
+        "tags": [
+          "follow"
+        ],
+        "summary": "Follow an announcement channel: its published messages are copied into\n`webhook_channel_id`. Following twice returns the existing subscription. The source must be\nan announcement channel you can see, the target a text or announcement channel where you\nhold `MANAGE_WEBHOOKS`.",
+        "operationId": "follow_channel",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Announcement channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FollowBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FollowedChannelObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/channels/{channel_id}/invites": {
       "get": {
         "tags": [
@@ -15952,6 +16185,85 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AckResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/messages/{message_id}/crosspost": {
+      "post": {
+        "tags": [
+          "crosspost"
+        ],
+        "summary": "Publish an announcement to the channels that follow this one. Needs `SEND_MESSAGES` for\nyour own message and `MANAGE_MESSAGES` for someone else's. Answers the updated message\n(flag `CROSSPOSTED`).",
+        "operationId": "crosspost",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Announcement channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "message_id",
+            "in": "path",
+            "description": "Message snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not an announcement channel (50024) or already published (40033)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -23144,6 +23456,249 @@
         ]
       }
     },
+    "/directory": {
+      "get": {
+        "tags": [],
+        "summary": "Search the directory: approved listings of servers that still are Community, featured\nfirst, then by member count. Visible to every signed-in member (D-012).",
+        "operationId": "search",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "description": "Words in the name or description",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "description": "One of GET /directory/categories",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 50, default 24",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Entries to skip",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DirectoryGuildObject"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/directory/categories": {
+      "get": {
+        "tags": [],
+        "summary": "The categories a listing may use.",
+        "operationId": "list_categories",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/directory/{guild_id}": {
+      "get": {
+        "tags": [],
+        "summary": "One listed server (the card behind a preview). 404 unless it is approved and Community.",
+        "operationId": "get_listed",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectoryGuildObject"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/directory/{guild_id}/join": {
+      "post": {
+        "tags": [],
+        "summary": "Join a listed server straight from the directory, without an invite. Banned users,\nservers with invites paused and unlisted servers answer 403 or 404 like an invite would.\nA server with membership screening admits the member as `pending`.",
+        "operationId": "join",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/donations/config": {
       "get": {
         "tags": [
@@ -23770,6 +24325,48 @@
             }
           },
           "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/tag-badges": {
+      "get": {
+        "tags": [
+          "guild"
+        ],
+        "summary": "The badge icons a server tag may carry (LNG-GLD-011).",
+        "operationId": "list_tag_badges",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
             "description": "",
             "content": {
               "application/json": {
@@ -24970,6 +25567,98 @@
         ]
       }
     },
+    "/guilds/{guild_id}/bulk-ban": {
+      "post": {
+        "tags": [
+          "bans"
+        ],
+        "summary": "Ban up to 200 users at once (LNG-GLD-006). Needs `BAN_MEMBERS` and `MANAGE_GUILD`\nlike Discord; each user is subject to the same hierarchy rules as a single ban and\nthe ones that fail are listed rather than failing the request. Every banned user\nproduces the usual `GUILD_BAN_ADD`, audit entry and member removal.",
+        "operationId": "bulk_ban",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Audit-Log-Reason",
+            "in": "header",
+            "description": "Stored as the ban reason",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkBanBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkBanResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/channels": {
       "get": {
         "tags": [
@@ -25153,6 +25842,189 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/directory": {
+      "get": {
+        "tags": [],
+        "summary": "The listing of the caller's server and where it stands (`MANAGE_GUILD`). 404 when the\nserver never asked.",
+        "operationId": "get_own_listing",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [],
+        "summary": "Ask to be listed in the directory, or edit the request (`MANAGE_GUILD`). The server needs\nCommunity; a new request waits for staff, and changing an approved listing sends it back for\nreview (D-012).",
+        "operationId": "request_listing",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListingBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [],
+        "summary": "Take the server out of the directory, or cancel the request (`MANAGE_GUILD`).",
+        "operationId": "withdraw_listing",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Withdrawn"
           },
           "403": {
             "description": "",
@@ -25704,6 +26576,66 @@
         ]
       }
     },
+    "/guilds/{guild_id}/member-verification": {
+      "get": {
+        "tags": [
+          "community"
+        ],
+        "summary": "The membership screening form of a server. Any member (also a pending one) can read it;\nediting it goes through `PATCH /guilds/{id}/sr/community` (`screening_*`).",
+        "operationId": "get_member_verification",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberVerificationObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/members": {
       "get": {
         "tags": [
@@ -25770,6 +26702,86 @@
                   "items": {
                     "$ref": "#/components/schemas/MemberObject"
                   }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/members/@me": {
+      "patch": {
+        "tags": [
+          "members"
+        ],
+        "summary": "Edit the caller\\'s own per-server profile: nickname, avatar, banner and bio\n(LNG-GLD-012). Images arrive as data URIs and are stored under the user with a hash that\nis specific to this server, so the same picture in two servers stays independent.",
+        "operationId": "modify_own_member",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModifyOwnMemberBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -26571,6 +27583,86 @@
         ]
       }
     },
+    "/guilds/{guild_id}/onboarding-responses": {
+      "post": {
+        "tags": [
+          "community"
+        ],
+        "summary": "Submit the onboarding answers (LNG-GLD-008): the roles of the chosen options are granted\nand the channels to show come back. Needs onboarding to be on; required questions must be\nanswered, single-select questions take one answer.",
+        "operationId": "post_onboarding_responses",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardingResponseBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingResultObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/prune": {
       "get": {
         "tags": [
@@ -26694,6 +27786,87 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PruneResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/requests/@me": {
+      "put": {
+        "tags": [
+          "community"
+        ],
+        "summary": "Agree to the server rules and stop being `pending` (LNG-GLD-008). Pending members can\nread but not write until they do. Answers the member object; accepting again is harmless.",
+        "operationId": "accept_screening",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Optional",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptScreeningBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberObject"
                 }
               }
             }
@@ -28329,6 +29502,144 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ThreadList"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/vanity-url": {
+      "get": {
+        "tags": [
+          "vanity"
+        ],
+        "summary": "The vanity code of a server and its use count (`MANAGE_GUILD`).",
+        "operationId": "get_vanity",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VanityObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "vanity"
+        ],
+        "summary": "Claim, change or release the vanity code (`MANAGE_GUILD`). The code is unique across\nservers and may not shadow an existing invite code or a reserved word; a taken code\nanswers 400 `VANITY_URL_TAKEN`. Emits `GUILD_UPDATE`.",
+        "operationId": "set_vanity",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VanityBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VanityObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -34359,6 +35670,66 @@
         ]
       }
     },
+    "/users/@me/guilds/{guild_id}/member": {
+      "get": {
+        "tags": [
+          "members"
+        ],
+        "summary": "The caller's own member object in a server (`GET /users/@me/guilds/{id}/member`).",
+        "operationId": "get_own_member",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/users/@me/guilds/{guild_id}/settings": {
       "get": {
         "tags": [
@@ -34866,6 +36237,75 @@
             }
           },
           "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/primary-guild": {
+      "patch": {
+        "tags": [
+          "guild"
+        ],
+        "summary": "Choose which server\\'s tag is shown next to your name everywhere (LNG-GLD-011). You must\nbe a member of the server and it must have a tag. Returns your public user reference.",
+        "operationId": "set_primary_guild",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrimaryGuildBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserRef"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
             "description": "",
             "content": {
               "application/json": {
@@ -37602,6 +39042,19 @@
   },
   "components": {
     "schemas": {
+      "AcceptScreeningBody": {
+        "type": "object",
+        "description": "Body of `PUT /guilds/{id}/requests/@me`.",
+        "properties": {
+          "agreed": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Must be true (or absent): the member agrees to the rules."
+          }
+        }
+      },
       "AccessKind": {
         "type": "string",
         "description": "Why an access-log row exists.",
@@ -38050,6 +39503,42 @@
             }
           }
         ]
+      },
+      "AdminListingObject": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ListingObject"
+          },
+          {
+            "type": "object",
+            "required": [
+              "requested_by",
+              "approximate_member_count",
+              "community_enabled"
+            ],
+            "properties": {
+              "approximate_member_count": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "community_enabled": {
+                "type": "boolean",
+                "description": "Community is still on; a listing of a server that switched it off stays hidden."
+              },
+              "guild_name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "requested_by": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "description": "A listing in the staff queue."
       },
       "AdminTitleDetail": {
         "type": "object",
@@ -39562,6 +41051,62 @@
           },
           "message_id": {
             "type": "string"
+          }
+        }
+      },
+      "BulkBanBody": {
+        "type": "object",
+        "description": "Body of `POST /guilds/{id}/bulk-ban`.",
+        "required": [
+          "user_ids"
+        ],
+        "properties": {
+          "delete_message_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Seconds of message history to delete for every banned user, 0 to 604800.",
+            "minimum": 0
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Convenience; Discord carries the reason in `X-Audit-Log-Reason`."
+          },
+          "user_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Users to ban, 1 to 200 snowflakes."
+          }
+        }
+      },
+      "BulkBanResult": {
+        "type": "object",
+        "description": "Result of a bulk ban.",
+        "required": [
+          "banned_users",
+          "failed_users"
+        ],
+        "properties": {
+          "banned_users": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Users that are now banned."
+          },
+          "failed_users": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Users that could not be banned (hierarchy, owner, self or unknown)."
           }
         }
       },
@@ -41777,7 +43322,9 @@
           "guide_enabled",
           "invites_paused",
           "raid_alert_joins_per_minute",
-          "age_restricted"
+          "age_restricted",
+          "screening_enabled",
+          "screening_rules"
         ],
         "properties": {
           "age_restricted": {
@@ -41831,6 +43378,22 @@
               "string",
               "null"
             ]
+          },
+          "screening_description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "screening_enabled": {
+            "type": "boolean",
+            "description": "Membership screening is on: new members stay pending until they agree to the rules\n(LNG-GLD-008)."
+          },
+          "screening_rules": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "welcome_screen_enabled": {
             "type": "boolean"
@@ -42880,6 +44443,33 @@
           }
         }
       },
+      "DecisionBody": {
+        "type": "object",
+        "description": "Body of `PATCH /admin/directory/{guild_id}`.",
+        "required": [
+          "decision"
+        ],
+        "properties": {
+          "decision": {
+            "type": "string",
+            "description": "`approve`, `reject` or `remove`."
+          },
+          "featured": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Pin the server to the top (approved listings only)."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A note to the server's managers, up to 500 characters."
+          }
+        }
+      },
       "DecisionInput": {
         "type": "object",
         "description": "A decision with its reason (request changes, reject, approve).",
@@ -43014,6 +44604,86 @@
               {
                 "$ref": "#/components/schemas/DeveloperRequestObject"
               }
+            ]
+          }
+        }
+      },
+      "DirectoryGuildObject": {
+        "type": "object",
+        "description": "A server card in the directory.",
+        "required": [
+          "id",
+          "name",
+          "category",
+          "featured",
+          "approximate_member_count",
+          "preferred_locale",
+          "joined"
+        ],
+        "properties": {
+          "approximate_member_count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "approximate_presence_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Visibly online members; only while the gateway can tell (small servers).",
+            "minimum": 0
+          },
+          "banner": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "category": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The listing's blurb, else the server description."
+          },
+          "featured": {
+            "type": "boolean",
+            "description": "Staff pinned this server."
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "joined": {
+            "type": "boolean",
+            "description": "The caller already is a member."
+          },
+          "name": {
+            "type": "string"
+          },
+          "preferred_locale": {
+            "type": "string"
+          },
+          "splash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "vanity_url_code": {
+            "type": [
+              "string",
+              "null"
             ]
           }
         }
@@ -43968,24 +45638,14 @@
       },
       "FollowBody": {
         "type": "object",
+        "description": "Body of `POST /channels/{id}/followers`.",
+        "required": [
+          "webhook_channel_id"
+        ],
         "properties": {
-          "notify": {
-            "type": [
-              "boolean",
-              "null"
-            ],
-            "description": "New-chapter notifications; default on."
-          },
-          "shelf": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/Shelf",
-                "description": "The \"My library\" shelf; default `reading`."
-              }
-            ]
+          "webhook_channel_id": {
+            "type": "string",
+            "description": "The channel that should receive the announcements (needs `MANAGE_WEBHOOKS` there)."
           }
         }
       },
@@ -44017,6 +45677,24 @@
           "total": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "FollowedChannelObject": {
+        "type": "object",
+        "description": "The new subscription.",
+        "required": [
+          "channel_id",
+          "webhook_id"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "description": "The announcement channel being followed."
+          },
+          "webhook_id": {
+            "type": "string",
+            "description": "The follower webhook in the target channel; delete it to stop following."
           }
         }
       },
@@ -44475,6 +46153,27 @@
               "string",
               "null"
             ]
+          },
+          "tag": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Server tag (LNG-GLD-011)."
+          },
+          "tag_badge": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Server tag badge slug."
+          },
+          "vanity_url_code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Vanity invite code (LNG-INV-004)."
           },
           "verification_level": {
             "type": "integer",
@@ -44962,6 +46661,19 @@
           "name"
         ],
         "properties": {
+          "banner": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Banner hash, same URL shape as the icon."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "icon": {
             "type": [
               "string",
@@ -44973,6 +46685,20 @@
           },
           "name": {
             "type": "string"
+          },
+          "splash": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Invite splash hash, same URL shape as the icon (LNG-INV-004)."
+          },
+          "vanity_url_code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The server's vanity code, when it has one."
           }
         }
       },
@@ -45738,6 +47464,72 @@
           }
         }
       },
+      "ListingBody": {
+        "type": "object",
+        "description": "Body of `PUT /guilds/{id}/directory`.",
+        "required": [
+          "category"
+        ],
+        "properties": {
+          "category": {
+            "type": "string",
+            "description": "One of `GET /directory/categories`."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The card's blurb, up to 300 characters; empty falls back to the server description."
+          }
+        }
+      },
+      "ListingObject": {
+        "type": "object",
+        "description": "A server's own listing request.",
+        "required": [
+          "guild_id",
+          "status",
+          "category",
+          "description",
+          "featured",
+          "requested_at"
+        ],
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "decided_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decision_note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Staff's note on the decision."
+          },
+          "description": {
+            "type": "string"
+          },
+          "featured": {
+            "type": "boolean"
+          },
+          "guild_id": {
+            "type": "string"
+          },
+          "requested_at": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "`pending`, `approved`, `rejected` or `removed`."
+          }
+        }
+      },
       "LoginBeginBody": {
         "type": "object",
         "description": "Body for `POST /sr/auth/passkeys/login/begin`.",
@@ -45941,6 +47733,20 @@
               "null"
             ]
           },
+          "banner": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Per-server banner hash (LNG-GLD-012)."
+          },
+          "bio": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Per-server bio (LNG-GLD-012)."
+          },
           "communication_disabled_until": {
             "type": [
               "string",
@@ -45991,6 +47797,32 @@
           },
           "user": {
             "$ref": "#/components/schemas/UserRef"
+          }
+        }
+      },
+      "MemberVerificationObject": {
+        "type": "object",
+        "description": "What a new member sees before they may talk (`GET /guilds/{id}/member-verification`).",
+        "required": [
+          "enabled",
+          "form_fields"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Screening is on and the server is a Community; otherwise members join straight in."
+          },
+          "form_fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VerificationField"
+            }
           }
         }
       },
@@ -46340,6 +48172,14 @@
                   "null"
                 ]
               },
+              "type": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int32",
+                "description": "Convert a text channel (0) to an announcement channel (5) or back; no other change of\ntype is allowed."
+              },
               "user_limit": {
                 "type": [
                   "integer",
@@ -46422,6 +48262,27 @@
               "string",
               "null"
             ]
+          },
+          "screening_description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "screening_enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "screening_rules": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
           },
           "welcome_screen_enabled": {
             "type": [
@@ -46538,6 +48399,20 @@
               "null"
             ]
           },
+          "tag": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Server tag, 2 to 4 letters or digits; `null` or an empty string removes it\n(`MANAGE_GUILD`, LNG-GLD-011)."
+          },
+          "tag_badge": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Server tag badge slug (see `GET /guilds/tag-badges`); `null` removes it."
+          },
           "verification_level": {
             "type": [
               "integer",
@@ -46572,6 +48447,40 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "ModifyOwnMemberBody": {
+        "type": "object",
+        "description": "Body of `PATCH /guilds/{id}/members/@me`: the caller's per-server profile\n(LNG-GLD-012). Absent fields stay; `null` clears one.",
+        "properties": {
+          "avatar": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Per-server avatar as an image data URI (PNG, JPEG, GIF or WebP, 8 MiB at most,\ncropped to a square)."
+          },
+          "banner": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Per-server banner as an image data URI."
+          },
+          "bio": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Per-server bio, up to 190 characters."
+          },
+          "nick": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Nickname, 1 to 32 characters (needs `CHANGE_NICKNAME`)."
           }
         }
       },
@@ -46974,6 +48883,46 @@
             "items": {
               "$ref": "#/components/schemas/PromptDto"
             }
+          }
+        }
+      },
+      "OnboardingResponseBody": {
+        "type": "object",
+        "description": "Body of `POST /guilds/{id}/onboarding-responses`.",
+        "required": [
+          "option_ids"
+        ],
+        "properties": {
+          "option_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The chosen answers (option ids of the onboarding questions)."
+          }
+        }
+      },
+      "OnboardingResultObject": {
+        "type": "object",
+        "description": "What a member's onboarding answers unlock.",
+        "required": [
+          "channel_ids",
+          "role_ids"
+        ],
+        "properties": {
+          "channel_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Channels to show: the default ones plus those of the chosen answers."
+          },
+          "role_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Roles newly granted by the answers (roles with moderation power are never granted)."
           }
         }
       },
@@ -47975,6 +49924,53 @@
         "properties": {
           "preview": {
             "type": "object"
+          }
+        }
+      },
+      "PrimaryGuildBody": {
+        "type": "object",
+        "description": "Body of `PATCH /users/@me/primary-guild`.",
+        "properties": {
+          "identity_enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Show the tag (default true while a server is chosen)."
+          },
+          "identity_guild_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The server whose tag to show; `null` stops showing any."
+          }
+        }
+      },
+      "PrimaryGuildObject": {
+        "type": "object",
+        "description": "Discord's `primary_guild`: the server tag a user chose to show.",
+        "required": [
+          "identity_guild_id",
+          "identity_enabled",
+          "tag"
+        ],
+        "properties": {
+          "badge": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Badge slug, one of the tag badges (see `GET /guilds/tag-badges`)."
+          },
+          "identity_enabled": {
+            "type": "boolean"
+          },
+          "identity_guild_id": {
+            "type": "string"
+          },
+          "tag": {
+            "type": "string"
           }
         }
       },
@@ -53217,6 +55213,41 @@
           }
         }
       },
+      "VanityBody": {
+        "type": "object",
+        "description": "Body of `PATCH /guilds/{id}/vanity-url`.",
+        "properties": {
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "3 to 32 letters, digits or hyphens; `null` or an empty string releases the code."
+          }
+        }
+      },
+      "VanityObject": {
+        "type": "object",
+        "description": "The vanity URL of a server.",
+        "required": [
+          "uses"
+        ],
+        "properties": {
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The code; `null` while the server has none."
+          },
+          "uses": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Members who joined through it.",
+            "minimum": 0
+          }
+        }
+      },
       "Variant": {
         "type": "object",
         "required": [
@@ -53299,6 +55330,34 @@
               "null"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "VerificationField": {
+        "type": "object",
+        "description": "One field of the membership screening form (Discord's `form_fields`).",
+        "required": [
+          "field_type",
+          "label",
+          "values",
+          "required"
+        ],
+        "properties": {
+          "field_type": {
+            "type": "string",
+            "description": "Always `TERMS`: the rules the member agrees to."
+          },
+          "label": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },

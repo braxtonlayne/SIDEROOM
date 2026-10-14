@@ -47,6 +47,7 @@ DELETE	/cinema/titles/{title_id}/review	authenticated	other	allow	-
 DELETE	/guilds/{guild_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/auto-moderation/rules/{rule_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/bans/{user_id}	authenticated	membership	allow	-
+DELETE	/guilds/{guild_id}/directory	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/emojis/{emoji_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/members/{user_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/members/{user_id}/roles/{role_id}	authenticated	membership	allow	-
@@ -89,6 +90,7 @@ GET	/admin/cinema/titles	authenticated	staff	deny	-
 GET	/admin/cinema/titles/{title_id}	authenticated	staff	deny	-
 GET	/admin/developers/requests	authenticated	staff	deny	-
 GET	/admin/developers/versions	authenticated	staff	deny	-
+GET	/admin/directory	authenticated	staff	deny	-
 GET	/admin/donations/config	authenticated	staff	deny	-
 GET	/admin/donations/entitlements	authenticated	staff	deny	-
 GET	/admin/donations/invoices	authenticated	staff	deny	-
@@ -193,6 +195,9 @@ GET	/cinema/titles/{title_id}/watch-state	authenticated	other	allow	-
 GET	/cinema/trending	authenticated	other	allow	-
 GET	/cinema/users/{user_id}/lists	authenticated	other	allow	-
 GET	/developers/status	authenticated	owner	deny	-
+GET	/directory	authenticated	other	deny	-
+GET	/directory/categories	authenticated	other	deny	-
+GET	/directory/{guild_id}	authenticated	other	deny	-
 GET	/donations/config	authenticated	other	allow	-
 GET	/donations/invoices	authenticated	other	allow	-
 GET	/donations/invoices/{invoice_id}	authenticated	other	allow	-
@@ -200,6 +205,7 @@ GET	/donations/leaderboards/{board}	authenticated	other	allow	-
 GET	/donations/me	authenticated	other	allow	-
 GET	/gateway	public	none	allow	-
 GET	/gateway/bot	authenticated	other	allow	-
+GET	/guilds/tag-badges	authenticated	other	allow	-
 GET	/guilds/templates/builtin	authenticated	membership	allow	-
 GET	/guilds/templates/{code}	authenticated	membership	allow	-
 GET	/guilds/{guild_id}	authenticated	membership	allow	-
@@ -209,10 +215,12 @@ GET	/guilds/{guild_id}/auto-moderation/rules/{rule_id}	authenticated	membership	
 GET	/guilds/{guild_id}/bans	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/bans/{user_id}	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/channels	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/directory	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/emojis	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/emojis/{emoji_id}	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/emojis/{emoji_id}/url	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/invites	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/member-verification	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/members	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/members/search	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/members/{user_id}	authenticated	membership	allow	-
@@ -228,6 +236,7 @@ GET	/guilds/{guild_id}/stickers/{sticker_id}/url	authenticated	membership	allow	
 GET	/guilds/{guild_id}/support	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/templates	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/threads/active	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/vanity-url	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/webhooks	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/welcome-screen	authenticated	membership	allow	-
 GET	/invites/{code}	authenticated	membership	allow	-
@@ -269,6 +278,7 @@ GET	/tv/timezones	authenticated	other	allow	-
 GET	/users/@me	authenticated	self	allow	identify
 GET	/users/@me/channels	authenticated	self	allow	-
 GET	/users/@me/guilds	authenticated	self	allow	guilds
+GET	/users/@me/guilds/{guild_id}/member	authenticated	membership	allow	-
 GET	/users/@me/guilds/{guild_id}/settings	authenticated	membership	allow	-
 GET	/users/@me/ignores	authenticated	self	deny	-
 GET	/users/@me/notes/{user_id}	authenticated	self	deny	-
@@ -288,6 +298,7 @@ GET	/watch-parties/{party_id}/audit	authenticated	other	allow	-
 GET	/webhooks/{application_id}/{token}/messages/{message_id}	public	none	allow	-
 GET	/webhooks/{webhook_id}	authenticated	other	allow	-
 GET	/webhooks/{webhook_id}/{token}	public	none	allow	-
+PATCH	/admin/directory/{guild_id}	authenticated	staff	deny	-
 PATCH	/admin/donations/config	authenticated	staff	deny	-
 PATCH	/admin/features/{feature_id}	authenticated	staff	deny	-
 PATCH	/admin/settings	authenticated	staff	deny	-
@@ -304,6 +315,7 @@ PATCH	/guilds/{guild_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/auto-moderation/rules/{rule_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/channels	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/emojis/{emoji_id}	authenticated	membership	allow	-
+PATCH	/guilds/{guild_id}/members/@me	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/members/{user_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/roles	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/roles/{role_id}	authenticated	membership	allow	-
@@ -311,6 +323,7 @@ PATCH	/guilds/{guild_id}/sr/community	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/support	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-
+PATCH	/guilds/{guild_id}/vanity-url	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/voice-states/{user_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/welcome-screen	authenticated	membership	allow	-
 PATCH	/sr/auth/passkeys/{id}	authenticated	self	deny	-
@@ -320,6 +333,7 @@ PATCH	/users/@me/channels/{channel_id}	authenticated	membership	allow	-
 PATCH	/users/@me/guilds/{guild_id}/settings	authenticated	membership	allow	-
 PATCH	/users/@me/notification-defaults	authenticated	self	deny	-
 PATCH	/users/@me/presence	authenticated	self	allow	-
+PATCH	/users/@me/primary-guild	authenticated	self	deny	-
 PATCH	/users/@me/privacy	authenticated	self	deny	-
 PATCH	/users/@me/relationships/{user_id}	authenticated	self	deny	-
 PATCH	/users/@me/settings	authenticated	self	deny	-
@@ -403,10 +417,12 @@ POST	/applications/{application_id}/versions	authenticated	owner	deny	-
 POST	/applications/{application_id}/versions/{version_id}/withdraw	authenticated	owner	deny	-
 POST	/channels/{channel_id}/attachments	authenticated	membership	allow	-
 POST	/channels/{channel_id}/attachments/{upload_id}/complete	authenticated	membership	allow	-
+POST	/channels/{channel_id}/followers	authenticated	membership	allow	-
 POST	/channels/{channel_id}/invites	authenticated	membership	allow	-
 POST	/channels/{channel_id}/messages	authenticated	membership	allow	-
 POST	/channels/{channel_id}/messages/bulk-delete	authenticated	membership	allow	-
 POST	/channels/{channel_id}/messages/{message_id}/ack	authenticated	membership	allow	-
+POST	/channels/{channel_id}/messages/{message_id}/crosspost	authenticated	membership	allow	-
 POST	/channels/{channel_id}/messages/{message_id}/threads	authenticated	membership	allow	-
 POST	/channels/{channel_id}/pins/ack	authenticated	membership	allow	-
 POST	/channels/{channel_id}/polls/{message_id}/expire	authenticated	membership	allow	-
@@ -422,6 +438,7 @@ POST	/cinema/titles/{title_id}/downloads	authenticated	other	allow	-
 POST	/cinema/titles/{title_id}/episodes/{episode_id}/comments	authenticated	other	allow	-
 POST	/cinema/titles/{title_id}/watched	authenticated	other	allow	-
 POST	/developers/apply	authenticated	owner	deny	-
+POST	/directory/{guild_id}/join	authenticated	membership	deny	-
 POST	/donations/invoices	authenticated	other	allow	-
 POST	/donations/invoices/{invoice_id}/cancel	authenticated	other	allow	-
 POST	/donations/invoices/{invoice_id}/check	authenticated	other	allow	-
@@ -429,8 +446,10 @@ POST	/guilds	authenticated	membership	deny	-
 POST	/guilds/templates/{code}	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/ack	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/auto-moderation/rules	authenticated	membership	allow	-
+POST	/guilds/{guild_id}/bulk-ban	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/channels	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/emojis	authenticated	membership	allow	-
+POST	/guilds/{guild_id}/onboarding-responses	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/prune	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/roles	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/stickers	authenticated	membership	allow	-
@@ -521,8 +540,10 @@ PUT	/cinema/titles/{title_id}/progress	authenticated	other	allow	-
 PUT	/cinema/titles/{title_id}/rating	authenticated	other	allow	-
 PUT	/cinema/titles/{title_id}/review	authenticated	other	allow	-
 PUT	/guilds/{guild_id}/bans/{user_id}	authenticated	membership	allow	-
+PUT	/guilds/{guild_id}/directory	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/members/{user_id}/roles/{role_id}	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/onboarding	authenticated	membership	allow	-
+PUT	/guilds/{guild_id}/requests/@me	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-
 PUT	/library/chapters/{chapter_id}/bookmarks	authenticated	other	allow	-
 PUT	/library/chapters/{chapter_id}/progress	authenticated	other	allow	-
