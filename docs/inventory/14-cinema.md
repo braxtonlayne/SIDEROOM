@@ -78,8 +78,8 @@ Phase 5. Spec: [cinema-media](../specs/cinema-media.md). Mockups: `cinema-discov
 
 ## CIN-DL — Patron downloads
 - [ ] **CIN-DL-001** [BE] On-demand MP4 remux job of chosen rendition (cached 7 days), original download when allowed, signed single-user link, daily limit
-- [x] **CIN-DL-002** [FE] Download modal (rendition picker with sizes, progress of prep job) (the modal is `cinema/player/DownloadModal.tsx`; the download routes it calls are not in the backend yet, and the title page still has to mount it)
+- [x] **CIN-DL-002** [FE] Download modal (rendition picker with sizes, progress of prep job) (the modal is `cinema/player/DownloadModal.tsx`, now mounted by the title page header for films and per episode; the download routes it calls are not in the backend yet, so it shows the error copy)
 
 ## CIN-ADM — Admin
-- [ ] **CIN-ADM-001** [FE] Catalog editor (title form, seasons/episodes tables, assets & renditions view, subtitles manager, artwork, markers editor with video scrubber, publish toggle, merge)
-- [ ] **CIN-ADM-002** [FE] Transcode status per asset + re-run
+- [x] **CIN-ADM-001** [FE] Catalog editor (title form, seasons/episodes tables, assets & renditions view, subtitles manager, artwork, markers editor with video scrubber, publish toggle, merge) (`admin/cinema/`; the assets & renditions view is the asset link plus transcode status per asset; there is no subtitles manager because no subtitle catalog route exists; the marker preview needs the ingest playback route)
+- [x] **CIN-ADM-002** [FE] Transcode status per asset + re-run (screens and data layer done against an assumed `/admin/transcode/*` contract; they show "not available yet" until the ingest-db backend ships, see `transcodeApi.ts`)

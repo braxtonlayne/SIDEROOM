@@ -28,6 +28,7 @@ import {
   setRating,
   setWatched,
 } from './api';
+import { DownloadModal } from './player/DownloadModal';
 import { Comments, Reviews } from './Social';
 import { playLabel } from './Discover';
 import { TrailerModal } from './TrailerModal';
@@ -79,6 +80,7 @@ function Header({
   const toast = useToast();
   const qc = useQueryClient();
   const [trailer, setTrailer] = useState(false);
+  const [download, setDownload] = useState(false);
   const refresh = () => void qc.invalidateQueries({ queryKey: ['cinema'] });
   const inList = t.my?.in_list ?? false;
   const list = useMutation({
@@ -193,9 +195,9 @@ function Header({
           </Button>
           <Button
             variant="secondary"
-            disabled={!d.patron_download}
-            title={d.patron_download ? undefined : 'Downloads are for Patrons'}
-            onClick={() => toast.show({ title: 'Downloads are coming soon' })}
+            disabled={d.seasons.length > 0}
+            title={d.seasons.length > 0 ? 'Download an episode from the list below' : undefined}
+            onClick={() => setDownload(true)}
           >
             <Icon name="download" size={16} /> Download
           </Button>
@@ -218,6 +220,12 @@ function Header({
           </p>
         )}
       </div>
+      <DownloadModal
+        open={download}
+        onClose={() => setDownload(false)}
+        titleId={t.id}
+        title={t.title}
+      />
       {t.trailer_url && (
         <TrailerModal
           open={trailer}
@@ -235,9 +243,11 @@ function EpisodeRow({
   titleId,
   restricted,
   season,
+  seriesTitle,
 }: {
   e: Episode;
   titleId: string;
+  seriesTitle: string;
   restricted: boolean;
   season: number;
 }) {
@@ -247,6 +257,7 @@ function EpisodeRow({
     mutationFn: (w: boolean) => setWatched(titleId, w, { episode_id: e.id }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: keys.episodes(titleId, season) }),
   });
+  const [download, setDownload] = useState(false);
   const started = (e.progress_percent ?? 0) > 0 && !e.watched;
   return (
     <li className="cin-ep">
@@ -279,6 +290,21 @@ function EpisodeRow({
         </p>
         {e.synopsis && <p className="cin-muted cin-ep-syn">{e.synopsis}</p>}
       </div>
+      <button
+        type="button"
+        className="cin-qa cin-ep-seen"
+        aria-label={`Download episode ${e.number}`}
+        onClick={() => setDownload(true)}
+      >
+        <Icon name="download" size={16} />
+      </button>
+      <DownloadModal
+        open={download}
+        onClose={() => setDownload(false)}
+        titleId={titleId}
+        episodeId={e.id}
+        title={`${seriesTitle} · S${season} E${e.number}`}
+      />
       <button
         type="button"
         className="cin-qa cin-ep-seen"
@@ -348,6 +374,7 @@ function Episodes({ d }: { d: TitleDetail }) {
             titleId={t.id}
             restricted={t.age_restricted}
             season={current}
+            seriesTitle={t.title}
           />
         ))}
       </ol>
