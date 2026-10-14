@@ -43,7 +43,7 @@
 }
 .adm-table th,
 .adm-table td {
-  text-align: left;
+  text-align: start;
   padding: 8px 10px;
   border-bottom: 1px solid var(--ui-border);
   vertical-align: top;
@@ -202,7 +202,7 @@
 .adm-cin-pos {
   min-width: 1.5em;
   color: var(--ui-text-muted);
-  text-align: right;
+  text-align: end;
 }
 .adm-cin-asset {
   margin-bottom: 12px;

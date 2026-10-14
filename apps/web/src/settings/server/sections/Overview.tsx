@@ -1,6 +1,6 @@
 import { Radio, RadioGroup, TextArea, TextInput } from '@sideroom/ui';
 import { useCallback, useMemo } from 'react';
-import { useT, type MessageKey } from '../../../i18n';
+import { formatDate, type MessageKey, useT } from '../../../i18n';
 import { snowflakeTime } from '../../../lounge/liveMap';
 import { cdnUrl, useChannels } from '../../../store';
 import * as api from '../api';
@@ -270,9 +270,7 @@ function ServerCard({ guildId, draft }: { guildId: string; draft: Fields }) {
   const banner = img(draft.banner, 512);
   const icon = img(draft.icon, 128);
   const created = snowflakeTime(guildId);
-  const est = created
-    ? new Date(created).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
-    : '';
+  const est = created ? formatDate(new Date(created), { month: 'short', year: 'numeric' }) : '';
   const name = draft.name.trim() || t('settings.overview.cardDefaultName');
   return (
     <div className="ss-server-card" role="group" aria-label={t('settings.overview.cardLabel')}>

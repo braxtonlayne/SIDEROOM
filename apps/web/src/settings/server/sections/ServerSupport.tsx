@@ -3,7 +3,7 @@
 // signed-in member, and (owner only) hiding the server from the public leaderboard.
 import { Badge, Notice, ProgressBar, Switch } from '@sideroom/ui';
 import { useState } from 'react';
-import { useT } from '../../../i18n';
+import { formatDate, useT } from '../../../i18n';
 import * as api from '../../../support/api';
 import { errorText, usd, type DonationConfig, type Invoice } from '../../../support/api';
 import { InvoiceModal } from '../../../support/InvoiceModal';
@@ -97,7 +97,7 @@ export function ServerSupportSection({ guildId }: SectionProps) {
               {s.grace_until_ms && (
                 <Notice variant="warning" title={t('settings.serverSupport.graceTitle')}>
                   {t('settings.serverSupport.graceBody', {
-                    date: new Date(s.grace_until_ms).toLocaleDateString(),
+                    date: formatDate(s.grace_until_ms, {}),
                   })}
                 </Notice>
               )}

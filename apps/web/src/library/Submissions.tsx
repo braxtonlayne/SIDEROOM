@@ -78,7 +78,7 @@ function Problems({ messages }: { messages: string[] }) {
       {messages.length === 1 ? (
         messages[0]
       ) : (
-        <ul style={{ margin: 0, paddingLeft: 18 }}>
+        <ul style={{ margin: 0, paddingInlineStart: 18 }}>
           {messages.map((m) => (
             <li key={m}>{m}</li>
           ))}

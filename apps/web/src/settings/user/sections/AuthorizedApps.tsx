@@ -70,7 +70,11 @@ export function AuthorizedAppsSection() {
                                 alt=""
                                 width={24}
                                 height={24}
-                                style={{ borderRadius: 6, marginRight: 8, verticalAlign: 'middle' }}
+                                style={{
+                                  borderRadius: 6,
+                                  marginInlineEnd: 8,
+                                  verticalAlign: 'middle',
+                                }}
                               />
                             )}
                             {g.application.name}

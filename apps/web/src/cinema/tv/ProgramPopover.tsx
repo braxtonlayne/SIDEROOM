@@ -4,7 +4,7 @@ import { Modal, useFloating, usePortalTarget } from '@sideroom/ui';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { useT } from '../../i18n';
+import { formatDate, useT } from '../../i18n';
 import { AgeBadge } from '../ui';
 import { isNotAvailable, setReminder, useBlockInfo } from './api';
 import {
@@ -102,8 +102,7 @@ function Body({
             {airings.map((b) => (
               <li key={b.id}>
                 <span className="tv-mono">
-                  {new Intl.DateTimeFormat(undefined, { weekday: 'short' }).format(b.start_ms)}{' '}
-                  {timeLabel(b.start_ms, tz)}
+                  {formatDate(b.start_ms, { weekday: 'short' })} {timeLabel(b.start_ms, tz)}
                 </span>
                 <span>
                   {byId.get(b.channel_id)

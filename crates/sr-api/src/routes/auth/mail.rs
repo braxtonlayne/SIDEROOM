@@ -6,6 +6,7 @@
 //!   relay or Mailpit (`localhost:1025`); TLS is not enabled (open question).
 //! * [`MemoryMailer`]: captures messages for tests.
 
+use super::mail_text::{self, MailKind};
 use async_trait::async_trait;
 use lettre::{
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
@@ -175,61 +176,6 @@ fn wrap(heading: &str, intro: &str, link: &str, button: &str, outro: &str) -> (S
     (text, html)
 }
 
-/// Email verification message.
-pub fn verify_email(to: &str, link: &str) -> OutgoingMail {
-    let (text, html) = wrap(
-        "Confirm your email",
-        "Welcome in. Confirm this address so you can invite others and recover your account.",
-        link,
-        "Confirm email",
-        "If you did not create a SIDE ROOM account, ignore this message. The link expires in 24 hours.",
-    );
-    OutgoingMail {
-        to: to.to_owned(),
-        subject: "Confirm your email for SIDE ROOM".to_owned(),
-        text,
-        html,
-    }
-}
-
-/// Confirm a new address typed in Settings. Sent to the new address only.
-pub fn change_email(to: &str, link: &str) -> OutgoingMail {
-    let (text, html) = wrap(
-        "Confirm your new email",
-        "Confirm this address to use it for your SIDE ROOM account. Until you do, your old address stays in place.",
-        link,
-        "Confirm new email",
-        "If you did not ask for this, ignore this message. The link expires in 24 hours.",
-    );
-    OutgoingMail {
-        to: to.to_owned(),
-        subject: "Confirm your new email for SIDE ROOM".to_owned(),
-        text,
-        html,
-    }
-}
-
-/// Sent to the *old* address when an email change starts: the account holder can
-/// cancel it with the "This wasn't me" link (D-167).
-pub fn change_email_notice(to: &str, new_email: &str, cancel_link: &str) -> OutgoingMail {
-    let intro = format!(
-        "Someone asked to change the email on your SIDE ROOM account to {new_email}. Nothing changes until that address is confirmed. If this was you, you can ignore this message."
-    );
-    let (text, html) = wrap(
-        "Your email is about to change",
-        &intro,
-        cancel_link,
-        "This wasn't me",
-        "If this was not you, use the button to cancel the change. If it already went through, the same link signs every device out. The link works for 7 days.",
-    );
-    OutgoingMail {
-        to: to.to_owned(),
-        subject: "Your SIDE ROOM email is being changed".to_owned(),
-        text,
-        html,
-    }
-}
-
 /// A link-less security notice (`heading`, then `body`).
 fn notice(to: &str, subject: &str, heading: &str, body: &str) -> OutgoingMail {
     let text = format!("{heading}\n\n{body}\n\nSIDE ROOM\n");
@@ -248,73 +194,78 @@ fn notice(to: &str, subject: &str, heading: &str, body: &str) -> OutgoingMail {
     }
 }
 
-/// Sent to the old address once an email change is confirmed. The link signs every
-/// device out (D-167).
-pub fn email_changed(to: &str, cancel_link: &str) -> OutgoingMail {
-    let (text, html) = wrap(
-        "Your email was changed",
-        "The email address on your SIDE ROOM account was just changed to a new one. If this was you, no action is needed.",
-        cancel_link,
-        "This wasn't me",
-        "If this was not you, use the button to sign out every device, then reset your password and contact the operator. The link works for 7 days.",
-    );
-    OutgoingMail {
-        to: to.to_owned(),
-        subject: "Your SIDE ROOM email was changed".to_owned(),
-        text,
-        html,
+/// Build one message from the locale-keyed catalog ([`mail_text`]). `link` selects the layout: a message
+/// with a link gets the button, one without is a plain notice. `vars` fills `{name}` placeholders.
+fn render(
+    to: &str,
+    locale: &str,
+    kind: MailKind,
+    link: Option<&str>,
+    vars: &[(&str, &str)],
+) -> OutgoingMail {
+    let t = mail_text::template(locale, kind);
+    let body = mail_text::fill(t.body, vars);
+    match link {
+        Some(link) => {
+            let (text, html) = wrap(t.heading, &body, link, t.button, t.outro);
+            OutgoingMail {
+                to: to.to_owned(),
+                subject: t.subject.to_owned(),
+                text,
+                html,
+            }
+        }
+        None => notice(to, t.subject, t.heading, &body),
     }
 }
 
-/// Sent after a signed-in password change.
-pub fn password_changed(to: &str) -> OutgoingMail {
-    notice(
+/// Email verification message. `locale` is the account's BCP 47 tag (unknown tags fall back to English).
+pub fn verify_email(to: &str, link: &str, locale: &str) -> OutgoingMail {
+    render(to, locale, MailKind::VerifyEmail, Some(link), &[])
+}
+
+/// Confirm a new address typed in Settings. Sent to the new address only.
+pub fn change_email(to: &str, link: &str, locale: &str) -> OutgoingMail {
+    render(to, locale, MailKind::ChangeEmail, Some(link), &[])
+}
+
+/// Sent to the *old* address when an email change starts: the account holder can
+/// cancel it with the "This wasn't me" link (D-167).
+pub fn change_email_notice(
+    to: &str,
+    new_email: &str,
+    cancel_link: &str,
+    locale: &str,
+) -> OutgoingMail {
+    render(
         to,
-        "Your SIDE ROOM password was changed",
-        "Your password was changed",
-        "The password on your SIDE ROOM account was just changed. If this was not you, reset your password right away and contact the operator.",
+        locale,
+        MailKind::ChangeEmailNotice,
+        Some(cancel_link),
+        &[("new_email", new_email)],
     )
 }
 
+/// Sent to the old address once an email change is confirmed. The link signs every
+/// device out (D-167).
+pub fn email_changed(to: &str, cancel_link: &str, locale: &str) -> OutgoingMail {
+    render(to, locale, MailKind::EmailChanged, Some(cancel_link), &[])
+}
+
+/// Sent after a signed-in password change.
+pub fn password_changed(to: &str, locale: &str) -> OutgoingMail {
+    render(to, locale, MailKind::PasswordChanged, None, &[])
+}
+
 /// Password reset message.
-pub fn reset_password(to: &str, link: &str) -> OutgoingMail {
-    let (text, html) = wrap(
-        "Reset your password",
-        "Use this link to choose a new password. It works once and expires in 30 minutes.",
-        link,
-        "Choose a new password",
-        "If you did not ask for this, ignore this message. Your password has not changed.",
-    );
-    OutgoingMail {
-        to: to.to_owned(),
-        subject: "Reset your SIDE ROOM password".to_owned(),
-        text,
-        html,
-    }
+pub fn reset_password(to: &str, link: &str, locale: &str) -> OutgoingMail {
+    render(to, locale, MailKind::ResetPassword, Some(link), &[])
 }
 
 /// Notice that two-factor sign-in was reset by an operator (open question 47).
 /// No link: the message only says what happened and what to do next.
-pub fn two_factor_reset(to: &str) -> OutgoingMail {
-    let text = "Two-factor sign-in was reset on your SIDE ROOM account by an operator.\n\n\
-        Your authenticator app, recovery codes and passkeys were removed, and every \
-        signed-in browser was signed out. Sign in with your password and set up two-factor \
-        sign-in again. If you did not expect this, contact the operator.\n\nSIDE ROOM\n"
-        .to_owned();
-    let html = "<!doctype html><html><body style=\"margin:0;background:#14110f;color:#eee6d8;\
-        font-family:Georgia,serif\"><div style=\"max-width:480px;margin:0 auto;padding:32px\">\
-        <h1 style=\"font-weight:normal\">Two-factor sign-in was reset</h1>\
-        <p>An operator removed the second factors from your account and signed out every \
-        browser. Sign in with your password and set up two-factor sign-in again.</p>\
-        <p style=\"color:#9a9082;font-size:13px\">If you did not expect this, contact the \
-        operator.</p><p style=\"color:#9a9082;font-size:13px\">SIDE ROOM</p></div></body></html>"
-        .to_owned();
-    OutgoingMail {
-        to: to.to_owned(),
-        subject: "Two-factor sign-in was reset on SIDE ROOM".to_owned(),
-        text,
-        html,
-    }
+pub fn two_factor_reset(to: &str, locale: &str) -> OutgoingMail {
+    render(to, locale, MailKind::TwoFactorReset, None, &[])
 }
 
 #[cfg(test)]
@@ -323,17 +274,43 @@ mod tests {
 
     #[test]
     fn templates_contain_link_and_escape() {
-        let m = verify_email("a@b.c", "https://x.test/verify-email/tok?a=1&b=2");
+        let m = verify_email("a@b.c", "https://x.test/verify-email/tok?a=1&b=2", "en-US");
         assert!(m.text.contains("https://x.test/verify-email/tok?a=1&b=2"));
         assert!(m.html.contains("a=1&amp;b=2"));
-        let r = reset_password("a@b.c", "https://x.test/reset/t");
+        let r = reset_password("a@b.c", "https://x.test/reset/t", "en");
         assert!(r.subject.contains("password"));
+    }
+
+    #[test]
+    fn unknown_locale_sends_the_english_text() {
+        let en = verify_email("a@b.c", "https://x.test/l", "en");
+        for tag in ["fr-CA", "", "zz_ZZ", "EN-us"] {
+            assert_eq!(verify_email("a@b.c", "https://x.test/l", tag), en, "{tag}");
+        }
+        assert_eq!(en.subject, "Confirm your email for SIDE ROOM");
+    }
+
+    #[test]
+    fn every_message_is_built_from_the_catalog() {
+        let n = change_email_notice("o@x.test", "n@x.test", "https://x.test/c", "en");
+        assert!(n.text.contains("to n@x.test."));
+        assert!(n.html.contains("This wasn't me"));
+        let p = password_changed("a@b.c", "en");
+        assert_eq!(p.subject, "Your SIDE ROOM password was changed");
+        assert!(!p.text.contains("http"));
+        let t = two_factor_reset("a@b.c", "en");
+        assert!(t.text.contains("recovery codes"));
+        assert!(
+            email_changed("a@b.c", "https://x.test/c", "en")
+                .text
+                .contains("https://x.test/c")
+        );
     }
 
     #[tokio::test]
     async fn memory_mailer_captures() {
         let m = MemoryMailer::new();
-        m.send(verify_email("a@b.c", "l")).await.unwrap();
+        m.send(verify_email("a@b.c", "l", "en")).await.unwrap();
         assert_eq!(m.sent().len(), 1);
     }
 

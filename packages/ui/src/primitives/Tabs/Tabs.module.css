@@ -21,8 +21,8 @@
 .underline .tab[aria-selected="true"]::after {
   content: "";
   position: absolute;
-  left: 8px;
-  right: 8px;
+  inset-inline-start: 8px;
+  inset-inline-end: 8px;
   bottom: -1px;
   height: 2px;
   background: var(--ui-accent);

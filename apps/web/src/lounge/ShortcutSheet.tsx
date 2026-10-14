@@ -10,8 +10,8 @@ export function ShortcutSheet({ open, onClose }: { open: boolean; onClose: () =>
   return (
     <Modal open={open} onClose={onClose} title={t('lounge.shortcutSheet.title')} size="md">
       {groups.map((g) => (
-        <section key={g} aria-label={g}>
-          <h3 className="lng-sheet-h">{g}</h3>
+        <section key={g} aria-label={t(`lounge.shortcuts.group${g}`)}>
+          <h3 className="lng-sheet-h">{t(`lounge.shortcuts.group${g}`)}</h3>
           <dl className="lng-sheet">
             {SHORTCUTS.filter((s) => s.group === g).map((s) => (
               <div key={s.id} className="lng-sheet-row">

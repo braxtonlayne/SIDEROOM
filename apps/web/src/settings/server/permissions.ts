@@ -1,5 +1,6 @@
 // Permission catalog for the server settings screens (docs/07 section 2, sr-core permissions.rs).
 // Bit numbers match Discord for 0-52; SIDE ROOM adds 56-59. Bitfields travel as decimal strings.
+import { t } from '../../i18n';
 import type { PermissionGroupDef, TriState } from '@sideroom/ui';
 
 export interface PermissionInfo {
@@ -15,294 +16,183 @@ export interface PermissionInfo {
 }
 
 export const GROUPS = [
-  { id: 'general', label: 'General' },
-  { id: 'membership', label: 'Membership' },
-  { id: 'text', label: 'Text' },
-  { id: 'voice', label: 'Voice' },
-  { id: 'apps', label: 'Apps' },
-  { id: 'events', label: 'Events' },
-  { id: 'advanced', label: 'Advanced' },
-  { id: 'sideroom', label: 'SIDE ROOM' },
+  {
+    id: 'general',
+    get label() {
+      return t('settings.permissions.groupGeneral');
+    },
+  },
+  {
+    id: 'membership',
+    get label() {
+      return t('settings.permissions.groupMembership');
+    },
+  },
+  {
+    id: 'text',
+    get label() {
+      return t('settings.permissions.groupText');
+    },
+  },
+  {
+    id: 'voice',
+    get label() {
+      return t('settings.permissions.groupVoice');
+    },
+  },
+  {
+    id: 'apps',
+    get label() {
+      return t('settings.permissions.groupApps');
+    },
+  },
+  {
+    id: 'events',
+    get label() {
+      return t('settings.permissions.groupEvents');
+    },
+  },
+  {
+    id: 'advanced',
+    get label() {
+      return t('settings.permissions.groupAdvanced');
+    },
+  },
+  {
+    id: 'sideroom',
+    get label() {
+      return t('settings.permissions.groupSideroom');
+    },
+  },
 ] as const;
 
+/** Label and description live in the catalog (`settings.permissions.<ID>.label|description`) and resolve when read. */
 const p = (
   id: string,
   bit: number,
-  label: string,
   group: string,
-  description: string,
   extra: Partial<PermissionInfo> = {},
-): PermissionInfo => ({ id, bit, label, group, description, ...extra });
+): PermissionInfo => {
+  const key = id.toLowerCase().replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase());
+  return {
+    id,
+    bit,
+    group,
+    get label() {
+      return t(`settings.permissions.${key}.label`);
+    },
+    get description() {
+      return t(`settings.permissions.${key}.description`);
+    },
+    ...extra,
+  };
+};
 
 export const PERMISSIONS: PermissionInfo[] = [
-  p(
-    'VIEW_CHANNEL',
-    10,
-    'View Channels',
-    'general',
-    'Members can see channels by default. Turn this off on a role to hide channels from it.',
-  ),
-  p(
-    'MANAGE_CHANNELS',
-    4,
-    'Manage Channels',
-    'general',
-    'Create, edit and delete channels and categories.',
-    { scope: 'guild' },
-  ),
-  p(
-    'MANAGE_ROLES',
-    28,
-    'Manage Roles',
-    'general',
-    'Create new roles and edit or delete roles below their own highest role.',
-  ),
-  p(
-    'MANAGE_GUILD_EXPRESSIONS',
-    30,
-    'Manage Expressions',
-    'general',
-    'Edit and delete custom emoji and stickers.',
-    { scope: 'guild' },
-  ),
-  p(
-    'CREATE_GUILD_EXPRESSIONS',
-    43,
-    'Create Expressions',
-    'general',
-    'Upload custom emoji and stickers.',
-    { scope: 'guild' },
-  ),
-  p('VIEW_AUDIT_LOG', 7, 'View Audit Log', 'general', 'See who changed what in this server.', {
+  p('VIEW_CHANNEL', 10, 'general'),
+  p('MANAGE_CHANNELS', 4, 'general', { scope: 'guild' }),
+  p('MANAGE_ROLES', 28, 'general'),
+  p('MANAGE_GUILD_EXPRESSIONS', 30, 'general', { scope: 'guild' }),
+  p('CREATE_GUILD_EXPRESSIONS', 43, 'general', { scope: 'guild' }),
+  p('VIEW_AUDIT_LOG', 7, 'general', {
     scope: 'guild',
   }),
-  p(
-    'VIEW_GUILD_INSIGHTS',
-    19,
-    'View Server Insights',
-    'general',
-    'See server insights such as growth and activity.',
-    { scope: 'guild' },
-  ),
-  p('MANAGE_WEBHOOKS', 29, 'Manage Webhooks', 'general', 'Create, edit and delete webhooks.'),
-  p(
-    'MANAGE_GUILD',
-    5,
-    'Manage Server',
-    'general',
-    'Change the server name, description and settings, and manage invites and AutoMod.',
-    { scope: 'guild' },
-  ),
+  p('VIEW_GUILD_INSIGHTS', 19, 'general', { scope: 'guild' }),
+  p('MANAGE_WEBHOOKS', 29, 'general'),
+  p('MANAGE_GUILD', 5, 'general', { scope: 'guild' }),
 
-  p('CREATE_INSTANT_INVITE', 0, 'Create Invite', 'membership', 'Invite new people to this server.'),
-  p('CHANGE_NICKNAME', 26, 'Change Nickname', 'membership', 'Change their own nickname.', {
+  p('CREATE_INSTANT_INVITE', 0, 'membership'),
+  p('CHANGE_NICKNAME', 26, 'membership', {
     scope: 'guild',
   }),
-  p('MANAGE_NICKNAMES', 27, 'Manage Nicknames', 'membership', 'Change other members’ nicknames.', {
+  p('MANAGE_NICKNAMES', 27, 'membership', {
     scope: 'guild',
   }),
-  p(
-    'KICK_MEMBERS',
-    1,
-    'Kick Members',
-    'membership',
-    'Remove members from the server. They can rejoin with a new invite.',
-    { scope: 'guild' },
-  ),
-  p('BAN_MEMBERS', 2, 'Ban Members', 'membership', 'Permanently ban members from the server.', {
+  p('KICK_MEMBERS', 1, 'membership', { scope: 'guild' }),
+  p('BAN_MEMBERS', 2, 'membership', {
     scope: 'guild',
   }),
-  p(
-    'MODERATE_MEMBERS',
-    40,
-    'Timeout Members',
-    'membership',
-    'Stop members from sending messages, reacting or speaking for a set time.',
-    { scope: 'guild' },
-  ),
+  p('MODERATE_MEMBERS', 40, 'membership', { scope: 'guild' }),
 
-  p('SEND_MESSAGES', 11, 'Send Messages', 'text', 'Post messages in text channels.', {
+  p('SEND_MESSAGES', 11, 'text', {
     scope: 'text',
   }),
-  p(
-    'SEND_MESSAGES_IN_THREADS',
-    38,
-    'Send Messages in Threads',
-    'text',
-    'Post messages in threads.',
-    { scope: 'text' },
-  ),
-  p('CREATE_PUBLIC_THREADS', 35, 'Create Public Threads', 'text', 'Start public threads.', {
+  p('SEND_MESSAGES_IN_THREADS', 38, 'text', { scope: 'text' }),
+  p('CREATE_PUBLIC_THREADS', 35, 'text', {
     scope: 'text',
   }),
-  p('CREATE_PRIVATE_THREADS', 36, 'Create Private Threads', 'text', 'Start invite-only threads.', {
+  p('CREATE_PRIVATE_THREADS', 36, 'text', {
     scope: 'text',
   }),
-  p('EMBED_LINKS', 14, 'Embed Links', 'text', 'Links posted by members show an embedded preview.', {
+  p('EMBED_LINKS', 14, 'text', {
     scope: 'text',
   }),
-  p('ATTACH_FILES', 15, 'Attach Files', 'text', 'Upload files and media.', { scope: 'text' }),
-  p('ADD_REACTIONS', 6, 'Add Reactions', 'text', 'Add new emoji reactions to a message.', {
+  p('ATTACH_FILES', 15, 'text', { scope: 'text' }),
+  p('ADD_REACTIONS', 6, 'text', {
     scope: 'text',
   }),
-  p('USE_EXTERNAL_EMOJIS', 18, 'Use External Emoji', 'text', 'Use emoji from other servers.', {
+  p('USE_EXTERNAL_EMOJIS', 18, 'text', {
     scope: 'text',
   }),
-  p(
-    'USE_EXTERNAL_STICKERS',
-    37,
-    'Use External Stickers',
-    'text',
-    'Use stickers from other servers.',
-    { scope: 'text' },
-  ),
-  p(
-    'MENTION_EVERYONE',
-    17,
-    'Mention @everyone, @here and All Roles',
-    'text',
-    'Ping everyone, everyone online, or any role.',
-    { scope: 'text' },
-  ),
-  p(
-    'MANAGE_MESSAGES',
-    13,
-    'Manage Messages',
-    'text',
-    'Delete other members’ messages and remove embeds.',
-    { scope: 'text' },
-  ),
-  p('PIN_MESSAGES', 51, 'Pin Messages', 'text', 'Pin and unpin messages.', { scope: 'text' }),
-  p(
-    'BYPASS_SLOWMODE',
-    52,
-    'Bypass Slowmode',
-    'text',
-    'Send messages without waiting for slowmode.',
-    { scope: 'text' },
-  ),
-  p('MANAGE_THREADS', 34, 'Manage Threads', 'text', 'Rename, delete, close and lock threads.', {
+  p('USE_EXTERNAL_STICKERS', 37, 'text', { scope: 'text' }),
+  p('MENTION_EVERYONE', 17, 'text', { scope: 'text' }),
+  p('MANAGE_MESSAGES', 13, 'text', { scope: 'text' }),
+  p('PIN_MESSAGES', 51, 'text', { scope: 'text' }),
+  p('BYPASS_SLOWMODE', 52, 'text', { scope: 'text' }),
+  p('MANAGE_THREADS', 34, 'text', {
     scope: 'text',
   }),
-  p(
-    'READ_MESSAGE_HISTORY',
-    16,
-    'Read Message History',
-    'text',
-    'Read messages sent before the member joined the channel.',
-    { scope: 'text' },
-  ),
-  p('SEND_TTS_MESSAGES', 12, 'Send Text-to-Speech Messages', 'text', 'Send /tts messages.', {
+  p('READ_MESSAGE_HISTORY', 16, 'text', { scope: 'text' }),
+  p('SEND_TTS_MESSAGES', 12, 'text', {
     scope: 'text',
   }),
-  p('SEND_VOICE_MESSAGES', 46, 'Send Voice Messages', 'text', 'Post voice messages.', {
+  p('SEND_VOICE_MESSAGES', 46, 'text', {
     scope: 'text',
   }),
-  p('SEND_POLLS', 49, 'Create Polls', 'text', 'Start polls.', { scope: 'text' }),
+  p('SEND_POLLS', 49, 'text', { scope: 'text' }),
 
-  p('CONNECT', 20, 'Connect', 'voice', 'Join voice channels.', { scope: 'voice' }),
-  p('SPEAK', 21, 'Speak', 'voice', 'Talk in voice channels.', { scope: 'voice' }),
-  p('STREAM', 9, 'Video', 'voice', 'Share video, screen or a game in a voice channel.', {
+  p('CONNECT', 20, 'voice', { scope: 'voice' }),
+  p('SPEAK', 21, 'voice', { scope: 'voice' }),
+  p('STREAM', 9, 'voice', {
     scope: 'voice',
   }),
-  p('USE_EMBEDDED_ACTIVITIES', 39, 'Use Activities', 'voice', 'Start and join activities.', {
+  p('USE_EMBEDDED_ACTIVITIES', 39, 'voice', {
     scope: 'voice',
   }),
-  p('USE_SOUNDBOARD', 42, 'Use Soundboard', 'voice', 'Play sounds from the soundboard.', {
+  p('USE_SOUNDBOARD', 42, 'voice', {
     scope: 'voice',
   }),
-  p('USE_EXTERNAL_SOUNDS', 45, 'Use External Sounds', 'voice', 'Play sounds from other servers.', {
+  p('USE_EXTERNAL_SOUNDS', 45, 'voice', {
     scope: 'voice',
   }),
-  p('USE_VAD', 25, 'Use Voice Activity', 'voice', 'Talk without push-to-talk.', { scope: 'voice' }),
-  p(
-    'PRIORITY_SPEAKER',
-    8,
-    'Priority Speaker',
-    'voice',
-    'Lower the volume of others while speaking.',
-    { scope: 'voice' },
-  ),
-  p('MUTE_MEMBERS', 22, 'Mute Members', 'voice', 'Mute other members in voice.', {
+  p('USE_VAD', 25, 'voice', { scope: 'voice' }),
+  p('PRIORITY_SPEAKER', 8, 'voice', { scope: 'voice' }),
+  p('MUTE_MEMBERS', 22, 'voice', {
     scope: 'voice',
   }),
-  p('DEAFEN_MEMBERS', 23, 'Deafen Members', 'voice', 'Deafen other members in voice.', {
+  p('DEAFEN_MEMBERS', 23, 'voice', {
     scope: 'voice',
   }),
-  p('MOVE_MEMBERS', 24, 'Move Members', 'voice', 'Move members between voice channels.', {
+  p('MOVE_MEMBERS', 24, 'voice', {
     scope: 'voice',
   }),
-  p('REQUEST_TO_SPEAK', 32, 'Request to Speak', 'voice', 'Ask to speak in stage channels.', {
+  p('REQUEST_TO_SPEAK', 32, 'voice', {
     scope: 'voice',
   }),
 
-  p(
-    'USE_APPLICATION_COMMANDS',
-    31,
-    'Use Application Commands',
-    'apps',
-    'Use slash commands and other app commands.',
-    { scope: 'text' },
-  ),
-  p(
-    'USE_EXTERNAL_APPS',
-    50,
-    'Use External Apps',
-    'apps',
-    'Use apps that were not added to this server.',
-    { scope: 'text' },
-  ),
+  p('USE_APPLICATION_COMMANDS', 31, 'apps', { scope: 'text' }),
+  p('USE_EXTERNAL_APPS', 50, 'apps', { scope: 'text' }),
 
-  p('MANAGE_EVENTS', 33, 'Manage Events', 'events', 'Edit and cancel events.', { scope: 'guild' }),
-  p('CREATE_EVENTS', 44, 'Create Events', 'events', 'Create scheduled events.', { scope: 'guild' }),
+  p('MANAGE_EVENTS', 33, 'events', { scope: 'guild' }),
+  p('CREATE_EVENTS', 44, 'events', { scope: 'guild' }),
 
-  p(
-    'ADMINISTRATOR',
-    3,
-    'Administrator',
-    'advanced',
-    'Grants every permission and bypasses all channel overwrites. Dangerous: only give this to people you trust.',
-    { danger: true, scope: 'guild' },
-  ),
-  p(
-    'VIEW_CREATOR_MONETIZATION_ANALYTICS',
-    41,
-    'View Creator Analytics',
-    'advanced',
-    'See creator monetization analytics.',
-    { scope: 'guild' },
-  ),
+  p('ADMINISTRATOR', 3, 'advanced', { danger: true, scope: 'guild' }),
+  p('VIEW_CREATOR_MONETIZATION_ANALYTICS', 41, 'advanced', { scope: 'guild' }),
 
-  p(
-    'START_WATCH_PARTY',
-    56,
-    'Start Watch Party',
-    'sideroom',
-    'Start a watch party in this channel.',
-  ),
-  p(
-    'CONTROL_WATCH_PARTY',
-    57,
-    'Control Watch Party',
-    'sideroom',
-    'Control playback in someone else’s party (when the host allows shared control).',
-  ),
-  p(
-    'USE_LIBRARY_EMBEDS',
-    58,
-    'Use Library Embeds',
-    'sideroom',
-    'Post rich Cinema and Library cards.',
-    { scope: 'text' },
-  ),
-  p(
-    'MANAGE_EXTENSIONS',
-    59,
-    'Manage Extensions',
-    'sideroom',
-    'Enable or disable approved extensions and themes for the server.',
-    { scope: 'guild' },
-  ),
+  p('START_WATCH_PARTY', 56, 'sideroom'),
+  p('CONTROL_WATCH_PARTY', 57, 'sideroom'),
+  p('USE_LIBRARY_EMBEDS', 58, 'sideroom', { scope: 'text' }),
+  p('MANAGE_EXTENSIONS', 59, 'sideroom', { scope: 'guild' }),
 ];
 
 export const PERM = Object.fromEntries(

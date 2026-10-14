@@ -1,7 +1,7 @@
 // Small shared pieces of the Library UI: formatting helpers, the series card, the 18+ badge.
 import { PosterCard, Skeleton } from '@sideroom/ui';
 import type { ReactNode } from 'react';
-import { t, useT } from '../i18n';
+import { formatDate as formatIntlDate, t, useT } from '../i18n';
 import type { Series, SeriesKind, SeriesStatus, UpdateItem } from './types';
 
 /** Getters resolve the label at access time (never at module load: the locale is not known yet). */
@@ -50,11 +50,7 @@ export const label = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) 
 export const seriesHref = (id: string) => `/library/s/${id}`;
 export function formatDate(ms: number | null | undefined): string {
   if (!ms) return '';
-  return new Date(ms).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+  return formatIntlDate(ms, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 export function timeAgo(ms: number, now = Date.now()): string {

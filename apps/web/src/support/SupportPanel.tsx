@@ -6,7 +6,7 @@ import { Link } from '@tanstack/react-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Card, Field, Loaded, SectionTitle } from '../settings/user/parts';
 import { useResource } from '../settings/user/api';
-import { t, useT } from '../i18n';
+import { formatDate, t, useT } from '../i18n';
 import { useGuilds } from '../store';
 import * as api from './api';
 import { errorText, usd, type DonationConfig, type Invoice, type PerkSet } from './api';
@@ -88,10 +88,10 @@ function PatronCard({
   let status = t('support.panel.statusNone');
   if (p?.permanent) status = t('support.panel.statusPermanent');
   else if (p?.active && p.until_ms)
-    status = t('support.panel.statusUntil', { date: new Date(p.until_ms).toLocaleDateString() });
+    status = t('support.panel.statusUntil', { date: formatDate(p.until_ms, {}) });
   else if (p?.in_grace && p.until_ms)
     status = t('support.panel.statusGrace', {
-      date: new Date(p.until_ms).toLocaleDateString(),
+      date: formatDate(p.until_ms, {}),
       days: cfg.patron.grace_days,
     });
   return (
@@ -352,8 +352,7 @@ function History({ onOpen, version }: { onOpen: (inv: Invoice) => void; version:
                         {api.PURPOSE_COPY[inv.purpose]}, {usd(inv.usd_cents)}
                       </strong>
                       <p className="us-muted">
-                        {new Date(inv.created_at_ms).toLocaleDateString()} ·{' '}
-                        {api.STATE_COPY[inv.state]}
+                        {formatDate(inv.created_at_ms, {})} · {api.STATE_COPY[inv.state]}
                       </p>
                     </div>
                     <Button variant="secondary" size="sm" onClick={() => onOpen(inv)}>

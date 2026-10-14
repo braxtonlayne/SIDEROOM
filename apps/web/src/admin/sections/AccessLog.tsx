@@ -1,7 +1,7 @@
 import { Badge, Button, EmptyState, Notice, Select } from '@sideroom/ui';
 import { useState } from 'react';
 import * as api from '../api';
-import { useT, type MessageKey } from '../../i18n';
+import { formatNumber, type MessageKey, useT } from '../../i18n';
 import {
   LoadMore,
   SectionHeader,
@@ -59,7 +59,7 @@ export function AccessLogSection() {
             role="status"
             title={t('admin.accessLog.chainIntact')}
           >
-            {t('admin.accessLog.rowsVerified', { count: report.rows_checked.toLocaleString() })}{' '}
+            {t('admin.accessLog.rowsVerified', { count: formatNumber(report.rows_checked) })}{' '}
             <span className="adm-mono">{shortHash(report.head_hash)}</span>
           </Notice>
         ) : (

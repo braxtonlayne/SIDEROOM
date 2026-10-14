@@ -32,6 +32,7 @@ mod trusted;
 pub mod validate;
 
 pub mod mail;
+pub mod mail_text;
 pub mod memory;
 
 pub use common::{AuthConfig, AuthRouteError, AuthService, IdSource};

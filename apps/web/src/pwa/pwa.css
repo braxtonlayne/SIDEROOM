@@ -1,6 +1,6 @@
 .sr-pwa {
   position: fixed;
-  left: max(16px, env(safe-area-inset-left));
+  inset-inline-start: max(16px, env(safe-area-inset-left));
   bottom: max(16px, env(safe-area-inset-bottom));
   z-index: 9000;
   display: grid;
@@ -27,7 +27,7 @@
   line-height: 1.5;
 }
 .sr-pwa-card ol {
-  padding-left: 1.25rem;
+  padding-inline-start: 1.25rem;
 }
 .sr-pwa-actions {
   display: flex;

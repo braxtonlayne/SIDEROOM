@@ -11,6 +11,7 @@ import type {
   PartySettings,
   Playback,
 } from './types';
+import { t } from '../i18n';
 
 const enc = encodeURIComponent;
 const NO_RETRY = { retries: 0 } as const;
@@ -98,10 +99,17 @@ export const httpPartyApi: PartyApi = {
   },
 };
 
+/** Labels resolve when read, so they follow the active language. */
 export const CONTROL_LABEL: Record<ControlMode, string> = {
-  host: 'Only the host',
-  controllers: 'The host and controllers',
-  everyone: 'Everyone',
+  get host() {
+    return t('watchparty.api.controlHost');
+  },
+  get controllers() {
+    return t('watchparty.api.controlControllers');
+  },
+  get everyone() {
+    return t('watchparty.api.controlEveryone');
+  },
 };
 
 /** The link that opens a party (private parties carry their invite code). */

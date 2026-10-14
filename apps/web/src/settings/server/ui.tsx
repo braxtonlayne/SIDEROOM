@@ -1,6 +1,10 @@
 import { Button, Notice, Spinner } from '@sideroom/ui';
 import { useCallback, useRef, useState, type ReactNode } from 'react';
-import { useT } from '../../i18n';
+import {
+  formatDate as formatIntlDate,
+  formatDateTime as formatIntlDateTime,
+  useT,
+} from '../../i18n';
 import { errorText } from './api';
 import type { Resource } from './hooks';
 import './server-settings.css';
@@ -128,13 +132,13 @@ export const formatDate = (iso: string | null | undefined) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
     ? ''
-    : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    : formatIntlDate(d, { year: 'numeric', month: 'short', day: 'numeric' });
 };
 
 export const formatDateTime = (iso: string | null | undefined) => {
   if (!iso) return '';
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString();
+  return Number.isNaN(d.getTime()) ? '' : formatIntlDateTime(d);
 };
 
 export function NotAvailable({ children }: { children: ReactNode }) {

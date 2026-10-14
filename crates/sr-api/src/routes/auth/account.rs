@@ -92,7 +92,7 @@ pub async fn forgot(
                 .map_err(|e| e.to_string())?;
             let link = svc.link("reset", token.expose());
             svc.mailer
-                .send(mail::reset_password(&account.email, &link))
+                .send(mail::reset_password(&account.email, &link, &account.locale))
                 .await
                 .map_err(|e| e.to_string())
         }

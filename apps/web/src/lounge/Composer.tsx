@@ -11,7 +11,7 @@ import {
 } from 'react';
 import type { ChangeEvent, ClipboardEvent, KeyboardEvent } from 'react';
 import { ApiError, apiFetch } from '../api/client';
-import { useT } from '../i18n';
+import { formatDateTime, formatTime, useT } from '../i18n';
 import { useStore } from '../store';
 import { usePrefsStore, useSavedPrefs } from '../settings/user/prefs';
 import { convertEmoticons } from './emoticons';
@@ -484,7 +484,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         );
         toast.show({
           title: t('lounge.composer.remindAt', {
-            time: at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+            time: formatTime(at, { hour: 'numeric', minute: '2-digit' }),
           }),
           variant: 'success',
           duration: 3000,
@@ -684,7 +684,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           <Icon name={timedOutUntil ? 'clock' : 'lock'} size={20} />
           {timedOutUntil
             ? t('lounge.composer.timedOut', {
-                date: new Date(timedOutUntil).toLocaleString([], {
+                date: formatDateTime(new Date(timedOutUntil), {
                   dateStyle: 'medium',
                   timeStyle: 'short',
                 }),

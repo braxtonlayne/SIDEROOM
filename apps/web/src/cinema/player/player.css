@@ -75,8 +75,8 @@
 .cpl-top,
 .cpl-controls {
   position: absolute;
-  left: 0;
-  right: 0;
+  inset-inline-start: 0;
+  inset-inline-end: 0;
   padding: 12px 20px;
   transition: opacity 0.2s ease;
 }
@@ -118,7 +118,7 @@
 .cpl-autoplay {
   position: absolute;
   top: 16px;
-  right: 20px;
+  inset-inline-end: 20px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -160,7 +160,7 @@
   color: var(--sr-gold);
 }
 .cpl-time {
-  margin-left: 8px;
+  margin-inline-start: 8px;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
   color: var(--sr-text);
@@ -215,8 +215,8 @@
 }
 .cpl-scrub-track {
   position: absolute;
-  left: 0;
-  right: 0;
+  inset-inline-start: 0;
+  inset-inline-end: 0;
   height: 4px;
   background: rgba(255, 255, 255, 0.25);
   border-radius: 2px;
@@ -229,7 +229,7 @@
 .cpl-scrub-buffer,
 .cpl-scrub-played {
   position: absolute;
-  left: 0;
+  inset-inline-start: 0;
   top: 0;
   bottom: 0;
   border-radius: 2px;
@@ -244,7 +244,7 @@
   position: absolute;
   top: -3px;
   bottom: -3px;
-  border-left: 2px solid rgba(255, 255, 255, 0.7);
+  border-inline-start: 2px solid rgba(255, 255, 255, 0.7);
   background: rgba(194, 176, 143, 0.35);
 }
 .cpl-scrub-input {
@@ -321,7 +321,7 @@
 }
 .cpl-skip {
   position: absolute;
-  right: 28px;
+  inset-inline-end: 28px;
   bottom: 120px;
   padding: 10px 20px;
   border: 1px solid rgba(236, 230, 214, 0.6);
@@ -338,7 +338,7 @@
 }
 .cpl-next {
   position: absolute;
-  right: 28px;
+  inset-inline-end: 28px;
   bottom: 120px;
   display: flex;
   gap: 14px;
@@ -425,7 +425,7 @@
 /* mini player */
 .cpl-mini-root {
   position: fixed;
-  right: 16px;
+  inset-inline-end: 16px;
   bottom: 16px;
   z-index: 60;
   width: min(320px, calc(100vw - 32px));
@@ -462,7 +462,7 @@
   color: inherit;
   font: inherit;
   font-size: 13px;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 .cpl-mini .cpl-btn {
@@ -585,8 +585,8 @@
 @media (max-width: 640px) {
   .cpl-top,
   .cpl-controls {
-    padding-left: 10px;
-    padding-right: 10px;
+    padding-inline-start: 10px;
+    padding-inline-end: 10px;
   }
   .cpl-time {
     display: none;
@@ -595,12 +595,12 @@
     display: none;
   }
   .cpl-next {
-    left: 12px;
-    right: 12px;
+    inset-inline-start: 12px;
+    inset-inline-end: 12px;
     bottom: 110px;
   }
   .cpl-skip {
-    right: 12px;
+    inset-inline-end: 12px;
   }
   .cpl-my {
     padding: 20px 16px 48px;

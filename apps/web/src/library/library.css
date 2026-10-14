@@ -47,7 +47,7 @@
 .lib-sectionbar-nav {
   display: flex;
   gap: 24px;
-  margin-left: 12px;
+  margin-inline-start: 12px;
 }
 .lib-sectionbar-link {
   text-decoration: none;
@@ -69,7 +69,7 @@
 .lib-side {
   width: 240px;
   flex: none;
-  border-right: 1px solid var(--sr-line);
+  border-inline-end: 1px solid var(--sr-line);
   background: var(--sr-bg-1);
 }
 .lib-sidebar {
@@ -124,7 +124,7 @@
   color: var(--sr-text-2);
   text-decoration: none;
   cursor: pointer;
-  text-align: left;
+  text-align: start;
 }
 .lib-nav-link:hover {
   color: var(--sr-text);
@@ -133,10 +133,10 @@
 .lib-nav-link[aria-current='page'] {
   color: var(--sr-text);
   background: var(--sr-bg-2);
-  border-left: 2px solid var(--sr-gold);
+  border-inline-start: 2px solid var(--sr-gold);
 }
 .lib-nav-count {
-  margin-left: auto;
+  margin-inline-start: auto;
   color: var(--sr-gold);
   font-size: 12px;
 }
@@ -169,7 +169,7 @@
   max-width: 640px;
 }
 .lib-topbar > .lib-topbar-search + * {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 .lib-content {
   padding: 32px;
@@ -232,8 +232,8 @@
 .lib-search-list {
   position: absolute;
   z-index: 30;
-  left: 0;
-  right: 0;
+  inset-inline-start: 0;
+  inset-inline-end: 0;
   top: calc(100% + 4px);
   max-height: 60vh;
   overflow: auto;
@@ -373,7 +373,7 @@
   align-items: baseline;
   gap: 16px;
   flex-wrap: wrap;
-  margin-right: auto;
+  margin-inline-end: auto;
 }
 .lib-section-note {
   font-family: var(--sr-font-display);
@@ -415,7 +415,7 @@
 .lib-age-badge-card {
   position: absolute;
   top: 8px;
-  right: 8px;
+  inset-inline-end: 8px;
   background: rgb(0 0 0 / 0.7);
 }
 
@@ -433,7 +433,7 @@
 .lib-spotlight-art {
   position: absolute;
   inset: 0;
-  left: 35%;
+  inset-inline-start: 35%;
 }
 .lib-spotlight-art img {
   width: 100%;
@@ -464,7 +464,7 @@
 }
 .lib-spotlight-caption {
   position: absolute;
-  right: 24px;
+  inset-inline-end: 24px;
   bottom: 16px;
   margin: 0;
   font-size: 12px;
@@ -472,7 +472,7 @@
 }
 .lib-dots {
   position: absolute;
-  left: 36px;
+  inset-inline-start: 36px;
   bottom: 14px;
   display: flex;
   gap: 8px;
@@ -644,7 +644,7 @@
 }
 .lib-fan {
   position: absolute;
-  right: 16px;
+  inset-inline-end: 16px;
   bottom: -10px;
   display: flex;
 }
@@ -652,7 +652,7 @@
   width: 72px;
   height: 104px;
   object-fit: cover;
-  margin-left: -20px;
+  margin-inline-start: -20px;
   transform: rotate(calc((var(--i) - 1) * 8deg));
   border: 1px solid var(--sr-line);
 }
@@ -913,8 +913,8 @@
 .lib-reader-top,
 .lib-reader-bottom {
   position: absolute;
-  left: 0;
-  right: 0;
+  inset-inline-start: 0;
+  inset-inline-end: 0;
   z-index: 5;
   display: flex;
   align-items: center;
@@ -1126,7 +1126,7 @@
   width: 140px;
 }
 .lib-frame[data-mobile] .lib-spotlight-art {
-  left: 0;
+  inset-inline-start: 0;
   opacity: 0.6;
 }
 .lib-frame[data-mobile] .lib-spotlight-body {
@@ -1143,8 +1143,8 @@
 }
 .lib-bottomnav {
   position: fixed;
-  left: 0;
-  right: 0;
+  inset-inline-start: 0;
+  inset-inline-end: 0;
   bottom: 0;
   z-index: 20;
   display: grid;

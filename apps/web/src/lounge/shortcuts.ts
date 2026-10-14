@@ -1,4 +1,5 @@
 /** Single source of truth for Lounge keyboard shortcuts; the shortcut sheet (Ctrl+/) renders this list. */
+import { t } from '../i18n';
 
 export type ShortcutId =
   | 'quickSwitcher'
@@ -25,48 +26,90 @@ export const SHORTCUTS: readonly ShortcutDef[] = [
   {
     id: 'quickSwitcher',
     group: 'Navigation',
-    description: 'Find or start a conversation',
+    get description() {
+      return t('lounge.shortcuts.quickSwitcher');
+    },
     keys: ['Mod', 'K'],
   },
   {
     id: 'shortcutSheet',
     group: 'Navigation',
-    description: 'Show keyboard shortcuts',
+    get description() {
+      return t('lounge.shortcuts.shortcutSheet');
+    },
     keys: ['Mod', '/'],
   },
   {
     id: 'userSettings',
     group: 'Navigation',
-    description: 'Open user settings',
+    get description() {
+      return t('lounge.shortcuts.userSettings');
+    },
     keys: ['Mod', ','],
   },
-  { id: 'prevChannel', group: 'Navigation', description: 'Previous channel', keys: ['Alt', '↑'] },
-  { id: 'nextChannel', group: 'Navigation', description: 'Next channel', keys: ['Alt', '↓'] },
+  {
+    id: 'prevChannel',
+    group: 'Navigation',
+    get description() {
+      return t('lounge.shortcuts.prevChannel');
+    },
+    keys: ['Alt', '↑'],
+  },
+  {
+    id: 'nextChannel',
+    group: 'Navigation',
+    get description() {
+      return t('lounge.shortcuts.nextChannel');
+    },
+    keys: ['Alt', '↓'],
+  },
   {
     id: 'prevUnread',
     group: 'Navigation',
-    description: 'Previous unread channel',
+    get description() {
+      return t('lounge.shortcuts.prevUnread');
+    },
     keys: ['Alt', 'Shift', '↑'],
   },
   {
     id: 'nextUnread',
     group: 'Navigation',
-    description: 'Next unread channel',
+    get description() {
+      return t('lounge.shortcuts.nextUnread');
+    },
     keys: ['Alt', 'Shift', '↓'],
   },
   {
     id: 'prevGuild',
     group: 'Navigation',
-    description: 'Previous server',
+    get description() {
+      return t('lounge.shortcuts.prevGuild');
+    },
     keys: ['Mod', 'Alt', '↑'],
   },
-  { id: 'nextGuild', group: 'Navigation', description: 'Next server', keys: ['Mod', 'Alt', '↓'] },
-  { id: 'markRead', group: 'Messages', description: 'Mark channel as read', keys: ['Esc'] },
+  {
+    id: 'nextGuild',
+    group: 'Navigation',
+    get description() {
+      return t('lounge.shortcuts.nextGuild');
+    },
+    keys: ['Mod', 'Alt', '↓'],
+  },
+  {
+    id: 'markRead',
+    group: 'Messages',
+    get description() {
+      return t('lounge.shortcuts.markRead');
+    },
+    keys: ['Esc'],
+  },
   {
     // Discord behaviour: any printable key outside a field moves focus to the message box (Q169).
     id: 'focusComposer',
     group: 'Messages',
-    description: 'Start typing a message (focuses the message box)',
+    get description() {
+      return t('lounge.shortcuts.focusComposer');
+    },
     keys: ['Any key'],
   },
 ];
@@ -93,7 +136,8 @@ export function matchShortcut(
 
 export const isApple = () =>
   typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
-export const displayKey = (k: string) => (k === 'Mod' ? (isApple() ? '⌘' : 'Ctrl') : k);
+export const displayKey = (k: string) =>
+  k === 'Mod' ? (isApple() ? '⌘' : 'Ctrl') : k === 'Any key' ? t('lounge.shortcuts.anyKey') : k;
 
 // ---- custom keybinds (User Settings > Keybinds) ----
 
