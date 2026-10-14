@@ -188,7 +188,7 @@ async fn now_and_next_follow_the_wall_clock_and_joining_17_minutes_in_is_17_minu
     e.clock.advance_ms(14 * MIN);
     let after = e.svc.now(id).await.unwrap();
     assert_eq!(after.current.unwrap().episode_number, Some(2));
-    assert_eq!(after.offset_ms, Some(1 * MIN));
+    assert_eq!(after.offset_ms, Some(MIN));
 
     // The list shows the same, and a disabled channel disappears for members.
     let list = e.svc.channels().await.unwrap();
