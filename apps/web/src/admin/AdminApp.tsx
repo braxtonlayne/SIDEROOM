@@ -18,7 +18,9 @@ import { t as translate, useT } from '../i18n';
 import * as api from './api';
 import { hasAny, parsePerms } from './permissions';
 import { AccessLogSection } from './sections/AccessLog';
+import { AuditLogSection } from './sections/AuditLog';
 import { CatalogSection } from './cinema/CatalogSection';
+import { LibraryCatalogSection } from './library/LibraryCatalogSection';
 import { CollectionsSection } from './cinema/CollectionsSection';
 import { TranscodingSection } from './cinema/TranscodingSection';
 import { LiveTvSection } from './cinema/tv/LiveTvSection';
@@ -31,10 +33,11 @@ import { BansSection } from './sections/Bans';
 import { CliParitySection } from './sections/CliParity';
 import { DashboardSection } from './sections/Dashboard';
 import { FeaturesSection } from './sections/Features';
+import { InviteGraphSection } from './sections/InviteGraph';
 import { InvitesSection } from './sections/Invites';
 import { LimitsSection } from './sections/Limits';
 import { StaffSection } from './sections/Staff';
-import { ReviewSection } from './sections/Review';
+import { ReviewHubSection } from './sections/ReviewHub';
 import { JobsSection, SystemSection } from './sections/System';
 import { AdminViewerContext, Loading, errorText, makeViewer, type AdminViewer } from './ui';
 
@@ -76,6 +79,13 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     component: InvitesSection,
   },
   {
+    id: 'invite-graph',
+    label: 'admin.adminApp.section.inviteGraph',
+    group: 'admin.adminApp.group.people',
+    visible: (v) => v.can('MANAGE_INVITES'),
+    component: InviteGraphSection,
+  },
+  {
     id: 'staff',
     label: 'admin.adminApp.section.staff',
     group: 'admin.adminApp.group.people',
@@ -91,11 +101,12 @@ export const ADMIN_SECTIONS: SectionDef[] = [
         v.perms,
         'REVIEW_MEDIA',
         'REVIEW_READING',
+        'DELETE_CONTENT',
         'REVIEW_APPS',
         'REVIEW_PACKAGES',
         'MANAGE_DIRECTORY',
       ),
-    component: ReviewSection,
+    component: ReviewHubSection,
   },
   {
     id: 'jobs',
@@ -103,6 +114,13 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     group: 'admin.adminApp.group.content',
     visible: (v) => v.can('MANAGE_TRANSCODE'),
     component: JobsSection,
+  },
+  {
+    id: 'library-catalog',
+    label: 'admin.adminApp.section.libraryCatalog',
+    group: 'admin.adminApp.group.content',
+    visible: (v) => v.can('PUBLISH_READING'),
+    component: LibraryCatalogSection,
   },
   {
     id: 'cinema-catalog',
@@ -180,6 +198,13 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     group: 'admin.adminApp.group.platform',
     visible: (v) => v.can('OPERATOR'),
     component: SystemSection,
+  },
+  {
+    id: 'audit-log',
+    label: 'admin.adminApp.section.auditLog',
+    group: 'admin.adminApp.group.audit',
+    visible: (v) => v.can('VIEW_ACCESS_LOG'),
+    component: AuditLogSection,
   },
   {
     id: 'access-log',

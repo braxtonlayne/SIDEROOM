@@ -41,7 +41,6 @@ import {
   ActionStatus,
   Async,
   ReasonDialog,
-  SectionHeader,
   errorText,
   useAction,
   useAdminViewer,
@@ -115,18 +114,13 @@ const who = (t: TFn, me: string, id: string | null) =>
       ? t('admin.review.you')
       : t('admin.review.account', { id });
 
-export function ReviewSection() {
-  const t = useT();
+/** The Library submissions workspace (a tab of the Review Queues hub). */
+export function LibraryReviewPanel() {
   const [open, setOpen] = useState<string | null>(null);
-  return (
-    <>
-      <SectionHeader title={t('admin.review.title')} description={t('admin.review.description')} />
-      {open ? (
-        <ReviewDetail id={open} onBack={() => setOpen(null)} />
-      ) : (
-        <ReviewQueue onOpen={setOpen} />
-      )}
-    </>
+  return open ? (
+    <ReviewDetail id={open} onBack={() => setOpen(null)} />
+  ) : (
+    <ReviewQueue onOpen={setOpen} />
   );
 }
 

@@ -364,6 +364,7 @@ function GuildHeader({ guild }: { guild: Guild }) {
           } as MenuEntry,
         ]
       : []),
+    ...(guild.isStaff ? [core.platformAdmin] : []),
     ...((p.serverSettings ?? p.manageGuild) ? [core.settings] : []),
     ...(p.manageChannels
       ? [

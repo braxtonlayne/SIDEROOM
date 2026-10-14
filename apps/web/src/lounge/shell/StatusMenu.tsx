@@ -2,6 +2,8 @@ import { Avatar, DropdownMenu, type MenuEntry } from '@sideroom/ui';
 import { useEffect } from 'react';
 import { t, useT, type MessageKey } from '../../i18n';
 import { useLoungeUi } from '../store';
+import { useNavigate } from '@tanstack/react-router';
+import { useIsPlatformStaff } from './platformStaff';
 import { useSelfPresence, type SelfStatus } from './selfPresence';
 
 const LABEL: Record<SelfStatus, MessageKey> = {
@@ -33,6 +35,8 @@ export function StatusMenu({ name }: { name: string }) {
   const load = useSelfPresence((s) => s.load);
   const update = useSelfPresence((s) => s.update);
   const openDialog = useLoungeUi((s) => s.openDialog);
+  const staff = useIsPlatformStaff();
+  const navigate = useNavigate();
 
   useEffect(() => {
     void load();
@@ -56,6 +60,15 @@ export function StatusMenu({ name }: { name: string }) {
     { label: t('lounge.statusMenu.idle'), onSelect: () => set('idle') },
     timed('dnd', t('lounge.statusMenu.dnd')),
     timed('invisible', t('lounge.statusMenu.invisible')),
+    ...(staff
+      ? ([
+          { type: 'separator' },
+          {
+            label: t('lounge.platformAdmin.menu'),
+            onSelect: () => void navigate({ to: '/admin' }),
+          },
+        ] as MenuEntry[])
+      : []),
   ];
 
   return (

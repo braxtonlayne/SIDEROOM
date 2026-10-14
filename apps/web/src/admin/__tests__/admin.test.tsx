@@ -50,7 +50,13 @@ describe('admin shell', () => {
     );
     openAdmin('dashboard');
     await screen.findByRole('heading', { name: 'Dashboard' });
-    expect(navNames()).toEqual(['Dashboard', 'Accounts', 'Invites', 'Command line']);
+    expect(navNames()).toEqual([
+      'Dashboard',
+      'Accounts',
+      'Invites',
+      'Invite graph',
+      'Command line',
+    ]);
   });
 
   it('shows everything to the Owner', async () => {
@@ -85,9 +91,11 @@ describe('admin shell', () => {
       'Accounts',
       'Platform bans',
       'Invites',
+      'Invite graph',
       'Staff & roles',
       'Review queues',
       'Jobs',
+      'Library catalog',
       'Cinema catalog',
       'Cinema collections',
       'Cinema transcoding',
@@ -99,6 +107,7 @@ describe('admin shell', () => {
       'Features',
       'Limits & settings',
       'System',
+      'Platform audit log',
       'Access log',
       'Command line',
     ]);

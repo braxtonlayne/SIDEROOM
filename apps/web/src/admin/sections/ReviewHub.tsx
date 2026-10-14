@@ -1,0 +1,53 @@
+// Review Queues hub (ADM-CNT-001): one tab per queue the staff member may work. Library submissions are the
+// full reviewer workspace; Cinema is the report queue; Apps is developer applications and versions.
+// Packages and Directory have no server routes yet, so their tabs say so.
+import { EmptyState, Tabs, type TabItem } from '@sideroom/ui';
+import { useT } from '../../i18n';
+import { SectionHeader, useAdminViewer } from '../ui';
+import { AppsReview } from './AppsReview';
+import { CinemaReports } from './CinemaReports';
+import { LibraryReviewPanel } from './Review';
+
+export function ReviewHubSection() {
+  const t = useT();
+  const viewer = useAdminViewer();
+  const items: TabItem[] = [];
+  if (viewer.can('DELETE_CONTENT'))
+    items.push({ id: 'cinema', label: t('admin.reviewHub.tabCinema'), content: <CinemaReports /> });
+  if (viewer.can('REVIEW_READING') || viewer.can('REVIEW_MEDIA'))
+    items.push({
+      id: 'library',
+      label: t('admin.reviewHub.tabLibrary'),
+      content: <LibraryReviewPanel />,
+    });
+  if (viewer.can('REVIEW_APPS'))
+    items.push({ id: 'apps', label: t('admin.reviewHub.tabApps'), content: <AppsReview /> });
+  if (viewer.can('REVIEW_PACKAGES'))
+    items.push({
+      id: 'packages',
+      label: t('admin.reviewHub.tabPackages'),
+      content: (
+        <EmptyState
+          title={t('admin.reviewHub.packagesTitle')}
+          description={t('admin.reviewHub.notBuilt')}
+        />
+      ),
+    });
+  if (viewer.can('MANAGE_DIRECTORY'))
+    items.push({
+      id: 'directory',
+      label: t('admin.reviewHub.tabDirectory'),
+      content: (
+        <EmptyState
+          title={t('admin.reviewHub.directoryTitle')}
+          description={t('admin.reviewHub.notBuilt')}
+        />
+      ),
+    });
+  return (
+    <>
+      <SectionHeader title={t('admin.review.title')} description={t('admin.review.description')} />
+      <Tabs label={t('admin.reviewHub.tabsLabel')} items={items} />
+    </>
+  );
+}

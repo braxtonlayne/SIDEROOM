@@ -1,0 +1,20 @@
+export default {
+  'admin.adminApp.section.auditLog': 'Platform audit log',
+  'admin.auditLog.title': 'Platform audit log',
+  'admin.auditLog.description':
+    'Every change staff made, with the reason they gave. These are the action rows of the access log, which holds the hash chain.',
+  'admin.auditLog.tableLabel': 'Platform audit log',
+  'admin.auditLog.emptyTitle': 'No entries',
+  'admin.auditLog.emptyDescription': 'No staff action matches these filters.',
+  'admin.auditLog.filterForm': 'Filter the audit log',
+  'admin.auditLog.filterAction': 'Action',
+  'admin.auditLog.filterActor': 'Staff account id',
+  'admin.auditLog.filterTarget': 'Target id',
+  'admin.auditLog.apply': 'Apply',
+  'admin.auditLog.colWhen': 'When',
+  'admin.auditLog.colActor': 'Staff',
+  'admin.auditLog.colAction': 'Action',
+  'admin.auditLog.colTarget': 'Target',
+  'admin.auditLog.colReason': 'Reason',
+  'admin.auditLog.colIp': 'IP address',
+} satisfies Record<string, string>;

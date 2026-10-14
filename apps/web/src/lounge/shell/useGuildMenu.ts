@@ -1,6 +1,7 @@
 import { useNavigate } from '@tanstack/react-router';
 import type { MenuEntry } from '@sideroom/ui';
 import { useEffect } from 'react';
+import { t } from '../../i18n';
 import { useCurrentUser, useLoungeActions, type Guild } from '../data';
 import { useLoungeUi } from '../store';
 import { isMuted, MUTE_DURATIONS, useNotifSettings } from './notifSettings';
@@ -95,6 +96,10 @@ export function useGuildMenuCore(guild: Guild) {
     copyId: {
       label: 'Copy Server ID',
       onSelect: () => void navigator.clipboard?.writeText(guild.id),
+    } as MenuEntry,
+    platformAdmin: {
+      label: t('lounge.platformAdmin.menu'),
+      onSelect: () => void navigate({ to: '/admin' }),
     } as MenuEntry,
     isOwner,
   };

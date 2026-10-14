@@ -207,3 +207,80 @@
 .adm-cin-asset {
   margin-bottom: 12px;
 }
+
+/* Shared admin table (ADM-UI-002) */
+.adm-dt-bar {
+  align-items: end;
+}
+.adm-dt-tools {
+  margin-inline-start: auto;
+}
+.adm-dt-chooser {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md, 6px);
+}
+.adm-dt-count {
+  margin-block: 8px 0;
+}
+
+/* Invite graph (ADM-GRAPH-004/005) */
+.adm-graph {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .adm-graph {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.adm-crumbs ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+.adm-crumbs li + li::before {
+  content: '→';
+  margin-inline-end: 8px;
+  color: var(--ui-text-muted);
+}
+.adm-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--ui-accent, inherit);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.adm-tree,
+.adm-tree-children {
+  list-style: none;
+  margin: 0;
+  padding-inline-start: 0;
+}
+.adm-tree-children {
+  padding-inline-start: 20px;
+  border-inline-start: 1px solid var(--ui-border);
+  margin-inline-start: 12px;
+}
+.adm-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-block: 2px;
+  flex-wrap: wrap;
+}
+.adm-tree-spacer {
+  display: inline-block;
+  width: 32px;
+}
