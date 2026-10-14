@@ -62,12 +62,13 @@ struct Env {
 }
 
 async fn env_with(entitlements: Arc<dyn UploadEntitlements>) -> Env {
-    env_full(entitlements, None).await
+    env_full(entitlements, None, None).await
 }
 
 async fn env_full(
     entitlements: Arc<dyn UploadEntitlements>,
     gate: Option<crate::routes::settings::AutoModGateHandle>,
+    age: Option<Arc<dyn crate::routes::search::AgeGate>>,
 ) -> Env {
     let clock = Arc::new(ManualClock::new(T0));
     let dyn_clock: Arc<dyn Clock> = clock.clone();
@@ -118,6 +119,10 @@ async fn env_full(
     .with_cdn_signer(sr_storage::cdn::CdnSigner::new(
         b"messages-test-secret-0123456789ab".to_vec(),
     ));
+    let deps = match age {
+        Some(a) => deps.with_age_gate(a),
+        None => deps,
+    };
     let jobs = Arc::new(rich_tests::RecordingScheduler::default());
     let web = Arc::new(rich_tests::FakeWeb::default());
     let deps = Arc::new(deps.with_rich(super::RichDeps {
@@ -504,6 +509,43 @@ async fn mentions_are_permission_gated() {
         )
         .await;
     assert_eq!(code(&r), (StatusCode::BAD_REQUEST, Some(50035)));
+}
+
+#[tokio::test]
+async fn age_restricted_channels_need_the_18_plus_answer() {
+    // Only the owner has confirmed; bob has not (D-032, LNG-CHN-006).
+    let confirmed = crate::routes::search::ConfirmedUsers([UserId::new(OWNER)].into());
+    let e = env_full(
+        Arc::new(FixedEntitlements(30 * MIB)),
+        None,
+        Some(Arc::new(confirmed)),
+    )
+    .await;
+    // An ordinary channel is open to bob.
+    e.say("bob", "hello").await;
+    e.backend.data().channels.get_mut(&e.ch).unwrap().nsfw = true;
+    for (method, path, body) in [
+        (Method::GET, "/messages", None),
+        (Method::POST, "/messages", Some(json!({"content": "x"}))),
+        (Method::GET, "/pins", None),
+    ] {
+        let (s, _, v) = e.call(method.clone(), path, "bob", body.clone()).await;
+        assert_eq!(s, StatusCode::FORBIDDEN, "{method} {path}: {v}");
+        assert_eq!(v["code"], 900_011, "{method} {path}: {v}");
+    }
+    // The confirmed owner reads and writes as usual.
+    e.say("owner", "adults only").await;
+    assert_eq!(e.get("/messages", "owner").await.0, StatusCode::OK);
+    // Answering yes (modelled by adding bob) opens the channel for him too.
+    let both = crate::routes::search::ConfirmedUsers([UserId::new(OWNER), UserId::new(BOB)].into());
+    let e2 = env_full(
+        Arc::new(FixedEntitlements(30 * MIB)),
+        None,
+        Some(Arc::new(both)),
+    )
+    .await;
+    e2.backend.data().channels.get_mut(&e2.ch).unwrap().nsfw = true;
+    e2.say("bob", "now allowed").await;
 }
 
 #[tokio::test]
@@ -1447,6 +1489,7 @@ async fn gated_env() -> Env {
         Some(crate::routes::settings::AutoModGateHandle(Arc::new(
             FakeGate,
         ))),
+        None,
     )
     .await
 }

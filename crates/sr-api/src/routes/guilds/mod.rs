@@ -83,6 +83,7 @@ pub fn router() -> Router<AppState> {
         bans::get_ban,
         bans::create_ban,
         bans::remove_ban,
+        bans::bulk_ban,
     ),
     components(schemas(
         dto::UserRef,
@@ -106,6 +107,8 @@ pub fn router() -> Router<AppState> {
         dto::BanBody,
         prune::PruneBody,
         prune::PruneResult,
+        bans::BulkBanBody,
+        bans::BulkBanResult,
     ))
 )]
 pub struct GuildsApiDoc;

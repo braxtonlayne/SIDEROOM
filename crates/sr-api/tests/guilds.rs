@@ -684,6 +684,60 @@ async fn bans_flow() {
 }
 
 #[tokio::test]
+async fn bulk_ban_bans_what_it_can_and_lists_the_rest() {
+    let f = fixture();
+    let (gid, _) = guild(&f).await;
+    let g = GuildId::new(gid.parse().unwrap());
+    let uri = format!("/guilds/{gid}/bulk-ban");
+    let mut events = f.bus.subscribe(Topic::Guild(g));
+
+    // Plain members may not bulk ban.
+    let (s, _) = post(&f, &uri, "bob", json!({ "user_ids": ["3"] })).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    // Shape checks.
+    let (s, _) = post(&f, &uri, "owner", json!({ "user_ids": [] })).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, _) = post(&f, &uri, "owner", json!({ "user_ids": ["x"] })).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, _) = post(
+        &f,
+        &uri,
+        "owner",
+        json!({ "user_ids": ["2"], "delete_message_seconds": 999_999 }),
+    )
+    .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+
+    // Member 2, non-member 50 (pre-emptive) and the owner (1, never bannable).
+    let (s, out) = post(
+        &f,
+        &uri,
+        "owner",
+        json!({ "user_ids": ["2", "50", "1", "2"], "reason": "raid" }),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "{out}");
+    assert_eq!(out["banned_users"], json!(["2", "50"]));
+    assert_eq!(out["failed_users"], json!(["1"]));
+    let (_, list) = get(&f, &format!("/guilds/{gid}/bans"), "owner").await;
+    assert_eq!(list.as_array().unwrap().len(), 2);
+    let (s, _) = get(&f, &format!("/guilds/{gid}"), "bob").await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    // One GUILD_BAN_ADD per banned user.
+    let mut bans = 0;
+    while let Some(ev) = next_event(&mut events).await {
+        if matches!(ev, DomainEvent::MemberBanned { .. }) {
+            bans += 1;
+        }
+    }
+    assert_eq!(bans, 2);
+
+    // Nobody bannable is an error, not an empty success.
+    let (s, _) = post(&f, &uri, "owner", json!({ "user_ids": ["1"] })).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
 async fn mutations_publish_domain_events() {
     let f = fixture();
     let (gid, created) = guild(&f).await;

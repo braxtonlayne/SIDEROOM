@@ -156,6 +156,8 @@ pub struct MessagesDeps {
     nonces: NonceCache,
     cdn: Option<CdnSigner>,
     dm_announcer: Option<Arc<dyn DmAnnouncer>>,
+    /// Source of the 18+ confirmation for age-restricted channels (D-032).
+    age: Option<Arc<dyn crate::routes::search::AgeGate>>,
     pub limits: ChatLimits,
     pub size_policy: SizePolicy,
     /// How long a nonce keeps deduplicating (Discord: a few minutes).
@@ -204,6 +206,7 @@ impl MessagesDeps {
             nonces: Cache::builder().time_to_live(NONCE_WINDOW).build(),
             cdn: None,
             dm_announcer: None,
+            age: None,
             limits,
             size_policy: SizePolicy::default(),
             nonce_window_ms: i64::try_from(NONCE_WINDOW.as_millis()).unwrap_or(i64::MAX),
@@ -222,6 +225,13 @@ impl MessagesDeps {
     /// Announce DMs to recipients who have not heard of them (see [`DmAnnouncer`]).
     pub fn with_dm_announcer(mut self, announcer: Arc<dyn DmAnnouncer>) -> Self {
         self.dm_announcer = Some(announcer);
+        self
+    }
+
+    /// Gate age-restricted (NSFW) guild channels behind the account's 18+ answer
+    /// (D-032, LNG-CHN-006). Without a gate every channel is open.
+    pub fn with_age_gate(mut self, age: Arc<dyn crate::routes::search::AgeGate>) -> Self {
+        self.age = Some(age);
         self
     }
 
@@ -391,11 +401,36 @@ impl MessagesDeps {
             self.now_ms(),
         )
         .await?;
+        if perms.has(Permissions::VIEW_CHANNEL) {
+            self.require_age(user, &channel).await?;
+        }
         Ok(Access {
             channel,
             perms,
             roles,
         })
+    }
+
+    /// D-032: an age-restricted guild channel (or a thread of one) opens only for
+    /// accounts that answered "yes" to "Are you 18 or older?"; otherwise 403 with
+    /// code 900011 and the client shows the dialog, posts `/sr/age-gate` and retries.
+    async fn require_age(&self, user: UserId, channel: &Channel) -> MsgResult<()> {
+        let Some(age) = &self.age else {
+            return Ok(());
+        };
+        let restricted = if channel.nsfw {
+            true
+        } else if channel.kind.is_thread()
+            && let Some(parent) = channel.parent_id
+        {
+            self.repo.get_channel(parent).await?.is_some_and(|p| p.nsfw)
+        } else {
+            false
+        };
+        if restricted && !age.age_confirmed(user).await {
+            return Err(ErrorCode::SrAgeConfirmationRequired.into());
+        }
+        Ok(())
     }
 
     /// A visible message of `channel`, or 404 10008.
