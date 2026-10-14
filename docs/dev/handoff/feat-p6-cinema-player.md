@@ -1,0 +1,46 @@
+# Handoff: feat/p6-cinema-player (Cinema player, mini player, My list, download modal)
+
+Worktree `SIDEROOM_wt/p6-cinema-player`, branch `feat/p6-cinema-player` (base integration/phase5). Frontend only (`apps/web/src/cinema/player/`, `apps/web/src/cinema/my/`); one new dependency (`hls.js`), two additive lines in `router.tsx` and `main.tsx`, one entry in `scripts/bundle-budget.json`.
+
+## Done
+- **Engine (CIN-PLY-001)**: `engine.ts` has a `PlaybackEngine` interface with an hls.js implementation (imported lazily, so it is a separate 186 KB gzip chunk fetched only when something plays), a native-HLS implementation (Safari/iOS, chosen when `canPlayType('application/vnd.apple.mpegurl')` answers) and, in tests, a fake. ABR with a manual level override (`nextLevel`, so no flush), a data saver that caps ABR at 480p (`autoLevelCapping`; a manual choice wins over the cap), audio tracks.
+- **Session (CIN-PLY-011)**: `session.ts` owns ONE persistent `<video>`, its engine, progress saving, URL refresh, text tracks and the prefs (volume, mute, data saver, autoplay-next, subtitle style and language; localStorage `sr.cinema.player.v1`). The watch route and the mini player only *attach* the element to a container (`attach`/`detach`), so playback keeps going across navigation. Watch parties reuse it: `playerSession()` (play/pause/seek/setRate/state store) and `MiniPlayerView` (plain props).
+- **Mini player**: `bridge.ts` (a flag, the only part in the entrance bundle, +0.1 KB gzip) tells `main.tsx` when to mount the lazy `MiniPlayerHost` next to the voice bridge. Leaving the watch route while playing floats the player (expand, pause, close); leaving while paused ends the session.
+- **Controls (CIN-PLY-002)**: play/pause, back/forward 10 s, scrubber (native range input, `aria-valuetext`, buffered bar, intro/credits ticks, hover/focus sprite thumbnails from the WebVTT sprite map), volume, speed 0.5 to 2, audio, subtitles (+ size, colour, background), quality + data saver, Remote Playback / AirPlay, Picture in Picture, full screen (on the theme root, so menus and dialogs stay visible), autoplay-next switch. Menus are the UI kit `DropdownMenu`.
+- **Shortcuts (CIN-PLY-003)**: space/k, j/l, arrows (5 s, volume), f, m, c, 0 to 9, `<` `>`; on-screen echo plus a polite live region. Space on a focused button and arrows on a focused slider are left to the control.
+- **Subtitles (CIN-PLY-004)**: WebVTT through native `<track>` elements, styled with `::cue` custom properties. ASS goes through `ass.ts` (renderer seam, disposal, VTT fallback), see "Not done".
+- **Skip intro/credits (005)**, **next-episode card with 10 s countdown, autoplay toggle, "Are you still watching?" after 3 auto-played episodes (006)**, **resume prompt (008)**: as specified. The card appears at the credits marker, else 20 s before the end.
+- **Progress (CIN-PLY-007 client)**: `progress.ts` (`httpProgress` against the social routes, `localProgress` fallback; a failed save is kept locally). Saves every 10 s while playing, and on pause, end, tab hidden, pagehide (keepalive) and leaving. `playing: true` only on the heartbeat, so pause/stop end the "watching" presence. `completed` is sent only when playback ended (the server decides 90 percent). Nothing is saved for an item the viewer did not play, or for a trailer.
+- **Signed URL refresh (CIN-PLY-010)**: every URL in a playlist carries its own `ex`/`sig` (sr-media `playlist.rs`), so copying a signature does not work. At the server's `refresh_at` (else 5 min before expiry) the session asks for a new grant, `signing.ts` walks the new playlists and builds a path -> fresh-URL map, and hls.js requests are rewritten through it (`xhrSetup`/`fetchSetup`): no restart, no rebuffer. A refused request (403/410) triggers an immediate refresh and a source swap at the current position. Native HLS cannot rewrite requests, so it swaps the source at refresh time (a short gap).
+- **Age gate (D-184)**: playback info is fetched through `withAgeGate`; 403 900011 opens the shared dialog, yes retries once, no goes back. Trailers of restricted titles ask too.
+- **Routes** (`cinema/player/routes.ts`): `createPlayerRoutes(parent)` returns `[watch, myList]` with relative paths for the `/cinema` layout; `createPlayerRootRoutes(root)` mounts them on the root with their own frame (query cache, theme, age gate, session check) and is what `router.tsx` calls today. `/cinema/watch/$id?episode=&variant=&trailer=1&t=` (`ep=` is accepted as an alias) and `/cinema/my-list`.
+- **My list (CIN-MY-001)**: tabs Saved (remove), Continue watching (resume and up-next), Lists (custom lists, expandable), History (pause switch, clear with confirmation).
+- **Download modal (CIN-DL-002)**: `DownloadModal` (rendition picker with sizes, prep-job progress by polling, signed link when ready, Patron 403 and daily-limit copy).
+- **Tests**: 109 new (8 files) in Vitest + MSW + Testing Library with a fake engine and a mocked `HTMLMediaElement`: pure model, session (heartbeat with fake timers, refresh, subtitles, chain counter), engine (hls.js mocked), signing, API composition, the watch page (gesture, resume, shortcuts, menus, scrubber, markers, next episode, age gate, mini player, errors, axe on player and mini), My list (axe), download modal, progress store. Whole web suite: 83 files, 1021 tests pass; typecheck, eslint, prettier, build and the bundle budget are clean (new `cinema-player` budget entry: 208.9 KB gzip first load of the route, hls.js lazy on top).
+
+## Added dependency
+`hls.js@1.7.3` (Apache-2.0, 595 KB / 186 KB gzip minified chunk, lazily imported). `pnpm audit` reports no known vulnerabilities. Lockfile updated.
+
+## Integration with p6-cinema-browse (read before merging)
+- Browse already renders `<Outlet/>` without chrome for `/cinema/watch/` and provides query cache, theme, toasts and age gate. In `cinema/routes.tsx` append `...createPlayerRoutes(layout)` to the `addChildren` list (import from `./player/routes`), and delete the `createPlayerRootRoutes(root)` line (+ its import) from `router.tsx`, otherwise both would match the same paths. Those two `router.tsx` lines are placed away from the line browse changes to avoid a textual conflict.
+- My CSS prefix is `cpl-` (browse uses `cin-`).
+- The title page's Download button should mount `<DownloadModal open onClose titleId episodeId title/>`.
+- Browse links work as is: `/cinema/watch/{id}`, `?episode=`, `?variant=`, `?trailer=1`.
+
+## Contract notes
+Documented and used: `GET /cinema/titles/{id}/play[?variant=]`, `GET /cinema/episodes/{id}/play`, `GET /cinema/episodes/{id}` (up next), `GET /cinema/titles/{id}` (trailers), the social progress, `me/list`, `me/continue-watching`, `lists`, `me/history`, `me/history/settings` routes. **Assumed (the only guesses, all in `player/api.ts`)**: ingest has the playlist code and `ManifestGrant {master_url, expires_at, refresh_at}` but no HTTP route yet, so the player calls `GET /cinema/assets/{asset_id}/playback` (grant plus optional `duration_secs`, `sprites_url`, `subtitles[]` with `vtt_url`/`ass_url`) and `POST /cinema/assets/{asset_id}/refresh`, in unix seconds. The CIN-DL download routes (`/cinema/titles/{id}/downloads`, `/cinema/downloads/{job}`) are also assumed. A mismatch is a one-file change plus MSW fixtures.
+
+## Decisions
+- **JASSUB not bundled**: the npm package is LGPL-2.1-or-later (GPL/FTL parts in the WASM), not one of the permissive licences used so far, and I could not verify a worker + WASM build here. `ass.ts` has the seam (`setAssRendererLoader`, with the exact wiring in its header comment); until then ASS tracks play as their WebVTT conversion. Owner decision.
+- hls.js is the full build (alternate audio and subtitle support needed); the light build would save about a third.
+- Subtitle tracks come from the playback response (`vtt_url`), not from the master playlist's `subs` group. If ingest exposes them only in the master, map hls.js `subtitleTracks` in `engine.ts` (a small change).
+- `ensureAdult` runs before the request (browse) and on a 403 (here), so a deep link works too.
+- Without a browser user activation the player never calls `play()`; the big Play button (pointer shortcut, hidden from assistive tech; the control-bar Play is the accessible one) and Space start it.
+
+## Not done
+- Chromecast Web Sender SDK (optional in the spec). Remote Playback and AirPlay buttons exist, but Chrome cannot cast an MSE (hls.js) source through Remote Playback.
+- No real-stream or browser check (no streams here): layout was not eyeballed in the browser pane; the e2e ports were not touched. Native Safari paths are unit-tested with a fake element only.
+- Saved/History/Lists show a lettered tile instead of a poster: the social `TitleRef` carries `poster_key`, not a signed URL. Ask social/data for a signed `poster_url` on `TitleRef` (the cards use it as soon as it exists). No "load more" past the first 100 saved titles or history entries.
+- Audio language preference, forced-subtitle logic beyond "default or forced" at start, subtitle delay, chapters list, keyboard help sheet.
+- Watching presence (CIN-PLY-009) is the backend's; the client only sends `playing`.
+- The mini player is not draggable and has no picture-in-picture of its own (the full player has the PiP button).

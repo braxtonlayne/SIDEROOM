@@ -1,6 +1,7 @@
 import { createRoute, type AnyRoute } from '@tanstack/react-router';
 import { lazyNamed } from '../lib/lazyRoute';
 import { validateBrowseSearch } from './browseSearch';
+import { createPlayerRoutes } from './player/routes';
 
 // Pages load on demand (XC-PERF-001).
 const CinemaRoot = lazyNamed(() => import('./CinemaRoot'), 'CinemaRoot');
@@ -63,5 +64,6 @@ export function createCinemaRoutes(root: AnyRoute) {
     browse('anime'),
     search,
     title,
+    ...createPlayerRoutes(layout),
   ]);
 }
