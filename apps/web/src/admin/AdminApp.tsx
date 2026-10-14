@@ -20,6 +20,7 @@ import { AccessLogSection } from './sections/AccessLog';
 import { CatalogSection } from './cinema/CatalogSection';
 import { CollectionsSection } from './cinema/CollectionsSection';
 import { TranscodingSection } from './cinema/TranscodingSection';
+import { LiveTvSection } from './cinema/tv/LiveTvSection';
 import { AccountsSection } from './sections/Accounts';
 import { BansSection } from './sections/Bans';
 import { CliParitySection } from './sections/CliParity';
@@ -118,6 +119,13 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     group: 'CINEMA',
     visible: (v) => v.can('MANAGE_TRANSCODE'),
     component: TranscodingSection,
+  },
+  {
+    id: 'cinema-live-tv',
+    label: 'Live TV',
+    group: 'CINEMA',
+    visible: (v) => v.can('MANAGE_TV'),
+    component: LiveTvSection,
   },
   {
     id: 'features',

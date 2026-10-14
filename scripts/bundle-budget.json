@@ -6,7 +6,9 @@
     "library": { "maxGzipKB": 600, "routeChunk": "LibraryRoot" },
     "admin": { "maxGzipKB": 600, "routeChunk": "AdminApp" },
     "settings": { "maxGzipKB": 600, "routeChunk": "UserSettings" },
-    "cinema-player": { "maxGzipKB": 600, "routeChunk": "WatchRoute" }
+    "cinema-player": { "maxGzipKB": 600, "routeChunk": "WatchRoute" },
+    "cinema-tv": { "maxGzipKB": 600, "routeChunk": "Guide" },
+    "cinema-tv-live": { "maxGzipKB": 600, "routeChunk": "LiveWatch" }
   },
   "singleChunkMaxGzipKB": 250
 }

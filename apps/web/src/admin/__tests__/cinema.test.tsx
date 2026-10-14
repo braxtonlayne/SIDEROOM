@@ -71,7 +71,7 @@ const navNames = () =>
     .map((b) => b.textContent);
 
 describe('Cinema admin navigation', () => {
-  it('shows the Media Curator the catalog and collections, but not transcoding', async () => {
+  it('shows the Media Curator the catalog, collections and Live TV, but not transcoding', async () => {
     asStaff({ perms: [...CURATOR] });
     server.use(http.get('*/api/v1/admin/cinema/titles', () => HttpResponse.json(page([]))));
     openAdmin('cinema-catalog');
@@ -81,6 +81,7 @@ describe('Cinema admin navigation', () => {
       'Review queues',
       'Cinema catalog',
       'Cinema collections',
+      'Live TV',
     ]);
   });
 

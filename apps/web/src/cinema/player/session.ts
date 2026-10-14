@@ -399,7 +399,7 @@ export class PlayerSession {
   flush(reason: 'heartbeat' | 'pause' | 'ended' | 'hidden' | 'pagehide' | 'close' | 'seek') {
     const info = this.state.info;
     const v = this.video;
-    if (!info || !v || !this.played || info.trailer) return;
+    if (!info || !v || !this.played || info.trailer || info.live) return;
     const duration = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : info.duration_s;
     const position = v.ended ? duration : v.currentTime;
     if (reason !== 'ended' && Math.abs(position - this.lastSavedAt) < 1) return;

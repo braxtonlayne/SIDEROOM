@@ -96,7 +96,11 @@ export function MiniPlayerHost({ history }: { history: RouterHistory }) {
   return (
     <Themed
       onExpand={() => {
-        history.push(watchHref(info.title_id, info.episode_id));
+        history.push(
+          info.live
+            ? `/cinema/tv/watch/${encodeURIComponent(info.live.channel_id)}`
+            : watchHref(info.title_id, info.episode_id),
+        );
       }}
       onClose={() => s.close()}
     />
