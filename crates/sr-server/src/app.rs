@@ -359,19 +359,22 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // Threads: their own snowflake worker (process id + 5). The activity hook keeps
     // counters, reopens archived threads and auto-joins posters; it runs after the
     // social hooks on every stored message.
-    let threads_deps = Arc::new(routes::threads::ThreadsDeps::new(
-        sr_chat::threads::ThreadService::new(
-            PgChatRepo::new(pool.clone()),
-            clock.clone(),
-            SnowflakeGenerator::new(
+    let threads_deps = Arc::new(
+        routes::threads::ThreadsDeps::new(
+            sr_chat::threads::ThreadService::new(
+                PgChatRepo::new(pool.clone()),
                 clock.clone(),
-                cfg.server.worker_id,
-                (cfg.server.process_id + 5) % 32,
-            )
-            .context("thread snowflake generator")?,
-        ),
-        bus.clone(),
-    ));
+                SnowflakeGenerator::new(
+                    clock.clone(),
+                    cfg.server.worker_id,
+                    (cfg.server.process_id + 5) % 32,
+                )
+                .context("thread snowflake generator")?,
+            ),
+            bus.clone(),
+        )
+        .with_audit(audit_sink.clone()),
+    );
     let message_hooks: Arc<dyn sr_chat::message_hooks::MessageHooks> =
         Arc::new(sr_chat::threads::hooks::HookChain(vec![
             social,

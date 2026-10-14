@@ -39,6 +39,7 @@ struct Env {
     repo: MemoryRepo,
     clock: Arc<ManualClock>,
     bus: Arc<InProcessBus>,
+    audit: Arc<AuditLog>,
     deps: Arc<ThreadsDeps>,
     guild: GuildId,
     ch: ChannelId,
@@ -88,14 +89,18 @@ async fn env() -> Env {
     }
     let mut settings = ApiSettings::default();
     settings.rate_limit.enabled = false;
-    let threads = Arc::new(ThreadsDeps::new(
-        ThreadService::new(
-            repo.clone(),
-            dyn_clock.clone(),
-            SnowflakeGenerator::new(dyn_clock.clone(), 9, 10).unwrap(),
-        ),
-        bus.clone(),
-    ));
+    let audit = Arc::new(AuditLog::default());
+    let threads = Arc::new(
+        ThreadsDeps::new(
+            ThreadService::new(
+                repo.clone(),
+                dyn_clock.clone(),
+                SnowflakeGenerator::new(dyn_clock.clone(), 9, 10).unwrap(),
+            ),
+            bus.clone(),
+        )
+        .with_audit(audit.clone()),
+    );
     let messages = MessagesDeps::new(
         repo.clone(),
         Arc::new(backend.clone()),
@@ -126,6 +131,7 @@ async fn env() -> Env {
         clock,
         bus,
         deps: threads,
+        audit,
         guild,
         ch,
     }
@@ -730,4 +736,63 @@ fn openapi_documents_the_thread_paths() {
     ] {
         assert!(paths.contains_key(p), "missing {p}");
     }
+}
+
+/// Captures audit writes (LNG-SSET-056).
+#[derive(Default)]
+struct AuditLog(std::sync::Mutex<Vec<(sr_chat::settings::audit::AuditAction, Option<u64>, Value)>>);
+
+#[async_trait::async_trait]
+impl crate::routes::guilds::backend::AuditSink for AuditLog {
+    async fn record(
+        &self,
+        _guild: GuildId,
+        _actor: UserId,
+        _action: sr_chat::settings::audit::AuditAction,
+        _target_id: Option<u64>,
+        _changes: Vec<sr_chat::settings::audit::AuditChange>,
+        _reason: Option<&str>,
+    ) {
+    }
+
+    async fn record_with_options(
+        &self,
+        _guild: GuildId,
+        _actor: UserId,
+        action: sr_chat::settings::audit::AuditAction,
+        target_id: Option<u64>,
+        options: Value,
+    ) {
+        self.0.lock().unwrap().push((action, target_id, options));
+    }
+}
+
+#[tokio::test]
+async fn thread_create_edit_and_delete_are_audited() {
+    use sr_chat::settings::audit::AuditAction;
+    let e = env().await;
+    let (_, tid) = e.thread_from_message("bob", "audited").await;
+    let tch: ChannelId = tid.parse().unwrap();
+    e.deps
+        .modify(
+            UserId::new(OWNER),
+            tch,
+            ThreadPatch {
+                name: Some("renamed".into()),
+                ..ThreadPatch::default()
+            },
+        )
+        .await
+        .unwrap();
+    e.deps.delete(UserId::new(OWNER), tch).await.unwrap();
+    let log = e.audit.0.lock().unwrap().clone();
+    let parent = json!({ "parent_id": e.ch.to_string() });
+    assert_eq!(
+        log,
+        vec![
+            (AuditAction::ThreadCreate, Some(tch.get()), parent.clone()),
+            (AuditAction::ThreadUpdate, Some(tch.get()), parent.clone()),
+            (AuditAction::ThreadDelete, Some(tch.get()), parent),
+        ]
+    );
 }

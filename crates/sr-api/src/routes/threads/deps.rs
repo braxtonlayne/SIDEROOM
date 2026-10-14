@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use serde_json::{Value, json};
 use sr_chat::message_hooks::MessageHooks;
 use sr_chat::repo::ChatRepository;
+use sr_chat::settings::audit::AuditAction;
 use sr_chat::threads::{
     ActivityOutcome, ArchivedFilter, DeletedThread, ForumPost, MemberChange, StartThread,
     StartedThread, ThreadListing, ThreadMember, ThreadPatch, ThreadRepository, ThreadService,
@@ -200,6 +201,7 @@ impl<R: ChatRepository + ThreadRepository + 'static> ThreadOps for ThreadService
 pub struct ThreadsDeps {
     pub ops: Arc<dyn ThreadOps>,
     bus: Arc<dyn EventBus>,
+    audit: Option<Arc<dyn crate::routes::guilds::backend::AuditSink>>,
 }
 
 /// Page size of the auto-archive job per run.
@@ -223,6 +225,21 @@ impl ThreadsDeps {
         Self {
             ops: Arc::new(service),
             bus,
+            audit: None,
+        }
+    }
+
+    /// Write thread creates, edits and deletes to the guild audit log (LNG-SSET-056).
+    pub fn with_audit(mut self, sink: Arc<dyn crate::routes::guilds::backend::AuditSink>) -> Self {
+        self.audit = Some(sink);
+        self
+    }
+
+    async fn audit(&self, channel: &Channel, actor: UserId, action: AuditAction) {
+        if let (Some(sink), Some(guild)) = (&self.audit, channel.guild_id) {
+            let options = json!({ "parent_id": channel.parent_id.map(|p| p.to_string()) });
+            sink.record_with_options(guild, actor, action, Some(channel.id.get()), options)
+                .await;
         }
     }
 
@@ -244,6 +261,9 @@ impl ThreadsDeps {
         let Some(guild) = channel.guild_id else {
             return;
         };
+        if let Some(owner) = channel.owner_id {
+            self.audit(channel, owner, AuditAction::ThreadCreate).await;
+        }
         let mut payload = Self::object(channel);
         if let Some(o) = payload.as_object_mut() {
             o.insert("newly_created".into(), json!(true));
@@ -361,6 +381,8 @@ impl ThreadsDeps {
     ) -> ChatResult<ChannelObject> {
         let view = self.ops.modify(actor, thread, patch).await?;
         self.publish_updated(&view.channel).await;
+        self.audit(&view.channel, actor, AuditAction::ThreadUpdate)
+            .await;
         Ok(ChannelObject::new(&view.channel, &[]).with_member(view.member.as_ref()))
     }
 
@@ -368,6 +390,8 @@ impl ThreadsDeps {
     pub async fn delete(&self, actor: UserId, thread: ChannelId) -> ChatResult<ChannelObject> {
         let del = self.ops.delete(actor, thread).await?;
         self.publish_deleted(&del.channel, del.viewers).await;
+        self.audit(&del.channel, actor, AuditAction::ThreadDelete)
+            .await;
         Ok(ChannelObject::new(&del.channel, &[]))
     }
 
