@@ -1,5 +1,6 @@
 import { SegmentedControl, Select, Slider, Switch, THEMES, THEME_IDS } from '@sideroom/ui';
 import type { ThemeId } from '@sideroom/ui';
+import { useT, type MessageKey } from '../../../i18n';
 import { useLoungeUi } from '../../../lounge/store';
 import { Card, SectionTitle } from '../parts';
 import {
@@ -14,20 +15,20 @@ import {
   type UserPrefs,
 } from '../prefs';
 
-const THEME_LABEL: Record<ThemeChoice, string> = {
-  system: 'Sync with computer',
-  'lounge-dark': 'Dark',
-  'lounge-light': 'Light',
-  'lounge-ash': 'Ash',
-  'lounge-onyx': 'Onyx',
-  sideroom: 'Side Room',
+const THEME_LABEL: Record<ThemeChoice, MessageKey> = {
+  system: 'settings.appearance.themeSystem',
+  'lounge-dark': 'settings.appearance.themeDark',
+  'lounge-light': 'settings.appearance.themeLight',
+  'lounge-ash': 'settings.appearance.themeAsh',
+  'lounge-onyx': 'settings.appearance.themeOnyx',
+  sideroom: 'settings.appearance.themeSideRoom',
 };
 
-const SECTION_LABEL: Record<ThemedSection, string> = {
-  lounge: 'Lounge',
-  cinema: 'Cinema',
-  library: 'Library',
-  entrance: 'Entrance',
+const SECTION_LABEL: Record<ThemedSection, MessageKey> = {
+  lounge: 'settings.appearance.sectionLounge',
+  cinema: 'settings.appearance.sectionCinema',
+  library: 'settings.appearance.sectionLibrary',
+  entrance: 'settings.appearance.sectionEntrance',
 };
 
 const INHERIT = 'inherit';
@@ -56,9 +57,10 @@ function Swatch({ choice }: { choice: ThemeChoice }) {
 }
 
 export function AppearanceSection({ prefs, setPrefs }: PrefsFormProps) {
+  const t = useT();
   const sectionBar = useLoungeUi((s) => s.showSectionBar);
   const sectionOptions = [
-    { value: INHERIT, label: 'Default for this section' },
+    { value: INHERIT, label: t('settings.appearance.sectionDefault') },
     ...THEME_IDS.map((id) => ({ value: id, label: THEMES[id].name })),
   ];
   const setSectionTheme = (section: ThemedSection, value: string) => {
@@ -69,13 +71,10 @@ export function AppearanceSection({ prefs, setPrefs }: PrefsFormProps) {
   };
   return (
     <>
-      <SectionTitle>Appearance</SectionTitle>
-      <p className="us-muted">
-        Changes preview instantly. Save keeps them on your account, so they follow you to other
-        devices.
-      </p>
-      <Card id="us-theme" title="Theme">
-        <div className="us-themes" role="group" aria-label="Theme">
+      <SectionTitle>{t('settings.appearance.title')}</SectionTitle>
+      <p className="us-muted">{t('settings.appearance.intro')}</p>
+      <Card id="us-theme" title={t('settings.appearance.theme')}>
+        <div className="us-themes" role="group" aria-label={t('settings.appearance.theme')}>
           {(['system', ...THEME_CHOICES] as ThemeChoice[]).map((c) => (
             <button
               key={c}
@@ -85,21 +84,21 @@ export function AppearanceSection({ prefs, setPrefs }: PrefsFormProps) {
               onClick={() => setPrefs({ theme: c })}
             >
               <Swatch choice={c} />
-              <span className="us-theme-name">{THEME_LABEL[c]}</span>
+              <span className="us-theme-name">{t(THEME_LABEL[c])}</span>
             </button>
           ))}
         </div>
       </Card>
       <Card
         id="us-section-themes"
-        title="Per-section themes"
-        description="Give a part of SIDE ROOM its own look. The Lounge follows the theme above unless you pick one here."
+        title={t('settings.appearance.perSection')}
+        description={t('settings.appearance.perSectionDesc')}
       >
         <div className="us-stack">
           {THEMED_SECTIONS.map((s) => (
             <div key={s} className="us-select-row">
               <label className="us-muted" id={`us-sec-${s}`}>
-                {SECTION_LABEL[s]}
+                {t(SECTION_LABEL[s])}
               </label>
               <Select
                 aria-labelledby={`us-sec-${s}`}
@@ -111,33 +110,33 @@ export function AppearanceSection({ prefs, setPrefs }: PrefsFormProps) {
           ))}
         </div>
       </Card>
-      <Card id="us-server-theming" title="Server themes">
+      <Card id="us-server-theming" title={t('settings.appearance.serverThemes')}>
         <Switch
-          label="Allow server theming"
-          description="Let a server tint the interface with its accent colour while you are in it."
+          label={t('settings.appearance.allowServer')}
+          description={t('settings.appearance.allowServerDesc')}
           checked={prefs.allowServerTheming}
           onChange={(e) => setPrefs({ allowServerTheming: e.target.checked })}
         />
         <Switch
-          label="Show the section bar"
-          description="The strip above the Lounge that switches between Lounge, Cinema and Library. Applies to this browser right away."
+          label={t('settings.appearance.sectionBar')}
+          description={t('settings.appearance.sectionBarDesc')}
           checked={sectionBar}
           onChange={(e) => useLoungeUi.setState({ showSectionBar: e.target.checked })}
         />
       </Card>
-      <Card id="us-messages" title="Message display">
+      <Card id="us-messages" title={t('settings.appearance.messageDisplay')}>
         <div className="us-stack">
           <SegmentedControl
-            label="Message display"
+            label={t('settings.appearance.messageDisplay')}
             value={prefs.messageDisplay}
             onValueChange={(v) => setPrefs({ messageDisplay: v as MessageDisplay })}
             options={[
-              { value: 'cozy', label: 'Cozy' },
-              { value: 'compact', label: 'Compact' },
+              { value: 'cozy', label: t('settings.appearance.cozy') },
+              { value: 'compact', label: t('settings.appearance.compact') },
             ]}
           />
           <Slider
-            label="Space between message groups"
+            label={t('settings.appearance.gap')}
             min={MESSAGE_GAP_RANGE[0]}
             max={MESSAGE_GAP_RANGE[1]}
             step={4}
@@ -152,14 +151,14 @@ export function AppearanceSection({ prefs, setPrefs }: PrefsFormProps) {
           >
             <strong>Alex</strong> <span className="us-muted">12:04</span>
             <br />
-            <span className="us-sample-line">This is how a message looks.</span>
+            <span className="us-sample-line">{t('settings.appearance.sample')}</span>
           </p>
         </div>
       </Card>
-      <Card id="us-scale" title="Size and color">
+      <Card id="us-scale" title={t('settings.appearance.sizeColor')}>
         <div className="us-stack">
           <Slider
-            label="Chat font scale"
+            label={t('settings.appearance.fontScale')}
             min={FONT_SCALE_RANGE[0]}
             max={FONT_SCALE_RANGE[1]}
             step={5}
@@ -169,7 +168,7 @@ export function AppearanceSection({ prefs, setPrefs }: PrefsFormProps) {
             onValueChange={(v) => setPrefs({ fontScale: v })}
           />
           <Slider
-            label="Zoom"
+            label={t('settings.appearance.zoom')}
             min={ZOOM_RANGE[0]}
             max={ZOOM_RANGE[1]}
             step={10}
@@ -179,7 +178,7 @@ export function AppearanceSection({ prefs, setPrefs }: PrefsFormProps) {
             onValueChange={(v) => setPrefs({ zoom: v })}
           />
           <Slider
-            label="Saturation"
+            label={t('settings.appearance.saturation')}
             min={0}
             max={100}
             step={5}

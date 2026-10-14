@@ -1,49 +1,51 @@
+import { useT, type MessageKey } from '../../i18n';
 import { SectionHeader } from '../ui';
 
-const COMMANDS: { title: string; cmd: string; note: string }[] = [
+const COMMANDS: { title: MessageKey; cmd: string; note: MessageKey }[] = [
   {
-    title: 'Emergency invite',
+    title: 'admin.cliParity.emergencyInvite.title',
     cmd: 'sr-cli invite create --issuer <username> --note "why"',
-    note: 'Creates an open invite as an existing account, bypassing credits and the invite freeze. The code is printed once; it is also listed under Invites with an emergency tag.',
+    note: 'admin.cliParity.emergencyInvite.note',
   },
   {
-    title: 'List staff',
+    title: 'admin.cliParity.listStaff.title',
     cmd: 'sr-cli staff list',
-    note: 'Works even when nobody can sign in to the web app.',
+    note: 'admin.cliParity.listStaff.note',
   },
   {
-    title: 'Appoint or remove staff',
+    title: 'admin.cliParity.appoint.title',
     cmd: 'sr-cli staff appoint <user> --role "Moderator" --reason "why"\nsr-cli staff revoke <user> --reason "why"',
-    note: 'Same rules as the Staff page, and the same audit trail.',
+    note: 'admin.cliParity.appoint.note',
   },
   {
-    title: 'Transfer ownership',
+    title: 'admin.cliParity.transfer.title',
     cmd: 'sr-cli staff transfer-owner <user> --reason "why"',
-    note: 'The only way to move the Owner role. It is deliberately not available in the web app.',
+    note: 'admin.cliParity.transfer.note',
   },
   {
-    title: 'Verify the access log',
+    title: 'admin.cliParity.verify.title',
     cmd: 'sr-cli verify-access-log',
-    note: 'The same hash-chain check as the Verify chain button on the Access log page.',
+    note: 'admin.cliParity.verify.note',
   },
 ];
 
 /** Operator escape hatches that exist only on the command line (spec: CLI parity). Read-only information. */
 export function CliParitySection() {
+  const t = useT();
   return (
     <>
       <SectionHeader
-        title="Command line"
-        description="Everything here runs on the server with sr-cli, using the server's own configuration. Nothing on this page sends a request."
+        title={t('admin.cliParity.title')}
+        description={t('admin.cliParity.description')}
       />
       <div className="ss-form" style={{ maxWidth: 760 }}>
         {COMMANDS.map((c) => (
           <section key={c.title} className="ss-card">
-            <h2>{c.title}</h2>
+            <h2>{t(c.title)}</h2>
             <pre className="adm-pre">
               <code>{c.cmd}</code>
             </pre>
-            <p className="ss-sub">{c.note}</p>
+            <p className="ss-sub">{t(c.note)}</p>
           </section>
         ))}
       </div>

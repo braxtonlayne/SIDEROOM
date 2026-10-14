@@ -4,6 +4,7 @@ import { Modal, useFloating, usePortalTarget } from '@sideroom/ui';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useT } from '../../i18n';
 import { AgeBadge } from '../ui';
 import { isNotAvailable, setReminder, useBlockInfo } from './api';
 import {
@@ -56,6 +57,7 @@ function Body({
   channels,
   titleId,
 }: Omit<ProgramPopoverProps, 'anchor' | 'onClose'> & { titleId: string }): ReactNode {
+  const t = useT();
   // Synopsis and rating come from the catalog (the schedule block carries neither).
   const block = useBlockInfo(scheduled) ?? scheduled;
   const live = isNow(block, nowMs);
@@ -72,7 +74,7 @@ function Body({
   return (
     <>
       <p className="tv-pop-kicker">
-        Channel {channel.number} · {channel.call_sign}
+        {t('cinema.popover.channel', { number: channel.number, callSign: channel.call_sign })}
       </p>
       <h2 id={titleId} className="tv-pop-title">
         {block.title}
@@ -80,8 +82,11 @@ function Body({
       {block.episode_label && <p className="tv-pop-ep">{block.episode_label}</p>}
       <p className="tv-pop-meta">
         <span className="tv-mono">
-          {live ? 'NOW · ' : ''}
-          {timeLabel(block.start_ms, tz)} to {timeLabel(block.end_ms, tz)}
+          {live ? t('cinema.popover.nowPrefix') : ''}
+          {t('cinema.guide.timeRange', {
+            start: timeLabel(block.start_ms, tz),
+            end: timeLabel(block.end_ms, tz),
+          })}
         </span>
         <span>
           {kindYear(block)} · {formatDuration(min)}
@@ -89,10 +94,10 @@ function Body({
         {block.content_rating && <span className="tv-rating">{block.content_rating}</span>}
         {block.age_restricted && <AgeBadge className="tv-age" />}
       </p>
-      <p className="tv-pop-syn">{block.synopsis || 'No description for this programme yet.'}</p>
+      <p className="tv-pop-syn">{block.synopsis || t('cinema.popover.noDescription')}</p>
       {airings.length > 0 && (
-        <section aria-label="Next airings">
-          <h3 className="tv-pop-sub">Next airings</h3>
+        <section aria-label={t('cinema.popover.nextAirings')}>
+          <h3 className="tv-pop-sub">{t('cinema.popover.nextAirings')}</h3>
           <ul className="tv-pop-airings">
             {airings.map((b) => (
               <li key={b.id}>
@@ -102,8 +107,8 @@ function Body({
                 </span>
                 <span>
                   {byId.get(b.channel_id)
-                    ? `Channel ${byId.get(b.channel_id)!.number}`
-                    : 'Another channel'}
+                    ? t('cinema.popover.channelN', { n: byId.get(b.channel_id)!.number })
+                    : t('cinema.popover.anotherChannel')}
                 </span>
               </li>
             ))}
@@ -113,7 +118,7 @@ function Body({
       <div className="tv-pop-actions">
         {live && (
           <a className="tv-btn tv-btn-primary" href={watchChannelHref(channel.id)}>
-            Tune in
+            {t('cinema.popover.tuneIn')}
           </a>
         )}
         {future && (
@@ -124,20 +129,20 @@ function Body({
             disabled={remind.isPending || (remind.isError && isNotAvailable(remind.error))}
             onClick={() => remind.mutate()}
           >
-            {reminded ? 'Reminder set' : 'Remind me'}
+            {reminded ? t('cinema.popover.reminderSet') : t('cinema.popover.remindMe')}
           </button>
         )}
         {href && (
           <a className="tv-btn" href={href}>
-            Go to title
+            {t('cinema.popover.goToTitle')}
           </a>
         )}
       </div>
       {remind.isError && (
         <p role="alert" className="tv-pop-err">
           {isNotAvailable(remind.error)
-            ? 'Reminders are not available yet.'
-            : 'Could not change the reminder. Try again.'}
+            ? t('cinema.popover.remindersUnavailable')
+            : t('cinema.popover.reminderError')}
         </p>
       )}
     </>

@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import { errorText } from './api';
+import { useT } from '../i18n';
 
 export { errorText };
 import { hasPerm, type AdminPerm } from './permissions';
@@ -128,12 +129,13 @@ export function ReasonDialog({
   confirmLabel,
   danger,
   reasonOptional,
-  reasonLabel = 'Reason (recorded in the audit log)',
+  reasonLabel,
   children,
   valid = true,
   onConfirm,
   onCancel,
 }: ReasonDialogProps) {
+  const t = useT();
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -168,7 +170,7 @@ export function ReasonDialog({
       footer={
         <>
           <Button variant="ghost" onClick={onCancel} disabled={busy}>
-            Cancel
+            {t('admin.ui.cancel')}
           </Button>
           <Button
             variant={danger ? 'danger' : 'primary'}
@@ -190,7 +192,7 @@ export function ReasonDialog({
       >
         {children}
         <TextArea
-          label={reasonLabel}
+          label={reasonLabel ?? t('admin.ui.reasonLabel')}
           value={reason}
           maxLength={500}
           rows={3}
@@ -230,6 +232,9 @@ export function usePaged<T, C = string>(
   fetchRef.current = fetchPage;
   const keyRef = useRef(key);
   keyRef.current = key;
+  const t = useT();
+  const tRef = useRef(t);
+  tRef.current = t;
   const [nonce, setNonce] = useState(0);
 
   const run = useCallback(async (cursor: C | null, append: boolean) => {
@@ -242,7 +247,7 @@ export function usePaged<T, C = string>(
       setNext(page.next ?? null);
       setError(null);
     } catch (e) {
-      if (keyRef.current === forKey) setError(errorText(e, 'Could not load this.'));
+      if (keyRef.current === forKey) setError(errorText(e, tRef.current('admin.ui.loadError')));
     } finally {
       if (keyRef.current === forKey) setLoading(false);
     }
@@ -265,11 +270,12 @@ export function usePaged<T, C = string>(
 }
 
 export function LoadMore({ paged }: { paged: Paged<unknown> }) {
+  const t = useT();
   if (!paged.more) return null;
   return (
     <div className="adm-more">
       <Button variant="secondary" loading={paged.loading} onClick={paged.loadMore}>
-        Load more
+        {t('admin.ui.loadMore')}
       </Button>
     </div>
   );

@@ -1,5 +1,6 @@
 import { Button, Checkbox, Notice, TextInput } from '@sideroom/ui';
 import { useState } from 'react';
+import { t, useT } from '../../i18n';
 import { OPTION_TYPES, type CommandInput, type CommandOption, type DevApp } from '../types';
 import { CodeBlock } from '../ui';
 
@@ -11,24 +12,25 @@ export function validateCommand(c: CommandInput): Record<string, string> {
   const e: Record<string, string> = {};
   if (c.type === 1) {
     if (!NAME.test(c.name) || c.name !== c.name.toLowerCase())
-      e.name = 'Use 1 to 32 lowercase letters, numbers, dashes or underscores.';
+      e.name = t('developers.commands.nameInvalid');
     if (c.description.trim().length < 1 || c.description.length > 100)
-      e.description = 'Describe it in 1 to 100 characters.';
+      e.description = t('developers.commands.describeInvalid');
   } else if (c.name.trim().length < 1 || c.name.length > 32) {
-    e.name = 'Use 1 to 32 characters.';
+    e.name = t('developers.commands.nameLength');
   }
-  if (c.options.length > MAX_OPTIONS) e.options = `At most ${MAX_OPTIONS} options.`;
+  if (c.options.length > MAX_OPTIONS)
+    e.options = t('developers.commands.maxOptions', { max: MAX_OPTIONS });
   const seen = new Set<string>();
   let sawOptional = false;
   c.options.forEach((o, i) => {
     if (!NAME.test(o.name) || o.name !== o.name.toLowerCase())
-      e[`option.${i}.name`] = 'Use 1 to 32 lowercase letters, numbers, dashes or underscores.';
-    else if (seen.has(o.name)) e[`option.${i}.name`] = 'Option names must be unique.';
+      e[`option.${i}.name`] = t('developers.commands.nameInvalid');
+    else if (seen.has(o.name)) e[`option.${i}.name`] = t('developers.commands.optionNameUnique');
     seen.add(o.name);
     if (o.description.trim().length < 1 || o.description.length > 100)
-      e[`option.${i}.description`] = 'Describe it in 1 to 100 characters.';
+      e[`option.${i}.description`] = t('developers.commands.describeInvalid');
     if (o.required && sawOptional)
-      e[`option.${i}.required`] = 'Required options must come before optional ones.';
+      e[`option.${i}.required`] = t('developers.commands.requiredFirst');
     if (!o.required) sawOptional = true;
   });
   return e;
@@ -67,6 +69,7 @@ const emptyOption = (): CommandOption => ({ type: 3, name: '', description: '', 
  * the request to copy, rather than pretending to manage a list it cannot read.
  */
 export function CommandsTab({ app }: { app: DevApp }) {
+  const tr = useT();
   const [draft, setDraft] = useState<CommandInput>({
     type: 1,
     name: '',
@@ -76,7 +79,7 @@ export function CommandsTab({ app }: { app: DevApp }) {
   const [guildId, setGuildId] = useState('');
   const problems = validateCommand(draft);
   const guildProblem =
-    guildId !== '' && !/^[0-9]+$/.test(guildId) ? 'A server id is digits only.' : undefined;
+    guildId !== '' && !/^[0-9]+$/.test(guildId) ? tr('developers.commands.guildDigits') : undefined;
   const valid = Object.keys(problems).length === 0 && !guildProblem && draft.name !== '';
   const set = (patch: Partial<CommandInput>) => setDraft((d) => ({ ...d, ...patch }));
   const setOption = (i: number, patch: Partial<CommandOption>) =>
@@ -87,19 +90,17 @@ export function CommandsTab({ app }: { app: DevApp }) {
 
   return (
     <div className="dev-stack">
-      <Notice variant="info" title="Commands are managed with the bot token">
-        The server lets only the bot itself register slash commands, over REST. Build and check a
-        command here, then send the request below with your bot token (see Interactions in the
-        documentation).
+      <Notice variant="info" title={tr('developers.commands.noticeTitle')}>
+        {tr('developers.commands.noticeBody')}
       </Notice>
       <section className="dev-card" aria-labelledby="dev-cmds-h">
         <h2 id="dev-cmds-h" className="dev-card-title">
-          Command builder
+          {tr('developers.commands.builderHeading')}
         </h2>
         <div className="dev-form">
           <TextInput
-            label="Server id (optional)"
-            hint="Leave empty for a global command. Server commands appear at once, which suits testing."
+            label={tr('developers.commands.guildLabel')}
+            hint={tr('developers.commands.guildHint')}
             value={guildId}
             onChange={(e) => setGuildId(e.target.value.trim())}
             error={guildProblem}
@@ -108,7 +109,7 @@ export function CommandsTab({ app }: { app: DevApp }) {
           />
           <div className="dev-field">
             <label className="dev-label" htmlFor="cmd-type">
-              Type
+              {tr('developers.commands.typeLabel')}
             </label>
             <select
               id="cmd-type"
@@ -119,13 +120,13 @@ export function CommandsTab({ app }: { app: DevApp }) {
                 set({ type, ...(type === 1 ? {} : { description: '', options: [] }) });
               }}
             >
-              <option value={1}>Slash command</option>
-              <option value={2}>User command (right-click a person)</option>
-              <option value={3}>Message command (right-click a message)</option>
+              <option value={1}>{tr('developers.commands.typeSlash')}</option>
+              <option value={2}>{tr('developers.commands.typeUser')}</option>
+              <option value={3}>{tr('developers.commands.typeMessage')}</option>
             </select>
           </div>
           <TextInput
-            label="Name"
+            label={tr('developers.commands.nameLabel')}
             value={draft.name}
             maxLength={32}
             onChange={(e) =>
@@ -136,7 +137,7 @@ export function CommandsTab({ app }: { app: DevApp }) {
           />
           {draft.type === 1 && (
             <TextInput
-              label="Description"
+              label={tr('developers.commands.descriptionLabel')}
               value={draft.description}
               maxLength={100}
               onChange={(e) => set({ description: e.target.value })}
@@ -146,19 +147,26 @@ export function CommandsTab({ app }: { app: DevApp }) {
 
           {draft.type === 1 && (
             <fieldset className="dev-fieldset">
-              <legend>Options</legend>
-              {draft.options.length === 0 && <p className="dev-muted">No options.</p>}
+              <legend>{tr('developers.commands.optionsLegend')}</legend>
+              {draft.options.length === 0 && (
+                <p className="dev-muted">{tr('developers.commands.noOptions')}</p>
+              )}
               {draft.options.map((o, i) => (
-                <div key={i} className="dev-option" role="group" aria-label={`Option ${i + 1}`}>
+                <div
+                  key={i}
+                  className="dev-option"
+                  role="group"
+                  aria-label={tr('developers.commands.optionGroup', { n: i + 1 })}
+                >
                   <TextInput
-                    label={`Option ${i + 1} name`}
+                    label={tr('developers.commands.optionName', { n: i + 1 })}
                     value={o.name}
                     maxLength={32}
                     onChange={(e) => setOption(i, { name: e.target.value.toLowerCase() })}
                     error={touched(`option.${i}.name`)}
                   />
                   <TextInput
-                    label={`Option ${i + 1} description`}
+                    label={tr('developers.commands.optionDescription', { n: i + 1 })}
                     value={o.description}
                     maxLength={100}
                     onChange={(e) => setOption(i, { description: e.target.value })}
@@ -166,7 +174,7 @@ export function CommandsTab({ app }: { app: DevApp }) {
                   />
                   <div className="dev-field">
                     <label className="dev-label" htmlFor={`opt-type-${i}`}>
-                      {`Option ${i + 1} type`}
+                      {tr('developers.commands.optionType', { n: i + 1 })}
                     </label>
                     <select
                       id={`opt-type-${i}`}
@@ -174,15 +182,15 @@ export function CommandsTab({ app }: { app: DevApp }) {
                       value={o.type}
                       onChange={(e) => setOption(i, { type: Number(e.target.value) })}
                     >
-                      {OPTION_TYPES.map((t) => (
-                        <option key={t.value} value={t.value}>
-                          {t.label}
+                      {OPTION_TYPES.map((ot) => (
+                        <option key={ot.value} value={ot.value}>
+                          {ot.label}
                         </option>
                       ))}
                     </select>
                   </div>
                   <Checkbox
-                    label={`Option ${i + 1} is required`}
+                    label={tr('developers.commands.optionRequired', { n: i + 1 })}
                     checked={o.required}
                     onChange={(e) => setOption(i, { required: e.target.checked })}
                   />
@@ -193,7 +201,7 @@ export function CommandsTab({ app }: { app: DevApp }) {
                   )}
                   {[3, 4, 10].includes(o.type) && (
                     <Checkbox
-                      label={`Option ${i + 1} offers autocomplete`}
+                      label={tr('developers.commands.optionAutocomplete', { n: i + 1 })}
                       checked={!!o.autocomplete}
                       onChange={(e) => setOption(i, { autocomplete: e.target.checked })}
                     />
@@ -203,7 +211,7 @@ export function CommandsTab({ app }: { app: DevApp }) {
                     size="sm"
                     onClick={() => set({ options: draft.options.filter((_, j) => j !== i) })}
                   >
-                    {`Remove option ${i + 1}`}
+                    {tr('developers.commands.removeOption', { n: i + 1 })}
                   </Button>
                 </div>
               ))}
@@ -213,7 +221,7 @@ export function CommandsTab({ app }: { app: DevApp }) {
                 disabled={draft.options.length >= MAX_OPTIONS}
                 onClick={() => set({ options: [...draft.options, emptyOption()] })}
               >
-                Add option
+                {tr('developers.commands.addOption')}
               </Button>
             </fieldset>
           )}
@@ -221,12 +229,12 @@ export function CommandsTab({ app }: { app: DevApp }) {
       </section>
       {req ? (
         <>
-          <CodeBlock lang="json" title="Request body" code={req.body} />
+          <CodeBlock lang="json" title={tr('developers.commands.requestBody')} code={req.body} />
           <CodeBlock lang="curl" title="curl" code={req.curl} />
         </>
       ) : (
         <p className="dev-muted" role="status">
-          Fill in the command to get the request. Fix any message above first.
+          {tr('developers.commands.fillIn')}
         </p>
       )}
     </div>

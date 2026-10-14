@@ -1,6 +1,7 @@
 import { Button, Modal, PasswordInput, TextInput, useToast } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { ApiError } from '../../../api/client';
+import { useT } from '../../../i18n';
 import { changeEmail, errorText } from '../api';
 
 type Step = 'details' | 'code';
@@ -29,6 +30,7 @@ export function ChangeEmailDialog({
   currentEmail: string;
   onClose: () => void;
 }) {
+  const t = useT();
   const toast = useToast();
   const [step, setStep] = useState<Step>('details');
   const [email, setEmail] = useState('');
@@ -65,8 +67,11 @@ export function ChangeEmailDialog({
       });
       onClose();
       toast.show({
-        title: 'Check your new inbox',
-        description: `We sent a link to ${email.trim()}. Your email stays ${currentEmail} until you use it.`,
+        title: t('settings.changeEmail.sentTitle'),
+        description: t('settings.changeEmail.sentDesc', {
+          sent: email.trim(),
+          current: currentEmail,
+        }),
         duration: 7000,
       });
     } catch (e) {
@@ -89,8 +94,9 @@ export function ChangeEmailDialog({
 
   const next = () => {
     const nextErrors: typeof errors = {};
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) nextErrors.email = 'Enter a valid email.';
-    if (!password) nextErrors.password = 'Enter your password.';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
+      nextErrors.email = t('settings.changeEmail.validEmail');
+    if (!password) nextErrors.password = t('settings.changeEmail.enterPassword');
     setErrors(nextErrors);
     if (nextErrors.email || nextErrors.password) return;
     if (mfaEnabled) {
@@ -102,7 +108,7 @@ export function ChangeEmailDialog({
 
   const confirmCode = () => {
     if (!code.trim()) {
-      setErrors({ code: 'Enter a code from your authenticator app, or a recovery code.' });
+      setErrors({ code: t('settings.changeEmail.enterCode') });
       return;
     }
     void send(true);
@@ -113,11 +119,11 @@ export function ChangeEmailDialog({
       open={open}
       onClose={onClose}
       size="sm"
-      title={step === 'code' ? 'Confirm it’s you' : 'Change your email'}
+      title={
+        step === 'code' ? t('settings.changeEmail.confirmTitle') : t('settings.changeEmail.title')
+      }
       description={
-        step === 'code'
-          ? 'Enter a code from your authenticator app, or one of your recovery codes.'
-          : 'We will send a confirmation link to the new address. Your email will not change until you use it.'
+        step === 'code' ? t('settings.changeEmail.codeDesc') : t('settings.changeEmail.detailsDesc')
       }
     >
       {step === 'details' ? (
@@ -130,7 +136,7 @@ export function ChangeEmailDialog({
           noValidate
         >
           <TextInput
-            label="New email"
+            label={t('settings.changeEmail.newEmail')}
             type="email"
             autoComplete="email"
             value={email}
@@ -139,7 +145,7 @@ export function ChangeEmailDialog({
             data-autofocus=""
           />
           <PasswordInput
-            label="Current password"
+            label={t('settings.changeEmail.currentPassword')}
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -147,10 +153,10 @@ export function ChangeEmailDialog({
           />
           <div className="us-actions">
             <Button variant="ghost" onClick={onClose}>
-              Cancel
+              {t('settings.changeEmail.cancel')}
             </Button>
             <Button type="submit" loading={busy && !mfaEnabled}>
-              {mfaEnabled ? 'Continue' : 'Send link'}
+              {mfaEnabled ? t('settings.changeEmail.continue') : t('settings.changeEmail.sendLink')}
             </Button>
           </div>
         </form>
@@ -164,7 +170,7 @@ export function ChangeEmailDialog({
           noValidate
         >
           <TextInput
-            label="Authentication or recovery code"
+            label={t('settings.changeEmail.codeLabel')}
             inputMode="text"
             autoComplete="one-time-code"
             maxLength={64}
@@ -175,10 +181,10 @@ export function ChangeEmailDialog({
           />
           <div className="us-actions">
             <Button variant="ghost" onClick={() => setStep('details')}>
-              Back
+              {t('settings.changeEmail.back')}
             </Button>
             <Button type="submit" loading={busy}>
-              Send link
+              {t('settings.changeEmail.sendLink')}
             </Button>
           </div>
         </form>

@@ -1,11 +1,13 @@
 import { Button, Modal, TextInput } from '@sideroom/ui';
 import { useState, type FormEvent } from 'react';
+import { useT } from '../../i18n';
 import { useRail } from '../data';
 import { useLoungeUi } from '../store';
 import { deleteFolder, FOLDER_COLORS, FOLDER_NAME_MAX, updateFolder } from './railLayout';
 
 /** Folder settings (LNG-RAIL-008): name and color; the folder can also be dissolved. */
 export function FolderDialog({ folderId, onClose }: { folderId: string; onClose: () => void }) {
+  const t = useT();
   const rail = useRail();
   const setLayout = useLoungeUi((s) => s.setRailLayout);
   const folder = rail.find((e) => e.kind === 'folder' && e.id === folderId);
@@ -20,17 +22,17 @@ export function FolderDialog({ folderId, onClose }: { folderId: string; onClose:
   };
 
   return (
-    <Modal open onClose={onClose} size="sm" title="Folder Settings">
+    <Modal open onClose={onClose} size="sm" title={t('lounge.folderDialog.title')}>
       <form className="lng-form" onSubmit={save}>
         <TextInput
-          label="Folder name"
+          label={t('lounge.folderDialog.nameLabel')}
           value={name}
           maxLength={FOLDER_NAME_MAX}
           autoFocus
           onChange={(e) => setName(e.target.value)}
         />
         <fieldset className="lng-swatches">
-          <legend className="lng-field-label">Folder color</legend>
+          <legend className="lng-field-label">{t('lounge.folderDialog.colorLabel')}</legend>
           <div className="lng-swatch-row">
             {FOLDER_COLORS.map((c) => (
               <label key={c} className="lng-swatch" style={{ background: c }}>
@@ -54,12 +56,12 @@ export function FolderDialog({ folderId, onClose }: { folderId: string; onClose:
               onClose();
             }}
           >
-            Ungroup folder
+            {t('lounge.folderDialog.ungroup')}
           </Button>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t('lounge.folderDialog.cancel')}
           </Button>
-          <Button type="submit">Save</Button>
+          <Button type="submit">{t('lounge.folderDialog.save')}</Button>
         </div>
       </form>
     </Modal>

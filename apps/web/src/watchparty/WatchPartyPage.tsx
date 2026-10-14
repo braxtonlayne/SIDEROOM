@@ -3,6 +3,7 @@
 import { Button, EmptyState, Spinner } from '@sideroom/ui';
 import { useRouter } from '@tanstack/react-router';
 import { useEffect } from 'react';
+import { useT } from '../i18n';
 import { useAgeGate } from '../lib/ageGate';
 import { partyController, useParty } from './runtime';
 import { Theatre } from './Theatre';
@@ -14,6 +15,7 @@ export interface WatchPartyPageProps {
 }
 
 export function WatchPartyPage({ id, code }: WatchPartyPageProps) {
+  const t = useT();
   const router = useRouter();
   const { ensureAdult } = useAgeGate();
   const c = partyController();
@@ -50,22 +52,22 @@ export function WatchPartyPage({ id, code }: WatchPartyPageProps) {
           title={
             status === 'ended'
               ? error?.kind === 'removed'
-                ? 'You are not in this party any more'
-                : 'This party has ended'
+                ? t('watchparty.page.removed')
+                : t('watchparty.page.ended')
               : error?.kind === 'age'
-                ? 'This party is showing age-restricted content'
+                ? t('watchparty.page.ageTitle')
                 : gone
-                  ? 'This watch party is not available'
-                  : 'We could not open this watch party'
+                  ? t('watchparty.page.gone')
+                  : t('watchparty.page.couldNotOpen')
           }
           description={
             error?.kind === 'age'
-              ? 'Confirm that you are 18 or older to join, or pick another title.'
-              : (error?.message ?? 'Check your connection and try again.')
+              ? t('watchparty.page.ageDescription')
+              : (error?.message ?? t('watchparty.page.checkConnection'))
           }
           action={
             <Button onClick={back} variant="secondary">
-              Back
+              {t('watchparty.page.back')}
             </Button>
           }
         />
@@ -74,7 +76,7 @@ export function WatchPartyPage({ id, code }: WatchPartyPageProps) {
   }
   return (
     <div className="wp-root wp-msg">
-      <Spinner label="Joining the watch party" />
+      <Spinner label={t('watchparty.page.joining')} />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { Button, Modal, PasswordInput, TextInput, useToast } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { ApiError } from '../../../api/client';
+import { useT } from '../../../i18n';
 import { changeUsername, errorText, patchSelf } from '../api';
 
 export const USERNAME_RULE = /^[a-z0-9_.]{2,32}$/;
@@ -30,6 +31,7 @@ export function ChangeUsernameDialog({
   onClose: () => void;
   onChanged: (username: string) => void;
 }) {
+  const t = useT();
   const toast = useToast();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -45,14 +47,14 @@ export function ChangeUsernameDialog({
   const submit = async () => {
     const name = username.trim().toLowerCase();
     if (!USERNAME_RULE.test(name))
-      return setErrors({ username: 'Use 2 to 32 letters, digits, underscores or dots.' });
-    if (name === current) return setErrors({ username: 'That is already your username.' });
-    if (!password) return setErrors({ password: 'Enter your password.' });
+      return setErrors({ username: t('settings.accountEdit.usernameRule') });
+    if (name === current) return setErrors({ username: t('settings.accountEdit.usernameSame') });
+    if (!password) return setErrors({ password: t('settings.accountEdit.enterPassword') });
     setBusy(true);
     setErrors({});
     try {
       const res = await changeUsername(name, password);
-      toast.show({ title: 'Username changed', duration: 3000 });
+      toast.show({ title: t('settings.accountEdit.usernameChanged'), duration: 3000 });
       onChanged(res.username ?? name);
       onClose();
     } catch (e) {
@@ -67,16 +69,16 @@ export function ChangeUsernameDialog({
     <Modal
       open={open}
       onClose={onClose}
-      title="Change your username"
-      description="Your username is what you sign in with. You can change it twice a day."
+      title={t('settings.accountEdit.usernameTitle')}
+      description={t('settings.accountEdit.usernameDesc')}
       size="sm"
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t('settings.accountEdit.cancel')}
           </Button>
           <Button loading={busy} onClick={() => void submit()}>
-            Done
+            {t('settings.accountEdit.done')}
           </Button>
         </>
       }
@@ -89,7 +91,7 @@ export function ChangeUsernameDialog({
         }}
       >
         <TextInput
-          label="Username"
+          label={t('settings.accountEdit.username')}
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           error={errors.username}
@@ -98,7 +100,7 @@ export function ChangeUsernameDialog({
           data-autofocus=""
         />
         <PasswordInput
-          label="Current password"
+          label={t('settings.accountEdit.currentPassword')}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           error={errors.password}
@@ -121,6 +123,7 @@ export function DisplayNameDialog({
   onClose: () => void;
   onChanged: (name: string | null) => void;
 }) {
+  const t = useT();
   const toast = useToast();
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -134,12 +137,12 @@ export function DisplayNameDialog({
   const submit = async () => {
     const clean = name.trim();
     if ([...clean].length > DISPLAY_NAME_MAX)
-      return setError(`Display names can be at most ${DISPLAY_NAME_MAX} characters.`);
+      return setError(t('settings.accountEdit.displayNameMax', { max: DISPLAY_NAME_MAX }));
     setBusy(true);
     setError(null);
     try {
       await patchSelf({ global_name: clean === '' ? null : clean });
-      toast.show({ title: 'Display name changed', duration: 3000 });
+      toast.show({ title: t('settings.accountEdit.displayNameChanged'), duration: 3000 });
       onChanged(clean === '' ? null : clean);
       onClose();
     } catch (e) {
@@ -152,16 +155,16 @@ export function DisplayNameDialog({
     <Modal
       open={open}
       onClose={onClose}
-      title="Change your display name"
-      description="This is the name people see. Leave it empty to show your username."
+      title={t('settings.accountEdit.displayNameTitle')}
+      description={t('settings.accountEdit.displayNameDesc')}
       size="sm"
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t('settings.accountEdit.cancel')}
           </Button>
           <Button loading={busy} onClick={() => void submit()}>
-            Done
+            {t('settings.accountEdit.done')}
           </Button>
         </>
       }
@@ -173,7 +176,7 @@ export function DisplayNameDialog({
         }}
       >
         <TextInput
-          label="Display name"
+          label={t('settings.accountEdit.displayName')}
           value={name}
           onChange={(e) => setName(e.target.value)}
           error={error}

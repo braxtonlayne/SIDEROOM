@@ -2,6 +2,7 @@
 // menus come from the UI kit's DropdownMenu so arrows, Home/End, typeahead and Escape work as everywhere else.
 import { DropdownMenu, type MenuEntry } from '@sideroom/ui';
 import type { ReactElement } from 'react';
+import { useT } from '../../i18n';
 import {
   AudioIcon,
   Back10,
@@ -36,21 +37,21 @@ export interface ControlsProps {
 }
 
 const SIZES: [SubSize, string][] = [
-  ['small', 'Small'],
-  ['medium', 'Medium'],
-  ['large', 'Large'],
-  ['xlarge', 'Extra large'],
+  ['small', 'cinema.controls.sizeSmall'],
+  ['medium', 'cinema.controls.sizeMedium'],
+  ['large', 'cinema.controls.sizeLarge'],
+  ['xlarge', 'cinema.controls.sizeXlarge'],
 ];
 const COLORS: [SubColor, string][] = [
-  ['white', 'White'],
-  ['yellow', 'Yellow'],
-  ['cyan', 'Cyan'],
-  ['green', 'Green'],
+  ['white', 'cinema.controls.colorWhite'],
+  ['yellow', 'cinema.controls.colorYellow'],
+  ['cyan', 'cinema.controls.colorCyan'],
+  ['green', 'cinema.controls.colorGreen'],
 ];
 const BACKGROUNDS: [SubBackground, string][] = [
-  ['none', 'None'],
-  ['translucent', 'Translucent'],
-  ['solid', 'Solid'],
+  ['none', 'cinema.controls.bgNone'],
+  ['translucent', 'cinema.controls.bgTranslucent'],
+  ['solid', 'cinema.controls.bgSolid'],
 ];
 
 function IconButton({
@@ -110,6 +111,7 @@ function MenuButton({
 }
 
 export function Controls(p: ControlsProps) {
+  const tr = useT();
   const s = playerSession();
   const st = usePlayer((x) => x);
   const info = st.info;
@@ -118,7 +120,7 @@ export function Controls(p: ControlsProps) {
   const audio: MenuEntry[] = [
     {
       type: 'radio-group',
-      label: 'Audio',
+      label: tr('cinema.controls.audio'),
       value: st.audioId ?? '',
       onValueChange: (v) => s.setAudioTrack(v),
       options: st.audioTracks.map((t) => ({ value: t.id, label: t.label })),
@@ -128,48 +130,51 @@ export function Controls(p: ControlsProps) {
   const subtitles: MenuEntry[] = [
     {
       type: 'radio-group',
-      label: 'Subtitles',
+      label: tr('cinema.controls.subtitles'),
       value: st.subtitleId ?? 'off',
       onValueChange: (v) => void s.setSubtitle(v === 'off' ? null : v),
       options: [
-        { value: 'off', label: 'Off' },
+        { value: 'off', label: tr('cinema.controls.off') },
         ...info.subtitle_tracks.map((t) => ({
           value: t.id,
-          label: t.forced ? `${t.label} (forced)` : t.label,
+          label: t.forced ? tr('cinema.controls.forced', { label: t.label }) : t.label,
         })),
       ],
     },
     { type: 'separator' },
     {
       type: 'radio-group',
-      label: 'Text size',
+      label: tr('cinema.controls.textSize'),
       value: st.subtitleStyle.size,
       onValueChange: (v) => s.setSubtitleStyle({ size: v as SubSize }),
-      options: SIZES.map(([value, label]) => ({ value, label })),
+      options: SIZES.map(([value, label]) => ({ value, label: tr(label) })),
     },
     {
       type: 'radio-group',
-      label: 'Text color',
+      label: tr('cinema.controls.textColor'),
       value: st.subtitleStyle.color,
       onValueChange: (v) => s.setSubtitleStyle({ color: v as SubColor }),
-      options: COLORS.map(([value, label]) => ({ value, label })),
+      options: COLORS.map(([value, label]) => ({ value, label: tr(label) })),
     },
     {
       type: 'radio-group',
-      label: 'Background',
+      label: tr('cinema.controls.background'),
       value: st.subtitleStyle.background,
       onValueChange: (v) => s.setSubtitleStyle({ background: v as SubBackground }),
-      options: BACKGROUNDS.map(([value, label]) => ({ value, label })),
+      options: BACKGROUNDS.map(([value, label]) => ({ value, label: tr(label) })),
     },
   ];
 
   const speed: MenuEntry[] = [
     {
       type: 'radio-group',
-      label: 'Playback speed',
+      label: tr('cinema.controls.playbackSpeed'),
       value: String(st.rate),
       onValueChange: (v) => s.setRate(Number(v)),
-      options: SPEEDS.map((r) => ({ value: String(r), label: r === 1 ? 'Normal' : `${r}×` })),
+      options: SPEEDS.map((r) => ({
+        value: String(r),
+        label: r === 1 ? tr('cinema.controls.normal') : `${r}×`,
+      })),
     },
   ];
 
@@ -177,11 +182,16 @@ export function Controls(p: ControlsProps) {
   const quality: MenuEntry[] = [
     {
       type: 'radio-group',
-      label: 'Quality',
+      label: tr('cinema.controls.quality'),
       value: String(st.quality),
       onValueChange: (v) => s.setQuality(v === 'auto' ? 'auto' : Number(v)),
       options: [
-        { value: 'auto', label: current ? `Auto (${current.height}p)` : 'Auto' },
+        {
+          value: 'auto',
+          label: current
+            ? tr('cinema.controls.autoAt', { height: current.height })
+            : tr('cinema.controls.auto'),
+        },
         ...[...st.levels]
           .sort((a, b) => b.height - a.height)
           .map((l) => ({ value: String(l.index), label: `${l.height}p` })),
@@ -190,7 +200,7 @@ export function Controls(p: ControlsProps) {
     { type: 'separator' },
     {
       type: 'checkbox',
-      label: 'Data saver (480p at most)',
+      label: tr('cinema.controls.dataSaver'),
       checked: st.dataSaver,
       onCheckedChange: (on) => s.setDataSaver(on),
     },
@@ -209,33 +219,42 @@ export function Controls(p: ControlsProps) {
         onSeek={(t) => s.seek(t, false)}
       />
       <div className="cpl-row">
-        <IconButton label={st.playing ? 'Pause' : 'Play'} onClick={() => s.toggle()}>
+        <IconButton
+          label={st.playing ? tr('cinema.controls.pause') : tr('cinema.controls.play')}
+          onClick={() => s.toggle()}
+        >
           {st.playing ? <PauseGlyph /> : <PlayGlyph />}
         </IconButton>
-        <IconButton label="Back 10 seconds" onClick={() => s.seekBy(-10)}>
+        <IconButton label={tr('cinema.controls.back10')} onClick={() => s.seekBy(-10)}>
           <Back10 />
         </IconButton>
-        <IconButton label="Forward 10 seconds" onClick={() => s.seekBy(10)}>
+        <IconButton label={tr('cinema.controls.forward10')} onClick={() => s.seekBy(10)}>
           <Fwd10 />
         </IconButton>
         {next && (
-          <IconButton label={`Next episode: ${nextLine(next)}`} onClick={p.onNext}>
+          <IconButton
+            label={tr('cinema.controls.nextEpisode', { line: nextLine(next) })}
+            onClick={p.onNext}
+          >
             <SkipNext />
           </IconButton>
         )}
         <div className="cpl-volume">
-          <IconButton label={st.muted ? 'Unmute' : 'Mute'} onClick={() => s.toggleMute()}>
+          <IconButton
+            label={st.muted ? tr('cinema.controls.unmute') : tr('cinema.controls.mute')}
+            onClick={() => s.toggleMute()}
+          >
             <VolumeGlyph muted={st.muted || st.volume === 0} level={level} />
           </IconButton>
           <input
             type="range"
             className="cpl-volume-input"
-            aria-label="Volume"
+            aria-label={tr('cinema.controls.volume')}
             min={0}
             max={100}
             step={5}
             value={Math.round(level * 100)}
-            aria-valuetext={`${Math.round(level * 100)} percent`}
+            aria-valuetext={tr('cinema.controls.percent', { n: Math.round(level * 100) })}
             onChange={(e) => s.setVolume(Number(e.target.value) / 100, false)}
           />
         </div>
@@ -245,8 +264,8 @@ export function Controls(p: ControlsProps) {
         <span className="cpl-spacer" />
         {st.audioTracks.length > 1 && (
           <MenuButton
-            label="Audio track"
-            menu="Audio track"
+            label={tr('cinema.controls.audioTrack')}
+            menu={tr('cinema.controls.audioTrack')}
             items={audio}
             onOpenChange={p.onMenuOpenChange}
           >
@@ -255,8 +274,8 @@ export function Controls(p: ControlsProps) {
         )}
         {info.subtitle_tracks.length > 0 && (
           <MenuButton
-            label="Subtitles"
-            menu="Subtitles"
+            label={tr('cinema.controls.subtitles')}
+            menu={tr('cinema.controls.subtitles')}
             items={subtitles}
             onOpenChange={p.onMenuOpenChange}
           >
@@ -264,8 +283,8 @@ export function Controls(p: ControlsProps) {
           </MenuButton>
         )}
         <MenuButton
-          label="Playback speed"
-          menu="Playback speed"
+          label={tr('cinema.controls.playbackSpeed')}
+          menu={tr('cinema.controls.playbackSpeed')}
           items={speed}
           onOpenChange={p.onMenuOpenChange}
         >
@@ -273,8 +292,8 @@ export function Controls(p: ControlsProps) {
         </MenuButton>
         {st.levels.length > 0 && (
           <MenuButton
-            label="Quality"
-            menu="Quality"
+            label={tr('cinema.controls.quality')}
+            menu={tr('cinema.controls.quality')}
             items={quality}
             onOpenChange={p.onMenuOpenChange}
           >
@@ -282,18 +301,20 @@ export function Controls(p: ControlsProps) {
           </MenuButton>
         )}
         {p.canRemote && (
-          <IconButton label="Cast or AirPlay" onClick={p.onRemote}>
+          <IconButton label={tr('cinema.controls.cast')} onClick={p.onRemote}>
             <Cast />
           </IconButton>
         )}
         {p.canPip && (
-          <IconButton label="Picture in picture" onClick={p.onPip}>
+          <IconButton label={tr('cinema.controls.pip')} onClick={p.onPip}>
             <Pip />
           </IconButton>
         )}
         {p.canFullscreen && (
           <IconButton
-            label={p.fullscreen ? 'Exit full screen' : 'Full screen'}
+            label={
+              p.fullscreen ? tr('cinema.controls.exitFullscreen') : tr('cinema.controls.fullscreen')
+            }
             onClick={p.onFullscreen}
           >
             {p.fullscreen ? <ExitFullscreen /> : <Fullscreen />}

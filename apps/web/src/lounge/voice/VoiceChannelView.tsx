@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Avatar, Button, ContextMenu, EmptyState, Icon, Popover, Slider } from '@sideroom/ui';
+import { t, useT } from '../../i18n';
 import { voiceController } from '../../voice/controller';
 import { useVoiceSession } from '../../voice/session';
 import { useVoiceSettings, userVolumeOf } from '../../voice/settings';
@@ -14,29 +15,42 @@ import { useVoiceMenuEntries } from './useVoiceMenu';
 
 function stateLabel(p: VoiceMember, name: string, self: boolean): string {
   const bits = [
-    p.serverMuted ? 'muted by a moderator' : p.muted ? 'muted' : '',
-    p.serverDeafened ? 'deafened by a moderator' : p.deafened ? 'deafened' : '',
-    p.speaking ? 'speaking' : '',
+    p.serverMuted
+      ? t('lounge.voiceChannel.stateMutedByMod')
+      : p.muted
+        ? t('lounge.voiceChannel.stateMuted')
+        : '',
+    p.serverDeafened
+      ? t('lounge.voiceChannel.stateDeafenedByMod')
+      : p.deafened
+        ? t('lounge.voiceChannel.stateDeafened')
+        : '',
+    p.speaking ? t('lounge.voiceChannel.stateSpeaking') : '',
   ].filter(Boolean);
-  return `${name}${self ? ' (you)' : ''}${bits.length ? `, ${bits.join(', ')}` : ''}`;
+  return `${name}${self ? t('lounge.voiceChannel.you') : ''}${bits.length ? `, ${bits.join(', ')}` : ''}`;
 }
 
 function VolumeControl({ userId, name }: { userId: string; name: string }) {
+  const t = useT();
   const volume = useVoiceSettings((s) => userVolumeOf(s.settings, userId));
   const setVolume = useVoiceSettings((s) => s.setUserVolume);
   return (
     <Popover
-      label={`${name} volume`}
+      label={t('lounge.voiceChannel.volumeOf', { name })}
       placement="bottom"
       trigger={
-        <button type="button" className="lng-icon-btn" aria-label={`Volume for ${name}`}>
+        <button
+          type="button"
+          className="lng-icon-btn"
+          aria-label={t('lounge.voiceChannel.volumeFor', { name })}
+        >
           <Icon name="volume" size={16} />
         </button>
       }
     >
       <div className="vc-volume">
         <Slider
-          label={`${name} volume`}
+          label={t('lounge.voiceChannel.volumeOf', { name })}
           min={0}
           max={200}
           step={5}
@@ -62,15 +76,20 @@ function Tile({
   participant: VoiceMember;
   onError: (m: string) => void;
 }) {
+  const t = useT();
   const users = useUsers();
   const me = useCurrentUser();
   const u = users[p.userId];
-  const name = u?.displayName ?? 'Unknown';
+  const name = u?.displayName ?? t('lounge.voiceChannel.unknown');
   const self = p.userId === me.id;
   const menu = useVoiceMenuEntries(guildId, { id: p.userId, name }, onError, channelId);
   return (
     <li className="vc-tile-item">
-      <ContextMenu items={menu} label={`${name} voice actions`} disabled={self}>
+      <ContextMenu
+        items={menu}
+        label={t('lounge.voiceChannel.voiceActions', { name })}
+        disabled={self}
+      >
         <div
           className="vc-tile"
           data-speaking={p.speaking || undefined}
@@ -84,14 +103,22 @@ function Tile({
               <Icon
                 name="mic-off"
                 size={16}
-                label={p.serverMuted ? 'Muted by a moderator' : 'Muted'}
+                label={
+                  p.serverMuted
+                    ? t('lounge.voiceChannel.mutedByMod')
+                    : t('lounge.voiceChannel.muted')
+                }
               />
             )}
             {p.deafened && (
               <Icon
                 name="volume-off"
                 size={16}
-                label={p.serverDeafened ? 'Deafened by a moderator' : 'Deafened'}
+                label={
+                  p.serverDeafened
+                    ? t('lounge.voiceChannel.deafenedByMod')
+                    : t('lounge.voiceChannel.deafened')
+                }
               />
             )}
           </div>
@@ -117,6 +144,7 @@ export function VoiceChannelView({
   channel: Channel;
   onBack?: (() => void) | undefined;
 }) {
+  const t = useT();
   const join = useJoinVoice();
   const session = useVoiceSession();
   const participants = useVoiceMembers(channel.id);
@@ -140,7 +168,7 @@ export function VoiceChannelView({
         membersOpen={false}
         onToggleMembers={() => undefined}
         onBack={onBack}
-        searchLabel={`Search ${channel.name}`}
+        searchLabel={t('lounge.voiceChannel.search', { name: channel.name })}
         guildId={channel.guildId}
         channelId={channel.id}
       />
@@ -157,18 +185,18 @@ export function VoiceChannelView({
               title={channel.name}
               description={
                 participants.length
-                  ? `${participants.length} ${participants.length === 1 ? 'person is' : 'people are'} in this voice channel.`
-                  : 'Nobody is in this voice channel yet.'
+                  ? t('lounge.voiceChannel.peopleHere', { n: participants.length })
+                  : t('lounge.voiceChannel.nobodyHere')
               }
               action={
                 <Button onClick={() => join(channel)} disabled={full || perms.connect === false}>
-                  {full ? 'Channel full' : 'Join Voice'}
+                  {full ? t('lounge.voiceChannel.full') : t('lounge.voiceChannel.join')}
                 </Button>
               }
             />
-            {!perms.useVad && <p className="vc-note">This channel requires push-to-talk.</p>}
+            {!perms.useVad && <p className="vc-note">{t('lounge.voiceChannel.pttRequired')}</p>}
             {participants.length > 0 && (
-              <ul className="vc-grid" aria-label="In this channel">
+              <ul className="vc-grid" aria-label={t('lounge.voiceChannel.inThisChannel')}>
                 {participants.map((p) => (
                   <Tile
                     key={p.userId}
@@ -182,7 +210,10 @@ export function VoiceChannelView({
             )}
           </div>
         ) : (
-          <ul className="vc-grid" aria-label={`In ${channel.name}`}>
+          <ul
+            className="vc-grid"
+            aria-label={t('lounge.voiceChannel.inChannel', { name: channel.name })}
+          >
             {participants.map((p) => (
               <Tile
                 key={p.userId}
@@ -196,11 +227,15 @@ export function VoiceChannelView({
         )}
       </div>
       {here && (
-        <div className="vc-controls" role="toolbar" aria-label="Call controls">
+        <div
+          className="vc-controls"
+          role="toolbar"
+          aria-label={t('lounge.voiceChannel.callControls')}
+        >
           <button
             type="button"
             className="vc-ctl"
-            aria-label={mutedNow ? 'Unmute' : 'Mute'}
+            aria-label={mutedNow ? t('lounge.voiceChannel.unmute') : t('lounge.voiceChannel.mute')}
             aria-pressed={mutedNow}
             disabled={session.serverMute}
             data-on={mutedNow || undefined}
@@ -211,7 +246,9 @@ export function VoiceChannelView({
           <button
             type="button"
             className="vc-ctl"
-            aria-label={deafNow ? 'Undeafen' : 'Deafen'}
+            aria-label={
+              deafNow ? t('lounge.voiceChannel.undeafen') : t('lounge.voiceChannel.deafen')
+            }
             aria-pressed={deafNow}
             disabled={session.serverDeaf}
             data-on={deafNow || undefined}
@@ -223,7 +260,7 @@ export function VoiceChannelView({
           <button
             type="button"
             className="vc-ctl vc-ctl-danger"
-            aria-label="Disconnect"
+            aria-label={t('lounge.voiceChannel.disconnect')}
             onClick={() => controller.leave()}
           >
             <Icon name="logout" size={24} />

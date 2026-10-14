@@ -2,11 +2,13 @@
 // search". Who may do what follows the party's queue policy; the server decides, the UI mirrors it.
 import { Button, Icon } from '@sideroom/ui';
 import { useState } from 'react';
+import { useT } from '../i18n';
 import { httpPartyApi } from './api';
 import { partyController, useParty } from './runtime';
 import { TitlePicker, type PickedTitle } from './TitlePicker';
 
 export function QueuePanel() {
+  const tr = useT();
   const c = partyController();
   const party = useParty((s) => s.party);
   const [adding, setAdding] = useState(false);
@@ -22,7 +24,7 @@ export function QueuePanel() {
     try {
       c.adoptRest(await fn());
     } catch {
-      setError('That did not work. You may not have permission.');
+      setError(tr('watchparty.queue.failed'));
     }
   };
   const move = (id: string, to: number) => run(() => httpPartyApi.queueMove(party.id, id, to));
@@ -35,7 +37,7 @@ export function QueuePanel() {
 
   return (
     <div className="wp-queue">
-      <h3 className="wp-h">Now playing</h3>
+      <h3 className="wp-h">{tr('watchparty.queue.nowPlaying')}</h3>
       <p className="wp-now">
         {party.media.title}
         {party.media.episode_label ? (
@@ -43,9 +45,9 @@ export function QueuePanel() {
         ) : null}
       </p>
 
-      <h3 className="wp-h">Up next</h3>
-      {party.queue.length === 0 && <p className="wp-muted">Nothing queued.</p>}
-      <ol className="wp-list" aria-label="Queue">
+      <h3 className="wp-h">{tr('watchparty.queue.upNext')}</h3>
+      {party.queue.length === 0 && <p className="wp-muted">{tr('watchparty.queue.empty')}</p>}
+      <ol className="wp-list" aria-label={tr('watchparty.queue.label')}>
         {party.queue.map((q, i) => (
           <li
             key={q.id}
@@ -71,7 +73,7 @@ export function QueuePanel() {
                   size="sm"
                   variant="ghost"
                   iconOnly
-                  aria-label={`Move ${q.title} up`}
+                  aria-label={tr('watchparty.queue.moveUp', { title: q.title })}
                   disabled={i === 0}
                   onClick={() => void move(q.id, i - 1)}
                 >
@@ -81,7 +83,7 @@ export function QueuePanel() {
                   size="sm"
                   variant="ghost"
                   iconOnly
-                  aria-label={`Move ${q.title} down`}
+                  aria-label={tr('watchparty.queue.moveDown', { title: q.title })}
                   disabled={i === party.queue.length - 1}
                   onClick={() => void move(q.id, i + 1)}
                 >
@@ -94,7 +96,7 @@ export function QueuePanel() {
                 size="sm"
                 variant="ghost"
                 iconOnly
-                aria-label={`Remove ${q.title} from the queue`}
+                aria-label={tr('watchparty.queue.remove', { title: q.title })}
                 onClick={() => void run(() => httpPartyApi.queueRemove(party.id, q.id))}
               >
                 <Icon name="close" size={16} />
@@ -112,24 +114,24 @@ export function QueuePanel() {
       <div className="wp-queue-actions">
         {canOrder && party.queue.length > 0 && (
           <Button size="sm" variant="secondary" onClick={() => void c.skip()}>
-            Skip to next
+            {tr('watchparty.queue.skip')}
           </Button>
         )}
         {canQueue && !adding && (
           <Button size="sm" onClick={() => setAdding(true)}>
-            Add to queue
+            {tr('watchparty.queue.add')}
           </Button>
         )}
       </div>
       {adding && (
         <div className="wp-add">
-          <TitlePicker actionLabel="Add" onPick={(t) => void add(t)} />
+          <TitlePicker actionLabel={tr('watchparty.queue.addAction')} onPick={(t) => void add(t)} />
           <Button size="sm" variant="ghost" onClick={() => setAdding(false)}>
-            Cancel
+            {tr('watchparty.queue.cancel')}
           </Button>
         </div>
       )}
-      {!canQueue && <p className="wp-muted">Only the host and controllers can add titles.</p>}
+      {!canQueue && <p className="wp-muted">{tr('watchparty.queue.onlyHost')}</p>}
     </div>
   );
 }

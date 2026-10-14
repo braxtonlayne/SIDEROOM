@@ -1,5 +1,6 @@
 import { Button, Notice, SegmentedControl, Select, Slider, Switch } from '@sideroom/ui';
 import { useMemo } from 'react';
+import { useT } from '../../../i18n';
 import { RemoteAudio } from '../../../voice/playback';
 import { useAudioDevices, useMicPermission, useMicTest } from '../../../voice/hooks';
 import { CuePlayer, type Cue } from '../../../voice/sounds';
@@ -28,6 +29,7 @@ export function LevelMeter({
   thresholdDb?: number;
   active: boolean;
 }) {
+  const t = useT();
   const level = active ? levelFraction(db) : 0;
   return (
     <div
@@ -37,7 +39,7 @@ export function LevelMeter({
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round(level * 100)}
-      aria-valuetext={active ? `${Math.round(db)} dB` : 'Not testing'}
+      aria-valuetext={active ? `${Math.round(db)} dB` : t('settings.voice.notTesting')}
     >
       <div className="us-meter-fill" style={{ width: `${level * 100}%` }} />
       {thresholdDb !== undefined && (
@@ -51,12 +53,8 @@ export function LevelMeter({
   );
 }
 
-const PERMISSION_HELP: Record<string, string> = {
-  denied:
-    'Microphone access is blocked for this site. Allow it from the lock icon in your browser address bar, then press "Check again".',
-};
-
 export function VoiceVideoSection() {
+  const t = useT();
   const settings = useVoiceSettings((s) => s.settings);
   const update = useVoiceSettings((s) => s.update);
   const setKeybind = useVoiceSettings((s) => s.setKeybind);
@@ -72,16 +70,22 @@ export function VoiceVideoSection() {
   const canPickOutput = RemoteAudio.canSelectOutput();
 
   const inputOptions = [
-    { value: 'default', label: 'Default' },
+    { value: 'default', label: t('settings.voice.default') },
     ...devices.inputs
       .filter((d) => d.deviceId && d.deviceId !== 'default')
-      .map((d, i) => ({ value: d.deviceId, label: d.label || `Microphone ${i + 1}` })),
+      .map((d, i) => ({
+        value: d.deviceId,
+        label: d.label || t('settings.voice.microphoneN', { n: i + 1 }),
+      })),
   ];
   const outputOptions = [
-    { value: 'default', label: 'Default' },
+    { value: 'default', label: t('settings.voice.default') },
     ...devices.outputs
       .filter((d) => d.deviceId && d.deviceId !== 'default')
-      .map((d, i) => ({ value: d.deviceId, label: d.label || `Speakers ${i + 1}` })),
+      .map((d, i) => ({
+        value: d.deviceId,
+        label: d.label || t('settings.voice.speakersN', { n: i + 1 }),
+      })),
   ];
   const ptt = settings.inputMode === 'ptt';
   const grant = async () => {
@@ -93,13 +97,13 @@ export function VoiceVideoSection() {
 
   return (
     <>
-      <SectionTitle>Voice &amp; Video</SectionTitle>
-      <p className="us-muted">These settings apply right away and stay on this device.</p>
+      <SectionTitle>{t('settings.voice.title')}</SectionTitle>
+      <p className="us-muted">{t('settings.voice.intro')}</p>
 
-      <Card id="us-voice-devices" title="Devices">
+      <Card id="us-voice-devices" title={t('settings.voice.devices')}>
         {(permission.status === 'denied' || test.error?.code === 'permission-denied') && (
-          <Notice variant="warning" title="Microphone blocked" className="us-gap">
-            {PERMISSION_HELP.denied}{' '}
+          <Notice variant="warning" title={t('settings.voice.blockedTitle')} className="us-gap">
+            {t('settings.voice.blockedHelp')}{' '}
             <Button
               variant="link"
               size="sm"
@@ -108,27 +112,32 @@ export function VoiceVideoSection() {
                 void grant();
               }}
             >
-              Check again
+              {t('settings.voice.checkAgain')}
             </Button>
           </Notice>
         )}
         {test.error && test.error.code !== 'permission-denied' && (
-          <Notice variant="danger" title="Microphone problem" className="us-gap" role="alert">
+          <Notice
+            variant="danger"
+            title={t('settings.voice.problemTitle')}
+            className="us-gap"
+            role="alert"
+          >
             {test.error.message}
           </Notice>
         )}
         {!devices.labelled && permission.status !== 'denied' && (
           <Notice variant="info" className="us-gap">
-            Allow microphone access to see your devices by name.{' '}
+            {t('settings.voice.allowHint')}{' '}
             <Button variant="link" size="sm" onClick={() => void grant()}>
-              Allow microphone
+              {t('settings.voice.allowMic')}
             </Button>
           </Notice>
         )}
         <div className="us-form-grid">
           <div>
             <label id="us-in-dev" className="us-label">
-              Input device
+              {t('settings.voice.inputDevice')}
             </label>
             <Select
               aria-labelledby="us-in-dev"
@@ -139,7 +148,7 @@ export function VoiceVideoSection() {
           </div>
           <div>
             <label id="us-out-dev" className="us-label">
-              Output device
+              {t('settings.voice.outputDevice')}
             </label>
             <Select
               aria-labelledby="us-out-dev"
@@ -148,14 +157,10 @@ export function VoiceVideoSection() {
               disabled={!canPickOutput}
               onValueChange={(v) => update({ outputDeviceId: v })}
             />
-            {!canPickOutput && (
-              <p className="us-muted">
-                This browser can only play through your system&apos;s default output.
-              </p>
-            )}
+            {!canPickOutput && <p className="us-muted">{t('settings.voice.defaultOutputOnly')}</p>}
           </div>
           <Slider
-            label="Input volume"
+            label={t('settings.voice.inputVolume')}
             min={VOLUME_RANGE[0]}
             max={VOLUME_RANGE[1]}
             step={5}
@@ -165,7 +170,7 @@ export function VoiceVideoSection() {
             onValueChange={(v) => update({ inputVolume: v })}
           />
           <Slider
-            label="Output volume"
+            label={t('settings.voice.outputVolume')}
             min={VOLUME_RANGE[0]}
             max={VOLUME_RANGE[1]}
             step={5}
@@ -181,35 +186,35 @@ export function VoiceVideoSection() {
             onClick={() => (test.running ? test.stop() : void grant())}
             aria-pressed={test.running}
           >
-            {test.running ? 'Stop testing' : "Let's check"}
+            {test.running ? t('settings.voice.stopTest') : t('settings.voice.startTest')}
           </Button>
-          <LevelMeter db={test.level} active={test.running} label="Microphone level" />
+          <LevelMeter db={test.level} active={test.running} label={t('settings.voice.micLevel')} />
         </div>
       </Card>
 
       <Card
         id="us-voice-mode"
-        title="Input mode"
-        description="Choose how your microphone opens. A channel can still require push-to-talk."
+        title={t('settings.voice.modeTitle')}
+        description={t('settings.voice.modeDesc')}
       >
         <SegmentedControl
-          label="Input mode"
+          label={t('settings.voice.modeTitle')}
           value={settings.inputMode}
           onValueChange={(v) => update({ inputMode: v === 'ptt' ? 'ptt' : 'vad' })}
           options={[
-            { value: 'vad', label: 'Voice Activity' },
-            { value: 'ptt', label: 'Push to Talk' },
+            { value: 'vad', label: t('settings.voice.vad') },
+            { value: 'ptt', label: t('settings.voice.ptt') },
           ]}
         />
         {!ptt && (
           <div className="us-form-stack">
             <Switch
-              label="Automatically determine input sensitivity"
+              label={t('settings.voice.autoSensitivity')}
               checked={settings.autoSensitivity}
               onChange={(e) => update({ autoSensitivity: e.target.checked })}
             />
             <Slider
-              label="Input sensitivity"
+              label={t('settings.voice.sensitivity')}
               min={THRESHOLD_RANGE[0]}
               max={THRESHOLD_RANGE[1]}
               step={1}
@@ -222,13 +227,11 @@ export function VoiceVideoSection() {
             <LevelMeter
               db={test.level}
               active={test.running}
-              label="Input sensitivity meter"
+              label={t('settings.voice.sensitivityMeter')}
               {...(settings.autoSensitivity ? {} : { thresholdDb: settings.thresholdDb })}
             />
             <p className="us-muted">
-              {test.running
-                ? 'Speak to see where your voice lands. The line marks where your microphone opens.'
-                : 'Press "Let\'s check" above to see your microphone level here.'}
+              {test.running ? t('settings.voice.speakHint') : t('settings.voice.checkHint')}
             </p>
           </div>
         )}
@@ -236,10 +239,10 @@ export function VoiceVideoSection() {
           <div className="us-form-stack">
             <div className="us-row-field">
               <span id="us-ptt-key-l" className="us-label">
-                Shortcut
+                {t('settings.voice.shortcut')}
               </span>
               <KeybindRecorder
-                action="Push to Talk"
+                action={t('settings.voice.ptt')}
                 value={settings.keybinds.ptt}
                 onChange={(b) => setKeybind('ptt', b)}
                 conflict={(b) => keybindConflict(settings.keybinds, 'ptt', b)}
@@ -247,11 +250,11 @@ export function VoiceVideoSection() {
             </div>
             {!settings.keybinds.ptt && (
               <Notice variant="warning" className="us-gap">
-                Pick a push-to-talk key, otherwise nobody will hear you.
+                {t('settings.voice.pickKey')}
               </Notice>
             )}
             <Slider
-              label="Push to talk release delay"
+              label={t('settings.voice.releaseDelay')}
               min={PTT_RELEASE_RANGE[0]}
               max={PTT_RELEASE_RANGE[1]}
               step={50}
@@ -260,50 +263,45 @@ export function VoiceVideoSection() {
               formatValue={(v) => `${v} ms`}
               onValueChange={(v) => update({ pttReleaseMs: v })}
             />
-            <p className="us-muted">
-              Keybinds work while this tab is focused. A system-wide push-to-talk needs a native
-              app.
-            </p>
+            <p className="us-muted">{t('settings.voice.keybindNote')}</p>
           </div>
         )}
       </Card>
 
-      <Card id="us-voice-processing" title="Audio processing">
+      <Card id="us-voice-processing" title={t('settings.voice.processing')}>
         <Switch
-          label="Echo cancellation"
-          description="Stops your speakers from feeding back into your microphone."
+          label={t('settings.voice.echo')}
+          description={t('settings.voice.echoDesc')}
           checked={settings.echoCancellation}
           onChange={(e) => update({ echoCancellation: e.target.checked })}
         />
         <Switch
-          label="Automatic gain control"
-          description="Evens out how loud you are."
+          label={t('settings.voice.agc')}
+          description={t('settings.voice.agcDesc')}
           checked={settings.autoGainControl}
           onChange={(e) => update({ autoGainControl: e.target.checked })}
         />
-        <p className="us-muted">
-          There is no noise suppression: your voice is sent as your microphone hears it.
-        </p>
+        <p className="us-muted">{t('settings.voice.noNoise')}</p>
       </Card>
 
-      <Card id="us-voice-sounds" title="Sounds">
+      <Card id="us-voice-sounds" title={t('settings.voice.sounds')}>
         <Switch
-          label="Join and leave sounds"
+          label={t('settings.voice.soundJoinLeave')}
           checked={settings.soundJoinLeave}
           onChange={(e) => update({ soundJoinLeave: e.target.checked })}
         />
         <Switch
-          label="Mute and deafen sounds"
+          label={t('settings.voice.soundMute')}
           checked={settings.soundMuteDeafen}
           onChange={(e) => update({ soundMuteDeafen: e.target.checked })}
         />
         <Switch
-          label="Push to talk sounds"
+          label={t('settings.voice.soundPtt')}
           checked={settings.soundPtt}
           onChange={(e) => update({ soundPtt: e.target.checked })}
         />
         <Slider
-          label="Sound volume"
+          label={t('settings.voice.soundVolume')}
           min={0}
           max={100}
           step={5}
@@ -313,12 +311,12 @@ export function VoiceVideoSection() {
           onValueChange={(v) => update({ soundVolume: v })}
         />
         <Button variant="secondary" size="sm" onClick={() => testCue('selfJoin')}>
-          Play a sample
+          {t('settings.voice.playSample')}
         </Button>
       </Card>
 
       <Notice variant="info" className="us-gap">
-        Camera, screen sharing defaults and the soundboard arrive with the video update.
+        {t('settings.voice.videoUpdate')}
       </Notice>
     </>
   );

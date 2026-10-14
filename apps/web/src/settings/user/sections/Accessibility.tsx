@@ -1,87 +1,86 @@
 import { SegmentedControl, Switch } from '@sideroom/ui';
+import { useT } from '../../../i18n';
 import { Card, SectionTitle } from '../parts';
 import type { Animation, RoleColors, UserPrefs } from '../prefs';
 import type { PrefsFormProps } from './Appearance';
 
-const ANIMATION = [
-  { value: 'always', label: 'Always' },
-  { value: 'hover', label: 'On hover or focus' },
-  { value: 'never', label: 'Never' },
+const animationOptions = (t: ReturnType<typeof useT>) => [
+  { value: 'always', label: t('settings.accessibility.animAlways') },
+  { value: 'hover', label: t('settings.accessibility.animHover') },
+  { value: 'never', label: t('settings.accessibility.animNever') },
 ];
 
 export function AccessibilitySection({ prefs, setPrefs }: PrefsFormProps) {
+  const t = useT();
   return (
     <>
-      <SectionTitle>Accessibility</SectionTitle>
-      <Card id="us-motion" title="Motion">
+      <SectionTitle>{t('settings.accessibility.title')}</SectionTitle>
+      <Card id="us-motion" title={t('settings.accessibility.motion')}>
         <SegmentedControl
-          label="Reduced motion"
+          label={t('settings.accessibility.reducedMotion')}
           value={prefs.reducedMotion}
           onValueChange={(v) => setPrefs({ reducedMotion: v as UserPrefs['reducedMotion'] })}
           options={[
-            { value: 'system', label: 'Sync with system' },
-            { value: 'on', label: 'On' },
-            { value: 'off', label: 'Off' },
+            { value: 'system', label: t('settings.accessibility.motionSystem') },
+            { value: 'on', label: t('settings.accessibility.motionOn') },
+            { value: 'off', label: t('settings.accessibility.motionOff') },
           ]}
         />
         <div className="us-stack us-after">
           <SegmentedControl
-            label="Play animated stickers"
+            label={t('settings.accessibility.stickers')}
             value={prefs.stickerAnimation}
             onValueChange={(v) => setPrefs({ stickerAnimation: v as Animation })}
-            options={ANIMATION}
+            options={animationOptions(t)}
           />
           <SegmentedControl
-            label="Play animated emoji"
+            label={t('settings.accessibility.emoji')}
             value={prefs.emojiAnimation}
             onValueChange={(v) => setPrefs({ emojiAnimation: v as Animation })}
-            options={ANIMATION}
+            options={animationOptions(t)}
           />
         </div>
       </Card>
-      <Card id="us-contrast" title="Contrast">
+      <Card id="us-contrast" title={t('settings.accessibility.contrast')}>
         <Switch
-          label="High contrast"
-          description="Uses full-strength text and stronger borders everywhere."
+          label={t('settings.accessibility.highContrast')}
+          description={t('settings.accessibility.highContrastDesc')}
           checked={prefs.highContrast}
           onChange={(e) => setPrefs({ highContrast: e.target.checked })}
         />
       </Card>
-      <Card id="us-links" title="Links">
+      <Card id="us-links" title={t('settings.accessibility.links')}>
         <Switch
-          label="Always underline links"
-          description="Links are underlined without hovering, so they don't rely on colour alone."
+          label={t('settings.accessibility.underline')}
+          description={t('settings.accessibility.underlineDesc')}
           checked={prefs.underlineLinks}
           onChange={(e) => setPrefs({ underlineLinks: e.target.checked })}
         />
       </Card>
-      <Card id="us-roles" title="Role colors">
+      <Card id="us-roles" title={t('settings.accessibility.roleColors')}>
         <SegmentedControl
-          label="Show role colors"
+          label={t('settings.accessibility.showRoleColors')}
           value={prefs.roleColors}
           onValueChange={(v) => setPrefs({ roleColors: v as RoleColors })}
           options={[
-            { value: 'name', label: 'Next to names' },
-            { value: 'dot', label: 'As a dot' },
+            { value: 'name', label: t('settings.accessibility.roleName') },
+            { value: 'dot', label: t('settings.accessibility.roleDot') },
             { value: 'off', label: 'Off' },
           ]}
         />
-        <p className="us-muted">
-          &quot;Next to names&quot; colours the name itself; &quot;As a dot&quot; keeps the name in
-          the normal text colour, which reads better for low-contrast role colours.
-        </p>
+        <p className="us-muted">{t('settings.accessibility.roleHelp')}</p>
       </Card>
-      <Card id="us-font" title="Reading">
+      <Card id="us-font" title={t('settings.accessibility.reading')}>
         <div className="us-stack">
           <Switch
-            label="Dyslexia-friendly text"
-            description="A clearer typeface with wider letter and word spacing."
+            label={t('settings.accessibility.dyslexia')}
+            description={t('settings.accessibility.dyslexiaDesc')}
             checked={prefs.dyslexiaFont}
             onChange={(e) => setPrefs({ dyslexiaFont: e.target.checked })}
           />
           <Switch
-            label="Show the send-message button"
-            description="A button next to the message box, for touch screens and switch access."
+            label={t('settings.accessibility.sendButton')}
+            description={t('settings.accessibility.sendButtonDesc')}
             checked={prefs.showSendButton}
             onChange={(e) => setPrefs({ showSendButton: e.target.checked })}
           />

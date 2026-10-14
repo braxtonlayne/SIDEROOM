@@ -3,12 +3,14 @@
 import { Modal } from '@sideroom/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useId, useState } from 'react';
+import { useT } from '../i18n';
 import { keys, searchTitles } from './api';
 import { AgeBadge, KIND_LABEL, titleHref, useOpen } from './ui';
 
 export const SEARCH_DEBOUNCE_MS = 150;
 
 export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const tr = useT();
   const uid = useId();
   const go = useOpen();
   const [text, setText] = useState('');
@@ -69,14 +71,14 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
 
   const listId = `${uid}-list`;
   return (
-    <Modal open={open} onClose={onClose} title="Search the cinema" size="lg">
+    <Modal open={open} onClose={onClose} title={tr('cinema.search.title')} size="lg">
       <div className="cin-search">
         <input
           type="search"
           role="combobox"
           className="cin-search-input"
-          placeholder="Search films, series and anime…"
-          aria-label="Search the cinema"
+          placeholder={tr('cinema.search.placeholder')}
+          aria-label={tr('cinema.search.title')}
           aria-expanded={enabled && titles.length > 0}
           aria-controls={listId}
           aria-autocomplete="list"
@@ -87,13 +89,20 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKeyDown}
         />
-        <div id={listId} role="listbox" aria-label="Search results" className="cin-search-list">
-          {enabled && result.isPending && <p className="cin-search-note">Searching…</p>}
+        <div
+          id={listId}
+          role="listbox"
+          aria-label={tr('cinema.search.results')}
+          className="cin-search-list"
+        >
+          {enabled && result.isPending && (
+            <p className="cin-search-note">{tr('cinema.search.searching')}</p>
+          )}
           {enabled && result.isError && (
-            <p className="cin-search-note">Search is unavailable right now.</p>
+            <p className="cin-search-note">{tr('cinema.search.unavailable')}</p>
           )}
           {enabled && result.isSuccess && titles.length === 0 && (
-            <p className="cin-search-note">Nothing found for “{debounced}”.</p>
+            <p className="cin-search-note">{tr('cinema.search.nothingFound', { q: debounced })}</p>
           )}
           {titles.map((t, i) => (
             <div
@@ -114,7 +123,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
               <span className="cin-search-text">
                 <span className="cin-search-title">{t.title}</span>
                 <span className="cin-muted">
-                  {[t.year, KIND_LABEL[t.kind]].filter(Boolean).join(' · ')}
+                  {[t.year, tr(KIND_LABEL[t.kind])].filter(Boolean).join(' · ')}
                 </span>
               </span>
               {t.age_restricted && <AgeBadge />}
@@ -123,7 +132,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
         </div>
         <p className="cin-search-foot">
           <button type="button" className="cin-link-btn" onClick={openAll} disabled={!text.trim()}>
-            See all results
+            {tr('cinema.search.seeAll')}
           </button>
           <button
             type="button"
@@ -133,7 +142,7 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
               void go('/cinema/movies?filters=1');
             }}
           >
-            Filters
+            {tr('cinema.search.filters')}
           </button>
         </p>
       </div>

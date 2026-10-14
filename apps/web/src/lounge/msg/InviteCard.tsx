@@ -1,6 +1,7 @@
 import { Button } from '@sideroom/ui';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
+import { useT } from '../../i18n';
 import { rest, useStore } from '../../store';
 import { inviteErrorMessage } from '../inviteFlow';
 
@@ -26,6 +27,7 @@ type State =
 
 /** Server invite embed (LNG-MSGUI-019): name, member counts and a Join button. */
 export function InviteCard({ code }: { code: string }) {
+  const t = useT();
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [joining, setJoining] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -50,7 +52,7 @@ export function InviteCard({ code }: { code: string }) {
     return (
       <div className="lng-embed lng-invite" role="note">
         <div className="lng-embed-main">
-          <div className="lng-embed-provider">Invite</div>
+          <div className="lng-embed-provider">{t('lounge.inviteCard.invite')}</div>
           <div className="lng-muted">{state.message}</div>
         </div>
       </div>
@@ -63,18 +65,25 @@ export function InviteCard({ code }: { code: string }) {
       params: { guildId: invite.guild.id, channelId: invite.channel.id },
     });
   return (
-    <section className="lng-embed lng-invite" aria-label={`Invite to ${invite.guild.name}`}>
+    <section
+      className="lng-embed lng-invite"
+      aria-label={t('lounge.inviteCard.inviteTo', { name: invite.guild.name })}
+    >
       <div className="lng-embed-main">
-        <div className="lng-embed-provider">You&apos;ve been invited to join a server</div>
+        <div className="lng-embed-provider">{t('lounge.inviteCard.invitedToJoin')}</div>
         <div className="lng-embed-title">{invite.guild.name}</div>
         <div className="lng-muted lng-invite-counts">
           {invite.approximate_presence_count !== undefined &&
-            `${invite.approximate_presence_count.toLocaleString()} Online`}
+            t('lounge.inviteCard.online', {
+              count: invite.approximate_presence_count.toLocaleString(),
+            })}
           {invite.approximate_presence_count !== undefined &&
             invite.approximate_member_count !== undefined &&
             ' • '}
           {invite.approximate_member_count !== undefined &&
-            `${invite.approximate_member_count.toLocaleString()} Members`}
+            t('lounge.inviteCard.members', {
+              count: invite.approximate_member_count.toLocaleString(),
+            })}
         </div>
         {err && (
           <p className="lng-failed" role="alert">
@@ -96,7 +105,7 @@ export function InviteCard({ code }: { code: string }) {
             .finally(() => setJoining(false));
         }}
       >
-        {joined ? 'Joined' : 'Join'}
+        {joined ? t('lounge.inviteCard.joined') : t('lounge.inviteCard.join')}
       </Button>
     </section>
   );

@@ -1,5 +1,6 @@
 import { Avatar, ContextMenu, Icon, VirtualList, type MenuEntry } from '@sideroom/ui';
 import { useMemo, useRef } from 'react';
+import { useT } from '../i18n';
 import { useViewer, type Viewer } from '../settings/server/hooks';
 import { useCurrentUser, useGuild, useMembers, usePresenceMap, useRoles } from './data';
 import { buildMemberRows, type MemberEntry } from './memberGroups';
@@ -23,6 +24,7 @@ function MemberRowView({
   ownerId: string | undefined;
   viewer: Viewer;
 }) {
+  const t = useT();
   const rowRef = useRef<HTMLButtonElement | null>(null);
   const { member, presence, color } = entry;
   const u = member.user;
@@ -59,18 +61,21 @@ function MemberRowView({
 
   const menu: MenuEntry[] = [
     {
-      label: 'Profile',
+      label: t('lounge.memberList.profile'),
       onSelect: () => openProfilePopout({ userId: u.id, guildId }, rowRef.current),
     },
-    { label: 'Mention', onSelect: () => void navigator.clipboard?.writeText(`<@${u.id}>`) },
     {
-      label: 'Message',
+      label: t('lounge.memberList.mention'),
+      onSelect: () => void navigator.clipboard?.writeText(`<@${u.id}>`),
+    },
+    {
+      label: t('lounge.memberList.message'),
       disabled: isSelf || !!u.bot,
       onSelect: () => void openDm([u.id]).catch(() => undefined),
     },
     ...(userEntries.note ? [userEntries.note] : []),
     {
-      label: 'Change Nickname',
+      label: t('lounge.memberList.changeNickname'),
       onSelect: () => openDialog({ kind: 'nickname', guildId, userId: u.id }),
     },
     ...(userEntries.invite ? [userEntries.invite] : []),
@@ -81,7 +86,7 @@ function MemberRowView({
       ? [
           {
             type: 'submenu',
-            label: 'Roles',
+            label: t('lounge.memberList.roles'),
             items: assignable.map((r): MenuEntry => ({
               type: 'checkbox',
               label: r.name,
@@ -92,28 +97,43 @@ function MemberRowView({
         ]
       : []),
     ...(viewer.can('MODERATE_MEMBERS') && canAct
-      ? [{ label: 'Timeout', onSelect: act('timeout') } as MenuEntry]
+      ? [{ label: t('lounge.memberList.timeout'), onSelect: act('timeout') } as MenuEntry]
       : []),
     ...(viewer.can('KICK_MEMBERS') && canAct
-      ? [{ label: `Kick ${name}`, danger: true, onSelect: act('kick') } as MenuEntry]
+      ? [
+          {
+            label: t('lounge.memberList.kick', { name }),
+            danger: true,
+            onSelect: act('kick'),
+          } as MenuEntry,
+        ]
       : []),
     ...(viewer.can('BAN_MEMBERS') && canAct
-      ? [{ label: `Ban ${name}`, danger: true, onSelect: act('ban') } as MenuEntry]
+      ? [
+          {
+            label: t('lounge.memberList.ban', { name }),
+            danger: true,
+            onSelect: act('ban'),
+          } as MenuEntry,
+        ]
       : []),
     ...(viewer.isOwner && !isSelf && !u.bot
       ? [
           {
-            label: 'Transfer Ownership',
+            label: t('lounge.memberList.transferOwnership'),
             danger: true,
             onSelect: () => openDialog({ kind: 'transferOwnership', guildId, userId: u.id }),
           } as MenuEntry,
         ]
       : []),
     { type: 'separator' },
-    { label: 'Copy User ID', onSelect: () => void navigator.clipboard?.writeText(u.id) },
+    {
+      label: t('lounge.memberList.copyUserId'),
+      onSelect: () => void navigator.clipboard?.writeText(u.id),
+    },
   ];
   return (
-    <ContextMenu items={menu} label={`${name} actions`}>
+    <ContextMenu items={menu} label={t('lounge.memberList.actions', { name })}>
       <button
         ref={rowRef}
         type="button"
@@ -121,14 +141,24 @@ function MemberRowView({
         aria-haspopup="dialog"
         onClick={(e) => openProfilePopout({ userId: u.id, guildId }, e.currentTarget)}
         data-offline={presence.status === 'offline' || undefined}
-        aria-label={`${name}, ${presence.status}${presence.activity ? `, ${presence.activity.text}` : ''}`}
+        aria-label={
+          presence.activity
+            ? t('lounge.memberList.rowLabelActivity', {
+                name,
+                status: presence.status,
+                activity: presence.activity.text,
+              })
+            : t('lounge.memberList.rowLabel', { name, status: presence.status })
+        }
       >
         <Avatar name={name} src={u.avatarUrl ?? null} size={32} status={presence.status} />
         <span className="lng-member-text">
           <span className="lng-member-name" style={color ? { color } : undefined}>
             {name}
-            {ownerId === u.id && <Icon name="star" size={16} label="Server owner" />}
-            {u.bot && <span className="lng-bot">APP</span>}
+            {ownerId === u.id && (
+              <Icon name="star" size={16} label={t('lounge.memberList.serverOwner')} />
+            )}
+            {u.bot && <span className="lng-bot">{t('lounge.memberList.app')}</span>}
             {u.tag && <span className="lng-tag">{u.tag}</span>}
           </span>
           {presence.activity && <span className="lng-member-sub">{presence.activity.text}</span>}
@@ -139,6 +169,7 @@ function MemberRowView({
 }
 
 export function MemberList({ guildId }: { guildId: string }) {
+  const t = useT();
   const guild = useGuild(guildId);
   const members = useMembers(guildId);
   const roles = useRoles(guildId);
@@ -154,7 +185,7 @@ export function MemberList({ guildId }: { guildId: string }) {
   return (
     <VirtualList
       className="lng-members"
-      aria-label="Members"
+      aria-label={t('lounge.memberList.members')}
       role="list"
       count={rows.length}
       estimateSize={44}
@@ -164,7 +195,7 @@ export function MemberList({ guildId }: { guildId: string }) {
         if (!r) return null;
         return r.kind === 'header' ? (
           <h3 className="lng-member-group">
-            {r.label} — {r.count}
+            {t('lounge.memberList.groupHeader', { label: r.label, count: r.count })}
           </h3>
         ) : (
           <MemberRowView

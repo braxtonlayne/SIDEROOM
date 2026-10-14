@@ -1,5 +1,6 @@
 import { Avatar, Button, Checkbox, Modal, TextArea, TextInput } from '@sideroom/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useT } from '../../../i18n';
 import { useGuild } from '../../../store';
 import { onDispatch } from '../../../store/events';
 import { PruneDialog } from './PruneDialog';
@@ -18,18 +19,20 @@ import {
 
 const VIEW_PAGE = 25;
 
+/** `label` is a message key, resolved at render time. */
 export const DELETE_WINDOWS = [
-  { seconds: 0, label: "Don't delete any" },
-  { seconds: 86400, label: 'Previous 24 hours' },
-  { seconds: 604800, label: 'Previous 7 days' },
+  { seconds: 0, label: 'settings.members.deleteNone' },
+  { seconds: 86400, label: 'settings.members.delete24h' },
+  { seconds: 604800, label: 'settings.members.delete7d' },
 ];
+/** `label` is a message key, resolved at render time. */
 export const TIMEOUT_CHOICES = [
-  { seconds: 60, label: '60 secs' },
-  { seconds: 300, label: '5 mins' },
-  { seconds: 600, label: '10 mins' },
-  { seconds: 3600, label: '1 hour' },
-  { seconds: 86400, label: '1 day' },
-  { seconds: 604800, label: '1 week' },
+  { seconds: 60, label: 'settings.members.timeout60s' },
+  { seconds: 300, label: 'settings.members.timeout5m' },
+  { seconds: 600, label: 'settings.members.timeout10m' },
+  { seconds: 3600, label: 'settings.members.timeout1h' },
+  { seconds: 86400, label: 'settings.members.timeout1d' },
+  { seconds: 604800, label: 'settings.members.timeout1w' },
 ];
 
 const memberName = (m: api.MemberObject) => m.nick || api.userName(m.user);
@@ -37,6 +40,7 @@ const memberName = (m: api.MemberObject) => m.nick || api.userName(m.user);
 type Dialog = { kind: 'kick' | 'ban' | 'timeout' | 'roles'; member: api.MemberObject } | null;
 
 export function MembersSection({ guildId, viewer }: SectionProps) {
+  const t = useT();
   const { guild, roles } = useGuild(guildId);
   const [members, setMembers] = useState<api.MemberObject[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,8 +60,8 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
   const generation = useRef(0);
 
   useEffect(() => {
-    const t = setTimeout(() => setApplied(query.trim()), 250);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setApplied(query.trim()), 250);
+    return () => clearTimeout(timer);
   }, [query]);
 
   const loadNext = useCallback(async () => {
@@ -80,14 +84,14 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
       if (batch.length < api.MEMBER_PAGE) setDone(true);
       setError(null);
     } catch (e) {
-      if (mine === generation.current) setError(api.errorText(e, 'Could not load members.'));
+      if (mine === generation.current) setError(api.errorText(e, t('settings.members.loadFailed')));
     } finally {
       if (mine === generation.current) {
         busy.current = false;
         setLoading(false);
       }
     }
-  }, [guildId, applied, roleFilter]);
+  }, [guildId, applied, roleFilter, t]);
   const membersRef = useRef(members);
   membersRef.current = members;
 
@@ -152,10 +156,9 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
     Math.max(0, ...m.roles.map((r) => roleById.get(r)?.position ?? 0));
   /** Why the viewer cannot moderate this member, or undefined when they can. */
   const blockReason = (m: api.MemberObject): string | undefined => {
-    if (m.user.id === guild?.owner_id) return 'The server owner cannot be moderated.';
-    if (m.user.id === viewer.userId) return 'You cannot moderate yourself.';
-    if (!viewer.isOwner && topOf(m) >= viewer.topPosition)
-      return 'This member has a role at or above your highest role.';
+    if (m.user.id === guild?.owner_id) return t('settings.members.blockOwner');
+    if (m.user.id === viewer.userId) return t('settings.members.blockSelf');
+    if (!viewer.isOwner && topOf(m) >= viewer.topPosition) return t('settings.members.blockRole');
     return undefined;
   };
 
@@ -166,22 +169,22 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
   return (
     <>
       <SectionHeader
-        title="Members"
-        description="Search the member list, manage roles, time members out, kick or ban."
+        title={t('settings.members.title')}
+        description={t('settings.members.description')}
       />
       <div className="ss-toolbar">
         <div className="ss-search">
           <TextInput
-            label="Search members"
+            label={t('settings.members.searchLabel')}
             type="search"
             value={query}
-            placeholder="Search by name"
+            placeholder={t('settings.members.searchPlaceholder')}
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
         <div>
           <label className="ss-field-label" htmlFor="ss-member-role">
-            Filter by role
+            {t('settings.members.filterRole')}
           </label>
           <select
             id="ss-member-role"
@@ -189,7 +192,7 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
           >
-            <option value="">All roles</option>
+            <option value="">{t('settings.members.allRoles')}</option>
             {[...roles]
               .filter((r) => r.id !== guildId)
               .sort((a, b) => b.position - a.position)
@@ -202,33 +205,36 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
         </div>
         {viewer.can('KICK_MEMBERS') && (
           <Button variant="secondary" onClick={() => setPruning(true)}>
-            Prune
+            {t('settings.members.prune')}
           </Button>
         )}
       </div>
       {pruned !== null && (
         <p role="status" className="ss-sub">
-          Pruned {pruned} {pruned === 1 ? 'member' : 'members'}.
+          {t('settings.members.pruned', { count: pruned })}
         </p>
       )}
       {error && <LoadError message={error} onRetry={() => void loadNext()} />}
-      {loading && members.length === 0 && !error && <Loading label="Loading members" />}
+      {loading && members.length === 0 && !error && (
+        <Loading label={t('settings.members.loading')} />
+      )}
       {members.length === 0 && done && !loading && !error && (
-        <p className="ss-na">No members match your search.</p>
+        <p className="ss-na">{t('settings.members.noMatch')}</p>
       )}
       {members.length > 0 && (
         <>
           <table className="ss-table">
             <caption className="ss-sub">
-              {filtered.length} {filtered.length === 1 ? 'member' : 'members'}
-              {!done && ' loaded so far'}
+              {done
+                ? t('settings.members.count', { count: filtered.length })
+                : t('settings.members.countLoaded', { count: filtered.length })}
             </caption>
             <thead>
               <tr>
-                <th scope="col">Name</th>
-                <th scope="col">Member since</th>
-                <th scope="col">Roles</th>
-                <th scope="col">Actions</th>
+                <th scope="col">{t('settings.members.colName')}</th>
+                <th scope="col">{t('settings.members.colSince')}</th>
+                <th scope="col">{t('settings.members.colRoles')}</th>
+                <th scope="col">{t('settings.members.colActions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -252,22 +258,20 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
               disabled={safePage === 0}
               onClick={() => setPage(safePage - 1)}
             >
-              Previous
+              {t('settings.members.previous')}
             </Button>
-            <span>
-              Page {safePage + 1} of {pageCount}
-            </span>
+            <span>{t('settings.members.page', { page: safePage + 1, pages: pageCount })}</span>
             <Button
               size="sm"
               variant="secondary"
               disabled={safePage >= pageCount - 1}
               onClick={() => setPage(safePage + 1)}
             >
-              Next
+              {t('settings.members.next')}
             </Button>
             {!done && (
               <Button size="sm" variant="ghost" loading={loading} onClick={() => void loadNext()}>
-                Load more members
+                {t('settings.members.loadMore')}
               </Button>
             )}
           </div>
@@ -355,6 +359,7 @@ function MemberRow({
   onAction: (k: 'kick' | 'ban' | 'timeout' | 'roles') => void;
   onDetails: () => void;
 }) {
+  const t = useT();
   const name = memberName(member);
   const timedOut =
     member.communication_disabled_until &&
@@ -366,14 +371,18 @@ function MemberRow({
     danger = false,
   ) => {
     const noPerm = !viewer.can(perm);
-    const why = noPerm ? `You need the ${label} permission.` : kind === 'roles' ? undefined : block;
+    const why = noPerm
+      ? t('settings.members.needPermission', { label })
+      : kind === 'roles'
+        ? undefined
+        : block;
     return (
       <Button
         size="sm"
         variant={danger ? 'danger' : 'secondary'}
         disabled={!!why}
         title={why}
-        aria-label={`${label} ${name}`}
+        aria-label={t('settings.members.actionFor', { label, name })}
         onClick={() => onAction(kind)}
       >
         {label}
@@ -389,13 +398,13 @@ function MemberRow({
             <button
               type="button"
               className="ss-link"
-              aria-label={`Details for ${name}`}
+              aria-label={t('settings.members.detailsFor', { name })}
               onClick={onDetails}
             >
               <strong>{name}</strong>
             </button>
             {member.nick && <span className="ss-meta"> ({api.userName(member.user)})</span>}
-            {timedOut && <span className="ss-meta"> Timed out</span>}
+            {timedOut && <span className="ss-meta"> {t('settings.members.timedOut')}</span>}
           </span>
         </span>
       </td>
@@ -415,10 +424,10 @@ function MemberRow({
       </td>
       <td>
         <span className="ss-actions">
-          {btn('roles', 'Roles', 'MANAGE_ROLES')}
-          {btn('timeout', 'Timeout', 'MODERATE_MEMBERS')}
-          {btn('kick', 'Kick', 'KICK_MEMBERS', true)}
-          {btn('ban', 'Ban', 'BAN_MEMBERS', true)}
+          {btn('roles', t('settings.members.roles'), 'MANAGE_ROLES')}
+          {btn('timeout', t('settings.members.timeout'), 'MODERATE_MEMBERS')}
+          {btn('kick', t('settings.members.kick'), 'KICK_MEMBERS', true)}
+          {btn('ban', t('settings.members.ban'), 'BAN_MEMBERS', true)}
         </span>
       </td>
     </tr>
@@ -436,6 +445,7 @@ function KickDialog({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const t = useT();
   const [reason, setReason] = useState('');
   const action = useAction();
   const submit = async () => {
@@ -450,22 +460,22 @@ function KickDialog({
       open
       onClose={onClose}
       size="sm"
-      title={`Kick ${memberName(member)}`}
-      description="They can rejoin with a new invite."
+      title={t('settings.members.kickTitle', { name: memberName(member) })}
+      description={t('settings.members.kickDescription')}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t('settings.members.cancel')}
           </Button>
           <Button variant="danger" loading={action.busy} onClick={() => void submit()}>
-            Kick
+            {t('settings.members.kick')}
           </Button>
         </>
       }
     >
       <ActionStatus error={action.error} />
       <TextArea
-        label="Reason"
+        label={t('settings.members.reason')}
         value={reason}
         maxLength={512}
         onChange={(e) => setReason(e.target.value)}
@@ -485,6 +495,7 @@ function BanDialog({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const t = useT();
   const [reason, setReason] = useState('');
   const [seconds, setSeconds] = useState(0);
   const action = useAction();
@@ -503,15 +514,15 @@ function BanDialog({
       open
       onClose={onClose}
       size="sm"
-      title={`Ban ${memberName(member)}`}
-      description="They will not be able to rejoin until you unban them."
+      title={t('settings.members.banTitle', { name: memberName(member) })}
+      description={t('settings.members.banDescription')}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t('settings.members.cancel')}
           </Button>
           <Button variant="danger" loading={action.busy} onClick={() => void submit()}>
-            Ban
+            {t('settings.members.ban')}
           </Button>
         </>
       }
@@ -520,7 +531,7 @@ function BanDialog({
         <ActionStatus error={action.error} />
         <div>
           <label className="ss-field-label" htmlFor="ss-ban-delete">
-            Delete message history
+            {t('settings.members.deleteHistory')}
           </label>
           <select
             id="ss-ban-delete"
@@ -530,13 +541,13 @@ function BanDialog({
           >
             {DELETE_WINDOWS.map((w) => (
               <option key={w.seconds} value={w.seconds}>
-                {w.label}
+                {t(w.label)}
               </option>
             ))}
           </select>
         </div>
         <TextArea
-          label="Reason"
+          label={t('settings.members.reason')}
           value={reason}
           maxLength={512}
           onChange={(e) => setReason(e.target.value)}
@@ -557,6 +568,7 @@ function TimeoutDialog({
   onClose: () => void;
   onDone: (m: api.MemberObject) => void;
 }) {
+  const t = useT();
   const [seconds, setSeconds] = useState(600);
   const action = useAction();
   const active =
@@ -571,30 +583,30 @@ function TimeoutDialog({
       open
       onClose={onClose}
       size="sm"
-      title={`Timeout ${memberName(member)}`}
-      description="They cannot send messages, react or speak until the timeout ends."
+      title={t('settings.members.timeoutTitle', { name: memberName(member) })}
+      description={t('settings.members.timeoutDescription')}
       footer={
         <>
           {active && (
             <Button variant="secondary" loading={action.busy} onClick={() => void apply(null)}>
-              Remove timeout
+              {t('settings.members.removeTimeout')}
             </Button>
           )}
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t('settings.members.cancel')}
           </Button>
           <Button
             loading={action.busy}
             onClick={() => void apply(new Date(Date.now() + seconds * 1000).toISOString())}
           >
-            Timeout
+            {t('settings.members.timeout')}
           </Button>
         </>
       }
     >
       <ActionStatus error={action.error} />
       <label className="ss-field-label" htmlFor="ss-timeout-len">
-        Duration
+        {t('settings.members.duration')}
       </label>
       <select
         id="ss-timeout-len"
@@ -604,7 +616,7 @@ function TimeoutDialog({
       >
         {TIMEOUT_CHOICES.map((c) => (
           <option key={c.seconds} value={c.seconds}>
-            {c.label}
+            {t(c.label)}
           </option>
         ))}
       </select>
@@ -627,6 +639,7 @@ function MemberRolesDialog({
   onChange: (m: api.MemberObject) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const action = useAction();
   const assignable = roles.filter((r) => r.id !== guildId).sort((a, b) => b.position - a.position);
   const toggle = async (roleId: string, on: boolean) => {
@@ -642,13 +655,18 @@ function MemberRolesDialog({
       });
   };
   return (
-    <Modal open onClose={onClose} size="sm" title={`Roles for ${memberName(member)}`}>
+    <Modal
+      open
+      onClose={onClose}
+      size="sm"
+      title={t('settings.members.rolesFor', { name: memberName(member) })}
+    >
       <ActionStatus error={action.error} />
-      <ul className="ss-list" aria-label="Roles">
+      <ul className="ss-list" aria-label={t('settings.members.roles')}>
         {assignable.map((r) => {
           const why =
             !viewer.isOwner && viewer.topPosition <= r.position
-              ? 'At or above your highest role.'
+              ? t('settings.members.aboveHighest')
               : undefined;
           return (
             <li key={r.id} className="ss-row">
@@ -676,6 +694,7 @@ function MemberDetails({
   roleById: Map<string, { id: string; name: string; color: number }>;
   onClose: () => void;
 }) {
+  const t = useT();
   const name = memberName(member);
   const until = member.communication_disabled_until;
   const timedOut = !!until && new Date(until).getTime() > Date.now();
@@ -683,33 +702,35 @@ function MemberDetails({
     <Modal open onClose={onClose} size="sm" title={name}>
       <dl className="ss-details">
         <div>
-          <dt>Username</dt>
-          <dd>{member.user.username ?? 'Unknown'}</dd>
+          <dt>{t('settings.members.username')}</dt>
+          <dd>{member.user.username ?? t('settings.members.unknown')}</dd>
         </div>
         <div>
-          <dt>User ID</dt>
+          <dt>{t('settings.members.userId')}</dt>
           <dd>
             <code>{member.user.id}</code>
           </dd>
         </div>
         <div>
-          <dt>Member since</dt>
+          <dt>{t('settings.members.colSince')}</dt>
           <dd>{formatDate(member.joined_at)}</dd>
         </div>
         {member.nick && (
           <div>
-            <dt>Nickname</dt>
+            <dt>{t('settings.members.nickname')}</dt>
             <dd>{member.nick}</dd>
           </div>
         )}
         <div>
-          <dt>Timeout</dt>
+          <dt>{t('settings.members.timeout')}</dt>
           <dd>
-            {timedOut && until ? `Until ${new Date(until).toLocaleString()}` : 'Not timed out'}
+            {timedOut && until
+              ? t('settings.members.until', { when: new Date(until).toLocaleString() })
+              : t('settings.members.notTimedOut')}
           </dd>
         </div>
         <div>
-          <dt>Roles</dt>
+          <dt>{t('settings.members.roles')}</dt>
           <dd>
             <span className="ss-chips">
               {member.roles.map((rid) => {
@@ -721,7 +742,9 @@ function MemberDetails({
                   </span>
                 ) : null;
               })}
-              {member.roles.length === 0 && <span className="ss-meta">No roles</span>}
+              {member.roles.length === 0 && (
+                <span className="ss-meta">{t('settings.members.noRoles')}</span>
+              )}
             </span>
           </dd>
         </div>

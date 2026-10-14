@@ -1,11 +1,14 @@
 import { Button, Icon, Modal, Notice, PasswordInput, Spinner, TextInput } from '@sideroom/ui';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useT } from '../i18n';
 import { errorText, isWrongPassword } from './api';
 
 export function Loading({ what }: { what: string }) {
+  const t = useT();
   return (
     <p className="dev-muted" role="status">
-      <Spinner size="sm" label={`Loading ${what}`} /> Loading {what}...
+      <Spinner size="sm" label={t('developers.ui.loadingLabel', { what })} />{' '}
+      {t('developers.ui.loadingText', { what })}
     </p>
   );
 }
@@ -19,12 +22,13 @@ export function LoadError({
   error: unknown;
   onRetry?: () => void;
 }) {
+  const t = useT();
   return (
-    <Notice variant="danger" title={`Couldn't load ${what}`}>
+    <Notice variant="danger" title={t('developers.ui.loadErrorTitle', { what })}>
       {errorText(error)}{' '}
       {onRetry && (
         <Button variant="link" size="sm" onClick={onRetry}>
-          Try again
+          {t('developers.ui.tryAgain')}
         </Button>
       )}
     </Notice>
@@ -33,8 +37,9 @@ export function LoadError({
 
 /** Honest placeholder where the server has no endpoint yet. */
 export function NotAvailable({ children }: { children: ReactNode }) {
+  const t = useT();
   return (
-    <Notice variant="info" title="Not available yet">
+    <Notice variant="info" title={t('developers.ui.notAvailableTitle')}>
       {children}
     </Notice>
   );
@@ -43,13 +48,14 @@ export function NotAvailable({ children }: { children: ReactNode }) {
 /** Copy `text` to the clipboard and say so (polite live region + toast-free inline label). */
 export function CopyButton({
   text,
-  label = 'Copy',
+  label,
   size = 'sm',
 }: {
   text: string;
   label?: string;
   size?: 'sm' | 'md';
 }) {
+  const t = useT();
   const [done, setDone] = useState(false);
   const timer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(timer.current), []);
@@ -69,18 +75,19 @@ export function CopyButton({
         );
       }}
     >
-      {done ? 'Copied' : label}
+      {done ? t('developers.ui.copied') : (label ?? t('developers.ui.copy'))}
     </Button>
   );
 }
 
 /** A code sample with a copy button. `lang` is a caption only (no highlighter is loaded). */
 export function CodeBlock({ code, lang, title }: { code: string; lang: string; title?: string }) {
+  const t = useT();
   return (
     <figure className="dev-code">
       <figcaption>
         <span>{title ?? lang}</span>
-        <CopyButton text={code} label={`Copy ${title ?? lang}`} />
+        <CopyButton text={code} label={t('developers.ui.copyNamed', { name: title ?? lang })} />
       </figcaption>
       <pre tabIndex={0}>
         <code>{code}</code>
@@ -109,6 +116,7 @@ export function SecretDialog({
   secrets: Secret[] | null;
   onClose: () => void;
 }) {
+  const t = useT();
   return (
     <Modal
       open={secrets !== null}
@@ -117,7 +125,7 @@ export function SecretDialog({
       description={description}
       size="md"
       closeOnBackdrop={false}
-      footer={<Button onClick={onClose}>Done</Button>}
+      footer={<Button onClick={onClose}>{t('developers.ui.done')}</Button>}
     >
       {(secrets ?? []).map((s, i) => (
         <div className="dev-secret" key={s.label}>
@@ -133,11 +141,15 @@ export function SecretDialog({
             autoComplete="off"
             spellCheck={false}
           />
-          <CopyButton text={s.value} label={`Copy ${s.label.toLowerCase()}`} size="md" />
+          <CopyButton
+            text={s.value}
+            label={t('developers.ui.copyNamed', { name: s.label.toLowerCase() })}
+            size="md"
+          />
         </div>
       ))}
-      <Notice variant="warning" title="You will not see this again">
-        Copy it somewhere safe now. Once you close this dialog only a reset can give you a new one.
+      <Notice variant="warning" title={t('developers.ui.secretWarningTitle')}>
+        {t('developers.ui.secretWarningBody')}
       </Notice>
     </Modal>
   );
@@ -167,6 +179,7 @@ export function PasswordConfirm({
   onSubmit: (password: string) => Promise<void>;
   onCancel: () => void;
 }) {
+  const t = useT();
   const [password, setPassword] = useState('');
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
@@ -186,7 +199,9 @@ export function PasswordConfirm({
       await onSubmit(password);
     } catch (e) {
       setError(
-        isWrongPassword(e) ? 'That password is not right.' : errorText(e, 'That did not work.'),
+        isWrongPassword(e)
+          ? t('developers.ui.wrongPassword')
+          : errorText(e, t('developers.ui.didNotWork')),
       );
     } finally {
       setBusy(false);
@@ -202,7 +217,7 @@ export function PasswordConfirm({
       footer={
         <>
           <Button variant="ghost" onClick={onCancel}>
-            Cancel
+            {t('developers.ui.cancel')}
           </Button>
           <Button
             variant={danger ? 'danger' : 'primary'}
@@ -224,14 +239,14 @@ export function PasswordConfirm({
       >
         {requireText !== undefined && (
           <TextInput
-            label={`Type "${requireText}" to confirm`}
+            label={t('developers.ui.typeToConfirm', { text: requireText })}
             value={typed}
             onChange={(e) => setTyped(e.target.value)}
             autoComplete="off"
           />
         )}
         <PasswordInput
-          label="Your password"
+          label={t('developers.ui.yourPassword')}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           autoComplete="current-password"

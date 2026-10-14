@@ -1,5 +1,6 @@
 // Invite / share link (spec section 2): the party link, copyable. Private parties carry the invite code in it.
 import { Button, Modal, TextInput, useToast } from '@sideroom/ui';
+import { useT } from '../i18n';
 import { partyLink } from './api';
 import type { Party } from './types';
 
@@ -12,40 +13,41 @@ export function ShareDialog({
   onClose: () => void;
   party: Pick<Party, 'id' | 'invite_code' | 'binding'>;
 }) {
+  const t = useT();
   const toast = useToast();
   const link = partyLink(window.location.origin, party);
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(link);
       toast.show({
-        title: 'Link copied',
-        description: 'Send it to the people you want to watch with.',
+        title: t('watchparty.share.copied'),
+        description: t('watchparty.share.copiedDescription'),
       });
     } catch {
-      toast.show({ title: 'Could not copy the link', variant: 'warning' });
+      toast.show({ title: t('watchparty.share.copyFailed'), variant: 'warning' });
     }
   };
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="Invite people"
+      title={t('watchparty.share.title')}
       description={
         party.binding === 'private'
-          ? 'Anyone with this link can join the party. Keep it to people you trust.'
-          : 'Everyone who can see the channel can join from there. This link opens the party for them.'
+          ? t('watchparty.share.descriptionPrivate')
+          : t('watchparty.share.descriptionChannel')
       }
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Close
+            {t('watchparty.share.close')}
           </Button>
-          <Button onClick={() => void copy()}>Copy link</Button>
+          <Button onClick={() => void copy()}>{t('watchparty.share.copyLink')}</Button>
         </>
       }
     >
       <TextInput
-        label="Party link"
+        label={t('watchparty.share.linkLabel')}
         readOnly
         value={link}
         onFocus={(e) => e.currentTarget.select()}

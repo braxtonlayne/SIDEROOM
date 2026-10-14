@@ -3,6 +3,7 @@
 // Routes: docs/specs/cinema-live-tv.md section 8.5 (see tvApi.ts); a server without them gets "not available yet".
 import { Badge, Button, ConfirmDialog, EmptyState, Notice, Tabs } from '@sideroom/ui';
 import { useState } from 'react';
+import { useT } from '../../../i18n';
 import { SectionHeader, useAdminViewer } from '../../ui';
 import { Banner, LoadProblem, useLoad, useRun } from '../hooks';
 import { ChannelEditor } from './ChannelEditor';
@@ -10,12 +11,13 @@ import { AiredReport, NowControl, SchedulePanel } from './ChannelPanels';
 import * as tv from './tvApi';
 
 const KIND_LABEL: Record<tv.AdminKind, string> = {
-  rule_based: 'rule based',
-  manual: 'manual',
-  imported_guide: 'imported guide',
+  rule_based: 'admin.liveTv.kind.ruleBased',
+  manual: 'admin.liveTv.kind.manual',
+  imported_guide: 'admin.liveTv.kind.importedGuide',
 };
 
 export function LiveTvSection() {
+  const t = useT();
   const allowed = useAdminViewer().can('MANAGE_TV');
   const [open, setOpen] = useState<string | 'new' | null>(() =>
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('new') === '1'
@@ -25,10 +27,10 @@ export function LiveTvSection() {
   if (!allowed)
     return (
       <>
-        <SectionHeader title="Live TV" />
+        <SectionHeader title={t('admin.liveTv.title')} />
         <EmptyState
-          title="You do not have access"
-          description="Live TV channels take the Manage TV permission (Media Curator)."
+          title={t('admin.liveTv.noAccess.title')}
+          description={t('admin.liveTv.noAccess.description')}
         />
       </>
     );
@@ -38,6 +40,7 @@ export function LiveTvSection() {
 }
 
 function ChannelList({ onOpen }: { onOpen: (id: string | 'new') => void }) {
+  const t = useT();
   const [unavailable, setUnavailable] = useState(false);
   const res = useLoad<{ items: tv.AdminChannel[] } | null>('tv-channels', async () => {
     try {
@@ -53,18 +56,17 @@ function ChannelList({ onOpen }: { onOpen: (id: string | 'new') => void }) {
   return (
     <>
       <SectionHeader
-        title="Live TV"
-        description="Always-on channels built from the library. Each follows a wall-clock schedule, so everyone tuned in sees the same programme."
+        title={t('admin.liveTv.title')}
+        description={t('admin.liveTv.description')}
         actions={
           <Button disabled={unavailable} onClick={() => onOpen('new')}>
-            New channel
+            {t('admin.liveTv.new')}
           </Button>
         }
       />
       {unavailable && (
-        <Notice variant="info" role="status" title="Not available yet">
-          This server does not provide the Live TV admin API yet. Nothing is shown rather than made
-          up.
+        <Notice variant="info" role="status" title={t('admin.liveTv.unavailable.title')}>
+          {t('admin.liveTv.unavailable.body')}
         </Notice>
       )}
       {res.error && !res.data && !unavailable && (
@@ -72,15 +74,20 @@ function ChannelList({ onOpen }: { onOpen: (id: string | 'new') => void }) {
           error={res.error}
           status={res.status}
           onRetry={() => void res.reload()}
-          what="Live TV"
+          what={t('admin.liveTv.what')}
         />
       )}
-      {!res.data && !res.error && !unavailable && <p className="ss-loading">Loading channels…</p>}
+      {!res.data && !res.error && !unavailable && (
+        <p className="ss-loading">{t('admin.liveTv.loading')}</p>
+      )}
       {res.data && res.data.items.length === 0 && (
-        <EmptyState title="No channels" description="Create the first channel to fill the guide." />
+        <EmptyState
+          title={t('admin.liveTv.empty.title')}
+          description={t('admin.liveTv.empty.description')}
+        />
       )}
       {res.data && res.data.items.length > 0 && (
-        <ul className="ss-list" aria-label="Channels">
+        <ul className="ss-list" aria-label={t('admin.liveTv.list')}>
           {[...res.data.items]
             .sort((a, b) => a.number - b.number)
             .map((c) => (
@@ -88,9 +95,9 @@ function ChannelList({ onOpen }: { onOpen: (id: string | 'new') => void }) {
                 <div className="ss-grow">
                   <div className="ss-name">
                     <span className="adm-mono">{c.number}</span> {c.name}{' '}
-                    <Badge>{KIND_LABEL[c.kind]}</Badge>{' '}
-                    {!c.enabled && <Badge variant="warning">disabled</Badge>}{' '}
-                    {c.age_restricted && <Badge variant="danger">18+</Badge>}
+                    <Badge>{t(KIND_LABEL[c.kind])}</Badge>{' '}
+                    {!c.enabled && <Badge variant="warning">{t('admin.liveTv.disabled')}</Badge>}{' '}
+                    {c.age_restricted && <Badge variant="danger">{t('admin.liveTv.age18')}</Badge>}
                   </div>
                   <div className="ss-meta">
                     {c.call_sign} · {c.timezone}
@@ -98,7 +105,7 @@ function ChannelList({ onOpen }: { onOpen: (id: string | 'new') => void }) {
                   </div>
                 </div>
                 <Button size="sm" variant="secondary" onClick={() => onOpen(c.id)}>
-                  Open {c.name}
+                  {t('admin.liveTv.open', { name: c.name })}
                 </Button>
               </li>
             ))}
@@ -109,6 +116,7 @@ function ChannelList({ onOpen }: { onOpen: (id: string | 'new') => void }) {
 }
 
 function ChannelDetail({ id, onClose }: { id: string | null; onClose: () => void }) {
+  const t = useT();
   const res = useLoad<{ items: tv.AdminChannel[] }>('tv-channels-detail', tv.listChannels);
   const [created, setCreated] = useState<tv.AdminChannel | null>(null);
   const [remove, setRemove] = useState(false);
@@ -122,16 +130,27 @@ function ChannelDetail({ id, onClose }: { id: string | null; onClose: () => void
   return (
     <>
       <SectionHeader
-        title={id || created ? (channel?.name ?? 'Channel') : 'New channel'}
-        description={channel ? `Channel ${channel.number} · ${channel.call_sign}` : undefined}
+        title={
+          id || created
+            ? (channel?.name ?? t('admin.liveTv.detail.channel'))
+            : t('admin.liveTv.new')
+        }
+        description={
+          channel
+            ? t('admin.liveTv.detail.description', {
+                n: channel.number,
+                callSign: channel.call_sign,
+              })
+            : undefined
+        }
         actions={
           <>
             <Button variant="secondary" onClick={onClose}>
-              Back to channels
+              {t('admin.liveTv.detail.back')}
             </Button>
             {channel && (
               <Button variant="danger" onClick={() => setRemove(true)}>
-                Delete channel
+                {t('admin.liveTv.detail.delete')}
               </Button>
             )}
           </>
@@ -143,31 +162,44 @@ function ChannelDetail({ id, onClose }: { id: string | null; onClose: () => void
           error={res.error}
           status={res.status}
           onRetry={() => void res.reload()}
-          what="this channel"
+          what={t('admin.liveTv.detail.what')}
         />
       )}
-      {id && !channel && !res.error && <p className="ss-loading">Loading the channel…</p>}
+      {id && !channel && !res.error && (
+        <p className="ss-loading">{t('admin.liveTv.detail.loading')}</p>
+      )}
       {id && res.data && !channel && (
-        <EmptyState title="Channel not found" description="It may have been deleted." />
+        <EmptyState
+          title={t('admin.liveTv.detail.notFound.title')}
+          description={t('admin.liveTv.detail.notFound.description')}
+        />
       )}
       {(!id || channel) && (
         <Tabs
-          label="Channel"
+          label={t('admin.liveTv.detail.tabs')}
           items={[
             {
               id: 'details',
-              label: 'Details and rules',
+              label: t('admin.liveTv.detail.tab.details'),
               content: <ChannelEditor key={id ?? 'new'} channel={channel} onSaved={saved} />,
             },
             ...(channel
               ? [
                   {
                     id: 'schedule',
-                    label: 'Schedule',
+                    label: t('admin.liveTv.detail.tab.schedule'),
                     content: <SchedulePanel channel={channel} />,
                   },
-                  { id: 'now', label: 'Now control', content: <NowControl channel={channel} /> },
-                  { id: 'aired', label: 'What aired', content: <AiredReport channel={channel} /> },
+                  {
+                    id: 'now',
+                    label: t('admin.liveTv.detail.tab.now'),
+                    content: <NowControl channel={channel} />,
+                  },
+                  {
+                    id: 'aired',
+                    label: t('admin.liveTv.detail.tab.aired'),
+                    content: <AiredReport channel={channel} />,
+                  },
                 ]
               : []),
           ]}
@@ -176,9 +208,11 @@ function ChannelDetail({ id, onClose }: { id: string | null; onClose: () => void
       <ConfirmDialog
         open={remove}
         danger
-        title={`Delete ${channel?.name ?? 'channel'}`}
-        description="Viewers watching it lose the signal. Its schedule and aired history are removed. Type the channel name to confirm."
-        confirmLabel="Delete channel"
+        title={t('admin.liveTv.detail.deleteTitle', {
+          name: channel?.name ?? t('admin.liveTv.detail.channelWord'),
+        })}
+        description={t('admin.liveTv.detail.deleteDescription')}
+        confirmLabel={t('admin.liveTv.detail.delete')}
         requireText={channel?.name}
         loading={del.busy}
         onCancel={() => setRemove(false)}

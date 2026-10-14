@@ -8,6 +8,7 @@ import {
   VirtualList,
   type MenuEntry,
 } from '@sideroom/ui';
+import { useT } from '../i18n';
 import { useStore } from '../store';
 import { dmTitle, HOME } from './channels';
 import {
@@ -25,6 +26,7 @@ import { useUserMenuEntries } from './shell/userMenu';
 import { useLoungeUi } from './store';
 
 function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
+  const t = useT();
   const users = useUsers();
   const presence = usePresenceMap();
   const actions = useLoungeActions();
@@ -33,9 +35,11 @@ function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
   const patchChannel = useNotifSettings((s) => s.patchChannel);
   const first = users[dm.recipientIds[0] ?? ''];
   const group = dm.recipientIds.length > 1;
-  const title = dmTitle(dm, (id) => users[id]?.displayName ?? 'Unknown');
+  const title = dmTitle(dm, (id) => users[id]?.displayName ?? t('lounge.homeSidebar.unknown'));
   const p = first ? presence[first.id] : undefined;
-  const sub = group ? `${dm.recipientIds.length + 1} Members` : p?.activity?.text;
+  const sub = group
+    ? t('lounge.homeSidebar.members', { count: dm.recipientIds.length + 1 })
+    : p?.activity?.text;
   const muted = isMuted(notif);
   const userEntries = useUserMenuEntries(first ? { id: first.id, name: title } : undefined);
 
@@ -50,7 +54,7 @@ function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
 
   const menu: MenuEntry[] = [
     {
-      label: 'Profile',
+      label: t('lounge.homeSidebar.profile'),
       disabled: group,
       onSelect: () =>
         void navigate({
@@ -58,22 +62,29 @@ function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
           params: { guildId: HOME, channelId: dm.id },
         }),
     },
-    { label: 'Call', disabled: true },
+    { label: t('lounge.homeSidebar.call'), disabled: true },
     ...(group || !userEntries.note
-      ? [{ label: 'Add Note', disabled: true } as MenuEntry]
+      ? [{ label: t('lounge.homeSidebar.addNote'), disabled: true } as MenuEntry]
       : [userEntries.note]),
     { type: 'separator' },
-    { label: group ? 'Leave Group' : 'Close DM', onSelect: close },
-    { label: 'Mark as Read', disabled: !dm.unread, onSelect: () => actions.markRead(dm.id) },
+    {
+      label: group ? t('lounge.homeSidebar.leaveGroup') : t('lounge.homeSidebar.closeDm'),
+      onSelect: close,
+    },
+    {
+      label: t('lounge.homeSidebar.markRead'),
+      disabled: !dm.unread,
+      onSelect: () => actions.markRead(dm.id),
+    },
     muted
       ? {
-          label: 'Unmute Conversation',
+          label: t('lounge.homeSidebar.unmute'),
           onSelect: () =>
             void patchChannel(HOME, dm.id, { mute: { muted: false } }).catch(() => undefined),
         }
       : {
           type: 'submenu',
-          label: 'Mute Conversation',
+          label: t('lounge.homeSidebar.mute'),
           items: MUTE_DURATIONS.map((d) => ({
             label: d.label,
             onSelect: () =>
@@ -88,7 +99,7 @@ function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
           ...(userEntries.invite ? [userEntries.invite] : []),
           ...userEntries.relationship,
           {
-            label: 'Copy User ID',
+            label: t('lounge.homeSidebar.copyUserId'),
             onSelect: () => void navigator.clipboard?.writeText(first.id),
           },
         ] as MenuEntry[])
@@ -96,7 +107,7 @@ function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
   ];
 
   return (
-    <ContextMenu items={menu} label={`${title} conversation menu`}>
+    <ContextMenu items={menu} label={t('lounge.homeSidebar.conversationMenu', { name: title })}>
       <div className="lng-dm-wrap" data-muted={muted || undefined}>
         <Link
           to="/channels/$guildId/$channelId"
@@ -105,7 +116,7 @@ function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
           data-unread={dm.unread || undefined}
           data-selected={selected || undefined}
           aria-current={selected ? 'page' : undefined}
-          aria-label={`${title}${dm.unread ? ', unread' : ''}${muted ? ', muted' : ''}`}
+          aria-label={`${title}${dm.unread ? t('lounge.homeSidebar.unreadSuffix') : ''}${muted ? t('lounge.homeSidebar.mutedSuffix') : ''}`}
         >
           {group ? (
             <AvatarStack
@@ -130,14 +141,18 @@ function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
           </span>
           <CounterBadge
             count={muted ? 0 : dm.mentionCount}
-            noun="mentions"
+            noun={t('lounge.homeSidebar.mentionsNoun')}
             className="lng-mention-badge lng-mention-inline"
           />
         </Link>
         <button
           type="button"
           className="lng-icon-btn lng-dm-close"
-          aria-label={group ? `Leave group ${title}` : `Close DM with ${title}`}
+          aria-label={
+            group
+              ? t('lounge.homeSidebar.leaveGroupLabel', { name: title })
+              : t('lounge.homeSidebar.closeDmLabel', { name: title })
+          }
           onClick={close}
         >
           <Icon name="close" size={16} />
@@ -148,6 +163,7 @@ function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
 }
 
 export function HomeSidebar({ onOpenSwitcher }: { onOpenSwitcher: () => void }) {
+  const t = useT();
   const dms = useDms();
   const counts = useRequestCounts();
   const { channelId, isHome } = useLoungeRoute();
@@ -166,10 +182,10 @@ export function HomeSidebar({ onOpenSwitcher }: { onOpenSwitcher: () => void }) 
     <div className="lng-sidebar" data-testid="home-sidebar">
       <div className="lng-sidebar-top">
         <button type="button" className="lng-find" onClick={onOpenSwitcher}>
-          Find or start a conversation
+          {t('lounge.homeSidebar.find')}
         </button>
       </div>
-      <nav className="lng-home-nav" aria-label="Home">
+      <nav className="lng-home-nav" aria-label={t('lounge.homeSidebar.home')}>
         <Link
           to="/channels/$guildId"
           params={{ guildId: HOME }}
@@ -179,10 +195,10 @@ export function HomeSidebar({ onOpenSwitcher }: { onOpenSwitcher: () => void }) 
           onClick={() => setHomeView('friends')}
         >
           <Icon name="users" size={20} />
-          <span>Friends</span>
+          <span>{t('lounge.homeSidebar.friends')}</span>
           <CounterBadge
             count={counts.friends}
-            noun="pending friend requests"
+            noun={t('lounge.homeSidebar.friendRequestsNoun')}
             className="lng-mention-badge lng-mention-inline"
           />
         </Link>
@@ -194,20 +210,20 @@ export function HomeSidebar({ onOpenSwitcher }: { onOpenSwitcher: () => void }) 
           onClick={() => goHome('requests')}
         >
           <Icon name="user" size={20} />
-          <span>Message Requests</span>
+          <span>{t('lounge.homeSidebar.messageRequests')}</span>
           <CounterBadge
             count={counts.messages}
-            noun="message requests"
+            noun={t('lounge.homeSidebar.messageRequestsNoun')}
             className="lng-mention-badge lng-mention-inline"
           />
         </button>
       </nav>
       <div className="lng-dm-head">
-        <h2>Direct Messages</h2>
+        <h2>{t('lounge.homeSidebar.directMessages')}</h2>
         <button
           type="button"
           className="lng-icon-btn"
-          aria-label="Create DM"
+          aria-label={t('lounge.homeSidebar.createDm')}
           onClick={() => openDialog({ kind: 'createDm' })}
         >
           <Icon name="plus" size={16} />
@@ -215,7 +231,7 @@ export function HomeSidebar({ onOpenSwitcher }: { onOpenSwitcher: () => void }) 
       </div>
       <VirtualList
         className="lng-dm-list"
-        aria-label="Direct messages"
+        aria-label={t('lounge.homeSidebar.dmList')}
         count={sorted.length}
         estimateSize={44}
         getItemKey={(i) => sorted[i]?.id ?? i}
@@ -223,7 +239,7 @@ export function HomeSidebar({ onOpenSwitcher }: { onOpenSwitcher: () => void }) 
           const dm = sorted[i];
           return dm ? <DmRow dm={dm} selected={dm.id === channelId} /> : null;
         }}
-        empty={<p className="lng-muted lng-pad">No conversations yet.</p>}
+        empty={<p className="lng-muted lng-pad">{t('lounge.homeSidebar.noConversations')}</p>}
       />
     </div>
   );

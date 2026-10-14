@@ -1,6 +1,7 @@
 import { Icon, Popover, Tooltip } from '@sideroom/ui';
 import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../../api/client';
+import { t, useT } from '../../i18n';
 import { EmojiPicker } from '../components/EmojiPicker';
 import type { Message, Reaction } from '../data';
 
@@ -20,11 +21,15 @@ export function reactorSentence(names: string[], total: number, emoji: string): 
   const shown = names.slice(0, 3);
   const rest = total - shown.length;
   let who: string;
-  if (shown.length === 0) who = `${total} ${total === 1 ? 'person' : 'people'}`;
-  else if (rest > 0) who = `${shown.join(', ')} and ${rest} ${rest === 1 ? 'other' : 'others'}`;
+  if (shown.length === 0) who = t('lounge.reactions.personCount', { n: total });
+  else if (rest > 0) who = t('lounge.reactions.andOthers', { names: shown.join(', '), rest });
   else if (shown.length === 1) who = shown[0]!;
-  else who = `${shown.slice(0, -1).join(', ')} and ${shown[shown.length - 1]!}`;
-  return `${who} reacted with ${emoji}`;
+  else
+    who = t('lounge.reactions.andLast', {
+      names: shown.slice(0, -1).join(', '),
+      last: shown[shown.length - 1]!,
+    });
+  return t('lounge.reactions.reactedWith', { who, emoji });
 }
 
 function ReactorNames({ message, reaction }: { message: Message; reaction: Reaction }) {
@@ -62,14 +67,15 @@ function ReactionPill({
   onReact: (m: Message, emoji: string) => void;
   onViewReactions?: ((m: Message, emoji?: string) => void) | undefined;
 }) {
+  const t = useT();
   const prevMe = useRef(reaction.me);
   const [burst, setBurst] = useState(false);
   useEffect(() => {
     if (reaction.me && !prevMe.current) {
       setBurst(true);
-      const t = setTimeout(() => setBurst(false), 700);
+      const timer = setTimeout(() => setBurst(false), 700);
       prevMe.current = reaction.me;
-      return () => clearTimeout(t);
+      return () => clearTimeout(timer);
     }
     prevMe.current = reaction.me;
     return undefined;
@@ -81,7 +87,10 @@ function ReactionPill({
         className="lng-reaction"
         aria-pressed={reaction.me}
         data-burst={burst || undefined}
-        aria-label={`${reaction.emoji} ${reaction.count} ${reaction.count === 1 ? 'reaction' : 'reactions'}${reaction.me ? ', including you' : ''}`}
+        aria-label={t(reaction.me ? 'lounge.reactions.pillLabelMe' : 'lounge.reactions.pillLabel', {
+          emoji: reaction.emoji,
+          count: reaction.count,
+        })}
         onClick={() => onReact(message, reaction.emoji)}
         onContextMenu={(e) => {
           if (!onViewReactions) return;
@@ -109,6 +118,7 @@ export function ReactionRow({
   onReact: (m: Message, emoji: string) => void;
   onViewReactions?: ((m: Message, emoji?: string) => void) | undefined;
 }) {
+  const t = useT();
   const list = message.reactions ?? [];
   if (list.length === 0) return null;
   return (
@@ -124,13 +134,13 @@ export function ReactionRow({
       ))}
       {!message.pending && !message.failed && (
         <Popover
-          label="Add reaction"
+          label={t('lounge.reactions.addReaction')}
           placement="top"
           trigger={
             <button
               type="button"
               className="lng-reaction lng-reaction-add"
-              aria-label="Add reaction to this message"
+              aria-label={t('lounge.reactions.addReactionToMessage')}
             >
               <Icon name="smile" size={16} />
             </button>

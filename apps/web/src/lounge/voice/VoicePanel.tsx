@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import { Button, Icon, Notice, Tooltip } from '@sideroom/ui';
+import { useT, type MessageKey } from '../../i18n';
 import { useOpenUserSettings } from '../../settings/user/nav';
 import { voiceController } from '../../voice/controller';
 import { isInVoice, useVoiceSession, type SessionStatus } from '../../voice/session';
@@ -7,13 +8,13 @@ import { QUALITY_LABEL } from '../../voice/quality';
 import { useGuild } from '../data';
 import { QualityBars } from './QualityBars';
 
-const STATUS_TEXT: Record<SessionStatus, string> = {
+const STATUS_TEXT: Record<SessionStatus, MessageKey | ''> = {
   idle: '',
   error: '',
-  joining: 'RTC Connecting',
-  connecting: 'RTC Connecting',
-  connected: 'Voice Connected',
-  reconnecting: 'Reconnecting',
+  joining: 'lounge.voicePanel.rtcConnecting',
+  connecting: 'lounge.voicePanel.rtcConnecting',
+  connected: 'lounge.voicePanel.connected',
+  reconnecting: 'lounge.voicePanel.reconnecting',
 };
 
 /**
@@ -22,6 +23,7 @@ const STATUS_TEXT: Record<SessionStatus, string> = {
  * or missing microphone.
  */
 export function VoicePanel() {
+  const t = useT();
   const s = useVoiceSession();
   const guild = useGuild(s.guildId ?? undefined);
   const openSettings = useOpenUserSettings();
@@ -33,7 +35,7 @@ export function VoicePanel() {
       <div className="vc-panel" data-testid="voice-panel">
         <Notice
           variant="danger"
-          title={mic ? "Can't use your microphone" : "Couldn't join voice"}
+          title={mic ? t('lounge.voicePanel.micError') : t('lounge.voicePanel.joinError')}
           role="alert"
           onDismiss={() => controller.dismissError()}
         >
@@ -41,12 +43,12 @@ export function VoicePanel() {
           <div className="vc-error-actions">
             {mic && (
               <Button size="sm" variant="secondary" onClick={() => openSettings('voice')}>
-                Voice settings
+                {t('lounge.voicePanel.voiceSettings')}
               </Button>
             )}
             {s.error.code !== 'disconnected' && (
               <Button size="sm" variant="secondary" onClick={() => controller.retry()}>
-                Try again
+                {t('lounge.voicePanel.tryAgain')}
               </Button>
             )}
           </div>
@@ -58,9 +60,19 @@ export function VoicePanel() {
 
   const connected = s.status === 'connected';
   const pingLabel =
-    QUALITY_LABEL[s.quality.level] + (s.quality.pingMs !== null ? ` (${s.quality.pingMs} ms)` : '');
+    s.quality.pingMs !== null
+      ? t('lounge.voicePanel.pingLabel', {
+          label: QUALITY_LABEL[s.quality.level],
+          ms: s.quality.pingMs,
+        })
+      : QUALITY_LABEL[s.quality.level];
   return (
-    <div className="vc-panel" role="region" aria-label="Voice connection" data-testid="voice-panel">
+    <div
+      className="vc-panel"
+      role="region"
+      aria-label={t('lounge.voicePanel.region')}
+      data-testid="voice-panel"
+    >
       <div className="vc-panel-row">
         <Tooltip content={pingLabel}>
           <button type="button" className="vc-quality-btn" aria-label={pingLabel}>
@@ -69,7 +81,7 @@ export function VoicePanel() {
         </Tooltip>
         <div className="vc-panel-text">
           <div className="vc-state" data-ok={connected || undefined} role="status">
-            {STATUS_TEXT[s.status]}
+            {STATUS_TEXT[s.status] ? t(STATUS_TEXT[s.status] as MessageKey) : ''}
           </div>
           <Link
             to="/channels/$guildId/$channelId"
@@ -77,31 +89,31 @@ export function VoicePanel() {
             className="vc-where"
           >
             {s.channelName}
-            {guild ? ` / ${guild.name}` : ''}
+            {guild ? t('lounge.voicePanel.inGuild', { name: guild.name }) : ''}
           </Link>
         </div>
-        <Tooltip content="Voice settings">
+        <Tooltip content={t('lounge.voicePanel.voiceSettings')}>
           <button
             type="button"
             className="lng-icon-btn"
-            aria-label="Voice settings"
+            aria-label={t('lounge.voicePanel.voiceSettings')}
             onClick={() => openSettings('voice')}
           >
             <Icon name="settings" size={20} />
           </button>
         </Tooltip>
-        <Tooltip content="Disconnect">
+        <Tooltip content={t('lounge.voicePanel.disconnect')}>
           <button
             type="button"
             className="lng-icon-btn"
-            aria-label="Disconnect"
+            aria-label={t('lounge.voicePanel.disconnect')}
             onClick={() => controller.leave()}
           >
             <Icon name="logout" size={20} />
           </button>
         </Tooltip>
       </div>
-      {s.pttForced && <p className="vc-note">This channel requires push-to-talk.</p>}
+      {s.pttForced && <p className="vc-note">{t('lounge.voicePanel.pttRequired')}</p>}
     </div>
   );
 }

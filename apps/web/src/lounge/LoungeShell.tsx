@@ -2,6 +2,7 @@ import { ThemeProvider, ToastProvider, Icon } from '@sideroom/ui';
 import { useNavigate } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TouchEvent } from 'react';
+import { useT } from '../i18n';
 import { ChannelSidebar } from './ChannelSidebar';
 import { ChannelView } from './ChannelView';
 import { SectionBar, TitleStrip } from './Chrome';
@@ -193,6 +194,7 @@ function Main({ isMobile, onBack }: { isMobile: boolean; onBack: () => void }) {
 }
 
 function Shell() {
+  const t = useT();
   const { guildId, channelId } = useLoungeRoute();
   const isHome = guildId === HOME || guildId === undefined;
   const guild = useGuild(isHome ? undefined : guildId);
@@ -248,7 +250,7 @@ function Shell() {
   const title = isHome
     ? dm
       ? (dm.name ?? dm.recipientIds.map((id) => users[id]?.displayName ?? '').join(', '))
-      : 'Direct Messages'
+      : t('lounge.loungeShell.directMessages')
     : (guild?.name ?? '');
 
   const showRight = isHome ? !!dm && membersOpen : !!channelId && membersOpen;
@@ -295,14 +297,16 @@ function Shell() {
                   min={RIGHT_PANEL_MIN}
                   max={RIGHT_PANEL_MAX}
                   onChange={setWidth}
-                  label="Resize right panel"
+                  label={t('lounge.loungeShell.resizeRightPanel')}
                 />
               )}
               <aside
                 className="lng-right"
                 data-pane="members"
                 style={isMobile ? undefined : { width }}
-                aria-label={isHome ? 'Profile' : 'Member list'}
+                aria-label={
+                  isHome ? t('lounge.loungeShell.profile') : t('lounge.loungeShell.memberList')
+                }
               >
                 {isHome ? (
                   channelId && <DmProfilePanel dmId={channelId} />
@@ -314,7 +318,7 @@ function Shell() {
           )}
         </div>
         {isMobile && (
-          <nav className="lng-tabbar" aria-label="Primary">
+          <nav className="lng-tabbar" aria-label={t('lounge.loungeShell.primary')}>
             <button
               type="button"
               aria-current={tab === 'home' ? 'page' : undefined}
@@ -324,7 +328,7 @@ function Shell() {
               }}
             >
               <Icon name="home" size={24} />
-              Home
+              {t('lounge.loungeShell.home')}
             </button>
             <button
               type="button"
@@ -335,7 +339,7 @@ function Shell() {
               }}
             >
               <Icon name="bell" size={24} />
-              Notifications
+              {t('lounge.loungeShell.notifications')}
             </button>
             <button
               type="button"
@@ -346,12 +350,16 @@ function Shell() {
               }}
             >
               <Icon name="user" size={24} />
-              You
+              {t('lounge.loungeShell.you')}
             </button>
           </nav>
         )}
-        <ComingSoon open={coming} onClose={() => setComing(false)} title="Notifications">
-          <p>The inbox ships with the notifications inventory items.</p>
+        <ComingSoon
+          open={coming}
+          onClose={() => setComing(false)}
+          title={t('lounge.loungeShell.notifications')}
+        >
+          <p>{t('lounge.loungeShell.inboxNote')}</p>
         </ComingSoon>
         <LoungeDialogs />
         <PopoutHost />

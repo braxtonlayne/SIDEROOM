@@ -10,6 +10,7 @@ import {
   useToast,
 } from '@sideroom/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { t, useT } from '../../../i18n';
 import { cdnUrl } from '../../../store';
 import {
   errorText,
@@ -55,12 +56,12 @@ const fromHex = (h: string) => parseInt(h.slice(1), 16);
 export function validateProfile(d: ProfileDraft): Partial<Record<keyof ProfileDraft, string>> {
   const errors: Partial<Record<keyof ProfileDraft, string>> = {};
   if ([...d.displayName].length > DISPLAY_NAME_MAX)
-    errors.displayName = `Display names can be at most ${DISPLAY_NAME_MAX} characters.`;
-  if ([...d.bio].length > BIO_MAX) errors.bio = `About me can be at most ${BIO_MAX} characters.`;
+    errors.displayName = t('settings.profile.displayNameMax', { max: DISPLAY_NAME_MAX });
+  if ([...d.bio].length > BIO_MAX) errors.bio = t('settings.profile.bioMax', { max: BIO_MAX });
   if ([...d.pronouns].length > PRONOUNS_MAX)
-    errors.pronouns = `Pronouns can be at most ${PRONOUNS_MAX} characters.`;
+    errors.pronouns = t('settings.profile.pronounsMax', { max: PRONOUNS_MAX });
   if ([...d.status].length > STATUS_MAX)
-    errors.status = `Custom status can be at most ${STATUS_MAX} characters.`;
+    errors.status = t('settings.profile.statusMax', { max: STATUS_MAX });
   return errors;
 }
 
@@ -171,8 +172,9 @@ export function useProfileForm(active: boolean): ProfileForm {
 }
 
 function PreviewCard({ form }: { form: ProfileForm }) {
+  const t = useT();
   const u = form.profile?.user;
-  const name = form.draft.displayName.trim() || u?.username || 'You';
+  const name = form.draft.displayName.trim() || u?.username || t('settings.profile.you');
   const accent = form.draft.accent;
   const avatar =
     form.draft.avatar !== undefined
@@ -187,7 +189,7 @@ function PreviewCard({ form }: { form: ProfileForm }) {
         ? cdnUrl('avatars', u.id, u.banner, { size: 512 })
         : null;
   return (
-    <aside className="us-preview" aria-label="Profile preview">
+    <aside className="us-preview" aria-label={t('settings.profile.previewAria')}>
       <div
         className="us-preview-banner"
         style={
@@ -208,7 +210,7 @@ function PreviewCard({ form }: { form: ProfileForm }) {
         {form.draft.status && <p className="us-preview-sub">{form.draft.status}</p>}
         {form.draft.bio && (
           <>
-            <h3>About me</h3>
+            <h3>{t('settings.profile.aboutMe')}</h3>
             <p>{form.draft.bio}</p>
           </>
         )}
@@ -221,6 +223,7 @@ type Pick = { kind: 'avatar' | 'banner'; file: File };
 
 /** Avatar and banner: choose a file, crop it, and the result waits in the draft until Save changes. */
 function MediaCard({ form }: { form: ProfileForm }) {
+  const t = useT();
   const avatarInput = useRef<HTMLInputElement>(null);
   const bannerInput = useRef<HTMLInputElement>(null);
   const [pick, setPick] = useState<Pick | null>(null);
@@ -239,7 +242,7 @@ function MediaCard({ form }: { form: ProfileForm }) {
       try {
         form.setDraft({ [kind]: await readAsDataUri(file) });
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'That file could not be read.');
+        setError(e instanceof Error ? e.message : t('settings.profile.readError'));
       }
       return;
     }
@@ -249,25 +252,25 @@ function MediaCard({ form }: { form: ProfileForm }) {
   return (
     <Card
       id="us-media"
-      title="Avatar and banner"
-      description="PNG, JPEG, WebP or GIF up to 8 MiB. GIFs keep their animation and are centred by the server."
+      title={t('settings.profile.mediaTitle')}
+      description={t('settings.profile.mediaDesc')}
     >
       <div className="us-stack">
         <div className="us-actions">
           <Button variant="secondary" onClick={() => avatarInput.current?.click()}>
-            Change avatar
+            {t('settings.profile.changeAvatar')}
           </Button>
           {hasAvatar && (
             <Button variant="ghost" onClick={() => form.setDraft({ avatar: null })}>
-              Remove avatar
+              {t('settings.profile.removeAvatar')}
             </Button>
           )}
           <Button variant="secondary" onClick={() => bannerInput.current?.click()}>
-            Change banner
+            {t('settings.profile.changeBanner')}
           </Button>
           {hasBanner && (
             <Button variant="ghost" onClick={() => form.setDraft({ banner: null })}>
-              Remove banner
+              {t('settings.profile.removeBanner')}
             </Button>
           )}
         </div>
@@ -277,7 +280,7 @@ function MediaCard({ form }: { form: ProfileForm }) {
           accept="image/png,image/jpeg,image/gif,image/webp"
           className="us-sr"
           tabIndex={-1}
-          aria-label="Avatar file"
+          aria-label={t('settings.profile.avatarFile')}
           onChange={(e) => {
             void onFile('avatar', e.target.files?.[0]);
             e.target.value = '';
@@ -289,25 +292,23 @@ function MediaCard({ form }: { form: ProfileForm }) {
           accept="image/png,image/jpeg,image/gif,image/webp"
           className="us-sr"
           tabIndex={-1}
-          aria-label="Banner file"
+          aria-label={t('settings.profile.bannerFile')}
           onChange={(e) => {
             void onFile('banner', e.target.files?.[0]);
             e.target.value = '';
           }}
         />
         {error && (
-          <Notice variant="danger" title="Couldn't use that image">
+          <Notice variant="danger" title={t('settings.profile.imageError')}>
             {error}
           </Notice>
         )}
-        <p className="us-muted">
-          Avatar and banner are saved with the rest of your profile when you choose Save changes.
-        </p>
+        <p className="us-muted">{t('settings.profile.mediaNote')}</p>
       </div>
       <ImageCropDialog
         open={pick?.kind === 'avatar'}
         file={pick?.kind === 'avatar' ? pick.file : null}
-        title="Crop your avatar"
+        title={t('settings.profile.cropAvatar')}
         aspect={1}
         outWidth={512}
         onCancel={() => setPick(null)}
@@ -319,7 +320,7 @@ function MediaCard({ form }: { form: ProfileForm }) {
       <ImageCropDialog
         open={pick?.kind === 'banner'}
         file={pick?.kind === 'banner' ? pick.file : null}
-        title="Crop your banner"
+        title={t('settings.profile.cropBanner')}
         aspect={2.5}
         outWidth={1200}
         onCancel={() => setPick(null)}
@@ -334,6 +335,7 @@ function MediaCard({ form }: { form: ProfileForm }) {
 
 /** One server's nickname. Saved on its own button (not the page bar) since it is a different resource. */
 function ServerNick({ guild, userId }: { guild: GuildLite; userId: string }) {
+  const t = useT();
   const toast = useToast();
   const member = useResource(() => getMyMember(guild.id, userId));
   const [nick, setNick] = useState('');
@@ -353,7 +355,10 @@ function ServerNick({ guild, userId }: { guild: GuildLite; userId: string }) {
     try {
       const res = await patchMyNick(guild.id, userId, nick.trim() === '' ? null : nick.trim());
       member.setData(res);
-      toast.show({ title: `Updated your nickname in ${guild.name}`, duration: 2500 });
+      toast.show({
+        title: t('settings.profile.nickUpdated', { name: guild.name }),
+        duration: 2500,
+      });
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -361,7 +366,7 @@ function ServerNick({ guild, userId }: { guild: GuildLite; userId: string }) {
     }
   };
   return (
-    <Loaded res={member} what="your membership">
+    <Loaded res={member} what={t('settings.profile.membershipWhat')}>
       {() => (
         <form
           className="us-stack"
@@ -371,19 +376,19 @@ function ServerNick({ guild, userId }: { guild: GuildLite; userId: string }) {
           }}
         >
           <TextInput
-            label="Server nickname"
+            label={t('settings.profile.nickLabel')}
             value={nick}
             onChange={(e) => setNick(e.target.value)}
-            error={over ? `Nicknames can be at most ${NICK_MAX} characters.` : undefined}
-            hint="Shown instead of your display name in this server only."
+            error={over ? t('settings.profile.nickMax', { max: NICK_MAX }) : undefined}
+            hint={t('settings.profile.nickHint')}
           />
           <div className="us-actions">
             <Button type="submit" loading={busy} disabled={over || nick === current}>
-              Save nickname
+              {t('settings.profile.saveNick')}
             </Button>
           </div>
           {error && (
-            <Notice variant="danger" title="Couldn't change your nickname">
+            <Notice variant="danger" title={t('settings.profile.nickError')}>
               {error}
             </Notice>
           )}
@@ -394,22 +399,24 @@ function ServerNick({ guild, userId }: { guild: GuildLite; userId: string }) {
 }
 
 function ServerProfiles({ userId }: { userId: string | undefined }) {
+  const t = useT();
   const guilds = useResource(listGuilds);
   const [picked, setPicked] = useState<string | null>(null);
   return (
     <Card
       id="us-server-profiles"
-      title="Per-server profiles"
-      description="Choose how you appear in one server."
+      title={t('settings.profile.serversTitle')}
+      description={t('settings.profile.serversDesc')}
     >
-      <Loaded res={guilds} what="your servers">
+      <Loaded res={guilds} what={t('settings.profile.serversWhat')}>
         {(rows) => {
-          if (rows.length === 0) return <p className="us-muted">You aren&apos;t in any servers.</p>;
+          if (rows.length === 0)
+            return <p className="us-muted">{t('settings.profile.noServers')}</p>;
           const guild = rows.find((g) => g.id === picked) ?? rows[0];
           return (
             <div className="us-stack">
               <label className="us-muted" id="us-sp-label">
-                Server
+                {t('settings.profile.server')}
               </label>
               <Select
                 aria-labelledby="us-sp-label"
@@ -418,10 +425,7 @@ function ServerProfiles({ userId }: { userId: string | undefined }) {
                 onValueChange={setPicked}
               />
               {guild && userId && <ServerNick key={guild.id} guild={guild} userId={userId} />}
-              <Unavailable>
-                Only the nickname is stored per server. A separate avatar, banner and about me for
-                each server aren&apos;t supported by the server yet.
-              </Unavailable>
+              <Unavailable>{t('settings.profile.serversUnavailable')}</Unavailable>
             </div>
           );
         }}
@@ -431,29 +435,30 @@ function ServerProfiles({ userId }: { userId: string | undefined }) {
 }
 
 export function ProfileSection({ form }: { form: ProfileForm }) {
+  const t = useT();
   const errors = validateProfile(form.draft);
   const bioLen = [...form.draft.bio].length;
   const [tab, setTab] = useState('main');
   return (
     <>
-      <SectionTitle>Profiles</SectionTitle>
+      <SectionTitle>{t('settings.profile.title')}</SectionTitle>
       {form.loading ? (
         <p className="us-muted" role="status">
-          Loading your profile...
+          {t('settings.profile.loading')}
         </p>
       ) : form.loadError ? (
-        <Notice variant="danger" title="Couldn't load your profile">
+        <Notice variant="danger" title={t('settings.profile.loadError')}>
           {form.loadError}
         </Notice>
       ) : (
         <>
           <SegmentedControl
-            label="Profile"
+            label={t('settings.profile.tabs')}
             value={tab}
             onValueChange={setTab}
             options={[
-              { value: 'main', label: 'Main profile' },
-              { value: 'servers', label: 'Per-server profiles' },
+              { value: 'main', label: t('settings.profile.main') },
+              { value: 'servers', label: t('settings.profile.serversTitle') },
             ]}
           />
           {tab === 'servers' ? (
@@ -461,24 +466,24 @@ export function ProfileSection({ form }: { form: ProfileForm }) {
           ) : (
             <div className="us-split">
               <div>
-                <Card id="us-profile" title="Main profile">
+                <Card id="us-profile" title={t('settings.profile.main')}>
                   <div className="us-stack">
                     <TextInput
-                      label="Display name"
+                      label={t('settings.profile.displayName')}
                       value={form.draft.displayName}
                       onChange={(e) => form.setDraft({ displayName: e.target.value })}
                       error={errors.displayName}
-                      hint="Leave it empty to show your username."
+                      hint={t('settings.profile.displayNameHint')}
                     />
                     <TextInput
-                      label="Pronouns"
+                      label={t('settings.profile.pronouns')}
                       value={form.draft.pronouns}
                       onChange={(e) => form.setDraft({ pronouns: e.target.value })}
                       error={errors.pronouns}
                     />
                     <div>
                       <TextArea
-                        label="About me"
+                        label={t('settings.profile.aboutMe')}
                         value={form.draft.bio}
                         onChange={(e) => form.setDraft({ bio: e.target.value })}
                         rows={4}
@@ -493,14 +498,14 @@ export function ProfileSection({ form }: { form: ProfileForm }) {
                       </p>
                     </div>
                     <TextInput
-                      label="Custom status"
+                      label={t('settings.profile.customStatus')}
                       value={form.draft.status}
                       onChange={(e) => form.setDraft({ status: e.target.value })}
                       error={errors.status}
                     />
                     <div>
                       <ColorPicker
-                        label="Accent color"
+                        label={t('settings.profile.accent')}
                         value={form.draft.accent ?? '#c2b08f'}
                         onValueChange={(hex) => form.setDraft({ accent: hex })}
                       />
@@ -510,7 +515,7 @@ export function ProfileSection({ form }: { form: ProfileForm }) {
                           size="sm"
                           onClick={() => form.setDraft({ accent: null })}
                         >
-                          Clear accent color
+                          {t('settings.profile.clearAccent')}
                         </Button>
                       )}
                     </div>
@@ -519,16 +524,13 @@ export function ProfileSection({ form }: { form: ProfileForm }) {
                 <MediaCard form={form} />
                 <Card
                   id="us-profile-extras"
-                  title="Profile themes, decorations and effects"
-                  description="A two-colour profile theme, avatar decorations, profile effects and a server tag."
+                  title={t('settings.profile.extrasTitle')}
+                  description={t('settings.profile.extrasDesc')}
                 >
-                  <Unavailable>
-                    The server stores one accent colour only. These need profile fields that
-                    don&apos;t exist yet, so they&apos;re left out rather than faked.
-                  </Unavailable>
+                  <Unavailable>{t('settings.profile.extrasUnavailable')}</Unavailable>
                 </Card>
                 {form.saveError && (
-                  <Notice variant="danger" title="Couldn't save your profile">
+                  <Notice variant="danger" title={t('settings.profile.saveError')}>
                     {form.saveError}
                   </Notice>
                 )}

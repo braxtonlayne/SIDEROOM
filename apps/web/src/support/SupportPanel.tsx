@@ -6,6 +6,7 @@ import { Link } from '@tanstack/react-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Card, Field, Loaded, SectionTitle } from '../settings/user/parts';
 import { useResource } from '../settings/user/api';
+import { t, useT } from '../i18n';
 import { useGuilds } from '../store';
 import * as api from './api';
 import { errorText, usd, type DonationConfig, type Invoice, type PerkSet } from './api';
@@ -16,48 +17,54 @@ const MONTH_CHOICES = [1, 3, 6, 12];
 const PRESETS = [500, 1000, 2500, 5000];
 
 export function perkLines(p: PerkSet): string[] {
-  const lines = [`Uploads up to ${p.upload_mib} MB per file`];
+  const lines = [t('support.panel.perkUpload', { mib: p.upload_mib })];
   const best = [...p.video_profiles].sort((a, b) => b.height * b.fps - a.height * a.fps)[0];
-  if (best) lines.push(`Video up to ${best.height}p${best.fps}`);
-  if (p.video_senders > 0) lines.push(`${p.video_senders} video senders per voice channel`);
-  if (p.stream_viewers > 0) lines.push(`${p.stream_viewers} viewers per stream`);
-  if (p.audio_kbps > 0) lines.push(`${p.audio_kbps} kbps voice audio`);
-  if (p.watch_parties > 0) lines.push(`${p.watch_parties} concurrent watch parties`);
+  if (best) lines.push(t('support.panel.perkVideo', { height: best.height, fps: best.fps }));
+  if (p.video_senders > 0) lines.push(t('support.panel.perkSenders', { n: p.video_senders }));
+  if (p.stream_viewers > 0) lines.push(t('support.panel.perkViewers', { n: p.stream_viewers }));
+  if (p.audio_kbps > 0) lines.push(t('support.panel.perkAudio', { n: p.audio_kbps }));
+  if (p.watch_parties > 0) lines.push(t('support.panel.perkParties', { n: p.watch_parties }));
   if (p.downloads_per_day > 0)
-    lines.push(`${p.downloads_per_day} Cinema and Library downloads a day`);
-  if (p.exempt_from_sender_limit) lines.push('Your video never counts against a server limit');
+    lines.push(t('support.panel.perkDownloads', { n: p.downloads_per_day }));
+  if (p.exempt_from_sender_limit) lines.push(t('support.panel.perkExempt'));
   return lines;
 }
 
 /** Money text for a custom amount typed in dollars; `null` when it is not a usable amount. */
 export function parseDollars(raw: string): number | null {
-  const t = raw.trim().replace(/^\$/, '');
-  if (!/^\d{1,7}(\.\d{1,2})?$/.test(t)) return null;
-  const cents = Math.round(Number(t) * 100);
+  const body = raw.trim().replace(/^\$/, '');
+  if (!/^\d{1,7}(\.\d{1,2})?$/.test(body)) return null;
+  const cents = Math.round(Number(body) * 100);
   return cents > 0 ? cents : null;
 }
 
 function HostingBar({ cfg }: { cfg: DonationConfig }) {
+  const t = useT();
   const { cost_cents, donated_this_month_cents } = cfg.hosting;
   return (
     <Card
       id="sup-hosting"
-      title="Keeping the lights on"
-      description="Almost everything here is free. Donations pay for hosting and unlock the few things that cost real money: big uploads, lots of video, and downloads."
+      title={t('support.panel.hostingTitle')}
+      description={t('support.panel.hostingDesc')}
     >
       {cost_cents > 0 ? (
         <>
           <ProgressBar
             value={Math.min(donated_this_month_cents, cost_cents)}
             max={cost_cents}
-            label="Donations this month against the monthly hosting cost"
+            label={t('support.panel.hostingBar')}
           />
           <p className="us-muted">
-            {usd(donated_this_month_cents)} of {usd(cost_cents)} this month
+            {t('support.panel.hostingProgress', {
+              donated: usd(donated_this_month_cents),
+              cost: usd(cost_cents),
+            })}
           </p>
         </>
       ) : (
-        <p className="us-muted">{usd(donated_this_month_cents)} donated this month.</p>
+        <p className="us-muted">
+          {t('support.panel.hostingDonated', { donated: usd(donated_this_month_cents) })}
+        </p>
       )}
     </Card>
   );
@@ -76,19 +83,27 @@ function PatronCard({
   disabled: boolean;
   busy: boolean;
 }) {
+  const t = useT();
   const p = me?.patron;
-  let status = 'You are not a Patron.';
-  if (p?.permanent) status = 'You are a Patron, with no end date.';
+  let status = t('support.panel.statusNone');
+  if (p?.permanent) status = t('support.panel.statusPermanent');
   else if (p?.active && p.until_ms)
-    status = `You are a Patron until ${new Date(p.until_ms).toLocaleDateString()}.`;
+    status = t('support.panel.statusUntil', { date: new Date(p.until_ms).toLocaleDateString() });
   else if (p?.in_grace && p.until_ms)
-    status = `Your Patron time ended ${new Date(p.until_ms).toLocaleDateString()}. Perks continue for ${cfg.patron.grace_days} days.`;
+    status = t('support.panel.statusGrace', {
+      date: new Date(p.until_ms).toLocaleDateString(),
+      days: cfg.patron.grace_days,
+    });
   return (
     <Card
       id="sup-patron"
-      title="Patron"
-      description={`${usd(cfg.patron.price_cents)} a month. Perks follow you into every server, DM and call.`}
-      actions={p?.active || p?.in_grace ? <Badge variant="success">Active</Badge> : undefined}
+      title={t('support.panel.patronTitle')}
+      description={t('support.panel.patronDesc', { price: usd(cfg.patron.price_cents) })}
+      actions={
+        p?.active || p?.in_grace ? (
+          <Badge variant="success">{t('support.panel.active')}</Badge>
+        ) : undefined
+      }
     >
       <p role="status">{status}</p>
       <ul className="sup-perks">
@@ -96,7 +111,7 @@ function PatronCard({
           <li key={l}>{l}</li>
         ))}
       </ul>
-      <div className="sup-choices" role="group" aria-label="Patron months">
+      <div className="sup-choices" role="group" aria-label={t('support.panel.patronMonths')}>
         {MONTH_CHOICES.filter((m) => m <= cfg.patron.max_months).map((m) => (
           <Button
             key={m}
@@ -104,14 +119,11 @@ function PatronCard({
             disabled={disabled || busy}
             onClick={() => onPay(m)}
           >
-            {m} month{m === 1 ? '' : 's'}, {usd(m * cfg.patron.price_cents)}
+            {t('support.panel.monthChoice', { months: m, price: usd(m * cfg.patron.price_cents) })}
           </Button>
         ))}
       </div>
-      <p className="us-muted">
-        Paying again adds time after what you have. You can prepay up to {cfg.patron.max_months}{' '}
-        months.
-      </p>
+      <p className="us-muted">{t('support.panel.prepay', { max: cfg.patron.max_months })}</p>
     </Card>
   );
 }
@@ -127,6 +139,7 @@ export function AmountPicker({
   cta: string;
   disabled: boolean;
 }) {
+  const t = useT();
   const [custom, setCustom] = useState('');
   const cents = parseDollars(custom);
   const bad =
@@ -134,7 +147,7 @@ export function AmountPicker({
     (cents === null || cents < cfg.min_donation_cents || cents > cfg.max_donation_cents);
   return (
     <div className="sup-amount">
-      <div className="sup-choices" role="group" aria-label="Amount">
+      <div className="sup-choices" role="group" aria-label={t('support.panel.amount')}>
         {PRESETS.filter((c) => c >= cfg.min_donation_cents).map((c) => (
           <Button
             key={c}
@@ -154,7 +167,7 @@ export function AmountPicker({
           if (cents && !bad) onPick(cents);
         }}
       >
-        <label htmlFor="sup-custom-amount">Other amount (USD)</label>
+        <label htmlFor="sup-custom-amount">{t('support.panel.otherAmount')}</label>
         <input
           id="sup-custom-amount"
           inputMode="decimal"
@@ -169,7 +182,10 @@ export function AmountPicker({
         </Button>
         {bad && (
           <span id="sup-custom-err" className="sup-error" role="alert">
-            Use an amount from {usd(cfg.min_donation_cents)} to {usd(cfg.max_donation_cents)}.
+            {t('support.panel.amountRange', {
+              min: usd(cfg.min_donation_cents),
+              max: usd(cfg.max_donation_cents),
+            })}
           </span>
         )}
       </form>
@@ -186,6 +202,7 @@ function ServerCard({
   onPay: (guildId: string, cents: number, anonymous: boolean) => void;
   disabled: boolean;
 }) {
+  const t = useT();
   const guilds = useGuilds().filter((g) => g.id !== '@me' && !g.unavailable);
   const [guildId, setGuildId] = useState('');
   const [anon, setAnon] = useState(false);
@@ -193,16 +210,16 @@ function ServerCard({
   return (
     <Card
       id="sup-server"
-      title="Support a server"
-      description="Members pool money into a server's monthly total. When it passes a level, everyone in that server gets more upload size, video senders and voice quality."
+      title={t('support.panel.serverTitle')}
+      description={t('support.panel.serverDesc')}
     >
       <table className="sup-levels">
-        <caption className="us-sr">Server levels</caption>
+        <caption className="us-sr">{t('support.panel.levelsCaption')}</caption>
         <thead>
           <tr>
-            <th scope="col">Level</th>
-            <th scope="col">Monthly total</th>
-            <th scope="col">What members get</th>
+            <th scope="col">{t('support.panel.colLevel')}</th>
+            <th scope="col">{t('support.panel.colTotal')}</th>
+            <th scope="col">{t('support.panel.colGet')}</th>
           </tr>
         </thead>
         <tbody>
@@ -216,11 +233,11 @@ function ServerCard({
         </tbody>
       </table>
       {guilds.length === 0 ? (
-        <p className="us-muted">Join a server to support it.</p>
+        <p className="us-muted">{t('support.panel.joinServer')}</p>
       ) : (
         <>
           <div className="sup-custom">
-            <label htmlFor="sup-guild">Server</label>
+            <label htmlFor="sup-guild">{t('support.panel.server')}</label>
             <select id="sup-guild" value={chosen} onChange={(e) => setGuildId(e.target.value)}>
               {guilds.map((g) => (
                 <option key={g.id} value={g.id}>
@@ -230,14 +247,14 @@ function ServerCard({
             </select>
           </div>
           <Switch
-            label="Contribute anonymously"
-            description="Your name is not shown among the server's top contributors."
+            label={t('support.panel.anonymous')}
+            description={t('support.panel.anonymousDesc')}
             checked={anon}
             onChange={(e) => setAnon(e.target.checked)}
           />
           <AmountPicker
             cfg={cfg}
-            cta="Support"
+            cta={t('support.panel.support')}
             disabled={disabled || !chosen}
             onPick={(c) => onPay(chosen, c, anon)}
           />
@@ -248,13 +265,14 @@ function ServerCard({
 }
 
 function PrefsCard({ me, onChange }: { me: api.Me; onChange: (p: api.Prefs) => void }) {
+  const t = useT();
   const toast = useToast();
   const [error, setError] = useState<string | null>(null);
   const save = async (patch: Partial<api.Prefs>) => {
     setError(null);
     try {
       onChange(await api.patchPrefs(patch));
-      toast.show({ title: 'Saved', duration: 1500 });
+      toast.show({ title: t('support.panel.saved'), duration: 1500 });
     } catch (e) {
       setError(errorText(e));
     }
@@ -263,22 +281,22 @@ function PrefsCard({ me, onChange }: { me: api.Me; onChange: (p: api.Prefs) => v
   return (
     <Card
       id="sup-privacy"
-      title="Leaderboards and badge"
-      description="Donors are listed on the public leaderboards unless you hide your name, your amount, or both."
-      actions={<Link to="/support/leaderboards">View leaderboards</Link>}
+      title={t('support.panel.prefsTitle')}
+      description={t('support.panel.prefsDesc')}
+      actions={<Link to="/support/leaderboards">{t('support.panel.viewLeaderboards')}</Link>}
     >
       <Switch
-        label="Hide my name (shown as Anonymous patron)"
+        label={t('support.panel.hideName')}
         checked={p.hide_name}
         onChange={(e) => void save({ hide_name: e.target.checked })}
       />
       <Switch
-        label="Hide my amount (rank only)"
+        label={t('support.panel.hideAmount')}
         checked={p.hide_amount}
         onChange={(e) => void save({ hide_amount: e.target.checked })}
       />
       <Switch
-        label="Hide my Patron badge"
+        label={t('support.panel.hideBadge')}
         checked={p.hide_badge}
         onChange={(e) => void save({ hide_badge: e.target.checked })}
       />
@@ -292,6 +310,7 @@ function PrefsCard({ me, onChange }: { me: api.Me; onChange: (p: api.Prefs) => v
 }
 
 function History({ onOpen, version }: { onOpen: (inv: Invoice) => void; version: number }) {
+  const t = useT();
   const res = useResource(() => api.listInvoices({ limit: 10 }));
   const reload = res.reload;
   useEffect(() => {
@@ -312,13 +331,17 @@ function History({ onOpen, version }: { onOpen: (inv: Invoice) => void; version:
     }
   };
   return (
-    <Card id="sup-history" title="History" description="Your invoices and receipts.">
-      <Loaded res={res} what="invoices">
+    <Card
+      id="sup-history"
+      title={t('support.panel.historyTitle')}
+      description={t('support.panel.historyDesc')}
+    >
+      <Loaded res={res} what={t('support.panel.invoicesWhat')}>
         {(page) => {
           const rows = [...page.items, ...more];
           const cursor = next === undefined ? page.next_before : next;
           return rows.length === 0 ? (
-            <p className="us-muted">No invoices yet.</p>
+            <p className="us-muted">{t('support.panel.noInvoices')}</p>
           ) : (
             <>
               <ul className="us-list">
@@ -334,15 +357,15 @@ function History({ onOpen, version }: { onOpen: (inv: Invoice) => void; version:
                       </p>
                     </div>
                     <Button variant="secondary" size="sm" onClick={() => onOpen(inv)}>
-                      {api.isPaid(inv.state) ? 'Receipt' : 'Open'}
-                      <span className="us-sr"> invoice {inv.id}</span>
+                      {api.isPaid(inv.state) ? t('support.panel.receipt') : t('support.panel.open')}
+                      <span className="us-sr"> {t('support.panel.invoiceSr', { id: inv.id })}</span>
                     </Button>
                   </li>
                 ))}
               </ul>
               {cursor && (
                 <Button variant="secondary" size="sm" onClick={() => void loadMore()}>
-                  Show more
+                  {t('support.panel.showMore')}
                 </Button>
               )}
               {error && (
@@ -360,6 +383,7 @@ function History({ onOpen, version }: { onOpen: (inv: Invoice) => void; version:
 
 /** The section body; also used by tests and the standalone page. */
 export function SupportSection() {
+  const t = useT();
   const cfg = useResource(api.getConfig);
   const me = useResource(api.getMe);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
@@ -368,18 +392,21 @@ export function SupportSection() {
   const [version, setVersion] = useState(0);
   const [credits, setCredits] = useState(1);
 
-  const create = useCallback(async (body: api.CreateInvoice) => {
-    setBusy(true);
-    setError(null);
-    try {
-      setInvoice(await api.createInvoice(body));
-      setVersion((v) => v + 1);
-    } catch (e) {
-      setError(errorText(e, 'Could not create the invoice.'));
-    } finally {
-      setBusy(false);
-    }
-  }, []);
+  const create = useCallback(
+    async (body: api.CreateInvoice) => {
+      setBusy(true);
+      setError(null);
+      try {
+        setInvoice(await api.createInvoice(body));
+        setVersion((v) => v + 1);
+      } catch (e) {
+        setError(errorText(e, t('support.panel.createError')));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [t],
+  );
   const changed = useCallback(() => {
     setVersion((v) => v + 1);
     me.reload();
@@ -389,24 +416,22 @@ export function SupportSection() {
 
   return (
     <>
-      <SectionTitle>Support / Patron</SectionTitle>
-      <Loaded res={cfg} what="donation settings">
+      <SectionTitle>{t('support.panel.title')}</SectionTitle>
+      <Loaded res={cfg} what={t('support.panel.configWhat')}>
         {(c) => (
           <>
             {!c.enabled && (
-              <Notice variant="info" title="Donations are not switched on">
-                This installation has no payment wallet configured yet, so invoices cannot be
-                created. Ask the operator.
+              <Notice variant="info" title={t('support.panel.offTitle')}>
+                {t('support.panel.offBody')}
               </Notice>
             )}
             {c.enabled && c.rate === null && (
-              <Notice variant="warning" title="No price available">
-                The Bitcoin price could not be read right now, so new invoices will fail until it
-                can. Try again in a few minutes.
+              <Notice variant="warning" title={t('support.panel.noPriceTitle')}>
+                {t('support.panel.noPriceBody')}
               </Notice>
             )}
             {error && (
-              <Notice variant="danger" role="alert" title="That did not work">
+              <Notice variant="danger" role="alert" title={t('support.panel.failedTitle')}>
                 {error}
               </Notice>
             )}
@@ -420,12 +445,12 @@ export function SupportSection() {
             />
             <Card
               id="sup-donate"
-              title="Donate"
-              description="A one-off donation to the community. It buys no perks, and is greatly appreciated."
+              title={t('support.panel.donateTitle')}
+              description={t('support.panel.donateDesc')}
             >
               <AmountPicker
                 cfg={c}
-                cta="Donate"
+                cta={t('support.panel.donate')}
                 disabled={!c.enabled || busy}
                 onPick={(usd_cents) => void create({ purpose: 'donate', usd_cents })}
               />
@@ -439,11 +464,13 @@ export function SupportSection() {
             />
             <Card
               id="sup-credits"
-              title="Invite credits"
-              description={`Extra platform invites cost ${usd(c.invite_credit_price_cents)} each.`}
+              title={t('support.panel.creditsTitle')}
+              description={t('support.panel.creditsDesc', {
+                price: usd(c.invite_credit_price_cents),
+              })}
             >
               <div className="sup-custom">
-                <label htmlFor="sup-credit-n">Credits</label>
+                <label htmlFor="sup-credit-n">{t('support.panel.credits')}</label>
                 <select
                   id="sup-credit-n"
                   value={credits}
@@ -461,20 +488,20 @@ export function SupportSection() {
                   disabled={!c.enabled || busy}
                   onClick={() => void create({ purpose: 'invite_credit', credits })}
                 >
-                  Buy for {usd(credits * c.invite_credit_price_cents)}
+                  {t('support.panel.buyFor', { price: usd(credits * c.invite_credit_price_cents) })}
                 </Button>
               </div>
             </Card>
             {me.data && (
-              <Card id="sup-limits" title="What you have">
+              <Card id="sup-limits" title={t('support.panel.limitsTitle')}>
                 <dl>
-                  <Field label="Upload size">
-                    {me.data.limits.upload_bytes / 1048576} MB per file
+                  <Field label={t('support.panel.uploadSize')}>
+                    {t('support.panel.mbPerFile', { mb: me.data.limits.upload_bytes / 1048576 })}
                   </Field>
-                  <Field label="Downloads">
+                  <Field label={t('support.panel.downloads')}>
                     {me.data.limits.downloads_per_day > 0
-                      ? `${me.data.limits.downloads_per_day} a day`
-                      : 'Patrons only'}
+                      ? t('support.panel.perDay', { n: me.data.limits.downloads_per_day })
+                      : t('support.panel.patronsOnly')}
                   </Field>
                 </dl>
               </Card>

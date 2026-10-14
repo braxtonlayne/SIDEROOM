@@ -1,5 +1,6 @@
 import { Button, Notice, Spinner } from '@sideroom/ui';
 import { useCallback, useRef, useState, type ReactNode } from 'react';
+import { useT } from '../../i18n';
 import { errorText } from './api';
 import type { Resource } from './hooks';
 import './server-settings.css';
@@ -24,21 +25,23 @@ export function SectionHeader({
   );
 }
 
-export function Loading({ label = 'Loading' }: { label?: string }) {
+export function Loading({ label }: { label?: string }) {
+  const t = useT();
   return (
     <div className="ss-loading">
-      <Spinner label={label} />
+      <Spinner label={label ?? t('settings.ui.loading')} />
     </div>
   );
 }
 
 export function LoadError({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  const t = useT();
   return (
-    <Notice variant="danger" title="Could not load this section">
+    <Notice variant="danger" title={t('settings.ui.loadErrorTitle')}>
       <p className="ss-notice-text">{message}</p>
       {onRetry && (
         <Button size="sm" variant="secondary" onClick={onRetry}>
-          Try again
+          {t('settings.ui.tryAgain')}
         </Button>
       )}
     </Notice>
@@ -135,9 +138,10 @@ export const formatDateTime = (iso: string | null | undefined) => {
 };
 
 export function NotAvailable({ children }: { children: ReactNode }) {
+  const t = useT();
   return (
     <p className="ss-na">
-      <em>Not available yet.</em> {children}
+      <em>{t('settings.ui.notAvailable')}</em> {children}
     </p>
   );
 }

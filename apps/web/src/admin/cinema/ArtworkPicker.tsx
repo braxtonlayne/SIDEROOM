@@ -2,6 +2,7 @@
 // reservation route (presigned PUT) and hands the object key to the caller to save.
 import { Button, ProgressBar } from '@sideroom/ui';
 import { useEffect, useId, useState } from 'react';
+import { useT } from '../../i18n';
 import { errorText } from '../ui';
 import { ARTWORK_TYPES, type ArtworkSlot } from './api';
 
@@ -28,6 +29,7 @@ export function ArtworkPicker({
   disabled,
   wide,
 }: ArtworkPickerProps) {
+  const t = useT();
   const inputId = useId();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -49,11 +51,11 @@ export function ArtworkPicker({
     if (!f) return setFile(null);
     if (!ARTWORK_TYPES.includes(f.type)) {
       setFile(null);
-      return setError('Use a WebP, JPEG or PNG image.');
+      return setError(t('admin.artworkPicker.badType'));
     }
     if (f.size > MAX_BYTES) {
       setFile(null);
-      return setError('The image is larger than 10 MB.');
+      return setError(t('admin.artworkPicker.tooLarge'));
     }
     setFile(f);
   };
@@ -66,7 +68,7 @@ export function ArtworkPicker({
       await onUpload(file, setProgress);
       setFile(null);
     } catch (e) {
-      setError(errorText(e, 'The upload failed.'));
+      setError(errorText(e, t('admin.artworkPicker.uploadFailed')));
     } finally {
       setProgress(null);
     }
@@ -78,9 +80,11 @@ export function ArtworkPicker({
       <div className="ss-field-label">{label}</div>
       <div className={`adm-art-frame${wide ? ' adm-art-wide' : ''}`}>
         {shown ? (
-          <img src={shown} alt={`${label} preview`} />
+          <img src={shown} alt={t('admin.artworkPicker.previewAlt', { label })} />
         ) : (
-          <span className="ss-na">No {label.toLowerCase()}</span>
+          <span className="ss-na">
+            {t('admin.artworkPicker.none', { label: label.toLowerCase() })}
+          </span>
         )}
       </div>
       <div className="adm-actions">
@@ -91,7 +95,7 @@ export function ArtworkPicker({
           accept={ARTWORK_TYPES.join(',')}
           disabled={disabled || progress !== null}
           onChange={(e) => pick(e.target.files?.[0])}
-          aria-label={`Choose ${label.toLowerCase()} file`}
+          aria-label={t('admin.artworkPicker.chooseFile', { label: label.toLowerCase() })}
         />
         {file && (
           <Button
@@ -100,12 +104,12 @@ export function ArtworkPicker({
             disabled={disabled}
             onClick={() => void upload()}
           >
-            Upload {label.toLowerCase()}
+            {t('admin.artworkPicker.upload', { label: label.toLowerCase() })}
           </Button>
         )}
         {file && progress === null && (
           <Button size="sm" variant="ghost" onClick={() => setFile(null)}>
-            Discard
+            {t('admin.artworkPicker.discard')}
           </Button>
         )}
         {onClear && currentUrl && !file && (
@@ -115,14 +119,14 @@ export function ArtworkPicker({
             disabled={disabled}
             onClick={() => void onClear().catch((e: unknown) => setError(errorText(e)))}
           >
-            Remove {label.toLowerCase()}
+            {t('admin.artworkPicker.remove', { label: label.toLowerCase() })}
           </Button>
         )}
       </div>
       {progress !== null && (
         <ProgressBar
           value={Math.round(progress * 100)}
-          label={`Uploading ${label.toLowerCase()}`}
+          label={t('admin.artworkPicker.uploading', { label: label.toLowerCase() })}
         />
       )}
       {error && (

@@ -109,6 +109,13 @@ export function setHour12(value: boolean | undefined) {
 }
 
 /** Restore the saved locale (or negotiate from the browser). Call once at startup. */
+let fullCatalog: Promise<unknown> | undefined;
+
+/** Loads the rest of the English catalog (everything but the first-paint fragments) as its own chunk. */
+export function loadFullCatalog(): Promise<unknown> {
+  return (fullCatalog ??= import('./messages/en.rest'));
+}
+
 export async function initLocale(): Promise<void> {
   let saved: string | null = null;
   try {
@@ -121,11 +128,14 @@ export async function initLocale(): Promise<void> {
   const fromBrowser = negotiateLocale(
     typeof navigator === 'undefined' ? [] : (navigator.languages ?? []),
   );
-  await setLocale(saved && LOCALES.some((l) => l.code === saved) ? saved : fromBrowser);
+  await Promise.all([
+    loadFullCatalog(),
+    setLocale(saved && LOCALES.some((l) => l.code === saved) ? saved : fromBrowser),
+  ]);
 }
 
 function messageFor(key: MessageKey): string {
-  return loaded?.[key] ?? en[key];
+  return loaded?.[key] ?? en[key] ?? key;
 }
 
 function compile(key: MessageKey): Node[] {
@@ -148,7 +158,7 @@ export function t(key: MessageKey, values: Values = {}): string {
   try {
     return formatNodes(compile(key), values, intl, opts);
   } catch {
-    return en[key];
+    return en[key] ?? key;
   }
 }
 

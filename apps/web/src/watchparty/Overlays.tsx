@@ -2,16 +2,18 @@
 // join-playback button the browser's autoplay rule sometimes needs, and the ready check (WP-FE-007).
 import { Button, Icon } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
+import { useT } from '../i18n';
 import { partyController, useParty } from './runtime';
 import { waitingLabel } from './sync';
 
 /** Emoji drift up the screen and fade. With reduced motion they appear in a row and just fade out. */
 export function ReactionsOverlay() {
+  const t = useT();
   const reactions = useParty((s) => s.reactions);
   const party = useParty((s) => s.party);
   const name = (id: string) => {
     const p = party?.participants.find((x) => x.user_id === id);
-    return p ? p.display_name || p.username : 'Someone';
+    return p ? p.display_name || p.username : t('watchparty.overlays.someone');
   };
   return (
     <div className="wp-reactions" aria-hidden="true">
@@ -31,10 +33,11 @@ export function ReactionsOverlay() {
 
 /** A polite live region: "Waiting for Ana" while the server holds everyone for a stalled player. */
 export function WaitingBanner() {
+  const t = useT();
   const waiting = useParty((s) => s.waitingFor);
   const auto = useParty((s) => s.party?.playback.auto_paused ?? false);
   const local = useParty((s) => s.localBuffering);
-  const label = auto ? (waitingLabel(waiting) ?? 'Waiting for someone') : null;
+  const label = auto ? (waitingLabel(waiting) ?? t('watchparty.overlays.waitingForSomeone')) : null;
   return (
     <div className="wp-waiting" role="status" aria-live="polite">
       {label && (
@@ -44,7 +47,7 @@ export function WaitingBanner() {
       )}
       {!label && local && (
         <span className="wp-waiting-pill">
-          <Icon name="clock" size={16} /> Your connection is catching up…
+          <Icon name="clock" size={16} /> {t('watchparty.overlays.catchingUp')}
         </span>
       )}
     </div>
@@ -53,12 +56,13 @@ export function WaitingBanner() {
 
 /** The browser wants a click before it plays sound; one button joins the playback in sync. */
 export function GestureButton() {
+  const t = useT();
   const needs = useParty((s) => s.needsGesture);
   if (!needs) return null;
   return (
     <div className="wp-gesture">
       <Button onClick={() => void partyController().resumeFromGesture()}>
-        Click to join the playback
+        {t('watchparty.overlays.joinPlayback')}
       </Button>
     </div>
   );
@@ -69,6 +73,7 @@ export function GestureButton() {
  * the host sees who is missing. It never blocks anything; the host presses Play when they like.
  */
 export function ReadyCheck() {
+  const t = useT();
   const party = useParty((s) => s.party);
   const [dismissed, setDismissed] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -94,21 +99,19 @@ export function ReadyCheck() {
     }
   };
   return (
-    <section className="wp-ready" aria-label="Ready check">
+    <section className="wp-ready" aria-label={t('watchparty.overlays.readyCheck')}>
       <p>
-        <strong>
-          {ready} of {total} ready
-        </strong>
+        <strong>{t('watchparty.overlays.readyCount', { ready, total })}</strong>
         {party.you?.can_control
-          ? ' — press play when everyone is set.'
-          : ' — the host will start soon.'}
+          ? t('watchparty.overlays.pressPlay')
+          : t('watchparty.overlays.hostWillStart')}
       </p>
       <div className="wp-ready-actions">
         <Button size="sm" onClick={() => void toggle()} loading={busy} aria-pressed={!!mine?.ready}>
-          {mine?.ready ? 'Not ready' : "I'm ready"}
+          {mine?.ready ? t('watchparty.overlays.notReady') : t('watchparty.overlays.imReady')}
         </Button>
         <Button size="sm" variant="ghost" onClick={() => setDismissed(key)}>
-          Dismiss
+          {t('watchparty.overlays.dismiss')}
         </Button>
       </div>
     </section>

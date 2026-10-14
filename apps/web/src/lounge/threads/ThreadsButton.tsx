@@ -1,10 +1,12 @@
 import { Icon, Popover } from '@sideroom/ui';
 import { useEffect, useMemo, useState } from 'react';
+import { useT } from '../../i18n';
 import { useLoungeGotoThread } from '../nav';
 import { threadsOf, useThreads, type ThreadInfo } from './threadStore';
 
 /** Threads button in the channel header: active and archived threads of this channel (LNG-THR-001 UI). */
 export function ThreadsButton({ guildId, channelId }: { guildId: string; channelId: string }) {
+  const t = useT();
   const byId = useThreads((s) => s.byId);
   const loaded = useThreads((s) => !!s.loadedGuilds[guildId]);
   const [tab, setTab] = useState<'active' | 'archived'>('active');
@@ -46,49 +48,60 @@ export function ThreadsButton({ guildId, channelId }: { guildId: string; channel
 
   return (
     <Popover
-      label="Threads"
+      label={t('lounge.threadsButton.title')}
       placement="bottom-end"
       onOpenChange={setOpen}
       trigger={
-        <button type="button" className="lng-icon-btn" aria-label="Threads" title="Threads">
+        <button
+          type="button"
+          className="lng-icon-btn"
+          aria-label={t('lounge.threadsButton.title')}
+          title={t('lounge.threadsButton.title')}
+        >
           <Icon name="list" size={20} />
         </button>
       }
     >
       <div className="lng-threads-pop">
-        <div role="tablist" aria-label="Thread lists" className="lng-threads-tabs">
-          {(['active', 'archived'] as const).map((t) => (
+        <div
+          role="tablist"
+          aria-label={t('lounge.threadsButton.lists')}
+          className="lng-threads-tabs"
+        >
+          {(['active', 'archived'] as const).map((which) => (
             <button
-              key={t}
+              key={which}
               type="button"
               role="tab"
-              aria-selected={tab === t}
-              onClick={() => setTab(t)}
+              aria-selected={tab === which}
+              onClick={() => setTab(which)}
             >
-              {t === 'active' ? 'Active' : 'Archived'}
+              {which === 'active'
+                ? t('lounge.threadsButton.tabActive')
+                : t('lounge.threadsButton.tabArchived')}
             </button>
           ))}
         </div>
         {error && (
           <p className="lng-muted" role="alert">
-            Could not load threads.
+            {t('lounge.threadsButton.loadError')}
           </p>
         )}
         {list.length === 0 && !error && (
           <p className="lng-muted">
             {tab === 'active'
-              ? 'No active threads. Start one from a message.'
-              : 'No archived threads.'}
+              ? t('lounge.threadsButton.emptyActive')
+              : t('lounge.threadsButton.emptyArchived')}
           </p>
         )}
         <ul className="lng-threads-list">
-          {list.map((t) => (
-            <li key={t.id}>
-              <button type="button" onClick={() => openThread(guildId, channelId, t.id)}>
-                <strong>{t.name}</strong>
+          {list.map((th) => (
+            <li key={th.id}>
+              <button type="button" onClick={() => openThread(guildId, channelId, th.id)}>
+                <strong>{th.name}</strong>
                 <span className="lng-muted">
-                  {t.messageCount} {t.messageCount === 1 ? 'message' : 'messages'}
-                  {t.joined ? ' · Following' : ''}
+                  {t('lounge.threadsButton.messageCount', { count: th.messageCount })}
+                  {th.joined ? t('lounge.threadsButton.followingSuffix') : ''}
                 </span>
               </button>
             </li>
@@ -96,7 +109,7 @@ export function ThreadsButton({ guildId, channelId }: { guildId: string; channel
         </ul>
         {tab === 'archived' && more && (
           <button type="button" className="lng-link-btn" onClick={loadMore}>
-            Load more
+            {t('lounge.threadsButton.loadMore')}
           </button>
         )}
       </div>

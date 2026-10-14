@@ -13,6 +13,7 @@ import {
 } from '@sideroom/ui';
 import { Navigate, useNavigate, useParams } from '@tanstack/react-router';
 import { useCallback, useEffect, useMemo, useState, type ComponentType } from 'react';
+import { useT, type MessageKey } from '../../i18n';
 import { LiveDataConnection, useEnsureGuild } from '../../lounge/live';
 import { useGuild, useStore } from '../../store';
 import { FormContext, useViewer, type FormHandle, type Viewer } from './hooks';
@@ -38,103 +39,114 @@ export interface SectionProps {
 
 interface SectionDef {
   id: string;
-  label: string;
+  /** Message key of the section label. */
+  label: MessageKey;
   group: string;
   visible: (v: Viewer) => boolean;
   component: ComponentType<SectionProps>;
   danger?: boolean;
 }
 
+const GROUP_KEYS: Record<string, MessageKey> = {
+  SERVER: 'settings.serverSettings.groupServer',
+  EXPRESSION: 'settings.serverSettings.groupExpression',
+  PEOPLE: 'settings.serverSettings.groupPeople',
+  APPS: 'settings.serverSettings.groupApps',
+  MODERATION: 'settings.serverSettings.groupModeration',
+  COMMUNITY: 'settings.serverSettings.groupCommunity',
+  DANGER: 'settings.serverSettings.groupDanger',
+};
+
 const any = (v: Viewer, ...names: string[]) => names.some((n) => v.can(n));
 
 export const SECTIONS: SectionDef[] = [
   {
     id: 'overview',
-    label: 'Overview',
+    label: 'settings.server.overview',
     group: 'SERVER',
     visible: (v) => v.can('MANAGE_GUILD'),
     component: OverviewSection,
   },
   {
     id: 'roles',
-    label: 'Roles',
+    label: 'settings.server.roles',
     group: 'SERVER',
     visible: (v) => v.can('MANAGE_ROLES'),
     component: RolesSection,
   },
   {
     id: 'support',
-    label: 'Server Support',
+    label: 'settings.serverSettings.support',
     group: 'SERVER',
     visible: (v) => v.isOwner || v.can('MANAGE_GUILD'),
     component: ServerSupportSection,
   },
   {
     id: 'channels',
-    label: 'Channels',
+    label: 'settings.server.channels',
     group: 'SERVER',
     visible: (v) => v.can('MANAGE_CHANNELS'),
     component: ChannelsSection,
   },
   {
     id: 'emoji',
-    label: 'Emoji & Stickers',
+    label: 'settings.server.emoji',
     group: 'EXPRESSION',
     visible: (v) => v.can('MANAGE_GUILD_EXPRESSIONS'),
     component: ExpressionsSection,
   },
   {
     id: 'members',
-    label: 'Members',
+    label: 'settings.server.members',
     group: 'PEOPLE',
     visible: (v) => any(v, 'KICK_MEMBERS', 'BAN_MEMBERS', 'MODERATE_MEMBERS', 'MANAGE_ROLES'),
     component: MembersSection,
   },
   {
     id: 'invites',
-    label: 'Invites',
+    label: 'settings.server.invites',
     group: 'PEOPLE',
     visible: (v) => v.can('MANAGE_GUILD'),
     component: InvitesSection,
   },
   {
     id: 'bans',
-    label: 'Bans',
+    label: 'settings.server.bans',
     group: 'PEOPLE',
     visible: (v) => v.can('BAN_MEMBERS'),
     component: BansSection,
   },
   {
     id: 'integrations',
-    label: 'Integrations',
+    label: 'settings.server.integrations',
     group: 'APPS',
     visible: (v) => any(v, 'MANAGE_WEBHOOKS', 'MANAGE_GUILD'),
     component: IntegrationsSection,
   },
   {
     id: 'moderation',
-    label: 'AutoMod',
+    label: 'settings.server.automod',
     group: 'MODERATION',
     visible: (v) => v.can('MANAGE_GUILD'),
     component: ModerationSection,
   },
   {
     id: 'audit-log',
-    label: 'Audit Log',
+    label: 'settings.server.audit',
     group: 'MODERATION',
     visible: (v) => v.can('VIEW_AUDIT_LOG'),
     component: AuditLogSection,
   },
   {
     id: 'community',
-    label: 'Community',
+    label: 'settings.server.community',
     group: 'COMMUNITY',
     visible: (v) => v.can('MANAGE_GUILD'),
     component: CommunitySection,
   },
   {
     id: 'delete',
-    label: 'Delete Server',
+    label: 'settings.server.delete',
     group: 'DANGER',
     visible: (v) => v.isOwner,
     component: DeleteServerSection,
@@ -153,6 +165,7 @@ export function ServerSettings({
   guildId: string;
   section: string | undefined;
 }) {
+  const t = useT();
   const navigate = useNavigate();
   const { guild } = useGuild(guildId);
   const viewer = useViewer(guildId);
@@ -180,26 +193,26 @@ export function ServerSettings({
 
   const navSections: SettingsSection[] = visible.map((s) => ({
     id: s.id,
-    label: s.label,
+    label: t(s.label),
     group:
       s.id === 'delete'
-        ? 'DANGER ZONE'
+        ? t('settings.serverSettings.dangerZone')
         : s.group === 'SERVER'
-          ? (guild?.name ?? 'SERVER').toUpperCase()
-          : s.group,
+          ? (guild?.name ?? t('settings.serverSettings.groupServer')).toUpperCase()
+          : t(GROUP_KEYS[s.group] ?? 'settings.serverSettings.groupServer'),
     ...(s.danger ? { danger: true } : {}),
   }));
 
   const active = visible.find((s) => s.id === section);
   let body;
   if (!viewer.ready || !guild) {
-    body = <Loading label="Loading server settings" />;
+    body = <Loading label={t('settings.serverSettings.loading')} />;
   } else if (visible.length === 0) {
     body = (
       <EmptyState
-        title="You do not have access to server settings"
-        description="Ask a server admin for a role with Manage Server, Manage Roles, Manage Channels, Ban Members or View Audit Log."
-        action={<Button onClick={close}>Back to the server</Button>}
+        title={t('settings.serverSettings.noAccessTitle')}
+        description={t('settings.serverSettings.noAccessDescription')}
+        action={<Button onClick={close}>{t('settings.serverSettings.backToServer')}</Button>}
       />
     );
   } else if (!active) {
@@ -218,7 +231,9 @@ export function ServerSettings({
   return (
     <FormContext.Provider value={setForm}>
       <SettingsLayout
-        title={`${guild?.name ?? 'Server'} settings`}
+        title={t('settings.serverSettings.title', {
+          name: guild?.name ?? t('settings.serverSettings.defaultName'),
+        })}
         sections={navSections}
         activeId={active?.id ?? ''}
         onSelect={go}

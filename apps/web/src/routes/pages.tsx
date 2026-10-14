@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useT } from '../i18n';
 
 function Page({ title, children }: { title: string; children?: ReactNode }) {
   return (
@@ -9,5 +10,11 @@ function Page({ title, children }: { title: string; children?: ReactNode }) {
   );
 }
 
-export const Cinema = () => <Page title="Cinema" />;
-export const Support = () => <Page title="Support" />;
+export const Cinema = () => {
+  const t = useT();
+  return <Page title={t('routes.pages.cinema')} />;
+};
+export const Support = () => {
+  const t = useT();
+  return <Page title={t('routes.pages.support')} />;
+};

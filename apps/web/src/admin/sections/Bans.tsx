@@ -1,9 +1,11 @@
 import { Badge, Button, EmptyState, Notice, Switch } from '@sideroom/ui';
 import { useState } from 'react';
 import * as api from '../api';
+import { useT } from '../../i18n';
 import { LoadMore, ReasonDialog, SectionHeader, fmtMs, usePaged } from '../ui';
 
 export function BansSection() {
+  const t = useT();
   const [activeOnly, setActiveOnly] = useState(true);
   const [target, setTarget] = useState<api.BanRecord | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -14,13 +16,10 @@ export function BansSection() {
 
   return (
     <>
-      <SectionHeader
-        title="Platform bans"
-        description="A ban applies to a Person, so it covers every account they hold. Lifting a ban reactivates accounts while the account cap allows."
-      />
+      <SectionHeader title={t('admin.bans.title')} description={t('admin.bans.description')} />
       <div className="ss-toolbar">
         <Switch
-          label="Only active bans"
+          label={t('admin.bans.onlyActive')}
           checked={activeOnly}
           onChange={(e) => setActiveOnly(e.target.checked)}
         />
@@ -36,33 +35,43 @@ export function BansSection() {
         </Notice>
       )}
       {!paged.error && !paged.loading && paged.items.length === 0 && (
-        <EmptyState title="No bans" description="Nobody is platform-banned." />
+        <EmptyState
+          title={t('admin.bans.emptyTitle')}
+          description={t('admin.bans.emptyDescription')}
+        />
       )}
       {paged.items.length > 0 && (
-        <ul className="ss-list" aria-label="Platform bans">
+        <ul className="ss-list" aria-label={t('admin.bans.listLabel')}>
           {paged.items.map((b) => (
             <li key={b.id} className="ss-row">
               <div className="ss-grow">
                 <div className="ss-name">
-                  Person <span className="adm-mono">{b.person_id}</span>{' '}
+                  {t('admin.bans.person')} <span className="adm-mono">{b.person_id}</span>{' '}
                   <Badge variant={b.category === 'serious' ? 'danger' : 'warning'}>
                     {b.category}
                   </Badge>{' '}
-                  {b.lifted_at_ms ? <Badge>lifted</Badge> : <Badge variant="danger">active</Badge>}
+                  {b.lifted_at_ms ? (
+                    <Badge>{t('admin.bans.lifted')}</Badge>
+                  ) : (
+                    <Badge variant="danger">{t('admin.bans.active')}</Badge>
+                  )}
                 </div>
                 <div className="ss-meta">
-                  {b.note || 'No note'} · banned {fmtMs(b.created_at_ms)}
-                  {b.lifted_at_ms ? ` · lifted ${fmtMs(b.lifted_at_ms)}` : ''}
+                  {b.note || t('admin.bans.noNote')} ·{' '}
+                  {t('admin.bans.banned', { when: fmtMs(b.created_at_ms) })}
+                  {b.lifted_at_ms
+                    ? ` · ${t('admin.bans.liftedAt', { when: fmtMs(b.lifted_at_ms) })}`
+                    : ''}
                 </div>
               </div>
               {!b.lifted_at_ms && (
                 <Button
                   size="sm"
                   variant="secondary"
-                  aria-label={`Lift ban on person ${b.person_id}`}
+                  aria-label={t('admin.bans.liftAria', { id: b.person_id })}
                   onClick={() => setTarget(b)}
                 >
-                  Lift ban
+                  {t('admin.bans.liftButton')}
                 </Button>
               )}
             </li>
@@ -72,15 +81,18 @@ export function BansSection() {
       <LoadMore paged={paged} />
       <ReasonDialog
         open={!!target}
-        title="Lift this ban"
-        description="Accounts of this Person return to active while the account cap allows; the rest stay deactivated."
-        confirmLabel="Lift ban"
+        title={t('admin.bans.liftTitle')}
+        description={t('admin.bans.liftDescription')}
+        confirmLabel={t('admin.bans.liftButton')}
         onCancel={() => setTarget(null)}
         onConfirm={async (reason) => {
           if (!target) return;
           const r = await api.unbanPerson(target.person_id, reason);
           setNotice(
-            `Ban lifted: ${r.accounts_reactivated} account(s) reactivated, ${r.accounts_left_deactivated} left deactivated.`,
+            t('admin.bans.liftedNotice', {
+              reactivated: r.accounts_reactivated,
+              left: r.accounts_left_deactivated,
+            }),
           );
           setTarget(null);
           paged.reload();

@@ -6,6 +6,7 @@
  */
 import { Button, ConfirmDialog, EmptyState, Modal, TextInput } from '@sideroom/ui';
 import { useState } from 'react';
+import { t as translate, useT } from '../../../i18n';
 import { expiryLabel, inviteUrl } from '../../../lounge/inviteFlow';
 import * as api from '../api';
 import { useResource } from '../hooks';
@@ -24,6 +25,7 @@ async function copyText(text: string): Promise<boolean> {
 
 /** Active invites to this channel, with copy, revoke and create. */
 export function ChannelInvites({ channel }: { channel: api.ChannelObject }) {
+  const t = useT();
   const res = useResource(`channel-invites:${channel.id}`, () =>
     api.listChannelInvites(channel.id),
   );
@@ -46,7 +48,7 @@ export function ChannelInvites({ channel }: { channel: api.ChannelObject }) {
       setCopied(code);
       setTimeout(() => setCopied((c) => (c === code ? null : c)), 2000);
     } else {
-      action.setError('Copying is blocked by the browser. Select the link and copy it by hand.');
+      action.setError(t('settings.channelTabs.copyBlocked'));
     }
   };
 
@@ -54,46 +56,54 @@ export function ChannelInvites({ channel }: { channel: api.ChannelObject }) {
     <div className="ss-form" style={{ maxWidth: 'none' }}>
       <div className="ss-actions">
         <Button onClick={() => void create()} loading={action.busy}>
-          Create invite
+          {t('settings.channelTabs.createInvite')}
         </Button>
       </div>
       <ActionStatus error={action.error} />
-      <Async res={res} label="Loading invites">
+      <Async res={res} label={t('settings.channelTabs.loadingInvites')}>
         {(invites) =>
           invites.length === 0 ? (
             <EmptyState
-              title="No active invites"
-              description="Create an invite to this channel to bring people in."
+              title={t('settings.channelTabs.noInvitesTitle')}
+              description={t('settings.channelTabs.noInvitesDescription')}
             />
           ) : (
-            <ul className="ss-list" aria-label="Invites to this channel">
+            <ul className="ss-list" aria-label={t('settings.channelTabs.invitesLabel')}>
               {invites.map((i) => (
                 <li key={i.code} className="ss-row">
                   <span>
                     <code>{i.code}</code>
                     <span className="ss-meta">
                       {' '}
-                      {api.userName(i.inviter as api.UserRef | undefined, 'Unknown')} ·{' '}
-                      {formatDate(i.created_at)} · {i.uses}
-                      {i.max_uses ? ` / ${i.max_uses}` : ''} uses · {expiryLabel(i.expires_at)}
+                      {t('settings.channelTabs.inviteMeta', {
+                        inviter: api.userName(
+                          i.inviter as api.UserRef | undefined,
+                          t('settings.channelTabs.unknown'),
+                        ),
+                        date: formatDate(i.created_at),
+                        uses: `${i.uses}${i.max_uses ? ` / ${i.max_uses}` : ''}`,
+                        expiry: expiryLabel(i.expires_at),
+                      })}
                     </span>
                   </span>
                   <span className="ss-actions">
                     <Button
                       size="sm"
                       variant="ghost"
-                      aria-label={`Copy link for ${i.code}`}
+                      aria-label={t('settings.channelTabs.copyFor', { code: i.code })}
                       onClick={() => void copy(i.code)}
                     >
-                      {copied === i.code ? 'Copied!' : 'Copy link'}
+                      {copied === i.code
+                        ? t('settings.channelTabs.copied')
+                        : t('settings.channelTabs.copyLink')}
                     </Button>
                     <Button
                       size="sm"
                       variant="danger"
-                      aria-label={`Revoke invite ${i.code}`}
+                      aria-label={t('settings.channelTabs.revokeFor', { code: i.code })}
                       onClick={() => void revoke(i.code)}
                     >
-                      Revoke
+                      {t('settings.channelTabs.revoke')}
                     </Button>
                   </span>
                 </li>
@@ -114,6 +124,7 @@ export function ChannelIntegrations({
   guildId: string;
   channel: api.ChannelObject;
 }) {
+  const t = useT();
   const res = useResource(`channel-webhooks:${channel.id}`, async () =>
     (await api.listWebhooks(guildId)).filter((w) => w.channel_id === channel.id),
   );
@@ -159,17 +170,17 @@ export function ChannelIntegrations({
   return (
     <div className="ss-form" style={{ maxWidth: 'none' }}>
       <div className="ss-actions">
-        <Button onClick={() => setCreating(true)}>Create webhook</Button>
+        <Button onClick={() => setCreating(true)}>{t('settings.channelTabs.createWebhook')}</Button>
       </div>
       <ActionStatus error={action.error} />
       {reveal?.hook.url && (
         <div className="ss-card" role="status">
           <h3>
-            {reveal.reset ? 'New webhook URL' : 'Webhook created'}: {reveal.hook.name}
+            {reveal.reset
+              ? t('settings.channelTabs.webhookNewUrl', { name: reveal.hook.name })
+              : t('settings.channelTabs.webhookCreated', { name: reveal.hook.name })}
           </h3>
-          <p className="ss-sub">
-            Copy the URL now. It contains the secret token and is only shown once.
-          </p>
+          <p className="ss-sub">{t('settings.channelTabs.copyUrlNow')}</p>
           <code className="ss-pre">{`${origin()}${reveal.hook.url}`}</code>
           <div className="ss-actions">
             <Button
@@ -177,49 +188,54 @@ export function ChannelIntegrations({
               onClick={() =>
                 void copyText(`${origin()}${reveal.hook.url}`).then((ok) => {
                   setCopied(ok);
-                  if (!ok) action.setError('Copying is blocked by the browser.');
+                  if (!ok) action.setError(t('settings.channelTabs.copyBlockedShort'));
                 })
               }
             >
-              {copied ? 'Copied!' : 'Copy webhook URL'}
+              {copied ? t('settings.channelTabs.copied') : t('settings.channelTabs.copyWebhookUrl')}
             </Button>
             <Button size="sm" variant="ghost" onClick={() => setReveal(null)}>
-              Dismiss
+              {t('settings.channelTabs.dismiss')}
             </Button>
           </div>
         </div>
       )}
-      <Async res={res} label="Loading webhooks">
+      <Async res={res} label={t('settings.channelTabs.loadingWebhooks')}>
         {(hooks) =>
           hooks.length === 0 ? (
             <EmptyState
-              title="No webhooks in this channel"
-              description="Create a webhook to post here from another service."
+              title={t('settings.channelTabs.noWebhooksTitle')}
+              description={t('settings.channelTabs.noWebhooksDescription')}
             />
           ) : (
-            <ul className="ss-list" aria-label="Webhooks in this channel">
+            <ul className="ss-list" aria-label={t('settings.channelTabs.webhooksLabel')}>
               {hooks.map((w) => (
                 <li key={w.id} className="ss-row">
                   <span>
                     <strong>{w.name}</strong>
-                    <span className="ss-meta"> created by {api.userName(w.user, 'someone')}</span>
+                    <span className="ss-meta">
+                      {' '}
+                      {t('settings.channelTabs.createdBy', {
+                        name: api.userName(w.user, t('settings.channelTabs.someone')),
+                      })}
+                    </span>
                   </span>
                   <span className="ss-actions">
                     <Button
                       size="sm"
                       variant="ghost"
-                      aria-label={`Reset URL of ${w.name}`}
+                      aria-label={t('settings.channelTabs.resetUrlOf', { name: w.name })}
                       onClick={() => setToReset(w)}
                     >
-                      Reset URL
+                      {t('settings.channelTabs.resetUrl')}
                     </Button>
                     <Button
                       size="sm"
                       variant="danger"
-                      aria-label={`Delete webhook ${w.name}`}
+                      aria-label={t('settings.channelTabs.deleteWebhookNamed', { name: w.name })}
                       onClick={() => setToDelete(w)}
                     >
-                      Delete
+                      {t('settings.channelTabs.delete')}
                     </Button>
                   </span>
                 </li>
@@ -228,27 +244,25 @@ export function ChannelIntegrations({
           )
         }
       </Async>
-      <p className="ss-na">
-        Followed announcement channels will be listed here once channel following is available.
-      </p>
+      <p className="ss-na">{t('settings.channelTabs.followedNote')}</p>
       <Modal
         open={creating}
         onClose={() => setCreating(false)}
         size="sm"
-        title="Create webhook"
+        title={t('settings.channelTabs.createWebhook')}
         footer={
           <>
             <Button variant="ghost" onClick={() => setCreating(false)}>
-              Cancel
+              {t('settings.channelTabs.cancel')}
             </Button>
             <Button loading={action.busy} disabled={!name.trim()} onClick={() => void create()}>
-              Create
+              {t('settings.channelTabs.create')}
             </Button>
           </>
         }
       >
         <TextInput
-          label="Webhook name"
+          label={t('settings.channelTabs.webhookName')}
           value={name}
           maxLength={80}
           autoFocus
@@ -257,9 +271,11 @@ export function ChannelIntegrations({
       </Modal>
       <ConfirmDialog
         open={!!toReset}
-        title={`Reset URL for ${toReset?.name ?? 'webhook'}`}
-        description="The old URL stops working. You will see the new one once."
-        confirmLabel="Reset URL"
+        title={t('settings.channelTabs.resetUrlFor', {
+          name: toReset?.name ?? t('settings.channelTabs.webhook'),
+        })}
+        description={t('settings.channelTabs.resetDescription')}
+        confirmLabel={t('settings.channelTabs.resetUrl')}
         loading={action.busy}
         onConfirm={() => void resetUrl()}
         onCancel={() => setToReset(null)}
@@ -267,9 +283,11 @@ export function ChannelIntegrations({
       <ConfirmDialog
         open={!!toDelete}
         danger
-        title={`Delete ${toDelete?.name ?? 'webhook'}`}
-        description="Anything posting with this webhook stops working."
-        confirmLabel="Delete webhook"
+        title={t('settings.channelTabs.deleteTitle', {
+          name: toDelete?.name ?? t('settings.channelTabs.webhook'),
+        })}
+        description={t('settings.channelTabs.deleteDescription')}
+        confirmLabel={t('settings.channelTabs.deleteWebhook')}
         loading={action.busy}
         onConfirm={() => void remove()}
         onCancel={() => setToDelete(null)}
@@ -280,14 +298,20 @@ export function ChannelIntegrations({
 
 /** Discord's auto-archive choices, in minutes. */
 export const ARCHIVE_MINUTES = [
-  { value: 60, label: '1 hour' },
-  { value: 1440, label: '24 hours' },
-  { value: 4320, label: '3 days' },
-  { value: 10080, label: '1 week' },
+  { value: 60, label: 'settings.channelTabs.archive1h' },
+  { value: 1440, label: 'settings.channelTabs.archive24h' },
+  { value: 4320, label: 'settings.channelTabs.archive3d' },
+  { value: 10080, label: 'settings.channelTabs.archive1w' },
 ] as const;
 export const THREAD_SLOWMODE = [0, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 21600];
 const slow = (s: number) =>
-  s === 0 ? 'Off' : s < 60 ? `${s}s` : s < 3600 ? `${s / 60}m` : `${s / 3600}h`;
+  s === 0
+    ? translate('settings.channelTabs.slowOff')
+    : s < 60
+      ? `${s}s`
+      : s < 3600
+        ? `${s / 60}m`
+        : `${s / 3600}h`;
 
 /** Thread defaults for a text or announcement channel. Saved as soon as a value changes. */
 export function ChannelFeatures({
@@ -297,6 +321,7 @@ export function ChannelFeatures({
   channel: api.ChannelObject;
   onChanged: () => Promise<void>;
 }) {
+  const t = useT();
   const action = useAction();
   const hostsThreads = channel.type === 0 || channel.type === 5;
   const [archive, setArchive] = useState(channel.default_auto_archive_duration ?? 1440);
@@ -310,15 +335,14 @@ export function ChannelFeatures({
     if (ok) await onChanged();
   };
 
-  if (!hostsThreads)
-    return <p className="ss-na">This kind of channel has no extra feature settings.</p>;
+  if (!hostsThreads) return <p className="ss-na">{t('settings.channelTabs.noFeatures')}</p>;
   return (
     <div className="ss-form">
       <ActionStatus error={action.error} done={action.done} />
-      <h3 className="ss-sub-title">Threads</h3>
+      <h3 className="ss-sub-title">{t('settings.channelTabs.threads')}</h3>
       <div>
         <label className="ss-field-label" htmlFor="ss-thread-archive">
-          Hide threads after inactivity
+          {t('settings.channelTabs.hideAfter')}
         </label>
         <select
           id="ss-thread-archive"
@@ -328,19 +352,19 @@ export function ChannelFeatures({
           onChange={(e) => {
             const v = Number(e.target.value);
             setArchive(v);
-            void save({ default_auto_archive_duration: v }, 'Saved.');
+            void save({ default_auto_archive_duration: v }, t('settings.channelTabs.saved'));
           }}
         >
           {ARCHIVE_MINUTES.map((o) => (
             <option key={o.value} value={o.value}>
-              {o.label}
+              {t(o.label)}
             </option>
           ))}
         </select>
       </div>
       <div>
         <label className="ss-field-label" htmlFor="ss-thread-slow">
-          Slowmode for new threads
+          {t('settings.channelTabs.slowmodeNew')}
         </label>
         <select
           id="ss-thread-slow"
@@ -350,7 +374,7 @@ export function ChannelFeatures({
           onChange={(e) => {
             const v = Number(e.target.value);
             setSlowmode(v);
-            void save({ default_thread_rate_limit_per_user: v }, 'Saved.');
+            void save({ default_thread_rate_limit_per_user: v }, t('settings.channelTabs.saved'));
           }}
         >
           {THREAD_SLOWMODE.map((s) => (
@@ -360,10 +384,7 @@ export function ChannelFeatures({
           ))}
         </select>
       </div>
-      <p className="ss-na">
-        Switching a channel between text and announcement, and per-channel feature modules, are not
-        available yet.
-      </p>
+      <p className="ss-na">{t('settings.channelTabs.featuresNote')}</p>
     </div>
   );
 }

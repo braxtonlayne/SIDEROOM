@@ -15,6 +15,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError } from '../api/client';
+import { useT, type MessageKey } from '../i18n';
 import { getMe } from '../settings/user/api';
 import { useOpenUserSettings } from '../settings/user/nav';
 import { getFollows, getUpdates, keys } from './api';
@@ -24,21 +25,22 @@ import { updateLine } from './ui';
 
 /** `SIDE ROOM / The lounge · The cinema · The library` with the library active (LIB-UI-001). */
 export function SectionBar() {
+  const t = useT();
   return (
     <header className="lib-sectionbar">
-      <span className="lib-sectionbar-brand">SIDE ROOM</span>
+      <span className="lib-sectionbar-brand">{t('library.shell.brand')}</span>
       <span aria-hidden="true" className="lib-sectionbar-slash">
         /
       </span>
-      <nav aria-label="Sections" className="lib-sectionbar-nav">
+      <nav aria-label={t('library.shell.sectionsNav')} className="lib-sectionbar-nav">
         <Link to="/channels" className="lib-sectionbar-link">
-          The lounge
+          {t('library.shell.lounge')}
         </Link>
         <Link to="/cinema" className="lib-sectionbar-link">
-          The cinema
+          {t('library.shell.cinema')}
         </Link>
         <Link to="/library" className="lib-sectionbar-link" aria-current="page">
-          The library
+          {t('library.shell.library')}
         </Link>
       </nav>
     </header>
@@ -56,23 +58,23 @@ interface NavItem {
     | '/library/lists'
     | '/library/submissions'
     | '/library/upload';
-  label: string;
+  labelKey: MessageKey;
   icon: 'compass' | 'grid' | 'clock' | 'bookmark' | 'list' | 'upload' | 'edit' | 'heart';
   exact?: boolean;
 }
 
 const DISCOVER: NavItem[] = [
-  { to: '/library', label: 'Home', icon: 'compass', exact: true },
-  { to: '/library/browse', label: 'Browse', icon: 'grid' },
-  { to: '/library/updates', label: 'Latest updates', icon: 'clock' },
-  { to: '/library/requests', label: 'Requests', icon: 'heart' },
+  { to: '/library', labelKey: 'library.shell.nav.home', icon: 'compass', exact: true },
+  { to: '/library/browse', labelKey: 'library.shell.nav.browse', icon: 'grid' },
+  { to: '/library/updates', labelKey: 'library.shell.nav.latestUpdates', icon: 'clock' },
+  { to: '/library/requests', labelKey: 'library.shell.nav.requests', icon: 'heart' },
 ];
 const YOUR_SPACE: NavItem[] = [
-  { to: '/library/me', label: 'My library', icon: 'bookmark' },
-  { to: '/library/history', label: 'Reading history', icon: 'clock' },
-  { to: '/library/lists', label: 'Reading lists', icon: 'list' },
-  { to: '/library/submissions', label: 'Submissions', icon: 'edit' },
-  { to: '/library/upload', label: 'Upload', icon: 'upload' },
+  { to: '/library/me', labelKey: 'library.shell.nav.myLibrary', icon: 'bookmark' },
+  { to: '/library/history', labelKey: 'library.shell.nav.readingHistory', icon: 'clock' },
+  { to: '/library/lists', labelKey: 'library.shell.nav.readingLists', icon: 'list' },
+  { to: '/library/submissions', labelKey: 'library.shell.nav.submissions', icon: 'edit' },
+  { to: '/library/upload', labelKey: 'library.shell.nav.upload', icon: 'upload' },
 ];
 
 function NavLinks({
@@ -84,6 +86,7 @@ function NavLinks({
   count?: number;
   onNavigate?: () => void;
 }) {
+  const t = useT();
   return (
     <ul className="lib-nav-list">
       {items.map((i) => (
@@ -96,9 +99,12 @@ function NavLinks({
             onClick={onNavigate}
           >
             <Icon name={i.icon} size={20} />
-            <span>{i.label}</span>
+            <span>{t(i.labelKey)}</span>
             {i.to === '/library/me' && count !== undefined && count > 0 && (
-              <span className="lib-nav-count" aria-label={`${count} followed`}>
+              <span
+                className="lib-nav-count"
+                aria-label={t('library.shell.followedCount', { count })}
+              >
                 {count}
               </span>
             )}
@@ -110,6 +116,7 @@ function NavLinks({
 }
 
 function Sidebar({ onNavigate, onHelp }: { onNavigate?: () => void; onHelp: () => void }) {
+  const t = useT();
   const openSettings = useOpenUserSettings();
   const follows = useQuery({
     queryKey: keys.follows(),
@@ -117,25 +124,25 @@ function Sidebar({ onNavigate, onHelp }: { onNavigate?: () => void; onHelp: () =
     staleTime: 60_000,
   });
   return (
-    <nav className="lib-sidebar" aria-label="Library">
+    <nav className="lib-sidebar" aria-label={t('library.shell.sidebarNav')}>
       <div className="lib-sidebar-head">
         <span className="lib-logo-box" aria-hidden="true">
           <Icon name="book" size={20} />
         </span>
-        <span className="lib-sidebar-title">The library</span>
+        <span className="lib-sidebar-title">{t('library.shell.library')}</span>
       </div>
       <p className="lib-nav-heading" id="lib-nav-discover">
-        Discover
+        {t('library.shell.discover')}
       </p>
       <NavLinks items={DISCOVER} onNavigate={onNavigate} />
       <p className="lib-nav-heading" id="lib-nav-space">
-        Your space
+        {t('library.shell.yourSpace')}
       </p>
       <NavLinks items={YOUR_SPACE} count={follows.data?.total} onNavigate={onNavigate} />
       <div className="lib-sidebar-foot">
         <button type="button" className="lib-nav-link" onClick={onHelp}>
           <Icon name="info" size={20} />
-          <span>Help &amp; shortcuts</span>
+          <span>{t('library.shell.helpAndShortcuts')}</span>
         </button>
         <button
           type="button"
@@ -146,28 +153,32 @@ function Sidebar({ onNavigate, onHelp }: { onNavigate?: () => void; onHelp: () =
           }}
         >
           <Icon name="settings" size={20} />
-          <span>Settings</span>
+          <span>{t('library.shell.settings')}</span>
         </button>
-        <p className="lib-tagline">Manga, at your pace.</p>
+        <p className="lib-tagline">{t('library.shell.tagline')}</p>
       </div>
     </nav>
   );
 }
 
 function Bell() {
+  const t = useT();
   const navigate = useNavigate();
   const updates = useQuery({
     queryKey: keys.updates(true),
     queryFn: () => getUpdates({ following: true, limit: 6 }),
     staleTime: 60_000,
   });
-  const items: MenuEntry[] = [{ type: 'label', label: 'From series you follow' }];
+  const items: MenuEntry[] = [{ type: 'label', label: t('library.shell.bell.fromFollowed') }];
   const list = updates.data?.items ?? [];
   if (list.length === 0)
-    items.push({ label: updates.isPending ? 'Loading…' : 'Nothing new yet', disabled: true });
+    items.push({
+      label: updates.isPending ? t('library.shell.bell.loading') : t('library.shell.bell.empty'),
+      disabled: true,
+    });
   for (const u of list)
     items.push({
-      label: `${u.series_title}: ${updateLine(u)}`,
+      label: t('library.shell.bell.item', { title: u.series_title, line: updateLine(u) }),
       onSelect: () =>
         void navigate({
           to: '/library/r/$chapterId/{-$page}',
@@ -176,15 +187,18 @@ function Bell() {
     });
   items.push(
     { type: 'separator' },
-    { label: 'All updates', onSelect: () => void navigate({ to: '/library/updates' }) },
+    {
+      label: t('library.shell.bell.allUpdates'),
+      onSelect: () => void navigate({ to: '/library/updates' }),
+    },
   );
   return (
     <DropdownMenu
-      label="Notifications"
+      label={t('library.shell.bell.label')}
       placement="bottom-end"
       items={items}
       trigger={
-        <button type="button" className="lib-icon-btn" aria-label="Notifications">
+        <button type="button" className="lib-icon-btn" aria-label={t('library.shell.bell.label')}>
           <Icon name="bell" size={20} />
         </button>
       }
@@ -193,32 +207,44 @@ function Bell() {
 }
 
 function AvatarMenu() {
+  const t = useT();
   const navigate = useNavigate();
   const openSettings = useOpenUserSettings();
   const { hideRestricted } = useLibrarySettings();
   const setHide = useSetHideRestricted();
   const me = useQuery({ queryKey: ['library', 'me'], queryFn: getMe, staleTime: 5 * 60_000 });
-  const name = me.data?.global_name ?? me.data?.display_name ?? me.data?.username ?? 'You';
+  const name =
+    me.data?.global_name ??
+    me.data?.display_name ??
+    me.data?.username ??
+    t('library.shell.avatar.you');
   const items: MenuEntry[] = [
     { type: 'label', label: name },
     {
       type: 'checkbox',
-      label: 'Hide 18+ titles',
+      label: t('library.shell.avatar.hideRestricted'),
       checked: hideRestricted,
       onCheckedChange: (v) => void setHide(v),
       keepOpen: true,
     },
-    { label: 'User settings', onSelect: () => openSettings() },
+    { label: t('library.shell.avatar.userSettings'), onSelect: () => openSettings() },
     { type: 'separator' },
-    { label: 'Back to the lounge', onSelect: () => void navigate({ to: '/channels' }) },
+    {
+      label: t('library.shell.avatar.backToLounge'),
+      onSelect: () => void navigate({ to: '/channels' }),
+    },
   ];
   return (
     <DropdownMenu
-      label="Account"
+      label={t('library.shell.avatar.label')}
       placement="bottom-end"
       items={items}
       trigger={
-        <button type="button" className="lib-avatar-btn" aria-label="Account menu">
+        <button
+          type="button"
+          className="lib-avatar-btn"
+          aria-label={t('library.shell.avatar.menuLabel')}
+        >
           <Avatar name={name} size={32} />
         </button>
       }
@@ -226,25 +252,26 @@ function AvatarMenu() {
   );
 }
 
-const SHORTCUTS: { keys: string[]; text: string }[] = [
-  { keys: ['/'], text: 'Search the library' },
-  { keys: ['←', '→'], text: 'Reader: turn the page (follows the reading direction)' },
-  { keys: ['Space'], text: 'Reader: next page (Shift: previous)' },
-  { keys: ['Home', 'End'], text: 'Reader: first or last page' },
-  { keys: ['D'], text: 'Reader: toggle double-page mode' },
-  { keys: ['M'], text: 'Reader: reader settings' },
-  { keys: ['B'], text: 'Reader: bookmark this page' },
-  { keys: ['F'], text: 'Reader: full screen' },
-  { keys: ['+', '-', '0'], text: 'Reader: zoom in, out, reset' },
+const SHORTCUTS: { keys: string[]; text: MessageKey }[] = [
+  { keys: ['/'], text: 'library.shell.shortcut.search' },
+  { keys: ['←', '→'], text: 'library.shell.shortcut.turnPage' },
+  { keys: ['Space'], text: 'library.shell.shortcut.nextPage' },
+  { keys: ['Home', 'End'], text: 'library.shell.shortcut.firstLast' },
+  { keys: ['D'], text: 'library.shell.shortcut.doublePage' },
+  { keys: ['M'], text: 'library.shell.shortcut.settings' },
+  { keys: ['B'], text: 'library.shell.shortcut.bookmark' },
+  { keys: ['F'], text: 'library.shell.shortcut.fullScreen' },
+  { keys: ['+', '-', '0'], text: 'library.shell.shortcut.zoom' },
 ];
 
 function HelpSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const t = useT();
   return (
-    <Modal open={open} onClose={onClose} title="Help & shortcuts" size="md">
+    <Modal open={open} onClose={onClose} title={t('library.shell.helpAndShortcuts')} size="md">
       <dl className="lib-shortcuts">
         {SHORTCUTS.map((s) => (
           <div key={s.text} className="lib-shortcut-row">
-            <dt>{s.text}</dt>
+            <dt>{t(s.text)}</dt>
             <dd>
               <KbdCombo keys={s.keys} />
             </dd>
@@ -278,6 +305,7 @@ const BOTTOM: NavItem[] = [DISCOVER[0]!, DISCOVER[1]!, DISCOVER[2]!, YOUR_SPACE[
 
 /** The page frame around every non-reader Library page. */
 export function LibraryShell({ children }: { children?: ReactNode }) {
+  const t = useT();
   const mobile = useMediaQuery(MOBILE_QUERY);
   const [drawer, setDrawer] = useState(false);
   const [help, setHelp] = useState(false);
@@ -286,10 +314,10 @@ export function LibraryShell({ children }: { children?: ReactNode }) {
   // "/" jumps to search, as on most reading sites.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const t = e.target;
+      const target = e.target;
       const typing =
-        t instanceof HTMLElement &&
-        (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+        target instanceof HTMLElement &&
+        (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
       if (e.key === '/' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
         searchWrap.current?.querySelector('input')?.focus();
@@ -314,7 +342,7 @@ export function LibraryShell({ children }: { children?: ReactNode }) {
               <button
                 type="button"
                 className="lib-icon-btn"
-                aria-label="Open library menu"
+                aria-label={t('library.shell.openMenu')}
                 onClick={() => setDrawer(true)}
               >
                 <Icon name="menu" size={20} />
@@ -332,7 +360,7 @@ export function LibraryShell({ children }: { children?: ReactNode }) {
         </div>
       </div>
       {mobile && (
-        <nav className="lib-bottomnav" aria-label="Library quick links">
+        <nav className="lib-bottomnav" aria-label={t('library.shell.quickLinks')}>
           {BOTTOM.map((i) => (
             <Link
               key={i.to}
@@ -342,13 +370,22 @@ export function LibraryShell({ children }: { children?: ReactNode }) {
               activeProps={{ 'aria-current': 'page' }}
             >
               <Icon name={i.icon} size={20} />
-              <span>{i.label === 'Latest updates' ? 'Updates' : i.label}</span>
+              <span>
+                {i.labelKey === 'library.shell.nav.latestUpdates'
+                  ? t('library.shell.nav.updates')
+                  : t(i.labelKey)}
+              </span>
             </Link>
           ))}
         </nav>
       )}
       {mobile && (
-        <Drawer open={drawer} onClose={() => setDrawer(false)} title="The library" side="left">
+        <Drawer
+          open={drawer}
+          onClose={() => setDrawer(false)}
+          title={t('library.shell.library')}
+          side="left"
+        >
           <Sidebar
             onNavigate={() => setDrawer(false)}
             onHelp={() => {

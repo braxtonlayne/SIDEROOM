@@ -4,13 +4,14 @@ import { Badge, Button, ConfirmDialog, EmptyState, Select, TextInput } from '@si
 import { useEffect, useMemo, useState } from 'react';
 import { DAY, formatDuration, startOfDay } from '../../../cinema/tv/model';
 import type { TvBlock } from '../../../cinema/tv/types';
+import { t, useT } from '../../../i18n';
 import { fmtMs } from '../../ui';
 import { NotAvailableYet } from '../AssetPanel';
 import { Banner, LoadProblem, useLoad, useRun } from '../hooks';
 import * as tv from './tvApi';
 
 const kindLabel = (k: string) =>
-  k === 'filler' ? 'Filler' : k.charAt(0).toUpperCase() + k.slice(1);
+  k === 'filler' ? t('admin.channelPanels.filler') : k.charAt(0).toUpperCase() + k.slice(1);
 const clock = (ms: number) =>
   new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(ms);
 const dayHead = (ms: number) =>
@@ -57,9 +58,14 @@ function useChannelLoad<T>(key: string, fetcher: () => Promise<T>) {
 }
 
 const sourceLabel = (s: TvBlock['source']) =>
-  s === 'override' ? 'override' : s === 'manual' ? 'manual' : 'generated';
+  s === 'override'
+    ? t('admin.channelPanels.source.override')
+    : s === 'manual'
+      ? t('admin.channelPanels.source.manual')
+      : t('admin.channelPanels.source.generated');
 
 function BlockList({ blocks }: { blocks: TvBlock[] }) {
+  const t = useT();
   const groups = useMemo(() => groupByDay(blocks), [blocks]);
   return (
     <div className="adm-cin-schedule">
@@ -72,7 +78,10 @@ function BlockList({ blocks }: { blocks: TvBlock[] }) {
                 <div className="ss-grow">
                   <div className="ss-name">
                     <span className="adm-mono">
-                      {clock(b.start_ms)} to {clock(b.end_ms)}
+                      {t('admin.channelPanels.timeRange', {
+                        start: clock(b.start_ms),
+                        end: clock(b.end_ms),
+                      })}
                     </span>{' '}
                     {blockLine(b)}{' '}
                     {b.source && b.source !== 'generated' && (
@@ -81,7 +90,7 @@ function BlockList({ blocks }: { blocks: TvBlock[] }) {
                   </div>
                   <div className="ss-meta">
                     {kindLabel(b.kind)}
-                    {b.age_restricted ? ' · 18+' : ''}
+                    {b.age_restricted ? ` · ${t('admin.channelPanels.age18')}` : ''}
                   </div>
                 </div>
               </li>
@@ -107,6 +116,7 @@ function TitlePicker({
   picked: Found | null;
   onPick: (t: Found | null) => void;
 }) {
+  const t = useT();
   const [q, setQ] = useState('');
   const [found, setFound] = useState<Found[]>([]);
   useEffect(() => {
@@ -115,14 +125,14 @@ function TitlePicker({
       return;
     }
     let live = true;
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       tv.listTitles({ title: q.trim(), published: 'true', limit: 8 })
         .then((p) => live && setFound(p.items))
         .catch(() => live && setFound([]));
     }, 200);
     return () => {
       live = false;
-      clearTimeout(t);
+      clearTimeout(timer);
     };
   }, [q]);
   return (
@@ -136,17 +146,17 @@ function TitlePicker({
         }}
       />
       {found.length > 0 && !picked && (
-        <ul className="ss-list" aria-label={`${label}: matches`}>
-          {found.map((t) => (
-            <li key={t.id} className="ss-row">
+        <ul className="ss-list" aria-label={t('admin.channelPanels.picker.matches', { label })}>
+          {found.map((f) => (
+            <li key={f.id} className="ss-row">
               <div className="ss-grow">
                 <div className="ss-name">
-                  {t.title}
-                  {t.year ? ` (${t.year})` : ''}
+                  {f.title}
+                  {f.year ? ` (${f.year})` : ''}
                 </div>
               </div>
-              <Button size="sm" variant="secondary" onClick={() => onPick(t)}>
-                Choose {t.title}
+              <Button size="sm" variant="secondary" onClick={() => onPick(f)}>
+                {t('admin.channelPanels.picker.choose', { title: f.title })}
               </Button>
             </li>
           ))}
@@ -154,7 +164,7 @@ function TitlePicker({
       )}
       {picked && (
         <p className="ss-meta" role="status">
-          Selected: <strong>{picked.title}</strong>
+          {t('admin.channelPanels.picker.selected')} <strong>{picked.title}</strong>
         </p>
       )}
     </>
@@ -164,6 +174,7 @@ function TitlePicker({
 /* ----------------------------------------------------------- schedule */
 
 export function SchedulePanel({ channel }: { channel: tv.AdminChannel }) {
+  const t = useT();
   const [source, setSource] = useState('preview');
   const [days, setDays] = useState('1');
   const [simulate, setSimulate] = useState('');
@@ -185,60 +196,66 @@ export function SchedulePanel({ channel }: { channel: tv.AdminChannel }) {
     at === null ? null : await tv.getNowAt(channel.id, at),
   );
 
-  if (sched.unavailable) return <NotAvailableYet what="The schedule preview" />;
+  if (sched.unavailable)
+    return <NotAvailableYet what={t('admin.channelPanels.sched.whatPreview')} />;
   const data = sched.res.data;
   return (
     <>
       <div className="adm-cin-grid">
         <Select
-          aria-label="Schedule source"
+          aria-label={t('admin.channelPanels.sched.source')}
           options={[
-            { value: 'preview', label: 'Preview from the current rules' },
-            { value: 'stored', label: 'Stored schedule (what viewers get)' },
+            { value: 'preview', label: t('admin.channelPanels.sched.sourcePreview') },
+            { value: 'stored', label: t('admin.channelPanels.sched.sourceStored') },
           ]}
           value={source}
           onValueChange={setSource}
         />
         <Select
-          aria-label="Range"
+          aria-label={t('admin.channelPanels.sched.range')}
           options={[
-            { value: '1', label: 'Next 24 hours' },
-            { value: '3', label: 'Next 3 days' },
-            { value: '7', label: 'Next 7 days' },
+            { value: '1', label: t('admin.channelPanels.next24h') },
+            { value: '3', label: t('admin.channelPanels.next3d') },
+            { value: '7', label: t('admin.channelPanels.next7d') },
           ]}
           value={days}
           onValueChange={setDays}
         />
         <TextInput
-          label="Simulate now"
+          label={t('admin.channelPanels.sched.simulate')}
           type="datetime-local"
-          hint="See what the stored schedule has on air at that moment. Nothing changes for viewers."
+          hint={t('admin.channelPanels.sched.simulateHint')}
           value={simulate}
           onChange={(e) => setSimulate(e.target.value)}
         />
       </div>
       {at !== null && sim.res.data && (
-        <section aria-label="Simulated now" className="ss-card">
+        <section aria-label={t('admin.channelPanels.sched.simulated')} className="ss-card">
           <p className="ss-name">
-            At {fmtMs(sim.res.data.at_ms)}:{' '}
-            {sim.res.data.current ? blockLine(sim.res.data.current) : 'nothing is on air'}
+            {t('admin.channelPanels.sched.at', { time: fmtMs(sim.res.data.at_ms) })}{' '}
+            {sim.res.data.current
+              ? blockLine(sim.res.data.current)
+              : t('admin.channelPanels.sched.nothingOnAir')}
             {sim.res.data.offset_ms !== null && sim.res.data.current
-              ? ` (${formatDuration(Math.round(sim.res.data.offset_ms / 60_000))} in)`
+              ? ` ${t('admin.channelPanels.sched.offsetIn', { duration: formatDuration(Math.round(sim.res.data.offset_ms / 60_000)) })}`
               : ''}
           </p>
           <p className="ss-meta">
-            Next:{' '}
+            {t('admin.channelPanels.sched.next')}{' '}
             {sim.res.data.next
               ? `${clock(sim.res.data.next.start_ms)} ${blockLine(sim.res.data.next)}`
-              : 'nothing'}
+              : t('admin.channelPanels.sched.nothing')}
           </p>
         </section>
       )}
       <Banner error={pub.error} notice={pub.notice} />
       {published && (
         <p className="ss-meta" role="status">
-          Wrote {published.written} blocks and removed {published.removed} through{' '}
-          {fmtMs(published.to_ms)}.
+          {t('admin.channelPanels.sched.wrote', {
+            written: published.written,
+            removed: published.removed,
+            time: fmtMs(published.to_ms),
+          })}
         </p>
       )}
       {published?.warnings.map((w) => (
@@ -251,16 +268,18 @@ export function SchedulePanel({ channel }: { channel: tv.AdminChannel }) {
           error={sched.res.error}
           status={sched.res.status}
           onRetry={() => void sched.res.reload()}
-          what="the schedule"
+          what={t('admin.channelPanels.sched.what')}
         />
       )}
-      {!data && !sched.res.error && <p className="ss-loading">Loading the schedule…</p>}
+      {!data && !sched.res.error && (
+        <p className="ss-loading">{t('admin.channelPanels.sched.loading')}</p>
+      )}
       {data && (
         <>
           <p className="ss-meta" role="status">
             {source === 'preview'
-              ? 'Draft preview generated from the current rules: viewers do not see this until you publish.'
-              : 'These blocks are stored: this is what viewers get.'}
+              ? t('admin.channelPanels.sched.draftNote')
+              : t('admin.channelPanels.sched.storedNote')}
           </p>
           {data.warnings.map((w) => (
             <p key={w} className="ss-meta" role="note">
@@ -269,11 +288,11 @@ export function SchedulePanel({ channel }: { channel: tv.AdminChannel }) {
           ))}
           {data.blocks.length === 0 ? (
             <EmptyState
-              title="Nothing scheduled"
+              title={t('admin.channelPanels.sched.empty.title')}
               description={
                 manual
-                  ? 'Place programmes from the Now control tab.'
-                  : 'The rules produce no programmes for this range. Check the content pools.'
+                  ? t('admin.channelPanels.sched.empty.manual')
+                  : t('admin.channelPanels.sched.empty.rules')
               }
             />
           ) : (
@@ -281,22 +300,24 @@ export function SchedulePanel({ channel }: { channel: tv.AdminChannel }) {
           )}
           <div className="adm-actions">
             <Button variant="secondary" onClick={() => void sched.res.reload()}>
-              Refresh
+              {t('admin.channelPanels.sched.refresh')}
             </Button>
             {!manual && (
               <>
                 <Select
-                  aria-label="Publish horizon"
+                  aria-label={t('admin.channelPanels.sched.horizon')}
                   options={[
-                    { value: '24', label: 'Next 24 hours' },
-                    { value: '72', label: 'Next 3 days' },
-                    { value: '168', label: 'Next 7 days' },
-                    { value: '336', label: 'Next 14 days' },
+                    { value: '24', label: t('admin.channelPanels.next24h') },
+                    { value: '72', label: t('admin.channelPanels.next3d') },
+                    { value: '168', label: t('admin.channelPanels.next7d') },
+                    { value: '336', label: t('admin.channelPanels.next14d') },
                   ]}
                   value={horizon}
                   onValueChange={setHorizon}
                 />
-                <Button onClick={() => setConfirm(true)}>Publish schedule</Button>
+                <Button onClick={() => setConfirm(true)}>
+                  {t('admin.channelPanels.sched.publish')}
+                </Button>
               </>
             )}
           </div>
@@ -304,9 +325,11 @@ export function SchedulePanel({ channel }: { channel: tv.AdminChannel }) {
       )}
       <ConfirmDialog
         open={confirm}
-        title={`Publish the schedule for ${channel.name}`}
-        description={`Generated programmes that have not started are replaced by a fresh schedule from the programme on air now, for the next ${Number(horizon) / 24} days. Manual placements and overrides are kept.`}
-        confirmLabel="Publish"
+        title={t('admin.channelPanels.sched.publishTitle', { name: channel.name })}
+        description={t('admin.channelPanels.sched.publishDescription', {
+          days: Number(horizon) / 24,
+        })}
+        confirmLabel={t('admin.channelPanels.sched.publishConfirm')}
         loading={pub.busy}
         onCancel={() => setConfirm(false)}
         onConfirm={() =>
@@ -315,7 +338,7 @@ export function SchedulePanel({ channel }: { channel: tv.AdminChannel }) {
               setPublished(await tv.publishSchedule(channel.id, Number(horizon)));
               await sched.res.reload();
               return true;
-            }, 'Schedule published.')
+            }, t('admin.channelPanels.sched.published'))
             .then(() => setConfirm(false))
         }
       />
@@ -326,6 +349,7 @@ export function SchedulePanel({ channel }: { channel: tv.AdminChannel }) {
 /* ------------------------------------------------------------ now control */
 
 export function NowControl({ channel }: { channel: tv.AdminChannel }) {
+  const t = useT();
   const { res, unavailable } = useChannelLoad(`tv-now-${channel.id}`, () =>
     tv.getNowAt(channel.id),
   );
@@ -338,17 +362,17 @@ export function NowControl({ channel }: { channel: tv.AdminChannel }) {
   const [dialog, setDialog] = useState<'now' | 'remove' | null>(null);
   const { busy, error, notice, run } = useRun();
 
-  if (unavailable) return <NotAvailableYet what="Now control" />;
+  if (unavailable) return <NotAvailableYet what={t('admin.channelPanels.now.what')} />;
   if (res.error && !res.data)
     return (
       <LoadProblem
         error={res.error}
         status={res.status}
         onRetry={() => void res.reload()}
-        what="Now control"
+        what={t('admin.channelPanels.now.what')}
       />
     );
-  if (!res.data) return <p className="ss-loading">Loading what is on air…</p>;
+  if (!res.data) return <p className="ss-loading">{t('admin.channelPanels.now.loading')}</p>;
   const st = res.data;
   const cur = st.current;
   const removable = cur && cur.source && cur.source !== 'generated';
@@ -366,43 +390,49 @@ export function NowControl({ channel }: { channel: tv.AdminChannel }) {
   return (
     <>
       <Banner error={error} notice={notice} />
-      <dl className="adm-kv" aria-label="On air now">
-        <dt>On air</dt>
-        <dd>{cur ? blockLine(cur) : 'Off the air'}</dd>
-        <dt>Source</dt>
+      <dl className="adm-kv" aria-label={t('admin.channelPanels.now.aria')}>
+        <dt>{t('admin.channelPanels.now.onAir')}</dt>
+        <dd>{cur ? blockLine(cur) : t('admin.channelPanels.now.offAir')}</dd>
+        <dt>{t('admin.channelPanels.now.source')}</dt>
         <dd>
           {cur?.source && cur.source !== 'generated' ? (
             <Badge variant="warning">{sourceLabel(cur.source)}</Badge>
           ) : (
-            'Schedule'
+            t('admin.channelPanels.now.schedule')
           )}
         </dd>
-        <dt>Next</dt>
+        <dt>{t('admin.channelPanels.now.next')}</dt>
         <dd>
-          {st.next ? `${clock(st.next.start_ms)} ${blockLine(st.next)}` : 'Nothing scheduled'}
+          {st.next
+            ? `${clock(st.next.start_ms)} ${blockLine(st.next)}`
+            : t('admin.channelPanels.now.nothingScheduled')}
         </dd>
-        <dt>Viewers</dt>
+        <dt>{t('admin.channelPanels.now.viewers')}</dt>
         <dd>{st.viewers}</dd>
       </dl>
       {removable && cur && (
         <div className="adm-actions">
           <Button variant="secondary" onClick={() => setDialog('remove')}>
-            Remove this {sourceLabel(cur.source)} block
+            {t('admin.channelPanels.now.removeBlock', { source: sourceLabel(cur.source) })}
           </Button>
         </div>
       )}
 
-      <section aria-label="Put a title on air" className="ss-card">
-        <h2 className="ss-sub">Put a title on air now</h2>
-        <TitlePicker label="Find a title" picked={picked} onPick={setPicked} />
+      <section aria-label={t('admin.channelPanels.now.put.aria')} className="ss-card">
+        <h2 className="ss-sub">{t('admin.channelPanels.now.put.heading')}</h2>
+        <TitlePicker
+          label={t('admin.channelPanels.now.put.find')}
+          picked={picked}
+          onPick={setPicked}
+        />
         <div className="adm-cin-grid">
           <TextInput
-            label="Episode id (series and anime)"
+            label={t('admin.channelPanels.now.put.episode')}
             value={episode}
             onChange={(e) => setEpisode(e.target.value)}
           />
           <TextInput
-            label="Start this many minutes in"
+            label={t('admin.channelPanels.now.put.offset')}
             type="number"
             min={0}
             value={offset}
@@ -411,27 +441,28 @@ export function NowControl({ channel }: { channel: tv.AdminChannel }) {
         </div>
         <div className="adm-actions">
           <Button disabled={!picked} onClick={() => setDialog('now')}>
-            Put on air now
+            {t('admin.channelPanels.now.put.button')}
           </Button>
         </div>
       </section>
 
-      <section aria-label="Place a programme" className="ss-card">
-        <h2 className="ss-sub">Place a programme at a time</h2>
-        <p className="ss-meta">
-          Whatever it overlaps is trimmed, split or removed. On a rule-based channel the block is an
-          override.
-        </p>
-        <TitlePicker label="Find a title to place" picked={placePicked} onPick={setPlacePicked} />
+      <section aria-label={t('admin.channelPanels.now.place.aria')} className="ss-card">
+        <h2 className="ss-sub">{t('admin.channelPanels.now.place.heading')}</h2>
+        <p className="ss-meta">{t('admin.channelPanels.now.place.note')}</p>
+        <TitlePicker
+          label={t('admin.channelPanels.now.place.find')}
+          picked={placePicked}
+          onPick={setPlacePicked}
+        />
         <div className="adm-cin-grid">
           <TextInput
-            label="Starts at"
+            label={t('admin.channelPanels.now.place.startsAt')}
             type="datetime-local"
             value={placeStart}
             onChange={(e) => setPlaceStart(e.target.value)}
           />
           <TextInput
-            label="Episode id for the placed programme"
+            label={t('admin.channelPanels.now.place.episode')}
             value={placeEpisode}
             onChange={(e) => setPlaceEpisode(e.target.value)}
           />
@@ -449,19 +480,19 @@ export function NowControl({ channel }: { channel: tv.AdminChannel }) {
                 });
                 setPlacePicked(null);
                 setPlaceStart('');
-              }, 'Programme placed.')
+              }, t('admin.channelPanels.now.place.placed'))
             }
           >
-            Place programme
+            {t('admin.channelPanels.now.place.button')}
           </Button>
         </div>
       </section>
 
       <ConfirmDialog
         open={dialog === 'now' && !!picked}
-        title={`Put ${picked?.title ?? ''} on air`}
-        description={`Replaces what is on ${channel.name} right now; the schedule continues after it. Everyone watching switches over.`}
-        confirmLabel="Put on air"
+        title={t('admin.channelPanels.now.dialog.title', { title: picked?.title ?? '' })}
+        description={t('admin.channelPanels.now.dialog.description', { name: channel.name })}
+        confirmLabel={t('admin.channelPanels.now.dialog.confirm')}
         loading={busy}
         onCancel={() => setDialog(null)}
         onConfirm={() =>
@@ -474,18 +505,22 @@ export function NowControl({ channel }: { channel: tv.AdminChannel }) {
                 : {}),
             });
             setPicked(null);
-          }, 'On air.')
+          }, t('admin.channelPanels.now.dialog.done'))
         }
       />
       <ConfirmDialog
         open={dialog === 'remove'}
         danger
-        title="Remove this block"
-        description={`Removes ${cur ? blockLine(cur) : 'the block'} from the schedule. The gap is filled by the channel's filler policy.`}
-        confirmLabel="Remove block"
+        title={t('admin.channelPanels.now.remove.title')}
+        description={t('admin.channelPanels.now.remove.description', {
+          what: cur ? blockLine(cur) : t('admin.channelPanels.now.remove.theBlock'),
+        })}
+        confirmLabel={t('admin.channelPanels.now.remove.confirm')}
         loading={busy}
         onCancel={() => setDialog(null)}
-        onConfirm={() => void done(() => tv.deleteBlock(cur!.id), 'Block removed.')}
+        onConfirm={() =>
+          void done(() => tv.deleteBlock(cur!.id), t('admin.channelPanels.now.remove.done'))
+        }
       />
     </>
   );
@@ -494,22 +529,23 @@ export function NowControl({ channel }: { channel: tv.AdminChannel }) {
 /* ------------------------------------------------------------- what aired */
 
 export function AiredReport({ channel }: { channel: tv.AdminChannel }) {
+  const t = useT();
   const [range, setRange] = useState('1');
   const to = Date.now();
   const from = to - Number(range) * DAY;
   const { res, unavailable } = useChannelLoad(`tv-aired-${channel.id}-${range}`, () =>
     tv.getReport(from, to, channel.id),
   );
-  if (unavailable) return <NotAvailableYet what="The what-aired report" />;
+  if (unavailable) return <NotAvailableYet what={t('admin.channelPanels.aired.whatReport')} />;
   const mine = res.data?.channels.find((c) => c.channel_id === channel.id);
   return (
     <>
       <Select
-        aria-label="Report range"
+        aria-label={t('admin.channelPanels.aired.range')}
         options={[
-          { value: '1', label: 'Last 24 hours' },
-          { value: '3', label: 'Last 3 days' },
-          { value: '7', label: 'Last 7 days' },
+          { value: '1', label: t('admin.channelPanels.aired.last24h') },
+          { value: '3', label: t('admin.channelPanels.aired.last3d') },
+          { value: '7', label: t('admin.channelPanels.aired.last7d') },
         ]}
         value={range}
         onValueChange={setRange}
@@ -519,30 +555,35 @@ export function AiredReport({ channel }: { channel: tv.AdminChannel }) {
           error={res.error}
           status={res.status}
           onRetry={() => void res.reload()}
-          what="the report"
+          what={t('admin.channelPanels.aired.what')}
         />
       )}
-      {!res.data && !res.error && <p className="ss-loading">Loading the report…</p>}
+      {!res.data && !res.error && (
+        <p className="ss-loading">{t('admin.channelPanels.aired.loading')}</p>
+      )}
       {res.data && mine && (
         <p className="ss-meta" role="status">
-          {mine.programmes} programmes, {mine.overrides} overrides,{' '}
-          {formatDuration(Math.round(mine.aired_ms / 60_000))} on air. Viewer figures are not kept.
+          {t('admin.channelPanels.aired.summary', {
+            programmes: mine.programmes,
+            overrides: mine.overrides,
+            duration: formatDuration(Math.round(mine.aired_ms / 60_000)),
+          })}
         </p>
       )}
       {res.data && res.data.items.length === 0 && (
         <EmptyState
-          title="Nothing aired"
-          description="No programmes were recorded for this range."
+          title={t('admin.channelPanels.aired.empty.title')}
+          description={t('admin.channelPanels.aired.empty.description')}
         />
       )}
       {res.data && res.data.items.length > 0 && (
-        <table className="adm-table" aria-label="What aired">
+        <table className="adm-table" aria-label={t('admin.channelPanels.aired.table')}>
           <thead>
             <tr>
-              <th scope="col">Time</th>
-              <th scope="col">Programme</th>
-              <th scope="col">Source</th>
-              <th scope="col">Aired</th>
+              <th scope="col">{t('admin.channelPanels.aired.col.time')}</th>
+              <th scope="col">{t('admin.channelPanels.aired.col.programme')}</th>
+              <th scope="col">{t('admin.channelPanels.aired.col.source')}</th>
+              <th scope="col">{t('admin.channelPanels.aired.col.aired')}</th>
             </tr>
           </thead>
           <tbody>
@@ -551,7 +592,10 @@ export function AiredReport({ channel }: { channel: tv.AdminChannel }) {
               .map((a, i) => (
                 <tr key={`${a.block.id}-${i}`}>
                   <td>
-                    {fmtMs(a.block.start_ms)} to {clock(a.block.end_ms)}
+                    {t('admin.channelPanels.timeRange', {
+                      start: fmtMs(a.block.start_ms),
+                      end: clock(a.block.end_ms),
+                    })}
                   </td>
                   <td>{blockLine(a.block)}</td>
                   <td>{sourceLabel(a.block.source)}</td>

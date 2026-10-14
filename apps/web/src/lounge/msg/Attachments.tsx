@@ -1,6 +1,7 @@
 import { Icon, Modal, Tooltip, type IconName } from '@sideroom/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Attachment } from '../data';
+import { useT } from '../../i18n';
 import { useSavedPrefs } from '../../settings/user/prefs';
 import { decodeBlurhash } from './blurhash';
 import { formatBytes, formatDuration, isHttpUrl } from './format';
@@ -82,6 +83,7 @@ export function BlurhashPlaceholder({ hash }: { hash: string }) {
 }
 
 function MosaicTile({ a, onOpen }: { a: Attachment; onOpen: () => void }) {
+  const t = useT();
   const [revealed, setRevealed] = useState(!a.spoiler);
   const [loaded, setLoaded] = useState(false);
   const hidden = !revealed;
@@ -90,7 +92,11 @@ function MosaicTile({ a, onOpen }: { a: Attachment; onOpen: () => void }) {
       <button
         type="button"
         className="lng-tile-btn"
-        aria-label={hidden ? 'Reveal spoiler image' : `Open image ${a.filename}`}
+        aria-label={
+          hidden
+            ? t('lounge.attachments.revealSpoiler')
+            : t('lounge.attachments.openImage', { name: a.filename })
+        }
         onClick={() => (hidden ? setRevealed(true) : onOpen())}
       >
         {a.blurhash && !loaded && <BlurhashPlaceholder hash={a.blurhash} />}
@@ -103,12 +109,16 @@ function MosaicTile({ a, onOpen }: { a: Attachment; onOpen: () => void }) {
           onLoad={() => setLoaded(true)}
           style={a.width && a.height ? { aspectRatio: `${a.width} / ${a.height}` } : undefined}
         />
-        {hidden && <span className="lng-spoiler-chip">SPOILER</span>}
+        {hidden && <span className="lng-spoiler-chip">{t('lounge.attachments.spoilerChip')}</span>}
       </button>
       {a.description && !hidden && (
         <Tooltip content={a.description}>
-          <span className="lng-alt-chip" tabIndex={0} aria-label={`Alt text: ${a.description}`}>
-            ALT
+          <span
+            className="lng-alt-chip"
+            tabIndex={0}
+            aria-label={t('lounge.attachments.altTextLabel', { text: a.description })}
+          >
+            {t('lounge.attachments.altChip')}
           </span>
         </Tooltip>
       )}
@@ -117,13 +127,14 @@ function MosaicTile({ a, onOpen }: { a: Attachment; onOpen: () => void }) {
 }
 
 export function ExpiredChip({ a }: { a: Attachment }) {
+  const t = useT();
   return (
     <div className="lng-attach-file lng-expired" role="note">
       <Icon name="clock" size={20} />
       <span>
         <strong>{a.filename}</strong>
         <br />
-        <span className="lng-muted">This file has expired</span>
+        <span className="lng-muted">{t('lounge.attachments.expired')}</span>
       </span>
     </div>
   );
@@ -132,6 +143,7 @@ export function ExpiredChip({ a }: { a: Attachment }) {
 const TEXT_PREVIEW_MAX = 64 * 1024;
 
 export function FileCard({ a }: { a: Attachment }) {
+  const t = useT();
   const [preview, setPreview] = useState<string | null>(null);
   const [state, setState] = useState<'idle' | 'loading' | 'error'>('idle');
   const canPreview = isText(a) && a.size <= TEXT_PREVIEW_MAX;
@@ -164,22 +176,28 @@ export function FileCard({ a }: { a: Attachment }) {
             aria-expanded={preview !== null}
             onClick={() => void togglePreview()}
           >
-            {preview !== null ? 'Hide preview' : 'Preview'}
+            {preview !== null
+              ? t('lounge.attachments.hidePreview')
+              : t('lounge.attachments.preview')}
           </button>
         )}
         <a
           className="lng-icon-btn"
           href={a.url}
           download={a.filename}
-          aria-label={`Download ${a.filename}`}
+          aria-label={t('lounge.attachments.downloadFile', { name: a.filename })}
         >
           <Icon name="download" size={20} />
         </a>
       </div>
-      {state === 'loading' && <p className="lng-muted">Loading preview…</p>}
-      {state === 'error' && <p className="lng-failed">Could not load the preview.</p>}
+      {state === 'loading' && <p className="lng-muted">{t('lounge.attachments.loadingPreview')}</p>}
+      {state === 'error' && <p className="lng-failed">{t('lounge.attachments.previewError')}</p>}
       {preview !== null && (
-        <pre className="lng-file-preview" tabIndex={0} aria-label={`Preview of ${a.filename}`}>
+        <pre
+          className="lng-file-preview"
+          tabIndex={0}
+          aria-label={t('lounge.attachments.previewOf', { name: a.filename })}
+        >
           {preview}
         </pre>
       )}
@@ -188,22 +206,29 @@ export function FileCard({ a }: { a: Attachment }) {
 }
 
 export function AudioPlayer({ a }: { a: Attachment }) {
+  const t = useT();
   return (
     <div className="lng-attach-file lng-media-card">
       <span className="lng-file-name">{a.filename}</span>
-      <audio controls preload="none" src={a.url} aria-label={`Audio: ${a.filename}`} />
+      <audio
+        controls
+        preload="none"
+        src={a.url}
+        aria-label={t('lounge.attachments.audio', { name: a.filename })}
+      />
     </div>
   );
 }
 
 export function VideoPlayer({ a }: { a: Attachment }) {
+  const t = useT();
   return (
     <div className="lng-video">
       <video
         controls
         preload="metadata"
         src={a.url}
-        aria-label={a.description ?? `Video: ${a.filename}`}
+        aria-label={a.description ?? t('lounge.attachments.video', { name: a.filename })}
         width={a.width}
         height={a.height}
       />
@@ -228,6 +253,7 @@ export function waveformBars(wave: number[] | null | undefined, n = BARS): numbe
 
 /** Voice message: waveform, play/pause, playback speed (LNG-MSGUI-014). */
 export function VoiceMessage({ a }: { a: Attachment }) {
+  const t = useT();
   const audio = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState(false);
   const [pos, setPos] = useState(0);
@@ -248,7 +274,7 @@ export function VoiceMessage({ a }: { a: Attachment }) {
 
   const progress = total > 0 ? Math.min(1, pos / total) : 0;
   return (
-    <div className="lng-voice" role="group" aria-label="Voice message">
+    <div className="lng-voice" role="group" aria-label={t('lounge.attachments.voiceMessage')}>
       <audio
         ref={audio}
         src={a.url}
@@ -264,7 +290,9 @@ export function VoiceMessage({ a }: { a: Attachment }) {
       <button
         type="button"
         className="lng-voice-play"
-        aria-label={playing ? 'Pause voice message' : 'Play voice message'}
+        aria-label={
+          playing ? t('lounge.attachments.pauseVoice') : t('lounge.attachments.playVoice')
+        }
         onClick={toggle}
       >
         <Icon name={playing ? 'pause' : 'play'} size={20} />
@@ -272,7 +300,7 @@ export function VoiceMessage({ a }: { a: Attachment }) {
       <div
         className="lng-wave"
         role="progressbar"
-        aria-label="Playback position"
+        aria-label={t('lounge.attachments.playbackPosition')}
         aria-valuemin={0}
         aria-valuemax={Math.round(total)}
         aria-valuenow={Math.round(pos)}
@@ -290,7 +318,7 @@ export function VoiceMessage({ a }: { a: Attachment }) {
       <button
         type="button"
         className="lng-voice-speed"
-        aria-label={`Playback speed ${speed}x, change`}
+        aria-label={t('lounge.attachments.playbackSpeed', { speed })}
         onClick={() => setSpeed((s) => SPEEDS[(SPEEDS.indexOf(s) + 1) % SPEEDS.length]!)}
       >
         {speed}x
@@ -311,6 +339,7 @@ export function Lightbox({
   onIndex: (i: number) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const [zoom, setZoom] = useState(false);
   const [copied, setCopied] = useState(false);
   const a = items[index];
@@ -338,14 +367,14 @@ export function Lightbox({
           tabIndex={0}
           role="button"
           aria-pressed={zoom}
-          aria-label={zoom ? 'Zoom out' : 'Zoom in'}
+          aria-label={zoom ? t('lounge.attachments.zoomOut') : t('lounge.attachments.zoomIn')}
         />
       </div>
       <div className="lng-lightbox-bar">
         <button
           type="button"
           className="lng-icon-btn"
-          aria-label="Previous image"
+          aria-label={t('lounge.attachments.previousImage')}
           disabled={index === 0}
           onClick={() => onIndex(index - 1)}
         >
@@ -357,7 +386,7 @@ export function Lightbox({
         <button
           type="button"
           className="lng-icon-btn"
-          aria-label="Next image"
+          aria-label={t('lounge.attachments.nextImage')}
           disabled={index >= items.length - 1}
           onClick={() => onIndex(index + 1)}
         >
@@ -365,10 +394,10 @@ export function Lightbox({
         </button>
         <span className="lng-spacer" />
         <a className="lng-link-btn" href={a.url} download={a.filename}>
-          Download
+          {t('lounge.attachments.download')}
         </a>
         <a className="lng-link-btn" href={abs} target="_blank" rel="noreferrer noopener">
-          Open original
+          {t('lounge.attachments.openOriginal')}
         </a>
         <button
           type="button"
@@ -378,7 +407,7 @@ export function Lightbox({
             setCopied(true);
           }}
         >
-          {copied ? 'Copied' : 'Copy link'}
+          {copied ? t('lounge.attachments.copied') : t('lounge.attachments.copyLink')}
         </button>
       </div>
     </Modal>

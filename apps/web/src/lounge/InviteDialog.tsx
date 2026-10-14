@@ -1,6 +1,7 @@
 import { Button, Modal } from '@sideroom/ui';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../api/client';
+import { useT } from '../i18n';
 import { rest } from '../store';
 import { isTextLike } from './channels';
 import { useChannels, useGuild } from './data';
@@ -30,6 +31,7 @@ export function InviteDialog({
   channelId?: string | undefined;
   onClose: () => void;
 }) {
+  const t = useT();
   const guild = useGuild(guildId);
   const channels = useChannels(guildId);
   const route = useLoungeRoute();
@@ -69,11 +71,11 @@ export function InviteDialog({
     let live = true;
     (manageGuild ? rest.listGuildInvites(guildId) : rest.listChannelInvites(listScope))
       .then((list) => live && (setInvites(list), setListError(null)))
-      .catch(() => live && setListError('Could not load existing invites.'));
+      .catch(() => live && setListError(t('lounge.inviteDialog.listFailed')));
     return () => {
       live = false;
     };
-  }, [canList, manageGuild, guildId, listScope]);
+  }, [canList, manageGuild, guildId, listScope, t]);
 
   // Client-side hiding is a convenience; the server enforces CREATE_INSTANT_INVITE.
   if (!guild?.permissions.createInvite) return null;
@@ -83,7 +85,7 @@ export function InviteDialog({
     : undefined;
 
   const generate = async () => {
-    if (!channelId) return setError('Pick a channel to invite people to.');
+    if (!channelId) return setError(t('lounge.inviteDialog.pickChannel'));
     setBusy(true);
     setError(null);
     try {
@@ -94,10 +96,10 @@ export function InviteDialog({
     } catch (err) {
       setError(
         err instanceof ApiError && err.status === 403
-          ? 'You cannot create invites for this channel.'
+          ? t('lounge.inviteDialog.forbidden')
           : err instanceof ApiError
             ? err.message
-            : 'Could not create the invite. Try again.',
+            : t('lounge.inviteDialog.createFailed'),
       );
     } finally {
       setBusy(false);
@@ -109,7 +111,7 @@ export function InviteDialog({
       await navigator.clipboard.writeText(inviteUrl(code));
       setCopied(code);
     } catch {
-      setError('Copying is blocked by the browser. Select the link and copy it by hand.');
+      setError(t('lounge.inviteDialog.copyBlocked'));
       return;
     }
     clearTimeout(copyTimer.current);
@@ -122,15 +124,20 @@ export function InviteDialog({
       setInvites((l) => l.filter((x) => x.code !== code));
       setCreated((c) => (c?.code === code ? null : c));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not revoke the invite.');
+      setError(err instanceof ApiError ? err.message : t('lounge.inviteDialog.revokeFailed'));
     }
   };
 
   return (
-    <Modal open onClose={onClose} title={`Invite people to ${guild.name}`} size="md">
+    <Modal
+      open
+      onClose={onClose}
+      title={t('lounge.inviteDialog.title', { name: guild.name })}
+      size="md"
+    >
       <div className="lng-form">
         <label className="lng-field">
-          <span>Invite to channel</span>
+          <span>{t('lounge.inviteDialog.inviteToChannel')}</span>
           <select value={channelId} onChange={(e) => setChannelId(e.target.value)}>
             {textChannels.map((c) => (
               <option key={c.id} value={c.id}>
@@ -142,7 +149,7 @@ export function InviteDialog({
         {channelId && <InviteFriends channelId={channelId} options={explicit} />}
         <div className="lng-field-row">
           <label className="lng-field">
-            <span>Expire after</span>
+            <span>{t('lounge.inviteDialog.expireAfter')}</span>
             <select
               value={maxAge}
               onChange={(e) => {
@@ -158,7 +165,7 @@ export function InviteDialog({
             </select>
           </label>
           <label className="lng-field">
-            <span>Max number of uses</span>
+            <span>{t('lounge.inviteDialog.maxUses')}</span>
             <select
               value={maxUses}
               onChange={(e) => {
@@ -181,39 +188,41 @@ export function InviteDialog({
         )}
         <div className="lng-form-actions">
           <Button loading={busy} onClick={() => void generate()}>
-            Copy link
+            {t('lounge.inviteDialog.copyLink')}
           </Button>
         </div>
         {created && (
           <div className="lng-invite-link">
             <input
               readOnly
-              aria-label="Invite link"
+              aria-label={t('lounge.inviteDialog.inviteLink')}
               value={inviteUrl(created.code)}
               onFocus={(e) => e.currentTarget.select()}
             />
             <Button onClick={() => void copy(created.code)}>
-              {copied === created.code ? 'Copied!' : 'Copy'}
+              {copied === created.code
+                ? t('lounge.inviteDialog.copied')
+                : t('lounge.inviteDialog.copy')}
             </Button>
           </div>
         )}
         {created && (
           <p className="lng-muted" data-testid="invite-note">
             {created.max_uses === 1
-              ? 'This link can be used once'
+              ? t('lounge.inviteDialog.usedOnce')
               : created.max_uses
-                ? `This link can be used ${created.max_uses} times`
-                : 'This link can be used any number of times'}
+                ? t('lounge.inviteDialog.usedTimes', { count: created.max_uses })
+                : t('lounge.inviteDialog.usedAny')}
             {' · '}
             {expiryLabel(created.expires_at)}
           </p>
         )}
         {canList && (
-          <section aria-label="Active invites">
-            <h3 className="lng-form-h">Active invites</h3>
+          <section aria-label={t('lounge.inviteDialog.activeInvites')}>
+            <h3 className="lng-form-h">{t('lounge.inviteDialog.activeInvites')}</h3>
             {listError && <p role="alert">{listError}</p>}
             {!listError && invites.length === 0 && (
-              <p className="lng-muted">No active invites yet.</p>
+              <p className="lng-muted">{t('lounge.inviteDialog.noInvites')}</p>
             )}
             <ul className="lng-invite-list">
               {invites.map((inv) => (
@@ -221,8 +230,9 @@ export function InviteDialog({
                   <div>
                     <code>{inv.code}</code>
                     <small>
-                      {inv.uses}
-                      {inv.max_uses ? ` / ${inv.max_uses}` : ''} uses ·{' '}
+                      {inv.max_uses
+                        ? t('lounge.inviteDialog.usesOf', { uses: inv.uses, max: inv.max_uses })
+                        : t('lounge.inviteDialog.usesOnly', { uses: inv.uses })}{' '}
                       {expiryLabel(inv.expires_at)}
                       {inv.channel.name ? ` · #${inv.channel.name}` : ''}
                     </small>
@@ -230,18 +240,20 @@ export function InviteDialog({
                   <Button
                     size="sm"
                     variant="ghost"
-                    aria-label={`Copy link for ${inv.code}`}
+                    aria-label={t('lounge.inviteDialog.copyLinkFor', { code: inv.code })}
                     onClick={() => void copy(inv.code)}
                   >
-                    {copied === inv.code ? 'Copied!' : 'Copy link'}
+                    {copied === inv.code
+                      ? t('lounge.inviteDialog.copied')
+                      : t('lounge.inviteDialog.copyLink')}
                   </Button>
                   <Button
                     size="sm"
                     variant="danger"
-                    aria-label={`Revoke invite ${inv.code}`}
+                    aria-label={t('lounge.inviteDialog.revokeInvite', { code: inv.code })}
                     onClick={() => void revoke(inv.code)}
                   >
-                    Revoke
+                    {t('lounge.inviteDialog.revoke')}
                   </Button>
                 </li>
               ))}

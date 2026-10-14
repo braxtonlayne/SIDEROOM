@@ -19,6 +19,7 @@ import {
   type Message,
   type Snowflake,
 } from './data';
+import { useT } from '../i18n';
 import { MessageItem, type NameDecor, type ReplyState } from './MessageItem';
 import { DeleteMessageDialog, ForwardDialog, PinMessageDialog } from './msg/MessageDialogs';
 import { ReactorsModal } from './msg/Reactors';
@@ -79,6 +80,7 @@ export function MessageList({
   onCancelEdit,
   inThread,
 }: MessageListProps) {
+  const t = useT();
   const { messages, hasMore, loadingOlder, atLatest } = useMessages(channelId);
   const me = useCurrentUser();
   const users = useUsers();
@@ -441,8 +443,13 @@ export function MessageList({
     if (!lastMsg || spoken.current === lastMsg.id) return;
     spoken.current = lastMsg.id;
     if (lastMsg.tts && lastMsg.author.id !== me.id && !lastMsg.pending)
-      speak(`${lastMsg.author.displayName} says ${lastMsg.content}`);
-  }, [lastMsg, me.id]);
+      speak(
+        t('lounge.messageList.speechText', {
+          name: lastMsg.author.displayName,
+          content: lastMsg.content,
+        }),
+      );
+  }, [lastMsg, me.id, t]);
 
   const oldestId = messages[0]?.id;
   const replyState = (m: Message): ReplyState => {
@@ -462,7 +469,10 @@ export function MessageList({
       {unreadCount > 0 && !bannerDismissed && !atBottom && (
         <div className="lng-unread-banner" role="status">
           <span>
-            {unreadCount >= 50 ? '50+' : unreadCount} new message{unreadCount === 1 ? '' : 's'}
+            {t('lounge.messageList.newMessages', {
+              count: unreadCount >= 50 ? '50+' : unreadCount,
+              n: unreadCount,
+            })}
           </span>
           <button
             type="button"
@@ -473,7 +483,7 @@ export function MessageList({
               setBannerDismissed(true);
             }}
           >
-            Mark As Read
+            {t('lounge.messageList.markAsRead')}
           </button>
         </div>
       )}
@@ -481,7 +491,7 @@ export function MessageList({
         ref={scroller}
         className="lng-messages"
         role="log"
-        aria-label={`Messages in ${title}`}
+        aria-label={t('lounge.messageList.messagesIn', { title })}
         aria-live="polite"
         aria-relevant="additions"
         tabIndex={0}
@@ -501,11 +511,11 @@ export function MessageList({
               >
                 {row.kind === 'welcome' && (
                   <div className="lng-welcome">
-                    <h2>{isDm ? title : `Welcome to #${title}!`}</h2>
+                    <h2>{isDm ? title : t('lounge.messageList.welcomeChannel', { title })}</h2>
                     <p>
                       {isDm
-                        ? `This is the beginning of your direct message history with ${title}.`
-                        : `This is the start of the #${title} channel.`}
+                        ? t('lounge.messageList.dmStart', { title })
+                        : t('lounge.messageList.channelStart', { title })}
                     </p>
                   </div>
                 )}
@@ -522,28 +532,26 @@ export function MessageList({
                   <div
                     className="lng-divider lng-divider-new"
                     role="separator"
-                    aria-label="New messages"
+                    aria-label={t('lounge.messageList.newMessagesDivider')}
                   >
-                    <span>NEW</span>
+                    <span>{t('lounge.messageList.newBadge')}</span>
                   </div>
                 )}
                 {row.kind === 'hidden' && (
                   <div className="lng-hidden-run">
                     <span>
-                      {row.count}{' '}
-                      {row.blocked && row.ignored
-                        ? 'blocked or ignored'
-                        : row.blocked
-                          ? 'blocked'
-                          : 'ignored'}{' '}
-                      {row.count === 1 ? 'message' : 'messages'}
+                      {t('lounge.messageList.hiddenRun', {
+                        count: row.count,
+                        kind:
+                          row.blocked && row.ignored ? 'both' : row.blocked ? 'blocked' : 'ignored',
+                      })}
                     </span>
                     <button
                       type="button"
                       className="lng-link-btn"
                       onClick={() => setShownRuns((s) => new Set(s).add(row.key))}
                     >
-                      Show {row.count === 1 ? 'message' : 'messages'}
+                      {t('lounge.messageList.showHidden', { count: row.count })}
                     </button>
                   </div>
                 )}
@@ -597,7 +605,7 @@ export function MessageList({
         </div>
         {loadingOlder && (
           <div className="lng-loading-older" role="status">
-            Loading earlier messages…
+            {t('lounge.messageList.loadingEarlier')}
           </div>
         )}
       </div>
@@ -613,9 +621,9 @@ export function MessageList({
             } else scrollToEnd();
           }}
         >
-          You&apos;re viewing older messages
+          {t('lounge.messageList.viewingOlder')}
           <span>
-            Jump To Present <Icon name="chevron-down" size={16} />
+            {t('lounge.messageList.jumpToPresent')} <Icon name="chevron-down" size={16} />
           </span>
         </button>
       )}

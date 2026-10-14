@@ -1,4 +1,5 @@
 import { useId, useState, type KeyboardEvent } from 'react';
+import { useT } from '../../i18n';
 import { searchSettings, sectionLabel, type SettingsEntry } from './searchIndex';
 
 /**
@@ -6,6 +7,7 @@ import { searchSettings, sectionLabel, type SettingsEntry } from './searchIndex'
  * the words people use for them; choosing one opens its section and scrolls to its card.
  */
 export function SettingsSearch({ onPick }: { onPick: (entry: SettingsEntry) => void }) {
+  const t = useT();
   const [query, setQuery] = useState('');
   const listId = useId();
   const results = searchSettings(query);
@@ -30,8 +32,8 @@ export function SettingsSearch({ onPick }: { onPick: (entry: SettingsEntry) => v
       <input
         type="search"
         className="us-search-input"
-        aria-label="Search settings"
-        placeholder="Search"
+        aria-label={t('settings.search.aria')}
+        placeholder={t('settings.search.placeholder')}
         autoComplete="off"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
@@ -39,9 +41,9 @@ export function SettingsSearch({ onPick }: { onPick: (entry: SettingsEntry) => v
         aria-controls={query ? listId : undefined}
       />
       {query.trim() !== '' && (
-        <ul id={listId} className="us-search-results" aria-label="Search results">
+        <ul id={listId} className="us-search-results" aria-label={t('settings.search.results')}>
           {results.length === 0 ? (
-            <li className="us-muted">No settings match &quot;{query.trim()}&quot;.</li>
+            <li className="us-muted">{t('settings.search.noMatch', { query: query.trim() })}</li>
           ) : (
             results.map((r) => (
               <li key={`${r.section}-${r.card ?? r.label}`}>

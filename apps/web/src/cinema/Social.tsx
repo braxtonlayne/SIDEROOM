@@ -3,6 +3,7 @@
 import { Button, Checkbox, EmptyState, Notice, Select, Skeleton, TextArea } from '@sideroom/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useT } from '../i18n';
 import {
   deleteComment,
   deleteReview,
@@ -21,13 +22,14 @@ const when = (ms: number) =>
 
 /** Spoiler text stays hidden until the reader asks. */
 function Body({ text, spoiler }: { text: string; spoiler: boolean }) {
+  const t = useT();
   const [shown, setShown] = useState(false);
   if (spoiler && !shown)
     return (
       <p className="cin-spoiler">
-        <span className="cin-muted">This contains spoilers. </span>
+        <span className="cin-muted">{t('cinema.social.spoilerNote')}</span>
         <button type="button" className="cin-link-btn" onClick={() => setShown(true)}>
-          Show spoiler
+          {t('cinema.social.showSpoiler')}
         </button>
       </p>
     );
@@ -35,6 +37,7 @@ function Body({ text, spoiler }: { text: string; spoiler: boolean }) {
 }
 
 function ReviewItem({ r, titleId }: { r: Review; titleId: string }) {
+  const t = useT();
   const qc = useQueryClient();
   const refresh = () => void qc.invalidateQueries({ queryKey: ['cinema', 'reviews', titleId] });
   const helpful = useMutation({
@@ -45,7 +48,7 @@ function ReviewItem({ r, titleId }: { r: Review; titleId: string }) {
   return (
     <li className="cin-post">
       <p className="cin-post-head">
-        <strong>{r.mine ? 'You' : 'A member'}</strong>
+        <strong>{r.mine ? t('cinema.social.you') : t('cinema.social.member')}</strong>
         {r.rating ? <span className="cin-rating-badge">{r.rating}/10</span> : null}
         <span className="cin-muted">{when(r.created_at_ms)}</span>
       </p>
@@ -57,11 +60,12 @@ function ReviewItem({ r, titleId }: { r: Review; titleId: string }) {
           aria-pressed={r.voted}
           onClick={() => helpful.mutate(!r.voted)}
         >
-          {r.voted ? 'Marked helpful' : 'Helpful'} ({r.helpful_count})
+          {r.voted ? t('cinema.social.markedHelpful') : t('cinema.social.helpful')} (
+          {r.helpful_count})
         </button>
         {r.mine && (
           <button type="button" className="cin-link-btn" onClick={() => remove.mutate()}>
-            Delete my review
+            {t('cinema.social.deleteReview')}
           </button>
         )}
       </p>
@@ -70,6 +74,7 @@ function ReviewItem({ r, titleId }: { r: Review; titleId: string }) {
 }
 
 export function Reviews({ titleId }: { titleId: string }) {
+  const t = useT();
   const qc = useQueryClient();
   const [sort, setSort] = useState<'helpful' | 'recent'>('helpful');
   const [text, setText] = useState('');
@@ -104,7 +109,7 @@ export function Reviews({ titleId }: { titleId: string }) {
         }}
       >
         <TextArea
-          label={mine ? 'Replace your review' : 'Write a review'}
+          label={mine ? t('cinema.social.replaceYourReview') : t('cinema.social.writeReview')}
           value={text}
           maxLength={5000}
           rows={4}
@@ -112,45 +117,48 @@ export function Reviews({ titleId }: { titleId: string }) {
         />
         <div className="cin-post-form-row">
           <Select
-            aria-label="Rating with this review"
-            placeholder="Rating (optional)"
+            aria-label={t('cinema.social.ratingLabel')}
+            placeholder={t('cinema.social.ratingPlaceholder')}
             value={score || '0'}
             onValueChange={(v) => setScore(v === '0' ? '' : v)}
             options={[
-              { value: '0', label: 'No rating' },
+              { value: '0', label: t('cinema.social.noRating') },
               ...Array.from({ length: 10 }, (_, i) => ({
                 value: String(i + 1),
-                label: `${i + 1} out of 10`,
+                label: t('cinema.social.outOfTen', { n: i + 1 }),
               })),
             ]}
           />
           <Checkbox
-            label="Contains spoilers"
+            label={t('cinema.social.containsSpoilers')}
             checked={spoiler}
             onChange={(e) => setSpoiler(e.target.checked)}
           />
           <Button type="submit" disabled={!text.trim() || save.isPending}>
-            {mine ? 'Replace review' : 'Post review'}
+            {mine ? t('cinema.social.replaceReview') : t('cinema.social.postReview')}
           </Button>
         </div>
-        {save.isError && <Notice variant="danger">We could not save your review.</Notice>}
+        {save.isError && <Notice variant="danger">{t('cinema.social.saveError')}</Notice>}
       </form>
       <div className="cin-ep-tools">
         <Select
-          aria-label="Sort reviews"
-          placeholder="Sort"
+          aria-label={t('cinema.social.sortReviews')}
+          placeholder={t('cinema.social.sort')}
           value={sort}
           onValueChange={(v) => setSort(v as 'helpful' | 'recent')}
           options={[
-            { value: 'helpful', label: 'Most helpful' },
-            { value: 'recent', label: 'Newest' },
+            { value: 'helpful', label: t('cinema.social.mostHelpful') },
+            { value: 'recent', label: t('cinema.social.newest') },
           ]}
         />
       </div>
       {q.isPending && <Skeleton height={80} />}
-      {q.isError && <Notice variant="danger">Reviews are unavailable right now.</Notice>}
+      {q.isError && <Notice variant="danger">{t('cinema.social.reviewsUnavailable')}</Notice>}
       {q.isSuccess && q.data.length === 0 && (
-        <EmptyState title="No reviews yet" description="Be the first to say what you thought." />
+        <EmptyState
+          title={t('cinema.social.noReviewsTitle')}
+          description={t('cinema.social.noReviewsBody')}
+        />
       )}
       <ul className="cin-posts">
         {q.data?.map((r) => (
@@ -162,6 +170,7 @@ export function Reviews({ titleId }: { titleId: string }) {
 }
 
 function CommentItem({ c, titleId }: { c: Comment; titleId: string }) {
+  const t = useT();
   const qc = useQueryClient();
   const refresh = () => void qc.invalidateQueries({ queryKey: keys.comments(titleId) });
   const like = useMutation({
@@ -172,7 +181,7 @@ function CommentItem({ c, titleId }: { c: Comment; titleId: string }) {
   return (
     <li className="cin-post">
       <p className="cin-post-head">
-        <strong>{c.mine ? 'You' : 'A member'}</strong>
+        <strong>{c.mine ? t('cinema.social.you') : t('cinema.social.member')}</strong>
         <span className="cin-muted">{when(c.created_at_ms)}</span>
       </p>
       <Body text={c.body} spoiler={c.spoiler} />
@@ -183,11 +192,11 @@ function CommentItem({ c, titleId }: { c: Comment; titleId: string }) {
           aria-pressed={c.liked}
           onClick={() => like.mutate(!c.liked)}
         >
-          {c.liked ? 'Liked' : 'Like'} ({c.like_count})
+          {c.liked ? t('cinema.social.liked') : t('cinema.social.like')} ({c.like_count})
         </button>
         {c.mine && (
           <button type="button" className="cin-link-btn" onClick={() => remove.mutate()}>
-            Delete my comment
+            {t('cinema.social.deleteComment')}
           </button>
         )}
       </p>
@@ -196,6 +205,7 @@ function CommentItem({ c, titleId }: { c: Comment; titleId: string }) {
 }
 
 export function Comments({ titleId }: { titleId: string }) {
+  const t = useT();
   const qc = useQueryClient();
   const [text, setText] = useState('');
   const [spoiler, setSpoiler] = useState(false);
@@ -218,7 +228,7 @@ export function Comments({ titleId }: { titleId: string }) {
         }}
       >
         <TextArea
-          label="Add a comment"
+          label={t('cinema.social.addComment')}
           value={text}
           maxLength={2000}
           rows={3}
@@ -226,19 +236,21 @@ export function Comments({ titleId }: { titleId: string }) {
         />
         <div className="cin-post-form-row">
           <Checkbox
-            label="Contains spoilers"
+            label={t('cinema.social.containsSpoilers')}
             checked={spoiler}
             onChange={(e) => setSpoiler(e.target.checked)}
           />
           <Button type="submit" disabled={!text.trim() || post.isPending}>
-            Post comment
+            {t('cinema.social.postComment')}
           </Button>
         </div>
-        {post.isError && <Notice variant="danger">We could not post your comment.</Notice>}
+        {post.isError && <Notice variant="danger">{t('cinema.social.postError')}</Notice>}
       </form>
       {q.isPending && <Skeleton height={80} />}
-      {q.isError && <Notice variant="danger">Comments are unavailable right now.</Notice>}
-      {q.isSuccess && q.data.length === 0 && <EmptyState title="No comments yet" />}
+      {q.isError && <Notice variant="danger">{t('cinema.social.commentsUnavailable')}</Notice>}
+      {q.isSuccess && q.data.length === 0 && (
+        <EmptyState title={t('cinema.social.noCommentsTitle')} />
+      )}
       <ul className="cin-posts">
         {q.data?.map((c) => (
           <CommentItem key={c.id} c={c} titleId={titleId} />

@@ -1,5 +1,6 @@
 import { Button, Icon, Modal, ProgressBar } from '@sideroom/ui';
 import { useEffect, useMemo, useState } from 'react';
+import { useT } from '../../i18n';
 import { fileIcon } from './Attachments';
 import { formatBytes } from './format';
 import type { PendingFile } from './upload';
@@ -35,6 +36,7 @@ export function UploadTray({
   onChange: (id: string, patch: Partial<PendingFile>) => void;
   onRemove: (id: string) => void;
 }) {
+  const t = useT();
   const [editing, setEditing] = useState<string | null>(null);
   const target = files.find((f) => f.id === editing);
   const [name, setName] = useState('');
@@ -52,7 +54,7 @@ export function UploadTray({
   if (files.length === 0) return null;
   return (
     <>
-      <ul className="lng-tray" aria-label="Files to upload">
+      <ul className="lng-tray" aria-label={t('lounge.uploadTray.filesToUpload')}>
         {files.map((f) => (
           <li key={f.id} className="lng-tray-card" data-status={f.status}>
             <Thumb file={f.file} />
@@ -64,20 +66,20 @@ export function UploadTray({
             {(f.status === 'uploading' || f.status === 'done') && (
               <ProgressBar
                 value={Math.round(f.progress * 100)}
-                label={`Uploading ${f.name}`}
+                label={t('lounge.uploadTray.uploading', { name: f.name })}
                 size={6}
               />
             )}
             {f.status === 'error' && (
               <span className="lng-failed" role="alert">
-                {f.error ?? 'Upload failed.'}
+                {f.error ?? t('lounge.uploadTray.uploadFailed')}
               </span>
             )}
             <span className="lng-tray-actions">
               <button
                 type="button"
                 className="lng-icon-btn"
-                aria-label={`Edit ${f.name}`}
+                aria-label={t('lounge.uploadTray.edit', { name: f.name })}
                 disabled={busy}
                 onClick={() => setEditing(f.id)}
               >
@@ -86,7 +88,11 @@ export function UploadTray({
               <button
                 type="button"
                 className="lng-icon-btn lng-danger"
-                aria-label={busy ? `Cancel upload of ${f.name}` : `Remove ${f.name}`}
+                aria-label={
+                  busy
+                    ? t('lounge.uploadTray.cancelUpload', { name: f.name })
+                    : t('lounge.uploadTray.remove', { name: f.name })
+                }
                 onClick={() => onRemove(f.id)}
               >
                 <Icon name="trash" size={16} />
@@ -98,12 +104,12 @@ export function UploadTray({
       <Modal
         open={!!target}
         onClose={() => setEditing(null)}
-        title="Modify Attachment"
+        title={t('lounge.uploadTray.modifyTitle')}
         size="sm"
         footer={
           <>
             <Button variant="ghost" onClick={() => setEditing(null)}>
-              Cancel
+              {t('lounge.uploadTray.cancel')}
             </Button>
             <Button
               onClick={() => {
@@ -116,23 +122,23 @@ export function UploadTray({
                 setEditing(null);
               }}
             >
-              Save
+              {t('lounge.uploadTray.save')}
             </Button>
           </>
         }
       >
         <form className="lng-form" onSubmit={(e) => e.preventDefault()}>
           <label className="lng-field">
-            <span>Filename</span>
+            <span>{t('lounge.uploadTray.filename')}</span>
             <input type="text" value={name} onChange={(e) => setName(e.target.value)} />
           </label>
           <label className="lng-field">
-            <span>Alt text</span>
+            <span>{t('lounge.uploadTray.altText')}</span>
             <input
               type="text"
               value={alt}
               maxLength={1024}
-              placeholder="Describe this for people who cannot see it"
+              placeholder={t('lounge.uploadTray.altPlaceholder')}
               onChange={(e) => setAlt(e.target.value)}
             />
           </label>
@@ -142,7 +148,7 @@ export function UploadTray({
               checked={spoiler}
               onChange={(e) => setSpoiler(e.target.checked)}
             />
-            <span>Mark as spoiler</span>
+            <span>{t('lounge.uploadTray.markSpoiler')}</span>
           </label>
         </form>
       </Modal>

@@ -1,6 +1,7 @@
 import { Button, Icon } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { apiFetch } from '../../api/client';
+import { useT } from '../../i18n';
 import { Composer } from '../Composer';
 import { useGuild, type Message } from '../data';
 import { MessageList } from '../MessageList';
@@ -19,6 +20,7 @@ export function ThreadPane({
   parentId: string;
   threadId: string;
 }) {
+  const t = useT();
   const thread = useThreads((s) => s.byId[threadId]);
   const guild = useGuild(guildId);
   const timedOutUntil = useMyTimeout(guildId);
@@ -57,10 +59,10 @@ export function ThreadPane({
     }
   };
 
-  const name = thread?.name ?? 'Thread';
+  const name = thread?.name ?? t('lounge.threadPane.defaultName');
   const canSend = !thread?.locked;
   return (
-    <aside className="lng-thread-pane" aria-label={`Thread: ${name}`}>
+    <aside className="lng-thread-pane" aria-label={t('lounge.threadPane.label', { name })}>
       <header className="lng-thread-head">
         <Icon name="list" size={20} />
         <h2 className="lng-thread-title">{name}</h2>
@@ -71,22 +73,27 @@ export function ThreadPane({
             onClick={() => void toggleFollow()}
             disabled={busy}
           >
-            {thread.joined ? 'Following' : 'Follow'}
+            {thread.joined ? t('lounge.threadPane.following') : t('lounge.threadPane.follow')}
           </Button>
         )}
-        <button type="button" className="lng-icon-btn" aria-label="Close thread" onClick={close}>
+        <button
+          type="button"
+          className="lng-icon-btn"
+          aria-label={t('lounge.threadPane.close')}
+          onClick={close}
+        >
           <Icon name="close" size={20} />
         </button>
       </header>
       {missing && !thread ? (
         <p className="lng-muted lng-thread-note" role="alert">
-          This thread no longer exists, or you cannot see it.
+          {t('lounge.threadPane.missing')}
         </p>
       ) : (
         <>
           {thread?.archived && (
             <p className="lng-muted lng-thread-note" role="status">
-              This thread is archived. Sending a message brings it back.
+              {t('lounge.threadPane.archived')}
             </p>
           )}
           <MessageList

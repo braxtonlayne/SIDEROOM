@@ -18,6 +18,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { lazy, Suspense, useState } from 'react';
 import { ApiError } from '../api/client';
+import { useT } from '../i18n';
 import {
   getEpisodes,
   getRelated,
@@ -52,12 +53,13 @@ const StartPartyDialog = lazy(() =>
 );
 
 function Meta({ d }: { d: TitleDetail }) {
+  const tr = useT();
   const t = d.title;
   const runtime =
     t.kind === 'movie'
       ? formatRuntime(t.runtime_min)
       : t.season_count
-        ? `${t.season_count} ${t.season_count === 1 ? 'season' : 'seasons'}`
+        ? tr('cinema.title.seasonCount', { n: t.season_count })
         : '';
   return (
     <p className="cin-hero-meta">
@@ -79,6 +81,7 @@ function Header({
   variant?: string;
   onVariant: (v: string) => void;
 }) {
+  const tr = useT();
   const my = useMy();
   const t = mergeMy(d.title, my);
   const open = useOpen();
@@ -110,17 +113,17 @@ function Header({
   const watch = `${watchHref(t.id)}${query.length ? `?${query.join('&')}` : ''}`;
 
   const ratingItems: MenuEntry[] = [
-    { type: 'label', label: 'Your rating' },
+    { type: 'label', label: tr('cinema.title.yourRating') },
     ...Array.from({ length: 10 }, (_, i) => 10 - i).map((n): MenuEntry => ({
       type: 'checkbox',
-      label: `${n} out of 10`,
+      label: tr('cinema.title.outOfTen', { n }),
       checked: mine === n,
       onCheckedChange: () => rate.mutate(n),
     })),
     ...(mine
       ? ([
           { type: 'separator' },
-          { label: 'Clear rating', onSelect: () => rate.mutate(null) },
+          { label: tr('cinema.title.clearRating'), onSelect: () => rate.mutate(null) },
         ] as MenuEntry[])
       : []),
   ];
@@ -129,9 +132,12 @@ function Header({
     const url = `${window.location.origin}/cinema/t/${t.id}`;
     try {
       await navigator.clipboard.writeText(url);
-      toast.show({ title: 'Link copied', description: 'Paste it into the Lounge to share.' });
+      toast.show({
+        title: tr('cinema.title.linkCopied'),
+        description: tr('cinema.title.linkCopiedBody'),
+      });
     } catch {
-      toast.show({ title: 'Could not copy the link', variant: 'warning' });
+      toast.show({ title: tr('cinema.title.copyFailed'), variant: 'warning' });
     }
   };
 
@@ -158,12 +164,12 @@ function Header({
         {d.variants.length > 0 && (
           <div className="cin-variant">
             <Select
-              aria-label="Version"
-              placeholder="Version"
+              aria-label={tr('cinema.title.version')}
+              placeholder={tr('cinema.title.version')}
               value={variant ?? STANDARD_CUT}
               onValueChange={(v) => onVariant(v === STANDARD_CUT ? '' : v)}
               options={[
-                { value: STANDARD_CUT, label: 'Standard cut' },
+                { value: STANDARD_CUT, label: tr('cinema.title.standardCut') },
                 ...d.variants.map((v) => ({ value: v.id, label: v.label })),
               ]}
             />
@@ -174,30 +180,31 @@ function Header({
             <Icon name="play" size={16} /> {playLabel(t)}
           </GoldButton>
           <Button variant="secondary" aria-pressed={inList} onClick={() => list.mutate(!inList)}>
-            <Icon name={inList ? 'check' : 'plus'} size={16} /> My list
+            <Icon name={inList ? 'check' : 'plus'} size={16} /> {tr('cinema.title.myList')}
           </Button>
           <DropdownMenu
-            label="Rate"
+            label={tr('cinema.title.rate')}
             items={ratingItems}
             trigger={
               <Button variant="secondary">
-                <Icon name="star" size={16} /> {mine ? `Rated ${mine}/10` : 'Rate'}
+                <Icon name="star" size={16} />{' '}
+                {mine ? tr('cinema.title.rated', { n: mine }) : tr('cinema.title.rate')}
               </Button>
             }
           />
           <Button variant="secondary" onClick={() => setTogether(true)}>
-            <Icon name="users" size={16} /> Watch together
+            <Icon name="users" size={16} /> {tr('cinema.title.watchTogether')}
           </Button>
           <Button variant="secondary" onClick={() => void share()}>
-            <Icon name="link" size={16} /> Share to Lounge
+            <Icon name="link" size={16} /> {tr('cinema.title.shareToLounge')}
           </Button>
           <Button
             variant="secondary"
             disabled={d.seasons.length > 0}
-            title={d.seasons.length > 0 ? 'Download an episode from the list below' : undefined}
+            title={d.seasons.length > 0 ? tr('cinema.title.downloadEpisodeHint') : undefined}
             onClick={() => setDownload(true)}
           >
-            <Icon name="download" size={16} /> Download
+            <Icon name="download" size={16} /> {tr('cinema.title.download')}
           </Button>
           {(t.trailer_url || t.has_trailer) && (
             <Button
@@ -208,15 +215,11 @@ function Header({
                   : void open(`${watchHref(t.id)}?trailer=1`, t.age_restricted)
               }
             >
-              Trailer
+              {tr('cinema.title.trailer')}
             </Button>
           )}
         </div>
-        {t.age_restricted && (
-          <p className="cin-muted">
-            This title is for adults. We ask you to confirm before it opens.
-          </p>
-        )}
+        {t.age_restricted && <p className="cin-muted">{tr('cinema.title.adultNote')}</p>}
       </div>
       <DownloadModal
         open={download}
@@ -263,6 +266,7 @@ function EpisodeRow({
   restricted: boolean;
   season: number;
 }) {
+  const tr = useT();
   const open = useOpen();
   const qc = useQueryClient();
   const seen = useMutation({
@@ -276,7 +280,7 @@ function EpisodeRow({
       <button
         type="button"
         className="cin-ep-still"
-        aria-label={`Play episode ${e.number}: ${e.title}`}
+        aria-label={tr('cinema.title.playEpisode', { n: e.number, title: e.title })}
         onClick={() => void open(`${watchHref(titleId)}?episode=${e.id}`, restricted)}
       >
         {e.still_url ? (
@@ -288,7 +292,7 @@ function EpisodeRow({
           <ProgressBar
             className="cin-ep-progress"
             value={e.progress_percent ?? 0}
-            label={`Episode ${e.number} progress`}
+            label={tr('cinema.title.episodeProgress', { n: e.number })}
             size={3}
           />
         )}
@@ -305,7 +309,7 @@ function EpisodeRow({
       <button
         type="button"
         className="cin-qa cin-ep-seen"
-        aria-label={`Download episode ${e.number}`}
+        aria-label={tr('cinema.title.downloadEpisode', { n: e.number })}
         onClick={() => setDownload(true)}
       >
         <Icon name="download" size={16} />
@@ -315,14 +319,20 @@ function EpisodeRow({
         onClose={() => setDownload(false)}
         titleId={titleId}
         episodeId={e.id}
-        title={`${seriesTitle} · S${season} E${e.number}`}
+        title={tr('cinema.title.episodeHeading', {
+          series: seriesTitle,
+          season,
+          n: e.number,
+        })}
       />
       <button
         type="button"
         className="cin-qa cin-ep-seen"
         aria-pressed={e.watched}
         aria-label={
-          e.watched ? `Mark episode ${e.number} unwatched` : `Mark episode ${e.number} watched`
+          e.watched
+            ? tr('cinema.title.markEpUnwatched', { n: e.number })
+            : tr('cinema.title.markEpWatched', { n: e.number })
         }
         onClick={() => seen.mutate(!e.watched)}
       >
@@ -333,6 +343,7 @@ function EpisodeRow({
 }
 
 function Episodes({ d }: { d: TitleDetail }) {
+  const tr = useT();
   const t = d.title;
   const qc = useQueryClient();
   const seasons = d.seasons;
@@ -353,13 +364,13 @@ function Episodes({ d }: { d: TitleDetail }) {
       <div className="cin-ep-tools">
         {seasons.length > 0 && (
           <Select
-            aria-label="Season"
-            placeholder="Season"
+            aria-label={tr('cinema.title.season')}
+            placeholder={tr('cinema.title.season')}
             value={String(current)}
             onValueChange={(v) => setSeason(Number(v))}
             options={seasons.map((s) => ({
               value: String(s.number),
-              label: s.title ?? `Season ${s.number}`,
+              label: s.title ?? tr('cinema.title.seasonN', { n: s.number }),
             }))}
           />
         )}
@@ -368,16 +379,16 @@ function Episodes({ d }: { d: TitleDetail }) {
           disabled={items.length === 0}
           onClick={() => all.mutate(!allSeen)}
         >
-          {allSeen ? 'Mark season unwatched' : 'Mark season watched'}
+          {allSeen ? tr('cinema.title.markSeasonUnwatched') : tr('cinema.title.markSeasonWatched')}
         </Button>
       </div>
       {q.isPending && <Skeleton height={80} />}
       {q.isError && (
-        <Notice variant="danger" title="Could not load episodes">
-          Try again in a moment.
+        <Notice variant="danger" title={tr('cinema.title.episodesErrorTitle')}>
+          {tr('cinema.title.tryAgainMoment')}
         </Notice>
       )}
-      {q.isSuccess && items.length === 0 && <EmptyState title="No episodes yet" />}
+      {q.isSuccess && items.length === 0 && <EmptyState title={tr('cinema.title.noEpisodes')} />}
       <ol className="cin-eps">
         {items.map((e) => (
           <EpisodeRow
@@ -395,17 +406,21 @@ function Episodes({ d }: { d: TitleDetail }) {
 }
 
 function Details({ d }: { d: TitleDetail }) {
+  const tr = useT();
   const rows: [string, string][] = [
-    ['Original title', d.title.original_title ?? ''],
-    ['Cast', d.cast.map((p) => p.name).join(', ')],
-    ['Crew', d.crew.map((p) => (p.role ? `${p.name} (${p.role})` : p.name)).join(', ')],
-    ['Studios', d.studios.join(', ')],
-    ['Audio', d.audio_languages.join(', ')],
-    ['Subtitles', d.subtitle_languages.join(', ')],
-    ['Versions', d.variants.map((v) => v.label).join(', ')],
+    [tr('cinema.title.originalTitle'), d.title.original_title ?? ''],
+    [tr('cinema.title.cast'), d.cast.map((p) => p.name).join(', ')],
+    [
+      tr('cinema.title.crew'),
+      d.crew.map((p) => (p.role ? `${p.name} (${p.role})` : p.name)).join(', '),
+    ],
+    [tr('cinema.title.studios'), d.studios.join(', ')],
+    [tr('cinema.title.audio'), d.audio_languages.join(', ')],
+    [tr('cinema.title.subtitles'), d.subtitle_languages.join(', ')],
+    [tr('cinema.title.versions'), d.variants.map((v) => v.label).join(', ')],
   ];
   const shown = rows.filter(([, v]) => v);
-  if (shown.length === 0) return <EmptyState title="No details yet" />;
+  if (shown.length === 0) return <EmptyState title={tr('cinema.title.noDetails')} />;
   return (
     <dl className="cin-details">
       {shown.map(([k, v]) => (
@@ -419,17 +434,19 @@ function Details({ d }: { d: TitleDetail }) {
 }
 
 function Related({ title }: { title: Title }) {
+  const tr = useT();
   const q = useQuery({ queryKey: keys.related(title.id), queryFn: () => getRelated(title) });
   if (q.isPending) return <Skeleton height={200} />;
   const items = q.data?.items ?? [];
-  if (q.isError || items.length === 0) return <EmptyState title="Nothing similar yet" />;
+  if (q.isError || items.length === 0)
+    return <EmptyState title={tr('cinema.title.nothingSimilar')} />;
   return (
     <>
-      <h2 className="cin-sr-only">More like this</h2>
+      <h2 className="cin-sr-only">{tr('cinema.title.moreLikeThis')}</h2>
       <ul className="cin-grid">
-        {items.map((t) => (
-          <li key={t.id}>
-            <TitleCard title={t} />
+        {items.map((it) => (
+          <li key={it.id}>
+            <TitleCard title={it} />
           </li>
         ))}
       </ul>
@@ -438,6 +455,7 @@ function Related({ title }: { title: Title }) {
 }
 
 export function TitlePage({ id }: { id: string }) {
+  const tr = useT();
   const [variant, setVariant] = useState<string | undefined>();
   const q = useQuery({ queryKey: keys.title(id), queryFn: () => getTitle(id) });
 
@@ -452,8 +470,10 @@ export function TitlePage({ id }: { id: string }) {
     return (
       <div className="cin-page">
         <EmptyState
-          title={missing ? 'We could not find that title' : 'This title is unavailable'}
-          description={missing ? 'It may have been unpublished.' : 'Try again in a moment.'}
+          title={missing ? tr('cinema.title.notFoundTitle') : tr('cinema.title.unavailableTitle')}
+          description={
+            missing ? tr('cinema.title.notFoundBody') : tr('cinema.title.tryAgainMoment')
+          }
         />
       </div>
     );
@@ -466,18 +486,36 @@ export function TitlePage({ id }: { id: string }) {
       <Header d={d} variant={variant} onVariant={setVariant} />
       <div className="cin-page">
         <Tabs
-          label="Title sections"
+          label={tr('cinema.title.sections')}
           items={[
             ...(episodic
-              ? [{ id: 'episodes', label: 'Episodes', content: <Episodes d={d} /> }]
+              ? [
+                  {
+                    id: 'episodes',
+                    label: tr('cinema.title.tabEpisodes'),
+                    content: <Episodes d={d} />,
+                  },
+                ]
               : []),
-            { id: 'details', label: 'Details', content: <Details d={d} /> },
-            { id: 'reviews', label: 'Reviews', content: <Reviews titleId={t.id} /> },
-            { id: 'comments', label: 'Comments', content: <Comments titleId={t.id} /> },
-            { id: 'related', label: 'More like this', content: <Related title={t} /> },
+            { id: 'details', label: tr('cinema.title.tabDetails'), content: <Details d={d} /> },
+            {
+              id: 'reviews',
+              label: tr('cinema.title.tabReviews'),
+              content: <Reviews titleId={t.id} />,
+            },
+            {
+              id: 'comments',
+              label: tr('cinema.title.tabComments'),
+              content: <Comments titleId={t.id} />,
+            },
+            {
+              id: 'related',
+              label: tr('cinema.title.moreLikeThis'),
+              content: <Related title={t} />,
+            },
             {
               id: 'contributors',
-              label: 'Contributors',
+              label: tr('cinema.title.tabContributors'),
               disabled: d.contributors.length === 0,
               content: (
                 <ul className="cin-contrib">

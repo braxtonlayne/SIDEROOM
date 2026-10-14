@@ -12,6 +12,7 @@ import {
 } from '@sideroom/ui';
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { ApiError } from '../../api/client';
+import { t, useT } from '../../i18n';
 import { usePresenceMap, type Presence } from '../data';
 import { useLoungeUi } from '../store';
 import {
@@ -42,6 +43,7 @@ function FriendRow({
   presence: PresenceMap;
   actions: RowActions;
 }) {
+  const t = useT();
   const p = presence[r.id];
   const name = wireName(r.user);
   return (
@@ -54,35 +56,39 @@ function FriendRow({
       <Button
         size="sm"
         variant="secondary"
-        aria-label={`Message ${name}`}
+        aria-label={t('lounge.friends.messageLabel', { name })}
         onClick={() => actions.message(r)}
       >
-        <Icon name="reply" size={16} /> Message
+        <Icon name="reply" size={16} /> {t('lounge.friends.message')}
       </Button>
       <DropdownMenu
-        label={`${name} actions`}
+        label={t('lounge.friends.actionsLabel', { name })}
         items={[
-          { label: 'Start Video Call', disabled: true },
-          { label: 'Start Voice Call', disabled: true },
+          { label: t('lounge.friends.videoCall'), disabled: true },
+          { label: t('lounge.friends.voiceCall'), disabled: true },
           { type: 'separator' },
           {
-            label: 'Remove Friend',
+            label: t('lounge.friends.removeFriend'),
             danger: true,
             onSelect: () =>
-              void actions.run(removeRelationship(r.id), 'Could not remove that friend.'),
+              void actions.run(removeRelationship(r.id), t('lounge.friends.removeError')),
           },
           {
-            label: 'Ignore',
-            onSelect: () => void actions.run(ignoreUser(r.id), 'Could not ignore that person.'),
+            label: t('lounge.friends.ignore'),
+            onSelect: () => void actions.run(ignoreUser(r.id), t('lounge.friends.ignoreError')),
           },
           {
-            label: 'Block',
+            label: t('lounge.friends.block'),
             danger: true,
-            onSelect: () => void actions.run(blockUser(r.id), 'Could not block that person.'),
+            onSelect: () => void actions.run(blockUser(r.id), t('lounge.friends.blockError')),
           },
         ]}
         trigger={
-          <button type="button" className="lng-icon-btn" aria-label={`More actions for ${name}`}>
+          <button
+            type="button"
+            className="lng-icon-btn"
+            aria-label={t('lounge.friends.moreActions', { name })}
+          >
             <Icon name="more-horizontal" size={20} />
           </button>
         }
@@ -100,6 +106,7 @@ function PendingRow({
   kind: 'in' | 'out';
   actions: RowActions;
 }) {
+  const t = useT();
   const name = wireName(r.user);
   return (
     <li className="lng-friend-row">
@@ -107,15 +114,17 @@ function PendingRow({
       <span className="lng-friend-text">
         <span className="lng-friend-name">{name}</span>
         <span className="lng-friend-sub">
-          {kind === 'in' ? 'Incoming Friend Request' : 'Outgoing Friend Request'}
+          {kind === 'in'
+            ? t('lounge.friends.incomingRequest')
+            : t('lounge.friends.outgoingRequest')}
         </span>
       </span>
       {kind === 'in' && (
         <button
           type="button"
           className="lng-icon-btn"
-          aria-label={`Accept ${name}`}
-          onClick={() => void actions.run(acceptFriend(r.id), 'Could not accept that request.')}
+          aria-label={t('lounge.friends.acceptLabel', { name })}
+          onClick={() => void actions.run(acceptFriend(r.id), t('lounge.friends.acceptError'))}
         >
           <Icon name="check" size={20} />
         </button>
@@ -123,8 +132,12 @@ function PendingRow({
       <button
         type="button"
         className="lng-icon-btn"
-        aria-label={`${kind === 'in' ? 'Ignore' : 'Cancel request to'} ${name}`}
-        onClick={() => void actions.run(removeRelationship(r.id), 'Could not update that request.')}
+        aria-label={
+          kind === 'in'
+            ? t('lounge.friends.ignoreRequestLabel', { name })
+            : t('lounge.friends.cancelRequestLabel', { name })
+        }
+        onClick={() => void actions.run(removeRelationship(r.id), t('lounge.friends.updateError'))}
       >
         <Icon name="close" size={20} />
       </button>
@@ -147,20 +160,26 @@ function FriendList({
   presence: PresenceMap;
   actions: RowActions;
 }) {
+  const t = useT();
   if (!list.length)
     return (
       <EmptyState
         icon={<Icon name="users" size={24} />}
         title={empty}
-        description="When you add friends they show up here."
+        description={t('lounge.friends.listEmptyBody')}
       />
     );
   if (!shown.length)
-    return <EmptyState title="No friends match that search" description="Try a different name." />;
+    return (
+      <EmptyState
+        title={t('lounge.friends.noMatchTitle')}
+        description={t('lounge.friends.noMatchBody')}
+      />
+    );
   return (
     <>
       <h2 className="lng-friends-h">
-        {heading} — {shown.length}
+        {t('lounge.friends.headingCount', { heading, count: shown.length })}
       </h2>
       <ul className="lng-friend-list" aria-label={heading}>
         {shown.map((r) => (
@@ -173,6 +192,7 @@ function FriendList({
 
 /** Friends page (LNG-FRD-005..014): Online / All / Pending / Add Friend, search, row actions. */
 export function FriendsPage() {
+  const t = useT();
   const rows = useSocial((s) => s.relationships);
   const status = useSocial((s) => s.status);
   const load = useSocial((s) => s.loadRelationships);
@@ -208,7 +228,7 @@ export function FriendsPage() {
       }
     },
     message(r) {
-      openDm([r.id]).catch(() => setError('Could not open that conversation.'));
+      openDm([r.id]).catch(() => setError(t('lounge.friends.openError')));
     },
   };
 
@@ -225,15 +245,17 @@ export function FriendsPage() {
       incoming.length + outgoing.length === 0 ? (
         <EmptyState
           icon={<Icon name="clock" size={24} />}
-          title="There are no pending friend requests"
-          description="Here's a friend-shaped gap. Add someone from the Add Friend tab."
+          title={t('lounge.friends.pendingEmptyTitle')}
+          description={t('lounge.friends.pendingEmptyBody')}
         />
       ) : (
         <>
           {incoming.length > 0 && (
             <>
-              <h2 className="lng-friends-h">Incoming — {incoming.length}</h2>
-              <ul className="lng-friend-list" aria-label="Incoming friend requests">
+              <h2 className="lng-friends-h">
+                {t('lounge.friends.incomingCount', { count: incoming.length })}
+              </h2>
+              <ul className="lng-friend-list" aria-label={t('lounge.friends.incomingList')}>
                 {incoming.filter(match).map((r) => (
                   <PendingRow key={r.id} r={r} kind="in" actions={actions} />
                 ))}
@@ -242,8 +264,10 @@ export function FriendsPage() {
           )}
           {outgoing.length > 0 && (
             <>
-              <h2 className="lng-friends-h">Outgoing — {outgoing.length}</h2>
-              <ul className="lng-friend-list" aria-label="Outgoing friend requests">
+              <h2 className="lng-friends-h">
+                {t('lounge.friends.outgoingCount', { count: outgoing.length })}
+              </h2>
+              <ul className="lng-friend-list" aria-label={t('lounge.friends.outgoingList')}>
                 {outgoing.filter(match).map((r) => (
                   <PendingRow key={r.id} r={r} kind="out" actions={actions} />
                 ))}
@@ -257,8 +281,8 @@ export function FriendsPage() {
       <FriendList
         list={online}
         shown={online.filter(match)}
-        heading="Online"
-        empty="No one's around to play with"
+        heading={t('lounge.friends.tabOnline')}
+        empty={t('lounge.friends.onlineEmpty')}
         presence={presence}
         actions={actions}
       />
@@ -268,21 +292,21 @@ export function FriendsPage() {
       <FriendList
         list={friends}
         shown={friends.filter(match)}
-        heading="All friends"
-        empty="You have no friends yet"
+        heading={t('lounge.friends.allFriends')}
+        empty={t('lounge.friends.allEmpty')}
         presence={presence}
         actions={actions}
       />
     );
 
   const tabItems = [
-    { id: 'online', label: 'Online' },
-    { id: 'all', label: 'All' },
+    { id: 'online', label: t('lounge.friends.tabOnline') },
+    { id: 'all', label: t('lounge.friends.tabAll') },
     {
       id: 'pending',
       label: (
         <>
-          Pending{' '}
+          {t('lounge.friends.tabPending')}{' '}
           {incoming.length > 0 && (
             <Badge variant="danger" pill>
               {incoming.length}
@@ -291,17 +315,17 @@ export function FriendsPage() {
         </>
       ),
     },
-    { id: 'add', label: 'Add Friend' },
-  ].map((t) => ({ ...t, content: null }));
+    { id: 'add', label: t('lounge.friends.tabAdd') },
+  ].map((item) => ({ ...item, content: null }));
 
   return (
-    <section className="lng-channel-view lng-friends" aria-label="Friends">
+    <section className="lng-channel-view lng-friends" aria-label={t('lounge.friends.title')}>
       <header className="lng-header">
         <Icon name="users" size={24} />
-        <h1 className="lng-header-title">Friends</h1>
+        <h1 className="lng-header-title">{t('lounge.friends.title')}</h1>
         <Tabs
           items={tabItems}
-          label="Friends sections"
+          label={t('lounge.friends.sections')}
           value={tab}
           onValueChange={(id) => setTab(id as Tab)}
           variant="pill"
@@ -310,7 +334,7 @@ export function FriendsPage() {
         <button
           type="button"
           className="lng-icon-btn"
-          aria-label="New Group DM"
+          aria-label={t('lounge.friends.newGroupDm')}
           onClick={() => openDialog({ kind: 'createDm' })}
         >
           <Icon name="plus" size={20} />
@@ -325,42 +349,38 @@ export function FriendsPage() {
           )}
           {tab !== 'add' && !bannerDismissed && (
             <Notice variant="info" onDismiss={() => dismissBanner('friends-blocked')}>
-              Looking for accounts you&apos;ve blocked or ignored? Find them in User Settings under
-              Privacy & Safety.
+              {t('lounge.friends.blockedHint')}
             </Notice>
           )}
           {tab !== 'add' && (
             <TextInput
-              label="Search friends"
+              label={t('lounge.friends.searchLabel')}
               value={query}
-              placeholder="Search"
+              placeholder={t('lounge.friends.searchPlaceholder')}
               onChange={(e) => setQuery(e.target.value)}
             />
           )}
           {status === 'loading' && rows.length === 0 && (
             <p role="status">
-              <Spinner label="Loading friends" />
+              <Spinner label={t('lounge.friends.loading')} />
             </p>
           )}
           {status === 'error' && (
             <Notice variant="danger">
-              Could not load your friends.{' '}
+              {t('lounge.friends.loadError')}{' '}
               <Button size="sm" variant="secondary" onClick={() => void load()}>
-                Try again
+                {t('lounge.friends.tryAgain')}
               </Button>
             </Notice>
           )}
           {(status === 'ready' || rows.length > 0 || tab === 'add') && body}
         </div>
-        <aside className="lng-active-now" aria-label="Active Now">
-          <h2 className="lng-friends-h">Active Now</h2>
+        <aside className="lng-active-now" aria-label={t('lounge.friends.activeNow')}>
+          <h2 className="lng-friends-h">{t('lounge.friends.activeNow')}</h2>
           {active.length === 0 ? (
             <div className="lng-active-empty">
-              <p className="lng-active-title">It&apos;s quiet for now...</p>
-              <p className="lng-muted">
-                When a friend starts an activity, like playing, watching or reading, we&apos;ll show
-                it here.
-              </p>
+              <p className="lng-active-title">{t('lounge.friends.quietTitle')}</p>
+              <p className="lng-muted">{t('lounge.friends.quietBody')}</p>
             </div>
           ) : (
             <ul className="lng-active-list">
@@ -387,19 +407,20 @@ export function activeNow(friends: RelationshipRow[], presence: PresenceMap) {
     const p = presence[row.id];
     const act = p?.activity;
     if (!p || p.status === 'offline' || !act || act.kind === 'custom') return [];
-    const verb =
+    const text =
       act.kind === 'playing'
-        ? 'Playing'
+        ? t('lounge.friends.activityPlaying', { text: act.text })
         : act.kind === 'watching'
-          ? 'Watching'
+          ? t('lounge.friends.activityWatching', { text: act.text })
           : act.kind === 'reading'
-            ? 'Reading'
-            : 'Listening to';
-    return [{ row, status: p.status, text: `${verb} ${act.text}` }];
+            ? t('lounge.friends.activityReading', { text: act.text })
+            : t('lounge.friends.activityListening', { text: act.text });
+    return [{ row, status: p.status, text }];
   });
 }
 
 function AddFriend() {
+  const t = useT();
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
@@ -408,22 +429,22 @@ function AddFriend() {
     e.preventDefault();
     const username = name.trim().replace(/^@/, '');
     if (!username) {
-      setResult({ ok: false, text: 'Enter a username.' });
+      setResult({ ok: false, text: t('lounge.friends.enterUsername') });
       return;
     }
     setBusy(true);
     setResult(null);
     try {
       await addFriendByUsername(username);
-      setResult({ ok: true, text: `Success! Your friend request to ${username} was sent.` });
+      setResult({ ok: true, text: t('lounge.friends.requestSent', { username }) });
       setName('');
     } catch (err) {
       setResult({
         ok: false,
         text:
           err instanceof ApiError && err.status === 429
-            ? 'You are sending requests too quickly. Wait a moment and try again.'
-            : 'Hm, didn’t work. Double check that the username is correct.',
+            ? t('lounge.friends.rateLimited')
+            : t('lounge.friends.addFailed'),
       });
     } finally {
       setBusy(false);
@@ -432,12 +453,12 @@ function AddFriend() {
 
   return (
     <form className="lng-form lng-add-friend" onSubmit={(e) => void submit(e)} noValidate>
-      <h2 className="lng-friends-h">Add Friend</h2>
-      <p className="lng-muted">You can add friends with their SIDE ROOM username.</p>
+      <h2 className="lng-friends-h">{t('lounge.friends.tabAdd')}</h2>
+      <p className="lng-muted">{t('lounge.friends.addHint')}</p>
       <TextInput
-        label="Username"
+        label={t('lounge.friends.usernameLabel')}
         value={name}
-        placeholder="You can add friends with their username"
+        placeholder={t('lounge.friends.usernamePlaceholder')}
         onChange={(e) => setName(e.target.value)}
         {...(result && !result.ok ? { error: result.text } : {})}
       />
@@ -448,7 +469,7 @@ function AddFriend() {
       )}
       <div>
         <Button type="submit" loading={busy} disabled={!name.trim()}>
-          Send Friend Request
+          {t('lounge.friends.sendRequest')}
         </Button>
       </div>
     </form>

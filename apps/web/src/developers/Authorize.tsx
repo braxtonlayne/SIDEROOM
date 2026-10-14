@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider, useMutation, useQuery } from '@tansta
 import { Link, useNavigate, useRouter } from '@tanstack/react-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError } from '../api/client';
+import { useT, type MessageKey } from '../i18n';
 import { useAppliedTheme } from '../settings/user/useAppliedTheme';
 import { errorText, previewAuthorize, submitAuthorize, type AuthorizeQuery } from './api';
 import { AppIcon } from './Applications';
@@ -12,10 +13,10 @@ import type { ConsentGuild } from './types';
 import { Loading } from './ui';
 import './developers.css';
 
-const REASON: Record<NonNullable<ConsentGuild['reason']>, string> = {
-  missing_permission: 'you need Manage Server',
-  app_not_released: 'test servers only',
-  bot_not_public: 'private bot',
+const REASON: Record<NonNullable<ConsentGuild['reason']>, MessageKey> = {
+  missing_permission: 'developers.authorize.reasonMissingPermission',
+  app_not_released: 'developers.authorize.reasonAppNotReleased',
+  bot_not_public: 'developers.authorize.reasonBotNotPublic',
 };
 
 function Frame({ children }: { children: ReactNode }) {
@@ -27,6 +28,7 @@ function Frame({ children }: { children: ReactNode }) {
 }
 
 function Problem({ title, children }: { title: string; children: ReactNode }) {
+  const t = useT();
   return (
     <Frame>
       <h1 className="dev-auth-title">{title}</h1>
@@ -34,13 +36,14 @@ function Problem({ title, children }: { title: string; children: ReactNode }) {
         {children}
       </p>
       <Link to="/channels" className="dev-link">
-        Back to the lounge
+        {t('developers.authorize.backToLounge')}
       </Link>
     </Frame>
   );
 }
 
 function AuthorizeScreen({ search }: { search: AuthorizeSearch }) {
+  const t = useT();
   const navigate = useNavigate();
   const router = useRouter();
   const q: AuthorizeQuery | null = search.client_id
@@ -97,35 +100,44 @@ function AuthorizeScreen({ search }: { search: AuthorizeSearch }) {
     onSuccess: (r, authorize) => {
       const target = preview.data?.redirect_uri ?? null;
       if (r.location) {
-        if (!follow(r.location, target))
-          setError(
-            'The server sent you somewhere that is not a registered redirect, so we stopped.',
-          );
+        if (!follow(r.location, target)) setError(t('developers.authorize.badRedirect'));
         return;
       }
-      if (authorize) setDone(wantsBot ? 'The bot was added to your server.' : 'Access granted.');
+      if (authorize)
+        setDone(
+          wantsBot ? t('developers.authorize.botAdded') : t('developers.authorize.accessGranted'),
+        );
       else void navigate({ to: '/channels' });
     },
-    onError: (e) => setError(errorText(e, 'Could not complete the authorization.')),
+    onError: (e) => setError(errorText(e, t('developers.authorize.failed'))),
   });
 
-  if (!q) return <Problem title="Cannot authorize">This link is missing a client_id.</Problem>;
+  if (!q)
+    return (
+      <Problem title={t('developers.authorize.cannotAuthorize')}>
+        {t('developers.authorize.missingClientId')}
+      </Problem>
+    );
   if (parseScopes(q.scope).length === 0)
-    return <Problem title="Cannot authorize">This link does not ask for any scope.</Problem>;
+    return (
+      <Problem title={t('developers.authorize.cannotAuthorize')}>
+        {t('developers.authorize.noScope')}
+      </Problem>
+    );
   if (preview.isPending || unauthorized)
     return (
       <Frame>
-        <Loading what="the authorization request" />
+        <Loading what={t('developers.authorize.theRequest')} />
       </Frame>
     );
   if (preview.error) {
     const e = preview.error;
     return (
-      <Problem title="This request cannot be authorized">
+      <Problem title={t('developers.authorize.requestInvalidTitle')}>
         {e instanceof ApiError && e.status === 404
-          ? 'We do not know that application.'
-          : errorText(e, 'The request is not valid.')}{' '}
-        Nothing was shared. Go back to the app and try again.
+          ? t('developers.authorize.unknownApp')
+          : errorText(e, t('developers.authorize.requestNotValid'))}{' '}
+        {t('developers.authorize.nothingShared')}
       </Problem>
     );
   }
@@ -134,10 +146,10 @@ function AuthorizeScreen({ search }: { search: AuthorizeSearch }) {
   if (done)
     return (
       <Frame>
-        <h1 className="dev-auth-title">Authorized</h1>
+        <h1 className="dev-auth-title">{t('developers.authorize.authorized')}</h1>
         <p role="status">{done}</p>
         <Link to="/channels" className="dev-link">
-          Back to the lounge
+          {t('developers.authorize.backToLounge')}
         </Link>
       </Frame>
     );
@@ -159,19 +171,19 @@ function AuthorizeScreen({ search }: { search: AuthorizeSearch }) {
       <div className="dev-auth-head">
         <AppIcon app={p.application} size={64} />
         <h1 className="dev-auth-title">{p.application.name}</h1>
-        <p className="dev-muted">wants to access the SIDE ROOM account {who}</p>
+        <p className="dev-muted">{t('developers.authorize.wantsAccess', { who })}</p>
       </div>
       {p.application.release_state !== 'released' && (
-        <Notice variant="warning" title="This app is still in development">
-          It has not been through app review. Only continue if you know the developer.
+        <Notice variant="warning" title={t('developers.authorize.devTitle')}>
+          {t('developers.authorize.devBody')}
         </Notice>
       )}
       {p.already_authorized && (
-        <p className="dev-muted">You have authorized this app before. Continuing refreshes it.</p>
+        <p className="dev-muted">{t('developers.authorize.alreadyAuthorized')}</p>
       )}
       {p.application.description && <p className="dev-muted">{p.application.description}</p>}
-      <h2 className="dev-auth-sub">This will allow it to</h2>
-      <ul className="dev-scopes" aria-label="Requested access">
+      <h2 className="dev-auth-sub">{t('developers.authorize.willAllow')}</h2>
+      <ul className="dev-scopes" aria-label={t('developers.authorize.requestedAccess')}>
         {p.scopes.map((s) => {
           const sentence = scopeSentence(s.name);
           return <li key={s.name}>{sentence === s.name ? s.description || s.name : sentence}</li>;
@@ -182,7 +194,7 @@ function AuthorizeScreen({ search }: { search: AuthorizeSearch }) {
         <>
           <div className="dev-field">
             <label className="dev-label" htmlFor="dev-auth-guild">
-              Add to server
+              {t('developers.authorize.addToServer')}
             </label>
             <select
               id="dev-auth-guild"
@@ -190,38 +202,40 @@ function AuthorizeScreen({ search }: { search: AuthorizeSearch }) {
               value={guildId}
               onChange={(e) => setGuildId(e.target.value)}
             >
-              <option value="">Select a server</option>
+              <option value="">{t('developers.authorize.selectServer')}</option>
               {p.guilds.map((g) => (
                 <option key={g.id} value={g.id} disabled={!g.can_install}>
                   {g.can_install
                     ? g.name
-                    : `${g.name} (${g.reason ? REASON[g.reason] : 'cannot add'})`}
+                    : t('developers.authorize.guildOption', {
+                        name: g.name,
+                        reason: g.reason
+                          ? t(REASON[g.reason])
+                          : t('developers.authorize.cannotAdd'),
+                      })}
                 </option>
               ))}
             </select>
             {!p.guilds.some((g) => g.can_install) && (
               <p className="dev-muted">
-                There is no server you can add this bot to. You need Manage Server
-                {p.application.release_state !== 'released' &&
-                  ', and until the app is released it only works in your own small test servers'}
-                .
+                {p.application.release_state !== 'released'
+                  ? t('developers.authorize.noServerDev')
+                  : t('developers.authorize.noServer')}
               </p>
             )}
           </div>
           {labels.length > 0 && (
             <>
-              <h2 className="dev-auth-sub">The bot will be able to</h2>
-              <ul className="dev-scopes" aria-label="Bot permissions">
+              <h2 className="dev-auth-sub">{t('developers.authorize.botCan')}</h2>
+              <ul className="dev-scopes" aria-label={t('developers.authorize.botPermissions')}>
                 {labels.map((l) => (
                   <li key={l}>{l}</li>
                 ))}
               </ul>
-              <p className="dev-muted">
-                It only gets the permissions you hold yourself in that server.
-              </p>
+              <p className="dev-muted">{t('developers.authorize.botOnlyGets')}</p>
               {adminAsked && (
-                <Notice variant="warning" title="Administrator">
-                  Administrator lets the bot do anything in the server and ignores channel limits.
+                <Notice variant="warning" title={t('developers.authorize.adminTitle')}>
+                  {t('developers.authorize.adminBody')}
                 </Notice>
               )}
             </>
@@ -231,7 +245,8 @@ function AuthorizeScreen({ search }: { search: AuthorizeSearch }) {
 
       {redirectHost && (
         <p className="dev-muted">
-          You will be sent to <strong>{redirectHost}</strong> afterwards.
+          {t('developers.authorize.sentTo')} <strong>{redirectHost}</strong>{' '}
+          {t('developers.authorize.afterwards')}
         </p>
       )}
       {error && (
@@ -241,7 +256,7 @@ function AuthorizeScreen({ search }: { search: AuthorizeSearch }) {
       )}
       <div className="dev-auth-actions">
         <Button variant="ghost" disabled={finish.isPending} onClick={() => finish.mutate(false)}>
-          Cancel
+          {t('developers.authorize.cancel')}
         </Button>
         <Button
           loading={finish.isPending}
@@ -251,7 +266,7 @@ function AuthorizeScreen({ search }: { search: AuthorizeSearch }) {
             finish.mutate(true);
           }}
         >
-          Authorize
+          {t('developers.authorize.authorize')}
         </Button>
       </div>
     </Frame>
@@ -292,13 +307,14 @@ export function AuthorizePage({ search }: { search: AuthorizeSearch }) {
 
 /** /oauth2/authorized: where an approval without a redirect URI lands (a bot install, for example). */
 export function AuthorizedPage() {
+  const t = useT();
   return (
     <Providers>
       <Frame>
-        <h1 className="dev-auth-title">Authorized</h1>
-        <p role="status">You can close this tab and go back to the app.</p>
+        <h1 className="dev-auth-title">{t('developers.authorize.authorized')}</h1>
+        <p role="status">{t('developers.authorize.closeTab')}</p>
         <Link to="/channels" className="dev-link">
-          Back to the lounge
+          {t('developers.authorize.backToLounge')}
         </Link>
       </Frame>
     </Providers>

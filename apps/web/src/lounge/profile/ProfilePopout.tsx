@@ -2,6 +2,7 @@ import { Avatar, DropdownMenu, Icon, Modal, usePortalTarget, useFloating } from 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { apiFetch } from '../../api/client';
+import { useT } from '../../i18n';
 import { useViewer } from '../../settings/server/hooks';
 import {
   useCurrentUser,
@@ -36,6 +37,7 @@ function Banner({ profile }: { profile: Profile | null }) {
 
 /** Private note about the person, saved when the box loses focus (`GET/PUT /users/@me/notes/{id}`). */
 function NoteField({ userId }: { userId: string }) {
+  const t = useT();
   const [note, setNote] = useState('');
   const saved = useRef('');
   useEffect(() => {
@@ -64,12 +66,12 @@ function NoteField({ userId }: { userId: string }) {
   return (
     <section aria-labelledby="pop-note-h">
       <h3 id="pop-note-h" className="lng-pop-h">
-        Note
+        {t('lounge.profilePopout.note')}
       </h3>
       <input
         className="lng-pop-input"
-        aria-label="Note (only visible to you)"
-        placeholder="Click to add a note"
+        aria-label={t('lounge.profilePopout.noteLabel')}
+        placeholder={t('lounge.profilePopout.notePlaceholder')}
         maxLength={NOTE_MAX}
         value={note}
         onChange={(e) => setNote(e.target.value)}
@@ -82,6 +84,7 @@ function NoteField({ userId }: { userId: string }) {
 
 /** The role chips of a member, with remove and add for people who may manage those roles. */
 function RoleChips({ target }: { target: ProfileTarget }) {
+  const t = useT();
   const guildId = target.guildId!;
   const member = useMembers(guildId).find((m) => m.user.id === target.userId);
   const roles = useRoles(guildId);
@@ -110,7 +113,7 @@ function RoleChips({ target }: { target: ProfileTarget }) {
   return (
     <section aria-labelledby="pop-roles-h">
       <h3 id="pop-roles-h" className="lng-pop-h">
-        Roles
+        {t('lounge.profilePopout.roles')}
       </h3>
       <ul className="lng-pop-roles">
         {held.map((r) => (
@@ -125,7 +128,7 @@ function RoleChips({ target }: { target: ProfileTarget }) {
               <button
                 type="button"
                 className="lng-pop-role-x"
-                aria-label={`Remove role ${r.name}`}
+                aria-label={t('lounge.profilePopout.removeRole', { name: r.name })}
                 disabled={busy === r.id}
                 onClick={() => void change(r.id, false)}
               >
@@ -134,11 +137,11 @@ function RoleChips({ target }: { target: ProfileTarget }) {
             )}
           </li>
         ))}
-        {held.length === 0 && <li className="lng-muted">No roles</li>}
+        {held.length === 0 && <li className="lng-muted">{t('lounge.profilePopout.noRoles')}</li>}
         {addable.length > 0 && (
           <li>
             <DropdownMenu
-              label="Add role"
+              label={t('lounge.profilePopout.addRole')}
               items={addable.map((r) => ({
                 label: r.name,
                 onSelect: () => void change(r.id, true),
@@ -147,7 +150,7 @@ function RoleChips({ target }: { target: ProfileTarget }) {
                 <button
                   type="button"
                   className="lng-pop-role lng-pop-role-add"
-                  aria-label="Add role"
+                  aria-label={t('lounge.profilePopout.addRole')}
                 >
                   <Icon name="plus" size={16} />
                 </button>
@@ -162,6 +165,7 @@ function RoleChips({ target }: { target: ProfileTarget }) {
 
 /** Message box under the card: sends a DM without leaving the popout open. */
 function MessageBox({ userId, name }: { userId: string; name: string }) {
+  const t = useT();
   const [text, setText] = useState('');
   const [error, setError] = useState(false);
   const openDm = useOpenDm();
@@ -182,8 +186,8 @@ function MessageBox({ userId, name }: { userId: string; name: string }) {
     <div>
       <input
         className="lng-pop-input"
-        aria-label={`Message @${name}`}
-        placeholder={`Message @${name}`}
+        aria-label={t('lounge.profilePopout.messageLabel', { name })}
+        placeholder={t('lounge.profilePopout.messageLabel', { name })}
         value={text}
         onChange={(e) => {
           setText(e.target.value);
@@ -198,7 +202,7 @@ function MessageBox({ userId, name }: { userId: string; name: string }) {
       />
       {error && (
         <p role="alert" className="lng-failed">
-          Could not send that message.
+          {t('lounge.profilePopout.sendError')}
         </p>
       )}
     </div>
@@ -206,6 +210,7 @@ function MessageBox({ userId, name }: { userId: string; name: string }) {
 }
 
 function ProfileCard({ target }: { target: ProfileTarget }) {
+  const t = useT();
   const me = useCurrentUser();
   const users = useUsers();
   const user = users[target.userId];
@@ -214,7 +219,11 @@ function ProfileCard({ target }: { target: ProfileTarget }) {
   const state = useProfile(target.userId);
   const openFull = usePopout((s) => s.openFull);
   const profile = state.kind === 'ready' ? state.profile : null;
-  const name = member?.nick ?? user?.displayName ?? profile?.user.global_name ?? 'Unknown';
+  const name =
+    member?.nick ??
+    user?.displayName ??
+    profile?.user.global_name ??
+    t('lounge.profilePopout.unknown');
   const handle = user?.username ?? profile?.user.username ?? '';
   const isSelf = target.userId === me.id;
   const avatar = profile ? avatarUrlOf(profile.user) : (user?.avatarUrl ?? null);
@@ -235,13 +244,13 @@ function ProfileCard({ target }: { target: ProfileTarget }) {
         {presence.activity && <p className="lng-pop-activity">{presence.activity.text}</p>}
         {state.kind === 'loading' && (
           <p className="lng-muted" role="status">
-            Loading profile…
+            {t('lounge.profilePopout.loading')}
           </p>
         )}
         {profile?.user_profile.bio && (
           <section aria-labelledby="pop-about-h">
             <h3 id="pop-about-h" className="lng-pop-h">
-              About me
+              {t('lounge.profilePopout.aboutMe')}
             </h3>
             <p className="lng-pop-bio">{profile.user_profile.bio}</p>
           </section>
@@ -249,7 +258,7 @@ function ProfileCard({ target }: { target: ProfileTarget }) {
         {since && (
           <section aria-labelledby="pop-since-h">
             <h3 id="pop-since-h" className="lng-pop-h">
-              Member since
+              {t('lounge.profilePopout.memberSince')}
             </h3>
             <p>{new Date(since).toLocaleDateString([], { dateStyle: 'medium' })}</p>
           </section>
@@ -262,7 +271,7 @@ function ProfileCard({ target }: { target: ProfileTarget }) {
           className="lng-link-btn lng-pop-full"
           onClick={() => openFull({ userId: target.userId, guildId: target.guildId })}
         >
-          View Full Profile
+          {t('lounge.profilePopout.viewFull')}
         </button>
       </div>
     </>
@@ -270,6 +279,7 @@ function ProfileCard({ target }: { target: ProfileTarget }) {
 }
 
 function PopoutFrame({ target, anchor }: { target: ProfileTarget; anchor: HTMLElement }) {
+  const t = useT();
   const close = usePopout((s) => s.closeProfile);
   const portal = usePortalTarget();
   const node = useRef<HTMLDivElement | null>(null);
@@ -291,10 +301,10 @@ function PopoutFrame({ target, anchor }: { target: ProfileTarget; anchor: HTMLEl
       }
     };
     const onDown = (e: PointerEvent) => {
-      const t = e.target as Node;
-      if (node.current?.contains(t) || anchor.contains(t)) return;
+      const tgt = e.target as Node;
+      if (node.current?.contains(tgt) || anchor.contains(tgt)) return;
       // Menus and pickers opened from the popout live in portals of their own.
-      if ((t as Element).closest?.('[role="menu"], [role="dialog"], [role="listbox"]')) return;
+      if ((tgt as Element).closest?.('[role="menu"], [role="dialog"], [role="listbox"]')) return;
       close();
     };
     document.addEventListener('keydown', onKey, true);
@@ -315,7 +325,7 @@ function PopoutFrame({ target, anchor }: { target: ProfileTarget; anchor: HTMLEl
       }}
       className="lng-pop"
       role="dialog"
-      aria-label="User profile"
+      aria-label={t('lounge.profilePopout.userProfile')}
       tabIndex={-1}
       style={floating.style}
     >
@@ -327,20 +337,25 @@ function PopoutFrame({ target, anchor }: { target: ProfileTarget; anchor: HTMLEl
 
 /** Mutual servers, friends and connections (View Full Profile). */
 function FullProfile({ target, onClose }: { target: ProfileTarget; onClose: () => void }) {
+  const t = useT();
   const users = useUsers();
   const guilds = useGuilds();
   const state = useProfile(target.userId);
   const profile = state.kind === 'ready' ? state.profile : null;
   const user = users[target.userId];
   const name =
-    user?.displayName ?? profile?.user.global_name ?? profile?.user.username ?? 'Profile';
-  const nameOf = (g: string) => guilds.find((x) => x.id === g)?.name ?? 'A server';
+    user?.displayName ??
+    profile?.user.global_name ??
+    profile?.user.username ??
+    t('lounge.profilePopout.profileFallback');
+  const nameOf = (g: string) =>
+    guilds.find((x) => x.id === g)?.name ?? t('lounge.profilePopout.aServer');
   return (
     <Modal open onClose={onClose} title={name} size="md">
       <Banner profile={profile} />
       <div className="lng-full">
-        {state.kind === 'loading' && <p role="status">Loading profile…</p>}
-        {state.kind === 'error' && <p role="alert">Could not load this profile.</p>}
+        {state.kind === 'loading' && <p role="status">{t('lounge.profilePopout.loading')}</p>}
+        {state.kind === 'error' && <p role="alert">{t('lounge.profilePopout.loadError')}</p>}
         {profile && (
           <>
             <p className="lng-pop-handle">
@@ -349,31 +364,43 @@ function FullProfile({ target, onClose }: { target: ProfileTarget; onClose: () =
             </p>
             {profile.user_profile.bio && (
               <section>
-                <h3 className="lng-pop-h">About me</h3>
+                <h3 className="lng-pop-h">{t('lounge.profilePopout.aboutMe')}</h3>
                 <p className="lng-pop-bio">{profile.user_profile.bio}</p>
               </section>
             )}
             {profile.friends_since && (
               <p>
-                Friends since{' '}
-                {new Date(profile.friends_since).toLocaleDateString([], { dateStyle: 'medium' })}
+                {t('lounge.profilePopout.friendsSince', {
+                  date: new Date(profile.friends_since).toLocaleDateString([], {
+                    dateStyle: 'medium',
+                  }),
+                })}
               </p>
             )}
             <section>
-              <h3 className="lng-pop-h">Mutual servers — {profile.mutual_guilds?.length ?? 0}</h3>
+              <h3 className="lng-pop-h">
+                {t('lounge.profilePopout.mutualServers', {
+                  count: profile.mutual_guilds?.length ?? 0,
+                })}
+              </h3>
               <ul className="lng-pop-list">
                 {(profile.mutual_guilds ?? []).map((g) => (
                   <li key={g.id}>
                     <strong>{nameOf(g.id)}</strong>
-                    {g.nick ? <span className="lng-muted"> as {g.nick}</span> : null}
+                    {g.nick ? (
+                      <span className="lng-muted">
+                        {t('lounge.profilePopout.asNick', { nick: g.nick })}
+                      </span>
+                    ) : null}
                   </li>
                 ))}
               </ul>
             </section>
             <section>
               <h3 className="lng-pop-h">
-                Mutual friends —{' '}
-                {profile.mutual_friends_count ?? profile.mutual_friends?.length ?? 0}
+                {t('lounge.profilePopout.mutualFriends', {
+                  count: profile.mutual_friends_count ?? profile.mutual_friends?.length ?? 0,
+                })}
               </h3>
               <ul className="lng-pop-list">
                 {(profile.mutual_friends ?? []).map((f) => (
@@ -383,12 +410,14 @@ function FullProfile({ target, onClose }: { target: ProfileTarget; onClose: () =
             </section>
             {profile.connected_accounts.length > 0 && (
               <section>
-                <h3 className="lng-pop-h">Connections</h3>
+                <h3 className="lng-pop-h">{t('lounge.profilePopout.connections')}</h3>
                 <ul className="lng-pop-list">
                   {profile.connected_accounts.map((c) => (
                     <li key={c.id}>
                       {c.name} <span className="lng-muted">({c.type})</span>
-                      {c.verified && <Icon name="check" size={16} label="Verified" />}
+                      {c.verified && (
+                        <Icon name="check" size={16} label={t('lounge.profilePopout.verified')} />
+                      )}
                     </li>
                   ))}
                 </ul>

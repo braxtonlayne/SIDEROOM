@@ -1,6 +1,7 @@
 import { Button, Modal, Select, TextInput } from '@sideroom/ui';
 import { useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
+import { t, useT, type MessageKey } from '../../i18n';
 import { useStore } from '../../store';
 import { useLoungeGotoThread } from '../nav';
 import { useThreads } from './threadStore';
@@ -9,11 +10,11 @@ import { useThreads } from './threadStore';
 export const THREAD_NAME_MAX = 100;
 
 export const ARCHIVE_CHOICES = [
-  { value: '60', label: '1 hour' },
-  { value: '1440', label: '24 hours' },
-  { value: '4320', label: '3 days' },
-  { value: '10080', label: '1 week' },
-] as const;
+  { value: '60', labelKey: 'lounge.createThread.archive1h' },
+  { value: '1440', labelKey: 'lounge.createThread.archive24h' },
+  { value: '4320', labelKey: 'lounge.createThread.archive3d' },
+  { value: '10080', labelKey: 'lounge.createThread.archive1w' },
+] as const satisfies readonly { value: string; labelKey: MessageKey }[];
 
 /** First line of a message, trimmed to a thread name. */
 export function suggestThreadName(content: string): string {
@@ -22,7 +23,7 @@ export function suggestThreadName(content: string): string {
       .split('\n')[0]
       ?.replace(/[*_~`|>#]/g, '')
       .trim() ?? '';
-  return (line || 'New Thread').slice(0, THREAD_NAME_MAX);
+  return (line || t('lounge.createThread.defaultName')).slice(0, THREAD_NAME_MAX);
 }
 
 /** Create Thread from a message (LNG-MSGUI-025/026): `POST /channels/{c}/messages/{m}/threads`. */
@@ -38,6 +39,7 @@ export function CreateThreadDialog({
   messageId?: string | undefined;
   onClose: () => void;
 }) {
+  const t = useT();
   const message = useStore((s) => (messageId ? s.messages[messageId] : undefined));
   const [name, setName] = useState(() => suggestThreadName(message?.content ?? ''));
   const [archive, setArchive] = useState('1440');
@@ -49,35 +51,35 @@ export function CreateThreadDialog({
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) {
-      setError('Give the thread a name.');
+      setError(t('lounge.createThread.nameRequired'));
       return;
     }
     setBusy(true);
     setError(null);
     try {
       const body = { name: trimmed, auto_archive_duration: Number(archive) };
-      const t = messageId
+      const created = messageId
         ? await useThreads.getState().createFromMessage(channelId, messageId, body)
         : await useThreads.getState().createStandalone(channelId, body);
       onClose();
-      openThread(guildId, channelId, t.id);
+      openThread(guildId, channelId, created.id);
     } catch (err) {
       setError(
         err instanceof ApiError && err.status === 403
-          ? 'You cannot start threads in this channel.'
+          ? t('lounge.createThread.forbidden')
           : err instanceof ApiError && err.status === 400
-            ? 'That message already has a thread, or the name is not allowed.'
-            : 'Could not create the thread. Try again.',
+            ? t('lounge.createThread.badRequest')
+            : t('lounge.createThread.error'),
       );
       setBusy(false);
     }
   };
 
   return (
-    <Modal open onClose={onClose} size="sm" title="Create Thread">
+    <Modal open onClose={onClose} size="sm" title={t('lounge.createThread.title')}>
       <form className="lng-form" onSubmit={(e) => void submit(e)}>
         <TextInput
-          label="Thread name"
+          label={t('lounge.createThread.nameLabel')}
           value={name}
           maxLength={THREAD_NAME_MAX}
           autoFocus
@@ -85,20 +87,20 @@ export function CreateThreadDialog({
           onChange={(e) => setName(e.target.value)}
         />
         <label className="lng-field-label" htmlFor="thread-archive">
-          Hide after inactivity
+          {t('lounge.createThread.hideAfter')}
         </label>
         <Select
           id="thread-archive"
           value={archive}
           onValueChange={setArchive}
-          options={ARCHIVE_CHOICES.map((c) => ({ value: c.value, label: c.label }))}
+          options={ARCHIVE_CHOICES.map((c) => ({ value: c.value, label: t(c.labelKey) }))}
         />
         <div className="lng-form-actions">
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t('lounge.createThread.cancel')}
           </Button>
           <Button type="submit" loading={busy}>
-            Create Thread
+            {t('lounge.createThread.title')}
           </Button>
         </div>
       </form>

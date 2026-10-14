@@ -1,0 +1,90 @@
+export default {
+  'admin.ui.reasonLabel': 'Reason (recorded in the audit log)',
+  'admin.ui.cancel': 'Cancel',
+  'admin.ui.loadError': 'Could not load this.',
+  'admin.ui.loadMore': 'Load more',
+
+  'admin.dashboard.title': 'Dashboard',
+  'admin.dashboard.description':
+    'A read-only snapshot of the installation. Counts are live, not cached.',
+  'admin.dashboard.loading': 'Loading dashboard',
+  'admin.dashboard.activeAccounts': 'Active accounts',
+  'admin.dashboard.activeAccountsHint': 'of {cap} allowed',
+  'admin.dashboard.sessionsSignedIn': 'Sessions signed in',
+  'admin.dashboard.onlineNow': 'Online now',
+  'admin.dashboard.onlineNowHint': 'Open gateway connections',
+  'admin.dashboard.deactivated': 'Deactivated',
+  'admin.dashboard.platformBanned': 'Platform-banned',
+  'admin.dashboard.staff': 'Staff',
+  'admin.dashboard.jobsQueued': 'Jobs queued',
+  'admin.dashboard.jobsRunning': '{count} running',
+  'admin.dashboard.deadJobs': 'Dead jobs',
+  'admin.dashboard.needsAttention': 'Needs attention',
+  'admin.dashboard.none': 'None',
+  'admin.dashboard.capTitle': 'Accounts against the cap',
+  'admin.dashboard.capGaugeLabel': 'Active accounts against the account cap',
+  'admin.dashboard.capSummary':
+    '{active} of {cap} accounts. Reactivating a suspended account is refused once the cap is reached.',
+  'admin.dashboard.notTrackedTitle': 'Not tracked here yet',
+  'admin.dashboard.notTracked':
+    'Voice rooms, egress, storage, review-queue sizes and donations need their own backends; they will appear as those phases land.',
+
+  'admin.bans.title': 'Platform bans',
+  'admin.bans.description':
+    'A ban applies to a Person, so it covers every account they hold. Lifting a ban reactivates accounts while the account cap allows.',
+  'admin.bans.onlyActive': 'Only active bans',
+  'admin.bans.emptyTitle': 'No bans',
+  'admin.bans.emptyDescription': 'Nobody is platform-banned.',
+  'admin.bans.listLabel': 'Platform bans',
+  'admin.bans.person': 'Person',
+  'admin.bans.lifted': 'lifted',
+  'admin.bans.active': 'active',
+  'admin.bans.noNote': 'No note',
+  'admin.bans.banned': 'banned {when}',
+  'admin.bans.liftedAt': 'lifted {when}',
+  'admin.bans.liftAria': 'Lift ban on person {id}',
+  'admin.bans.liftButton': 'Lift ban',
+  'admin.bans.liftTitle': 'Lift this ban',
+  'admin.bans.liftDescription':
+    'Accounts of this Person return to active while the account cap allows; the rest stay deactivated.',
+  'admin.bans.liftedNotice':
+    'Ban lifted: {reactivated} account(s) reactivated, {left} left deactivated.',
+
+  'admin.cliParity.title': 'Command line',
+  'admin.cliParity.description':
+    "Everything here runs on the server with sr-cli, using the server's own configuration. Nothing on this page sends a request.",
+  'admin.cliParity.emergencyInvite.title': 'Emergency invite',
+  'admin.cliParity.emergencyInvite.note':
+    'Creates an open invite as an existing account, bypassing credits and the invite freeze. The code is printed once; it is also listed under Invites with an emergency tag.',
+  'admin.cliParity.listStaff.title': 'List staff',
+  'admin.cliParity.listStaff.note': 'Works even when nobody can sign in to the web app.',
+  'admin.cliParity.appoint.title': 'Appoint or remove staff',
+  'admin.cliParity.appoint.note': 'Same rules as the Staff page, and the same audit trail.',
+  'admin.cliParity.transfer.title': 'Transfer ownership',
+  'admin.cliParity.transfer.note':
+    'The only way to move the Owner role. It is deliberately not available in the web app.',
+  'admin.cliParity.verify.title': 'Verify the access log',
+  'admin.cliParity.verify.note':
+    'The same hash-chain check as the Verify chain button on the Access log page.',
+
+  'admin.features.title': 'Feature modules',
+  'admin.features.description':
+    'Platform-wide kill switches. A disabled feature is hidden from everyone, whatever servers or members have set.',
+  'admin.features.loading': 'Loading features',
+  'admin.features.empty': 'No feature modules are registered yet.',
+  'admin.features.listLabel': 'Feature modules',
+  'admin.features.overridden': 'overridden',
+  'admin.features.enabledLabel': '{name} enabled',
+  'admin.features.resetAria': 'Reset {name} to its default',
+  'admin.features.reset': 'Reset',
+  'admin.features.resetTitle': 'Reset {name}',
+  'admin.features.enableTitle': 'Enable {name}',
+  'admin.features.disableTitle': 'Disable {name}',
+  'admin.features.disableDescription': 'People lose access to this feature immediately.',
+  'admin.features.resetDescription': 'Returns to the default ({state}).',
+  'admin.features.stateOn': 'on',
+  'admin.features.stateOff': 'off',
+  'admin.features.enable': 'Enable',
+  'admin.features.disable': 'Disable',
+  'admin.features.updated': '{name} updated.',
+} satisfies Record<string, string>;

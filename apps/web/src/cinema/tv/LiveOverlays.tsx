@@ -1,6 +1,7 @@
 // Things drawn over the live picture: the channel OSD (TV-PLY-002), the now/next info banner with a progress
 // bar, the channel list overlay (G) and the tuning static (TV-PLY-003).
 import { useEffect, useRef, useState } from 'react';
+import { useT } from '../../i18n';
 import { nowAndNext, programProgress, timeLabel } from './model';
 import type { TvBlock, TvChannel } from './types';
 
@@ -36,35 +37,46 @@ export function InfoBanner({
   next: TvBlock | null;
   nowMs: number;
 }) {
+  const t = useT();
   const pct = Math.round(programProgress(now, nowMs) * 100);
   return (
-    <section className="ltv-banner" aria-label="Programme information">
+    <section className="ltv-banner" aria-label={t('cinema.live.programmeInfo')}>
       <div className="ltv-banner-main">
         <p className="ltv-banner-kicker">
-          {channel ? `${channel.number} · ${channel.call_sign}` : 'Live'}
-          {now ? ` · ${timeLabel(now.start_ms)} to ${timeLabel(now.end_ms)}` : ''}
+          {channel
+            ? t('cinema.live.channelLine', { number: channel.number, callSign: channel.call_sign })
+            : t('cinema.live.liveShort')}
+          {now
+            ? t('cinema.live.timeSuffix', {
+                start: timeLabel(now.start_ms),
+                end: timeLabel(now.end_ms),
+              })
+            : ''}
         </p>
         <p className="ltv-banner-title">
-          <span className="ltv-chip">NOW</span> {now ? now.title : 'Off the air'}
+          <span className="ltv-chip">{t('cinema.live.nowChip')}</span>{' '}
+          {now ? now.title : t('cinema.live.offAir')}
           {now?.episode_label && <span className="ltv-banner-ep"> · {now.episode_label}</span>}
         </p>
         {now && (
           <div
             className="ltv-progress"
             role="progressbar"
-            aria-label="Programme progress"
+            aria-label={t('cinema.live.programProgress')}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={pct}
-            aria-valuetext={`${pct} percent through ${now.title}`}
+            aria-valuetext={t('cinema.live.progressText', { pct, title: now.title })}
           >
             <div style={{ width: `${pct}%` }} />
           </div>
         )}
       </div>
       <p className="ltv-banner-next">
-        <span className="ltv-chip ltv-chip-dim">NEXT</span>{' '}
-        {next ? `${timeLabel(next.start_ms)}  ${next.title}` : 'Nothing scheduled'}
+        <span className="ltv-chip ltv-chip-dim">{t('cinema.live.nextChip')}</span>{' '}
+        {next
+          ? t('cinema.live.nextLine', { time: timeLabel(next.start_ms), title: next.title })
+          : t('cinema.live.nothingScheduled')}
       </p>
     </section>
   );
@@ -88,6 +100,7 @@ export function ChannelList({
   onTune,
   onClose,
 }: ChannelListProps) {
+  const t = useT();
   const list = [...channels].sort((a, b) => a.number - b.number);
   const [active, setActive] = useState(() =>
     Math.max(
@@ -106,13 +119,13 @@ export function ChannelList({
   }, [active]);
   const activeId = list[active] ? `ltv-ch-${list[active].id}` : undefined;
   return (
-    <section className="ltv-guide" role="dialog" aria-label="Channel guide">
-      <h2 className="ltv-guide-title">Channels</h2>
+    <section className="ltv-guide" role="dialog" aria-label={t('cinema.live.channelGuide')}>
+      <h2 className="ltv-guide-title">{t('cinema.live.channels')}</h2>
       <div
         ref={box}
         role="listbox"
         tabIndex={0}
-        aria-label="Channels"
+        aria-label={t('cinema.live.channels')}
         aria-activedescendant={activeId}
         className="ltv-guide-list"
         onKeyDown={(e) => {
@@ -150,17 +163,22 @@ export function ChannelList({
             >
               <span className="ltv-guide-num">{c.number}</span>
               <span className="ltv-guide-call">{c.call_sign}</span>
-              <span className="ltv-guide-now">{now ? now.title : 'Off the air'}</span>
+              <span className="ltv-guide-now">{now ? now.title : t('cinema.live.offAir')}</span>
               <span className="ltv-guide-next">
-                {next ? `Next ${timeLabel(next.start_ms)} ${next.title}` : ''}
+                {next
+                  ? t('cinema.live.guideNext', {
+                      time: timeLabel(next.start_ms),
+                      title: next.title,
+                    })
+                  : ''}
               </span>
             </div>
           );
         })}
-        {list.length === 0 && <p className="ltv-guide-empty">No channels to show.</p>}
+        {list.length === 0 && <p className="ltv-guide-empty">{t('cinema.live.noChannels')}</p>}
       </div>
       <button type="button" className="cpl-btn ltv-guide-close" onClick={onClose}>
-        Close
+        {t('cinema.live.close')}
       </button>
     </section>
   );

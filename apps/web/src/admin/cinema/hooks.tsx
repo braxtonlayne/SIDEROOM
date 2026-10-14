@@ -3,6 +3,7 @@
 import { Button, EmptyState, Notice, TextInput } from '@sideroom/ui';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError } from '../../api/client';
+import { t, useT } from '../../i18n';
 import { errorText } from '../ui';
 
 export interface Loaded<T> {
@@ -42,7 +43,7 @@ export function useLoad<T>(key: string, fetcher: () => Promise<T>): Loaded<T> {
       setStatus(null);
     } catch (e) {
       if (!alive.current || keyRef.current !== forKey) return;
-      setError(errorText(e, 'Could not load this.'));
+      setError(errorText(e, t('admin.cinemaHooks.loadError')));
       setStatus(e instanceof ApiError ? e.status : null);
     } finally {
       if (alive.current && keyRef.current === forKey) setLoading(false);
@@ -72,18 +73,21 @@ export function LoadProblem({
   error,
   status,
   onRetry,
-  what = 'this',
+  what,
 }: {
   error: string;
   status: number | null;
   onRetry?: () => void;
   what?: string;
 }) {
+  const t = useT();
   if (status === 403)
     return (
       <EmptyState
-        title="You do not have access"
-        description={`Your staff roles do not include permission to open ${what}. Ask the Owner or a senior staff member if you should.`}
+        title={t('admin.cinemaHooks.noAccess.title')}
+        description={t('admin.cinemaHooks.noAccess.description', {
+          what: what ?? t('admin.cinemaHooks.this'),
+        })}
       />
     );
   return (
@@ -91,7 +95,7 @@ export function LoadProblem({
       {error}{' '}
       {onRetry && (
         <Button size="sm" variant="secondary" onClick={onRetry}>
-          Retry
+          {t('admin.cinemaHooks.retry')}
         </Button>
       )}
     </Notice>
@@ -171,10 +175,11 @@ export function ListInput({
   onChange: (v: string) => void;
   hint?: string;
 }) {
+  const t = useT();
   return (
     <TextInput
       label={label}
-      hint={hint ?? 'Separate with commas'}
+      hint={hint ?? t('admin.cinemaHooks.listHint')}
       value={value}
       onChange={(e) => onChange(e.target.value)}
     />

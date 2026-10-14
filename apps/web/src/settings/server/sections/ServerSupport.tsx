@@ -3,6 +3,7 @@
 // signed-in member, and (owner only) hiding the server from the public leaderboard.
 import { Badge, Notice, ProgressBar, Switch } from '@sideroom/ui';
 import { useState } from 'react';
+import { useT } from '../../../i18n';
 import * as api from '../../../support/api';
 import { errorText, usd, type DonationConfig, type Invoice } from '../../../support/api';
 import { InvoiceModal } from '../../../support/InvoiceModal';
@@ -13,6 +14,7 @@ import { Async, SectionHeader } from '../ui';
 import type { SectionProps } from '../ServerSettings';
 
 export function ServerSupportSection({ guildId }: SectionProps) {
+  const t = useT();
   const res = useResource(`support-${guildId}`, async () => ({
     support: await api.getGuildSupport(guildId),
     cfg: await api.getConfig(),
@@ -35,7 +37,7 @@ export function ServerSupportSection({ guildId }: SectionProps) {
         }),
       );
     } catch (e) {
-      setError(errorText(e, 'Could not create the invoice.'));
+      setError(errorText(e, t('settings.serverSupport.invoiceFailed')));
     } finally {
       setBusy(false);
     }
@@ -53,17 +55,19 @@ export function ServerSupportSection({ guildId }: SectionProps) {
   return (
     <>
       <SectionHeader
-        title="Server Support"
-        description="Members pool money into this server's monthly total. Passing a level gives every member more upload size, video senders and voice quality."
+        title={t('settings.serverSupport.title')}
+        description={t('settings.serverSupport.description')}
       />
-      <Async res={res} label="Loading server support">
+      <Async res={res} label={t('settings.serverSupport.loading')}>
         {({ support: s, cfg }: { support: api.GuildSupport; cfg: DonationConfig }) => (
           <>
             <section className="ss-card" aria-labelledby="sup-level-h">
               <h2 id="sup-level-h" className="ss-card-title">
-                Level {s.level}{' '}
+                {t('settings.serverSupport.level', { level: s.level })}{' '}
                 <Badge variant={s.level > 0 ? 'success' : 'neutral'}>
-                  {s.level > 0 ? 'Active' : 'Free'}
+                  {s.level > 0
+                    ? t('settings.serverSupport.active')
+                    : t('settings.serverSupport.free')}
                 </Badge>
               </h2>
               {s.next_threshold_cents !== null ? (
@@ -71,22 +75,30 @@ export function ServerSupportSection({ guildId }: SectionProps) {
                   <ProgressBar
                     value={Math.min(s.pool_cents, s.next_threshold_cents)}
                     max={s.next_threshold_cents}
-                    label="Pool toward the next level"
+                    label={t('settings.serverSupport.poolProgress')}
                   />
                   <p className="sup-muted">
-                    {usd(s.pool_cents)} of {usd(s.next_threshold_cents)} for level {s.level + 1},
-                    over the last {s.pool_window_days} days
+                    {t('settings.serverSupport.poolToNext', {
+                      pool: usd(s.pool_cents),
+                      target: usd(s.next_threshold_cents),
+                      level: s.level + 1,
+                      days: s.pool_window_days,
+                    })}
                   </p>
                 </>
               ) : (
                 <p className="sup-muted">
-                  {usd(s.pool_cents)} in the last {s.pool_window_days} days. This is the top level.
+                  {t('settings.serverSupport.poolTop', {
+                    pool: usd(s.pool_cents),
+                    days: s.pool_window_days,
+                  })}
                 </p>
               )}
               {s.grace_until_ms && (
-                <Notice variant="warning" title="The pool is below this level">
-                  The level stays until {new Date(s.grace_until_ms).toLocaleDateString()}, then
-                  drops unless the pool is topped up.
+                <Notice variant="warning" title={t('settings.serverSupport.graceTitle')}>
+                  {t('settings.serverSupport.graceBody', {
+                    date: new Date(s.grace_until_ms).toLocaleDateString(),
+                  })}
                 </Notice>
               )}
               <ul className="sup-perks">
@@ -98,12 +110,14 @@ export function ServerSupportSection({ guildId }: SectionProps) {
 
             <section className="ss-card" aria-labelledby="sup-contrib-h">
               <h2 id="sup-contrib-h" className="ss-card-title">
-                Top contributors
+                {t('settings.serverSupport.topContributors')}
               </h2>
               {s.top_contributors.length === 0 ? (
-                <p className="sup-muted">No contributions in the last {s.pool_window_days} days.</p>
+                <p className="sup-muted">
+                  {t('settings.serverSupport.noContributions', { days: s.pool_window_days })}
+                </p>
               ) : (
-                <ol className="sup-board" aria-label="Top contributors">
+                <ol className="sup-board" aria-label={t('settings.serverSupport.topContributors')}>
                   {s.top_contributors.map((c, i) => (
                     <li key={`${i}-${c.user_id ?? 'anon'}`}>
                       <span className="sup-rank">#{i + 1}</span>
@@ -117,20 +131,20 @@ export function ServerSupportSection({ guildId }: SectionProps) {
 
             <section className="ss-card" aria-labelledby="sup-give-h">
               <h2 id="sup-give-h" className="ss-card-title">
-                Support this server
+                {t('settings.serverSupport.supportTitle')}
               </h2>
               {!cfg.enabled ? (
-                <p className="sup-muted">Donations are not switched on for this installation.</p>
+                <p className="sup-muted">{t('settings.serverSupport.donationsOff')}</p>
               ) : (
                 <>
                   <Switch
-                    label="Contribute anonymously"
+                    label={t('settings.serverSupport.anonymous')}
                     checked={anon}
                     onChange={(e) => setAnon(e.target.checked)}
                   />
                   <AmountPicker
                     cfg={cfg}
-                    cta="Support"
+                    cta={t('settings.serverSupport.cta')}
                     disabled={busy}
                     onPick={(c) => void contribute(c)}
                   />
@@ -141,10 +155,10 @@ export function ServerSupportSection({ guildId }: SectionProps) {
             {s.is_owner && (
               <section className="ss-card" aria-labelledby="sup-hide-h">
                 <h2 id="sup-hide-h" className="ss-card-title">
-                  Leaderboard
+                  {t('settings.serverSupport.leaderboard')}
                 </h2>
                 <Switch
-                  label="Hide this server from the public leaderboard"
+                  label={t('settings.serverSupport.hide')}
                   checked={s.hidden_from_leaderboard}
                   onChange={(e) => void setHidden(e.target.checked)}
                 />

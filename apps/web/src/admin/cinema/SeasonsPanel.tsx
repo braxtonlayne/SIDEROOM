@@ -2,6 +2,7 @@
 // PUBLISH_MEDIA. An episode publishes only with a linked asset (the API answers 409 otherwise and we show it).
 import { Badge, Button, ConfirmDialog, EmptyState, TextArea, TextInput } from '@sideroom/ui';
 import { useState } from 'react';
+import { useT } from '../../i18n';
 import { useAdminViewer } from '../ui';
 import * as api from './api';
 import { ArtworkPicker } from './ArtworkPicker';
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function SeasonsPanel({ detail, reload }: Props) {
+  const t = useT();
   const viewer = useAdminViewer();
   const canEdit = viewer.can('PUBLISH_MEDIA');
   const canDelete = viewer.can('DELETE_CONTENT');
@@ -29,14 +31,14 @@ export function SeasonsPanel({ detail, reload }: Props) {
       {canEdit && (
         <div className="adm-actions">
           <Button variant="secondary" onClick={() => setAdding(true)} disabled={adding}>
-            Add season
+            {t('admin.seasonsPanel.add')}
           </Button>
         </div>
       )}
       {adding && (
         <SeasonForm
           initial={{ number: nextNumber }}
-          saveLabel="Add season"
+          saveLabel={t('admin.seasonsPanel.add')}
           onCancel={() => setAdding(false)}
           onSave={async (b) => {
             await api.createSeason(detail.title.id, b);
@@ -47,17 +49,21 @@ export function SeasonsPanel({ detail, reload }: Props) {
       )}
       {seasons.length === 0 && !adding && (
         <EmptyState
-          title="No seasons yet"
-          description="Add a season, then its episodes. A series publishes once an episode with a video is published."
+          title={t('admin.seasonsPanel.empty.title')}
+          description={t('admin.seasonsPanel.empty.description')}
         />
       )}
       {seasons.map((s) => (
-        <section key={s.id} className="ss-card" aria-label={`Season ${s.number}`}>
+        <section
+          key={s.id}
+          className="ss-card"
+          aria-label={t('admin.seasonsPanel.season', { n: s.number })}
+        >
           {editSeason === s.id ? (
             <SeasonForm
               initial={s}
               titleId={detail.title.id}
-              saveLabel="Save season"
+              saveLabel={t('admin.seasonsPanel.save')}
               onCancel={() => setEditSeason(null)}
               onSave={async (b) => {
                 await api.updateSeason(s.id, b);
@@ -70,31 +76,32 @@ export function SeasonsPanel({ detail, reload }: Props) {
             <div className="ss-row">
               <div className="ss-grow">
                 <h2 className="ss-sub">
-                  Season {s.number}
-                  {s.name ? `: ${s.name}` : ''}
+                  {s.name
+                    ? t('admin.seasonsPanel.seasonNamed', { n: s.number, name: s.name })
+                    : t('admin.seasonsPanel.season', { n: s.number })}
                 </h2>
                 <div className="ss-meta">
-                  {s.episode_count} published episode{s.episode_count === 1 ? '' : 's'}
+                  {t('admin.seasonsPanel.publishedCount', { n: s.episode_count })}
                 </div>
               </div>
               {canEdit && (
                 <Button
                   size="sm"
                   variant="secondary"
-                  aria-label={`Edit season ${s.number}`}
+                  aria-label={t('admin.seasonsPanel.editAria', { n: s.number })}
                   onClick={() => setEditSeason(s.id)}
                 >
-                  Edit
+                  {t('admin.seasonsPanel.edit')}
                 </Button>
               )}
               {canDelete && (
                 <Button
                   size="sm"
                   variant="danger"
-                  aria-label={`Delete season ${s.number}`}
+                  aria-label={t('admin.seasonsPanel.deleteAria', { n: s.number })}
                   onClick={() => setRemoveSeason(s)}
                 >
-                  Delete
+                  {t('admin.seasonsPanel.delete')}
                 </Button>
               )}
             </div>
@@ -112,19 +119,22 @@ export function SeasonsPanel({ detail, reload }: Props) {
       <ConfirmDialog
         open={!!removeSeason}
         danger
-        title={`Delete season ${removeSeason?.number ?? ''}`}
-        description="The season and all its episodes are removed. If that was the last published content, the title is unpublished."
-        confirmLabel="Delete season"
+        title={t('admin.seasonsPanel.deleteTitle', { n: removeSeason?.number ?? '' })}
+        description={t('admin.seasonsPanel.deleteDescription')}
+        confirmLabel={t('admin.seasonsPanel.deleteConfirm')}
         loading={busy}
         onCancel={() => setRemoveSeason(null)}
         onConfirm={() => {
           const s = removeSeason;
           if (!s) return;
-          void run(async () => {
-            await api.deleteSeason(s.id);
-            await reload();
-            return true;
-          }, `Season ${s.number} deleted.`).then(() => setRemoveSeason(null));
+          void run(
+            async () => {
+              await api.deleteSeason(s.id);
+              await reload();
+              return true;
+            },
+            t('admin.seasonsPanel.deleted', { n: s.number }),
+          ).then(() => setRemoveSeason(null));
         }}
       />
     </div>
@@ -146,6 +156,7 @@ function SeasonForm({
   onSave: (b: api.SeasonInput) => Promise<void>;
   onCancel: () => void;
 }) {
+  const t = useT();
   const [number, setNumber] = useState(String(initial.number));
   const [name, setName] = useState(initial.name ?? '');
   const [synopsis, setSynopsis] = useState(initial.synopsis ?? '');
@@ -160,28 +171,32 @@ function SeasonForm({
   return (
     <form
       className="adm-form"
-      aria-label="Season"
+      aria-label={t('admin.seasonsPanel.form.aria')}
       onSubmit={(e) => {
         e.preventDefault();
         void run(() => onSave(body()));
       }}
     >
       <TextInput
-        label="Season number"
+        label={t('admin.seasonsPanel.form.number')}
         type="number"
         value={number}
         onChange={(e) => setNumber(e.target.value)}
       />
-      <TextInput label="Season name" value={name} onChange={(e) => setName(e.target.value)} />
+      <TextInput
+        label={t('admin.seasonsPanel.form.name')}
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
       <TextArea
-        label="Season synopsis"
+        label={t('admin.seasonsPanel.form.synopsis')}
         rows={2}
         value={synopsis}
         onChange={(e) => setSynopsis(e.target.value)}
       />
       {titleId && initial.id && (
         <ArtworkPicker
-          label="Season poster"
+          label={t('admin.seasonsPanel.form.poster')}
           slot="season-poster"
           currentUrl={posterUrl}
           onUpload={async (file, progress) => {
@@ -196,7 +211,7 @@ function SeasonForm({
           {saveLabel}
         </Button>
         <Button variant="ghost" onClick={onCancel} disabled={busy}>
-          Cancel
+          {t('admin.seasonsPanel.cancel')}
         </Button>
       </div>
     </form>
@@ -218,6 +233,7 @@ function EpisodesTable({
   canDelete: boolean;
   reload: () => Promise<void>;
 }) {
+  const t = useT();
   const { busy, error, notice, run } = useRun();
   const [editing, setEditing] = useState<string | 'new' | null>(null);
   const [remove, setRemove] = useState<api.Episode | null>(null);
@@ -232,21 +248,26 @@ function EpisodesTable({
         await reload();
         return true;
       },
-      `Episode ${e.number} ${e.published ? 'unpublished' : 'published'}.`,
+      e.published
+        ? t('admin.seasonsPanel.ep.unpublished', { n: e.number })
+        : t('admin.seasonsPanel.ep.published', { n: e.number }),
     );
 
   return (
     <div className="adm-table-wrap">
       <Banner error={error} notice={notice} />
-      <table className="adm-table" aria-label={`Season ${season.number} episodes`}>
+      <table
+        className="adm-table"
+        aria-label={t('admin.seasonsPanel.ep.tableAria', { n: season.number })}
+      >
         <thead>
           <tr>
-            <th scope="col">No.</th>
-            <th scope="col">Title</th>
-            <th scope="col">Aired</th>
-            <th scope="col">Runtime</th>
-            <th scope="col">Status</th>
-            <th scope="col">Actions</th>
+            <th scope="col">{t('admin.seasonsPanel.col.no')}</th>
+            <th scope="col">{t('admin.seasonsPanel.col.title')}</th>
+            <th scope="col">{t('admin.seasonsPanel.col.aired')}</th>
+            <th scope="col">{t('admin.seasonsPanel.col.runtime')}</th>
+            <th scope="col">{t('admin.seasonsPanel.col.status')}</th>
+            <th scope="col">{t('admin.seasonsPanel.col.actions')}</th>
           </tr>
         </thead>
         <tbody>
@@ -266,14 +287,22 @@ function EpisodesTable({
             ) : (
               <tr key={e.id}>
                 <td>{e.number}</td>
-                <td>{e.title || <span className="ss-na">Untitled</span>}</td>
+                <td>
+                  {e.title || <span className="ss-na">{t('admin.seasonsPanel.ep.untitled')}</span>}
+                </td>
                 <td>{e.air_date ?? ''}</td>
-                <td>{e.runtime_min ? `${e.runtime_min} min` : ''}</td>
+                <td>
+                  {e.runtime_min ? t('admin.seasonsPanel.ep.minutes', { n: e.runtime_min }) : ''}
+                </td>
                 <td>
                   <Badge variant={e.published ? 'success' : 'neutral'}>
-                    {e.published ? 'published' : 'draft'}
+                    {e.published
+                      ? t('admin.seasonsPanel.ep.statusPublished')
+                      : t('admin.seasonsPanel.ep.statusDraft')}
                   </Badge>{' '}
-                  {!e.asset_id && <Badge variant="warning">no video</Badge>}
+                  {!e.asset_id && (
+                    <Badge variant="warning">{t('admin.seasonsPanel.ep.noVideo')}</Badge>
+                  )}
                 </td>
                 <td>
                   <div className="adm-actions">
@@ -281,10 +310,13 @@ function EpisodesTable({
                       <Button
                         size="sm"
                         variant="secondary"
-                        aria-label={`Edit episode ${e.number} of season ${season.number}`}
+                        aria-label={t('admin.seasonsPanel.ep.editAria', {
+                          n: e.number,
+                          season: season.number,
+                        })}
                         onClick={() => setEditing(e.id)}
                       >
-                        Edit
+                        {t('admin.seasonsPanel.edit')}
                       </Button>
                     )}
                     {(canEdit || e.published) && (
@@ -292,20 +324,35 @@ function EpisodesTable({
                         size="sm"
                         variant="secondary"
                         disabled={busy}
-                        aria-label={`${e.published ? 'Unpublish' : 'Publish'} episode ${e.number} of season ${season.number}`}
+                        aria-label={
+                          e.published
+                            ? t('admin.seasonsPanel.ep.unpublishAria', {
+                                n: e.number,
+                                season: season.number,
+                              })
+                            : t('admin.seasonsPanel.ep.publishAria', {
+                                n: e.number,
+                                season: season.number,
+                              })
+                        }
                         onClick={() => toggle(e)}
                       >
-                        {e.published ? 'Unpublish' : 'Publish'}
+                        {e.published
+                          ? t('admin.seasonsPanel.ep.unpublish')
+                          : t('admin.seasonsPanel.ep.publish')}
                       </Button>
                     )}
                     {canDelete && (
                       <Button
                         size="sm"
                         variant="danger"
-                        aria-label={`Delete episode ${e.number} of season ${season.number}`}
+                        aria-label={t('admin.seasonsPanel.ep.deleteAria', {
+                          n: e.number,
+                          season: season.number,
+                        })}
                         onClick={() => setRemove(e)}
                       >
-                        Delete
+                        {t('admin.seasonsPanel.delete')}
                       </Button>
                     )}
                   </div>
@@ -332,27 +379,32 @@ function EpisodesTable({
           size="sm"
           variant="secondary"
           onClick={() => setEditing('new')}
-          aria-label={`Add episode to season ${season.number}`}
+          aria-label={t('admin.seasonsPanel.ep.addAria', { n: season.number })}
         >
-          Add episode
+          {t('admin.seasonsPanel.ep.add')}
         </Button>
       )}
       <ConfirmDialog
         open={!!remove}
         danger
-        title={`Delete episode ${remove?.number ?? ''}`}
-        description={`${remove?.title || 'This episode'} is removed with its skip markers and member progress.`}
-        confirmLabel="Delete episode"
+        title={t('admin.seasonsPanel.ep.deleteTitle', { n: remove?.number ?? '' })}
+        description={t('admin.seasonsPanel.ep.deleteDescription', {
+          name: remove?.title || t('admin.seasonsPanel.ep.thisEpisode'),
+        })}
+        confirmLabel={t('admin.seasonsPanel.ep.deleteConfirm')}
         loading={busy}
         onCancel={() => setRemove(null)}
         onConfirm={() => {
           const e = remove;
           if (!e) return;
-          void run(async () => {
-            await api.deleteEpisode(e.id);
-            await reload();
-            return true;
-          }, `Episode ${e.number} deleted.`).then(() => setRemove(null));
+          void run(
+            async () => {
+              await api.deleteEpisode(e.id);
+              await reload();
+              return true;
+            },
+            t('admin.seasonsPanel.ep.deleted', { n: e.number }),
+          ).then(() => setRemove(null));
         }}
       />
     </div>
@@ -372,6 +424,7 @@ function EpisodeEditRow({
   onSave: (b: api.EpisodeInput) => Promise<void>;
   onCancel: () => void;
 }) {
+  const t = useT();
   const [number, setNumber] = useState(String(episode?.number ?? nextNumber ?? 1));
   const [absolute, setAbsolute] = useState(episode?.absolute_number?.toString() ?? '');
   const [title, setTitle] = useState(episode?.title ?? '');
@@ -381,7 +434,6 @@ function EpisodeEditRow({
   const [stillKey, setStillKey] = useState<string | null>(api.keyFromUrl(episode?.still_url));
   const [stillUrl, setStillUrl] = useState<string | null>(episode?.still_url ?? null);
   const { busy, error, run } = useRun();
-  const where = episode ? `episode ${episode.number}` : 'new episode';
   const body = (): api.EpisodeInput => ({
     number: intOrNull(number) ?? 0,
     absolute_number: intOrNull(absolute),
@@ -396,7 +448,11 @@ function EpisodeEditRow({
       <td colSpan={6}>
         <form
           className="adm-form"
-          aria-label={`Edit ${where}`}
+          aria-label={
+            episode
+              ? t('admin.seasonsPanel.row.editAria', { n: episode.number })
+              : t('admin.seasonsPanel.row.editNewAria')
+          }
           onSubmit={(e) => {
             e.preventDefault();
             void run(() => onSave(body()));
@@ -404,43 +460,43 @@ function EpisodeEditRow({
         >
           <div className="adm-cin-grid">
             <TextInput
-              label="Episode number"
+              label={t('admin.seasonsPanel.row.number')}
               type="number"
               value={number}
               onChange={(e) => setNumber(e.target.value)}
             />
             <TextInput
-              label="Absolute number"
+              label={t('admin.seasonsPanel.row.absolute')}
               type="number"
               value={absolute}
               onChange={(e) => setAbsolute(e.target.value)}
             />
             <TextInput
-              label="Episode title"
+              label={t('admin.seasonsPanel.row.title')}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
             <TextInput
-              label="Air date"
+              label={t('admin.seasonsPanel.row.airDate')}
               type="date"
               value={aired}
               onChange={(e) => setAired(e.target.value)}
             />
             <TextInput
-              label="Runtime (minutes)"
+              label={t('admin.seasonsPanel.row.runtime')}
               type="number"
               value={runtime}
               onChange={(e) => setRuntime(e.target.value)}
             />
           </div>
           <TextArea
-            label="Episode synopsis"
+            label={t('admin.seasonsPanel.row.synopsis')}
             rows={3}
             value={synopsis}
             onChange={(e) => setSynopsis(e.target.value)}
           />
           <ArtworkPicker
-            label="Episode still"
+            label={t('admin.seasonsPanel.row.still')}
             slot="still"
             currentUrl={stillUrl}
             onUpload={async (file, progress) => {
@@ -450,14 +506,14 @@ function EpisodeEditRow({
             }}
             {...(stillKey ? { onClear: async () => (setStillKey(null), setStillUrl(null)) } : {})}
           />
-          <p className="ss-meta">A new still is attached when you save the episode.</p>
+          <p className="ss-meta">{t('admin.seasonsPanel.row.stillNote')}</p>
           <Banner error={error} />
           <div className="adm-actions">
             <Button type="submit" loading={busy} disabled={intOrNull(number) === null}>
-              {episode ? 'Save episode' : 'Add episode'}
+              {episode ? t('admin.seasonsPanel.row.save') : t('admin.seasonsPanel.ep.add')}
             </Button>
             <Button variant="ghost" onClick={onCancel} disabled={busy}>
-              Cancel
+              {t('admin.seasonsPanel.cancel')}
             </Button>
           </div>
         </form>

@@ -1,14 +1,16 @@
 import { Button, Notice, Switch, TextInput } from '@sideroom/ui';
 import { useMemo, useState } from 'react';
 import * as api from '../api';
+import { useT, type MessageKey } from '../../i18n';
 import { Async, ReasonDialog, SectionHeader, fmtMs, useResource } from '../ui';
 
-const GROUP_LABEL: Record<string, string> = {
-  limits: 'Limits',
-  invites: 'Invites and credits',
-  retention: 'Retention',
+const GROUP_LABEL: Record<string, MessageKey> = {
+  limits: 'admin.limits.groupLimits',
+  invites: 'admin.limits.groupInvites',
+  retention: 'admin.limits.groupRetention',
 };
-const groupLabel = (g: string) => GROUP_LABEL[g] ?? g.charAt(0).toUpperCase() + g.slice(1);
+const groupLabel = (g: string, t: (key: MessageKey) => string) =>
+  GROUP_LABEL[g] ? t(GROUP_LABEL[g]) : g.charAt(0).toUpperCase() + g.slice(1);
 
 /** Edit-box text for a setting value. */
 const asText = (v: unknown) => (typeof v === 'string' ? v : String(v ?? ''));
@@ -22,14 +24,12 @@ function parseValue(s: api.SettingView, text: string): unknown {
 }
 
 export function LimitsSection() {
+  const t = useT();
   const res = useResource('admin:settings', api.listSettings);
   return (
     <>
-      <SectionHeader
-        title="Limits & settings"
-        description="Platform settings take effect without a restart. Each save is recorded with its reason."
-      />
-      <Async res={res} label="Loading settings">
+      <SectionHeader title={t('admin.limits.title')} description={t('admin.limits.description')} />
+      <Async res={res} label={t('admin.limits.loading')}>
         {(list) => <LimitsForm list={list} reload={res.reload} />}
       </Async>
     </>
@@ -37,6 +37,7 @@ export function LimitsSection() {
 }
 
 function LimitsForm({ list, reload }: { list: api.SettingView[]; reload: () => Promise<void> }) {
+  const t = useT();
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [confirm, setConfirm] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -50,9 +51,9 @@ function LimitsForm({ list, reload }: { list: api.SettingView[]; reload: () => P
   const changed = useMemo(() => {
     const out: Record<string, unknown> = {};
     for (const s of list) {
-      const t = edits[s.key];
-      if (t === undefined || t === asText(s.value)) continue;
-      out[s.key] = parseValue(s, t);
+      const txt = edits[s.key];
+      if (txt === undefined || txt === asText(s.value)) continue;
+      out[s.key] = parseValue(s, txt);
     }
     return out;
   }, [edits, list]);
@@ -62,13 +63,16 @@ function LimitsForm({ list, reload }: { list: api.SettingView[]; reload: () => P
       if (!(s.key in changed)) continue;
       const v = changed[s.key];
       if (s.kind === 'integer' || s.kind === 'number') {
-        if (typeof v !== 'number' || !Number.isFinite(v)) out[s.key] = 'Enter a number.';
-        else if (s.kind === 'integer' && !Number.isInteger(v)) out[s.key] = 'Enter a whole number.';
-        else if (v < s.min || v > s.max) out[s.key] = `Must be between ${s.min} and ${s.max}.`;
+        if (typeof v !== 'number' || !Number.isFinite(v))
+          out[s.key] = t('admin.limits.enterNumber');
+        else if (s.kind === 'integer' && !Number.isInteger(v))
+          out[s.key] = t('admin.limits.enterWholeNumber');
+        else if (v < s.min || v > s.max)
+          out[s.key] = t('admin.limits.mustBeBetween', { min: s.min, max: s.max });
       }
     }
     return out;
-  }, [changed, list]);
+  }, [changed, list, t]);
   const count = Object.keys(changed).length;
   const bad = Object.keys(errors).length > 0;
 
@@ -89,16 +93,23 @@ function LimitsForm({ list, reload }: { list: api.SettingView[]; reload: () => P
       >
         {groups.map(([group, items]) => (
           <section key={group} className="ss-card" aria-labelledby={`lim-${group}`}>
-            <h2 id={`lim-${group}`}>{groupLabel(group)}</h2>
+            <h2 id={`lim-${group}`}>{groupLabel(group, t)}</h2>
             {items.map((s) => {
               const text = edits[s.key] ?? asText(s.value);
               const hint = (
                 <>
                   {s.description}
-                  {s.kind !== 'boolean' && s.kind !== 'text' ? ` (${s.min} to ${s.max})` : ''}
+                  {s.kind !== 'boolean' && s.kind !== 'text'
+                    ? t('admin.limits.range', { min: s.min, max: s.max })
+                    : ''}
                   {s.is_default
-                    ? ' Using the default.'
-                    : ` Default ${asText(s.default)}${s.updated_at_ms ? `; changed ${fmtMs(s.updated_at_ms)}` : ''}.`}
+                    ? t('admin.limits.usingDefault')
+                    : s.updated_at_ms
+                      ? t('admin.limits.defaultChanged', {
+                          value: asText(s.default),
+                          when: fmtMs(s.updated_at_ms),
+                        })
+                      : t('admin.limits.defaultValue', { value: asText(s.default) })}
                 </>
               );
               return s.kind === 'boolean' ? (
@@ -126,24 +137,24 @@ function LimitsForm({ list, reload }: { list: api.SettingView[]; reload: () => P
         ))}
         <div className="adm-actions">
           <Button type="submit" disabled={count === 0 || bad}>
-            Save {count > 0 ? `${count} change${count === 1 ? '' : 's'}` : 'changes'}
+            {count > 0 ? t('admin.limits.saveChanges', { count }) : t('admin.limits.saveNone')}
           </Button>
           <Button variant="ghost" disabled={count === 0} onClick={() => setEdits({})}>
-            Discard
+            {t('admin.limits.discard')}
           </Button>
         </div>
       </form>
       <ReasonDialog
         open={confirm}
-        title={`Save ${count} setting${count === 1 ? '' : 's'}`}
+        title={t('admin.limits.confirmTitle', { count })}
         description={Object.keys(changed).join(', ')}
-        confirmLabel="Save settings"
+        confirmLabel={t('admin.limits.confirmLabel')}
         onCancel={() => setConfirm(false)}
         onConfirm={async (reason) => {
           await api.patchSettings(changed, reason);
           setConfirm(false);
           setEdits({});
-          setNotice('Settings saved. They are live now.');
+          setNotice(t('admin.limits.saved'));
           await reload();
         }}
       />

@@ -1,4 +1,5 @@
 import { Icon, Tooltip, useToast } from '@sideroom/ui';
+import { useT } from '../i18n';
 import { useOpenUserSettings } from '../settings/user/nav';
 import { useCurrentUser, usePresence } from './data';
 import { useSelfPresence } from './shell/selfPresence';
@@ -8,6 +9,7 @@ import { useVoiceSession } from '../voice/session';
 import { VoicePanel } from './voice/VoicePanel';
 
 export function UserPanel() {
+  const t = useT();
   const me = useCurrentUser();
   const presence = usePresence(me.id);
   const selfStatus = useSelfPresence((s) => s.status);
@@ -23,7 +25,7 @@ export function UserPanel() {
 
   const copy = () => {
     void navigator.clipboard?.writeText(me.username);
-    toast.show({ title: 'Copied!', duration: 1500 });
+    toast.show({ title: t('lounge.userPanel.copied'), duration: 1500 });
   };
 
   return (
@@ -35,7 +37,10 @@ export function UserPanel() {
           type="button"
           className="lng-user-id"
           onClick={copy}
-          aria-label={`${me.displayName}, ${statusLabel(selfStatus)}. Click to copy username`}
+          aria-label={t('lounge.userPanel.copyLabel', {
+            name: me.displayName,
+            status: statusLabel(selfStatus),
+          })}
         >
           <span className="lng-user-text">
             <span className="lng-user-name">{me.displayName}</span>
@@ -47,11 +52,19 @@ export function UserPanel() {
             </span>
           </span>
         </button>
-        <Tooltip content={serverMuted ? 'Muted by a moderator' : micMuted ? 'Unmute' : 'Mute'}>
+        <Tooltip
+          content={
+            serverMuted
+              ? t('lounge.userPanel.mutedByMod')
+              : micMuted
+                ? t('lounge.userPanel.unmute')
+                : t('lounge.userPanel.mute')
+          }
+        >
           <button
             type="button"
             className="lng-icon-btn"
-            aria-label={micMuted ? 'Unmute' : 'Mute'}
+            aria-label={micMuted ? t('lounge.userPanel.unmute') : t('lounge.userPanel.mute')}
             aria-pressed={micMuted}
             disabled={serverMuted}
             onClick={toggleMic}
@@ -60,12 +73,18 @@ export function UserPanel() {
           </button>
         </Tooltip>
         <Tooltip
-          content={serverDeaf ? 'Deafened by a moderator' : deafened ? 'Undeafen' : 'Deafen'}
+          content={
+            serverDeaf
+              ? t('lounge.userPanel.deafenedByMod')
+              : deafened
+                ? t('lounge.userPanel.undeafen')
+                : t('lounge.userPanel.deafen')
+          }
         >
           <button
             type="button"
             className="lng-icon-btn"
-            aria-label={deafened ? 'Undeafen' : 'Deafen'}
+            aria-label={deafened ? t('lounge.userPanel.undeafen') : t('lounge.userPanel.deafen')}
             aria-pressed={deafened}
             disabled={serverDeaf}
             onClick={toggleDeafen}
@@ -73,11 +92,11 @@ export function UserPanel() {
             <Icon name={deafened ? 'volume-off' : 'headphones'} size={20} />
           </button>
         </Tooltip>
-        <Tooltip content="User Settings">
+        <Tooltip content={t('lounge.userPanel.settings')}>
           <button
             type="button"
             className="lng-icon-btn"
-            aria-label="User Settings"
+            aria-label={t('lounge.userPanel.settings')}
             onClick={() => openSettings()}
           >
             <Icon name="settings" size={20} />

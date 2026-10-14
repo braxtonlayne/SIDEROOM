@@ -11,6 +11,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
+import { useT } from '../i18n';
 import { browseSeries, getChapters, getUpdates, keys } from './api';
 import { progressApi, progressLine } from './progress';
 import type { Series } from './types';
@@ -35,13 +36,12 @@ const DEFAULT_GENRES = [
 ];
 
 export function Home() {
+  const t = useT();
   return (
     <div className="lib-home">
       <div className="lib-home-head">
-        <DisplayHeading size="lg">Find your next good story.</DisplayHeading>
-        <p className="lib-sub">
-          A familiar favorite or something unexpected. Make yourself at home.
-        </p>
+        <DisplayHeading size="lg">{t('library.home.title')}</DisplayHeading>
+        <p className="lib-sub">{t('library.home.subtitle')}</p>
       </div>
       <Spotlight />
       <PickUp />
@@ -60,6 +60,7 @@ export function Home() {
 /* ---------------------------------------------------------- spotlight */
 
 export function Spotlight() {
+  const t = useT();
   // Staff curation (Collections & Spotlight) is a later item; until then the most recently updated series.
   const q = useQuery({
     queryKey: keys.browse({ sort: 'updated', limit: 5 }),
@@ -81,14 +82,18 @@ export function Spotlight() {
     return <div className="lib-spotlight lib-spotlight-skeleton" aria-hidden="true" />;
   if (!s) return null;
   return (
-    <section className="lib-spotlight" aria-roledescription="carousel" aria-label="The spotlight">
+    <section
+      className="lib-spotlight"
+      aria-roledescription="carousel"
+      aria-label={t('library.home.spotlight.label')}
+    >
       {s.cover_url && (
         <div className="lib-spotlight-art" aria-hidden="true">
           <img src={s.cover_url} alt="" />
         </div>
       )}
       <div className="lib-spotlight-body" aria-live="polite">
-        <Eyebrow>The spotlight</Eyebrow>
+        <Eyebrow>{t('library.home.spotlight.label')}</Eyebrow>
         <DisplayHeading as="h2" size="md">
           {s.title}
         </DisplayHeading>
@@ -98,7 +103,7 @@ export function Spotlight() {
           </span>
           {s.age_restricted && <AgeBadge />}
         </p>
-        <ul className="lib-chip-list" aria-label="Genres">
+        <ul className="lib-chip-list" aria-label={t('library.home.spotlight.genres')}>
           {s.genres.slice(0, 3).map((g) => (
             <li key={g}>{label(g)}</li>
           ))}
@@ -112,23 +117,23 @@ export function Spotlight() {
               className="lib-btn lib-btn-gold"
             >
               <Icon name="book" size={16} />
-              Start reading
+              {t('library.home.spotlight.startReading')}
             </Link>
           ) : null}
           <Link to="/library/s/$seriesId" params={{ seriesId: s.id }} className="lib-btn">
-            View details
+            {t('library.home.spotlight.viewDetails')}
           </Link>
         </div>
       </div>
-      <p className="lib-spotlight-caption">Recently updated on the shelves</p>
+      <p className="lib-spotlight-caption">{t('library.home.spotlight.caption')}</p>
       {slides.length > 1 && (
-        <div className="lib-dots" role="group" aria-label="Choose spotlight">
+        <div className="lib-dots" role="group" aria-label={t('library.home.spotlight.choose')}>
           {slides.map((x, i) => (
             <button
               key={x.id}
               type="button"
               className="lib-dot"
-              aria-label={`Show ${x.title}`}
+              aria-label={t('library.home.spotlight.show', { title: x.title })}
               aria-current={i === at || undefined}
               onClick={() => setAt(i)}
             />
@@ -147,6 +152,7 @@ const tagline = (s: Series) => {
 /* ------------------------------------------------------------ pick up */
 
 function PickUp() {
+  const t = useT();
   const q = useQuery({
     queryKey: ['library', 'recent'],
     queryFn: () => progressApi.recent(3),
@@ -157,10 +163,10 @@ function PickUp() {
     <section className="lib-section" aria-labelledby="lib-pickup">
       <div className="lib-section-head">
         <h2 id="lib-pickup" className="lib-h2">
-          Pick up where you left off
+          {t('library.home.pickUp.title')}
         </h2>
         <ArrowLink href="/library/history" arrow="→">
-          Reading history
+          {t('library.home.pickUp.history')}
         </ArrowLink>
       </div>
       <ul className="lib-pickup-list">
@@ -170,7 +176,7 @@ function PickUp() {
               to="/library/r/$chapterId/{-$page}"
               params={{ chapterId: i.chapterId, page: String(i.pageIndex + 1) }}
               className="lib-pickup-link"
-              aria-label={`Continue ${i.seriesTitle}`}
+              aria-label={t('library.home.pickUp.continue', { title: i.seriesTitle })}
             >
               <span className="lib-pickup-cover">
                 {i.coverUrl ? (
@@ -182,7 +188,11 @@ function PickUp() {
               <span className="lib-pickup-text">
                 <span className="lib-pickup-title">{i.seriesTitle}</span>
                 <span className="lib-pickup-line">{progressLine(i)}</span>
-                <ProgressBar value={i.percent} label={`${i.seriesTitle} progress`} size={3} />
+                <ProgressBar
+                  value={i.percent}
+                  label={t('library.home.pickUp.progress', { title: i.seriesTitle })}
+                  size={3}
+                />
               </span>
             </Link>
           </li>
@@ -195,6 +205,7 @@ function PickUp() {
 /* ----------------------------------------------------------- trending */
 
 function Trending() {
+  const t = useT();
   const [scope, setScope] = useState('global');
   const q = useQuery({
     queryKey: keys.browse({ sort: 'followers', limit: 5 }),
@@ -205,27 +216,27 @@ function Trending() {
       <div className="lib-section-head">
         <div className="lib-section-title">
           <h2 id="lib-trending" className="lib-h2">
-            Trending this week
+            {t('library.home.trending.title')}
           </h2>
-          <span className="lib-section-note">The stories everyone&apos;s talking about</span>
+          <span className="lib-section-note">{t('library.home.trending.note')}</span>
         </div>
         <SegmentedControl
-          label="Trending scope"
+          label={t('library.home.trending.scope')}
           size="sm"
           value={scope}
           onValueChange={setScope}
           options={[
             // Scoped trending needs the social graph and the trending job (LIB-SOC-002, LIB-SOC-004).
-            { value: 'friends', label: 'Friends', disabled: true },
-            { value: 'known', label: 'People you know', disabled: true },
-            { value: 'global', label: 'Global' },
+            { value: 'friends', label: t('library.home.trending.friends'), disabled: true },
+            { value: 'known', label: t('library.home.trending.known'), disabled: true },
+            { value: 'global', label: t('library.home.trending.global') },
           ]}
         />
         <ArrowLink href="/library/browse?sort=followers" arrow="→">
-          See rankings
+          {t('library.home.trending.rankings')}
         </ArrowLink>
       </div>
-      <SeriesRow query={q} empty="Nothing is trending yet." tagFirst />
+      <SeriesRow query={q} empty={t('library.home.trending.empty')} tagFirst />
     </section>
   );
 }
@@ -239,14 +250,19 @@ function SeriesRow({
   empty: string;
   tagFirst?: boolean;
 }) {
+  const t = useT();
   if (query.isPending) return <CardSkeletons />;
-  if (query.isError) return <p className="lib-muted">We could not load this right now.</p>;
+  if (query.isError) return <p className="lib-muted">{t('library.home.row.error')}</p>;
   const items = query.data?.items ?? [];
   if (items.length === 0) return <p className="lib-muted">{empty}</p>;
   return (
     <div className="lib-poster-row">
       {items.map((s, i) => (
-        <SeriesCard key={s.id} series={s} tag={tagFirst && i === 0 ? '#1 TRENDING' : undefined} />
+        <SeriesCard
+          key={s.id}
+          series={s}
+          tag={tagFirst && i === 0 ? t('library.home.row.trendingTag') : undefined}
+        />
       ))}
     </div>
   );
@@ -255,6 +271,7 @@ function SeriesRow({
 /* ---------------------------------------------------------- curiosity */
 
 function Curiosity() {
+  const t = useT();
   const q = useQuery({
     queryKey: keys.browse({ sort: 'followers', limit: 24 }),
     queryFn: () => browseSeries({ sort: 'followers', limit: 24 }),
@@ -270,10 +287,10 @@ function Curiosity() {
     <section className="lib-section" aria-labelledby="lib-curiosity">
       <div className="lib-section-head">
         <h2 id="lib-curiosity" className="lib-h2">
-          Follow your curiosity
+          {t('library.home.curiosity.title')}
         </h2>
         <ArrowLink href="/library/browse" arrow="→">
-          All genres
+          {t('library.home.curiosity.allGenres')}
         </ArrowLink>
       </div>
       <ul className="lib-genre-chips">
@@ -293,6 +310,7 @@ function Curiosity() {
 /* -------------------------------------------------------------- fresh */
 
 function Fresh() {
+  const t = useT();
   const q = useQuery({
     queryKey: keys.updates(false),
     queryFn: () => getUpdates({ limit: 4 }),
@@ -301,16 +319,19 @@ function Fresh() {
     <section className="lib-section" aria-labelledby="lib-fresh">
       <div className="lib-section-head">
         <h2 id="lib-fresh" className="lib-h2">
-          Fresh off the press
+          {t('library.home.fresh.title')}
         </h2>
         <ArrowLink href="/library/updates" arrow="→">
-          All updates
+          {t('library.home.fresh.allUpdates')}
         </ArrowLink>
       </div>
       {q.isPending ? (
         <CardSkeletons n={3} />
       ) : (q.data?.items.length ?? 0) === 0 ? (
-        <EmptyState title="No chapters yet" description="New releases will show up here." />
+        <EmptyState
+          title={t('library.home.fresh.emptyTitle')}
+          description={t('library.home.fresh.emptyDescription')}
+        />
       ) : (
         <ul className="lib-update-list">
           {q.data!.items.map((u) => (
@@ -344,7 +365,10 @@ function Fresh() {
                 to="/library/r/$chapterId/{-$page}"
                 params={{ chapterId: u.chapter_id }}
                 className="lib-icon-btn"
-                aria-label={`Read ${u.series_title} chapter ${u.chapter_number}`}
+                aria-label={t('library.home.fresh.read', {
+                  title: u.series_title,
+                  n: u.chapter_number,
+                })}
               >
                 <Icon name="play" size={20} />
               </Link>
@@ -359,6 +383,7 @@ function Fresh() {
 /* -------------------------------------------------------- inspiration */
 
 function Inspiration() {
+  const t = useT();
   // Featured reading lists arrive with LIB-SOC-006; the card shows a fan of covers from the shelves.
   const q = useQuery({
     queryKey: keys.browse({ sort: 'newest', limit: 3 }),
@@ -369,16 +394,16 @@ function Inspiration() {
     <section className="lib-section" aria-labelledby="lib-inspo">
       <div className="lib-section-head">
         <h2 id="lib-inspo" className="lib-h2">
-          A little inspiration
+          {t('library.home.inspiration.title')}
         </h2>
         <ArrowLink href="/library/lists" arrow="→">
-          More lists
+          {t('library.home.inspiration.moreLists')}
         </ArrowLink>
       </div>
       <div className="lib-list-card">
-        <Eyebrow>A reading list</Eyebrow>
-        <h3 className="lib-list-title">For a slow Sunday</h3>
-        <p className="lib-muted">Gentle worlds, small moments, stories that stay with you.</p>
+        <Eyebrow>{t('library.home.inspiration.eyebrow')}</Eyebrow>
+        <h3 className="lib-list-title">{t('library.home.inspiration.listTitle')}</h3>
+        <p className="lib-muted">{t('library.home.inspiration.listBody')}</p>
         <div className="lib-fan" aria-hidden="true">
           {covers.map((s, i) => (
             <img key={s.id} src={s.cover_url!} alt="" style={{ ['--i' as string]: i }} />
@@ -392,6 +417,7 @@ function Inspiration() {
 /* ----------------------------------------------------------- finished */
 
 function Finished() {
+  const t = useT();
   const q = useQuery({
     queryKey: keys.browse({ status: 'completed', sort: 'followers', limit: 5 }),
     queryFn: () => browseSeries({ status: 'completed', sort: 'followers', limit: 5 }),
@@ -400,13 +426,13 @@ function Finished() {
     <section className="lib-section" aria-labelledby="lib-finished">
       <div className="lib-section-head">
         <h2 id="lib-finished" className="lib-h2">
-          Finished stories, new beginnings
+          {t('library.home.finished.title')}
         </h2>
         <ArrowLink href="/library/browse?status=completed" arrow="→">
-          Explore completed
+          {t('library.home.finished.explore')}
         </ArrowLink>
       </div>
-      <SeriesRow query={q} empty="No finished series yet." />
+      <SeriesRow query={q} empty={t('library.home.finished.empty')} />
     </section>
   );
 }
@@ -414,15 +440,16 @@ function Finished() {
 /* ------------------------------------------------------------- footer */
 
 export function HomeFooter() {
+  const t = useT();
   return (
     <footer className="lib-footer">
-      <span className="lib-footer-brand">SIDE ROOM / THE LIBRARY</span>
-      <nav aria-label="Library footer" className="lib-footer-links">
-        <a href="/house-notes">About</a>
-        <a href="/support">Help</a>
-        <a href="/house-notes#image-credits">Image credits</a>
-        <a href="/house-notes#privacy">Privacy</a>
-        <a href="/house-notes#terms">Terms</a>
+      <span className="lib-footer-brand">{t('library.home.footer.brand')}</span>
+      <nav aria-label={t('library.home.footer.label')} className="lib-footer-links">
+        <a href="/house-notes">{t('library.home.footer.about')}</a>
+        <a href="/support">{t('library.home.footer.help')}</a>
+        <a href="/house-notes#image-credits">{t('library.home.footer.imageCredits')}</a>
+        <a href="/house-notes#privacy">{t('library.home.footer.privacy')}</a>
+        <a href="/house-notes#terms">{t('library.home.footer.terms')}</a>
       </nav>
     </footer>
   );

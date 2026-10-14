@@ -1,0 +1,136 @@
+export default {
+  // Developer portal: application detail
+  'developers.appDetail.theApplication': 'the application',
+  'developers.appDetail.signInTitle': 'Sign in to continue',
+  'developers.appDetail.logIn': 'Log in',
+  'developers.appDetail.notFoundTitle': 'Application not found',
+  'developers.appDetail.notFoundDescription':
+    'It may have been deleted, or it belongs to someone else.',
+  'developers.appDetail.backToApplications': 'Back to your applications',
+  'developers.appDetail.notAvailable':
+    'The developer platform is not switched on for this server yet.',
+  'developers.appDetail.crumbApplications': 'Applications',
+  'developers.appDetail.tabsLabel': 'Application settings',
+  'developers.appDetail.tabGeneral': 'General',
+  'developers.appDetail.tabOauth2': 'OAuth2',
+  'developers.appDetail.tabBot': 'Bot',
+  'developers.appDetail.tabInstallation': 'Installation',
+  'developers.appDetail.tabCommands': 'Commands',
+  'developers.appDetail.tabReview': 'Review',
+
+  // Developer portal: shell
+  'developers.shell.skipToContent': 'Skip to content',
+  'developers.shell.brandSub': 'Developers',
+  'developers.shell.navLabel': 'Developer portal',
+  'developers.shell.navOverview': 'Overview',
+  'developers.shell.navApplications': 'Applications',
+  'developers.shell.navDocumentation': 'Documentation',
+  'developers.shell.backToLounge': 'Back to the lounge',
+
+  // Developer portal: applications list
+  'developers.applications.stateDevelopment': 'In development',
+  'developers.applications.stateInReview': 'In review',
+  'developers.applications.stateReleased': 'Released',
+  'developers.applications.stateSuspended': 'Suspended',
+  'developers.applications.nameError': 'Use 2 to 32 characters.',
+  'developers.applications.created': 'Created {name}.',
+  'developers.applications.clientSecret': 'Client secret',
+  'developers.applications.botToken': 'Bot token',
+  'developers.applications.createFailed': 'Could not create the application.',
+  'developers.applications.newTitle': 'New application',
+  'developers.applications.newDescription':
+    'Give it a name people will recognise. You can change everything else later.',
+  'developers.applications.cancel': 'Cancel',
+  'developers.applications.create': 'Create',
+  'developers.applications.nameLabel': 'Name',
+  'developers.applications.agree':
+    'I agree to the developer terms and will keep my secrets private.',
+  'developers.applications.saveTitle': 'Save your credentials',
+  'developers.applications.saveDescription':
+    'Your app and its bot are ready. These two values are shown only now.',
+  'developers.applications.yourApplications': 'your applications',
+  'developers.applications.signInTitle': 'Sign in to build apps',
+  'developers.applications.signInDescription': 'Applications belong to your account.',
+  'developers.applications.logIn': 'Log in',
+  'developers.applications.notAvailable':
+    'This server does not have the developer platform switched on yet, so applications cannot be created or listed. The documentation is still available.',
+  'developers.applications.emptyTitle': 'No applications yet',
+  'developers.applications.emptyDescription':
+    'Create one to get an OAuth2 client, a bot user and slash commands.',
+  'developers.applications.newButton': 'New application',
+  'developers.applications.listLabel': 'Applications',
+  'developers.applications.botLine': 'Bot: {username}',
+  'developers.applications.heading': 'Applications',
+
+  // Developer portal: overview
+  'developers.overview.applicationSent': 'Application sent.',
+  'developers.overview.sendFailed': 'Could not send your application.',
+  'developers.overview.applyHeading': 'Apply to build apps',
+  'developers.overview.applyIntro':
+    'You can already make apps and try them in small test servers. Approval is a mark of trust that staff give after reading this.',
+  'developers.overview.pitchLabel': 'What do you want to build?',
+  'developers.overview.priorLabel': 'Anything you have built before? (optional)',
+  'developers.overview.agree': 'I agree to the developer terms.',
+  'developers.overview.sendButton': 'Send application',
+  'developers.overview.yourDeveloperStatus': 'your developer status',
+  'developers.overview.signInTitle': 'Sign in to apply',
+  'developers.overview.logIn': 'Log in',
+  'developers.overview.signInRest': 'to apply and to manage your applications.',
+  'developers.overview.notAvailableTitle': 'Not available yet',
+  'developers.overview.notAvailableBody': 'This server does not take developer applications yet.',
+  'developers.overview.loadErrorTitle': "Couldn't load your developer status",
+  'developers.overview.tryAgain': 'Try again',
+  'developers.overview.approvedTitle': 'You are an approved developer',
+  'developers.overview.approvedThanks': 'Thank you for building here.',
+  'developers.overview.goToApplications': 'Go to your applications',
+  'developers.overview.pendingHeading': 'Your application',
+  'developers.overview.waitingForReview': 'Waiting for review',
+  'developers.overview.pendingSent': 'Sent {date}. Staff will look at it soon.',
+  'developers.overview.rejectedTitle': 'Your last application was not approved',
+  'developers.overview.rejectedBody': '{note} You can apply again below.',
+  'developers.overview.noReason': 'No reason was given.',
+  'developers.overview.suspendedTitle': 'Developer access suspended',
+  'developers.overview.contactStaff': 'Contact staff for details.',
+  'developers.overview.heading': 'Build on SIDE ROOM',
+  'developers.overview.lede':
+    "Bots, slash commands and sign-in with SIDE ROOM, over an API shaped like Discord's so existing libraries and bots port with a base URL change.",
+  'developers.overview.startLabel': 'Where to start',
+  'developers.overview.cardApplicationsTitle': 'Your applications',
+  'developers.overview.cardApplicationsBody':
+    'Create an app, get OAuth2 credentials, a bot and a way to release it.',
+  'developers.overview.cardStartTitle': 'Getting started',
+  'developers.overview.cardStartBody': 'Make a bot and send your first request in minutes.',
+  'developers.overview.cardDocsTitle': 'Documentation',
+  'developers.overview.cardDocsBody':
+    'Authentication, gateway, REST, rate limits and interactions.',
+
+  // Developer portal: docs hub
+  'developers.docs.heading': 'Documentation',
+  'developers.docs.intro':
+    'Everything you need to build on SIDE ROOM. The API follows Discord, so existing libraries mostly work after a base URL change.',
+  'developers.docs.pagesLabel': 'Documentation pages',
+  'developers.docs.noSuchPage': 'No such page',
+  'developers.docs.allDocumentation': 'All documentation',
+  'developers.docs.navLabel': 'Documentation',
+  'developers.docs.previous': 'Previous: {title}',
+  'developers.docs.next': 'Next: {title}',
+
+  // Developer portal: shared widgets
+  'developers.ui.loadingLabel': 'Loading {what}',
+  'developers.ui.loadingText': 'Loading {what}...',
+  'developers.ui.loadErrorTitle': "Couldn't load {what}",
+  'developers.ui.tryAgain': 'Try again',
+  'developers.ui.notAvailableTitle': 'Not available yet',
+  'developers.ui.copy': 'Copy',
+  'developers.ui.copied': 'Copied',
+  'developers.ui.copyNamed': 'Copy {name}',
+  'developers.ui.done': 'Done',
+  'developers.ui.secretWarningTitle': 'You will not see this again',
+  'developers.ui.secretWarningBody':
+    'Copy it somewhere safe now. Once you close this dialog only a reset can give you a new one.',
+  'developers.ui.wrongPassword': 'That password is not right.',
+  'developers.ui.didNotWork': 'That did not work.',
+  'developers.ui.cancel': 'Cancel',
+  'developers.ui.typeToConfirm': 'Type "{text}" to confirm',
+  'developers.ui.yourPassword': 'Your password',
+} satisfies Record<string, string>;

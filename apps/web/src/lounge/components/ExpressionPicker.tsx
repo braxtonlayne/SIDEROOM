@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '../../api/client';
+import { useT } from '../../i18n';
 import { stickerUrl } from '../msg/Sticker';
 import { EmojiPicker } from './EmojiPicker';
 
@@ -48,6 +49,7 @@ function StickerTile({
   sticker: GuildSticker;
   onPick: (s: GuildSticker) => void;
 }) {
+  const t = useT();
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
@@ -60,7 +62,7 @@ function StickerTile({
     <button
       type="button"
       className="lng-sticker-tile"
-      aria-label={`Send sticker ${sticker.name}`}
+      aria-label={t('lounge.expressionPicker.sendSticker', { name: sticker.name })}
       title={sticker.name}
       onClick={() => onPick(sticker)}
     >
@@ -77,6 +79,7 @@ export function StickerPicker({
   guildId: string | undefined;
   onPick: (s: GuildSticker) => void;
 }) {
+  const t = useT();
   const [list, setList] = useState<GuildSticker[] | null>(null);
   const [error, setError] = useState(false);
   const [q, setQ] = useState('');
@@ -92,23 +95,27 @@ export function StickerPicker({
   }, [guildId]);
   const shown = useMemo(() => pickableStickers(list ?? [], q), [list, q]);
   if (!guildId)
-    return <p className="lng-muted lng-expr-note">Stickers are available in servers.</p>;
-  if (error) return <p className="lng-muted lng-expr-note">Could not load stickers.</p>;
-  if (!list) return <p className="lng-muted lng-expr-note">Loading stickers…</p>;
+    return <p className="lng-muted lng-expr-note">{t('lounge.expressionPicker.serversOnly')}</p>;
+  if (error)
+    return <p className="lng-muted lng-expr-note">{t('lounge.expressionPicker.loadFailed')}</p>;
+  if (!list)
+    return <p className="lng-muted lng-expr-note">{t('lounge.expressionPicker.loading')}</p>;
   return (
     <div className="lng-emoji">
       <input
         type="search"
         className="lng-emoji-search"
-        placeholder="Find the perfect sticker"
-        aria-label="Search stickers"
+        placeholder={t('lounge.expressionPicker.stickerPlaceholder')}
+        aria-label={t('lounge.expressionPicker.searchStickers')}
         value={q}
         onChange={(e) => setQ(e.target.value)}
       />
       <div className="lng-emoji-scroll">
         {shown.length === 0 ? (
           <p className="lng-muted">
-            {list.length === 0 ? 'This server has no stickers yet.' : 'No stickers found.'}
+            {list.length === 0
+              ? t('lounge.expressionPicker.noStickersYet')
+              : t('lounge.expressionPicker.noStickersFound')}
           </p>
         ) : (
           <div className="lng-sticker-grid">
@@ -137,15 +144,20 @@ export function ExpressionPicker({
   onEmoji: (emoji: string) => void;
   onSticker: (s: GuildSticker) => void;
 }) {
+  const t = useT();
   const [tab, setTab] = useState<ExpressionTab>(initial);
   const tabs: [ExpressionTab, string][] = [
-    ['gifs', 'GIFs'],
-    ['stickers', 'Stickers'],
-    ['emoji', 'Emoji'],
+    ['gifs', t('lounge.expressionPicker.tabGifs')],
+    ['stickers', t('lounge.expressionPicker.tabStickers')],
+    ['emoji', t('lounge.expressionPicker.tabEmoji')],
   ];
   return (
     <div className="lng-expr">
-      <div role="tablist" aria-label="Expressions" className="lng-expr-tabs">
+      <div
+        role="tablist"
+        aria-label={t('lounge.expressionPicker.expressions')}
+        className="lng-expr-tabs"
+      >
         {tabs.map(([id, label]) => (
           <button
             key={id}
@@ -162,9 +174,7 @@ export function ExpressionPicker({
       </div>
       <div role="tabpanel" id={`expr-panel-${tab}`} aria-labelledby={`expr-tab-${tab}`}>
         {tab === 'gifs' && (
-          <p className="lng-muted lng-expr-note">
-            GIFs are not set up on this server yet. An administrator has to connect a GIF provider.
-          </p>
+          <p className="lng-muted lng-expr-note">{t('lounge.expressionPicker.gifsNotSetUp')}</p>
         )}
         {tab === 'stickers' && <StickerPicker guildId={guildId} onPick={onSticker} />}
         {tab === 'emoji' && <EmojiPicker onPick={onEmoji} />}

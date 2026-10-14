@@ -4,6 +4,7 @@ import { Button, Spinner, TextInput } from '@sideroom/ui';
 import { useEffect, useId, useState } from 'react';
 import { getEpisodes, searchTitles } from '../cinema/api';
 import type { Episode, Title } from '../cinema/types';
+import { useT } from '../i18n';
 
 export interface PickedTitle {
   titleId: string;
@@ -23,7 +24,9 @@ export interface TitlePickerProps {
 const episodeLabel = (t: Title, e: Episode) =>
   `${t.title} · S${e.season} E${e.number}${e.title ? ` · ${e.title}` : ''}`;
 
-export function TitlePicker({ onPick, actionLabel = 'Select' }: TitlePickerProps) {
+export function TitlePicker({ onPick, actionLabel: actionLabelProp }: TitlePickerProps) {
+  const tr = useT();
+  const actionLabel = actionLabelProp ?? tr('watchparty.titlePicker.select');
   const [q, setQ] = useState('');
   const [results, setResults] = useState<Title[]>([]);
   const [busy, setBusy] = useState(false);
@@ -39,7 +42,7 @@ export function TitlePicker({ onPick, actionLabel = 'Select' }: TitlePickerProps
       return;
     }
     const ctl = new AbortController();
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       setBusy(true);
       searchTitles(query, 8, ctl.signal)
         .then((r) => {
@@ -52,7 +55,7 @@ export function TitlePicker({ onPick, actionLabel = 'Select' }: TitlePickerProps
         .finally(() => setBusy(false));
     }, 250);
     return () => {
-      clearTimeout(t);
+      clearTimeout(timer);
       ctl.abort();
     };
   }, [q]);
@@ -70,17 +73,17 @@ export function TitlePicker({ onPick, actionLabel = 'Select' }: TitlePickerProps
   return (
     <div className="wp-picker">
       <TextInput
-        label="Search the cinema"
+        label={tr('watchparty.titlePicker.searchLabel')}
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="Title, show or film"
+        placeholder={tr('watchparty.titlePicker.searchPlaceholder')}
         aria-controls={listId}
       />
       <div id={listId} className="wp-picker-list" aria-live="polite">
-        {busy && <Spinner label="Searching" />}
-        {failed && <p className="wp-muted">Search is unavailable right now.</p>}
+        {busy && <Spinner label={tr('watchparty.titlePicker.searching')} />}
+        {failed && <p className="wp-muted">{tr('watchparty.titlePicker.unavailable')}</p>}
         {!busy && !failed && q.trim().length >= 2 && results.length === 0 && (
-          <p className="wp-muted">Nothing found.</p>
+          <p className="wp-muted">{tr('watchparty.titlePicker.nothingFound')}</p>
         )}
         <ul className="wp-list">
           {results.map((t) => (
@@ -88,7 +91,14 @@ export function TitlePicker({ onPick, actionLabel = 'Select' }: TitlePickerProps
               <span className="wp-row-main">
                 <span className="wp-row-title">{t.title}</span>
                 <span className="wp-muted">
-                  {[t.year, t.kind === 'movie' ? 'Film' : t.kind === 'anime' ? 'Anime' : 'Series']
+                  {[
+                    t.year,
+                    t.kind === 'movie'
+                      ? tr('watchparty.titlePicker.film')
+                      : t.kind === 'anime'
+                        ? tr('watchparty.titlePicker.anime')
+                        : tr('watchparty.titlePicker.series'),
+                  ]
                     .filter(Boolean)
                     .join(' · ')}
                   {t.age_restricted ? ' · 18+' : ''}
@@ -98,7 +108,10 @@ export function TitlePicker({ onPick, actionLabel = 'Select' }: TitlePickerProps
                 <Button
                   size="sm"
                   variant="secondary"
-                  aria-label={`${actionLabel} ${t.title}`}
+                  aria-label={tr('watchparty.titlePicker.actionTitle', {
+                    action: actionLabel,
+                    title: t.title,
+                  })}
                   onClick={() =>
                     onPick({
                       titleId: t.id,
@@ -114,10 +127,10 @@ export function TitlePicker({ onPick, actionLabel = 'Select' }: TitlePickerProps
                 <Button
                   size="sm"
                   variant="secondary"
-                  aria-label={`Choose an episode of ${t.title}`}
+                  aria-label={tr('watchparty.titlePicker.chooseEpisode', { title: t.title })}
                   onClick={() => setOpen(t)}
                 >
-                  Episodes
+                  {tr('watchparty.titlePicker.episodes')}
                 </Button>
               )}
             </li>
@@ -139,6 +152,7 @@ function EpisodePicker({
   onPick: (t: PickedTitle) => void;
   actionLabel: string;
 }) {
+  const tr = useT();
   const seasons = Math.max(1, title.season_count ?? 1);
   const [season, setSeason] = useState(1);
   const [eps, setEps] = useState<Episode[] | null>(null);
@@ -160,15 +174,15 @@ function EpisodePicker({
     <div className="wp-picker">
       <div className="wp-picker-head">
         <Button size="sm" variant="ghost" onClick={onBack}>
-          Back to results
+          {tr('watchparty.titlePicker.backToResults')}
         </Button>
         <strong>{title.title}</strong>
         <label className="wp-inline">
-          <span className="wp-muted">Season</span>
+          <span className="wp-muted">{tr('watchparty.titlePicker.season')}</span>
           <select
             value={season}
             onChange={(e) => setSeason(Number(e.target.value))}
-            aria-label="Season"
+            aria-label={tr('watchparty.titlePicker.season')}
           >
             {Array.from({ length: seasons }, (_, i) => i + 1).map((n) => (
               <option key={n} value={n}>
@@ -178,20 +192,24 @@ function EpisodePicker({
           </select>
         </label>
       </div>
-      {eps === null && !failed && <Spinner label="Loading episodes" />}
-      {failed && <p className="wp-muted">Episodes could not be loaded.</p>}
+      {eps === null && !failed && <Spinner label={tr('watchparty.titlePicker.loadingEpisodes')} />}
+      {failed && <p className="wp-muted">{tr('watchparty.titlePicker.episodesFailed')}</p>}
       <ul className="wp-list">
         {eps?.map((e) => (
           <li key={e.id} className="wp-row">
             <span className="wp-row-main">
               <span className="wp-row-title">
-                E{e.number} {e.title}
+                {tr('watchparty.titlePicker.episodeLine', { number: e.number, title: e.title })}
               </span>
             </span>
             <Button
               size="sm"
               variant="secondary"
-              aria-label={`${actionLabel} season ${e.season} episode ${e.number}`}
+              aria-label={tr('watchparty.titlePicker.actionEpisode', {
+                action: actionLabel,
+                season: e.season,
+                number: e.number,
+              })}
               onClick={() =>
                 onPick({
                   titleId: title.id,

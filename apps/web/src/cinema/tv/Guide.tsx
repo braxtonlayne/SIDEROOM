@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { getMe as getAdminMe } from '../../admin/api';
 import { hasPerm, parsePerms } from '../../admin/permissions';
+import { useT } from '../../i18n';
 import { useAppliedTheme } from '../../settings/user/useAppliedTheme';
 import { getChannelNow, getGuide, isNotAvailable, tvKeys } from './api';
 import { useFavourites } from './favourites';
@@ -27,7 +28,8 @@ import { ProgramPopover } from './ProgramPopover';
 import type { TvBlock } from './types';
 import './tv.css';
 
-export const DEFAULT_FOOTER = 'Channels are assembled from the SIDE ROOM library.';
+/** Catalog key of the footer shown when the server sends none. */
+export const DEFAULT_FOOTER = 'cinema.guide.defaultFooter';
 const CHAN_COL = 306;
 
 /** Wall clock that follows the server's (`offset` = server now minus client now) and ticks every `every` ms. */
@@ -68,6 +70,7 @@ export function TvGuidePage() {
 }
 
 function GuideContent() {
+  const tr = useT();
   const mobile = useMediaQuery(MOBILE_QUERY);
   const canManage = useCanManageTv();
   const fav = useFavourites();
@@ -212,42 +215,44 @@ function GuideContent() {
   if (guide.isPending) {
     body = (
       <div className="tv-state">
-        <Spinner label="Loading the guide" />
+        <Spinner label={tr('cinema.guide.loading')} />
       </div>
     );
   } else if (guide.isError) {
     body = isNotAvailable(guide.error) ? (
       <EmptyState
-        title="Live TV is not available yet"
-        description="This server has not switched on the television room. Check back later."
+        title={tr('cinema.guide.unavailableTitle')}
+        description={tr('cinema.guide.unavailableBody')}
       />
     ) : (
       <div role="alert" className="tv-state">
-        <p>We could not load the guide.</p>
+        <p>{tr('cinema.guide.loadError')}</p>
         <button type="button" className="tv-btn" onClick={() => void guide.refetch()}>
-          Try again
+          {tr('cinema.guide.tryAgain')}
         </button>
       </div>
     );
   } else if (guide.data.channels.length === 0) {
     body = (
       <EmptyState
-        title="No channels yet"
+        title={tr('cinema.guide.noChannelsTitle')}
         description={
-          canManage
-            ? 'Create the first channel to fill the guide.'
-            : 'The operators have not set up any channels yet.'
+          canManage ? tr('cinema.guide.noChannelsManage') : tr('cinema.guide.noChannelsViewer')
         }
       />
     );
   } else if (channels.length === 0) {
     body = (
       <EmptyState
-        title={filter === 'favorites' ? 'No favorites yet' : 'No channels here'}
+        title={
+          filter === 'favorites'
+            ? tr('cinema.guide.noFavoritesTitle')
+            : tr('cinema.guide.noChannelsHere')
+        }
         description={
           filter === 'favorites'
-            ? 'Star a channel in the guide to keep it in this list.'
-            : 'Try another filter.'
+            ? tr('cinema.guide.noFavoritesBody')
+            : tr('cinema.guide.tryAnotherFilter')
         }
       />
     );
@@ -292,13 +297,13 @@ function GuideContent() {
         <div>
           <p className="tv-eyebrow">
             <span aria-hidden="true" className="tv-rule" />
-            THE TELEVISION ROOM
+            {tr('cinema.guide.eyebrow')}
           </p>
-          <h1 className="tv-h1">A familiar frequency.</h1>
+          <h1 className="tv-h1">{tr('cinema.guide.heading')}</h1>
         </div>
         {canManage && (
           <a className="tv-btn" href="/admin/cinema-live-tv?new=1">
-            + Create channel
+            {tr('cinema.guide.createChannel')}
           </a>
         )}
       </header>
@@ -315,7 +320,7 @@ function GuideContent() {
       )}
 
       <div className="tv-controls">
-        <div role="group" aria-label="Channel filter" className="tv-chips">
+        <div role="group" aria-label={tr('cinema.guide.channelFilter')} className="tv-chips">
           {FILTERS.map((f) => (
             <button
               key={f.value}
@@ -328,20 +333,20 @@ function GuideContent() {
             </button>
           ))}
         </div>
-        <div className="tv-nav" role="group" aria-label="Guide time">
+        <div className="tv-nav" role="group" aria-label={tr('cinema.guide.guideTime')}>
           <button
             type="button"
             className="tv-chip"
             aria-pressed={tzMode === 'channel'}
-            title="Show programme times in each channel's own time zone"
+            title={tr('cinema.guide.channelTimeHint')}
             onClick={() => setTzMode((m) => (m === 'local' ? 'channel' : 'local'))}
           >
-            Channel time
+            {tr('cinema.guide.channelTime')}
           </button>
           <button
             type="button"
             className="tv-nav-btn"
-            aria-label="Previous day"
+            aria-label={tr('cinema.guide.previousDay')}
             disabled={!canPrevDay}
             onClick={() => setDayStart(addDays(dayStart, -1))}
           >
@@ -351,7 +356,7 @@ function GuideContent() {
           <button
             type="button"
             className="tv-nav-btn"
-            aria-label="Next day"
+            aria-label={tr('cinema.guide.nextDay')}
             disabled={!canNextDay}
             onClick={() => setDayStart(addDays(dayStart, 1))}
           >
@@ -362,7 +367,7 @@ function GuideContent() {
               <button
                 type="button"
                 className="tv-nav-btn"
-                aria-label="Earlier"
+                aria-label={tr('cinema.guide.earlier')}
                 onClick={() =>
                   scrollTo(
                     Math.max(
@@ -380,7 +385,7 @@ function GuideContent() {
               <button
                 type="button"
                 className="tv-nav-btn"
-                aria-label="Later"
+                aria-label={tr('cinema.guide.later')}
                 onClick={() =>
                   scrollTo((scroller.current?.scrollLeft ?? 0) + (WINDOW_MS / SLOT_MS) * slotPx)
                 }
@@ -390,13 +395,13 @@ function GuideContent() {
             </>
           )}
           <button type="button" className="tv-chip" onClick={jumpToNow} aria-keyshortcuts="n">
-            Now
+            {tr('cinema.guide.now')}
           </button>
         </div>
       </div>
       {fav.failed && (
         <p role="alert" className="tv-pop-err">
-          Could not save your favorites. Try again.
+          {tr('cinema.guide.favoritesError')}
         </p>
       )}
 
@@ -404,9 +409,9 @@ function GuideContent() {
 
       <footer className="tv-footer">
         <span className="tv-legend">
-          <span aria-hidden="true" className="tv-legend-dot" /> Current time
+          <span aria-hidden="true" className="tv-legend-dot" /> {tr('cinema.guide.currentTime')}
         </span>
-        <span className="tv-footnote">{guide.data?.footer_note || DEFAULT_FOOTER}</span>
+        <span className="tv-footnote">{guide.data?.footer_note || tr(DEFAULT_FOOTER)}</span>
       </footer>
 
       {open && popChannel && guide.data && (

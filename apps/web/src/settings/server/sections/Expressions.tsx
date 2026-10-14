@@ -11,6 +11,7 @@ import {
   type FileRejection,
 } from '@sideroom/ui';
 import { useState } from 'react';
+import { t as translate, useT } from '../../../i18n';
 import { useGuild } from '../../../store';
 import * as api from '../api';
 import { useGuildEvents, useResource } from '../hooks';
@@ -24,7 +25,8 @@ export function readDataUri(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(String(r.result));
-    r.onerror = () => reject(new Error(`Could not read ${file.name}.`));
+    r.onerror = () =>
+      reject(new Error(translate('settings.expressions.readFailed', { name: file.name })));
     r.readAsDataURL(file);
   });
 }
@@ -45,14 +47,18 @@ const rejectText = (list: FileRejection[], maxBytes: number) =>
   list
     .map((r) =>
       r.reason === 'size'
-        ? `${r.file.name} is larger than ${Math.round(maxBytes / 1024)} KB.`
+        ? translate('settings.expressions.tooLarge', {
+            name: r.file.name,
+            kb: String(Math.round(maxBytes / 1024)),
+          })
         : r.reason === 'type'
-          ? `${r.file.name} is not a PNG, JPEG, GIF or WebP image.`
-          : `${r.file.name} was skipped.`,
+          ? translate('settings.expressions.badType', { name: r.file.name })
+          : translate('settings.expressions.skipped', { name: r.file.name }),
     )
     .join(' ');
 
 export function ExpressionsSection({ guildId }: SectionProps) {
+  const t = useT();
   const emojis = useResource(`emojis:${guildId}`, () => api.listEmojis(guildId));
   const stickers = useResource(`stickers:${guildId}`, () => api.listStickers(guildId));
   useGuildEvents(guildId, ['GUILD_EMOJIS_UPDATE'], () => void emojis.reload());
@@ -60,26 +66,26 @@ export function ExpressionsSection({ guildId }: SectionProps) {
   return (
     <>
       <SectionHeader
-        title="Emoji & Stickers"
-        description="Add custom emoji and stickers anyone in the server can use."
+        title={t('settings.expressions.title')}
+        description={t('settings.expressions.description')}
       />
       <Tabs
-        label="Expressions"
+        label={t('settings.expressions.tabsLabel')}
         items={[
           {
             id: 'emoji',
-            label: 'Emoji',
+            label: t('settings.expressions.tabEmoji'),
             content: (
-              <Async res={emojis} label="Loading emoji">
+              <Async res={emojis} label={t('settings.expressions.loadingEmoji')}>
                 {(list) => <EmojiTab guildId={guildId} list={list} reload={emojis.reload} />}
               </Async>
             ),
           },
           {
             id: 'stickers',
-            label: 'Stickers',
+            label: t('settings.expressions.tabStickers'),
             content: (
-              <Async res={stickers} label="Loading stickers">
+              <Async res={stickers} label={t('settings.expressions.loadingStickers')}>
                 {(list) => <StickerTab guildId={guildId} list={list} reload={stickers.reload} />}
               </Async>
             ),
@@ -99,6 +105,7 @@ function EmojiTab({
   list: api.EmojiObject[];
   reload: () => Promise<void>;
 }) {
+  const t = useT();
   const { roles } = useGuild(guildId);
   const action = useAction();
   const [rejected, setRejected] = useState<string | null>(null);
@@ -123,7 +130,7 @@ function EmojiTab({
       }
       await reload();
       if (failures.length) throw new Error(failures.join(' '));
-    }, 'Emoji uploaded.');
+    }, t('settings.expressions.emojiUploaded'));
   };
 
   const remove = async () => {
@@ -141,19 +148,24 @@ function EmojiTab({
   return (
     <div className="ss-form" style={{ maxWidth: 'none' }}>
       <p className="ss-sub">
-        Emoji must be PNG, JPEG, GIF or WebP, up to {LIMITS.maxEmojiBytes / 1024} KB each. Names use
-        letters, numbers and underscores.
+        {t('settings.expressions.emojiRules', { kb: String(LIMITS.maxEmojiBytes / 1024) })}
       </p>
       <p>
         <Badge>
-          Static {staticCount} / {LIMITS.staticEmoji}
+          {t('settings.expressions.staticCount', {
+            count: String(staticCount),
+            max: String(LIMITS.staticEmoji),
+          })}
         </Badge>{' '}
         <Badge>
-          Animated {animatedCount} / {LIMITS.animatedEmoji}
+          {t('settings.expressions.animatedCount', {
+            count: String(animatedCount),
+            max: String(LIMITS.animatedEmoji),
+          })}
         </Badge>
       </p>
       <FileDrop
-        label="Upload emoji"
+        label={t('settings.expressions.uploadEmoji')}
         accept={IMAGE_ACCEPT}
         multiple
         maxSize={LIMITS.maxEmojiBytes}
@@ -165,19 +177,19 @@ function EmojiTab({
       <ActionStatus error={action.error} done={action.done} />
       {list.length === 0 ? (
         <EmptyState
-          title="No custom emoji yet"
-          description="Upload an image to create the first one."
+          title={t('settings.expressions.noEmojiTitle')}
+          description={t('settings.expressions.noEmojiDescription')}
         />
       ) : (
         <table className="ss-table">
           <thead>
             <tr>
-              <th scope="col">Emoji</th>
-              <th scope="col">Name</th>
-              <th scope="col">Uploaded by</th>
-              <th scope="col">Roles allowed</th>
+              <th scope="col">{t('settings.expressions.colEmoji')}</th>
+              <th scope="col">{t('settings.expressions.colName')}</th>
+              <th scope="col">{t('settings.expressions.colUploadedBy')}</th>
+              <th scope="col">{t('settings.expressions.colRoles')}</th>
               <th scope="col">
-                <span className="ss-sr">Delete</span>
+                <span className="ss-sr">{t('settings.expressions.delete')}</span>
               </th>
             </tr>
           </thead>
@@ -198,9 +210,9 @@ function EmojiTab({
       <ConfirmDialog
         open={!!toDelete}
         danger
-        title={`Delete :${toDelete?.name ?? ''}:`}
-        description="Existing messages keep showing the name but no image."
-        confirmLabel="Delete emoji"
+        title={t('settings.expressions.deleteNamed', { name: toDelete?.name ?? '' })}
+        description={t('settings.expressions.deleteEmojiDescription')}
+        confirmLabel={t('settings.expressions.deleteEmoji')}
         loading={action.busy}
         onConfirm={() => void remove()}
         onCancel={() => setToDelete(null)}
@@ -222,6 +234,7 @@ function EmojiRow({
   onChanged: () => Promise<void>;
   onDelete: () => void;
 }) {
+  const t = useT();
   const [name, setName] = useState(emoji.name);
   const action = useAction();
   const valid = validEmojiName(name);
@@ -243,10 +256,10 @@ function EmojiRow({
       <td>
         <span className="ss-actions">
           <TextInput
-            label={`Name of :${emoji.name}:`}
+            label={t('settings.expressions.nameOf', { name: emoji.name })}
             value={name}
             maxLength={32}
-            error={dirty && !valid ? 'Use 2 to 32 letters, numbers or underscores.' : undefined}
+            error={dirty && !valid ? t('settings.expressions.nameRule') : undefined}
             onChange={(e) => setName(e.target.value)}
           />
           <Button
@@ -254,10 +267,10 @@ function EmojiRow({
             variant="secondary"
             disabled={!dirty || !valid}
             loading={action.busy}
-            aria-label={`Save name for :${emoji.name}:`}
+            aria-label={t('settings.expressions.saveNameFor', { name: emoji.name })}
             onClick={() => void save({ name })}
           >
-            Save
+            {t('settings.expressions.save')}
           </Button>
         </span>
         <ActionStatus error={action.error} />
@@ -265,16 +278,21 @@ function EmojiRow({
       <td>{api.userName(emoji.user)}</td>
       <td>
         <MultiSelect
-          aria-label={`Roles allowed to use :${emoji.name}:`}
-          placeholder="Everyone"
+          aria-label={t('settings.expressions.rolesAllowedFor', { name: emoji.name })}
+          placeholder={t('settings.expressions.everyone')}
           options={roleOptions}
           values={emoji.roles}
           onValuesChange={(roles) => void save({ roles })}
         />
       </td>
       <td>
-        <Button size="sm" variant="danger" aria-label={`Delete :${emoji.name}:`} onClick={onDelete}>
-          Delete
+        <Button
+          size="sm"
+          variant="danger"
+          aria-label={t('settings.expressions.deleteNamed', { name: emoji.name })}
+          onClick={onDelete}
+        >
+          {t('settings.expressions.delete')}
         </Button>
       </td>
     </tr>
@@ -290,6 +308,7 @@ function StickerTab({
   list: api.StickerObject[];
   reload: () => Promise<void>;
 }) {
+  const t = useT();
   const action = useAction();
   const [pending, setPending] = useState<{ file: File; image: string } | null>(null);
   const [name, setName] = useState('');
@@ -322,7 +341,7 @@ function StickerTab({
           tags: tags.trim(),
           file: pending.image,
         }),
-      'Sticker uploaded.',
+      t('settings.expressions.stickerUploaded'),
     );
     if (made) {
       setPending(null);
@@ -349,15 +368,18 @@ function StickerTab({
   return (
     <div className="ss-form" style={{ maxWidth: 'none' }}>
       <p className="ss-sub">
-        Stickers are PNG, APNG, GIF or Lottie files up to {LIMITS.maxStickerBytes / 1024} KB.
+        {t('settings.expressions.stickerRules', { kb: String(LIMITS.maxStickerBytes / 1024) })}
       </p>
       <p>
         <Badge>
-          Stickers {list.length} / {LIMITS.stickers}
+          {t('settings.expressions.stickerCount', {
+            count: String(list.length),
+            max: String(LIMITS.stickers),
+          })}
         </Badge>
       </p>
       <FileDrop
-        label="Choose sticker file"
+        label={t('settings.expressions.chooseSticker')}
         accept={`${IMAGE_ACCEPT},.json`}
         maxSize={LIMITS.maxStickerBytes}
         onFiles={(f) => void pick(f)}
@@ -366,37 +388,37 @@ function StickerTab({
       {rejected && <ActionStatus error={rejected} />}
       {pending && (
         <div className="ss-card">
-          <h2>Upload {pending.file.name}</h2>
+          <h2>{t('settings.expressions.uploadNamed', { name: pending.file.name })}</h2>
           <TextInput
-            label="Sticker name"
+            label={t('settings.expressions.stickerName')}
             value={name}
             maxLength={30}
-            error={name && !nameOk ? 'Use 2 to 30 characters.' : undefined}
+            error={name && !nameOk ? t('settings.expressions.stickerNameRule') : undefined}
             onChange={(e) => setName(e.target.value)}
           />
           <TextInput
-            label="Related emoji"
-            hint="Used to suggest the sticker. Type one or more emoji or keywords."
+            label={t('settings.expressions.relatedEmoji')}
+            hint={t('settings.expressions.relatedEmojiHint')}
             value={tags}
             maxLength={200}
             onChange={(e) => setTags(e.target.value)}
           />
           <TextInput
-            label="Description"
+            label={t('settings.expressions.descriptionLabel')}
             value={description}
             maxLength={100}
             onChange={(e) => setDescription(e.target.value)}
           />
           <div className="ss-actions">
             <Button variant="ghost" onClick={() => setPending(null)}>
-              Cancel
+              {t('settings.expressions.cancel')}
             </Button>
             <Button
               disabled={!nameOk || !tags.trim()}
               loading={action.busy}
               onClick={() => void create()}
             >
-              Upload sticker
+              {t('settings.expressions.uploadSticker')}
             </Button>
           </div>
         </div>
@@ -404,35 +426,41 @@ function StickerTab({
       <ActionStatus error={action.error} done={action.done} />
       {list.length === 0 ? (
         <EmptyState
-          title="No stickers yet"
-          description="Upload a file to create the first sticker."
+          title={t('settings.expressions.noStickersTitle')}
+          description={t('settings.expressions.noStickersDescription')}
         />
       ) : (
-        <ul className="ss-list" aria-label="Stickers">
+        <ul className="ss-list" aria-label={t('settings.expressions.tabStickers')}>
           {list.map((s) => (
             <li key={s.id} className="ss-row">
               <span className="ss-emoji-img" aria-hidden="true" />
               <div className="ss-grow">
                 <div className="ss-name">{s.name}</div>
                 <div className="ss-meta">
-                  {s.tags} {s.description ? `- ${s.description}` : ''} - by {api.userName(s.user)}
+                  {t('settings.expressions.stickerMeta', {
+                    tags: s.tags,
+                    description: s.description
+                      ? t('settings.expressions.stickerDescription', { description: s.description })
+                      : '',
+                    name: api.userName(s.user),
+                  })}
                 </div>
               </div>
               <Button
                 size="sm"
                 variant="secondary"
-                aria-label={`Edit sticker ${s.name}`}
+                aria-label={t('settings.expressions.editSticker', { name: s.name })}
                 onClick={() => setEditing(s)}
               >
-                Edit
+                {t('settings.expressions.edit')}
               </Button>
               <Button
                 size="sm"
                 variant="danger"
-                aria-label={`Delete sticker ${s.name}`}
+                aria-label={t('settings.expressions.deleteStickerNamed', { name: s.name })}
                 onClick={() => setToDelete(s)}
               >
-                Delete
+                {t('settings.expressions.delete')}
               </Button>
             </li>
           ))}
@@ -452,8 +480,10 @@ function StickerTab({
       <ConfirmDialog
         open={!!toDelete}
         danger
-        title={`Delete ${toDelete?.name ?? 'sticker'}`}
-        confirmLabel="Delete sticker"
+        title={t('settings.expressions.deleteTitle', {
+          name: toDelete?.name ?? t('settings.expressions.stickerWord'),
+        })}
+        confirmLabel={t('settings.expressions.deleteSticker')}
         loading={action.busy}
         onConfirm={() => void remove()}
         onCancel={() => setToDelete(null)}
@@ -473,6 +503,7 @@ function StickerEdit({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const t = useT();
   const [name, setName] = useState(sticker.name);
   const [tags, setTags] = useState(sticker.tags);
   const [description, setDescription] = useState(sticker.description ?? '');
@@ -493,18 +524,18 @@ function StickerEdit({
       open
       onClose={onClose}
       size="sm"
-      title={`Edit ${sticker.name}`}
+      title={t('settings.expressions.editTitle', { name: sticker.name })}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t('settings.expressions.cancel')}
           </Button>
           <Button
             loading={action.busy}
             disabled={name.trim().length < 2}
             onClick={() => void save()}
           >
-            Save
+            {t('settings.expressions.save')}
           </Button>
         </>
       }
@@ -512,19 +543,19 @@ function StickerEdit({
       <div className="ss-form">
         <ActionStatus error={action.error} />
         <TextInput
-          label="Sticker name"
+          label={t('settings.expressions.stickerName')}
           value={name}
           maxLength={30}
           onChange={(e) => setName(e.target.value)}
         />
         <TextInput
-          label="Related emoji"
+          label={t('settings.expressions.relatedEmoji')}
           value={tags}
           maxLength={200}
           onChange={(e) => setTags(e.target.value)}
         />
         <TextInput
-          label="Description"
+          label={t('settings.expressions.descriptionLabel')}
           value={description}
           maxLength={100}
           onChange={(e) => setDescription(e.target.value)}

@@ -1,5 +1,6 @@
 import { Button, EmptyState } from '@sideroom/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useT } from '../../../i18n';
 import { snowflakeTime } from '../../../lounge/liveMap';
 import { useChannels, useGuild, useMembers } from '../../../store';
 import * as api from '../api';
@@ -9,6 +10,7 @@ import type { SectionProps } from '../ServerSettings';
 import { ActionStatus, Loading, SectionHeader, formatDateTime } from '../ui';
 
 export function AuditLogSection({ guildId }: SectionProps) {
+  const t = useT();
   const { roles } = useGuild(guildId);
   const channels = useChannels(guildId);
   const { members } = useMembers(guildId);
@@ -42,12 +44,12 @@ export function AuditLogSection({ guildId }: SectionProps) {
         setMore(res.audit_log_entries.length >= api.AUDIT_PAGE);
         setError(null);
       } catch (e) {
-        if (mine === seq.current) setError(api.errorText(e, 'Could not load the audit log.'));
+        if (mine === seq.current) setError(api.errorText(e, t('settings.auditLog.loadFailed')));
       } finally {
         if (mine === seq.current) setLoading(false);
       }
     },
-    [guildId, userId, action],
+    [guildId, userId, action, t],
   );
 
   useEffect(() => {
@@ -72,12 +74,16 @@ export function AuditLogSection({ guildId }: SectionProps) {
     const u = users[id];
     if (u) return api.userName(u);
     const m = members.find((x) => x.member.user_id === id);
-    return m?.user ? m.user.global_name || m.user.username : `User ${id}`;
+    return m?.user
+      ? m.user.global_name || m.user.username
+      : t('settings.auditLog.userFallback', { id });
   };
   const names: Names = {
     user: userName,
-    role: (id) => roles.find((r) => r.id === id)?.name ?? `role ${id}`,
-    channel: (id) => channels.find((c) => c.id === id)?.name ?? `channel ${id}`,
+    role: (id) =>
+      roles.find((r) => r.id === id)?.name ?? t('settings.auditLog.roleFallback', { id }),
+    channel: (id) =>
+      channels.find((c) => c.id === id)?.name ?? t('settings.auditLog.channelFallback', { id }),
   };
   const memberOptions = members
     .map((m) => ({
@@ -89,13 +95,13 @@ export function AuditLogSection({ guildId }: SectionProps) {
   return (
     <>
       <SectionHeader
-        title="Audit Log"
-        description="Who changed what in this server. Entries are kept for 45 days unless the operator set another audit retention period."
+        title={t('settings.auditLog.title')}
+        description={t('settings.auditLog.description')}
       />
       <div className="ss-toolbar">
         <div>
           <label className="ss-field-label" htmlFor="ss-audit-user">
-            Filter by user
+            {t('settings.auditLog.filterUser')}
           </label>
           <select
             id="ss-audit-user"
@@ -103,7 +109,7 @@ export function AuditLogSection({ guildId }: SectionProps) {
             value={userId}
             onChange={(e) => setUserId(e.target.value)}
           >
-            <option value="">All users</option>
+            <option value="">{t('settings.auditLog.allUsers')}</option>
             {memberOptions.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.name}
@@ -113,7 +119,7 @@ export function AuditLogSection({ guildId }: SectionProps) {
         </div>
         <div>
           <label className="ss-field-label" htmlFor="ss-audit-action">
-            Filter by action
+            {t('settings.auditLog.filterAction')}
           </label>
           <select
             id="ss-audit-action"
@@ -121,7 +127,7 @@ export function AuditLogSection({ guildId }: SectionProps) {
             value={action}
             onChange={(e) => setAction(e.target.value)}
           >
-            <option value="">All actions</option>
+            <option value="">{t('settings.auditLog.allActions')}</option>
             {AUDIT_FILTERS.map((f) => (
               <option key={f.value} value={f.value}>
                 {f.label}
@@ -131,11 +137,14 @@ export function AuditLogSection({ guildId }: SectionProps) {
         </div>
       </div>
       {error && <ActionStatus error={error} />}
-      {loading && entries.length === 0 && <Loading label="Loading audit log" />}
+      {loading && entries.length === 0 && <Loading label={t('settings.auditLog.loading')} />}
       {!loading && !error && entries.length === 0 && (
-        <EmptyState title="No entries" description="Nothing matches these filters." />
+        <EmptyState
+          title={t('settings.auditLog.emptyTitle')}
+          description={t('settings.auditLog.emptyDescription')}
+        />
       )}
-      <ul className="ss-list" aria-label="Audit log entries">
+      <ul className="ss-list" aria-label={t('settings.auditLog.entriesLabel')}>
         {entries.map((e) => {
           const diff = diffLines(e.changes);
           const expanded = open === e.id;
@@ -147,11 +156,13 @@ export function AuditLogSection({ guildId }: SectionProps) {
                 </div>
                 <div className="ss-meta">
                   {formatDateTime(snowflakeTime(e.id))}
-                  {e.reason ? ` - Reason: ${e.reason}` : ''}
+                  {e.reason ? t('settings.auditLog.reason', { reason: e.reason }) : ''}
                 </div>
                 {expanded && (
-                  <ul className="ss-diff" aria-label="Changes">
-                    {diff.length === 0 && <li className="ss-meta">No recorded changes.</li>}
+                  <ul className="ss-diff" aria-label={t('settings.auditLog.changesLabel')}>
+                    {diff.length === 0 && (
+                      <li className="ss-meta">{t('settings.auditLog.noChanges')}</li>
+                    )}
                     {diff.map((d) => (
                       <li key={d.key}>
                         <strong>{d.label}</strong>:{' '}
@@ -167,10 +178,14 @@ export function AuditLogSection({ guildId }: SectionProps) {
                 size="sm"
                 variant="ghost"
                 aria-expanded={expanded}
-                aria-label={`${expanded ? 'Hide' : 'Show'} details for entry ${e.id}`}
+                aria-label={
+                  expanded
+                    ? t('settings.auditLog.hideDetails', { id: e.id })
+                    : t('settings.auditLog.showDetails', { id: e.id })
+                }
                 onClick={() => setOpen(expanded ? null : e.id)}
               >
-                {expanded ? 'Hide' : 'Details'}
+                {expanded ? t('settings.auditLog.hide') : t('settings.auditLog.details')}
               </Button>
             </li>
           );
@@ -183,7 +198,7 @@ export function AuditLogSection({ guildId }: SectionProps) {
             loading={loading}
             onClick={() => void load(true, entries.at(-1)?.id)}
           >
-            Load more
+            {t('settings.auditLog.loadMore')}
           </Button>
         </div>
       )}

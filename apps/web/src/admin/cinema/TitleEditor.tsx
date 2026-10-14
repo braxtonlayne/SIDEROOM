@@ -2,6 +2,7 @@
 // and the video asset with its transcode status. One persisted `AdminTitleDetail` feeds every tab.
 import { Badge, Button, Select, Switch, Tabs, TextArea, TextInput } from '@sideroom/ui';
 import { useState } from 'react';
+import { useT } from '../../i18n';
 import { Loading, SectionHeader, useAdminViewer } from '../ui';
 import * as api from './api';
 import { ArtworkPicker } from './ArtworkPicker';
@@ -50,11 +51,6 @@ export function titleToInput(t: api.Title, over: Partial<api.TitleInput> = {}): 
     ...over,
   };
 }
-
-const KIND_OPTIONS = api.TITLE_KINDS.map((k) => ({
-  value: k,
-  label: k[0]!.toUpperCase() + k.slice(1),
-}));
 
 interface Form {
   kind: api.TitleKind;
@@ -172,6 +168,7 @@ function formToInput(f: Form, base?: api.Title): api.TitleInput {
 }
 
 export function TitleEditor({ titleId, onClose }: { titleId: string | null; onClose: () => void }) {
+  const t = useT();
   const [id, setId] = useState<string | null>(titleId);
   const detail = useLoad<api.AdminTitleDetail | null>(`cinema-title:${id ?? 'new'}`, async () =>
     id ? api.getTitle(id) : null,
@@ -192,7 +189,7 @@ export function TitleEditor({ titleId, onClose }: { titleId: string | null; onCl
         await detail.reload();
         return true;
       },
-      title.published ? 'Unpublished.' : 'Published. Members can see it now.',
+      title.published ? t('admin.titleEditor.unpublished') : t('admin.titleEditor.published'),
     );
   };
 
@@ -203,11 +200,11 @@ export function TitleEditor({ titleId, onClose }: { titleId: string | null; onCl
         error={detail.error}
         status={detail.status}
         onRetry={() => void detail.reload()}
-        what="this title"
+        what={t('admin.titleEditor.whatTitle')}
       />
     );
   } else if (detail.loading && !d && id) {
-    body = <Loading label="Loading title" />;
+    body = <Loading label={t('admin.titleEditor.loading')} />;
   } else if (!id || !d || !title) {
     body = (
       <DetailsForm
@@ -218,33 +215,33 @@ export function TitleEditor({ titleId, onClose }: { titleId: string | null; onCl
           setId(created.id);
           return created;
         }}
-        createLabel="Create draft"
+        createLabel={t('admin.titleEditor.createDraft')}
       />
     );
   } else {
     body = (
       <Tabs
-        label="Title sections"
+        label={t('admin.titleEditor.sections')}
         items={[
           {
             id: 'details',
-            label: 'Details',
+            label: t('admin.titleEditor.tab.details'),
             content: (
               <DetailsForm
                 key={title.updated_at_ms}
                 title={title}
                 readOnly={!canPublish}
                 onSave={async (input) => {
-                  const t = await api.updateTitle(title.id, input);
+                  const updated = await api.updateTitle(title.id, input);
                   await detail.reload();
-                  return t;
+                  return updated;
                 }}
               />
             ),
           },
           {
             id: 'artwork',
-            label: 'Artwork',
+            label: t('admin.titleEditor.tab.artwork'),
             content: (
               <ArtworkTab title={title} onSaved={() => detail.reload()} readOnly={!canPublish} />
             ),
@@ -253,24 +250,24 @@ export function TitleEditor({ titleId, onClose }: { titleId: string | null; onCl
             ? [
                 {
                   id: 'episodes',
-                  label: 'Seasons and episodes',
+                  label: t('admin.titleEditor.tab.episodes'),
                   content: <SeasonsPanel detail={d} reload={() => detail.reload()} />,
                 },
               ]
             : []),
           {
             id: 'extras',
-            label: 'Variants and trailers',
+            label: t('admin.titleEditor.tab.extras'),
             content: <ExtrasPanel detail={d} reload={() => detail.reload()} />,
           },
           {
             id: 'markers',
-            label: 'Skip markers',
+            label: t('admin.titleEditor.tab.markers'),
             content: <MarkersPanel detail={d} reload={() => detail.reload()} />,
           },
           {
             id: 'asset',
-            label: 'Video and transcoding',
+            label: t('admin.titleEditor.tab.asset'),
             content: <AssetPanel detail={d} reload={() => detail.reload()} />,
           },
         ]}
@@ -281,24 +278,28 @@ export function TitleEditor({ titleId, onClose }: { titleId: string | null; onCl
   return (
     <>
       <SectionHeader
-        title={title ? title.title : 'New title'}
+        title={title ? title.title : t('admin.titleEditor.newTitle')}
         description={
           title ? (
             <>
               {title.kind} ·{' '}
               <Badge variant={title.published ? 'success' : 'neutral'}>
-                {title.published ? 'published' : 'draft'}
+                {title.published
+                  ? t('admin.titleEditor.statusPublished')
+                  : t('admin.titleEditor.statusDraft')}
               </Badge>{' '}
-              {title.age_restricted && <Badge variant="danger">18+</Badge>}
+              {title.age_restricted && (
+                <Badge variant="danger">{t('admin.titleEditor.age18')}</Badge>
+              )}
             </>
           ) : (
-            'A new title starts as a draft. Add its video, then publish.'
+            t('admin.titleEditor.newDescription')
           )
         }
         actions={
           <>
             <Button variant="ghost" onClick={onClose}>
-              Back to titles
+              {t('admin.titleEditor.back')}
             </Button>
             {title && (canPublish || title.published) && (
               <Button
@@ -306,7 +307,9 @@ export function TitleEditor({ titleId, onClose }: { titleId: string | null; onCl
                 loading={publish.busy}
                 onClick={toggle}
               >
-                {title.published ? 'Unpublish' : 'Publish'}
+                {title.published
+                  ? t('admin.titleEditor.unpublish')
+                  : t('admin.titleEditor.publish')}
               </Button>
             )}
           </>
@@ -322,13 +325,19 @@ function DetailsForm({
   title,
   onSave,
   readOnly,
-  createLabel = 'Save changes',
+  createLabel,
 }: {
   title?: api.Title;
   onSave: (input: api.TitleInput) => Promise<api.Title>;
   readOnly?: boolean;
   createLabel?: string;
 }) {
+  const t = useT();
+  const kindOptions = [
+    { value: 'movie', label: t('admin.titleEditor.kind.movie') },
+    { value: 'series', label: t('admin.titleEditor.kind.series') },
+    { value: 'anime', label: t('admin.titleEditor.kind.anime') },
+  ];
   const [f, setF] = useState<Form>(title ? toForm(title) : blank);
   const { busy, error, notice, run } = useRun();
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((c) => ({ ...c, [k]: v }));
@@ -349,7 +358,7 @@ function DetailsForm({
   return (
     <form
       className="adm-form adm-cin-form"
-      aria-label="Title details"
+      aria-label={t('admin.titleEditor.details.aria')}
       onSubmit={(e) => {
         e.preventDefault();
         if (!valid || busy || readOnly) return;
@@ -358,59 +367,61 @@ function DetailsForm({
             await onSave(formToInput(f, title));
             return true;
           },
-          title ? 'Saved.' : 'Draft created.',
+          title ? t('admin.titleEditor.details.saved') : t('admin.titleEditor.details.created'),
         );
       }}
     >
       <div className="adm-cin-grid">
         <Select
-          aria-label="Kind"
-          options={KIND_OPTIONS}
+          aria-label={t('admin.titleEditor.details.kind')}
+          options={kindOptions}
           value={f.kind}
           disabled={readOnly}
           onValueChange={(v) => set('kind', v as api.TitleKind)}
         />
-        {text('title', 'Title')}
-        {text('original_title', 'Original title')}
-        {list('alt_titles', 'Alternative titles')}
-        {text('year', 'Year', { type: 'number' })}
-        {text('runtime_min', 'Runtime (minutes)', { type: 'number' })}
-        {text('content_rating', 'Content rating', { hint: 'For example PG-13 or TV-MA' })}
-        {text('tagline', 'Tagline')}
+        {text('title', t('admin.titleEditor.details.title'))}
+        {text('original_title', t('admin.titleEditor.details.originalTitle'))}
+        {list('alt_titles', t('admin.titleEditor.details.altTitles'))}
+        {text('year', t('admin.titleEditor.details.year'), { type: 'number' })}
+        {text('runtime_min', t('admin.titleEditor.details.runtime'), { type: 'number' })}
+        {text('content_rating', t('admin.titleEditor.details.contentRating'), {
+          hint: t('admin.titleEditor.details.contentRatingHint'),
+        })}
+        {text('tagline', t('admin.titleEditor.details.tagline'))}
       </div>
       <TextArea
-        label="Synopsis"
+        label={t('admin.titleEditor.details.synopsis')}
         rows={5}
         value={f.synopsis}
         disabled={readOnly}
         onChange={(e) => set('synopsis', e.target.value)}
       />
       <div className="adm-cin-grid">
-        {list('genres', 'Genres')}
-        {list('tags', 'Tags')}
-        {list('languages', 'Audio languages (BCP 47)')}
-        {list('subtitle_languages', 'Subtitle languages (BCP 47)')}
-        {list('cast', 'Cast')}
-        {list('directors', 'Directors')}
-        {list('writers', 'Writers')}
-        {list('studios', 'Studios')}
-        {list('crew', 'Other crew')}
-        {text('imdb', 'IMDb id')}
-        {text('tmdb', 'TMDB id')}
+        {list('genres', t('admin.titleEditor.details.genres'))}
+        {list('tags', t('admin.titleEditor.details.tags'))}
+        {list('languages', t('admin.titleEditor.details.languages'))}
+        {list('subtitle_languages', t('admin.titleEditor.details.subtitleLanguages'))}
+        {list('cast', t('admin.titleEditor.details.cast'))}
+        {list('directors', t('admin.titleEditor.details.directors'))}
+        {list('writers', t('admin.titleEditor.details.writers'))}
+        {list('studios', t('admin.titleEditor.details.studios'))}
+        {list('crew', t('admin.titleEditor.details.crew'))}
+        {text('imdb', t('admin.titleEditor.details.imdb'))}
+        {text('tmdb', t('admin.titleEditor.details.tmdb'))}
       </div>
       <Switch
-        label="Age-restricted (18+): members confirm their age before it opens"
+        label={t('admin.titleEditor.details.ageRestricted')}
         checked={f.age_restricted}
         disabled={readOnly}
         onChange={(e) => set('age_restricted', e.target.checked)}
       />
       <Banner error={error} notice={notice} />
       {readOnly ? (
-        <p className="ss-na">You can view this title but not change it.</p>
+        <p className="ss-na">{t('admin.titleEditor.details.readOnly')}</p>
       ) : (
         <div className="adm-actions">
           <Button type="submit" loading={busy} disabled={!valid}>
-            {createLabel}
+            {createLabel ?? t('admin.titleEditor.details.save')}
           </Button>
         </div>
       )}
@@ -427,23 +438,26 @@ function ArtworkTab({
   onSaved: () => Promise<void>;
   readOnly?: boolean;
 }) {
+  const t = useT();
   const slots: {
     slot: 'poster' | 'backdrop' | 'logo';
     label: string;
     url?: string | null;
     wide?: boolean;
   }[] = [
-    { slot: 'poster', label: 'Poster', url: title.poster_url },
-    { slot: 'backdrop', label: 'Backdrop', url: title.backdrop_url, wide: true },
-    { slot: 'logo', label: 'Logo', url: title.logo_url },
+    { slot: 'poster', label: t('admin.titleEditor.art.poster'), url: title.poster_url },
+    {
+      slot: 'backdrop',
+      label: t('admin.titleEditor.art.backdrop'),
+      url: title.backdrop_url,
+      wide: true,
+    },
+    { slot: 'logo', label: t('admin.titleEditor.art.logo'), url: title.logo_url },
   ];
   const keyField = { poster: 'poster_key', backdrop: 'backdrop_key', logo: 'logo_key' } as const;
   return (
     <div className="adm-cin-art">
-      <p className="ss-desc">
-        Images go straight to storage, then are attached to the title. WebP, JPEG or PNG, up to 10
-        MB.
-      </p>
+      <p className="ss-desc">{t('admin.titleEditor.art.intro')}</p>
       {slots.map((s) => (
         <ArtworkPicker
           key={s.slot}

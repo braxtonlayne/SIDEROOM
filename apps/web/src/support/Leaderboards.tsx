@@ -11,6 +11,7 @@ import {
 } from '@sideroom/ui';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
+import { useT } from '../i18n';
 import { useResource } from '../settings/server/hooks';
 import { Async } from '../settings/server/ui';
 import * as api from './api';
@@ -19,14 +20,15 @@ import './support.css';
 import '../settings/user/user-settings.css';
 
 function BoardList({ board, mine }: { board: Board; mine: boolean }) {
+  const t = useT();
   if (board.items.length === 0)
     return (
       <EmptyState
-        title="Nobody on this board yet"
+        title={t('support.leaderboards.emptyTitle')}
         description={
           board.board === 'donors'
-            ? 'Donations show up here once they are confirmed.'
-            : 'Servers appear here when members support them.'
+            ? t('support.leaderboards.emptyDonors')
+            : t('support.leaderboards.emptyServers')
         }
       />
     );
@@ -34,20 +36,29 @@ function BoardList({ board, mine }: { board: Board; mine: boolean }) {
     <>
       <ol
         className="sup-board"
-        aria-label={board.board === 'donors' ? 'Top donors' : 'Top servers'}
+        aria-label={
+          board.board === 'donors'
+            ? t('support.leaderboards.topDonors')
+            : t('support.leaderboards.topServers')
+        }
       >
         {board.items.map((i) => (
           <li key={`${i.rank}-${i.user_id ?? i.guild_id ?? i.name}`}>
             <span className="sup-rank">#{i.rank}</span>
             <span className="sup-name">{i.name}</span>
-            {i.anonymous && <Badge variant="neutral">Hidden</Badge>}
-            <span className="sup-muted">{i.cents === null ? 'Amount hidden' : usd(i.cents)}</span>
+            {i.anonymous && <Badge variant="neutral">{t('support.leaderboards.hidden')}</Badge>}
+            <span className="sup-muted">
+              {i.cents === null ? t('support.leaderboards.amountHidden') : usd(i.cents)}
+            </span>
           </li>
         ))}
       </ol>
       {mine && board.me && (
         <p className="sup-muted" role="status">
-          Your rank: #{board.me.rank} ({usd(board.me.cents)})
+          {t('support.leaderboards.yourRank', {
+            rank: board.me.rank,
+            amount: usd(board.me.cents),
+          })}
         </p>
       )}
     </>
@@ -55,63 +66,61 @@ function BoardList({ board, mine }: { board: Board; mine: boolean }) {
 }
 
 function Pane({ kind, window }: { kind: 'donors' | 'servers'; window: '30d' | 'lifetime' }) {
+  const t = useT();
   const res = useResource(`${kind}-${window}`, () => api.getBoard(kind, window));
   return (
-    <Async res={res} label="Loading the leaderboard">
+    <Async res={res} label={t('support.leaderboards.loading')}>
       {(b) => <BoardList board={b} mine={kind === 'donors'} />}
     </Async>
   );
 }
 
 export function LeaderboardsPage() {
+  const t = useT();
   const [window, setWindow] = useState<'30d' | 'lifetime'>('30d');
   return (
     <ThemeProvider section="lounge" className="ss-root">
       <ToastProvider>
         <main className="sup-page">
-          <h1 className="us-title">Leaderboards</h1>
+          <h1 className="us-title">{t('support.leaderboards.title')}</h1>
           <p className="sup-muted">
-            Thank you to everyone keeping the lights on. Donors can hide their name or amount in
-            Settings.{' '}
+            {t('support.leaderboards.thanks')}{' '}
             <Link to="/settings/user/$section" params={{ section: 'support' }}>
-              Support
+              {t('support.leaderboards.supportLink')}
             </Link>
           </p>
-          <div className="sup-bar" role="group" aria-label="Time window">
+          <div className="sup-bar" role="group" aria-label={t('support.leaderboards.timeWindow')}>
             <Button
               variant={window === '30d' ? 'primary' : 'secondary'}
               aria-pressed={window === '30d'}
               onClick={() => setWindow('30d')}
             >
-              Last 30 days
+              {t('support.leaderboards.last30')}
             </Button>
             <Button
               variant={window === 'lifetime' ? 'primary' : 'secondary'}
               aria-pressed={window === 'lifetime'}
               onClick={() => setWindow('lifetime')}
             >
-              Lifetime
+              {t('support.leaderboards.lifetime')}
             </Button>
           </div>
           <Tabs
-            label="Leaderboard"
+            label={t('support.leaderboards.tabs')}
             items={[
               {
                 id: 'donors',
-                label: 'Top donors',
+                label: t('support.leaderboards.topDonors'),
                 content: <Pane kind="donors" window={window} />,
               },
               {
                 id: 'servers',
-                label: 'Top servers',
+                label: t('support.leaderboards.topServers'),
                 content: <Pane kind="servers" window={window} />,
               },
             ]}
           />
-          <Notice variant="info">
-            Contributor boards for approved movies, episodes and chapters arrive with the review
-            pipeline.
-          </Notice>
+          <Notice variant="info">{t('support.leaderboards.contributors')}</Notice>
         </main>
       </ToastProvider>
     </ThemeProvider>

@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter } from '@tanstack/react-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError } from '../../api/client';
+import { useT } from '../../i18n';
 import { isAgeGateError, useAgeGate, withAgeGate } from '../../lib/ageGate';
 import { getPlayback } from './api';
 import { resumeOffer } from './model';
@@ -39,6 +40,7 @@ const hasActivation = () =>
     ?.hasBeenActive === true;
 
 function WatchLoader({ titleId, episodeId, variantId, trailer, startAt }: WatchPageProps) {
+  const tr = useT();
   const router = useRouter();
   const { ensureAdult } = useAgeGate();
   const s = playerSession();
@@ -98,15 +100,11 @@ function WatchLoader({ titleId, episodeId, variantId, trailer, startAt }: WatchP
     return (
       <div className="cpl-player cpl-player-msg">
         <EmptyState
-          title={gone ? 'This title is not available' : 'We could not open this title'}
-          description={
-            gone
-              ? 'It may have been unpublished or removed.'
-              : 'Check your connection and try again.'
-          }
+          title={gone ? tr('cinema.watch.goneTitle') : tr('cinema.watch.errorTitle')}
+          description={gone ? tr('cinema.watch.goneBody') : tr('cinema.watch.errorBody')}
           action={
             <a className="cpl-primary" href="/cinema">
-              Back to the cinema
+              {tr('cinema.watch.backToCinema')}
             </a>
           }
         />
@@ -116,7 +114,7 @@ function WatchLoader({ titleId, episodeId, variantId, trailer, startAt }: WatchP
   if (!info || declined) {
     return (
       <div className="cpl-player cpl-player-msg">
-        <Spinner label="Opening title" />
+        <Spinner label={tr('cinema.watch.opening')} />
       </div>
     );
   }

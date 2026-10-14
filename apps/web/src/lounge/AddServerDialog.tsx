@@ -2,6 +2,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { Button, Icon, Modal, TextInput } from '@sideroom/ui';
 import { useEffect, useState, type FormEvent } from 'react';
 import { ApiError } from '../api/client';
+import { useT } from '../i18n';
 import { useStore } from '../store';
 import type { Channel as StoreChannel } from '../store';
 import { listBuiltinTemplates, type BuiltinTemplate } from '../store/rest';
@@ -31,6 +32,7 @@ type Purpose = 'club' | 'friends' | null;
  * or Join a Server with an invite link or code.
  */
 export function AddServerDialog({ onClose }: { onClose: () => void }) {
+  const t = useT();
   const [step, setStep] = useState<Step>('choose');
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [purpose, setPurpose] = useState<Purpose>(null);
@@ -54,7 +56,7 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
     };
   }, []);
 
-  const template = templateId ? templates?.find((t) => t.id === templateId) : undefined;
+  const template = templateId ? templates?.find((tpl) => tpl.id === templateId) : undefined;
 
   const go = (next: Step) => {
     setStep(next);
@@ -64,7 +66,7 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
   const create = async (e: FormEvent) => {
     e.preventDefault();
     const trimmed = name.trim();
-    if (!trimmed) return setError('Give your server a name.');
+    if (!trimmed) return setError(t('lounge.addServerDialog.nameRequired'));
     setBusy(true);
     setError(null);
     try {
@@ -72,7 +74,7 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
       onClose();
       goto(guild.id, firstText(guild.channels));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not create the server. Try again.');
+      setError(err instanceof ApiError ? err.message : t('lounge.addServerDialog.createFailed'));
       setBusy(false);
     }
   };
@@ -80,7 +82,7 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
   const join = async (e: FormEvent) => {
     e.preventDefault();
     const code = parseInviteCode(link);
-    if (!code) return setError('Paste an invite link or code.');
+    if (!code) return setError(t('lounge.addServerDialog.codeRequired'));
     setBusy(true);
     setError(null);
     try {
@@ -94,17 +96,16 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
   };
 
   const titles: Record<Step, string> = {
-    choose: 'Create a Server',
-    purpose: 'Tell us more about your server',
-    customize: 'Customize your server',
-    join: 'Join a Server',
+    choose: t('lounge.addServerDialog.titleChoose'),
+    purpose: t('lounge.addServerDialog.titlePurpose'),
+    customize: t('lounge.addServerDialog.titleCustomize'),
+    join: t('lounge.addServerDialog.titleJoin'),
   };
   const descriptions: Record<Step, string | undefined> = {
-    choose: 'Your server is where you and your friends hang out. Make yours and start talking.',
-    purpose:
-      'In order to help you with your setup, is your new server for just a few friends or a larger community?',
-    customize: 'Give your new server a personality with a name. You can always change it later.',
-    join: 'Enter an invite below to join an existing server.',
+    choose: t('lounge.addServerDialog.descChoose'),
+    purpose: t('lounge.addServerDialog.descPurpose'),
+    customize: t('lounge.addServerDialog.descCustomize'),
+    join: t('lounge.addServerDialog.descJoin'),
   };
 
   return (
@@ -119,24 +120,27 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
               go('purpose');
             }}
           >
-            Create My Own
+            {t('lounge.addServerDialog.createMyOwn')}
           </Button>
-          <h3 className="lng-form-h">Start from a template</h3>
+          <h3 className="lng-form-h">{t('lounge.addServerDialog.fromTemplate')}</h3>
           {templates && templates.length > 0 && (
-            <ul className="lng-template-list" aria-label="Templates">
-              {templates.map((t) => (
-                <li key={t.id}>
+            <ul
+              className="lng-template-list"
+              aria-label={t('lounge.addServerDialog.templatesLabel')}
+            >
+              {templates.map((tpl) => (
+                <li key={tpl.id}>
                   <button
                     type="button"
                     className="lng-template"
                     onClick={() => {
-                      setTemplateId(t.id);
+                      setTemplateId(tpl.id);
                       go('purpose');
                     }}
                   >
                     <span className="lng-template-text">
-                      <strong>{t.name}</strong>
-                      <small>{t.description}</small>
+                      <strong>{tpl.name}</strong>
+                      <small>{tpl.description}</small>
                     </span>
                     <Icon name="chevron-right" size={16} />
                   </button>
@@ -146,12 +150,12 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
           )}
           {templatesFailed && (
             <p className="lng-muted" role="status">
-              Templates are unavailable right now. You can still create your own.
+              {t('lounge.addServerDialog.templatesUnavailable')}
             </p>
           )}
-          <h3 className="lng-form-h">Have an invite already?</h3>
+          <h3 className="lng-form-h">{t('lounge.addServerDialog.haveInvite')}</h3>
           <Button variant="secondary" fullWidth onClick={() => go('join')}>
-            Join a Server
+            {t('lounge.addServerDialog.titleJoin')}
           </Button>
         </div>
       )}
@@ -165,7 +169,7 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
               go('customize');
             }}
           >
-            For a club or community
+            {t('lounge.addServerDialog.forClub')}
           </Button>
           <Button
             variant="secondary"
@@ -175,10 +179,10 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
               go('customize');
             }}
           >
-            For me and my friends
+            {t('lounge.addServerDialog.forFriends')}
           </Button>
           <p className="lng-muted">
-            Not sure? You can{' '}
+            {t('lounge.addServerDialog.notSure')}{' '}
             <button
               type="button"
               className="lng-link-btn"
@@ -187,13 +191,13 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
                 go('customize');
               }}
             >
-              skip this question
+              {t('lounge.addServerDialog.skipQuestion')}
             </button>{' '}
-            for now.
+            {t('lounge.addServerDialog.forNow')}
           </p>
           <div className="lng-form-actions">
             <Button variant="ghost" onClick={() => go('choose')}>
-              Back
+              {t('lounge.addServerDialog.back')}
             </Button>
           </div>
         </div>
@@ -202,32 +206,32 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
         <form className="lng-form" onSubmit={(e) => void create(e)} noValidate>
           {template && (
             <p className="lng-muted">
-              Starting from the <strong>{template.name}</strong> template
+              {t('lounge.addServerDialog.startingFrom')}
+              <strong>{template.name}</strong>
+              {t('lounge.addServerDialog.templateSuffix')}
               {purpose === 'club'
-                ? ' for a community'
+                ? t('lounge.addServerDialog.forCommunity')
                 : purpose === 'friends'
-                  ? ' for friends'
+                  ? t('lounge.addServerDialog.forFriendsShort')
                   : ''}
-              .
+              {t('lounge.addServerDialog.period')}
             </p>
           )}
           <TextInput
-            label="Server name"
+            label={t('lounge.addServerDialog.serverName')}
             value={name}
             maxLength={100}
             autoFocus
             error={error}
             onChange={(e) => setName(e.target.value)}
           />
-          <p className="lng-muted">
-            By creating a server, you agree to follow the community guidelines of this site.
-          </p>
+          <p className="lng-muted">{t('lounge.addServerDialog.agree')}</p>
           <div className="lng-form-actions">
             <Button variant="ghost" onClick={() => go('purpose')}>
-              Back
+              {t('lounge.addServerDialog.back')}
             </Button>
             <Button type="submit" loading={busy}>
-              Create
+              {t('lounge.addServerDialog.create')}
             </Button>
           </div>
         </form>
@@ -235,15 +239,15 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
       {step === 'join' && (
         <form className="lng-form" onSubmit={(e) => void join(e)} noValidate>
           <TextInput
-            label="Invite link or code"
+            label={t('lounge.addServerDialog.inviteLabel')}
             value={link}
-            placeholder="https://example.com/invite/AbCd123"
+            placeholder={t('lounge.addServerDialog.invitePlaceholder')}
             autoFocus
             error={error}
             onChange={(e) => setLink(e.target.value)}
           />
           <div>
-            <p className="lng-form-h">Invites look like</p>
+            <p className="lng-form-h">{t('lounge.addServerDialog.invitesLookLike')}</p>
             <ul className="lng-examples">
               <li>hTKzmak</li>
               <li>https://example.com/invite/hTKzmak</li>
@@ -252,10 +256,10 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
           </div>
           <div className="lng-form-actions">
             <Button variant="ghost" onClick={() => go('choose')}>
-              Back
+              {t('lounge.addServerDialog.back')}
             </Button>
             <Button type="submit" loading={busy}>
-              Join Server
+              {t('lounge.addServerDialog.joinServer')}
             </Button>
           </div>
         </form>

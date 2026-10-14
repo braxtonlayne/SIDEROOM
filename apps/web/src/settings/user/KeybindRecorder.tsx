@@ -1,5 +1,6 @@
 import { Button, KbdCombo } from '@sideroom/ui';
 import { useEffect, useRef, useState } from 'react';
+import { useT } from '../../i18n';
 import { keybindFromEvent, keybindParts, isModifierCode, type Keybind } from '../../voice/keybind';
 import { suspendKeybinds } from '../../voice/ptt';
 
@@ -18,6 +19,7 @@ export interface KeybindRecorderProps {
  * is accepted when it is released without another key.
  */
 export function KeybindRecorder({ action, value, onChange, conflict }: KeybindRecorderProps) {
+  const t = useT();
   const [recording, setRecording] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const latest = useRef({ onChange, conflict });
@@ -68,36 +70,46 @@ export function KeybindRecorder({ action, value, onChange, conflict }: KeybindRe
       <div className="us-keybind-value">
         {recording ? (
           <span className="us-muted" role="status">
-            Press a key or combination, or Esc to cancel
+            {t('settings.keybindRecorder.recordingHint')}
           </span>
         ) : value ? (
           <KbdCombo keys={keybindParts(value)} />
         ) : (
-          <span className="us-muted">Not bound</span>
+          <span className="us-muted">{t('settings.keybindRecorder.notBound')}</span>
         )}
       </div>
       <Button
         size="sm"
         variant="secondary"
-        aria-label={`${recording ? 'Cancel recording' : value ? 'Change' : 'Record'} ${action} keybind`}
+        aria-label={
+          recording
+            ? t('settings.keybindRecorder.cancelAria', { action })
+            : value
+              ? t('settings.keybindRecorder.changeAria', { action })
+              : t('settings.keybindRecorder.recordAria', { action })
+        }
         onClick={() => {
           setProblem(null);
           setRecording((r) => !r);
         }}
       >
-        {recording ? 'Cancel' : value ? 'Change' : 'Record'}
+        {recording
+          ? t('settings.keybindRecorder.cancel')
+          : value
+            ? t('settings.keybindRecorder.change')
+            : t('settings.keybindRecorder.record')}
       </Button>
       {value && !recording && (
         <Button
           size="sm"
           variant="ghost"
-          aria-label={`Clear ${action} keybind`}
+          aria-label={t('settings.keybindRecorder.clearAria', { action })}
           onClick={() => {
             setProblem(null);
             onChange(null);
           }}
         >
-          Clear
+          {t('settings.keybindRecorder.clear')}
         </Button>
       )}
       {problem && (

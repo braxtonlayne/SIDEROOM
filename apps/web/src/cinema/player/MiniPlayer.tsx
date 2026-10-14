@@ -4,6 +4,7 @@
 import { Icon, ThemeProvider } from '@sideroom/ui';
 import type { RouterHistory } from '@tanstack/react-router';
 import { useLayoutEffect, useRef } from 'react';
+import { useT } from '../../i18n';
 import { useAppliedTheme } from '../../settings/user/useAppliedTheme';
 import { useMiniPlayerActive } from './bridge';
 import { Expand, PauseGlyph, PlayGlyph } from './icons';
@@ -17,6 +18,7 @@ export interface MiniPlayerViewProps {
 }
 
 export function MiniPlayerView({ onExpand, onClose }: MiniPlayerViewProps) {
+  const tr = useT();
   const s = playerSession();
   const stage = useRef<HTMLDivElement>(null);
   const info = usePlayer((x) => x.info);
@@ -33,14 +35,14 @@ export function MiniPlayerView({ onExpand, onClose }: MiniPlayerViewProps) {
 
   if (!info) return null;
   return (
-    <section className="cpl-mini" aria-label={`Mini player: ${info.title}`}>
+    <section className="cpl-mini" aria-label={tr('cinema.mini.label', { title: info.title })}>
       <div ref={stage} className="cpl-mini-stage" />
       <div className="cpl-mini-bar">
         <button
           type="button"
           className="cpl-mini-title"
           onClick={onExpand}
-          aria-label={`Open ${info.title} full screen`}
+          aria-label={tr('cinema.mini.open', { title: info.title })}
         >
           {info.title}
           {info.episode_label ? ` · ${info.episode_label}` : ''}
@@ -48,15 +50,25 @@ export function MiniPlayerView({ onExpand, onClose }: MiniPlayerViewProps) {
         <button
           type="button"
           className="cpl-btn"
-          aria-label={playing ? 'Pause' : 'Play'}
+          aria-label={playing ? tr('cinema.mini.pause') : tr('cinema.mini.play')}
           onClick={() => s.toggle()}
         >
           {playing ? <PauseGlyph size={18} /> : <PlayGlyph size={18} />}
         </button>
-        <button type="button" className="cpl-btn" aria-label="Expand" onClick={onExpand}>
+        <button
+          type="button"
+          className="cpl-btn"
+          aria-label={tr('cinema.mini.expand')}
+          onClick={onExpand}
+        >
           <Expand />
         </button>
-        <button type="button" className="cpl-btn" aria-label="Close mini player" onClick={onClose}>
+        <button
+          type="button"
+          className="cpl-btn"
+          aria-label={tr('cinema.mini.close')}
+          onClick={onClose}
+        >
           <Icon name="close" size={16} />
         </button>
       </div>

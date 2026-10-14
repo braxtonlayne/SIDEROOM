@@ -1,6 +1,7 @@
 import { Modal } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { apiFetch } from '../../api/client';
+import { useT } from '../../i18n';
 import type { Message } from '../data';
 
 interface Reactor {
@@ -24,6 +25,7 @@ export function ReactorsModal({
   canManage: boolean;
   onClose: () => void;
 }) {
+  const t = useT();
   const reactions = message?.reactions ?? [];
   const [emoji, setEmoji] = useState<string | undefined>(initialEmoji);
   const [users, setUsers] = useState<Reactor[] | null>(null);
@@ -56,8 +58,8 @@ export function ReactorsModal({
   };
 
   return (
-    <Modal open={!!message} onClose={onClose} title="Reactions" size="sm">
-      <div role="tablist" aria-label="Reactions" className="lng-reactor-tabs">
+    <Modal open={!!message} onClose={onClose} title={t('lounge.reactors.title')} size="sm">
+      <div role="tablist" aria-label={t('lounge.reactors.title')} className="lng-reactor-tabs">
         {reactions.map((r) => (
           <button
             key={r.emoji}
@@ -68,13 +70,15 @@ export function ReactorsModal({
             onClick={() => setEmoji(r.emoji)}
           >
             <span aria-hidden="true">{r.emoji}</span> {r.count}
-            <span className="lng-sr-only"> people reacted with {r.emoji}</span>
+            <span className="lng-sr-only">
+              {t('lounge.reactors.peopleReactedWith', { emoji: r.emoji })}
+            </span>
           </button>
         ))}
       </div>
-      <div role="tabpanel" aria-label={`People who reacted with ${active ?? ''}`}>
-        {error && <p className="lng-failed">Could not load reactions.</p>}
-        {!error && users === null && <p className="lng-muted">Loading…</p>}
+      <div role="tabpanel" aria-label={t('lounge.reactors.panelLabel', { emoji: active ?? '' })}>
+        {error && <p className="lng-failed">{t('lounge.reactors.loadError')}</p>}
+        {!error && users === null && <p className="lng-muted">{t('lounge.reactors.loading')}</p>}
         <ul className="lng-voter-list">
           {users?.map((u) => (
             <li key={u.id} className="lng-reactor-row">
@@ -83,10 +87,12 @@ export function ReactorsModal({
                 <button
                   type="button"
                   className="lng-link-btn lng-danger"
-                  aria-label={`Remove ${u.global_name || u.username}'s reaction`}
+                  aria-label={t('lounge.reactors.removeReaction', {
+                    name: u.global_name || u.username,
+                  })}
                   onClick={() => void remove(u)}
                 >
-                  Remove
+                  {t('lounge.reactors.remove')}
                 </button>
               )}
             </li>

@@ -1,0 +1,17 @@
+export default {
+  'cinema.ui.kindFilm': 'Film',
+  'cinema.ui.kindSeries': 'Series',
+  'cinema.ui.kindAnime': 'Anime',
+  'cinema.ui.ageTitle': 'Age-restricted: 18 or older',
+  'cinema.ui.ageSr': 'Age-restricted, 18 or older',
+  'cinema.ui.play': 'Play {title}',
+  'cinema.ui.playShort': 'Play',
+  'cinema.ui.removeFromList': 'Remove {title} from My list',
+  'cinema.ui.addToList': 'Add {title} to My list',
+  'cinema.ui.myList': 'My list',
+  'cinema.ui.markUnwatched': 'Mark {title} unwatched',
+  'cinema.ui.markWatched': 'Mark {title} watched',
+  'cinema.ui.watched': 'Watched',
+  'cinema.ui.rate': 'Rate {title}',
+  'cinema.ui.rateShort': 'Rate',
+} satisfies Record<string, string>;

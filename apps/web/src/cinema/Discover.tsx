@@ -13,6 +13,7 @@ import {
 } from '@sideroom/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { t, useT } from '../i18n';
 import { getDiscover, keys } from './api';
 import { TrailerModal } from './TrailerModal';
 import type { Row, Title, TrendingScope } from './types';
@@ -40,12 +41,15 @@ export function splitTitle(name: string): [string, string | null] {
   return [m[1]!, /[.!?]$/.test(m[2]!) ? m[2]! : `${m[2]}.`];
 }
 
-export function playLabel(t: Title): string {
-  if (!isResumable(t)) return 'Play';
-  return t.my?.position_s ? `Resume ${formatClock(t.my.position_s)}` : 'Resume';
+export function playLabel(title: Title): string {
+  if (!isResumable(title)) return t('cinema.discover.play');
+  return title.my?.position_s
+    ? t('cinema.discover.resumeAt', { time: formatClock(title.my.position_s) })
+    : t('cinema.discover.resume');
 }
 
 function Hero({ titles }: { titles: Title[] }) {
+  const tr = useT();
   const open = useOpen();
   const [i, setI] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -68,7 +72,7 @@ function Hero({ titles }: { titles: Title[] }) {
     <section
       className="cin-hero"
       aria-roledescription="carousel"
-      aria-label="Tonight's feature"
+      aria-label={tr('cinema.discover.tonightsFeatureLabel')}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
@@ -77,7 +81,7 @@ function Hero({ titles }: { titles: Title[] }) {
       {t.backdrop_url && <img className="cin-hero-img" src={t.backdrop_url} alt="" />}
       <div className="cin-hero-shade" aria-hidden="true" />
       <div className="cin-hero-body" aria-live={paused ? 'polite' : 'off'}>
-        <Eyebrow>TONIGHT’S FEATURE</Eyebrow>
+        <Eyebrow>{tr('cinema.discover.tonightsFeature')}</Eyebrow>
         <DisplayHeading as="h1" size="lg" accent={second ?? undefined}>
           {first}
         </DisplayHeading>
@@ -94,7 +98,7 @@ function Hero({ titles }: { titles: Title[] }) {
             <Icon name="play" size={16} /> {playLabel(t)}
           </GoldButton>
           <OutlineButton onClick={() => void open(titleHref(t.id), t.age_restricted)}>
-            <Icon name="info" size={16} /> More info
+            <Icon name="info" size={16} /> {tr('cinema.discover.moreInfo')}
           </OutlineButton>
           {(t.trailer_url || t.has_trailer) && (
             <OutlineButton
@@ -104,21 +108,29 @@ function Hero({ titles }: { titles: Title[] }) {
                   : void open(`${watchHref(t.id)}?trailer=1`, t.age_restricted)
               }
             >
-              Watch trailer
+              {tr('cinema.discover.watchTrailer')}
             </OutlineButton>
           )}
         </div>
       </div>
       <div className="cin-hero-index">
-        <span>{String(Math.min(i, n - 1) + 1).padStart(2, '0')} / THE EVENING SELECTION</span>
+        <span>
+          {tr('cinema.discover.eveningSelection', {
+            n: String(Math.min(i, n - 1) + 1).padStart(2, '0'),
+          })}
+        </span>
         {n > 1 && (
-          <span className="cin-hero-dots" role="group" aria-label="Choose feature">
+          <span
+            className="cin-hero-dots"
+            role="group"
+            aria-label={tr('cinema.discover.chooseFeature')}
+          >
             {titles.map((x, k) => (
               <button
                 key={x.id}
                 type="button"
                 className="cin-hero-dot"
-                aria-label={`Show ${x.title}`}
+                aria-label={tr('cinema.discover.showTitle', { title: x.title })}
                 aria-current={k === i || undefined}
                 onClick={() => setI(k)}
               />
@@ -140,18 +152,22 @@ function Hero({ titles }: { titles: Title[] }) {
 
 /** CIN-DISC-004: "Animation. Without limits." with a fanned poster collage. */
 export function AnimationBanner({ posters }: { posters: Title[] }) {
+  const tr = useT();
   const shown = posters.filter((p) => p.poster_url).slice(0, 4);
   return (
     <section className="cin-banner" aria-labelledby="cin-banner-h">
       <div className="cin-banner-copy">
-        <Eyebrow>A ROOM OF ITS OWN</Eyebrow>
-        <DisplayHeading as="h2" id="cin-banner-h" size="lg" accent="Without limits.">
-          Animation.
+        <Eyebrow>{tr('cinema.discover.bannerEyebrow')}</Eyebrow>
+        <DisplayHeading
+          as="h2"
+          id="cin-banner-h"
+          size="lg"
+          accent={tr('cinema.discover.bannerAccent')}
+        >
+          {tr('cinema.discover.bannerHeading')}
         </DisplayHeading>
-        <p className="cin-muted">
-          From quiet journeys to worlds on the edge. Make a little room for anime.
-        </p>
-        <ArrowLink href="/cinema/anime">Step into the anime room</ArrowLink>
+        <p className="cin-muted">{tr('cinema.discover.bannerBody')}</p>
+        <ArrowLink href="/cinema/anime">{tr('cinema.discover.bannerLink')}</ArrowLink>
       </div>
       <div className="cin-banner-fan" aria-hidden="true">
         {shown.map((p, k) => (
@@ -168,9 +184,9 @@ export function AnimationBanner({ posters }: { posters: Title[] }) {
 }
 
 const SCOPES: { value: TrendingScope; label: string }[] = [
-  { value: 'friends', label: 'Friends' },
-  { value: 'known', label: 'People you know' },
-  { value: 'global', label: 'Global' },
+  { value: 'friends', label: 'cinema.discover.scopeFriends' },
+  { value: 'known', label: 'cinema.discover.scopeKnown' },
+  { value: 'global', label: 'cinema.discover.scopeGlobal' },
 ];
 
 function RowView({
@@ -182,6 +198,7 @@ function RowView({
   scope: TrendingScope;
   onScope: (s: TrendingScope) => void;
 }) {
+  const tr = useT();
   if (row.titles.length === 0) return null;
   const heading = (
     <>
@@ -200,9 +217,9 @@ function RowView({
     <div className="cin-row-wrap" data-row={row.key}>
       {row.key === 'trending' && (
         <FilterChips
-          label="Trending scope"
+          label={tr('cinema.discover.trendingScope')}
           className="cin-scope"
-          options={SCOPES}
+          options={SCOPES.map((o) => ({ ...o, label: tr(o.label) }))}
           value={scope}
           onValueChange={(v) => v && onScope(v as TrendingScope)}
         />
@@ -218,7 +235,9 @@ function RowView({
             key={t.id}
             title={t}
             subtitle={
-              continuing && t.my?.position_s ? `Resume ${formatClock(t.my.position_s)}` : undefined
+              continuing && t.my?.position_s
+                ? tr('cinema.discover.resumeAt', { time: formatClock(t.my.position_s) })
+                : undefined
             }
           />
         ))}
@@ -228,6 +247,7 @@ function RowView({
 }
 
 export function Discover() {
+  const tr = useT();
   const [scope, setScope] = useState<TrendingScope>('global');
   const q = useQuery({
     queryKey: keys.discover(scope),
@@ -244,8 +264,8 @@ export function Discover() {
   if (q.isError)
     return (
       <div className="cin-page">
-        <Notice variant="danger" title="The cinema is unavailable">
-          We could not load Discover. Try again in a moment.
+        <Notice variant="danger" title={tr('cinema.discover.errorTitle')}>
+          {tr('cinema.discover.errorBody')}
         </Notice>
       </div>
     );
@@ -256,8 +276,8 @@ export function Discover() {
     return (
       <div className="cin-page">
         <EmptyState
-          title="Nothing on the schedule yet"
-          description="Titles appear here once the library publishes them."
+          title={tr('cinema.discover.emptyTitle')}
+          description={tr('cinema.discover.emptyBody')}
         />
       </div>
     );

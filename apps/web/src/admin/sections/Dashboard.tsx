@@ -1,10 +1,12 @@
 import { Notice, ProgressBar } from '@sideroom/ui';
 import * as api from '../api';
+import { useT } from '../../i18n';
 import { Async, SectionHeader, Stat, useAdminViewer, useResource } from '../ui';
 
 const n = (v: number) => v.toLocaleString();
 
 export function DashboardSection() {
+  const t = useT();
   const viewer = useAdminViewer();
   const stats = useResource('admin:stats', api.getStats);
   // The cap lives in platform settings (MANAGE_FEATURES); without that permission the gauge is simply absent.
@@ -25,62 +27,69 @@ export function DashboardSection() {
   return (
     <>
       <SectionHeader
-        title="Dashboard"
-        description="A read-only snapshot of the installation. Counts are live, not cached."
+        title={t('admin.dashboard.title')}
+        description={t('admin.dashboard.description')}
       />
-      <Async res={stats} label="Loading dashboard">
+      <Async res={stats} label={t('admin.dashboard.loading')}>
         {(s) => (
           <>
             <div className="adm-stats">
               <Stat
-                label="Active accounts"
+                label={t('admin.dashboard.activeAccounts')}
                 value={n(s.accounts_active)}
-                hint={cap.data != null ? <>of {n(cap.data)} allowed</> : undefined}
+                hint={
+                  cap.data != null
+                    ? t('admin.dashboard.activeAccountsHint', { cap: n(cap.data) })
+                    : undefined
+                }
               />
-              <Stat label="Sessions signed in" value={n(s.sessions_active)} />
+              <Stat label={t('admin.dashboard.sessionsSignedIn')} value={n(s.sessions_active)} />
               {system.data && (
                 <Stat
-                  label="Online now"
+                  label={t('admin.dashboard.onlineNow')}
                   value={
                     system.data.gateway_sessions == null ? '–' : n(system.data.gateway_sessions)
                   }
-                  hint="Open gateway connections"
+                  hint={t('admin.dashboard.onlineNowHint')}
                 />
               )}
-              <Stat label="Deactivated" value={n(s.accounts_deactivated)} />
-              <Stat label="Platform-banned" value={n(s.accounts_banned)} />
-              <Stat label="Staff" value={n(s.staff)} />
+              <Stat label={t('admin.dashboard.deactivated')} value={n(s.accounts_deactivated)} />
+              <Stat label={t('admin.dashboard.platformBanned')} value={n(s.accounts_banned)} />
+              <Stat label={t('admin.dashboard.staff')} value={n(s.staff)} />
               <Stat
-                label="Jobs queued"
+                label={t('admin.dashboard.jobsQueued')}
                 value={n(s.jobs_queued)}
-                hint={`${n(s.jobs_running)} running`}
+                hint={t('admin.dashboard.jobsRunning', { count: n(s.jobs_running) })}
               />
               <Stat
-                label="Dead jobs"
+                label={t('admin.dashboard.deadJobs')}
                 value={n(s.jobs_dead)}
-                hint={s.jobs_dead > 0 ? 'Needs attention' : 'None'}
+                hint={
+                  s.jobs_dead > 0 ? t('admin.dashboard.needsAttention') : t('admin.dashboard.none')
+                }
               />
             </div>
             {cap.data != null && (
               <section className="ss-card adm-gauge" aria-labelledby="adm-cap-h">
-                <h2 id="adm-cap-h">Accounts against the cap</h2>
+                <h2 id="adm-cap-h">{t('admin.dashboard.capTitle')}</h2>
                 <ProgressBar
-                  label="Active accounts against the account cap"
+                  label={t('admin.dashboard.capGaugeLabel')}
                   value={s.accounts_active}
                   max={cap.data}
                 />
                 <p className="ss-sub">
-                  {n(s.accounts_active)} of {n(cap.data)} accounts. Reactivating a suspended account
-                  is refused once the cap is reached.
+                  {t('admin.dashboard.capSummary', {
+                    active: n(s.accounts_active),
+                    cap: n(cap.data),
+                  })}
                 </p>
               </section>
             )}
           </>
         )}
       </Async>
-      <Notice variant="info" className="ss-status" title="Not tracked here yet">
-        Voice rooms, egress, storage, review-queue sizes and donations need their own backends; they
-        will appear as those phases land.
+      <Notice variant="info" className="ss-status" title={t('admin.dashboard.notTrackedTitle')}>
+        {t('admin.dashboard.notTracked')}
       </Notice>
     </>
   );

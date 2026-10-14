@@ -2,34 +2,36 @@ import { ThemeProvider, ToastProvider } from '@sideroom/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Link, Outlet } from '@tanstack/react-router';
 import { useState } from 'react';
+import { useT } from '../i18n';
 import { useAppliedTheme } from '../settings/user/useAppliedTheme';
 import './developers.css';
 
 /** The section chrome: brand bar and section navigation. Mobile wraps the nav under the brand. */
 function Shell() {
+  const t = useT();
   return (
     <div className="dev-frame">
       <a className="dev-skip" href="#dev-main">
-        Skip to content
+        {t('developers.shell.skipToContent')}
       </a>
       <header className="dev-bar">
         <span className="dev-brand">SIDE ROOM</span>
         <span aria-hidden="true" className="dev-slash">
           /
         </span>
-        <span className="dev-brand-sub">Developers</span>
-        <nav aria-label="Developer portal" className="dev-nav">
+        <span className="dev-brand-sub">{t('developers.shell.brandSub')}</span>
+        <nav aria-label={t('developers.shell.navLabel')} className="dev-nav">
           <Link to="/developers" activeOptions={{ exact: true }} className="dev-nav-link">
-            Overview
+            {t('developers.shell.navOverview')}
           </Link>
           <Link to="/developers/applications" className="dev-nav-link">
-            Applications
+            {t('developers.shell.navApplications')}
           </Link>
           <Link to="/developers/docs" className="dev-nav-link">
-            Documentation
+            {t('developers.shell.navDocumentation')}
           </Link>
           <Link to="/channels" className="dev-nav-link dev-nav-exit">
-            Back to the lounge
+            {t('developers.shell.backToLounge')}
           </Link>
         </nav>
       </header>

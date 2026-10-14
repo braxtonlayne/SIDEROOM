@@ -1,5 +1,6 @@
 import { Button } from '@sideroom/ui';
 import { useId, useRef, useState } from 'react';
+import { useT } from '../../../i18n';
 import { cdnUrl, type CdnKind } from '../../../store';
 import { readDataUri } from './Expressions';
 
@@ -30,6 +31,7 @@ export function ImageField({
   shape?: 'square' | 'wide';
   disabled?: boolean;
 }) {
+  const t = useT();
   const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const hintId = useId();
@@ -42,11 +44,11 @@ export function ImageField({
   const pick = async (file: File | undefined) => {
     if (!file) return;
     if (!/\.(png|jpe?g|gif|webp)$/i.test(file.name)) {
-      setError(`${file.name} is not a PNG, JPEG, GIF or WebP image.`);
+      setError(t('settings.imageField.badType', { name: file.name }));
       return;
     }
     if (file.size > MAX_IMAGE_BYTES) {
-      setError(`${file.name} is larger than 8 MB.`);
+      setError(t('settings.imageField.tooLarge', { name: file.name }));
       return;
     }
     try {
@@ -54,7 +56,7 @@ export function ImageField({
       setError(null);
       onChange(uri);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not read that file.');
+      setError(e instanceof Error ? e.message : t('settings.imageField.readFailed'));
     }
   };
 
@@ -70,9 +72,17 @@ export function ImageField({
         <div
           className={`ss-image-preview ss-image-${shape}`}
           role="img"
-          aria-label={src ? `${label} preview` : `No ${label.toLowerCase()} set`}
+          aria-label={
+            src
+              ? t('settings.imageField.preview', { label })
+              : t('settings.imageField.none', { label: label.toLowerCase() })
+          }
         >
-          {src ? <img src={src} alt="" /> : <span aria-hidden="true">None</span>}
+          {src ? (
+            <img src={src} alt="" />
+          ) : (
+            <span aria-hidden="true">{t('settings.imageField.noneShort')}</span>
+          )}
         </div>
         <div className="ss-actions">
           <Button
@@ -81,11 +91,13 @@ export function ImageField({
             aria-describedby={hint ? hintId : undefined}
             onClick={() => input.current?.click()}
           >
-            {value ? `Change ${label.toLowerCase()}` : `Upload ${label.toLowerCase()}`}
+            {value
+              ? t('settings.imageField.change', { label: label.toLowerCase() })
+              : t('settings.imageField.upload', { label: label.toLowerCase() })}
           </Button>
           {value && (
             <Button variant="ghost" disabled={disabled} onClick={() => onChange(null)}>
-              {`Remove ${label.toLowerCase()}`}
+              {t('settings.imageField.remove', { label: label.toLowerCase() })}
             </Button>
           )}
         </div>
@@ -95,7 +107,7 @@ export function ImageField({
           accept={ACCEPT}
           hidden
           data-testid={`file-${label.toLowerCase().replace(/\s+/g, '-')}`}
-          aria-label={`${label} file`}
+          aria-label={t('settings.imageField.file', { label })}
           onChange={(e) => {
             void pick(e.target.files?.[0]);
             e.target.value = '';

@@ -1,5 +1,6 @@
 import { Button, Notice, Spinner } from '@sideroom/ui';
 import type { ReactNode } from 'react';
+import { useT } from '../../i18n';
 import { errorText, type Resource } from './api';
 import './user-settings.css';
 
@@ -48,8 +49,9 @@ export function Field({ label, children }: { label: string; children: ReactNode 
 
 /** Shown where the server has no endpoint yet: states the gap instead of faking a working control. */
 export function Unavailable({ children }: { children: ReactNode }) {
+  const t = useT();
   return (
-    <Notice variant="info" title="Not available yet" className="us-gap">
+    <Notice variant="info" title={t('settings.parts.unavailableTitle')} className="us-gap">
       {children}
     </Notice>
   );
@@ -65,18 +67,20 @@ export function Loaded<T>({
   what: string;
   children: (data: T) => ReactNode;
 }) {
+  const t = useT();
   if (res.data !== undefined) return <>{children(res.data)}</>;
   if (res.loading)
     return (
       <p className="us-muted" role="status">
-        <Spinner size="sm" label={`Loading ${what}`} /> Loading {what}...
+        <Spinner size="sm" label={t('settings.parts.loadingAria', { what })} />{' '}
+        {t('settings.parts.loading', { what })}
       </p>
     );
   return (
-    <Notice variant="danger" title={`Couldn't load ${what}`}>
+    <Notice variant="danger" title={t('settings.parts.loadError', { what })}>
       {errorText(res.error)}{' '}
       <Button variant="link" size="sm" onClick={res.reload}>
-        Try again
+        {t('settings.parts.tryAgain')}
       </Button>
     </Notice>
   );

@@ -3,6 +3,7 @@
 import { Icon } from '@sideroom/ui';
 import { useRouter } from '@tanstack/react-router';
 import { lazy, Suspense, useState } from 'react';
+import { useT } from '../i18n';
 import { useChannelParty } from './useChannelParty';
 
 const Dialog = lazy(() =>
@@ -10,10 +11,11 @@ const Dialog = lazy(() =>
 );
 
 export function StartPartyButton({ channelId }: { channelId: string }) {
+  const t = useT();
   const party = useChannelParty(channelId);
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const label = party ? 'Join Watch Party' : 'Start Watch Party';
+  const label = party ? t('watchparty.startButton.join') : t('watchparty.startButton.start');
   return (
     <>
       <button

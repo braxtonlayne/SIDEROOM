@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useParams, useRouter } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
+import { t, useT } from '../../i18n';
 import { isAgeGateError, useAgeGate, withAgeGate } from '../../lib/ageGate';
 import { LIVE_MEDIA_PREFIX } from '../player/model';
 import { playerSession, usePlayer } from '../player/session';
@@ -23,7 +24,10 @@ export function liveInfo(g: TuneGrant): PlaybackInfo {
     episode_id: null,
     media_id: `${LIVE_MEDIA_PREFIX}${g.channel.id}`,
     title: g.now?.title ?? g.channel.name,
-    episode_label: `Channel ${g.channel.number} · ${g.channel.call_sign}`,
+    episode_label: t('cinema.liveWatch.channelLabel', {
+      number: g.channel.number,
+      callSign: g.channel.call_sign,
+    }),
     kind: kind === 'movie' || kind === 'anime' ? kind : 'series',
     poster_url: g.now?.poster_url ?? null,
     age_restricted: g.channel.age_restricted,
@@ -53,6 +57,7 @@ export function LiveWatchRoute() {
 }
 
 export function LiveWatchPage({ channelId }: { channelId: string }) {
+  const tr = useT();
   const router = useRouter();
   const { ensureAdult } = useAgeGate();
   const s = playerSession();
@@ -107,24 +112,23 @@ export function LiveWatchPage({ channelId }: { channelId: string }) {
   if (query.isError && !declined) {
     if (err instanceof OffAirError)
       failure = {
-        title: 'This channel is off the air',
-        description:
-          'Nothing is scheduled on it right now. Try another channel or check the guide.',
+        title: tr('cinema.liveWatch.offAirTitle'),
+        description: tr('cinema.liveWatch.offAirBody'),
       };
     else if (isNotAvailable(err) && err instanceof ApiError && err.status !== 404)
       failure = {
-        title: 'Live TV is not available yet',
-        description: 'This server has not switched on live channels.',
+        title: tr('cinema.liveWatch.unavailableTitle'),
+        description: tr('cinema.liveWatch.unavailableBody'),
       };
     else if (err instanceof ApiError && err.status === 404)
       failure = {
-        title: 'This channel is not on the air',
-        description: 'It may have been removed or switched off. Pick another from the guide.',
+        title: tr('cinema.liveWatch.goneTitle'),
+        description: tr('cinema.liveWatch.goneBody'),
       };
     else
       failure = {
-        title: 'We could not tune this channel',
-        description: 'Check your connection and try again.',
+        title: tr('cinema.liveWatch.errorTitle'),
+        description: tr('cinema.liveWatch.errorBody'),
       };
   }
   const tuning = !reuse && (query.isFetching || (!!grant && status === 'loading'));

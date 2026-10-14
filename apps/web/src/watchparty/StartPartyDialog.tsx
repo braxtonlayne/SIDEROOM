@@ -4,6 +4,7 @@ import { Button, Modal, Notice } from '@sideroom/ui';
 import { useRouter } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ApiError } from '../api/client';
+import { useT } from '../i18n';
 import { useOptionalAgeGate, isAgeGateError } from '../lib/ageGate';
 import { useAllChannels, useDms, useGuilds, useUsers } from '../lounge/data';
 import { holdGateway } from '../store/connect';
@@ -22,6 +23,7 @@ export interface StartPartyDialogProps {
 const PRIVATE = '__private';
 
 export function StartPartyDialog({ open, onClose, title, channelId }: StartPartyDialogProps) {
+  const t = useT();
   const router = useRouter();
   const age = useOptionalAgeGate();
   const guilds = useGuilds();
@@ -96,13 +98,13 @@ export function StartPartyDialog({ open, onClose, title, channelId }: StartParty
       onClose();
       router.history.push(`/cinema/party/${party.id}`);
     } catch (e) {
-      if (isAgeGateError(e)) setError('Confirm that you are 18 or older to start this one.');
+      if (isAgeGateError(e)) setError(t('watchparty.startDialog.confirmAge'));
       else if (e instanceof ApiError && e.status === 403)
-        setError('You cannot start a watch party there. Pick another place.');
+        setError(t('watchparty.startDialog.forbidden'));
       else if (e instanceof ApiError && e.status === 409) setError(e.message);
       else if (e instanceof ApiError && e.status === 404)
-        setError('That title or place is not available any more.');
-      else setError('We could not start the party. Try again.');
+        setError(t('watchparty.startDialog.notAvailable'));
+      else setError(t('watchparty.startDialog.failed'));
     } finally {
       setBusy(false);
     }
@@ -112,17 +114,19 @@ export function StartPartyDialog({ open, onClose, title, channelId }: StartParty
     <Modal
       open={open}
       onClose={onClose}
-      title="Watch together"
+      title={t('watchparty.startDialog.title')}
       description={
-        label ? `Start a party for ${label}.` : 'Pick something to watch, then where to watch it.'
+        label
+          ? t('watchparty.startDialog.descriptionTitle', { label })
+          : t('watchparty.startDialog.descriptionPick')
       }
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t('watchparty.startDialog.cancel')}
           </Button>
           <Button onClick={() => void start()} loading={busy} disabled={!chosen}>
-            Start party
+            {t('watchparty.startDialog.start')}
           </Button>
         </>
       }
@@ -133,34 +137,36 @@ export function StartPartyDialog({ open, onClose, title, channelId }: StartParty
           <p className="wp-now">
             {picked.label}{' '}
             <Button size="sm" variant="ghost" onClick={() => setPicked(null)}>
-              Change
+              {t('watchparty.startDialog.change')}
             </Button>
           </p>
         )}
         <label className="wp-field">
-          <span>Where</span>
+          <span>{t('watchparty.startDialog.where')}</span>
           <select
             value={dest}
             onChange={(e) => setDest(e.target.value)}
-            aria-label="Where to watch"
+            aria-label={t('watchparty.startDialog.whereToWatch')}
           >
-            <option value={PRIVATE}>Private party (invite link)</option>
+            <option value={PRIVATE}>{t('watchparty.startDialog.private')}</option>
             {groups.map(({ guild, list }) => (
               <optgroup key={guild.id} label={guild.name}>
                 {list.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.type === 'voice' ? 'Voice: ' : '#'}
+                    {c.type === 'voice' ? t('watchparty.startDialog.voicePrefix') : '#'}
                     {c.name}
                   </option>
                 ))}
               </optgroup>
             ))}
             {dms.length > 0 && (
-              <optgroup label="Direct messages">
+              <optgroup label={t('watchparty.startDialog.directMessages')}>
                 {dms.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name ||
-                      d.recipientIds.map((id) => users[id]?.displayName ?? 'Someone').join(', ')}
+                      d.recipientIds
+                        .map((id) => users[id]?.displayName ?? t('watchparty.startDialog.someone'))
+                        .join(', ')}
                   </option>
                 ))}
               </optgroup>
@@ -169,8 +175,8 @@ export function StartPartyDialog({ open, onClose, title, channelId }: StartParty
         </label>
         <p className="wp-muted">
           {dest === PRIVATE
-            ? 'You get a link to send to the people you want to watch with.'
-            : 'People who can see that conversation can join. Voice keeps working as normal.'}
+            ? t('watchparty.startDialog.hintPrivate')
+            : t('watchparty.startDialog.hintChannel')}
         </p>
         {error && (
           <Notice variant="danger" role="alert">

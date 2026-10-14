@@ -1,4 +1,5 @@
 import { Switch } from '@sideroom/ui';
+import { useT } from '../../../i18n';
 import { Card, SectionTitle, Unavailable } from '../parts';
 import type { PrefsFormProps } from './Appearance';
 
@@ -8,72 +9,69 @@ import type { PrefsFormProps } from './Appearance';
  * yet, so they take effect when Cinema and Library start sharing it.
  */
 export function ActivitySection({ prefs, setPrefs }: PrefsFormProps) {
+  const t = useT();
   const off = !prefs.shareActivity;
   return (
     <>
-      <SectionTitle>Activity Privacy</SectionTitle>
+      <SectionTitle>{t('settings.activity.title')}</SectionTitle>
       <Card
         id="us-activity"
-        title="Share what I watch and read"
-        description="Friends and people in your shared servers can see it on your profile and next to your name."
+        title={t('settings.activity.shareTitle')}
+        description={t('settings.activity.shareDesc')}
       >
         <div className="us-stack">
           <Switch
-            label="Share my activity"
-            description="The master switch. Off hides everything below."
+            label={t('settings.activity.shareMine')}
+            description={t('settings.activity.shareMineDesc')}
             checked={prefs.shareActivity}
             onChange={(e) => setPrefs({ shareActivity: e.target.checked })}
           />
           <Switch
-            label="Share what I'm watching"
+            label={t('settings.activity.shareWatching')}
             checked={prefs.shareWatching}
             disabled={off}
             onChange={(e) => setPrefs({ shareWatching: e.target.checked })}
           />
           <Switch
-            label="Share what I'm reading"
+            label={t('settings.activity.shareReading')}
             checked={prefs.shareReading}
             disabled={off}
             onChange={(e) => setPrefs({ shareReading: e.target.checked })}
           />
           <Switch
-            label="Hide age-restricted titles"
-            description="Never show a title that is marked 18+, even when sharing is on."
+            label={t('settings.activity.hideAge')}
+            description={t('settings.activity.hideAgeDesc')}
             checked={prefs.hideAgeRestrictedActivity}
             disabled={off}
             onChange={(e) => setPrefs({ hideAgeRestrictedActivity: e.target.checked })}
           />
         </div>
       </Card>
-      <Card id="us-activity-status" title="Status">
+      <Card id="us-activity-status" title={t('settings.activity.status')}>
         <div className="us-stack">
           <Switch
-            label="Show my current activity as my status"
+            label={t('settings.activity.asStatus')}
             checked={prefs.activityAsStatus}
             disabled={off}
             onChange={(e) => setPrefs({ activityAsStatus: e.target.checked })}
           />
           <Switch
-            label="Share detected activities"
-            description="Include activities from connected apps once connections are available."
+            label={t('settings.activity.detected')}
+            description={t('settings.activity.detectedDesc')}
             checked={prefs.shareDetectedActivities}
             disabled={off}
             onChange={(e) => setPrefs({ shareDetectedActivities: e.target.checked })}
           />
         </div>
       </Card>
-      <Card id="us-history" title="History">
+      <Card id="us-history" title={t('settings.activity.history')}>
         <Switch
-          label="Pause my watch and reading history"
-          description="Stop recording new entries. What is already recorded stays until you clear it."
+          label={t('settings.activity.pause')}
+          description={t('settings.activity.pauseDesc')}
           checked={prefs.pauseHistory}
           onChange={(e) => setPrefs({ pauseHistory: e.target.checked })}
         />
-        <Unavailable>
-          Nothing publishes your activity yet, and the watch and reading history lives with Cinema
-          and Library. These choices are saved to your account now and apply as soon as those
-          features share activity.
-        </Unavailable>
+        <Unavailable>{t('settings.activity.unavailable')}</Unavailable>
       </Card>
     </>
   );

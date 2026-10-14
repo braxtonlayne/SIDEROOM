@@ -3,6 +3,7 @@
 // value and the save.
 import { Button, Select, Switch, TextInput } from '@sideroom/ui';
 import { useState } from 'react';
+import { t, useT } from '../../../i18n';
 import { toList } from '../hooks';
 import {
   newDaypart,
@@ -13,43 +14,34 @@ import {
   type ScheduleRules,
 } from './tvApi';
 
-const KINDS: { value: PoolKind; label: string }[] = [
-  { value: 'movie', label: 'Movies' },
-  { value: 'series', label: 'Series' },
-  { value: 'anime', label: 'Anime' },
-];
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const num = (s: string): number | null => {
-  const t = s.trim();
-  if (!t) return null;
-  const n = Number(t);
+  const trimmed = s.trim();
+  if (!trimmed) return null;
+  const n = Number(trimmed);
   return Number.isFinite(n) ? Math.trunc(n) : null;
 };
 
 /** First problem with the rules, or null. Mirrors what the server will refuse. */
 export function validateRules(r: ScheduleRules): string | null {
   if (!Number.isInteger(r.grid_minutes) || r.grid_minutes < 0 || r.grid_minutes > 1440)
-    return 'The grid is between 0 and 1440 minutes (0 means back to back).';
+    return t('admin.rulesEditor.err.grid');
   if (!Number.isInteger(r.no_repeat_window) || r.no_repeat_window < 0 || r.no_repeat_window > 64)
-    return 'The no-repeat window is between 0 and 64.';
-  if (r.dayparts.length === 0)
-    return 'Add at least one daypart: without one the channel has nothing to air.';
+    return t('admin.rulesEditor.err.noRepeat');
+  if (r.dayparts.length === 0) return t('admin.rulesEditor.err.noDayparts');
   const names = new Set<string>();
   for (const [i, d] of r.dayparts.entries()) {
     const n = i + 1;
-    if (!d.name.trim()) return `Daypart ${n} needs a name.`;
-    if (names.has(d.name.trim())) return `Daypart names must be unique (${d.name.trim()}).`;
+    if (!d.name.trim()) return t('admin.rulesEditor.err.needsName', { n });
+    if (names.has(d.name.trim())) return t('admin.rulesEditor.err.unique', { name: d.name.trim() });
     names.add(d.name.trim());
     if (!HHMM.test(d.start) || !HHMM.test(d.end))
-      return `Daypart ${n} needs a start and an end time.`;
+      return t('admin.rulesEditor.err.needsTimes', { n });
     const { year_from: yf, year_to: yt, min_runtime_min: mn, max_runtime_min: mx } = d.pool;
-    if (yf !== null && yt !== null && yf > yt)
-      return `Daypart ${n}: the first year is after the last.`;
-    if (mn !== null && mx !== null && mn > mx)
-      return `Daypart ${n}: the minimum runtime is above the maximum.`;
-    if (mn !== null && mn < 0) return `Daypart ${n}: runtime cannot be negative.`;
+    if (yf !== null && yt !== null && yf > yt) return t('admin.rulesEditor.err.years', { n });
+    if (mn !== null && mx !== null && mn > mx) return t('admin.rulesEditor.err.runtime', { n });
+    if (mn !== null && mn < 0) return t('admin.rulesEditor.err.negative', { n });
   }
   return null;
 }
@@ -113,56 +105,71 @@ function DaypartEditor({
   onChange: (next: Daypart) => void;
   onRemove: () => void;
 }) {
+  const t = useT();
+  const kinds: { value: PoolKind; label: string }[] = [
+    { value: 'movie', label: t('admin.rulesEditor.kind.movies') },
+    { value: 'series', label: t('admin.rulesEditor.kind.series') },
+    { value: 'anime', label: t('admin.rulesEditor.kind.anime') },
+  ];
+  const days = [
+    t('admin.rulesEditor.day.mon'),
+    t('admin.rulesEditor.day.tue'),
+    t('admin.rulesEditor.day.wed'),
+    t('admin.rulesEditor.day.thu'),
+    t('admin.rulesEditor.day.fri'),
+    t('admin.rulesEditor.day.sat'),
+    t('admin.rulesEditor.day.sun'),
+  ];
   const n = index + 1;
   const pool = (patch: Partial<DaypartPool>) =>
     onChange({ ...value, pool: { ...value.pool, ...patch } });
   return (
-    <fieldset className="adm-cin-daypart" aria-label={`Daypart ${n}`}>
-      <legend className="ss-field-label">Daypart {n}</legend>
+    <fieldset className="adm-cin-daypart" aria-label={t('admin.rulesEditor.daypart', { n })}>
+      <legend className="ss-field-label">{t('admin.rulesEditor.daypart', { n })}</legend>
       <div className="adm-cin-grid">
         <TextInput
-          label={`Daypart ${n} name`}
+          label={t('admin.rulesEditor.name', { n })}
           value={value.name}
           onChange={(e) => onChange({ ...value, name: e.target.value })}
         />
         <TextInput
-          label={`Daypart ${n} start`}
+          label={t('admin.rulesEditor.start', { n })}
           type="time"
           value={value.start}
           onChange={(e) => onChange({ ...value, start: e.target.value })}
         />
         <TextInput
-          label={`Daypart ${n} end`}
+          label={t('admin.rulesEditor.end', { n })}
           type="time"
-          hint="An end at or before the start wraps past midnight."
+          hint={t('admin.rulesEditor.endHint')}
           value={value.end}
           onChange={(e) => onChange({ ...value, end: e.target.value })}
         />
         <Select
-          aria-label={`Daypart ${n} mode`}
+          aria-label={t('admin.rulesEditor.mode', { n })}
           options={[
-            { value: 'shuffle', label: 'Shuffle' },
-            { value: 'sequential', label: 'Sequential (keeps counting across days)' },
+            { value: 'shuffle', label: t('admin.rulesEditor.mode.shuffle') },
+            { value: 'sequential', label: t('admin.rulesEditor.mode.sequential') },
           ]}
           value={value.mode}
           onValueChange={(v) => onChange({ ...value, mode: v as Daypart['mode'] })}
         />
         <Select
-          aria-label={`Daypart ${n} fit`}
+          aria-label={t('admin.rulesEditor.fit', { n })}
           options={[
-            { value: 'overrun', label: 'Overrun (the last programme may pass the end)' },
-            { value: 'fit', label: 'Fit (only items that fit)' },
+            { value: 'overrun', label: t('admin.rulesEditor.fit.overrun') },
+            { value: 'fit', label: t('admin.rulesEditor.fit.fit') },
           ]}
           value={value.fit}
           onValueChange={(v) => onChange({ ...value, fit: v as Daypart['fit'] })}
         />
       </div>
       <fieldset className="adm-check-row">
-        <legend className="ss-field-label">Days (none means every day)</legend>
-        {DAYS.map((d, i) => (
+        <legend className="ss-field-label">{t('admin.rulesEditor.days')}</legend>
+        {days.map((d, i) => (
           <Switch
             key={d}
-            label={`Daypart ${n} ${d}`}
+            label={t('admin.rulesEditor.dayLabel', { n, day: d })}
             checked={value.days.includes(i)}
             onChange={(e) =>
               onChange({
@@ -176,11 +183,11 @@ function DaypartEditor({
         ))}
       </fieldset>
       <fieldset className="adm-check-row">
-        <legend className="ss-field-label">Content pool: kinds</legend>
-        {KINDS.map((k) => (
+        <legend className="ss-field-label">{t('admin.rulesEditor.poolKinds')}</legend>
+        {kinds.map((k) => (
           <Switch
             key={k.value}
-            label={`Daypart ${n} ${k.label}`}
+            label={t('admin.rulesEditor.kindLabel', { n, label: k.label })}
             checked={value.pool.kinds.includes(k.value)}
             onChange={(e) =>
               pool({
@@ -194,60 +201,60 @@ function DaypartEditor({
       </fieldset>
       <div className="adm-cin-grid">
         <ListField
-          label={`Daypart ${n} genres`}
-          hint="Separate with commas. Empty means any."
+          label={t('admin.rulesEditor.genres', { n })}
+          hint={t('admin.rulesEditor.genresHint')}
           list={value.pool.genres}
           onList={(genres) => pool({ genres })}
         />
         <ListField
-          label={`Daypart ${n} tags`}
+          label={t('admin.rulesEditor.tags', { n })}
           list={value.pool.tags}
           onList={(tags) => pool({ tags })}
         />
         <ListField
-          label={`Daypart ${n} title ids`}
-          hint="Pin the pool to specific titles (a series marathon is one id)."
+          label={t('admin.rulesEditor.titleIds', { n })}
+          hint={t('admin.rulesEditor.titleIdsHint')}
           list={value.pool.title_ids}
           onList={(title_ids) => pool({ title_ids })}
         />
         <TextInput
-          label={`Daypart ${n} collection id`}
+          label={t('admin.rulesEditor.collectionId', { n })}
           value={value.pool.collection_id ?? ''}
           onChange={(e) => pool({ collection_id: e.target.value.trim() || null })}
         />
         <NumberField
-          label={`Daypart ${n} year from`}
+          label={t('admin.rulesEditor.yearFrom', { n })}
           value={value.pool.year_from}
           onValue={(year_from) => pool({ year_from })}
         />
         <NumberField
-          label={`Daypart ${n} year to`}
+          label={t('admin.rulesEditor.yearTo', { n })}
           value={value.pool.year_to}
           onValue={(year_to) => pool({ year_to })}
         />
         <NumberField
-          label={`Daypart ${n} minimum runtime (minutes)`}
+          label={t('admin.rulesEditor.minRuntime', { n })}
           value={value.pool.min_runtime_min}
           onValue={(min_runtime_min) => pool({ min_runtime_min })}
         />
         <NumberField
-          label={`Daypart ${n} maximum runtime (minutes)`}
+          label={t('admin.rulesEditor.maxRuntime', { n })}
           value={value.pool.max_runtime_min}
           onValue={(max_runtime_min) => pool({ max_runtime_min })}
         />
         <Select
-          aria-label={`Daypart ${n} age-restricted titles`}
+          aria-label={t('admin.rulesEditor.restricted', { n })}
           options={[
-            { value: 'exclude', label: 'Exclude age-restricted titles' },
-            { value: 'include', label: 'Include age-restricted titles' },
-            { value: 'only', label: 'Only age-restricted titles' },
+            { value: 'exclude', label: t('admin.rulesEditor.restricted.exclude') },
+            { value: 'include', label: t('admin.rulesEditor.restricted.include') },
+            { value: 'only', label: t('admin.rulesEditor.restricted.only') },
           ]}
           value={value.pool.restricted}
           onValueChange={(v) => pool({ restricted: v as RestrictedMode })}
         />
       </div>
       <Button variant="secondary" size="sm" onClick={onRemove}>
-        Remove daypart {n}
+        {t('admin.rulesEditor.remove', { n })}
       </Button>
     </fieldset>
   );
@@ -259,20 +266,21 @@ export interface RulesEditorProps {
 }
 
 export function RulesEditor({ value, onChange }: RulesEditorProps) {
+  const t = useT();
   const set = (patch: Partial<ScheduleRules>) => onChange({ ...value, ...patch });
   const problem = validateRules(value);
   return (
     <div className="adm-form adm-cin-form">
       <div className="adm-cin-grid">
         <NumberField
-          label="Grid (minutes)"
-          hint="Programmes start on this grid in channel time. 0 means back to back."
+          label={t('admin.rulesEditor.grid')}
+          hint={t('admin.rulesEditor.gridHint')}
           value={value.grid_minutes}
           onValue={(n) => set({ grid_minutes: n ?? 0 })}
         />
         <NumberField
-          label="No-repeat window"
-          hint="Shuffle: the last N picks are not repeated (0 to 64)."
+          label={t('admin.rulesEditor.noRepeat')}
+          hint={t('admin.rulesEditor.noRepeatHint')}
           value={value.no_repeat_window}
           onValue={(n) => set({ no_repeat_window: n ?? 0 })}
         />
@@ -292,11 +300,14 @@ export function RulesEditor({ value, onChange }: RulesEditorProps) {
           size="sm"
           onClick={() =>
             set({
-              dayparts: [...value.dayparts, newDaypart(`Daypart ${value.dayparts.length + 1}`)],
+              dayparts: [
+                ...value.dayparts,
+                newDaypart(t('admin.rulesEditor.daypart', { n: value.dayparts.length + 1 })),
+              ],
             })
           }
         >
-          Add daypart
+          {t('admin.rulesEditor.add')}
         </Button>
       </div>
       {problem && (

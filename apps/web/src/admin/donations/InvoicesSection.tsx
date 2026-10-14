@@ -11,6 +11,7 @@ import {
   type InvoiceState,
   type Purpose,
 } from '../../support/api';
+import { useT } from '../../i18n';
 import { LoadMore, ReasonDialog, SectionHeader, StateBadge, fmtMs, usePaged } from '../ui';
 import * as api from './api';
 import './donations.css';
@@ -38,6 +39,7 @@ function Detail({
   onClose: () => void;
   onChanged: () => void;
 }) {
+  const t = useT();
   const [inv, setInv] = useState<api.AdminInvoice | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resolving, setResolving] = useState(false);
@@ -59,71 +61,90 @@ function Detail({
       <Modal
         open
         onClose={onClose}
-        title={`Invoice ${id}`}
+        title={t('admin.donations.invoices.detailTitle', { id })}
         size="lg"
-        footer={<Button onClick={onClose}>Close</Button>}
+        footer={<Button onClick={onClose}>{t('admin.donations.invoices.close')}</Button>}
       >
         {error && (
           <Notice variant="danger" role="alert">
             {error}
           </Notice>
         )}
-        {!inv && !error && <p role="status">Loading...</p>}
+        {!inv && !error && <p role="status">{t('admin.donations.invoices.loading')}</p>}
         {inv && (
           <>
             <dl className="adm-dl">
-              <dt>Payer</dt>
+              <dt>{t('admin.donations.invoices.dtPayer')}</dt>
               <dd>
-                {inv.user_name ?? 'unknown'} <span className="adm-mono">({inv.user_id})</span>
+                {inv.user_name ?? t('admin.donations.invoices.unknown')}{' '}
+                <span className="adm-mono">({inv.user_id})</span>
               </dd>
-              <dt>For</dt>
+              <dt>{t('admin.donations.invoices.dtFor')}</dt>
               <dd>
-                {PURPOSE_COPY[inv.purpose]}, {usd(inv.usd_cents)} = {sats(inv.sats)}
+                {t('admin.donations.invoices.forValue', {
+                  purpose: PURPOSE_COPY[inv.purpose],
+                  usd: usd(inv.usd_cents),
+                  sats: sats(inv.sats),
+                })}
               </dd>
-              <dt>State</dt>
+              <dt>{t('admin.donations.invoices.dtState')}</dt>
               <dd>
                 <StateBadge state={inv.state} /> {STATE_COPY[inv.state]}{' '}
-                {inv.late && <Badge variant="warning">late</Badge>}
+                {inv.late && <Badge variant="warning">{t('admin.donations.invoices.late')}</Badge>}
               </dd>
-              <dt>Received</dt>
+              <dt>{t('admin.donations.invoices.dtReceived')}</dt>
               <dd>
-                {sats(inv.received_sats)} ({sats(inv.confirmed_sats)} confirmed)
-                {inv.shortfall_sats > 0 && ` · short by ${sats(inv.shortfall_sats)}`}
-                {inv.excess_sats > 0 && ` · extra ${sats(inv.excess_sats)}`}
+                {t('admin.donations.invoices.receivedValue', {
+                  received: sats(inv.received_sats),
+                  confirmed: sats(inv.confirmed_sats),
+                })}
+                {inv.shortfall_sats > 0 &&
+                  ` · ${t('admin.donations.invoices.shortBy', { amount: sats(inv.shortfall_sats) })}`}
+                {inv.excess_sats > 0 &&
+                  ` · ${t('admin.donations.invoices.extra', { amount: sats(inv.excess_sats) })}`}
               </dd>
-              <dt>Address</dt>
+              <dt>{t('admin.donations.invoices.dtAddress')}</dt>
               <dd className="adm-mono">
-                {inv.address} (index {inv.derivation_index})
+                {t('admin.donations.invoices.addressValue', {
+                  address: inv.address,
+                  index: inv.derivation_index,
+                })}
               </dd>
-              <dt>Created</dt>
+              <dt>{t('admin.donations.invoices.dtCreated')}</dt>
               <dd>
-                {fmtMs(inv.created_at_ms)}, expires {fmtMs(inv.expires_at_ms)}
+                {t('admin.donations.invoices.createdValue', {
+                  created: fmtMs(inv.created_at_ms),
+                  expires: fmtMs(inv.expires_at_ms),
+                })}
               </dd>
               {inv.resolution && (
                 <>
-                  <dt>Resolution</dt>
+                  <dt>{t('admin.donations.invoices.dtResolution')}</dt>
                   <dd>
                     {inv.resolution.replace('_', ' ')}: {inv.resolution_note}
                   </dd>
                 </>
               )}
             </dl>
-            <h3>Transactions</h3>
+            <h3>{t('admin.donations.invoices.transactions')}</h3>
             {inv.txs.length === 0 ? (
-              <p className="ss-meta">None seen.</p>
+              <p className="ss-meta">{t('admin.donations.invoices.noneSeen')}</p>
             ) : (
               <ul className="ss-list">
-                {inv.txs.map((t) => (
-                  <li key={t.txid} className="ss-row">
-                    <span className="ss-grow adm-mono">{t.txid}</span>
+                {inv.txs.map((tx) => (
+                  <li key={tx.txid} className="ss-row">
+                    <span className="ss-grow adm-mono">{tx.txid}</span>
                     <span>
-                      {sats(t.amount_sats)} · {t.dropped ? 'dropped' : `${t.confirmations} conf`}
+                      {sats(tx.amount_sats)} ·{' '}
+                      {tx.dropped
+                        ? t('admin.donations.invoices.dropped')
+                        : t('admin.donations.invoices.confirmations', { count: tx.confirmations })}
                     </span>
                   </li>
                 ))}
               </ul>
             )}
-            <h3>Audit trail</h3>
+            <h3>{t('admin.donations.invoices.auditTrail')}</h3>
             <ul className="adm-audit">
               {inv.audit.map((a, i) => (
                 <li key={i}>
@@ -134,7 +155,7 @@ function Detail({
             {open && (
               <div className="adm-actions">
                 <Button variant="secondary" onClick={() => setResolving(true)}>
-                  Resolve by hand
+                  {t('admin.donations.invoices.resolveByHand')}
                 </Button>
               </div>
             )}
@@ -143,9 +164,9 @@ function Detail({
       </Modal>
       <ReasonDialog
         open={resolving}
-        title="Resolve this invoice"
-        description="No funds move from here. Mark paid credits the purpose once; refund noted records a refund you made in your own wallet and takes any credit back."
-        confirmLabel="Resolve"
+        title={t('admin.donations.invoices.resolveTitle')}
+        description={t('admin.donations.invoices.resolveDescription')}
+        confirmLabel={t('admin.donations.invoices.resolve')}
         valid={note.trim().length > 0}
         onCancel={() => setResolving(false)}
         onConfirm={async (reason) => {
@@ -157,15 +178,15 @@ function Detail({
         }}
       >
         <label>
-          Resolution{' '}
+          {t('admin.donations.invoices.resolution')}{' '}
           <select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
-            <option value="mark_paid">Mark paid</option>
-            <option value="refund_noted">Refund noted</option>
-            <option value="dismiss">Dismiss</option>
+            <option value="mark_paid">{t('admin.donations.invoices.markPaid')}</option>
+            <option value="refund_noted">{t('admin.donations.invoices.refundNoted')}</option>
+            <option value="dismiss">{t('admin.donations.invoices.dismiss')}</option>
           </select>
         </label>
         <TextArea
-          label="Note (what was done, with any reference)"
+          label={t('admin.donations.invoices.noteLabel')}
           value={note}
           rows={3}
           maxLength={1000}
@@ -177,6 +198,7 @@ function Detail({
 }
 
 export function InvoicesSection() {
+  const t = useT();
   const [state, setState] = useState<InvoiceState | ''>('');
   const [purpose, setPurpose] = useState<Purpose | ''>('');
   const [attention, setAttention] = useState(false);
@@ -200,8 +222,8 @@ export function InvoicesSection() {
   return (
     <>
       <SectionHeader
-        title="Invoices"
-        description="Every invoice, newest first. Underpaid, overpaid and late payments need a decision."
+        title={t('admin.donations.invoices.title')}
+        description={t('admin.donations.invoices.description')}
       />
       <form
         className="ss-toolbar"
@@ -211,9 +233,9 @@ export function InvoicesSection() {
         }}
       >
         <label>
-          State{' '}
+          {t('admin.donations.invoices.filterState')}{' '}
           <select value={state} onChange={(e) => setState(e.target.value as InvoiceState | '')}>
-            <option value="">Any state</option>
+            <option value="">{t('admin.donations.invoices.anyState')}</option>
             {STATES.map((s) => (
               <option key={s} value={s}>
                 {STATE_COPY[s]}
@@ -222,9 +244,9 @@ export function InvoicesSection() {
           </select>
         </label>
         <label>
-          Purpose{' '}
+          {t('admin.donations.invoices.filterPurpose')}{' '}
           <select value={purpose} onChange={(e) => setPurpose(e.target.value as Purpose | '')}>
-            <option value="">Any purpose</option>
+            <option value="">{t('admin.donations.invoices.anyPurpose')}</option>
             {PURPOSES.map((p) => (
               <option key={p} value={p}>
                 {PURPOSE_COPY[p]}
@@ -233,8 +255,8 @@ export function InvoicesSection() {
           </select>
         </label>
         <TextInput
-          label="Search"
-          hint="Invoice id, address or transaction id"
+          label={t('admin.donations.invoices.searchLabel')}
+          hint={t('admin.donations.invoices.searchHint')}
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
@@ -244,10 +266,10 @@ export function InvoicesSection() {
             checked={attention}
             onChange={(e) => setAttention(e.target.checked)}
           />{' '}
-          Needs attention
+          {t('admin.donations.invoices.needsAttention')}
         </label>
         <Button type="submit" variant="secondary">
-          Search
+          {t('admin.donations.invoices.search')}
         </Button>
       </form>
       {paged.error && (
@@ -256,20 +278,23 @@ export function InvoicesSection() {
         </Notice>
       )}
       {!paged.error && !paged.loading && paged.items.length === 0 && (
-        <EmptyState title="No invoices" description="Nothing matches these filters." />
+        <EmptyState
+          title={t('admin.donations.invoices.emptyTitle')}
+          description={t('admin.donations.invoices.emptyDescription')}
+        />
       )}
       {paged.items.length > 0 && (
         <div className="adm-table-wrap">
           <table className="adm-table">
-            <caption className="us-sr">Invoices</caption>
+            <caption className="us-sr">{t('admin.donations.invoices.title')}</caption>
             <thead>
               <tr>
-                <th scope="col">Invoice</th>
-                <th scope="col">Payer</th>
-                <th scope="col">For</th>
-                <th scope="col">Amount</th>
-                <th scope="col">State</th>
-                <th scope="col">Created</th>
+                <th scope="col">{t('admin.donations.invoices.colInvoice')}</th>
+                <th scope="col">{t('admin.donations.invoices.dtPayer')}</th>
+                <th scope="col">{t('admin.donations.invoices.dtFor')}</th>
+                <th scope="col">{t('admin.donations.invoices.colAmount')}</th>
+                <th scope="col">{t('admin.donations.invoices.dtState')}</th>
+                <th scope="col">{t('admin.donations.invoices.dtCreated')}</th>
               </tr>
             </thead>
             <tbody>

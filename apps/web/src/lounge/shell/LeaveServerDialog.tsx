@@ -2,6 +2,7 @@ import { ConfirmDialog, Modal, Button } from '@sideroom/ui';
 import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { ApiError } from '../../api/client';
+import { useT } from '../../i18n';
 import { useStore } from '../../store';
 import { HOME } from '../channels';
 import { useCurrentUser, useGuild } from '../data';
@@ -9,12 +10,16 @@ import { leaveGuild } from './api';
 
 /** Leave Server confirm (LNG-GLD-027). The owner is told to transfer ownership first. */
 export function LeaveServerDialog({ guildId, onClose }: { guildId: string; onClose: () => void }) {
+  const t = useT();
   const guild = useGuild(guildId);
   const me = useCurrentUser();
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!guild) return null;
+  const [leavePre, leavePost] = t('lounge.leaveServer.confirmBody', { name: '\u0001' }).split(
+    '\u0001',
+  );
 
   if (guild.ownerId === me.id)
     return (
@@ -22,13 +27,10 @@ export function LeaveServerDialog({ guildId, onClose }: { guildId: string; onClo
         open
         onClose={onClose}
         size="sm"
-        title={`Leave ${guild.name}`}
-        footer={<Button onClick={onClose}>Got it</Button>}
+        title={t('lounge.leaveServer.title', { name: guild.name })}
+        footer={<Button onClick={onClose}>{t('lounge.leaveServer.gotIt')}</Button>}
       >
-        <p>
-          You own this server, so you cannot leave it yet. Transfer ownership to another member in
-          Server Settings first, or delete the server there.
-        </p>
+        <p>{t('lounge.leaveServer.ownerBody')}</p>
       </Modal>
     );
 
@@ -41,9 +43,7 @@ export function LeaveServerDialog({ guildId, onClose }: { guildId: string; onClo
       onClose();
       void navigate({ to: '/channels/$guildId', params: { guildId: HOME } });
     } catch (e) {
-      setError(
-        e instanceof ApiError && e.message ? e.message : 'Could not leave the server. Try again.',
-      );
+      setError(e instanceof ApiError && e.message ? e.message : t('lounge.leaveServer.error'));
       setBusy(false);
     }
   };
@@ -52,11 +52,12 @@ export function LeaveServerDialog({ guildId, onClose }: { guildId: string; onClo
     <ConfirmDialog
       open
       danger
-      title={`Leave ${guild.name}`}
+      title={t('lounge.leaveServer.title', { name: guild.name })}
       description={
         <>
-          Are you sure you want to leave <strong>{guild.name}</strong>? You will not be able to
-          rejoin unless you are invited again.
+          {leavePre}
+          <strong>{guild.name}</strong>
+          {leavePost}
           {error && (
             <span role="alert" className="lng-form-error">
               {error}
@@ -64,7 +65,7 @@ export function LeaveServerDialog({ guildId, onClose }: { guildId: string; onClo
           )}
         </>
       }
-      confirmLabel="Leave Server"
+      confirmLabel={t('lounge.leaveServer.confirm')}
       loading={busy}
       onConfirm={() => void confirm()}
       onCancel={onClose}

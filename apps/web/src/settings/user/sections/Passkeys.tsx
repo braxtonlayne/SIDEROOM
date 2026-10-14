@@ -8,6 +8,7 @@ import {
   renamePasskey,
   type Passkey,
 } from '../../../api/passkeys';
+import { useT } from '../../../i18n';
 import { createPasskey, isCancelled, passkeysSupported } from '../../../lib/webauthn';
 import { errorText, useResource } from '../api';
 import { Card, fmtDate, Loaded } from '../parts';
@@ -23,20 +24,21 @@ function AddPasskey({
   onClose: () => void;
   onAdded: (p: Passkey, recoveryCodes: string[] | null) => void;
 }) {
-  const [name, setName] = useState('Passkey');
+  const t = useT();
+  const [name, setName] = useState(() => t('settings.passkeys.defaultName'));
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (open) {
-      setName('Passkey');
+      setName(t('settings.passkeys.defaultName'));
       setPassword('');
       setError(null);
     }
-  }, [open]);
+  }, [open, t]);
   const submit = async () => {
-    if (!name.trim()) return setError('Give the passkey a name.');
-    if (!password) return setError('Enter your password.');
+    if (!name.trim()) return setError(t('settings.passkeys.needName'));
+    if (!password) return setError(t('settings.passkeys.needPassword'));
     setBusy(true);
     setError(null);
     try {
@@ -45,7 +47,7 @@ function AddPasskey({
       const res = await passkeyRegisterFinish({ ceremony_id, name: name.trim(), credential });
       onAdded(res.passkey, res.recovery_codes);
     } catch (e) {
-      setError(isCancelled(e) ? 'The passkey prompt was cancelled. Try again.' : errorText(e));
+      setError(isCancelled(e) ? t('settings.passkeys.cancelled') : errorText(e));
     } finally {
       setBusy(false);
     }
@@ -54,16 +56,16 @@ function AddPasskey({
     <Modal
       open={open}
       onClose={onClose}
-      title="Add a passkey"
-      description="Confirm your password, then follow your browser's prompt."
+      title={t('settings.passkeys.addTitle')}
+      description={t('settings.passkeys.addDesc')}
       size="sm"
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t('settings.passkeys.cancel')}
           </Button>
           <Button loading={busy} onClick={() => void submit()}>
-            Add passkey
+            {t('settings.passkeys.addConfirm')}
           </Button>
         </>
       }
@@ -75,14 +77,14 @@ function AddPasskey({
         }}
       >
         <TextInput
-          label="Name"
+          label={t('settings.passkeys.name')}
           value={name}
           maxLength={64}
           onChange={(e) => setName(e.target.value)}
           data-autofocus=""
         />
         <PasswordInput
-          label="Current password"
+          label={t('settings.passkeys.currentPassword')}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           error={error}
@@ -102,6 +104,7 @@ function RenamePasskey({
   onClose: () => void;
   onRenamed: (p: Passkey) => void;
 }) {
+  const t = useT();
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -111,7 +114,7 @@ function RenamePasskey({
   }, [passkey]);
   const submit = async () => {
     if (!passkey) return;
-    if (!name.trim()) return setError('Give the passkey a name.');
+    if (!name.trim()) return setError(t('settings.passkeys.needName'));
     setBusy(true);
     setError(null);
     try {
@@ -126,15 +129,15 @@ function RenamePasskey({
     <Modal
       open={passkey !== null}
       onClose={onClose}
-      title="Rename passkey"
+      title={t('settings.passkeys.renameTitle')}
       size="sm"
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t('settings.passkeys.cancel')}
           </Button>
           <Button loading={busy} onClick={() => void submit()}>
-            Save
+            {t('settings.passkeys.save')}
           </Button>
         </>
       }
@@ -146,7 +149,7 @@ function RenamePasskey({
         }}
       >
         <TextInput
-          label="Name"
+          label={t('settings.passkeys.name')}
           value={name}
           maxLength={64}
           error={error}
@@ -160,6 +163,7 @@ function RenamePasskey({
 
 /** Passkeys list: add, rename, remove. Adding and removing re-check the password. */
 export function PasskeysCard() {
+  const t = useT();
   const toast = useToast();
   const res = useResource(listPasskeys);
   const supported = passkeysSupported();
@@ -170,41 +174,51 @@ export function PasskeysCard() {
   return (
     <Card
       id="us-passkeys"
-      title="Passkeys"
-      description="Sign in with your fingerprint, face or a security key instead of a password. A passkey also counts as your second step."
+      title={t('settings.passkeys.title')}
+      description={t('settings.passkeys.desc')}
       actions={
         <Button disabled={!supported} onClick={() => setAdding(true)}>
-          Add a passkey
+          {t('settings.passkeys.add')}
         </Button>
       }
     >
       {!supported && (
-        <Notice variant="info" title="Not supported here">
-          This browser can't create passkeys. You can still manage the ones you have.
+        <Notice variant="info" title={t('settings.passkeys.unsupportedTitle')}>
+          {t('settings.passkeys.unsupportedBody')}
         </Notice>
       )}
-      <Loaded res={res} what="passkeys">
+      <Loaded res={res} what={t('settings.passkeys.what')}>
         {(rows) =>
           rows.length === 0 ? (
-            <p className="us-muted">No passkeys yet.</p>
+            <p className="us-muted">{t('settings.passkeys.empty')}</p>
           ) : (
-            <ul className="us-list" aria-label="Passkeys">
+            <ul className="us-list" aria-label={t('settings.passkeys.title')}>
               {rows.map((p) => (
                 <li key={p.id}>
                   <div className="us-row-main">
                     <strong>{p.name}</strong>
                     <p className="us-muted">
-                      Added {fmtDate(p.created_at)},{' '}
-                      {p.last_used_at ? `last used ${fmtDate(p.last_used_at)}` : 'never used'}
-                      {p.backup_eligible ? ', synced' : ''}
+                      {t(
+                        p.backup_eligible
+                          ? 'settings.passkeys.metaSynced'
+                          : 'settings.passkeys.meta',
+                        {
+                          created: fmtDate(p.created_at),
+                          usage: p.last_used_at
+                            ? t('settings.passkeys.lastUsed', { date: fmtDate(p.last_used_at) })
+                            : t('settings.passkeys.neverUsed'),
+                        },
+                      )}
                     </p>
                   </div>
                   <div className="us-actions">
                     <Button variant="secondary" size="sm" onClick={() => setRenaming(p)}>
-                      Rename<span className="us-sr"> {p.name}</span>
+                      {t('settings.passkeys.rename')}
+                      <span className="us-sr"> {p.name}</span>
                     </Button>
                     <Button variant="danger" size="sm" onClick={() => setRemoving(p)}>
-                      Remove<span className="us-sr"> {p.name}</span>
+                      {t('settings.passkeys.remove')}
+                      <span className="us-sr"> {p.name}</span>
                     </Button>
                   </div>
                 </li>
@@ -219,7 +233,7 @@ export function PasskeysCard() {
         onAdded={(p, recovery) => {
           setAdding(false);
           res.setData((d) => [...(d ?? []), p]);
-          toast.show({ title: 'Passkey added', duration: 3000 });
+          toast.show({ title: t('settings.passkeys.added'), duration: 3000 });
           if (recovery) setCodes(recovery);
         }}
       />
@@ -234,22 +248,22 @@ export function PasskeysCard() {
       <PasswordPrompt
         open={removing !== null}
         danger
-        title="Remove passkey"
-        description={`Remove "${removing?.name ?? ''}"? Enter your password to confirm.`}
-        confirmLabel="Remove"
+        title={t('settings.passkeys.removeTitle')}
+        description={t('settings.passkeys.removeDesc', { name: removing?.name ?? '' })}
+        confirmLabel={t('settings.passkeys.remove')}
         onClose={() => setRemoving(null)}
         onSubmit={async (pw) => {
           if (!removing) return;
           await deletePasskey(removing.id, pw);
           res.setData((d) => d?.filter((x) => x.id !== removing.id));
           setRemoving(null);
-          toast.show({ title: 'Passkey removed', duration: 3000 });
+          toast.show({ title: t('settings.passkeys.removed'), duration: 3000 });
         }}
       />
       <Modal
         open={codes !== null}
         onClose={() => setCodes(null)}
-        title="Your recovery codes"
+        title={t('settings.passkeys.codesTitle')}
         size="md"
         closeOnBackdrop={false}
       >

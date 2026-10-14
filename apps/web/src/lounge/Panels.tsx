@@ -1,4 +1,5 @@
 import { Avatar, EmptyState } from '@sideroom/ui';
+import { useT } from '../i18n';
 import { isTextLike } from './channels';
 import { useChannels, useDms, usePresence, useUsers } from './data';
 import { ServerWelcome } from './shell/ServerWelcome';
@@ -8,6 +9,7 @@ import { useLoungeUi } from './store';
 
 /** Right-hand profile panel for a DM (LNG-DM-006 is a later item; this is the minimum useful card). */
 export function DmProfilePanel({ dmId }: { dmId: string }) {
+  const t = useT();
   const dm = useDms().find((d) => d.id === dmId);
   const users = useUsers();
   const user = dm ? users[dm.recipientIds[0] ?? ''] : undefined;
@@ -15,8 +17,10 @@ export function DmProfilePanel({ dmId }: { dmId: string }) {
   if (!dm || !user) return null;
   if (dm.recipientIds.length > 1) {
     return (
-      <div className="lng-profile" aria-label="Group members">
-        <h2 className="lng-profile-h">Members — {dm.recipientIds.length + 1}</h2>
+      <div className="lng-profile" aria-label={t('lounge.panels.groupMembers')}>
+        <h2 className="lng-profile-h">
+          {t('lounge.panels.membersCount', { count: dm.recipientIds.length + 1 })}
+        </h2>
         <ul className="lng-profile-members">
           {dm.recipientIds.map((id) => (
             <li key={id}>
@@ -29,7 +33,10 @@ export function DmProfilePanel({ dmId }: { dmId: string }) {
     );
   }
   return (
-    <div className="lng-profile" aria-label={`${user.displayName} profile`}>
+    <div
+      className="lng-profile"
+      aria-label={t('lounge.panels.profileLabel', { name: user.displayName })}
+    >
       <div className="lng-profile-banner" />
       <div className="lng-profile-avatar">
         <Avatar name={user.displayName} size={80} status={presence.status} />
@@ -50,14 +57,15 @@ export function HomeFriends() {
 }
 
 export function PickChannel({ guildId }: { guildId?: string }) {
+  const t = useT();
   const channels = useChannels(guildId);
   // A server with nowhere to talk yet shows the welcome checklist instead of an empty prompt.
   if (guildId && !channels.some(isTextLike)) return <ServerWelcome guildId={guildId} />;
   return (
-    <section className="lng-channel-view" aria-label="No channel selected">
+    <section className="lng-channel-view" aria-label={t('lounge.panels.noChannelSelected')}>
       <EmptyState
-        title="Pick a channel"
-        description="Choose a channel from the list to start talking."
+        title={t('lounge.panels.pickChannelTitle')}
+        description={t('lounge.panels.pickChannelBody')}
       />
     </section>
   );

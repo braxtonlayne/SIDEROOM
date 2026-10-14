@@ -2,6 +2,7 @@
 // manual grant and revoke, each with a reason that goes to the access log.
 import { Badge, Button, EmptyState, Notice, TextInput } from '@sideroom/ui';
 import { useState } from 'react';
+import { t, useT } from '../../i18n';
 import { usd } from '../../support/api';
 import { LoadMore, ReasonDialog, SectionHeader, fmtMs, usePaged } from '../ui';
 import * as api from './api';
@@ -9,15 +10,16 @@ import './donations.css';
 
 function describe(g: api.Grant): string {
   if (g.kind === 'patron') {
-    if (g.permanent) return 'Patron, no end date';
-    if (g.days) return `Patron, ${g.days} days`;
-    if (g.ends_at_ms) return `Patron until ${fmtMs(g.ends_at_ms)}`;
-    return 'Patron';
+    if (g.permanent) return t('admin.entitlements.patronForever');
+    if (g.days) return t('admin.entitlements.patronDays', { days: g.days });
+    if (g.ends_at_ms) return t('admin.entitlements.patronUntil', { time: fmtMs(g.ends_at_ms) });
+    return t('admin.entitlements.patron');
   }
-  return `Server pool, ${usd(g.usd_cents ?? 0)}`;
+  return t('admin.entitlements.serverPool', { amount: usd(g.usd_cents ?? 0) });
 }
 
 export function EntitlementsSection() {
+  const t = useT();
   const [kind, setKind] = useState<'' | 'patron' | 'server_pool'>('');
   const [activeOnly, setActiveOnly] = useState(true);
   const [target, setTarget] = useState<api.Grant | null>(null);
@@ -40,17 +42,17 @@ export function EntitlementsSection() {
   return (
     <>
       <SectionHeader
-        title="Entitlements"
-        description="What gives members Patron perks and servers their level. Revoking takes effect at once."
-        actions={<Button onClick={() => setGranting(true)}>Grant</Button>}
+        title={t('admin.entitlements.title')}
+        description={t('admin.entitlements.description')}
+        actions={<Button onClick={() => setGranting(true)}>{t('admin.entitlements.grant')}</Button>}
       />
       <div className="ss-toolbar">
         <label>
-          Kind{' '}
+          {t('admin.entitlements.kind')}{' '}
           <select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
-            <option value="">All</option>
-            <option value="patron">Patron</option>
-            <option value="server_pool">Server pool</option>
+            <option value="">{t('admin.entitlements.all')}</option>
+            <option value="patron">{t('admin.entitlements.patron')}</option>
+            <option value="server_pool">{t('admin.entitlements.serverPoolOption')}</option>
           </select>
         </label>
         <label>
@@ -59,7 +61,7 @@ export function EntitlementsSection() {
             checked={activeOnly}
             onChange={(e) => setActiveOnly(e.target.checked)}
           />{' '}
-          Only active
+          {t('admin.entitlements.onlyActive')}
         </label>
       </div>
       {notice && (
@@ -73,23 +75,30 @@ export function EntitlementsSection() {
         </Notice>
       )}
       {!paged.error && !paged.loading && paged.items.length === 0 && (
-        <EmptyState title="No entitlements" description="Nothing matches." />
+        <EmptyState
+          title={t('admin.entitlements.empty.title')}
+          description={t('admin.entitlements.empty.description')}
+        />
       )}
       {paged.items.length > 0 && (
-        <ul className="ss-list" aria-label="Entitlements">
+        <ul className="ss-list" aria-label={t('admin.entitlements.title')}>
           {paged.items.map((g) => (
             <li key={g.id} className="ss-row">
               <div className="ss-grow">
                 <div className="ss-name">
                   {describe(g)}{' '}
                   <Badge variant={g.revoked_at_ms ? 'neutral' : 'success'}>
-                    {g.revoked_at_ms ? 'revoked' : 'active'}
+                    {g.revoked_at_ms
+                      ? t('admin.entitlements.revoked')
+                      : t('admin.entitlements.active')}
                   </Badge>{' '}
                   <Badge variant="neutral">{g.source}</Badge>
                 </div>
                 <div className="ss-meta">
-                  {g.user_id ? `Account ${g.user_id}` : `Server ${g.guild_id}`} · from{' '}
-                  {fmtMs(g.starts_at_ms)}
+                  {g.user_id
+                    ? t('admin.entitlements.account', { id: g.user_id })
+                    : t('admin.entitlements.server', { id: g.guild_id ?? '' })}{' '}
+                  · {t('admin.entitlements.from', { time: fmtMs(g.starts_at_ms) })}
                   {g.reason ? ` · ${g.reason}` : ''}
                 </div>
               </div>
@@ -97,10 +106,13 @@ export function EntitlementsSection() {
                 <Button
                   size="sm"
                   variant="secondary"
-                  aria-label={`Revoke ${describe(g)} for ${g.user_id ?? g.guild_id}`}
+                  aria-label={t('admin.entitlements.revokeAria', {
+                    what: describe(g),
+                    who: g.user_id ?? g.guild_id ?? '',
+                  })}
                   onClick={() => setTarget(g)}
                 >
-                  Revoke
+                  {t('admin.entitlements.revoke')}
                 </Button>
               )}
             </li>
@@ -111,22 +123,22 @@ export function EntitlementsSection() {
 
       <ReasonDialog
         open={!!target}
-        title="Revoke this entitlement"
+        title={t('admin.entitlements.revokeDialog.title')}
         danger
-        confirmLabel="Revoke"
+        confirmLabel={t('admin.entitlements.revoke')}
         onCancel={() => setTarget(null)}
         onConfirm={async (reason) => {
           if (!target) return;
           await api.revokeGrant(target.id, reason);
-          setNotice('Entitlement revoked.');
+          setNotice(t('admin.entitlements.revokeDialog.done'));
           setTarget(null);
           paged.reload();
         }}
       />
       <ReasonDialog
         open={granting}
-        title="Grant an entitlement"
-        confirmLabel="Grant"
+        title={t('admin.entitlements.grantDialog.title')}
+        confirmLabel={t('admin.entitlements.grant')}
         valid={validGrant}
         onCancel={() => setGranting(false)}
         onConfirm={async (reason) => {
@@ -140,21 +152,25 @@ export function EntitlementsSection() {
               : { usd_cents: Number(cents) }),
             reason,
           });
-          setNotice('Entitlement granted.');
+          setNotice(t('admin.entitlements.grantDialog.done'));
           setGranting(false);
           setWho('');
           paged.reload();
         }}
       >
         <label>
-          Kind{' '}
+          {t('admin.entitlements.kind')}{' '}
           <select value={gKind} onChange={(e) => setGKind(e.target.value as typeof gKind)}>
-            <option value="patron">Patron time for an account</option>
-            <option value="server_pool">Pool contribution for a server</option>
+            <option value="patron">{t('admin.entitlements.grantDialog.patronOption')}</option>
+            <option value="server_pool">{t('admin.entitlements.grantDialog.poolOption')}</option>
           </select>
         </label>
         <TextInput
-          label={gKind === 'patron' ? 'Account id' : 'Server id'}
+          label={
+            gKind === 'patron'
+              ? t('admin.entitlements.grantDialog.accountId')
+              : t('admin.entitlements.grantDialog.serverId')
+          }
           inputMode="numeric"
           value={who}
           onChange={(e) => setWho(e.target.value)}
@@ -167,11 +183,11 @@ export function EntitlementsSection() {
                 checked={forever}
                 onChange={(e) => setForever(e.target.checked)}
               />{' '}
-              No end date
+              {t('admin.entitlements.grantDialog.noEnd')}
             </label>
             {!forever && (
               <TextInput
-                label="Days"
+                label={t('admin.entitlements.grantDialog.days')}
                 inputMode="numeric"
                 value={days}
                 onChange={(e) => setDays(e.target.value)}
@@ -180,7 +196,7 @@ export function EntitlementsSection() {
           </>
         ) : (
           <TextInput
-            label="Contribution (USD cents)"
+            label={t('admin.entitlements.grantDialog.cents')}
             inputMode="numeric"
             value={cents}
             onChange={(e) => setCents(e.target.value)}

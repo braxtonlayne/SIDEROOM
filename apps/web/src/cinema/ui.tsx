@@ -3,14 +3,15 @@ import { Icon, PosterCard, Skeleton } from '@sideroom/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from '@tanstack/react-router';
 import { useState, type MouseEvent, type ReactNode } from 'react';
+import { t, useT } from '../i18n';
 import { useAgeGate } from '../lib/ageGate';
 import { getMyCinema, keys, setInList, setWatched } from './api';
 import type { MyCinema, Title, TitleKind } from './types';
 
 export const KIND_LABEL: Record<TitleKind, string> = {
-  movie: 'Film',
-  series: 'Series',
-  anime: 'Anime',
+  movie: 'cinema.ui.kindFilm',
+  series: 'cinema.ui.kindSeries',
+  anime: 'cinema.ui.kindAnime',
 };
 
 export const titleHref = (id: string) => `/cinema/t/${id}`;
@@ -36,8 +37,8 @@ export function formatClock(sec: number): string {
 }
 
 /** "2024 · Film". */
-export const yearLine = (t: Pick<Title, 'year' | 'kind'>) =>
-  [t.year, KIND_LABEL[t.kind]].filter(Boolean).join(' · ');
+export const yearLine = (ref: Pick<Title, 'year' | 'kind'>) =>
+  [ref.year, t(KIND_LABEL[ref.kind])].filter(Boolean).join(' · ');
 
 /** True when the title has been started but not finished: the Play button reads "Resume". */
 export const isResumable = (t: Title) => {
@@ -71,10 +72,11 @@ export function mergeMy(t: Title, my: MyCinema | undefined): Title {
 }
 
 export function AgeBadge({ className = '' }: { className?: string }) {
+  const tr = useT();
   return (
-    <span className={`cin-age-badge ${className}`.trim()} title="Age-restricted: 18 or older">
+    <span className={`cin-age-badge ${className}`.trim()} title={tr('cinema.ui.ageTitle')}>
       <span aria-hidden="true">18+</span>
-      <span className="cin-sr-only">Age-restricted, 18 or older</span>
+      <span className="cin-sr-only">{tr('cinema.ui.ageSr')}</span>
     </span>
   );
 }
@@ -103,6 +105,7 @@ export function TitleCard({
   subtitle?: ReactNode;
   actions?: boolean;
 }) {
+  const tr = useT();
   const open = useOpen();
   const my = useMy();
   const title = mergeMy(base, my);
@@ -146,7 +149,7 @@ export function TitleCard({
         subtitle={subtitle ?? yearLine(title)}
         src={title.poster_url}
         href={titleHref(title.id)}
-        tag={tag ?? (title.kind === 'anime' ? 'Anime' : undefined)}
+        tag={tag ?? (title.kind === 'anime' ? tr('cinema.ui.kindAnime') : undefined)}
         progress={isResumable(title) ? (title.my?.progress_percent ?? 0) : undefined}
         actions={
           actions ? (
@@ -154,8 +157,8 @@ export function TitleCard({
               <a
                 className="cin-qa"
                 href={watchHref(title.id)}
-                aria-label={`Play ${title.title}`}
-                title="Play"
+                aria-label={tr('cinema.ui.play', { title: title.title })}
+                title={tr('cinema.ui.playShort')}
               >
                 <Icon name="play" size={16} />
               </a>
@@ -163,10 +166,12 @@ export function TitleCard({
                 type="button"
                 className="cin-qa"
                 aria-label={
-                  inList ? `Remove ${title.title} from My list` : `Add ${title.title} to My list`
+                  inList
+                    ? tr('cinema.ui.removeFromList', { title: title.title })
+                    : tr('cinema.ui.addToList', { title: title.title })
                 }
                 aria-pressed={inList}
-                title="My list"
+                title={tr('cinema.ui.myList')}
                 onClick={() => list.mutate(!inList)}
               >
                 <Icon name={inList ? 'check' : 'plus'} size={16} />
@@ -175,10 +180,12 @@ export function TitleCard({
                 type="button"
                 className="cin-qa cin-qa-extra"
                 aria-label={
-                  watched ? `Mark ${title.title} unwatched` : `Mark ${title.title} watched`
+                  watched
+                    ? tr('cinema.ui.markUnwatched', { title: title.title })
+                    : tr('cinema.ui.markWatched', { title: title.title })
                 }
                 aria-pressed={watched}
-                title="Watched"
+                title={tr('cinema.ui.watched')}
                 onClick={() => seen.mutate(!watched)}
               >
                 <Icon name="eye" size={16} />
@@ -186,8 +193,8 @@ export function TitleCard({
               <a
                 className="cin-qa cin-qa-extra"
                 href={`${titleHref(title.id)}#rate`}
-                aria-label={`Rate ${title.title}`}
-                title="Rate"
+                aria-label={tr('cinema.ui.rate', { title: title.title })}
+                title={tr('cinema.ui.rateShort')}
               >
                 <Icon name="star" size={16} />
               </a>

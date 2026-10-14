@@ -17,6 +17,7 @@ import {
   useEnsureUserSettings,
   useLoadRemoteImages,
 } from '../../../lounge/msg/remoteImages';
+import { useT, type MessageKey } from '../../../i18n';
 import { Card, displayOf, Loaded, SectionTitle, Unavailable } from '../parts';
 
 function UserList({
@@ -30,6 +31,7 @@ function UserList({
   action: string;
   onAction: (u: UserLite) => Promise<void>;
 }) {
+  const t = useT();
   const [error, setError] = useState<string | null>(null);
   if (users.length === 0) return <p className="us-muted">{empty}</p>;
   return (
@@ -56,7 +58,7 @@ function UserList({
         ))}
       </ul>
       {error && (
-        <Notice variant="danger" title="That didn't work">
+        <Notice variant="danger" title={t('settings.privacy.userListError')}>
           {error}
         </Notice>
       )}
@@ -65,15 +67,16 @@ function UserList({
 }
 
 function BlockedCard() {
+  const t = useT();
   const rels = useResource(listRelationships);
   return (
-    <Card id="us-blocked" title="Blocked users">
-      <Loaded res={rels} what="blocked users">
+    <Card id="us-blocked" title={t('settings.privacy.blockedTitle')}>
+      <Loaded res={rels} what={t('settings.privacy.blockedWhat')}>
         {(all) => (
           <UserList
             users={all.filter((r) => r.type === 2).map((r) => r.user)}
-            empty="You haven't blocked anyone."
-            action="Unblock"
+            empty={t('settings.privacy.blockedEmpty')}
+            action={t('settings.privacy.unblock')}
             onAction={async (u) => {
               await unblockUser(u.id);
               rels.setData((d) => d?.filter((r) => !(r.type === 2 && r.user.id === u.id)));
@@ -86,19 +89,20 @@ function BlockedCard() {
 }
 
 function IgnoredCard() {
+  const t = useT();
   const ignores = useResource(listIgnores);
   return (
     <Card
       id="us-ignored"
-      title="Ignored users"
-      description="Their messages and DM notifications are hidden; the friendship stays."
+      title={t('settings.privacy.ignoredTitle')}
+      description={t('settings.privacy.ignoredDesc')}
     >
-      <Loaded res={ignores} what="ignored users">
+      <Loaded res={ignores} what={t('settings.privacy.ignoredWhat')}>
         {(all) => (
           <UserList
             users={all}
-            empty="You haven't ignored anyone."
-            action="Unignore"
+            empty={t('settings.privacy.ignoredEmpty')}
+            action={t('settings.privacy.unignore')}
             onAction={async (u) => {
               await unignoreUser(u.id);
               ignores.setData((d) => d?.filter((x) => x.id !== u.id));
@@ -111,18 +115,19 @@ function IgnoredCard() {
 }
 
 export function RemoteImagesCard() {
+  const t = useT();
   useEnsureUserSettings();
   const on = useLoadRemoteImages();
   const [error, setError] = useState<string | null>(null);
   return (
     <Card
       id="us-remote-images"
-      title="Embeds and images"
-      description="Images in link previews are fetched through this server, which keeps your address private."
+      title={t('settings.privacy.remoteTitle')}
+      description={t('settings.privacy.remoteDesc')}
     >
       <Switch
-        label="Load remote images automatically"
-        description="Show images that are still hosted on other sites without asking first. Those sites can see your IP address."
+        label={t('settings.privacy.remoteLoad')}
+        description={t('settings.privacy.remoteLoadDesc')}
         checked={on}
         onChange={(e) => {
           setError(null);
@@ -130,7 +135,7 @@ export function RemoteImagesCard() {
         }}
       />
       {error && (
-        <Notice variant="danger" title="Couldn't save that">
+        <Notice variant="danger" title={t('settings.privacy.saveError')}>
           {error}
         </Notice>
       )}
@@ -138,22 +143,27 @@ export function RemoteImagesCard() {
   );
 }
 
-const FRIEND_SOURCES: { key: keyof PrivacySettings; label: string; hint: string }[] = [
-  { key: 'friend_requests_everyone', label: 'Everyone', hint: 'Anyone who finds your username.' },
+const FRIEND_SOURCES: { key: keyof PrivacySettings; label: MessageKey; hint: MessageKey }[] = [
+  {
+    key: 'friend_requests_everyone',
+    label: 'settings.privacy.friendEveryone',
+    hint: 'settings.privacy.friendEveryoneHint',
+  },
   {
     key: 'friend_requests_friends_of_friends',
-    label: 'Friends of friends',
-    hint: 'People you have a friend in common with.',
+    label: 'settings.privacy.friendFof',
+    hint: 'settings.privacy.friendFofHint',
   },
   {
     key: 'friend_requests_server_members',
-    label: 'Server members',
-    hint: 'People who share a server with you.',
+    label: 'settings.privacy.friendServer',
+    hint: 'settings.privacy.friendServerHint',
   },
 ];
 
 /** Friend-request sources, server-member DMs and Message Requests (`/users/@me/privacy`), saved on toggle. */
 function ReachCard() {
+  const t = useT();
   const toast = useToast();
   const res = useResource(getPrivacy);
   const [error, setError] = useState<string | null>(null);
@@ -163,7 +173,7 @@ function ReachCard() {
     res.setData((d) => (d ? { ...d, ...patch } : d));
     try {
       res.setData(await patchPrivacy(patch));
-      toast.show({ title: 'Privacy updated', duration: 1500 });
+      toast.show({ title: t('settings.privacy.updated'), duration: 1500 });
     } catch (e) {
       if (before) res.setData(before);
       setError(errorText(e));
@@ -172,35 +182,35 @@ function ReachCard() {
   return (
     <Card
       id="us-who"
-      title="Who can reach you"
-      description="These save as soon as you change them."
+      title={t('settings.privacy.reachTitle')}
+      description={t('settings.privacy.reachDesc')}
     >
-      <Loaded res={res} what="your privacy settings">
+      <Loaded res={res} what={t('settings.privacy.reachWhat')}>
         {(p) => (
           <div className="us-stack">
             <div role="group" aria-labelledby="us-fr-h" className="us-stack">
               <h3 id="us-fr-h" className="us-subhead">
-                Who can send you friend requests
+                {t('settings.privacy.friendRequests')}
               </h3>
               {FRIEND_SOURCES.map((s) => (
                 <Switch
                   key={s.key}
-                  label={s.label}
-                  description={s.hint}
+                  label={t(s.label)}
+                  description={t(s.hint)}
                   checked={p[s.key]}
                   onChange={(e) => void set({ [s.key]: e.target.checked })}
                 />
               ))}
             </div>
             <Switch
-              label="Allow direct messages from server members"
-              description="People who share a server with you can message you. Turn it off and only friends can."
+              label={t('settings.privacy.serverDms')}
+              description={t('settings.privacy.serverDmsDesc')}
               checked={p.allow_server_member_dms}
               onChange={(e) => void set({ allow_server_member_dms: e.target.checked })}
             />
             <Switch
-              label="Message requests"
-              description="Messages from people who aren't your friends wait in Message Requests until you accept."
+              label={t('settings.privacy.requests')}
+              description={t('settings.privacy.requestsDesc')}
               checked={p.message_requests}
               onChange={(e) => void set({ message_requests: e.target.checked })}
             />
@@ -208,7 +218,7 @@ function ReachCard() {
         )}
       </Loaded>
       {error && (
-        <Notice variant="danger" title="Couldn't save that">
+        <Notice variant="danger" title={t('settings.privacy.saveError')}>
           {error}
         </Notice>
       )}
@@ -217,36 +227,30 @@ function ReachCard() {
 }
 
 export function PrivacySection() {
+  const t = useT();
   return (
     <>
-      <SectionTitle>Privacy &amp; Safety</SectionTitle>
+      <SectionTitle>{t('settings.privacy.title')}</SectionTitle>
       <ReachCard />
       <Card
         id="us-filters"
-        title="Sensitive media and age-restricted content"
-        description="Blur or block sensitive images from friends, others and servers, and re-confirm your age."
+        title={t('settings.privacy.sensitiveTitle')}
+        description={t('settings.privacy.sensitiveDesc')}
       >
-        <Unavailable>
-          The server has no media-scanning or per-source filter settings yet, and no way to read or
-          reset your age confirmation. Age-restricted channels and library titles still ask you to
-          confirm when you open them.
-        </Unavailable>
+        <Unavailable>{t('settings.privacy.sensitiveUnavailable')}</Unavailable>
       </Card>
       <RemoteImagesCard />
       <BlockedCard />
       <IgnoredCard />
       <Card
         id="us-data"
-        title="Request my data"
-        description="Get a copy of your messages, profile and uploads."
+        title={t('settings.privacy.dataTitle')}
+        description={t('settings.privacy.dataDesc')}
       >
         <Button variant="secondary" disabled>
-          Request my data
+          {t('settings.privacy.dataTitle')}
         </Button>
-        <Unavailable>
-          The data export package (JSON plus an attachment index, with a 7-day download link)
-          isn&apos;t built on the server yet, so there is nothing to request.
-        </Unavailable>
+        <Unavailable>{t('settings.privacy.dataUnavailable')}</Unavailable>
       </Card>
     </>
   );
