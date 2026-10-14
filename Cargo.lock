@@ -5374,6 +5374,12 @@ dependencies = [
 [[package]]
 name = "sr-transcoder"
 version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sr-media",
+ "thiserror 2.0.21",
+]
 
 [[package]]
 name = "sr-tv"
