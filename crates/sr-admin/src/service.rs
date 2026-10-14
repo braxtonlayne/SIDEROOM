@@ -4,6 +4,7 @@
 
 use crate::{
     error::{AdminError, AdminResult},
+    ext::{StaffExtrasRepository, StaffNotifier},
     model::{
         AccessKind, AccessLogFilter, AccessLogPage, AccountDetail, AccountPage, AccountQuery,
         AccountState, AccountSummary, AuditEntry, BanCategory, BanOutcome, BanPage, Caller,
@@ -18,8 +19,9 @@ use crate::{
 use serde::Serialize;
 use serde_json::{Value, json};
 use sr_core::PlatformPermissions as P;
+use sr_core::{Clock, SystemClock};
 use sr_events::{DomainEvent, EventBus, StaffAlertKind, Topic};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use utoipa::ToSchema;
 
 /// The system user "SIDE ROOM" (doc 06 section 8), the actor of CLI operations.
@@ -57,11 +59,40 @@ fn json_detail(v: Value) -> String {
 pub struct AdminService {
     repo: Arc<dyn AdminRepository>,
     bus: Option<Arc<dyn EventBus>>,
+    pub(crate) extras: Option<Arc<dyn StaffExtrasRepository>>,
+    pub(crate) notifier: Option<Arc<dyn StaffNotifier>>,
+    pub(crate) clock: Arc<dyn Clock>,
+    pub(crate) stats_cache: Arc<Mutex<Option<(i64, SystemCounts)>>>,
 }
 
 impl AdminService {
     pub fn new(repo: Arc<dyn AdminRepository>) -> Self {
-        Self { repo, bus: None }
+        Self {
+            repo,
+            bus: None,
+            extras: None,
+            notifier: None,
+            clock: Arc::new(SystemClock),
+            stats_cache: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    /// Storage of offers, announcements, alerts and private reads (phase 10).
+    pub fn with_extras(mut self, extras: Arc<dyn StaffExtrasRepository>) -> Self {
+        self.extras = Some(extras);
+        self
+    }
+
+    /// The system user's voice: appointment DMs, staff notices, announcement DMs.
+    pub fn with_notifier(mut self, notifier: Arc<dyn StaffNotifier>) -> Self {
+        self.notifier = Some(notifier);
+        self
+    }
+
+    /// Replace the clock (tests).
+    pub fn with_clock(mut self, clock: Arc<dyn Clock>) -> Self {
+        self.clock = clock;
+        self
     }
 
     /// Publish staff alerts on this bus.
@@ -86,11 +117,12 @@ impl AdminService {
             user_id,
             permissions: s.permissions,
             is_owner: s.is_owner,
+            grant_ceiling: s.grant_ceiling,
             ip,
         })
     }
 
-    async fn alert(&self, kind: StaffAlertKind, detail: String) {
+    pub(crate) async fn alert(&self, kind: StaffAlertKind, detail: String) {
         if let Some(bus) = &self.bus {
             let _ = bus
                 .publish(Topic::Platform, DomainEvent::StaffAlert { kind, detail })
@@ -98,7 +130,7 @@ impl AdminService {
         }
     }
 
-    fn entry(
+    pub(crate) fn entry(
         &self,
         c: &Caller,
         kind: AccessKind,
@@ -120,7 +152,7 @@ impl AdminService {
     }
 
     /// Require `perm`; a staff member who lacks it leaves a `denied` row in the log.
-    async fn require(&self, c: &Caller, perm: P, action: &str) -> AdminResult<()> {
+    pub(crate) async fn require(&self, c: &Caller, perm: P, action: &str) -> AdminResult<()> {
         if c.permissions.has(perm) {
             return Ok(());
         }
@@ -136,7 +168,7 @@ impl AdminService {
         Err(AdminError::MissingPermission(rules::perm_name(perm)))
     }
 
-    fn reason(r: Option<&str>) -> AdminResult<String> {
+    pub(crate) fn reason(r: Option<&str>) -> AdminResult<String> {
         let r = r.map(str::trim).unwrap_or("");
         if r.is_empty() {
             return Err(AdminError::ReasonRequired);
@@ -149,14 +181,14 @@ impl AdminService {
         Ok(r.to_owned())
     }
 
-    fn optional_reason(r: Option<&str>) -> AdminResult<String> {
+    pub(crate) fn optional_reason(r: Option<&str>) -> AdminResult<String> {
         match r.map(str::trim) {
             None | Some("") => Ok(String::new()),
             Some(_) => Self::reason(r),
         }
     }
 
-    async fn setting_i64(&self, key: &str) -> AdminResult<i64> {
+    pub(crate) async fn setting_i64(&self, key: &str) -> AdminResult<i64> {
         let stored = self.repo.settings().await?;
         let def =
             settings::find(key).ok_or_else(|| AdminError::Storage(format!("no setting {key}")))?;
@@ -178,7 +210,7 @@ impl AdminService {
         self.repo.list_staff().await
     }
 
-    async fn roles_by_id(&self, ids: &[i64]) -> AdminResult<Vec<StaffRole>> {
+    pub(crate) async fn roles_by_id(&self, ids: &[i64]) -> AdminResult<Vec<StaffRole>> {
         if ids.is_empty() {
             return Err(AdminError::Invalid("at least one role is required".into()));
         }
@@ -387,7 +419,7 @@ impl AdminService {
     }
 
     /// Guard shared by actions on a single account.
-    async fn guard_account(
+    pub(crate) async fn guard_account(
         &self,
         c: &Caller,
         id: i64,
@@ -992,7 +1024,7 @@ impl AdminService {
     /// Dashboard counts (`STAFF_BASIC`).
     pub async fn stats(&self, c: &Caller) -> AdminResult<SystemCounts> {
         self.require(c, P::STAFF_BASIC, "stats.view").await?;
-        self.repo.counts().await
+        self.cached_counts().await
     }
 
     /// Counts for the System page (`OPERATOR`).

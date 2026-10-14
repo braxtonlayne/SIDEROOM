@@ -469,6 +469,7 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
         | DomainEvent::GuildDeleted { .. }
         | DomainEvent::FeatureSettingsChanged { .. }
         | DomainEvent::StaffAlert { .. }
+        | DomainEvent::StaffFeed { .. }
         // Merged with the live sessions by `Gateway::on_user_event`.
         | DomainEvent::PresenceChanged { .. }
         | DomainEvent::UserScoped { .. } => return None,

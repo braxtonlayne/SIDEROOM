@@ -6,6 +6,10 @@
 use crate::{
     chain,
     error::{AdminError, AdminResult},
+    ext::{
+        Announcement, Delegation, NewAnnouncement, NewOffer, OfferState, PrivateChannel,
+        PrivateEdit, PrivateMessage, StaffAlertRow, StaffExtrasRepository, StaffOffer,
+    },
     model::{
         AccessLogEntry, AccessLogFilter, AccountDetail, AccountQuery, AccountRef, AccountState,
         AccountSummary, AuditEntry, BanCategory, BanOutcome, BanRecord, ChainReport, CreditLedger,
@@ -29,6 +33,7 @@ struct Acct {
     invited_by: Option<i64>,
     sessions: u64,
     mfa: bool,
+    password_reset_forced: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -58,6 +63,12 @@ struct State {
     log: Vec<AccessLogEntry>,
     delete_requests: Vec<DeleteRequest>,
     deleted_jobs: Vec<i64>,
+    delegations: Vec<Delegation>,
+    offers: Vec<StaffOffer>,
+    announcements: Vec<Announcement>,
+    alerts: Vec<StaffAlertRow>,
+    private_channels: Vec<PrivateChannel>,
+    private_messages: Vec<(i64, PrivateMessage)>,
 }
 
 impl State {
@@ -217,6 +228,7 @@ impl MemoryAdminRepo {
             invited_by,
             sessions: 2,
             mfa: true,
+            password_reset_forced: false,
         });
         id
     }
@@ -253,6 +265,21 @@ impl MemoryAdminRepo {
         let mut s = self.s();
         s.members.remove(&id);
         s.member_roles.remove(&id);
+        // The database closes the appointment when the member row goes (migration 0650).
+        for p in s.appts.iter_mut().filter(|p| p.account_id == id) {
+            p.revoked = true;
+        }
+        s.delegations.retain(|d| d.account_id != id);
+    }
+
+    /// Add a private channel for the private-content tests.
+    pub fn add_private_channel(&self, ch: PrivateChannel) {
+        self.s().private_channels.push(ch);
+    }
+
+    /// Add a message (also a deleted one) to a private channel.
+    pub fn add_private_message(&self, channel: i64, m: PrivateMessage) {
+        self.s().private_messages.push((channel, m));
     }
 
     pub fn add_invite(&self, issuer: i64, code: &str, redeemed_by: Option<i64>) -> i64 {
@@ -315,6 +342,11 @@ impl MemoryAdminRepo {
         self.s().acct(id).map_or(0, |a| a.sessions)
     }
 
+    /// Whether staff forced a password reset on the account.
+    pub fn password_reset_forced(&self, id: i64) -> bool {
+        self.s().acct(id).is_some_and(|a| a.password_reset_forced)
+    }
+
     pub fn state_of(&self, id: i64) -> Option<AccountState> {
         self.s().acct(id).map(|a| a.s.state)
     }
@@ -340,9 +372,22 @@ fn audit_in(s: &mut State, now: i64, a: &AuditEntry) {
 impl AdminRepository for MemoryAdminRepo {
     async fn standing(&self, user_id: i64) -> AdminResult<Option<Standing>> {
         let s = self.s();
-        Ok(s.staff_member(user_id).map(|m| Standing {
-            permissions: P::from_bits_truncate(m.platform_permissions.parse().unwrap_or(0)),
-            is_owner: m.is_owner,
+        let deleg = s
+            .delegations
+            .iter()
+            .find(|d| d.account_id == user_id)
+            .map(|d| P::from_bits_truncate(d.max_permissions.parse().unwrap_or(0)));
+        Ok(s.staff_member(user_id).map(|m| {
+            let mut permissions =
+                P::from_bits_truncate(m.platform_permissions.parse().unwrap_or(0));
+            if deleg.is_some() && !m.is_owner {
+                permissions |= P::APPOINT_STAFF;
+            }
+            Standing {
+                permissions,
+                is_owner: m.is_owner,
+                grant_ceiling: if m.is_owner { None } else { deleg },
+            }
         }))
     }
 
@@ -435,6 +480,7 @@ impl AdminRepository for MemoryAdminRepo {
         p.revoked = true;
         s.members.remove(&account_id);
         s.member_roles.remove(&account_id);
+        s.delegations.retain(|d| d.account_id != account_id);
         audit_in(&mut s, now, audit);
         Ok(())
     }
@@ -1008,6 +1054,144 @@ impl AdminRepository for MemoryAdminRepo {
         Ok(())
     }
 
+    async fn set_delegation(
+        &self,
+        account_id: i64,
+        max_permissions: u64,
+        by: i64,
+        reason: &str,
+        audit: &AuditEntry,
+    ) -> AdminResult<Delegation> {
+        let now = self.now();
+        let mut s = self.s();
+        let Some(m) = s.staff_member(account_id) else {
+            return Err(AdminError::NotFound("staff member"));
+        };
+        s.delegations.retain(|d| d.account_id != account_id);
+        let d = Delegation {
+            account_id,
+            username: m.username,
+            max_permissions: max_permissions.to_string(),
+            granted_by: by,
+            granted_at_ms: now,
+            reason: reason.to_owned(),
+        };
+        s.delegations.push(d.clone());
+        audit_in(&mut s, now, audit);
+        Ok(d)
+    }
+
+    async fn remove_delegation(&self, account_id: i64, audit: &AuditEntry) -> AdminResult<()> {
+        let now = self.now();
+        let mut s = self.s();
+        let before = s.delegations.len();
+        s.delegations.retain(|d| d.account_id != account_id);
+        if s.delegations.len() == before {
+            return Err(AdminError::NotFound("delegation"));
+        }
+        audit_in(&mut s, now, audit);
+        Ok(())
+    }
+
+    async fn list_delegations(&self) -> AdminResult<Vec<Delegation>> {
+        Ok(self.s().delegations.clone())
+    }
+
+    async fn rename_account(
+        &self,
+        id: i64,
+        username: Option<&str>,
+        display_name: Option<Option<&str>>,
+        audit: &AuditEntry,
+    ) -> AdminResult<AccountSummary> {
+        let now = self.now();
+        let mut s = self.s();
+        if let Some(u) = username
+            && s.accounts
+                .iter()
+                .any(|a| a.s.id != id && a.s.username.eq_ignore_ascii_case(u))
+        {
+            return Err(AdminError::Conflict("That username is taken".into()));
+        }
+        let a = s
+            .accounts
+            .iter_mut()
+            .find(|a| a.s.id == id)
+            .ok_or(AdminError::NotFound("account"))?;
+        if let Some(u) = username {
+            a.s.username = u.to_owned();
+        }
+        if let Some(d) = display_name {
+            a.s.display_name = d.map(str::to_owned);
+        }
+        let out = a.s.clone();
+        audit_in(&mut s, now, audit);
+        Ok(out)
+    }
+
+    async fn set_account_email(
+        &self,
+        id: i64,
+        email: &str,
+        audit: &AuditEntry,
+    ) -> AdminResult<AccountSummary> {
+        let now = self.now();
+        let mut s = self.s();
+        if s.accounts
+            .iter()
+            .any(|a| a.s.id != id && a.s.email.eq_ignore_ascii_case(email))
+        {
+            return Err(AdminError::Conflict(
+                "That email address is used by another account".into(),
+            ));
+        }
+        let a = s
+            .accounts
+            .iter_mut()
+            .find(|a| a.s.id == id)
+            .ok_or(AdminError::NotFound("account"))?;
+        a.s.email = email.to_owned();
+        a.s.email_verified = false;
+        let out = a.s.clone();
+        audit_in(&mut s, now, audit);
+        Ok(out)
+    }
+
+    async fn update_account_flags(
+        &self,
+        id: i64,
+        set: i64,
+        clear: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<AccountSummary> {
+        let now = self.now();
+        let mut s = self.s();
+        let a = s
+            .accounts
+            .iter_mut()
+            .find(|a| a.s.id == id)
+            .ok_or(AdminError::NotFound("account"))?;
+        a.s.flags = (a.s.flags | set) & !clear;
+        let out = a.s.clone();
+        audit_in(&mut s, now, audit);
+        Ok(out)
+    }
+
+    async fn force_password_reset(&self, id: i64, audit: &AuditEntry) -> AdminResult<u64> {
+        let now = self.now();
+        let mut s = self.s();
+        let a = s
+            .accounts
+            .iter_mut()
+            .find(|a| a.s.id == id)
+            .ok_or(AdminError::NotFound("account"))?;
+        let n = a.sessions;
+        a.sessions = 0;
+        a.password_reset_forced = true;
+        audit_in(&mut s, now, audit);
+        Ok(n)
+    }
+
     async fn counts(&self) -> AdminResult<SystemCounts> {
         let s = self.s();
         let n = |st: AccountState| s.accounts.iter().filter(|a| a.s.state == st).count() as i64;
@@ -1026,6 +1210,8 @@ impl AdminRepository for MemoryAdminRepo {
                 .iter()
                 .filter(|a| s.staff_member(a.s.id).is_some())
                 .count() as i64,
+            alerts_unacked: s.alerts.iter().filter(|a| a.acked_at_ms.is_none()).count() as i64,
+            ..SystemCounts::default()
         })
     }
 
@@ -1097,5 +1283,285 @@ impl AdminRepository for MemoryAdminRepo {
 
     async fn verify_log(&self) -> AdminResult<ChainReport> {
         Ok(chain::verify_rows(&self.s().log))
+    }
+}
+
+#[async_trait]
+impl StaffExtrasRepository for MemoryAdminRepo {
+    async fn create_offer(&self, o: &NewOffer, audit: &AuditEntry) -> AdminResult<StaffOffer> {
+        let now = self.now();
+        let mut s = self.s();
+        if s.offers
+            .iter()
+            .any(|x| x.account_id == o.account_id && x.state == OfferState::Pending)
+        {
+            return Err(AdminError::Conflict(
+                "The account already has a pending offer".into(),
+            ));
+        }
+        let username = s
+            .acct(o.account_id)
+            .map(|a| a.s.username.clone())
+            .ok_or(AdminError::NotFound("account"))?;
+        let by_name = s
+            .acct(o.offered_by)
+            .map(|a| a.s.username.clone())
+            .unwrap_or_default();
+        let role_names = o
+            .role_ids
+            .iter()
+            .filter_map(|id| s.roles.iter().find(|r| r.id == *id).map(|r| r.name.clone()))
+            .collect();
+        let offer = StaffOffer {
+            id: s.id(),
+            account_id: o.account_id,
+            username,
+            offered_by: o.offered_by,
+            offered_by_name: by_name,
+            role_ids: o.role_ids.iter().map(i64::to_string).collect(),
+            role_names,
+            reason: o.reason.clone(),
+            state: OfferState::Pending,
+            created_at_ms: now,
+            expires_at_ms: o.expires_at_ms,
+            responded_at_ms: None,
+            dm_channel_id: None,
+            dm_message_id: None,
+        };
+        s.offers.push(offer.clone());
+        audit_in(&mut s, now, audit);
+        Ok(offer)
+    }
+
+    async fn get_offer(&self, id: i64) -> AdminResult<Option<StaffOffer>> {
+        Ok(self.s().offers.iter().find(|o| o.id == id).cloned())
+    }
+
+    async fn list_offers(&self, pending_only: bool, limit: i64) -> AdminResult<Vec<StaffOffer>> {
+        let s = self.s();
+        let mut v: Vec<_> = s
+            .offers
+            .iter()
+            .filter(|o| !pending_only || o.state == OfferState::Pending)
+            .cloned()
+            .collect();
+        v.sort_by_key(|o| std::cmp::Reverse(o.id));
+        v.truncate(limit.max(0) as usize);
+        Ok(v)
+    }
+
+    async fn close_offer(
+        &self,
+        id: i64,
+        to: OfferState,
+        audit: &AuditEntry,
+    ) -> AdminResult<StaffOffer> {
+        let now = self.now();
+        let mut s = self.s();
+        let o = s
+            .offers
+            .iter_mut()
+            .find(|o| o.id == id)
+            .ok_or(AdminError::NotFound("appointment offer"))?;
+        if o.state != OfferState::Pending {
+            return Err(AdminError::Conflict(format!(
+                "This offer was already {}",
+                o.state.as_str()
+            )));
+        }
+        o.state = to;
+        o.responded_at_ms = Some(now);
+        let out = o.clone();
+        audit_in(&mut s, now, audit);
+        Ok(out)
+    }
+
+    async fn set_offer_message(
+        &self,
+        id: i64,
+        channel_id: i64,
+        message_id: i64,
+    ) -> AdminResult<()> {
+        let mut s = self.s();
+        let o = s
+            .offers
+            .iter_mut()
+            .find(|o| o.id == id)
+            .ok_or(AdminError::NotFound("appointment offer"))?;
+        o.dm_channel_id = Some(channel_id);
+        o.dm_message_id = Some(message_id);
+        Ok(())
+    }
+
+    async fn expire_offers(&self, now_ms: i64) -> AdminResult<Vec<StaffOffer>> {
+        let mut s = self.s();
+        let mut out = Vec::new();
+        for o in s
+            .offers
+            .iter_mut()
+            .filter(|o| o.state == OfferState::Pending && o.expires_at_ms <= now_ms)
+        {
+            o.state = OfferState::Expired;
+            o.responded_at_ms = Some(now_ms);
+            out.push(o.clone());
+        }
+        Ok(out)
+    }
+
+    async fn create_announcement(
+        &self,
+        a: &NewAnnouncement,
+        audit: &AuditEntry,
+    ) -> AdminResult<Announcement> {
+        let now = self.now();
+        let mut s = self.s();
+        let row = Announcement {
+            id: s.id(),
+            title: a.title.clone(),
+            body: a.body.clone(),
+            severity: a.severity,
+            send_dm: a.send_dm,
+            created_by: a.created_by,
+            created_at_ms: now,
+            starts_at_ms: a.starts_at_ms,
+            ends_at_ms: a.ends_at_ms,
+            ended_at_ms: None,
+        };
+        s.announcements.push(row.clone());
+        audit_in(&mut s, now, audit);
+        Ok(row)
+    }
+
+    async fn end_announcement(&self, id: i64, audit: &AuditEntry) -> AdminResult<Announcement> {
+        let now = self.now();
+        let mut s = self.s();
+        let a = s
+            .announcements
+            .iter_mut()
+            .find(|a| a.id == id)
+            .ok_or(AdminError::NotFound("announcement"))?;
+        if a.ended_at_ms.is_none() {
+            a.ended_at_ms = Some(now);
+        }
+        let out = a.clone();
+        audit_in(&mut s, now, audit);
+        Ok(out)
+    }
+
+    async fn list_announcements(&self, limit: i64) -> AdminResult<Vec<Announcement>> {
+        let mut v = self.s().announcements.clone();
+        v.sort_by_key(|a| std::cmp::Reverse(a.id));
+        v.truncate(limit.max(0) as usize);
+        Ok(v)
+    }
+
+    async fn active_announcements(&self, now_ms: i64) -> AdminResult<Vec<Announcement>> {
+        let mut v: Vec<_> = self
+            .s()
+            .announcements
+            .iter()
+            .filter(|a| a.is_active(now_ms))
+            .cloned()
+            .collect();
+        v.sort_by_key(|a| std::cmp::Reverse(a.id));
+        Ok(v)
+    }
+
+    async fn record_alert(&self, kind: &str, detail: &str) -> AdminResult<StaffAlertRow> {
+        let now = self.now();
+        let mut s = self.s();
+        let row = StaffAlertRow {
+            id: s.id(),
+            kind: kind.to_owned(),
+            detail: detail.to_owned(),
+            created_at_ms: now,
+            acked_by: None,
+            acked_at_ms: None,
+        };
+        s.alerts.push(row.clone());
+        Ok(row)
+    }
+
+    async fn recent_alerts(&self, limit: i64) -> AdminResult<Vec<StaffAlertRow>> {
+        let mut v = self.s().alerts.clone();
+        v.sort_by_key(|a| std::cmp::Reverse(a.id));
+        v.truncate(limit.max(0) as usize);
+        Ok(v)
+    }
+
+    async fn ack_alert(&self, id: i64, by: i64, audit: &AuditEntry) -> AdminResult<StaffAlertRow> {
+        let now = self.now();
+        let mut s = self.s();
+        let a = s
+            .alerts
+            .iter_mut()
+            .find(|a| a.id == id)
+            .ok_or(AdminError::NotFound("alert"))?;
+        if a.acked_at_ms.is_none() {
+            a.acked_by = Some(by);
+            a.acked_at_ms = Some(now);
+        }
+        let out = a.clone();
+        audit_in(&mut s, now, audit);
+        Ok(out)
+    }
+
+    async fn private_channel(&self, channel_id: i64) -> AdminResult<Option<PrivateChannel>> {
+        Ok(self
+            .s()
+            .private_channels
+            .iter()
+            .find(|c| c.id == channel_id)
+            .cloned())
+    }
+
+    async fn dm_channels_of(&self, account_id: i64) -> AdminResult<Vec<PrivateChannel>> {
+        Ok(self
+            .s()
+            .private_channels
+            .iter()
+            .filter(|c| c.recipients.iter().any(|r| r.id == account_id))
+            .cloned()
+            .collect())
+    }
+
+    async fn private_channels_of_guild(&self, guild_id: i64) -> AdminResult<Vec<PrivateChannel>> {
+        Ok(self
+            .s()
+            .private_channels
+            .iter()
+            .filter(|c| c.guild_id == Some(guild_id))
+            .cloned()
+            .collect())
+    }
+
+    async fn private_messages(
+        &self,
+        channel_id: i64,
+        before: Option<i64>,
+        limit: i64,
+        deleted_days: i64,
+    ) -> AdminResult<Vec<PrivateMessage>> {
+        let cutoff = self.now() - deleted_days * 24 * 3600 * 1000;
+        let mut v: Vec<_> = self
+            .s()
+            .private_messages
+            .iter()
+            .filter(|(c, _)| *c == channel_id)
+            .map(|(_, m)| m.clone())
+            .filter(|m| before.is_none_or(|b| m.id < b))
+            .filter(|m| m.deleted_at_ms.is_none_or(|d| d >= cutoff))
+            .collect();
+        v.sort_by_key(|m| std::cmp::Reverse(m.id));
+        v.truncate(limit.max(0) as usize);
+        Ok(v)
+    }
+}
+
+/// An edit for tests.
+pub fn edit(at_ms: i64, previous: &str) -> PrivateEdit {
+    PrivateEdit {
+        edited_at_ms: at_ms,
+        previous_content: previous.to_owned(),
     }
 }

@@ -257,6 +257,8 @@ pub struct StaffMember {
 pub struct Standing {
     pub permissions: sr_core::PlatformPermissions,
     pub is_owner: bool,
+    /// Set for a delegate: the most they may hand out (D-132).
+    pub grant_ceiling: Option<sr_core::PlatformPermissions>,
 }
 
 /// The authenticated staff caller of a service method.
@@ -265,6 +267,8 @@ pub struct Caller {
     pub user_id: i64,
     pub permissions: sr_core::PlatformPermissions,
     pub is_owner: bool,
+    /// Set for a delegate of the Owner: appointments may grant at most these bits.
+    pub grant_ceiling: Option<sr_core::PlatformPermissions>,
     pub ip: Option<String>,
 }
 
@@ -275,6 +279,7 @@ impl Caller {
             user_id: system_user,
             permissions: sr_core::PlatformPermissions::OWNER,
             is_owner: true,
+            grant_ceiling: None,
             ip: Some("cli".to_owned()),
         }
     }
@@ -563,6 +568,21 @@ pub struct SystemCounts {
     pub jobs_running: i64,
     pub jobs_dead: i64,
     pub staff: i64,
+    /// The account cap (`accounts.cap`), for the gauge next to `accounts_active`.
+    #[serde(default)]
+    pub accounts_cap: i64,
+    /// Submissions waiting for a reviewer (submitted or in review).
+    #[serde(default)]
+    pub review_pending: i64,
+    /// Unused invite codes.
+    #[serde(default)]
+    pub invites_open: i64,
+    /// Staff alerts nobody acknowledged yet.
+    #[serde(default)]
+    pub alerts_unacked: i64,
+    /// Bytes of stored attachments (live rows).
+    #[serde(default)]
+    pub storage_bytes: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]

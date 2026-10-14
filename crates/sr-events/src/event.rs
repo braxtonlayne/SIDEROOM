@@ -41,6 +41,39 @@ pub enum StaffAlertKind {
     AccessLogChainBroken,
     /// A donation invoice needs a human (underpaid, overpaid or paid late).
     PaymentAttention,
+    /// Disk usage crossed the alert threshold (default 80%).
+    DiskLow,
+    /// The last backup failed, or none ran recently.
+    BackupFailed,
+    /// A transcode job ran out of attempts.
+    TranscodeFailed,
+}
+
+/// Which Staff Server feed a [`DomainEvent::StaffFeed`] card goes to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StaffFeedKind {
+    /// `#new-members`: someone registered.
+    NewMember,
+    /// `#donations`: a donation was confirmed.
+    Donation,
+}
+
+impl StaffFeedKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::NewMember => "new_member",
+            Self::Donation => "donation",
+        }
+    }
+
+    /// Name of the Staff Server channel the feed is posted in.
+    pub const fn channel_name(self) -> &'static str {
+        match self {
+            Self::NewMember => "new-members",
+            Self::Donation => "donations",
+        }
+    }
 }
 
 impl StaffAlertKind {
@@ -52,6 +85,9 @@ impl StaffAlertKind {
             Self::StaffRevoked => "staff_revoked",
             Self::AccessLogChainBroken => "access_log_chain_broken",
             Self::PaymentAttention => "payment_attention",
+            Self::DiskLow => "disk_low",
+            Self::BackupFailed => "backup_failed",
+            Self::TranscodeFailed => "transcode_failed",
         }
     }
 }
@@ -252,6 +288,16 @@ pub enum DomainEvent {
         /// Human-readable detail for the staff alerts channel; never contains
         /// secrets.
         detail: String,
+    },
+    /// A card for a Staff Server feed channel (`#new-members`, `#donations`). Unlike
+    /// [`Self::StaffAlert`] it is not pushed to staff clients; only the card poster reads it.
+    StaffFeed {
+        feed: StaffFeedKind,
+        title: String,
+        /// Human-readable detail; never contains secrets.
+        detail: String,
+        /// Admin path the card links to (`/admin/...`), when there is one.
+        link: Option<String>,
     },
     /// A Discord dispatch addressed to specific users (relationship, ack, note,
     /// user-settings and similar self-scoped events). Producers publish it to each
@@ -499,7 +545,9 @@ impl DomainEvent {
             Self::ThreadMemberUpdated { user, .. } => vec![Topic::User(*user)],
             Self::UserScoped { users, .. } => users.iter().map(|u| Topic::User(*u)).collect(),
             Self::PresenceChanged { user, .. } => vec![Topic::User(*user)],
-            Self::FeatureSettingsChanged { .. } | Self::StaffAlert { .. } => vec![Topic::Platform],
+            Self::FeatureSettingsChanged { .. }
+            | Self::StaffAlert { .. }
+            | Self::StaffFeed { .. } => vec![Topic::Platform],
         }
     }
 }

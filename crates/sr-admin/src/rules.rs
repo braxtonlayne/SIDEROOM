@@ -117,6 +117,14 @@ pub fn check_assignable(caller: &Caller, roles: &[StaffRole]) -> AdminResult<()>
         if caller.is_owner {
             continue;
         }
+        if let Some(ceiling) = caller.grant_ceiling
+            && !ceiling.contains(p)
+        {
+            return Err(AdminError::Forbidden(format!(
+                "The role {} goes beyond the permissions the Owner delegated to you",
+                r.name
+            )));
+        }
         if p.intersects(OWNER_ONLY) {
             return Err(AdminError::Forbidden(format!(
                 "Only the Owner can grant the role {} (it holds an Owner-only permission)",
@@ -172,6 +180,7 @@ mod tests {
             user_id: 9,
             permissions: p,
             is_owner: owner,
+            grant_ceiling: None,
             ip: None,
         }
     }
@@ -230,6 +239,26 @@ mod tests {
         let owner = caller(P::OWNER, true);
         assert!(check_assignable(&owner, &[role("Reader", P::READ_PRIVATE_CONTENT)]).is_ok());
         assert!(check_assignable(&owner, &[role("Owner", P::OWNER)]).is_err());
+    }
+
+    #[test]
+    fn a_delegate_stays_inside_the_ceiling() {
+        let mut delegate = caller(
+            P::STAFF_BASIC | P::MANAGE_ACCOUNTS | P::PLATFORM_BAN | P::APPOINT_STAFF,
+            false,
+        );
+        delegate.grant_ceiling = Some(P::STAFF_BASIC | P::MANAGE_ACCOUNTS);
+        assert!(
+            check_assignable(
+                &delegate,
+                &[role("Support", P::STAFF_BASIC | P::MANAGE_ACCOUNTS)]
+            )
+            .is_ok()
+        );
+        // Held by the delegate but outside the ceiling.
+        assert!(
+            check_assignable(&delegate, &[role("Mod", P::STAFF_BASIC | P::PLATFORM_BAN)]).is_err()
+        );
     }
 
     #[test]
