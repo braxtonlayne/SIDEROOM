@@ -46,6 +46,12 @@ jobs:
         run: |
           ./target/debug/sr-cli migrate
           ./target/debug/sr-cli seed
+      # The runner ships PostgreSQL 16 client tools; pg_dump refuses to dump a newer server.
+      - name: Install the PostgreSQL 17 client tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
       - name: Back up
         run: deploy/scripts/backup.sh
       - name: Restore drill
