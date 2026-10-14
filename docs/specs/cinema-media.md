@@ -131,7 +131,7 @@ Title {
 * curated: `collection:<id>` and the spotlight rows (display `hero`);
 * provided (other backends plug these in through `RowProvider`, section 8.6): `continue-watching`, `recently-explored`, `trending`, `because-you-watched`, `friends-watching`, `requests-fulfilled`. A key nobody provides is 404 on `/cinema/rows/{key}` and simply absent from `discover`.
 
-`discover` order: hero, continue-watching, recently-explored, the curated rows for surface `discover`, animation-banner, anime-room, one-more-episode, films, trending, because-you-watched, new-this-week, friends-watching, recently-added. Empty rows are left out. The hero is the published collection with `display=hero` for the surface (staff-curated), falling back to the newest published titles that have a backdrop.
+`discover` order: hero, continue-watching, recently-explored, the curated rows for surface `discover`, animation-banner, anime-room, one-more-episode, films, trending, because-you-watched, new-this-week, friends-watching, requests-fulfilled, recently-added. Empty rows are left out. The hero is the published collection with `display=hero` for the surface (staff-curated), falling back to the newest published titles that have a backdrop.
 
 `Collection {id, slug, name, eyebrow?, blurb?, display, surfaces[], position, published, item_count}`.
 
@@ -153,6 +153,7 @@ Staff session required (401/403). Every successful change is written to the staf
 | `GET\|PUT\|DELETE /admin/cinema/titles/{id}` | `AdminTitleDetail {title, seasons, episodes, variants, trailers, markers}` (everything, unpublished too); `TitleInput` -> `Title`; 204 |
 | `POST /admin/cinema/titles/{id}/publish`, `/unpublish` | `Title` (publish needs something playable, else 409) |
 | `POST /admin/cinema/titles/{id}/merge` | `{target_id}` -> target `Title` |
+| `POST /admin/cinema/titles/{id}/artwork` | `{slot: poster\|backdrop\|logo\|still\|season-poster, content_type: image/webp\|image/jpeg\|image/png}` -> `ArtworkUpload {key, upload_url, content_type, expires_in_secs}`: `PUT` the image to `upload_url` (same `Content-Type`), then save `key` as `poster_key` / `backdrop_key` / `logo_key` / `still_key` / a season's `poster_key` |
 | `PUT /admin/cinema/titles/{id}/asset` | `{asset_id: string\|null}` -> `Title` (links the playable asset; the asset tables belong to the ingest work) |
 | `POST /admin/cinema/titles/{id}/seasons` | `SeasonInput` -> 201 `Season` |
 | `PUT\|DELETE /admin/cinema/seasons/{id}` | `SeasonInput` -> `Season`; 204 |
@@ -162,12 +163,12 @@ Staff session required (401/403). Every successful change is written to the staf
 | `PUT /admin/cinema/episodes/{id}/asset` | `{asset_id\|null}` -> `Episode` |
 | `POST /admin/cinema/titles/{id}/variants`, `PUT\|DELETE /admin/cinema/variants/{id}` | `VariantInput` -> `Variant` |
 | `POST /admin/cinema/titles/{id}/trailers`, `PUT\|DELETE /admin/cinema/trailers/{id}` | `TrailerInput` -> `Trailer` |
-| `PUT /admin/cinema/titles/{id}/markers`, `PUT /admin/cinema/episodes/{id}/markers` | `{markers: [{kind, start_ms, end_ms}]}` replaces the set -> `MarkerList` |
+| `PUT /admin/cinema/titles/{id}/markers`, `GET\|PUT /admin/cinema/episodes/{id}/markers` | `{markers: [{kind, start_ms, end_ms}]}` replaces the set -> `MarkerList` |
 | `GET\|POST /admin/cinema/collections` | all collections, drafts too; `CollectionInput` -> 201 `Collection` |
 | `GET\|PUT\|DELETE /admin/cinema/collections/{id}` | `CollectionDetail {collection, items: Title[]}`; `CollectionInput` -> `Collection`; 204 |
 | `PUT /admin/cinema/collections/{id}/items` | `{title_ids: string[]}` (ordered, replaces) -> `CollectionDetail` |
 
-`TitleInput` carries the editable fields of `Title` (`kind`, `title`, `original_title`, `alt_titles`, `year`, `runtime_min`, `content_rating`, `synopsis`, `tagline`, `genres`, `tags`, `languages`, `subtitle_languages`, `cast`, `directors`, `writers`, `studios`, `crew`, `age_restricted`, `poster_key`, `backdrop_key`, `logo_key`, `external_ids`); artwork keys must start with `cinema/`. The asset link is deliberately not part of the metadata input, so editing metadata never unlinks a playable asset. `SeasonInput {number, name?, synopsis?, poster_key?}`, `EpisodeInput {number, absolute_number?, title, synopsis, air_date?, runtime_min?, still_key?}`, `VariantInput {label, notes?, runtime_min?, asset_id?, position?}`, `TrailerInput {label, kind, language?, asset_id?}`, `CollectionInput {slug, name, eyebrow?, blurb?, display (row|hero|banner), surfaces[], position, published}`.
+`TitleInput` carries the editable fields of `Title` (`kind`, `title`, `original_title`, `alt_titles`, `year`, `runtime_min`, `content_rating`, `synopsis`, `tagline`, `genres`, `tags`, `languages`, `subtitle_languages`, `cast`, `directors`, `writers`, `studios`, `crew`, `age_restricted`, `poster_key`, `backdrop_key`, `logo_key`, `external_ids`); artwork keys must start with `cinema/`. A published title always has something playable: unlinking the last asset, unpublishing or deleting the last published episode (or its season) unpublishes the title. The asset link is deliberately not part of the metadata input, so editing metadata never unlinks a playable asset. `SeasonInput {number, name?, synopsis?, poster_key?}`, `EpisodeInput {number, absolute_number?, title, synopsis, air_date?, runtime_min?, still_key?}`, `VariantInput {label, notes?, runtime_min?, asset_id?, position?}`, `TrailerInput {label, kind, language?, asset_id?}`, `CollectionInput {slug, name, eyebrow?, blurb?, display (row|hero|banner), surfaces[], position, published}`.
 
 ### 8.6 Plugging in user-data rows (`RowProvider`)
 
