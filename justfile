@@ -84,3 +84,7 @@ e2e *args:
 # Regenerate the PWA and favicon icons from packages/ui/assets/door-mark.svg (commit the output)
 icons:
     cargo run -q -p sr-theme --features icons --bin sr-theme-icons -- packages/ui/assets/door-mark.svg apps/web/public/icons
+
+# XC-PERF-004: EXPLAIN the hot read paths on a seeded scratch DB (needs SR_TEST_DATABASE_URL)
+explain-hot-paths:
+    cargo test -p sr-db --test explain_hot_paths -- --ignored --nocapture

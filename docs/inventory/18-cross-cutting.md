@@ -35,7 +35,7 @@ All phases.
 - [x] **XC-PERF-001** [FE] Route-level code splitting (Lounge, Cinema, Library, Admin, Developer bundles) _(Lounge, Library pages, Admin, both Settings screens.)_
 - [x] **XC-PERF-002** [FE] Performance budgets (JS < 300 KB gz for Entrance, < 600 KB for Lounge initial) enforced in CI _(scripts/check-bundle-budget.mjs, wired into web.yml.)_
 - [ ] **XC-PERF-003** [BE] Load test suite (k6 or Rust `goose`): 2,000 concurrent gateway sessions, 200 msg/s, REST p95 < 100 ms
-- [ ] **XC-PERF-004** [BE] DB query review: EXPLAIN on hot paths, indexes per doc 04 §13
+- [x] **XC-PERF-004** [BE] DB query review: EXPLAIN on hot paths, indexes per doc 04 §13 _(EXPLAIN harness `crates/sr-db/tests/explain_hot_paths.rs` (`just explain-hot-paths`) found no seq scan on a large table, so no migration was added. Message search is Tantivy, not SQL; member search is covered. See doc 04 section 13.)_
 
 ## XC-OPS — Operations
 - [ ] **XC-OPS-001** [OPS] Production compose + systemd units + Caddyfile (incl. activities wildcard) _(prod.yml, systemd units and Caddyfile.prod exist but are untested end to end; the activities wildcard is not included.)_
@@ -48,9 +48,9 @@ All phases.
 
 ## XC-TEST — Testing infrastructure
 - [ ] **XC-TEST-001** [TEST] Rust test harness: ephemeral Postgres per test (template DB), Garage test bucket, fake clock _(sr_db::testing::TestDb gives each test a template-cloned database; the Garage bucket helper is not included.)_
-- [ ] **XC-TEST-002** [TEST] Gateway test client utilities (connect as N users, await dispatches)
-- [ ] **XC-TEST-003** [TEST] Frontend MSW mocks generated from OpenAPI
-- [ ] **XC-TEST-004** [TEST] Playwright fixtures (seeded users, logged-in contexts, multi-user scenarios)
+- [x] **XC-TEST-002** [TEST] Gateway test client utilities (connect as N users, await dispatches) _(`sr_gateway::test_support` (feature `test-support`): TestWorld, TestClient, connect_users, await_dispatch. In-process, no sockets; real-WebSocket clients are not included.)_
+- [x] **XC-TEST-003** [TEST] Frontend MSW mocks generated from OpenAPI _(`packages/api-client/scripts/gen-msw.mjs` emits one handler per operation with schema-shaped placeholder bodies; `mocks:check` is the drift check, wired into the OpenAPI drift workflow. Existing hand-written handlers in apps/web/src/test/server.ts were not migrated.)_
+- [x] **XC-TEST-004** [TEST] Playwright fixtures (seeded users, logged-in contexts, multi-user scenarios) _(`e2e/support/fixtures.ts`: seedUser, signedIn, scenario.ownerAndMember. Typechecks and lists; not run against a live stack in this wave. TOTP and passkey users are not covered by signedIn.)_
 - [ ] **XC-TEST-005** [TEST] Visual regression snapshots for Entrance/Cinema/Library vs mockups
 
 ## XC-CI — Repo automation
