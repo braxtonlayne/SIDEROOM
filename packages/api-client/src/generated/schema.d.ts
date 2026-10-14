@@ -243,6 +243,627 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/cinema/assets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Uploaded videos, newest first (`PUBLISH_MEDIA`). */
+        get: operations["admin_cinema_assets"];
+        put?: never;
+        /**
+         * Reserve an upload slot for an original and get the presigned multipart `PUT` URLs
+         *     (`PUBLISH_MEDIA`).
+         * @description Send each part of the file (`part_size` bytes, the last one shorter) to its URL with `PUT`
+         *     and keep the `ETag` response header of every part, then call the `complete` endpoint with the
+         *     parts. A slot that is never completed expires after a day. Files over the configured size
+         *     limit (`cinema.upload.max_gb`) and unknown containers are refused with 400.
+         */
+        post: operations["admin_cinema_begin_upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/assets/{asset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * An asset with its jobs and a summary of its probe: poll this after completing the upload
+         *     (`PUBLISH_MEDIA`).
+         */
+        get: operations["admin_cinema_asset"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/assets/{asset_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The file is uploaded: finish the multipart upload, check the object and queue the probe
+         *     (`PUBLISH_MEDIA`). Repeating the call for an asset past the upload returns it unchanged.
+         */
+        post: operations["admin_cinema_complete_upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/assets/{asset_id}/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Record which title or episode an asset is for and, once it is playable, link it in the
+         *     catalog as the video of that title or episode (`PUBLISH_MEDIA`).
+         */
+        put: operations["admin_cinema_link_asset"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/assets/{asset_id}/original-downloads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Allow (or stop allowing) members with the download perk to fetch the original file
+         *     (`PUBLISH_MEDIA`). An asset with this on keeps its original on the hot tier.
+         */
+        put: operations["admin_cinema_original_downloads"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/assets/{asset_id}/probe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Probe the original again, for example after FFmpeg was installed on the server
+         *     (`PUBLISH_MEDIA`).
+         */
+        post: operations["admin_cinema_reprobe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/assets/{asset_id}/transcode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Queue the ladder transcode of an asset that waited for approval (`PUBLISH_MEDIA`). */
+        post: operations["admin_cinema_transcode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/collections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every collection, drafts included (`MANAGE_COLLECTIONS`). */
+        get: operations["admin_cinema_collections"];
+        put?: never;
+        /** Create a collection (`MANAGE_COLLECTIONS`). */
+        post: operations["admin_cinema_create_collection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/collections/{collection_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A collection with its titles in order, drafts included (`MANAGE_COLLECTIONS`). */
+        get: operations["admin_cinema_collection"];
+        /** Replace the settings of a collection (`MANAGE_COLLECTIONS`). */
+        put: operations["admin_cinema_update_collection"];
+        post?: never;
+        /** Delete a collection (`MANAGE_COLLECTIONS`). */
+        delete: operations["admin_cinema_delete_collection"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/collections/{collection_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace the titles of a collection, in display order (`MANAGE_COLLECTIONS`). */
+        put: operations["admin_cinema_set_collection_items"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/comments/{comment_id}/hidden": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Hide a comment from every listing, or restore it. Hiding closes its open reports as `actioned`. */
+        put: operations["admin_cinema_hide_comment"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/episodes/{episode_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace the editable fields of an episode (`PUBLISH_MEDIA`). The asset link is untouched. */
+        put: operations["admin_cinema_update_episode"];
+        post?: never;
+        /** Delete an episode (`DELETE_CONTENT`). Deleting the last playable thing of a published title unpublishes it. */
+        delete: operations["admin_cinema_delete_episode"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/episodes/{episode_id}/asset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Link or unlink the playable asset of an episode (`PUBLISH_MEDIA`). Unlinking unpublishes the episode. */
+        put: operations["admin_cinema_link_episode_asset"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/episodes/{episode_id}/markers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Skip windows of an episode, published or not (`PUBLISH_MEDIA`). */
+        get: operations["admin_cinema_episode_markers"];
+        /** Replace the skip windows of an episode (`PUBLISH_MEDIA`). */
+        put: operations["admin_cinema_replace_episode_markers"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/episodes/{episode_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish an episode (`PUBLISH_MEDIA`). An episode without an asset stays a draft (409). */
+        post: operations["admin_cinema_publish_episode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/episodes/{episode_id}/unpublish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unpublish an episode (`PUBLISH_MEDIA` or `DELETE_CONTENT`). */
+        post: operations["admin_cinema_unpublish_episode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The report queue for reviews and comments, newest first, with an excerpt of the reported text. */
+        get: operations["admin_cinema_reports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/reports/{report_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Close a report as `actioned` or `dismissed` (or reopen it with `open`). */
+        post: operations["admin_cinema_resolve_report"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/reviews/{review_id}/hidden": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Hide a review from every listing, or restore it. Hiding closes its open reports as `actioned`. */
+        put: operations["admin_cinema_hide_review"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/seasons/{season_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace the editable fields of a season (`PUBLISH_MEDIA`). */
+        put: operations["admin_cinema_update_season"];
+        post?: never;
+        /** Delete a season with its episodes (`DELETE_CONTENT`). */
+        delete: operations["admin_cinema_delete_season"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/seasons/{season_id}/episodes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add an episode (`PUBLISH_MEDIA`). */
+        post: operations["admin_cinema_create_episode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/titles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** All titles, drafts included (`PUBLISH_MEDIA`). */
+        get: operations["admin_cinema_list"];
+        put?: never;
+        /** Create a draft title (`PUBLISH_MEDIA`). */
+        post: operations["admin_cinema_create_title"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/titles/{title_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A title with everything under it, published or not (`PUBLISH_MEDIA`). */
+        get: operations["admin_cinema_title"];
+        /** Replace the editable fields of a title (`PUBLISH_MEDIA`). The asset link is untouched. */
+        put: operations["admin_cinema_update_title"];
+        post?: never;
+        /** Delete a title with everything under it (`DELETE_CONTENT`). */
+        delete: operations["admin_cinema_delete_title"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/titles/{title_id}/artwork": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reserve an artwork object for a title and get a presigned `PUT` URL (`PUBLISH_MEDIA`).
+         *     Upload the image with the same `Content-Type`, then save the returned `key` as the
+         *     title's `poster_key` / `backdrop_key` / `logo_key`, an episode's `still_key` or a
+         *     season's `poster_key`.
+         */
+        post: operations["admin_cinema_artwork_upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/titles/{title_id}/asset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Link or unlink the playable asset of a film (`PUBLISH_MEDIA`). */
+        put: operations["admin_cinema_link_title_asset"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/titles/{title_id}/markers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace the skip windows of a title (`PUBLISH_MEDIA`): at most one of each kind, inside 24 hours. */
+        put: operations["admin_cinema_replace_title_markers"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/titles/{title_id}/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Merge this title into another (`PUBLISH_MEDIA` and `DELETE_CONTENT`): seasons, episodes,
+         *     variants, trailers, markers and collection places move (the target wins a clash and fills
+         *     its gaps from this title); this title stays as a redirect.
+         */
+        post: operations["admin_cinema_merge_title"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/titles/{title_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish a title (`PUBLISH_MEDIA`). A title without a playable asset or a published episode stays a draft (409). */
+        post: operations["admin_cinema_publish_title"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/titles/{title_id}/seasons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add a season (`PUBLISH_MEDIA`). */
+        post: operations["admin_cinema_create_season"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/titles/{title_id}/trailers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add a trailer to a title (`PUBLISH_MEDIA`). */
+        post: operations["admin_cinema_create_trailer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/titles/{title_id}/unpublish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unpublish a title (`PUBLISH_MEDIA` or `DELETE_CONTENT`). */
+        post: operations["admin_cinema_unpublish_title"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/titles/{title_id}/variants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add a variant (another cut) to a title (`PUBLISH_MEDIA`). */
+        post: operations["admin_cinema_create_variant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/trailers/{trailer_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace a trailer (`PUBLISH_MEDIA`). */
+        put: operations["admin_cinema_update_trailer"];
+        post?: never;
+        /** Delete a trailer (`PUBLISH_MEDIA`). */
+        delete: operations["admin_cinema_delete_trailer"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/variants/{variant_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace a variant (`PUBLISH_MEDIA`). */
+        put: operations["admin_cinema_update_variant"];
+        post?: never;
+        /** Delete a variant (`PUBLISH_MEDIA`). */
+        delete: operations["admin_cinema_delete_variant"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/features": {
         parameters: {
             query?: never;
@@ -1168,6 +1789,220 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/transcode/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Jobs, newest first (`MANAGE_TRANSCODE`). */
+        get: operations["admin_transcode_jobs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/transcode/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One job with its log tail, encoder and warnings (`MANAGE_TRANSCODE`). */
+        get: operations["admin_transcode_job"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/transcode/jobs/{job_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel a job (`MANAGE_TRANSCODE`): a queued job stops at once, a running one when its worker
+         *     next reports.
+         */
+        post: operations["admin_transcode_cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/transcode/jobs/{job_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Queue a failed or cancelled job again with a fresh attempt counter (`MANAGE_TRANSCODE`). */
+        post: operations["admin_transcode_retry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/transcode/queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Queue depth: queued, running, and the last day's outcomes (`MANAGE_TRANSCODE`). */
+        get: operations["admin_transcode_queue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/transcode/retranscode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Re-transcode one asset, a whole title or everything (`MANAGE_TRANSCODE`): the ladder is
+         *     planned again from the stored probe and queued (a batch is capped at 500 assets; repeat for
+         *     the rest). The old files stay playable until the new ones are published.
+         */
+        post: operations["admin_transcode_retranscode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/transcode/sweep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run the retention sweep now (`MANAGE_TRANSCODE`): expired upload slots, originals and
+         *     proxies the retention policy lets go, unreferenced transcode prefixes, expired downloads. It
+         *     also runs hourly.
+         */
+        post: operations["admin_transcode_sweep"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/transcode/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Worker tokens, newest first (`MANAGE_TRANSCODE`). Only hashes are stored: the secret is shown
+         *     once, when the token is created.
+         */
+        get: operations["admin_transcode_tokens"];
+        put?: never;
+        /**
+         * Create a worker token (`MANAGE_TRANSCODE`). The response carries the secret; it cannot be
+         *     shown again.
+         */
+        post: operations["admin_transcode_create_token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/transcode/tokens/{token_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke a token (`MANAGE_TRANSCODE`): it stops authenticating at once and the workers
+         *     registered with it are told to drain.
+         */
+        delete: operations["admin_transcode_revoke_token"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/transcode/workers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Workers that registered, with capabilities, last contact and the jobs they run
+         *     (`MANAGE_TRANSCODE`).
+         */
+        get: operations["admin_transcode_workers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/transcode/workers/{worker_id}/drain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Tell a worker to finish its jobs and claim no more, or lift that (`MANAGE_TRANSCODE`). The
+         *     worker learns it on its next heartbeat.
+         */
+        put: operations["admin_transcode_drain"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/channels/{channel_id}": {
         parameters: {
             query?: never;
@@ -1735,6 +2570,910 @@ export interface paths {
          *     carries the token once.
          */
         post: operations["create_webhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/assets/{asset_id}/playback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Start playing an asset: master playlist URL, tracks, thumbnails and skip markers. The asset must belong to
+         *     a published title, episode, cut or trailer; a restricted title answers 403 with code 900011 until the
+         *     account confirmed it is 18 or older (D-184).
+         */
+        get: operations["cinema_asset_playback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/assets/{asset_id}/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A new manifest grant for an asset being played, before the old one expires. Runs the same checks as
+         *     `playback`; nothing is stored per viewer.
+         */
+        post: operations["cinema_asset_refresh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/collections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Published curated collections (the "Room selection" dropdown), by position. */
+        get: operations["cinema_collections"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/comments/{comment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete the caller's own comment (its replies go with it). */
+        delete: operations["cinema_delete_comment"];
+        options?: never;
+        head?: never;
+        /** Edit the caller's own comment. */
+        patch: operations["cinema_edit_comment"];
+        trace?: never;
+    };
+    "/cinema/comments/{comment_id}/like": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Like a comment (idempotent). Answers the new count. */
+        put: operations["cinema_like_comment"];
+        post?: never;
+        /** Take back a like. Answers the new count. */
+        delete: operations["cinema_unlike_comment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/comments/{comment_id}/replies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Replies to a top-level comment, oldest first. */
+        get: operations["cinema_comment_replies"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/comments/{comment_id}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Report a comment to the moderators. */
+        post: operations["cinema_report_comment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The home page: tonight's feature plus the rows in page order. */
+        get: operations["cinema_discover"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/downloads/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** State of a download you started: `queued`, `preparing`, `ready` (with the link) or `failed`. */
+        get: operations["cinema_download"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/downloads/{job_id}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The file of a ready download: redirects to a signed CDN URL that works for a few minutes.
+         *     Only the member who started the download can use this link.
+         */
+        get: operations["cinema_download_file"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/episodes/{episode_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One episode. */
+        get: operations["cinema_episode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/episodes/{episode_id}/markers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Skip intro / credits / recap windows of an episode. */
+        get: operations["cinema_episode_markers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/episodes/{episode_id}/play": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What the player needs to open an episode, with the next and previous playable episodes.
+         *     A restricted title needs age confirmation (403, code 900011).
+         */
+        get: operations["cinema_play_episode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/facets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Genre, rating and language counts plus year and runtime bounds for the filters. */
+        get: operations["cinema_facets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/lists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's lists, My list first. */
+        get: operations["cinema_my_lists"];
+        put?: never;
+        /** Create a custom list (100 per account). */
+        post: operations["cinema_create_list"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/lists/{list_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A list with its items, if the caller owns it or its visibility allows. */
+        get: operations["cinema_get_list"];
+        put?: never;
+        post?: never;
+        /** Delete a custom list. */
+        delete: operations["cinema_delete_list"];
+        options?: never;
+        head?: never;
+        /** Rename, describe or change the visibility of a list. */
+        patch: operations["cinema_update_list"];
+        trace?: never;
+    };
+    "/cinema/lists/{list_id}/items/{title_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Add a title at the end of a list (idempotent; 1000 per list). */
+        put: operations["cinema_add_list_item"];
+        post?: never;
+        /** Remove a title from a list. */
+        delete: operations["cinema_remove_list_item"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/lists/{list_id}/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set the complete order of a list (the same titles, once each). */
+        put: operations["cinema_reorder_list"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/me/continue-watching": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Unfinished items to resume, and the next episode after a finished one, latest first. */
+        get: operations["cinema_continue_watching"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/me/friends-watching": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Friends who are watching something now and share it (`cinema.share_watching`). */
+        get: operations["cinema_friends_watching"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/me/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Watch history, newest first (every movie and episode separately). */
+        get: operations["cinema_history"];
+        put?: never;
+        post?: never;
+        /** Clear all watch history, progress included. */
+        delete: operations["cinema_clear_history"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/me/history/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether recording of history is paused. */
+        get: operations["cinema_get_history_settings"];
+        /** Pause or resume recording of history. While paused nothing is stored and no presence is shown. */
+        put: operations["cinema_put_history_settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/me/list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** "My list": the saved titles, newest first. */
+        get: operations["cinema_my_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/me/list/{title_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Save a title to My list (idempotent). */
+        put: operations["cinema_save_title"];
+        post?: never;
+        /** Remove a title from My list. */
+        delete: operations["cinema_unsave_title"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/me/recommendations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** "Because you watched X" rows for the caller's most recent titles. */
+        get: operations["cinema_recommendations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/me/watching": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** End the caller's "watching" presence now. */
+        delete: operations["cinema_stop_watching"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/reviews/{review_id}/helpful": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Mark a review helpful (idempotent; not on one's own). */
+        put: operations["cinema_review_helpful"];
+        post?: never;
+        /** Take back a helpful mark. */
+        delete: operations["cinema_review_unhelpful"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/reviews/{review_id}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Report a review to the moderators (a second report by the same account is accepted silently). */
+        post: operations["cinema_report_review"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/rows/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One row by key: `new-this-week`, `recently-added`, `anime-room`, `one-more-episode`,
+         *     `films`, `animation-banner`, `genre:<name>`, `collection:<id>` or a provided row such as
+         *     `continue-watching` or `trending` (other query parameters, for example `scope`, go to the
+         *     provider). An unknown key, or a provided row nobody provides, is 404.
+         */
+        get: operations["cinema_row"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Instant search: matching titles plus people, genre and tag suggestions. */
+        get: operations["cinema_search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/titles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Browse the catalog with filters, sort and keyset pagination. */
+        get: operations["cinema_browse"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/titles/{title_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A title with its seasons, variants, trailers and skip markers. A merged title answers with its target. */
+        get: operations["cinema_title"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/titles/{title_id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Top-level comments on a title, newest first. */
+        get: operations["cinema_title_comments"];
+        put?: never;
+        /** Comment on a title, or reply to a top-level comment (`parent_id`). */
+        post: operations["cinema_post_title_comment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/titles/{title_id}/downloads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The renditions a Patron can download for a title or episode, with sizes, which are already
+         *     prepared, and how many downloads are left today.
+         */
+        get: operations["cinema_download_options"];
+        put?: never;
+        /**
+         * Start a download (or reuse the prepared file): the MP4 of the chosen rendition is made by a
+         *     stream-copy job and cached for 7 days. Counts against the daily limit (429 when used up).
+         */
+        post: operations["cinema_start_download"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/titles/{title_id}/episodes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Seasons and episodes of a title, in season and episode order. */
+        get: operations["cinema_episodes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/titles/{title_id}/episodes/{episode_id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Top-level comments on an episode, newest first. */
+        get: operations["cinema_episode_comments"];
+        put?: never;
+        /** Comment on an episode, or reply to a top-level comment. */
+        post: operations["cinema_post_episode_comment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/titles/{title_id}/episodes/{episode_id}/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's progress in an episode. */
+        get: operations["cinema_get_episode_progress"];
+        /** Save episode progress; see the movie variant for the rules. */
+        put: operations["cinema_put_episode_progress"];
+        post?: never;
+        /** Forget an episode's progress. */
+        delete: operations["cinema_delete_episode_progress"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/titles/{title_id}/episodes/{episode_id}/rating": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Rate an episode 1 to 10. */
+        put: operations["cinema_rate_episode"];
+        post?: never;
+        /** Remove the caller's rating of an episode. */
+        delete: operations["cinema_unrate_episode"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/titles/{title_id}/episodes/{episode_id}/ratings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ratings of an episode. */
+        get: operations["cinema_episode_ratings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/titles/{title_id}/markers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Skip intro / credits / recap windows of a title (films). */
+        get: operations["cinema_title_markers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/titles/{title_id}/play": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What the player needs to open a title: the asset, markers and (for an episodic title) the
+         *     first playable episode. A restricted title needs age confirmation (403, code 900011).
+         */
+        get: operations["cinema_play_title"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/titles/{title_id}/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's progress in a movie. */
+        get: operations["cinema_get_movie_progress"];
+        /**
+         * Save movie progress (the player heartbeat, every 10 s while playing). With `base_updated_at_ms` a
+         *     newer stored position is kept and returned with `applied: false`; repeat with `force` to overwrite.
+         *     `completed` is automatic at 90%. `playing: false` also ends the "watching" presence.
+         */
+        put: operations["cinema_put_movie_progress"];
+        post?: never;
+        /** Forget a movie's progress. */
+        delete: operations["cinema_delete_movie_progress"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/titles/{title_id}/rating": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Rate a title 1 to 10. */
+        put: operations["cinema_rate_title"];
+        post?: never;
+        /** Remove the caller's rating of a title. */
+        delete: operations["cinema_unrate_title"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/titles/{title_id}/ratings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's rating of a title and the average per scope (global, friends, people who share a server). */
+        get: operations["cinema_title_ratings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/titles/{title_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Write or replace the caller's review of a title (one per account). A `rating` also sets the rating. */
+        put: operations["cinema_put_review"];
+        post?: never;
+        /** Delete the caller's review of a title. */
+        delete: operations["cinema_delete_review"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/titles/{title_id}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Reviews of a title. */
+        get: operations["cinema_reviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/titles/{title_id}/watch-state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every progress row of a title (episode ticks and the season/title watched state). */
+        get: operations["cinema_watch_state"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/titles/{title_id}/watched": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark an episode, a season (`season`) or a whole title watched or unwatched. */
+        post: operations["cinema_mark_watched"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/trending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Trending titles over the last 7 days in a scope. Only people whose `cinema.share_watching`
+         *     allows it are counted; age-restricted titles appear only in `friends`, for confirmed adults.
+         */
+        get: operations["cinema_trending"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/users/{user_id}/lists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The lists of another member that the caller may see (public, or shared with friends). */
+        get: operations["cinema_user_lists"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3873,6 +5612,15 @@ export interface components {
             /** Format: int64 */
             balance: number;
         };
+        /** @description Everything about a title, unpublished parts included (staff). */
+        AdminTitleDetail: {
+            episodes: components["schemas"]["Episode"][];
+            markers: components["schemas"]["Marker"][];
+            seasons: components["schemas"]["Season"][];
+            title: components["schemas"]["Title"];
+            trailers: components["schemas"]["Trailer"][];
+            variants: components["schemas"]["Variant"][];
+        };
         /**
          * @description How age-restricted series are treated by a listing. Everyone sees them by
          *     default (`include`); `hide` and `only` are optional filters (D-184).
@@ -3896,6 +5644,27 @@ export interface components {
             /** @description Staff Server role ids to start with. */
             role_ids: string[];
         };
+        ArtworkRequest: {
+            /** @description `image/webp`, `image/jpeg` or `image/png`. */
+            content_type: string;
+            slot: components["schemas"]["ArtworkSlot"];
+        };
+        /**
+         * @description What an artwork upload is for; only names the object.
+         * @enum {string}
+         */
+        ArtworkSlot: "poster" | "backdrop" | "logo" | "still" | "season_poster";
+        /**
+         * @description A reserved artwork object: `PUT` the image to `upload_url` with the same `Content-Type`,
+         *     then save `key` as `poster_key` / `backdrop_key` / `logo_key` / `still_key` / season `poster_key`.
+         */
+        ArtworkUpload: {
+            content_type: string;
+            /** Format: int64 */
+            expires_in_secs: number;
+            key: string;
+            upload_url: string;
+        };
         /** @description The assertion a browser produced for `navigator.credentials.get`. */
         AssertionCredential: {
             /** @description base64url credential id. */
@@ -3913,6 +5682,59 @@ export interface components {
             signature: string;
             /** @description `userHandle` (present for discoverable credentials). */
             userHandle?: string | null;
+        };
+        /** @description One uploaded video and what became of it. */
+        Asset: {
+            /** @description The ladder is queued right after the probe instead of waiting for approval. */
+            auto_ladder: boolean;
+            /** Format: int64 */
+            created_at_ms: number;
+            /** Format: int64 */
+            duration_ms?: number | null;
+            episode_id?: string | null;
+            /** @description Why the asset is `failed`, in words for staff. */
+            error?: string | null;
+            filename: string;
+            /** @description A review proxy exists. */
+            has_proxy: boolean;
+            id: string;
+            /** @description The original file is gone (retention deleted it); a re-transcode needs a new upload. */
+            original_deleted: boolean;
+            /** @description Members with the download perk may fetch the original. */
+            original_downloads: boolean;
+            /** Format: int64 */
+            original_size: number;
+            /** @description `hot` or `cold`. */
+            original_tier: string;
+            /** @description The ladder is ready to play (renditions exist). */
+            playable: boolean;
+            /** Format: int32 */
+            profile_version?: number | null;
+            /** Format: int64 */
+            published_at_ms?: number | null;
+            state: components["schemas"]["AssetState"];
+            title_id?: string | null;
+            /** Format: int64 */
+            updated_at_ms: number;
+            uploaded_by?: string | null;
+        };
+        AssetBody: {
+            /**
+             * @description The playable asset, or `null` to unlink it. Unlinking the last playable thing of a
+             *     published title unpublishes it.
+             */
+            asset_id?: string | null;
+        };
+        AssetList: {
+            items: components["schemas"]["Asset"][];
+            next_before?: string | null;
+        };
+        /** @enum {string} */
+        AssetState: "awaiting_upload" | "uploaded" | "probing" | "proxy_ready" | "in_review" | "approved" | "transcoding" | "published" | "rejected" | "removed" | "failed" | "expired";
+        AssetStatus: {
+            asset: components["schemas"]["Asset"];
+            jobs: components["schemas"]["JobSummary"][];
+            probe?: null | components["schemas"]["ProbeSummary"];
         };
         AttachmentObject: {
             /** @description BlurHash placeholder to show until the image loads. */
@@ -4257,12 +6079,487 @@ export interface components {
              */
             updated_at_ms: number;
         };
+        /** @description Everything the player needs to start an asset. */
+        CinemaAssetPlayback: {
+            audio_tracks: components["schemas"]["CinemaAudioTrack"][];
+            /** Format: double */
+            duration_secs?: number | null;
+            /**
+             * Format: int64
+             * @description Unix seconds when every URL below stops working.
+             */
+            expires_at: number;
+            /** @description Skip windows (intro, recap, credits) of the title or episode the asset belongs to. */
+            markers: components["schemas"]["Marker"][];
+            /** @description Signed URL of the master playlist. */
+            master_url: string;
+            /**
+             * Format: int64
+             * @description Unix seconds when the player should ask `refresh` for a new grant.
+             */
+            refresh_at: number;
+            sprite?: null | components["schemas"]["CinemaSpriteInfo"];
+            /** @description Signed WebVTT map of the scrub thumbnails (`#xywh=` cues), when the asset has sprites. */
+            sprites_url?: string | null;
+            subtitles: components["schemas"]["CinemaSubtitleTrack"][];
+        };
+        /** @description One audio rendition (the master playlist offers them to the player's own track menu). */
+        CinemaAudioTrack: {
+            /** Format: int32 */
+            channels: number;
+            id: string;
+            is_default: boolean;
+            label: string;
+            language?: string | null;
+        };
+        CinemaComment: {
+            author_id: string;
+            body: string;
+            /** Format: int64 */
+            created_at_ms: number;
+            /** Format: int64 */
+            edited_at_ms?: number | null;
+            /** @description `"0"` for a comment on the title itself. */
+            episode_id: string;
+            id: string;
+            /** Format: int32 */
+            like_count: number;
+            liked: boolean;
+            mine: boolean;
+            parent_id?: string | null;
+            /** Format: int64 */
+            reply_count: number;
+            spoiler: boolean;
+            title_id: string;
+        };
+        CinemaCommentInput: {
+            body: string;
+            /** @description Reply to this top-level comment. */
+            parent_id?: string | null;
+            spoiler?: boolean | null;
+        };
+        CinemaCommentPage: {
+            items: components["schemas"]["CinemaComment"][];
+            next_before?: string | null;
+        };
+        CinemaCommentPatch: {
+            body?: string | null;
+            spoiler?: boolean | null;
+        };
+        CinemaContinueItem: {
+            episode?: null | components["schemas"]["CinemaEpisodeRef"];
+            progress?: null | components["schemas"]["CinemaProgress"];
+            reason: components["schemas"]["CinemaContinueReason"];
+            title: components["schemas"]["CinemaTitleRef"];
+        };
+        /** @enum {string} */
+        CinemaContinueReason: "resume" | "up_next";
+        CinemaContinueWatching: {
+            items: components["schemas"]["CinemaContinueItem"][];
+        };
+        /** @description An episode for display. */
+        CinemaEpisodeRef: {
+            id: string;
+            /** Format: int32 */
+            number: number;
+            /** Format: int32 */
+            runtime_secs?: number | null;
+            /** Format: int32 */
+            season: number;
+            title?: string | null;
+            title_id: string;
+        };
+        /** @description One friend who is watching something now. */
+        CinemaFriendWatching: {
+            episode?: null | components["schemas"]["CinemaEpisodeRef"];
+            /** Format: int64 */
+            expires_at_ms: number;
+            /** Format: int64 */
+            started_at_ms: number;
+            title: components["schemas"]["CinemaTitleRef"];
+            user_id: string;
+        };
+        CinemaFriendsWatching: {
+            items: components["schemas"]["CinemaFriendWatching"][];
+        };
+        /** @description Body of a hide or restore. */
+        CinemaHideContent: {
+            hidden: boolean;
+            /** @description A note for the access log. */
+            reason?: string | null;
+        };
+        CinemaHistoryItem: {
+            episode?: null | components["schemas"]["CinemaEpisodeRef"];
+            progress: components["schemas"]["CinemaProgress"];
+            title: components["schemas"]["CinemaTitleRef"];
+        };
+        CinemaHistoryPage: {
+            items: components["schemas"]["CinemaHistoryItem"][];
+            /** @description Pass back as `before` for the next page; absent at the end. */
+            next_before?: string | null;
+        };
+        CinemaHistorySettings: {
+            paused: boolean;
+        };
+        CinemaList: {
+            /** Format: int64 */
+            created_at_ms: number;
+            description: string;
+            id: string;
+            /** Format: int64 */
+            item_count: number;
+            kind: components["schemas"]["CinemaListKind"];
+            name: string;
+            owner_id: string;
+            /** Format: int64 */
+            updated_at_ms: number;
+            visibility: components["schemas"]["CinemaVisibility"];
+        };
+        CinemaListDetail: {
+            items: components["schemas"]["CinemaListItem"][];
+            list: components["schemas"]["CinemaList"];
+            next_before?: string | null;
+        };
+        CinemaListInput: {
+            description?: string | null;
+            name: string;
+            visibility?: null | components["schemas"]["CinemaVisibility"];
+        };
+        CinemaListItem: {
+            /** Format: int64 */
+            added_at_ms: number;
+            note: string;
+            title: components["schemas"]["CinemaTitleRef"];
+        };
+        CinemaListItemInput: {
+            note?: string | null;
+        };
+        CinemaListItemsPage: {
+            items: components["schemas"]["CinemaListItem"][];
+            next_before?: string | null;
+        };
+        /** @enum {string} */
+        CinemaListKind: "saved" | "custom";
+        CinemaListOrderInput: {
+            title_ids: string[];
+        };
+        CinemaListPatch: {
+            description?: string | null;
+            name?: string | null;
+            visibility?: null | components["schemas"]["CinemaVisibility"];
+        };
+        CinemaListsResponse: {
+            lists: components["schemas"]["CinemaList"][];
+        };
+        /** @description A fresh manifest grant. */
+        CinemaPlaybackGrant: {
+            /** Format: int64 */
+            expires_at: number;
+            master_url: string;
+            /** Format: int64 */
+            refresh_at: number;
+        };
+        /** @description A member's progress in one movie or episode. */
+        CinemaProgress: {
+            completed: boolean;
+            /** Format: int32 */
+            duration_secs: number;
+            /** @description `"0"` for a movie. */
+            episode_id: string;
+            /** Format: float */
+            percent: number;
+            /** Format: int32 */
+            position_secs: number;
+            title_id: string;
+            /** Format: int64 */
+            updated_at_ms: number;
+        };
+        /** @description Body of `PUT /cinema/titles/{id}[/episodes/{eid}]/progress`. */
+        CinemaProgressInput: {
+            /**
+             * Format: int64
+             * @description `updated_at_ms` of the progress this client last saw (`0` for none). When the stored progress
+             *     is newer the write is not applied and the stored one is returned.
+             */
+            base_updated_at_ms?: number | null;
+            /** @description Defaults to `position >= 90%` and is sticky once set (a rewatch stays watched). */
+            completed?: boolean | null;
+            /**
+             * Format: int32
+             * @description Length of the media, in seconds.
+             */
+            duration_secs: number;
+            /** @description Write even if the stored progress is newer. */
+            force?: boolean | null;
+            /** @description `false` for a pause or stop: saves the position and ends the "watching" presence. Default true. */
+            playing?: boolean | null;
+            /**
+             * Format: int32
+             * @description Where the player is, in seconds.
+             */
+            position_secs: number;
+        };
+        /** @description Answer of a progress save. */
+        CinemaProgressSaved: {
+            /**
+             * @description `false`: the stored progress was newer than `base_updated_at_ms` and was left alone, so the
+             *     client should ask "continue where?" and may repeat the save with `force`.
+             */
+            applied: boolean;
+            /** @description What is stored now (or, when paused, what was sent). */
+            progress: components["schemas"]["CinemaProgress"];
+            /** @description `false` when history is paused: the heartbeat was accepted but not stored. */
+            recorded: boolean;
+        };
+        CinemaRatingAggregate: {
+            /** Format: double */
+            average?: number | null;
+            /** Format: int64 */
+            count: number;
+        };
+        CinemaRatingInput: {
+            /**
+             * Format: int32
+             * @description 1 to 10.
+             */
+            score: number;
+        };
+        CinemaRatings: {
+            friends: components["schemas"]["CinemaRatingAggregate"];
+            global: components["schemas"]["CinemaRatingAggregate"];
+            /** @description People who share a server with the caller. */
+            known: components["schemas"]["CinemaRatingAggregate"];
+            /**
+             * Format: int32
+             * @description The caller's own score.
+             */
+            mine?: number | null;
+        };
+        CinemaRecommendation: {
+            /** @description `cowatch`, `tags`. */
+            reasons: string[];
+            /** Format: double */
+            score: number;
+            title: components["schemas"]["CinemaTitleRef"];
+        };
+        CinemaRecommendationRow: {
+            /** @description "Because you watched ...". */
+            because: components["schemas"]["CinemaTitleRef"];
+            items: components["schemas"]["CinemaRecommendation"][];
+        };
+        CinemaRecommendations: {
+            rows: components["schemas"]["CinemaRecommendationRow"][];
+        };
+        CinemaReport: {
+            content?: null | components["schemas"]["CinemaReportedContent"];
+            /** Format: int64 */
+            created_at_ms: number;
+            id: string;
+            reason: string;
+            reporter_id: string;
+            status: components["schemas"]["CinemaReportStatus"];
+            target_id: string;
+            /** @description `review` or `comment`. */
+            target_kind: string;
+        };
+        CinemaReportInput: {
+            reason: string;
+        };
+        CinemaReportPage: {
+            items: components["schemas"]["CinemaReport"][];
+            /** @description Pass back as `before` for the next page; absent at the end. */
+            next_before?: string | null;
+        };
+        /**
+         * @description Where a report stands.
+         * @enum {string}
+         */
+        CinemaReportStatus: "open" | "actioned" | "dismissed";
+        /** @description The review or comment a report is about, as staff see it (hidden content included). */
+        CinemaReportedContent: {
+            author_id: string;
+            /** Format: int64 */
+            created_at_ms: number;
+            /** @description Comments only: the episode (`"0"` for the title or a movie). */
+            episode_id?: string | null;
+            /** @description The first 400 characters of the text. */
+            excerpt: string;
+            hidden: boolean;
+            title_id: string;
+        };
+        /** @description Body of a report resolution. */
+        CinemaResolveReport: {
+            /** @description A note for the access log. */
+            reason?: string | null;
+            status: components["schemas"]["CinemaReportStatus"];
+        };
+        CinemaReview: {
+            author_id: string;
+            body: string;
+            /** Format: int64 */
+            created_at_ms: number;
+            /** Format: int32 */
+            helpful_count: number;
+            id: string;
+            mine: boolean;
+            /** Format: int32 */
+            rating?: number | null;
+            spoiler: boolean;
+            title_id: string;
+            /** Format: int64 */
+            updated_at_ms: number;
+            /** @description The caller marked it helpful. */
+            voted: boolean;
+        };
+        CinemaReviewInput: {
+            body: string;
+            /**
+             * Format: int32
+             * @description 1 to 10; also sets the caller's rating of the title.
+             */
+            rating?: number | null;
+            spoiler?: boolean | null;
+        };
+        CinemaReviewPage: {
+            items: components["schemas"]["CinemaReview"][];
+            next_before?: string | null;
+        };
+        /** @enum {string} */
+        CinemaReviewSort: "helpful" | "recent";
+        /** @description Scrub-thumbnail geometry (the sprite map itself is `sprites_url`). */
+        CinemaSpriteInfo: {
+            /** Format: int32 */
+            columns: number;
+            /** Format: int32 */
+            interval_secs: number;
+            /** Format: int32 */
+            rows: number;
+            /** Format: int32 */
+            thumb_height: number;
+            /** Format: int32 */
+            thumb_width: number;
+            /** Format: int32 */
+            thumbs_total: number;
+        };
+        /** @description One subtitle track the player can load. */
+        CinemaSubtitleTrack: {
+            /** @description Signed ASS URL when the source was styled (the player may render it instead). */
+            ass_url?: string | null;
+            forced: boolean;
+            id: string;
+            is_default: boolean;
+            label: string;
+            language?: string | null;
+            /** @description Signed WebVTT URL. */
+            vtt_url: string;
+        };
+        /**
+         * @description What a title is. Movies are played directly (`episode_id` 0); series and anime by episode.
+         * @enum {string}
+         */
+        CinemaTitleKind: "movie" | "series" | "anime";
+        /** @description A title for display, resolved from the catalog at read time. */
+        CinemaTitleRef: {
+            age_restricted: boolean;
+            id: string;
+            kind: components["schemas"]["CinemaTitleKind"];
+            /** @description Signed poster URL (`/cdn/cinema/...?ex=&sig=`), when the title has a poster. */
+            poster_url?: string | null;
+            title: string;
+            /** Format: int32 */
+            year?: number | null;
+        };
+        /** @enum {string} */
+        CinemaTrendScope: "global" | "friends" | "known";
+        CinemaTrending: {
+            items: components["schemas"]["CinemaTrendingItem"][];
+            scope: components["schemas"]["CinemaTrendScope"];
+        };
+        CinemaTrendingItem: {
+            /** Format: double */
+            score: number;
+            title: components["schemas"]["CinemaTitleRef"];
+            /**
+             * Format: int64
+             * @description Distinct viewers in the last 7 days within the scope.
+             */
+            viewers: number;
+        };
+        /** @enum {string} */
+        CinemaVisibility: "private" | "friends" | "public";
+        CinemaWatchState: {
+            items: components["schemas"]["CinemaProgress"][];
+        };
+        /** @description Body of `POST /cinema/titles/{id}/watched`. */
+        CinemaWatchedInput: {
+            /** @description One episode. */
+            episode_id?: string | null;
+            /**
+             * Format: int32
+             * @description A whole season.
+             */
+            season?: number | null;
+            watched: boolean;
+        };
+        CinemaWatchedResult: {
+            /**
+             * Format: int64
+             * @description Items whose mark changed.
+             */
+            changed: number;
+        };
         ClaimBody: {
             /**
              * @description Take the claim from another reviewer whose lease is still running (needs the kind's
              *     publish permission, e.g. `PUBLISH_READING`).
              */
             takeover?: boolean;
+        };
+        Collection: {
+            blurb?: string | null;
+            display: components["schemas"]["CollectionDisplay"];
+            eyebrow?: string | null;
+            id: string;
+            /**
+             * Format: int32
+             * @description Titles in the collection (members count the published ones).
+             */
+            item_count: number;
+            name: string;
+            /** Format: int32 */
+            position: number;
+            published: boolean;
+            slug: string;
+            surfaces: components["schemas"]["Surface"][];
+        };
+        CollectionDetail: {
+            collection: components["schemas"]["Collection"];
+            items: components["schemas"]["Title"][];
+        };
+        /**
+         * @description How a collection is shown.
+         * @enum {string}
+         */
+        CollectionDisplay: "row" | "hero" | "banner";
+        CollectionInput: {
+            blurb?: string | null;
+            display?: components["schemas"]["CollectionDisplay"];
+            eyebrow?: string | null;
+            name: string;
+            /** Format: int32 */
+            position?: number;
+            published?: boolean;
+            /** @description Lower-case letters, digits and dashes. */
+            slug: string;
+            /** @description Pages the collection appears on. */
+            surfaces?: components["schemas"]["Surface"][];
+        };
+        CollectionItemsBody: {
+            /** @description Titles in display order; replaces the current set. */
+            title_ids: string[];
+        };
+        CollectionList: {
+            items: components["schemas"]["Collection"][];
         };
         /** @description A note on the timeline. */
         CommentInput: {
@@ -4290,6 +6587,10 @@ export interface components {
             safety_alerts_channel_id?: string | null;
             welcome_screen_enabled: boolean;
         };
+        CompleteUploadRequest: {
+            parts: components["schemas"]["PartDone"][];
+            upload_id: string;
+        };
         ConnectionObject: {
             id: string;
             name: string;
@@ -4315,6 +6616,11 @@ export interface components {
             voted: boolean;
             /** Format: int32 */
             year?: number | null;
+        };
+        /** @description A count after a vote. */
+        CountBody: {
+            /** Format: int32 */
+            count: number;
         };
         CreateChannelBody: components["schemas"]["ForumSettingsBody"] & {
             /** Format: int32 */
@@ -4456,6 +6762,10 @@ export interface components {
             /** @description 1-100 characters. */
             name: string;
         };
+        CreateTokenBody: {
+            /** @description A label for the machine, 1 to 64 characters. */
+            name: string;
+        };
         CreateWebhookBody: {
             /**
              * @description Avatar image data URI (PNG, JPEG, GIF or WebP, 8 MiB at most; cropped to a square).
@@ -4464,6 +6774,11 @@ export interface components {
             avatar?: string | null;
             /** @description 1-80 characters, no `@everyone`/`@here`. */
             name: string;
+        };
+        CreatedToken: {
+            /** @description The secret. It is shown once and only its SHA-256 is stored. */
+            secret: string;
+            token: components["schemas"]["WorkerToken"];
         };
         CreditLedger: {
             /** Format: int64 */
@@ -4541,6 +6856,11 @@ export interface components {
             id: string;
             state: string;
         };
+        Discover: {
+            /** @description Tonight's feature carousel (display `hero`). */
+            hero: components["schemas"]["Row"];
+            rows: components["schemas"]["Row"][];
+        };
         DmChannelObject: {
             icon?: string | null;
             id: string;
@@ -4556,6 +6876,52 @@ export interface components {
              * @description 1 DM, 3 group DM.
              */
             type: number;
+        };
+        /** @description What the download modal polls. */
+        DownloadJob: {
+            error?: string | null;
+            /**
+             * Format: int64
+             * @description When the prepared file is deleted, Unix milliseconds.
+             */
+            expires_at_ms?: number | null;
+            id: string;
+            /**
+             * Format: float
+             * @description 0 to 1.
+             */
+            progress: number;
+            state: components["schemas"]["DownloadState"];
+            /** @description The link to fetch the file (needs the same session), once `ready`. */
+            url?: string | null;
+        };
+        /** @enum {string} */
+        DownloadKind: "remux" | "original";
+        DownloadOptions: {
+            /**
+             * Format: int32
+             * @description Downloads left today; `null` when unlimited.
+             */
+            daily_remaining?: number | null;
+            renditions: components["schemas"]["DownloadRendition"][];
+        };
+        /** @description One rendition the picker offers. */
+        DownloadRendition: {
+            /** @description Prepared and cached: no job is needed. */
+            cached: boolean;
+            /** Format: int32 */
+            height?: number | null;
+            /** @description `1080p`, `720p`, ... or `original`. */
+            id: string;
+            kind: components["schemas"]["DownloadKind"];
+            label: string;
+            /** Format: int64 */
+            size_bytes: number;
+        };
+        /** @enum {string} */
+        DownloadState: "queued" | "preparing" | "ready" | "failed";
+        DrainBody: {
+            drain: boolean;
         };
         EditDmBody: {
             /** @description Icon key; `null` removes the icon. */
@@ -4615,6 +6981,53 @@ export interface components {
             roles: string[];
             user: components["schemas"]["UserRef"];
         };
+        Episode: {
+            /** Format: int32 */
+            absolute_number?: number | null;
+            /** @description `YYYY-MM-DD`. */
+            air_date?: string | null;
+            /** @description Staff routes only. */
+            asset_id?: string | null;
+            id: string;
+            /** Format: int32 */
+            number: number;
+            playable: boolean;
+            published: boolean;
+            /** Format: int64 */
+            published_at_ms?: number | null;
+            /** Format: int32 */
+            runtime_min?: number | null;
+            season_id: string;
+            /** Format: int32 */
+            season_number: number;
+            still_url?: string | null;
+            synopsis: string;
+            title: string;
+            title_id: string;
+        };
+        EpisodeInput: {
+            /**
+             * Format: int32
+             * @description Running number across seasons (anime).
+             */
+            absolute_number?: number | null;
+            /** @description `YYYY-MM-DD`. */
+            air_date?: string | null;
+            /** Format: int32 */
+            number: number;
+            /** Format: int32 */
+            runtime_min?: number | null;
+            still_key?: string | null;
+            synopsis?: string;
+            title?: string;
+        };
+        /** @description Seasons and a page of episodes. */
+        EpisodeList: {
+            episodes: components["schemas"]["Episode"][];
+            /** @description Pass as `after` for the next page; absent on the last page. */
+            next_cursor?: string | null;
+            seasons: components["schemas"]["Season"][];
+        };
         /** @description Discord-style error body (doc 05 section 3). */
         ErrorBody: {
             /**
@@ -4637,6 +7050,25 @@ export interface components {
             tts?: boolean | null;
             /** @description Accepted; see the module docs (TODO(webhook-author)). */
             username?: string | null;
+        };
+        FacetCount: {
+            /** Format: int64 */
+            count: number;
+            name: string;
+        };
+        Facets: {
+            genres: components["schemas"]["FacetCount"][];
+            languages: components["schemas"]["FacetCount"][];
+            ratings: components["schemas"]["FacetCount"][];
+            /** Format: int32 */
+            runtime_max?: number | null;
+            subtitle_languages: components["schemas"]["FacetCount"][];
+            /** Format: int64 */
+            total: number;
+            /** Format: int32 */
+            year_max?: number | null;
+            /** Format: int32 */
+            year_min?: number | null;
         };
         FeatureView: {
             default_enabled: boolean;
@@ -4927,6 +7359,18 @@ export interface components {
          * @enum {string}
          */
         ItemState: "Pending" | "Approved" | "Rejected" | "Published";
+        JobDetail: components["schemas"]["JobSummary"] & {
+            encoder?: string | null;
+            /** @description The worker's log tail (last 32 KiB), control characters removed. */
+            log_tail?: string | null;
+            /** Format: int32 */
+            output_count: number;
+            /** Format: double */
+            wall_secs?: number | null;
+            warnings: string[];
+        };
+        /** @enum {string} */
+        JobKind: "proxy" | "ladder" | "remux";
         JobPage: {
             items: components["schemas"]["JobRow"][];
             next_after?: string | null;
@@ -4945,6 +7389,28 @@ export interface components {
             run_at_ms: number;
             state: string;
         };
+        /** @enum {string} */
+        JobState: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+        JobSummary: {
+            asset_id: string;
+            /** Format: int32 */
+            attempt: number;
+            cancel_requested: boolean;
+            /** Format: int64 */
+            created_at_ms: number;
+            error?: string | null;
+            /** Format: int64 */
+            finished_at_ms?: number | null;
+            job_id: string;
+            kind: components["schemas"]["JobKind"];
+            /** Format: int32 */
+            priority: number;
+            progress?: null | components["schemas"]["ProgressRequest"];
+            /** Format: int64 */
+            started_at_ms?: number | null;
+            state: components["schemas"]["JobState"];
+            worker_id?: string | null;
+        };
         /** @description A kind available for creation. */
         KindInfo: {
             id: string;
@@ -4958,6 +7424,17 @@ export interface components {
             id: string;
             reason: string;
             ref_id?: string | null;
+        };
+        LinkBody: {
+            /** @description The episode the asset is the video of. With an episode, the episode is linked. */
+            episode_id?: string | null;
+            /**
+             * @description Also make it the playable asset of the title or episode in the catalog (default true).
+             *     Needs a finished ladder.
+             */
+            set_playable?: boolean | null;
+            /** @description The title the asset belongs to (a film, or the series for bookkeeping). */
+            title_id?: string | null;
         };
         /** @description Body for `POST /sr/auth/passkeys/login/begin`. */
         LoginBeginBody: {
@@ -4980,6 +7457,36 @@ export interface components {
             ceremony_id: string;
             /** @description The result of `navigator.credentials.get`. */
             credential: components["schemas"]["AssertionCredential"];
+        };
+        Marker: {
+            /** Format: int32 */
+            end_ms: number;
+            /** @description Staff routes only. */
+            id?: string | null;
+            kind: components["schemas"]["MarkerKind"];
+            /** @description `manual` or `auto`. Staff routes only. */
+            source?: string | null;
+            /** Format: int32 */
+            start_ms: number;
+        };
+        /** @description A skip window as sent by editors. */
+        MarkerInput: {
+            /** Format: int32 */
+            end_ms: number;
+            kind: components["schemas"]["MarkerKind"];
+            /** Format: int32 */
+            start_ms: number;
+        };
+        /**
+         * @description `video_markers.kind`: the windows the player offers to skip.
+         * @enum {string}
+         */
+        MarkerKind: "intro" | "credits" | "recap";
+        MarkerList: {
+            markers: components["schemas"]["Marker"][];
+        };
+        MarkersBody: {
+            markers: components["schemas"]["MarkerInput"][];
         };
         /** @description The caller's own platform standing. */
         Me: {
@@ -5272,6 +7779,9 @@ export interface components {
             role_ids?: string[];
             title: string;
         };
+        OriginalDownloadsBody: {
+            enabled: boolean;
+        };
         OverwriteBody: {
             allow?: string | null;
             deny?: string | null;
@@ -5340,6 +7850,16 @@ export interface components {
             url: string;
             /** Format: int32 */
             width: number;
+        };
+        PartDone: {
+            etag: string;
+            /** Format: int32 */
+            part_number: number;
+        };
+        PartUrl: {
+            /** Format: int32 */
+            part_number: number;
+            url: string;
         };
         PartialEmoji: {
             id?: string | null;
@@ -5425,6 +7945,26 @@ export interface components {
             has_more: boolean;
             items: components["schemas"]["PinEntry"][];
         };
+        /** @description What a player needs to open a title or an episode. */
+        PlayTarget: {
+            age_restricted: boolean;
+            /** @description The asset the playback routes take. */
+            asset_id: string;
+            episode_id?: string | null;
+            /** Format: int32 */
+            episode_number?: number | null;
+            episode_title?: string | null;
+            markers: components["schemas"]["Marker"][];
+            next_episode_id?: string | null;
+            previous_episode_id?: string | null;
+            /** Format: int32 */
+            runtime_min?: number | null;
+            /** Format: int32 */
+            season_number?: number | null;
+            title: string;
+            title_id: string;
+            variant_id?: string | null;
+        };
         /** @description Users who picked one answer. */
         PollVoters: {
             users: components["schemas"]["UserRef"][];
@@ -5461,6 +8001,22 @@ export interface components {
             friend_requests_server_members: boolean;
             /** @description DMs from non-friends land in Message Requests (default on). */
             message_requests: boolean;
+        };
+        ProbeSummary: {
+            audio_languages: string[];
+            container: string;
+            /** Format: double */
+            duration_secs?: number | null;
+            hdr?: string | null;
+            /** Format: int32 */
+            height?: number | null;
+            interlaced: boolean;
+            /** Format: int32 */
+            subtitle_count: number;
+            video_codec?: string | null;
+            warnings: string[];
+            /** Format: int32 */
+            width?: number | null;
         };
         ProbeView: {
             error?: string | null;
@@ -5524,6 +8080,21 @@ export interface components {
              */
             percent: number;
         };
+        ProgressRequest: {
+            /** Format: float */
+            fps?: number | null;
+            message?: string | null;
+            /** Format: double */
+            out_time_secs?: number | null;
+            /**
+             * Format: float
+             * @description Overall percent, 0..=100.
+             */
+            percent: number;
+            /** Format: float */
+            speed?: number | null;
+            stage: components["schemas"]["Stage"];
+        };
         /** @description Answer of a progress save. */
         ProgressSaved: {
             /**
@@ -5561,6 +8132,16 @@ export interface components {
              * @description 1 (default) sends or accepts a friend request, 2 blocks.
              */
             type?: number | null;
+        };
+        QueueCounts: {
+            /** Format: int32 */
+            failed_last_day: number;
+            /** Format: int32 */
+            queued: number;
+            /** Format: int32 */
+            running: number;
+            /** Format: int32 */
+            succeeded_last_day: number;
         };
         ReactionObject: {
             /** Format: int32 */
@@ -5696,6 +8277,31 @@ export interface components {
             /** Format: int64 */
             trusted_devices: number;
         };
+        RetranscodeBody: {
+            /** @description The asset or title id; required unless the scope is `all`. */
+            id?: string | null;
+            /**
+             * Format: int32
+             * @description Only assets rendered with an older profile than this.
+             */
+            only_older_than_profile?: number | null;
+            reason?: string | null;
+            scope: components["schemas"]["RetranscodeScopeName"];
+        };
+        RetranscodeOutcome: {
+            enqueued: string[];
+            /** Format: double */
+            estimated_gpu_secs: number;
+            failed: components["schemas"]["RetranscodeSkip"][];
+            skipped: components["schemas"]["RetranscodeSkip"][];
+            truncated: boolean;
+        };
+        /** @enum {string} */
+        RetranscodeScopeName: "asset" | "title" | "all";
+        RetranscodeSkip: {
+            asset_id: string;
+            reason: string;
+        };
         RoleObject: {
             /** Format: int32 */
             color: number;
@@ -5717,6 +8323,36 @@ export interface components {
             reason?: string | null;
             role_ids: string[];
         };
+        Row: {
+            collection_id?: string | null;
+            display: components["schemas"]["CollectionDisplay"];
+            /** @description Query string for `GET /cinema/titles` listing the same set ("Explore all"). */
+            explore?: string | null;
+            eyebrow?: string | null;
+            items: components["schemas"]["RowItem"][];
+            /** @description `new-this-week`, `genre:Drama`, `collection:123`, `continue-watching`, ... */
+            key: string;
+            kind: components["schemas"]["RowKind"];
+            subtitle?: string | null;
+            title: string;
+        };
+        /** @description A title in a row, with the extras a row provider may attach. */
+        RowItem: components["schemas"]["Title"] & {
+            /** @description The episode to resume or play next ("continue watching"). */
+            episode_id?: string | null;
+            /**
+             * Format: float
+             * @description 0 to 100, for the poster card's progress bar.
+             */
+            progress_percent?: number | null;
+            /** @description "Because you watched X", "3 friends are watching". */
+            reason?: string | null;
+        };
+        /**
+         * @description Where a row's titles come from.
+         * @enum {string}
+         */
+        RowKind: "curated" | "generated" | "provided";
         /**
          * @description Body of create (all of `name`, `event_type`, `trigger_type`, `actions` required)
          *     and modify (every field optional; `trigger_type` cannot change).
@@ -5767,6 +8403,30 @@ export interface components {
                 number
             ][];
             text: string;
+        };
+        Season: {
+            /**
+             * Format: int32
+             * @description Published episodes (all of them on staff routes).
+             */
+            episode_count: number;
+            id: string;
+            name?: string | null;
+            /** Format: int32 */
+            number: number;
+            poster_url?: string | null;
+            synopsis?: string | null;
+            title_id: string;
+        };
+        SeasonInput: {
+            name?: string | null;
+            /**
+             * Format: int32
+             * @description 0 is the specials season.
+             */
+            number: number;
+            poster_key?: string | null;
+            synopsis?: string | null;
         };
         SelfObject: {
             /** Format: int32 */
@@ -5916,6 +8576,13 @@ export interface components {
             /** Format: int32 */
             position: number;
         };
+        /** @enum {string} */
+        Stage: "download" | "video" | "audio" | "subtitles" | "sprites" | "upload";
+        StartBody: {
+            episode_id?: string | null;
+            /** @description A `rendition.id` from the picker (`1080p`, ..., `original`). */
+            rendition_id: string;
+        };
         /** @description `POST /channels/{id}/messages/{id}/threads`. */
         StartFromMessageBody: {
             /**
@@ -6055,6 +8722,11 @@ export interface components {
          * @enum {string}
          */
         SubmissionState: "Draft" | "Submitted" | "InReview" | "ChangesRequested" | "Approved" | "Rejected" | "Published" | "Withdrawn";
+        /**
+         * @description A page a collection can be placed on.
+         * @enum {string}
+         */
+        Surface: "discover" | "movies" | "series" | "anime";
         SuspectPerson: {
             accounts: components["schemas"]["AccountRef"][];
             frozen: boolean;
@@ -6071,6 +8743,25 @@ export interface components {
             /** Format: int32 */
             level: number;
             person_id: string;
+        };
+        SweepReport: {
+            /** Format: int64 */
+            bytes_freed: number;
+            /**
+             * Format: int32
+             * @description Cold-tier moves need a second bucket, which is not configured: reported, not done.
+             */
+            cold_skipped: number;
+            /** Format: int32 */
+            failed: number;
+            /** Format: int32 */
+            originals_deleted: number;
+            /** Format: int32 */
+            prefixes_collected: number;
+            /** Format: int32 */
+            proxies_deleted: number;
+            /** Format: int32 */
+            slots_expired: number;
         };
         /** @description Counts for the dashboard and system page. */
         SystemCounts: {
@@ -6154,6 +8845,154 @@ export interface components {
         ThreadResponse: components["schemas"]["ChannelObject"] & {
             message?: null | components["schemas"]["MessageObject"];
         };
+        /** @description A title as the API shows it. */
+        Title: {
+            age_restricted: boolean;
+            alt_titles: string[];
+            /** @description The playable asset of a film. Staff routes only. */
+            asset_id?: string | null;
+            backdrop_url?: string | null;
+            cast: string[];
+            content_rating?: string | null;
+            /** Format: int64 */
+            created_at_ms: number;
+            crew: string[];
+            directors: string[];
+            /**
+             * Format: int32
+             * @description Published episodes.
+             */
+            episode_count: number;
+            external_ids: {
+                [key: string]: string;
+            };
+            genres: string[];
+            has_trailer: boolean;
+            id: string;
+            kind: components["schemas"]["TitleKind"];
+            languages: string[];
+            /** Format: int64 */
+            last_content_at_ms?: number | null;
+            logo_url?: string | null;
+            original_title?: string | null;
+            /** @description Something can be opened: the title's own asset or a published episode. */
+            playable: boolean;
+            /** @description Signed, short-lived artwork URLs. */
+            poster_url?: string | null;
+            published: boolean;
+            /** Format: int64 */
+            published_at_ms?: number | null;
+            /** Format: int32 */
+            runtime_min?: number | null;
+            /**
+             * Format: int32
+             * @description Seasons with a published episode.
+             */
+            season_count: number;
+            studios: string[];
+            subtitle_languages: string[];
+            synopsis: string;
+            tagline?: string | null;
+            tags: string[];
+            title: string;
+            /** Format: int64 */
+            updated_at_ms: number;
+            writers: string[];
+            /** Format: int32 */
+            year?: number | null;
+        };
+        /** @description A title with what belongs to it, as members see it. */
+        TitleDetail: {
+            /** @description Skip windows of the title itself (films); episodes have their own. */
+            markers: components["schemas"]["Marker"][];
+            seasons: components["schemas"]["Season"][];
+            title: components["schemas"]["Title"];
+            trailers: components["schemas"]["Trailer"][];
+            variants: components["schemas"]["Variant"][];
+        };
+        /**
+         * @description Editable fields of a title (create, and full replace on update). The asset link is not
+         *     part of it, so editing metadata never unlinks a playable asset.
+         */
+        TitleInput: {
+            age_restricted?: boolean;
+            alt_titles?: string[];
+            backdrop_key?: string | null;
+            cast?: string[];
+            /** @description "PG-13", "TV-MA", ... */
+            content_rating?: string | null;
+            /** @description Other crew as "Role: Name" lines. */
+            crew?: string[];
+            directors?: string[];
+            /** @description `{"imdb": "tt0111161", "tmdb": "278"}`. */
+            external_ids?: {
+                [key: string]: string;
+            };
+            genres?: string[];
+            kind: components["schemas"]["TitleKind"];
+            /** @description Audio languages (BCP 47). */
+            languages?: string[];
+            logo_key?: string | null;
+            original_title?: string | null;
+            /** @description Storage keys under `cinema/`. */
+            poster_key?: string | null;
+            /**
+             * Format: int32
+             * @description Minutes: a film's runtime, or the typical episode runtime.
+             */
+            runtime_min?: number | null;
+            studios?: string[];
+            /** @description Subtitle languages (BCP 47). */
+            subtitle_languages?: string[];
+            synopsis?: string;
+            tagline?: string | null;
+            tags?: string[];
+            title: string;
+            writers?: string[];
+            /** Format: int32 */
+            year?: number | null;
+        };
+        /**
+         * @description `video_titles.kind`.
+         * @enum {string}
+         */
+        TitleKind: "movie" | "series" | "anime";
+        /** @description A page of a browse listing. */
+        TitlePage: {
+            items: components["schemas"]["Title"][];
+            /** @description Pass as `cursor` for the next page; absent on the last page. */
+            next_cursor?: string | null;
+            /**
+             * Format: int64
+             * @description Titles matching the filters, independent of the cursor.
+             */
+            total: number;
+        };
+        Trailer: {
+            /**
+             * @description The title is age-restricted and the account has not confirmed its age, so `asset_id`
+             *     is withheld.
+             */
+            age_gated: boolean;
+            asset_id?: string | null;
+            id: string;
+            kind: components["schemas"]["TrailerKind"];
+            label: string;
+            language?: string | null;
+            playable: boolean;
+            title_id: string;
+        };
+        TrailerInput: {
+            asset_id?: string | null;
+            kind?: components["schemas"]["TrailerKind"];
+            label: string;
+            language?: string | null;
+        };
+        /**
+         * @description `video_trailers.kind`.
+         * @enum {string}
+         */
+        TrailerKind: "trailer" | "teaser" | "clip";
         TriggerMetadata: {
             allow_list?: string[];
             keyword_filter?: string[];
@@ -6343,6 +9182,28 @@ export interface components {
              */
             version: number;
         };
+        Variant: {
+            asset_id?: string | null;
+            id: string;
+            label: string;
+            notes?: string | null;
+            playable: boolean;
+            /** Format: int32 */
+            position: number;
+            /** Format: int32 */
+            runtime_min?: number | null;
+            title_id: string;
+        };
+        VariantInput: {
+            asset_id?: string | null;
+            /** @description "Director's Cut", "Extended". */
+            label: string;
+            notes?: string | null;
+            /** Format: int32 */
+            position?: number | null;
+            /** Format: int32 */
+            runtime_min?: number | null;
+        };
         Volume: {
             edition_id: string;
             id: string;
@@ -6382,6 +9243,43 @@ export interface components {
             description?: string | null;
             enabled: boolean;
             welcome_channels: components["schemas"]["WelcomeChannelDto"][];
+        };
+        WorkerCapabilities: {
+            /** Format: int32 */
+            concurrency: number;
+            encoders: string[];
+            ffmpeg_version?: string | null;
+            hwaccels: string[];
+            /** @description ffmpeg was built with libplacebo (needed for Dolby Vision profile 5). */
+            libplacebo: boolean;
+            nvenc: boolean;
+        };
+        WorkerToken: {
+            /** Format: int64 */
+            created_at_ms: number;
+            created_by?: string | null;
+            id: string;
+            /** Format: int64 */
+            last_used_at_ms?: number | null;
+            name: string;
+            /** Format: int64 */
+            revoked_at_ms?: number | null;
+        };
+        WorkerView: {
+            /** Format: int32 */
+            active_jobs: number;
+            capabilities: components["schemas"]["WorkerCapabilities"];
+            drain: boolean;
+            id: string;
+            /** Format: int64 */
+            last_seen_ms: number;
+            name: string;
+            /** @description Heard from within the last minute. */
+            online: boolean;
+            token_id: string;
+            token_name: string;
+            token_revoked: boolean;
+            version: string;
         };
     };
     responses: never;
@@ -7219,6 +10117,2467 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_assets: {
+        parameters: {
+            query?: {
+                state?: components["schemas"]["AssetState"];
+                /** @description Only assets uploaded for this title. */
+                title_id?: string;
+                /** @description 1 to 200, default 50. */
+                limit?: number;
+                /** @description `next_before` of the previous page. */
+                before?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_begin_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UploadRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadSlot"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Object storage did not start the upload. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_asset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Asset snowflake */
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetStatus"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_complete_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Asset snowflake */
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompleteUploadRequest"];
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Asset"];
+                };
+            };
+            /** @description The storage did not accept the parts, or the file is empty, over the limit or not the announced size. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_link_asset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Asset snowflake */
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Asset"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The asset has no playable renditions yet. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_original_downloads: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Asset snowflake */
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OriginalDownloadsBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Asset"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_reprobe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Asset snowflake */
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Asset"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_transcode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Asset snowflake */
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Asset"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_collections: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_create_collection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectionInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Collection"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_collection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Collection snowflake */
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionDetail"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_update_collection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Collection snowflake */
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectionInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Collection"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_delete_collection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Collection snowflake */
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_set_collection_items: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Collection snowflake */
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectionItemsBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_hide_comment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Comment snowflake */
+                comment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CinemaHideContent"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_update_episode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Episode snowflake */
+                episode_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EpisodeInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Episode"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_delete_episode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Episode snowflake */
+                episode_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_link_episode_asset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Episode snowflake */
+                episode_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssetBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Episode"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_episode_markers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Episode snowflake */
+                episode_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarkerList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_replace_episode_markers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Episode snowflake */
+                episode_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkersBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarkerList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_publish_episode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Episode snowflake */
+                episode_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Episode"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_unpublish_episode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Episode snowflake */
+                episode_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Episode"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_reports: {
+        parameters: {
+            query?: {
+                /** @description `open` (default), `actioned`, `dismissed` or `all`. */
+                status?: string;
+                /** @description `next_before` of the previous page. */
+                before?: string;
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaReportPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_resolve_report: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Report snowflake */
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CinemaResolveReport"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_hide_review: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Review snowflake */
+                review_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CinemaHideContent"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_update_season: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Season snowflake */
+                season_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeasonInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Season"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_delete_season: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Season snowflake */
+                season_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_create_episode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Season snowflake */
+                season_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EpisodeInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Episode"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_list: {
+        parameters: {
+            query?: {
+                kind?: components["schemas"]["TitleKind"];
+                /** @description `true` for published, `false` for drafts and unpublished titles. */
+                published?: boolean;
+                /** @description Title substring. */
+                title?: string;
+                /** @description `include` (default), `hide` or `only`. */
+                age?: components["schemas"]["AgeFilter"];
+                /** @description `updated` (default), `newest`, `title`, `year` or `runtime`. */
+                sort?: components["schemas"]["SortKey"];
+                order?: string;
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TitlePage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_create_title: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TitleInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Title"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_title: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminTitleDetail"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_update_title: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TitleInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Title"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_delete_title: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_artwork_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArtworkRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtworkUpload"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_link_title_asset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssetBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Title"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_replace_title_markers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkersBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarkerList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_merge_title: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake to merge away */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MergeBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Title"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_publish_title: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Title"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_create_season: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeasonInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Season"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_create_trailer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrailerInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Trailer"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_unpublish_title: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Title"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_create_variant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VariantInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Variant"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_update_trailer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Trailer snowflake */
+                trailer_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrailerInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Trailer"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_delete_trailer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Trailer snowflake */
+                trailer_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_update_variant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Variant snowflake */
+                variant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VariantInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Variant"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_delete_variant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Variant snowflake */
+                variant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10458,6 +15817,517 @@ export interface operations {
             };
         };
     };
+    admin_transcode_jobs: {
+        parameters: {
+            query?: {
+                state?: components["schemas"]["JobState"];
+                kind?: components["schemas"]["JobKind"];
+                asset_id?: string;
+                /** @description 1 to 200, default 50. */
+                limit?: number;
+                /** @description A job id: only older jobs. */
+                before?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobSummary"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_transcode_job: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Job id */
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobDetail"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_transcode_cancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Job id */
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_transcode_retry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Job id */
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_transcode_queue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueueCounts"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_transcode_retranscode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetranscodeBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetranscodeOutcome"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_transcode_sweep: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SweepReport"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_transcode_tokens: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerToken"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_transcode_create_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTokenBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedToken"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_transcode_revoke_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Token snowflake */
+                token_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_transcode_workers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerView"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_transcode_drain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Worker id */
+                worker_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DrainBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_channel: {
         parameters: {
             query?: never;
@@ -12540,6 +18410,3113 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_asset_playback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Asset id from the play target */
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaAssetPlayback"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age confirmation required (code 900011) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_asset_refresh: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Asset id from the play target */
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaPlaybackGrant"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age confirmation required (code 900011) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_collections: {
+        parameters: {
+            query?: {
+                /** @description `discover`, `movies`, `series` or `anime`. */
+                surface?: components["schemas"]["Surface"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_delete_comment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Comment snowflake */
+                comment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_edit_comment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Comment snowflake */
+                comment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CinemaCommentPatch"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaComment"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_like_comment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Comment snowflake */
+                comment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CountBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_unlike_comment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Comment snowflake */
+                comment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CountBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_comment_replies: {
+        parameters: {
+            query?: {
+                /** @description Cursor from the previous page's `next_before`. */
+                before?: string;
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Comment snowflake */
+                comment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaCommentPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_report_comment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Comment snowflake */
+                comment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CinemaReportInput"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_discover: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Discover"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_download: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Download id */
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DownloadJob"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_download_file: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Download id */
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to the signed file URL. */
+            307: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not ready yet, or expired. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_episode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Episode snowflake */
+                episode_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Episode"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_episode_markers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Episode snowflake */
+                episode_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarkerList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_play_episode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Episode snowflake */
+                episode_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayTarget"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age-restricted title and the account has not confirmed it is 18 or older: error code 900011 (AGE_CONFIRMATION_REQUIRED). Show the 'Are you 18 or older?' dialog, POST /sr/age-gate, then retry. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_facets: {
+        parameters: {
+            query?: {
+                kind?: components["schemas"]["TitleKind"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Facets"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_my_lists: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaListsResponse"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_create_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CinemaListInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The account already holds 100 lists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_get_list: {
+        parameters: {
+            query?: {
+                /** @description Cursor from the previous page's `next_before`. */
+                before?: string;
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description List snowflake */
+                list_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaListDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_delete_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description List snowflake */
+                list_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description My list cannot be deleted. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_update_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description List snowflake */
+                list_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CinemaListPatch"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_add_list_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description List snowflake */
+                list_id: string;
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        /** @description Optional note; the body may be empty. */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CinemaListItemInput"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The list holds 1000 titles. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_remove_list_item: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description List snowflake */
+                list_id: string;
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_reorder_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description List snowflake */
+                list_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CinemaListOrderInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_continue_watching: {
+        parameters: {
+            query?: {
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaContinueWatching"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_friends_watching: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaFriendsWatching"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_history: {
+        parameters: {
+            query?: {
+                /** @description Cursor from the previous page's `next_before`. */
+                before?: string;
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaHistoryPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_clear_history: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_get_history_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaHistorySettings"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_put_history_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CinemaHistorySettings"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaHistorySettings"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_my_list: {
+        parameters: {
+            query?: {
+                /** @description Cursor from the previous page's `next_before`. */
+                before?: string;
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaListItemsPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_save_title: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_unsave_title: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description It was not saved. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_recommendations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaRecommendations"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_stop_watching: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_review_helpful: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Review snowflake */
+                review_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CountBody"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_review_unhelpful: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Review snowflake */
+                review_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CountBody"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_report_review: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Review snowflake */
+                review_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CinemaReportInput"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_row: {
+        parameters: {
+            query?: {
+                /** @description 1 to 50, default 20. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Row key */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Row"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_search: {
+        parameters: {
+            query: {
+                /** @description Search-box text; every word is matched as a prefix. */
+                q: string;
+                /** @description 1 to 50, default 8. */
+                limit?: number;
+                kind?: components["schemas"]["TitleKind"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstantSearch"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_browse: {
+        parameters: {
+            query?: {
+                kind?: components["schemas"]["TitleKind"];
+                /** @description Comma-separated; a title must have every one. */
+                genres?: string;
+                /** @description Comma-separated; a title with any of them is left out. */
+                exclude_genres?: string;
+                /** @description Comma-separated; a title must have every one. */
+                tags?: string;
+                year_from?: number;
+                year_to?: number;
+                /** @description Comma-separated content ratings (`PG-13,R`); a title with any of them. */
+                rating?: string;
+                /** @description Minutes. */
+                runtime_min?: number;
+                /** @description Minutes. */
+                runtime_max?: number;
+                /** @description Audio language (BCP 47). */
+                language?: string;
+                /** @description Subtitle language (BCP 47). */
+                subtitle_language?: string;
+                /** @description `include` (default), `hide` or `only`. Everyone may see restricted titles; opening them needs age confirmation. A member who set `cinema.hide_age_restricted` gets `hide` as the default. */
+                age?: components["schemas"]["AgeFilter"];
+                /** @description Only the titles of this collection ("Room selection"). */
+                collection?: string;
+                /** @description `updated` (default), `newest`, `title`, `year`, `runtime`, or `curated` (needs `collection`). */
+                sort?: components["schemas"]["SortKey"];
+                /** @description `asc` or `desc`; default depends on the sort. */
+                order?: string;
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+                /** @description `next_cursor` of the previous page. */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TitlePage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_title: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TitleDetail"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_title_comments: {
+        parameters: {
+            query?: {
+                /** @description Cursor from the previous page's `next_before`. */
+                before?: string;
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaCommentPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_post_title_comment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CinemaCommentInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaComment"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_download_options: {
+        parameters: {
+            query?: {
+                /** @description For a series: the episode to download. */
+                episode?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DownloadOptions"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not a Patron, or the title needs age confirmation (code 900011). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_start_download: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StartBody"];
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DownloadJob"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not a Patron, the original is not enabled, or age confirmation is needed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The daily limit is used up. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_episodes: {
+        parameters: {
+            query?: {
+                /** @description Only this season's episodes. */
+                season?: string;
+                /** @description Page size, 1 to 500. Without it every episode is returned. */
+                limit?: number;
+                /** @description Cursor from the previous page's `next_cursor`. */
+                after?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EpisodeList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_episode_comments: {
+        parameters: {
+            query?: {
+                /** @description Cursor from the previous page's `next_before`. */
+                before?: string;
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+                /** @description Episode snowflake */
+                episode_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaCommentPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_post_episode_comment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+                /** @description Episode snowflake */
+                episode_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CinemaCommentInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaComment"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_get_episode_progress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+                /** @description Episode snowflake */
+                episode_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaProgress"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age confirmation required (900011). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description No progress saved yet, or unknown title or episode. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_put_episode_progress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+                /** @description Episode snowflake */
+                episode_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CinemaProgressInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaProgressSaved"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age confirmation required (900011). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_delete_episode_progress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+                /** @description Episode snowflake */
+                episode_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_rate_episode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+                /** @description Episode snowflake */
+                episode_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CinemaRatingInput"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_unrate_episode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+                /** @description Episode snowflake */
+                episode_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_episode_ratings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+                /** @description Episode snowflake */
+                episode_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaRatings"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_title_markers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarkerList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_play_title: {
+        parameters: {
+            query?: {
+                /** @description A variant (cut) of the title, for example the director's cut. */
+                variant?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayTarget"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age-restricted title and the account has not confirmed it is 18 or older: error code 900011 (AGE_CONFIRMATION_REQUIRED). Show the 'Are you 18 or older?' dialog, POST /sr/age-gate, then retry. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_get_movie_progress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaProgress"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age confirmation required (900011). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description No progress saved yet, or unknown title or episode. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_put_movie_progress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CinemaProgressInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaProgressSaved"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age confirmation required (900011). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_delete_movie_progress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_rate_title: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CinemaRatingInput"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_unrate_title: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_title_ratings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaRatings"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_put_review: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CinemaReviewInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaReview"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_delete_review: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_reviews: {
+        parameters: {
+            query?: {
+                /** @description `helpful` (default) or `recent`. */
+                sort?: components["schemas"]["CinemaReviewSort"];
+                /** @description Cursor from the previous page's `next_before`. */
+                before?: string;
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaReviewPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_watch_state: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaWatchState"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_mark_watched: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title snowflake */
+                title_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CinemaWatchedInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaWatchedResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_trending: {
+        parameters: {
+            query?: {
+                /** @description `global` (default), `friends` or `known` (people who share a server). */
+                scope?: components["schemas"]["CinemaTrendScope"];
+                /** @description Only `movie`, `series` or `anime`. */
+                kind?: components["schemas"]["CinemaTitleKind"];
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaTrending"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_user_lists: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description User snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaListsResponse"];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

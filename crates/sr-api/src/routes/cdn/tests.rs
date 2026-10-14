@@ -449,3 +449,90 @@ async fn the_cdn_router_does_not_overlap_the_api_router() {
     let state = AppState::builder().build();
     let _ = crate::router::build_router(state.clone(), crate::routes::all()).merge(layered(state));
 }
+
+/// Asset 9 keeps its files where the worker wrote them (`transcode/9/1`); nothing is rendered here.
+struct Renderer;
+
+#[async_trait::async_trait]
+impl PlaylistRenderer for Renderer {
+    async fn render(&self, _asset_id: i64, _rel: &str, _now: u64) -> Option<Rendered> {
+        None
+    }
+
+    async fn storage_key(&self, asset_id: i64, rel: &str) -> Option<String> {
+        (asset_id == 9).then(|| format!("transcode/9/1/{rel}"))
+    }
+}
+
+#[tokio::test]
+async fn originals_and_transcode_outputs_are_signed_only_and_hls_assets_map_to_their_prefix() {
+    let storage = Arc::new(ObjectStoreStorage::in_memory());
+    storage
+        .put("originals/12/source.mkv", Bytes::from_static(b"mkvdata"))
+        .await
+        .unwrap();
+    storage
+        .put(
+            "transcode/9/1/remux/video.mp4",
+            Bytes::from_static(b"mp4data"),
+        )
+        .await
+        .unwrap();
+    storage
+        .put(
+            "transcode/9/1/v/480p/seg_00000.m4s",
+            Bytes::from_static(b"seg"),
+        )
+        .await
+        .unwrap();
+    storage
+        .put("transcode/9/1/master.m3u8", Bytes::from_static(b"stored"))
+        .await
+        .unwrap();
+    let signer = CdnSigner::new(SECRET);
+    let state = AppState::builder()
+        .extension(Arc::new(
+            CdnDeps::new(storage, signer.clone()).with_playlists(Arc::new(Renderer)),
+        ))
+        .build();
+    let f = Fx {
+        app: layered(state),
+        signer,
+    };
+    // No signature, no object: originals are never public.
+    let r = f.get("/cdn/originals/12/source.mkv").await;
+    assert_eq!(r.status(), StatusCode::FORBIDDEN);
+    let r = f.get(&f.url("/cdn/originals/12/source.mkv")).await;
+    assert_eq!(r.status(), StatusCode::OK);
+    assert!(h(&r, "content-disposition").starts_with("attachment;"));
+    assert_eq!(bytes(r).await.as_ref(), b"mkvdata");
+    // A signature for another path does not carry over.
+    let other = f
+        .url("/cdn/originals/13/source.mkv")
+        .replace("/13/", "/12/");
+    assert_eq!(f.get(&other).await.status(), StatusCode::FORBIDDEN);
+    // Segments are stored objects served as media; `dl=1` turns a video into a download.
+    let r = f
+        .get(&f.url("/cdn/transcode/9/1/v/480p/seg_00000.m4s"))
+        .await;
+    assert_eq!(h(&r, "content-type"), "video/iso.segment");
+    let r = f.get(&f.url("/cdn/transcode/9/1/remux/video.mp4")).await;
+    assert!(h(&r, "content-disposition").starts_with("inline;"));
+    let url = format!("{}&dl=1", f.url("/cdn/transcode/9/1/remux/video.mp4"));
+    let r = f.get(&url).await;
+    assert_eq!(r.status(), StatusCode::OK);
+    assert!(h(&r, "content-disposition").starts_with("attachment;"));
+    assert_eq!(h(&r, "content-type"), "video/mp4");
+    // By asset id, the stored files are found under the asset's own storage prefix.
+    let r = f.get(&f.url("/cdn/hls/9/v/480p/seg_00000.m4s")).await;
+    assert_eq!(r.status(), StatusCode::OK);
+    assert_eq!(bytes(r).await.as_ref(), b"seg");
+    let r = f.get(&f.url("/cdn/hls/9/master.m3u8")).await;
+    assert_eq!(h(&r, "content-type"), "application/vnd.apple.mpegurl");
+    assert_eq!(bytes(r).await.as_ref(), b"stored");
+    // Another asset has no mapping: its default prefix holds nothing.
+    assert_eq!(
+        f.get(&f.url("/cdn/hls/10/master.m3u8")).await.status(),
+        StatusCode::NOT_FOUND
+    );
+}

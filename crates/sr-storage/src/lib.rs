@@ -10,6 +10,7 @@ pub mod error;
 pub mod img;
 pub mod media;
 pub mod s3admin;
+pub mod s3multipart;
 pub mod storage;
 pub mod upload;
 

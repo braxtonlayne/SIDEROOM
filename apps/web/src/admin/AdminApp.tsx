@@ -17,6 +17,9 @@ import { ApiError } from '../api/client';
 import * as api from './api';
 import { hasAny, parsePerms } from './permissions';
 import { AccessLogSection } from './sections/AccessLog';
+import { CatalogSection } from './cinema/CatalogSection';
+import { CollectionsSection } from './cinema/CollectionsSection';
+import { TranscodingSection } from './cinema/TranscodingSection';
 import { AccountsSection } from './sections/Accounts';
 import { BansSection } from './sections/Bans';
 import { CliParitySection } from './sections/CliParity';
@@ -94,6 +97,27 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     group: 'CONTENT',
     visible: (v) => v.can('MANAGE_TRANSCODE'),
     component: JobsSection,
+  },
+  {
+    id: 'cinema-catalog',
+    label: 'Cinema catalog',
+    group: 'CINEMA',
+    visible: (v) => hasAny(v.perms, 'PUBLISH_MEDIA', 'DELETE_CONTENT'),
+    component: CatalogSection,
+  },
+  {
+    id: 'cinema-collections',
+    label: 'Cinema collections',
+    group: 'CINEMA',
+    visible: (v) => v.can('MANAGE_COLLECTIONS'),
+    component: CollectionsSection,
+  },
+  {
+    id: 'cinema-transcoding',
+    label: 'Cinema transcoding',
+    group: 'CINEMA',
+    visible: (v) => v.can('MANAGE_TRANSCODE'),
+    component: TranscodingSection,
   },
   {
     id: 'features',

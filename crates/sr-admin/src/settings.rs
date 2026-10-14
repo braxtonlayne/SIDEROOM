@@ -194,6 +194,14 @@ pub const CATALOG: &[SettingDef] = &[
         "Largest Library chapter upload (archive, EPUB or PDF) in MiB.",
     ),
     int(
+        "cinema.upload.max_gb",
+        "cinema",
+        1,
+        2_000,
+        60,
+        "Largest Cinema original a publisher may upload, in GiB.",
+    ),
+    int(
         "retention.large_file_days",
         "retention",
         1,

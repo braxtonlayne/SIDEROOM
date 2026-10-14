@@ -64,6 +64,28 @@ use tower_http::{
     trace::{DefaultOnResponse, TraceLayer},
 };
 
+/// A playlist or map of the `hls` kind that is rendered on request (its URLs carry fresh signatures)
+/// instead of being stored. `rel` is the path under the asset root, for example `master.m3u8` or
+/// `v/1080p/index.m3u8`.
+#[async_trait::async_trait]
+pub trait PlaylistRenderer: Send + Sync {
+    /// `None`: not a rendered file (the object is read from storage) or unknown.
+    async fn render(&self, asset_id: i64, rel: &str, now: u64) -> Option<Rendered>;
+
+    /// Storage key of a stored (not rendered) file of the asset, for assets whose outputs do not live under
+    /// the default `video/<asset>/` prefix (transcode outputs live under `transcode/<job>/<attempt>/`).
+    /// `None`: use the default key.
+    async fn storage_key(&self, _asset_id: i64, _rel: &str) -> Option<String> {
+        None
+    }
+}
+
+/// A rendered playlist.
+pub struct Rendered {
+    pub content_type: &'static str,
+    pub body: String,
+}
+
 /// Longest `Cache-Control: max-age` handed out (the signed URL's remaining
 /// lifetime is used when shorter).
 pub const MAX_CACHE: Duration = Duration::from_secs(24 * 60 * 60);
@@ -79,6 +101,8 @@ pub struct CdnDeps {
     pub limits: sr_storage::img::Limits,
     /// Caps concurrent resize jobs (CPU and memory).
     pub render_permits: Arc<tokio::sync::Semaphore>,
+    /// Renders the playlists of the `hls` kind; without it they are read from storage.
+    pub playlists: Option<Arc<dyn PlaylistRenderer>>,
 }
 
 /// Resize jobs allowed at once.
@@ -92,7 +116,14 @@ impl CdnDeps {
             signer,
             limits: sr_storage::img::Limits::default(),
             render_permits: Arc::new(tokio::sync::Semaphore::new(RENDER_CONCURRENCY)),
+            playlists: None,
         }
+    }
+
+    /// Render the `hls` playlists on request.
+    pub fn with_playlists(mut self, playlists: Arc<dyn PlaylistRenderer>) -> Self {
+        self.playlists = Some(playlists);
+        self
     }
 
     /// Replace the resize budget.

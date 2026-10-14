@@ -13,6 +13,10 @@
 //! | `avatars`     | `avatars/`        | user avatars/banners (`avatars/{user}/{hash}`) |
 //! | `icons`       | `icons/`          | guild icon/banner/splash (`icons/{guild}/{hash}`) |
 //! | `library`     | `library/`        | Library covers and reader pages (`library/{series}/{chapter}/{page}.webp`), signed |
+//! | `cinema`      | `cinema/`         | Cinema artwork (`cinema/{title}/poster.webp`, stills), signed |
+//! | `originals`   | `originals/`      | Cinema originals (`originals/{asset}/source.mkv`), signed, handed to workers and Patron downloads |
+//! | `transcode`   | `transcode/`      | Stored transcode outputs (`transcode/{job}/{attempt}/remux/video.mp4`, segments), signed; Patron downloads |
+//! | `hls`         | `video/`          | Cinema HLS assets (`video/{asset}/v/1080p/seg_00001.m4s`, subtitles, sprites), signed; playlists are rendered on request (`PlaylistRenderer`) |
 //!
 //! `avatars` and `icons` are *public kinds*: the URL is `/cdn/avatars/{user}/{hash}.{ext}`
 //! where `ext` (png, jpg, webp, gif) selects the output format and is not part of the
@@ -28,6 +32,10 @@ pub const KINDS: &[(&str, &str)] = &[
     ("avatars", "avatars"),
     ("icons", "icons"),
     ("library", "library"),
+    ("cinema", "cinema"),
+    ("originals", "originals"),
+    ("hls", "video"),
+    ("transcode", "transcode"),
 ];
 
 const MAX_PATH: usize = 1024;
@@ -48,6 +56,8 @@ pub enum PathError {
 /// A validated CDN path.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CdnPath {
+    /// The url kind (`attachments`, `hls`, ...).
+    pub kind: String,
     /// Canonical wire form that is signed.
     pub canonical: String,
     /// Object storage key.
@@ -164,6 +174,7 @@ pub fn parse(raw: &str) -> Result<CdnPath, PathError> {
         }
     }
     Ok(CdnPath {
+        kind: raw_segs[0].to_owned(),
         canonical,
         key: format!("{prefix}/{}", stored.join("/")),
         filename: stored.last().cloned().unwrap_or_default(),

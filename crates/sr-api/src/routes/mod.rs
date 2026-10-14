@@ -17,6 +17,7 @@
 //! * `cdn`: `GET|HEAD /cdn/{*path}` signed media delivery. Not part of [`all`]: it lives
 //!   outside `/api/v1`; the composition root merges [`cdn::layered`] at the top level.
 //! * `library`: `/library/*` catalog for members, `/admin/library/*` for publishers.
+//! * `cinema`: `/cinema/*` catalog for members, `/admin/cinema/*` for publishers.
 //! * `voice`: `GET /sr/voice/turn` and `PATCH /guilds/{id}/voice-states/{user_id}`.
 //! * `social`: relationships, ignores, notes, DMs (`/users/@me/channels*`, `/channels/{id}/recipients/*`),
 //!   acks and read states, notification settings, profiles (`PATCH /users/@me`, `/users/{id}/profile`)
@@ -30,6 +31,9 @@ use std::{any::type_name, sync::Arc};
 pub mod admin;
 pub mod auth;
 pub mod cdn;
+pub mod cinema;
+pub mod cinema_media;
+pub mod cinema_social;
 pub mod guilds;
 pub mod library;
 pub mod media;
@@ -94,8 +98,11 @@ pub fn all() -> Router<AppState> {
         .merge(search::router())
         .merge(threads::router())
         .merge(library::router())
+        .merge(cinema::router())
+        .merge(cinema_media::router())
         .merge(review::router())
         .merge(voice::router())
+        .merge(cinema_social::router())
 }
 
 /// Feature-owned routers (`Feature::routes()`), nested under
@@ -121,8 +128,11 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(search::openapi());
     doc.merge(threads::openapi());
     doc.merge(library::openapi());
+    doc.merge(cinema::openapi());
+    doc.merge(cinema_media::openapi());
     doc.merge(review::openapi());
     doc.merge(voice::openapi());
+    doc.merge(cinema_social::openapi());
     doc
 }
 

@@ -6,3 +6,21 @@ publish.workspace = true
 
 [lints]
 workspace = true
+
+[features]
+default = []
+# In-process FFmpeg through `ffmpeg-next` (ADR-0005). OFF by default; the default build runs
+# the `ffmpeg` command-line tool through sr-media's `CommandRunner`.
+native-ffmpeg = ["sr-media/native-ffmpeg"]
+
+[dependencies]
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "blocking", "json"] }
+serde.workspace = true
+serde_json.workspace = true
+sr-media = { path = "../sr-media" }
+thiserror.workspace = true
+
+[dev-dependencies]
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net"] }
+async-trait.workspace = true

@@ -5,12 +5,15 @@
 pub mod admin_jobs;
 pub mod app;
 pub mod backends;
+pub mod cinema_catalog;
+pub mod cinema_jobs;
 pub mod external_jobs;
 pub mod features_store;
 pub mod gateway_pg;
 pub mod jobs;
 pub mod lag_bus;
 pub mod library_jobs;
+pub mod media_jobs;
 pub mod ready;
 pub mod rich_jobs;
 pub mod search_jobs;
@@ -37,3 +40,6 @@ mod tests {
 
 #[cfg(test)]
 mod voice_pg_tests;
+
+#[cfg(test)]
+mod cinema_wiring_pg_tests;

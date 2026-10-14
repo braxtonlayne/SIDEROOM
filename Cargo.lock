@@ -4043,6 +4043,7 @@ checksum = "16a1cfa75cc186dd73d5818e510e042e40927bccc9c236b061cea97e1eb08029"
 dependencies = [
  "base64 0.23.1",
  "bytes",
+ "futures-channel",
  "futures-core",
  "futures-util",
  "h2",
@@ -4060,6 +4061,8 @@ dependencies = [
  "rustls",
  "rustls-pki-types",
  "rustls-platform-verifier",
+ "serde",
+ "serde_json",
  "sync_wrapper",
  "tokio",
  "tokio-rustls",
@@ -5014,14 +5017,19 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.0",
+ "sqlx",
  "sr-admin",
  "sr-auth",
  "sr-chat",
+ "sr-cinema",
+ "sr-cinema-social",
  "sr-core",
+ "sr-db",
  "sr-events",
  "sr-features",
  "sr-library",
  "sr-markdown",
+ "sr-media",
  "sr-review",
  "sr-search",
  "sr-storage",
@@ -5077,6 +5085,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "sr-cinema"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "serde",
+ "serde_json",
+ "sr-core",
+ "sr-review",
+ "sr-storage",
+ "tantivy",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "utoipa",
+]
+
+[[package]]
+name = "sr-cinema-social"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "sr-cinema",
+ "sr-core",
+ "sr-db",
+ "sr-events",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "utoipa",
+]
+
+[[package]]
 name = "sr-cli"
 version = "0.0.0"
 dependencies = [
@@ -5122,8 +5165,10 @@ dependencies = [
  "sr-admin",
  "sr-auth",
  "sr-chat",
+ "sr-cinema",
  "sr-core",
  "sr-library",
+ "sr-media",
  "sr-review",
  "sr-storage",
  "thiserror 2.0.21",
@@ -5235,6 +5280,22 @@ dependencies = [
 [[package]]
 name = "sr-media"
 version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "bytes",
+ "futures",
+ "http-body-util",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "sr-storage",
+ "thiserror 2.0.21",
+ "tokio",
+ "tower",
+ "tracing",
+ "utoipa",
+]
 
 [[package]]
 name = "sr-payments"
@@ -5302,12 +5363,15 @@ dependencies = [
  "sr-api",
  "sr-auth",
  "sr-chat",
+ "sr-cinema",
+ "sr-cinema-social",
  "sr-core",
  "sr-db",
  "sr-events",
  "sr-features",
  "sr-gateway",
  "sr-library",
+ "sr-media",
  "sr-review",
  "sr-search",
  "sr-storage",
@@ -5362,6 +5426,16 @@ dependencies = [
 [[package]]
 name = "sr-transcoder"
 version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "reqwest 0.13.5",
+ "serde",
+ "serde_json",
+ "sr-media",
+ "thiserror 2.0.21",
+ "tokio",
+]
 
 [[package]]
 name = "sr-tv"
