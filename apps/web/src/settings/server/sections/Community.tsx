@@ -6,6 +6,7 @@ import * as api from '../api';
 import { useDraft, useGuildEvents, useResource, useSettingsForm } from '../hooks';
 import type { SectionProps } from '../ServerSettings';
 import { CommunityWizard } from './CommunityWizard';
+import { OnboardingPreview } from './OnboardingPreview';
 import { ActionStatus, Async, NotAvailable, SectionHeader, useAction } from '../ui';
 
 export function CommunitySection({ guildId }: SectionProps) {
@@ -475,7 +476,13 @@ function OnboardingForm({
           </div>
         </fieldset>
       ))}
-      <div>
+      <div className="ss-actions">
+        <OnboardingPreview
+          prompts={f.prompts}
+          defaultChannelIds={f.default_channel_ids}
+          channels={channels}
+          roles={roles}
+        />
         <Button
           variant="secondary"
           disabled={f.prompts.length >= 5}

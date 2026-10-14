@@ -486,6 +486,45 @@ describe('Community', () => {
     });
   });
 
+  it('previews onboarding: the answers hand out channels and roles', async () => {
+    seed({ perms: [MANAGE.guild] });
+    server.use(
+      http.get('*/api/v1/guilds/g1/sr/community', () => HttpResponse.json(community)),
+      http.get('*/api/v1/guilds/g1/onboarding', () =>
+        HttpResponse.json({
+          guild_id: 'g1',
+          enabled: true,
+          default_channel_ids: ['c1'],
+          prompts: [
+            {
+              title: 'What do you read?',
+              single_select: false,
+              required: true,
+              in_onboarding: true,
+              options: [
+                { title: 'Manga', channel_ids: ['c2'], role_ids: ['mod'] },
+                { title: 'Novels', channel_ids: [], role_ids: [] },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+    await openSettings('community');
+    await userEvent.click(await screen.findByRole('tab', { name: 'Onboarding' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Preview onboarding' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Onboarding preview' });
+    expect(within(dialog).getByText(/Channels:/).parentElement).toHaveTextContent('#general');
+    expect(within(dialog).getByText(/Channels:/).parentElement).not.toHaveTextContent('#random');
+    expect(within(dialog).getByText(/must answer every required/)).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Manga' }));
+    expect(within(dialog).getByText(/Channels:/).parentElement).toHaveTextContent(
+      '#general, #random',
+    );
+    expect(within(dialog).getByText(/Roles:/).parentElement).toHaveTextContent('Mod');
+    expect(screen.queryByText(/must answer every required/)).toBeNull();
+  });
+
   it('lists what is not available yet', async () => {
     seed({ perms: [MANAGE.guild] });
     server.use(http.get('*/api/v1/guilds/g1/sr/community', () => HttpResponse.json(community)));
