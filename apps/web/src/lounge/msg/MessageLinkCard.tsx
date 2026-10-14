@@ -1,7 +1,7 @@
 import { Avatar } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { apiFetch } from '../../api/client';
-import { useT } from '../../i18n';
+import { formatDate, useT } from '../../i18n';
 import { useAllChannels } from '../data';
 import { useLoungeGotoMessage } from '../nav';
 
@@ -85,7 +85,7 @@ export function MessageLinkCard({ link }: { link: MessageLinkRef }) {
           <strong>{name}</strong>
           {msg.timestamp && (
             <time className="lng-muted" dateTime={msg.timestamp}>
-              {new Date(msg.timestamp).toLocaleDateString()}
+              {formatDate(new Date(msg.timestamp), {})}
             </time>
           )}
         </div>

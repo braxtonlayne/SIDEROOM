@@ -3,7 +3,7 @@
 import { Button, Checkbox, EmptyState, Notice, Select, Skeleton, TextArea } from '@sideroom/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useT } from '../i18n';
+import { formatDate, useT } from '../i18n';
 import {
   deleteComment,
   deleteReview,
@@ -17,8 +17,7 @@ import {
 } from './api';
 import type { Comment, Review } from './types';
 
-const when = (ms: number) =>
-  new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+const when = (ms: number) => formatDate(ms, { year: 'numeric', month: 'short', day: 'numeric' });
 
 /** Spoiler text stays hidden until the reader asks. */
 function Body({ text, spoiler }: { text: string; spoiler: boolean }) {

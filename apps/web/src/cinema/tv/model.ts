@@ -1,5 +1,6 @@
 // Pure helpers for the guide and the live player: time windows, cell geometry, filters, keyboard navigation.
 import type { ChannelCategory, TvBlock, TvChannel } from './types';
+import { formatDate, formatTime, t, type MessageKey } from '../../i18n';
 
 export const MIN = 60_000;
 export const HOUR = 60 * MIN;
@@ -25,35 +26,31 @@ export function addDays(dayStart: number, n: number): number {
 
 export function timeLabel(ms: number, tz?: string | null): string {
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    return formatTime(ms, {
       hour: 'numeric',
       minute: '2-digit',
       ...(tz ? { timeZone: tz } : {}),
-    }).format(ms);
+    });
   } catch {
-    return new Date(ms).toLocaleTimeString();
+    return formatTime(ms, { hour: 'numeric', minute: '2-digit', second: '2-digit' });
   }
 }
 
 export function dayLabel(dayStart: number, nowMs: number): string {
   const today = startOfDay(nowMs);
-  if (dayStart === today) return 'Today';
-  if (dayStart === addDays(today, 1)) return 'Tomorrow';
-  if (dayStart === addDays(today, -1)) return 'Yesterday';
-  return new Intl.DateTimeFormat(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  }).format(dayStart);
+  if (dayStart === today) return t('cinema.tvModel.today');
+  if (dayStart === addDays(today, 1)) return t('cinema.tvModel.tomorrow');
+  if (dayStart === addDays(today, -1)) return t('cinema.tvModel.yesterday');
+  return formatDate(dayStart, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 /** "Morning", "Afternoon", "Evening" or "Late-night" lineup for the window that starts at `ms`. */
 export function lineupName(ms: number): string {
   const h = new Date(ms).getHours();
-  if (h >= 5 && h < 12) return 'Morning lineup';
-  if (h >= 12 && h < 17) return 'Afternoon lineup';
-  if (h >= 17 && h < 22) return 'Evening lineup';
-  return 'Late-night lineup';
+  if (h >= 5 && h < 12) return t('cinema.tvModel.morningLineup');
+  if (h >= 12 && h < 17) return t('cinema.tvModel.afternoonLineup');
+  if (h >= 17 && h < 22) return t('cinema.tvModel.eveningLineup');
+  return t('cinema.tvModel.lateNightLineup');
 }
 
 /** Pixel geometry of a block inside a track that starts at `trackStart`. */
@@ -86,26 +83,57 @@ export function formatDuration(min: number): string {
   return h ? `${h}h${m ? ` ${m}m` : ''}` : `${m}m`;
 }
 
-const KIND_WORD: Record<TvBlock['kind'], string> = {
-  movie: 'Movie',
-  series: 'Series',
-  anime: 'Anime',
-  filler: 'Filler',
+const KIND_WORD: Record<TvBlock['kind'], MessageKey> = {
+  movie: 'cinema.tvModel.kindMovie',
+  series: 'cinema.tvModel.kindSeries',
+  anime: 'cinema.tvModel.kindAnime',
+  filler: 'cinema.tvModel.kindFiller',
 };
 /** "Anime · 1998". */
 export const kindYear = (b: Pick<TvBlock, 'kind' | 'year'>) =>
-  [KIND_WORD[b.kind], b.year].filter(Boolean).join(' · ');
+  [t(KIND_WORD[b.kind]), b.year].filter(Boolean).join(' · ');
 
 /* ------------------------------------------------------------------ filters */
 
 export type TvFilter = 'all' | 'anime' | 'movies' | 'series' | 'custom' | 'favorites';
 export const FILTERS: { value: TvFilter; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'anime', label: 'Anime & animation' },
-  { value: 'movies', label: 'Movies' },
-  { value: 'series', label: 'Series' },
-  { value: 'custom', label: 'Custom' },
-  { value: 'favorites', label: 'Favorites' },
+  // Labels resolve when read, so they follow the active language.
+  {
+    value: 'all',
+    get label() {
+      return t('cinema.tvModel.filterAll');
+    },
+  },
+  {
+    value: 'anime',
+    get label() {
+      return t('cinema.tvModel.filterAnime');
+    },
+  },
+  {
+    value: 'movies',
+    get label() {
+      return t('cinema.tvModel.filterMovies');
+    },
+  },
+  {
+    value: 'series',
+    get label() {
+      return t('cinema.tvModel.filterSeries');
+    },
+  },
+  {
+    value: 'custom',
+    get label() {
+      return t('cinema.tvModel.filterCustom');
+    },
+  },
+  {
+    value: 'favorites',
+    get label() {
+      return t('cinema.tvModel.filterFavorites');
+    },
+  },
 ];
 
 /** The channel's category: the server's, else the kind of programme that dominates what it airs today. */

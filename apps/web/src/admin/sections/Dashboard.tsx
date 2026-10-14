@@ -1,9 +1,9 @@
 import { Notice, ProgressBar } from '@sideroom/ui';
 import * as api from '../api';
-import { useT } from '../../i18n';
+import { formatNumber, useT } from '../../i18n';
 import { Async, SectionHeader, Stat, useAdminViewer, useResource } from '../ui';
 
-const n = (v: number) => v.toLocaleString();
+const n = (v: number) => formatNumber(v);
 
 export function DashboardSection() {
   const t = useT();

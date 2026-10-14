@@ -5,6 +5,7 @@ import { ApiError } from '../../api/client';
 import { getMe, getServerInvite, type ServerInvitePreview } from '../../api/entrance';
 import { inviteErrorMessage } from '../../lounge/inviteFlow';
 import { useStore } from '../../store';
+import { formatNumber } from '../../i18n';
 import '../../components/entrance.css';
 
 type State =
@@ -73,8 +74,8 @@ export function ServerInvite() {
   const counts = (inv: ServerInvitePreview) =>
     inv.approximate_member_count || inv.approximate_presence_count ? (
       <p>
-        {(inv.approximate_presence_count ?? 0).toLocaleString()} online ·{' '}
-        {(inv.approximate_member_count ?? 0).toLocaleString()} members
+        {formatNumber(inv.approximate_presence_count ?? 0)} online ·{' '}
+        {formatNumber(inv.approximate_member_count ?? 0)} members
       </p>
     ) : null;
 

@@ -65,19 +65,19 @@
   gap: 10px;
 }
 .rv-event {
-  border-left: 3px solid var(--ui-border);
+  border-inline-start: 3px solid var(--ui-border);
   padding: 2px 0 2px 12px;
 }
 .rv-event-changes_requested,
 .rv-event-publish_failed {
-  border-left-color: var(--ui-warning, #c9972b);
+  border-inline-start-color: var(--ui-warning, #c9972b);
 }
 .rv-event-rejected {
-  border-left-color: var(--ui-danger, #c4513d);
+  border-inline-start-color: var(--ui-danger, #c4513d);
 }
 .rv-event-approved,
 .rv-event-published {
-  border-left-color: var(--ui-success, #3c9a63);
+  border-inline-start-color: var(--ui-success, #3c9a63);
 }
 .rv-event-head {
   display: flex;
@@ -129,7 +129,7 @@
 }
 .rv-table th,
 .rv-table td {
-  text-align: left;
+  text-align: start;
   padding: 8px 10px;
   border-bottom: 1px solid var(--ui-border);
   vertical-align: top;

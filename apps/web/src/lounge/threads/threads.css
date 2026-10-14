@@ -6,7 +6,7 @@
   width: min(420px, 40%);
   min-width: 300px;
   min-height: 0;
-  border-left: 1px solid var(--ui-border);
+  border-inline-start: 1px solid var(--ui-border);
   background: var(--bg-base-low);
 }
 .lng-root[data-mobile] .lng-thread-pane {
@@ -76,7 +76,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--text-normal);
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 .lng-threads-list button:hover,

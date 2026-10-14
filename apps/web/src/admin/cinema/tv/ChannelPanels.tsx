@@ -4,7 +4,7 @@ import { Badge, Button, ConfirmDialog, EmptyState, Select, TextInput } from '@si
 import { useEffect, useMemo, useState } from 'react';
 import { DAY, formatDuration, startOfDay } from '../../../cinema/tv/model';
 import type { TvBlock } from '../../../cinema/tv/types';
-import { t, useT } from '../../../i18n';
+import { formatDate, formatTime, t, useT } from '../../../i18n';
 import { fmtMs } from '../../ui';
 import { NotAvailableYet } from '../AssetPanel';
 import { Banner, LoadProblem, useLoad, useRun } from '../hooks';
@@ -12,12 +12,8 @@ import * as tv from './tvApi';
 
 const kindLabel = (k: string) =>
   k === 'filler' ? t('admin.channelPanels.filler') : k.charAt(0).toUpperCase() + k.slice(1);
-const clock = (ms: number) =>
-  new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(ms);
-const dayHead = (ms: number) =>
-  new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'short', day: 'numeric' }).format(
-    ms,
-  );
+const clock = (ms: number) => formatTime(ms, { hour: 'numeric', minute: '2-digit' });
+const dayHead = (ms: number) => formatDate(ms, { weekday: 'long', month: 'short', day: 'numeric' });
 const blockLine = (b: TvBlock) => `${b.title}${b.episode_label ? ` · ${b.episode_label}` : ''}`;
 
 /** `datetime-local` value (local time) to unix ms, or null. */

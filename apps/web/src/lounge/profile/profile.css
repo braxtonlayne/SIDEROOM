@@ -113,7 +113,7 @@
 }
 .lng-pop-list {
   margin: 0;
-  padding-left: 18px;
+  padding-inline-start: 18px;
 }
 .lng-avatar-btn,
 .lng-name-btn {

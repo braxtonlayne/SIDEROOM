@@ -4,7 +4,7 @@
 import { Button, ConfirmDialog, EmptyState, PosterCard, Spinner, Switch, Tabs } from '@sideroom/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { t, useT } from '../../i18n';
+import { formatDate, t, useT } from '../../i18n';
 import { watchHref } from '../player/model';
 import '../player/player.css';
 import {
@@ -288,7 +288,7 @@ function History() {
                 className="cpl-my-muted"
                 dateTime={new Date(h.progress.updated_at_ms).toISOString()}
               >
-                {new Date(h.progress.updated_at_ms).toLocaleDateString()}
+                {formatDate(h.progress.updated_at_ms, {})}
               </time>
             </li>
           ))}

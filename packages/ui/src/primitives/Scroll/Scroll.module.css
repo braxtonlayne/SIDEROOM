@@ -39,5 +39,5 @@
 .hidden::-webkit-scrollbar { display: none; }
 
 .sizer { position: relative; width: 100%; }
-.row { position: absolute; top: 0; left: 0; width: 100%; }
+.row { position: absolute; top: 0; inset-inline-start: 0; width: 100%; }
 .gridRow { display: grid; box-sizing: border-box; }

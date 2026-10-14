@@ -2,7 +2,7 @@
 // the timeline, the Library preview and the "what changed since the last submit" diff.
 import { Badge, type BadgeVariant } from '@sideroom/ui';
 import { useEffect } from 'react';
-import { t, useT, type MessageKey } from '../i18n';
+import { formatDateTime, t, type MessageKey, useT } from '../i18n';
 import { onDispatch } from '../store/events';
 import type { ItemState, LibraryPreview, SubmissionEvent, SubmissionState } from './types';
 import './review.css';
@@ -69,7 +69,7 @@ export function ItemChip({ state }: { state: ItemState }) {
 }
 
 export const fmtWhen = (ms: number | null | undefined) =>
-  ms ? new Date(ms).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '';
+  ms ? formatDateTime(ms, { dateStyle: 'medium', timeStyle: 'short' }) : '';
 
 export function ago(ms: number, now = Date.now()): string {
   const s = Math.max(0, Math.round((now - ms) / 1000));

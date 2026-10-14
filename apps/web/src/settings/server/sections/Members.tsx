@@ -1,6 +1,6 @@
 import { Avatar, Button, Checkbox, Modal, TextArea, TextInput } from '@sideroom/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useT } from '../../../i18n';
+import { formatDateTime, useT } from '../../../i18n';
 import { useGuild } from '../../../store';
 import { onDispatch } from '../../../store/events';
 import { PruneDialog } from './PruneDialog';
@@ -725,7 +725,7 @@ function MemberDetails({
           <dt>{t('settings.members.timeout')}</dt>
           <dd>
             {timedOut && until
-              ? t('settings.members.until', { when: new Date(until).toLocaleString() })
+              ? t('settings.members.until', { when: formatDateTime(new Date(until)) })
               : t('settings.members.notTimedOut')}
           </dd>
         </div>

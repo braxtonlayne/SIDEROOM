@@ -166,22 +166,77 @@ export function t(key: MessageKey, values: Values = {}): string {
 export function formatNumber(n: number, o?: Intl.NumberFormatOptions): string {
   return new Intl.NumberFormat(intlTag(), o).format(n);
 }
+
+/** Dates and times never throw: an unparseable value renders like `Date#toLocaleString` did. */
+function safeFormat(d: Date | number, make: () => Intl.DateTimeFormat): string {
+  try {
+    return make().format(d);
+  } catch {
+    return 'Invalid Date';
+  }
+}
+
+/** A date. With empty options this is the numeric short form (`1/31/2026`), like `toLocaleDateString()`. */
 export function formatDate(
   d: Date | number,
   o: Intl.DateTimeFormatOptions = { dateStyle: 'medium' },
 ): string {
-  return new Intl.DateTimeFormat(intlTag(), o).format(d);
+  return safeFormat(d, () => new Intl.DateTimeFormat(intlTag(), o));
 }
+
+/** A clock time; honours the 12/24 hour preference. */
 export function formatTime(
   d: Date | number,
   o: Intl.DateTimeFormatOptions = { timeStyle: 'short' },
 ): string {
-  return new Intl.DateTimeFormat(intlTag(), hour12 === undefined ? o : { ...o, hour12 }).format(d);
+  return safeFormat(d, () => new Intl.DateTimeFormat(intlTag(), withHour12(o)));
 }
+
+/** Date and time together (default: numeric date with seconds, like `toLocaleString()`); honours 12/24 hour. */
+export function formatDateTime(
+  d: Date | number,
+  o: Intl.DateTimeFormatOptions = {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  },
+): string {
+  return safeFormat(d, () => new Intl.DateTimeFormat(intlTag(), withHour12(o)));
+}
+
 export function formatRelative(value: number, unit: Intl.RelativeTimeFormatUnit): string {
   return new Intl.RelativeTimeFormat(intlTag(), { numeric: 'auto' }).format(value, unit);
 }
+
+/** `hour12` only applies when the caller did not choose a clock. */
+function withHour12(o: Intl.DateTimeFormatOptions): Intl.DateTimeFormatOptions {
+  if (hour12 === undefined || o.hour12 !== undefined || o.hourCycle !== undefined) return o;
+  return { ...o, hour12 };
+}
+
+/**
+ * Region override for dates and numbers (User Settings > Language "Language and region"). `undefined`
+ * follows the UI language.
+ */
+let formatLocale: string | undefined;
+export function setFormatLocale(code: string | undefined) {
+  let next = code;
+  try {
+    if (next) next = Intl.getCanonicalLocales(next)[0];
+  } catch {
+    next = undefined;
+  }
+  if (formatLocale === next) return;
+  formatLocale = next;
+  emit();
+}
+export const getFormatLocale = () => formatLocale;
+
 function intlTag(): string {
+  if (formatLocale) return formatLocale;
   return current === 'en-XA' ? 'en' : current === 'ar-XB' ? 'ar' : current;
 }
 

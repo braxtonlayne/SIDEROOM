@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import { errorText } from './api';
-import { useT } from '../i18n';
+import { formatDateTime, useT } from '../i18n';
 
 export { errorText };
 import { hasPerm, type AdminPerm } from './permissions';
@@ -50,9 +50,8 @@ export const makeViewer = (userId: string, isOwner: boolean, perms: bigint): Adm
 
 // ---- formatting ----
 
-export const fmtMs = (ms: number | null | undefined) => (ms ? new Date(ms).toLocaleString() : '');
-export const fmtUs = (us: number | null | undefined) =>
-  us ? new Date(us / 1000).toLocaleString() : '';
+export const fmtMs = (ms: number | null | undefined) => (ms ? formatDateTime(ms) : '');
+export const fmtUs = (us: number | null | undefined) => (us ? formatDateTime(us / 1000) : '');
 export const shortHash = (h: string | null | undefined) => (h ? `${h.slice(0, 12)}…` : '');
 
 const STATE_VARIANT: Record<string, BadgeVariant> = {

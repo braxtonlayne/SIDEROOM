@@ -1,6 +1,6 @@
 import { Button, Notice, Spinner } from '@sideroom/ui';
 import type { ReactNode } from 'react';
-import { useT } from '../../i18n';
+import { formatDateTime, useT } from '../../i18n';
 import { errorText, type Resource } from './api';
 import './user-settings.css';
 
@@ -88,7 +88,7 @@ export function Loaded<T>({
 
 export function fmtDate(iso: string): string {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
+  return Number.isNaN(d.getTime()) ? iso : formatDateTime(d);
 }
 
 export function displayOf(u: { username?: string; global_name?: string | null; id: string }) {

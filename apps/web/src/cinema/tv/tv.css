@@ -189,14 +189,14 @@
 }
 .tv-crt-num {
   position: absolute;
-  left: 12px;
+  inset-inline-start: 12px;
   top: 10px;
   font-size: 13px;
   text-shadow: 0 1px 2px #000;
 }
 .tv-crt-bug {
   position: absolute;
-  left: 12px;
+  inset-inline-start: 12px;
   top: 30px;
   font-size: 18px;
   font-weight: 700;
@@ -207,7 +207,7 @@
 }
 .tv-crt-label {
   position: absolute;
-  left: 12px;
+  inset-inline-start: 12px;
   bottom: 10px;
   font-size: 11px;
   letter-spacing: 0.22em;
@@ -221,7 +221,7 @@
 .tv-reception {
   position: absolute;
   top: 0;
-  right: 0;
+  inset-inline-end: 0;
   margin: 0;
   font-size: 11px;
   letter-spacing: 0.16em;
@@ -281,7 +281,7 @@
 }
 .tv-chan {
   position: sticky;
-  left: 0;
+  inset-inline-start: 0;
   z-index: 3;
   flex: 0 0 var(--tv-chan);
   box-sizing: border-box;
@@ -290,7 +290,7 @@
   gap: 12px;
   padding: 0 16px;
   background: var(--sr-guide-channel);
-  border-right: 1px solid var(--sr-line);
+  border-inline-end: 1px solid var(--sr-line);
 }
 .tv-row[data-selected] .tv-chan {
   box-shadow: inset 3px 0 0 var(--sr-gold);
@@ -348,7 +348,7 @@
   background: transparent;
   color: inherit;
   font: inherit;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 .tv-call {
@@ -385,7 +385,7 @@
   box-sizing: border-box;
   display: grid;
   place-items: center;
-  border-left: 1px solid var(--sr-line);
+  border-inline-start: 1px solid var(--sr-line);
   font-family: var(--sr-teletext-font);
   font-size: 14px;
   letter-spacing: 0.06em;
@@ -412,7 +412,7 @@
   background: var(--sr-guide-cell);
   color: var(--sr-text);
   font: inherit;
-  text-align: left;
+  text-align: start;
   overflow: hidden;
   cursor: pointer;
 }
@@ -651,7 +651,7 @@
   background: transparent;
   color: var(--sr-text);
   font: inherit;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 .tv-agenda-item[data-now] {

@@ -4,7 +4,7 @@
   width: 34px; height: 30px; border: 0; background: var(--ui-bg-raised); color: var(--ui-text-muted);
   font: inherit; cursor: pointer; display: grid; place-items: center;
 }
-.triBtn + .triBtn { border-left: 1px solid var(--ui-border); }
+.triBtn + .triBtn { border-inline-start: 1px solid var(--ui-border); }
 .triBtn:disabled { cursor: not-allowed; }
 .triBtn:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: -2px; }
 .triBtn[aria-checked="true"][data-state="allow"] { background: var(--ui-success); color: #0b0b0a; }

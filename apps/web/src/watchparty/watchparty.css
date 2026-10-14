@@ -90,7 +90,7 @@
 .wp-panel {
   min-height: 0;
   overflow: auto;
-  border-left: 1px solid var(--sr-line, rgba(255, 255, 255, 0.12));
+  border-inline-start: 1px solid var(--sr-line, rgba(255, 255, 255, 0.12));
   padding: 8px 12px 16px;
   background: var(--sr-bg-1, #14120f);
 }
@@ -101,7 +101,7 @@
     overflow: auto;
   }
   .wp-panel {
-    border-left: 0;
+    border-inline-start: 0;
     border-top: 1px solid var(--sr-line, rgba(255, 255, 255, 0.12));
   }
   .wp-title {
@@ -208,7 +208,7 @@
 @media (prefers-reduced-motion: reduce) {
   .wp-reaction {
     animation: wp-fade 4s linear forwards;
-    left: calc(8px + var(--wp-slot, 0) * 44px) !important;
+    inset-inline-start: calc(8px + var(--wp-slot, 0) * 44px) !important;
     bottom: 12px;
   }
   @keyframes wp-fade {
@@ -223,8 +223,8 @@
 .wp-waiting {
   position: absolute;
   top: 12px;
-  left: 0;
-  right: 0;
+  inset-inline-start: 0;
+  inset-inline-end: 0;
   display: flex;
   justify-content: center;
   pointer-events: none;
@@ -268,7 +268,7 @@
 .wp-notice {
   position: absolute;
   top: 12px;
-  right: 12px;
+  inset-inline-end: 12px;
   margin: 0;
   padding: 6px 10px;
   background: rgba(0, 0, 0, 0.8);
@@ -279,7 +279,7 @@
 .wp-drift {
   position: absolute;
   top: 6px;
-  left: 8px;
+  inset-inline-start: 8px;
   margin: 0;
   font-size: 0.7rem;
   color: var(--sr-text-3, #7d786b);

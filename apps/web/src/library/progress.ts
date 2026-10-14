@@ -18,6 +18,7 @@
 // so a save always applies.
 import { apiFetch } from '../api/client';
 import type { Chapter, ChapterProgress, Series } from './types';
+import { t } from '../i18n';
 
 export const USE_SERVER_PROGRESS = true;
 
@@ -239,4 +240,8 @@ export function setProgressApi(api: ProgressApi | null) {
 
 /** "Chapter 36 · Page 2 of 6" */
 export const progressLine = (i: Pick<ProgressInput, 'chapterNumber' | 'pageIndex' | 'pageCount'>) =>
-  `Chapter ${i.chapterNumber} · Page ${i.pageIndex + 1} of ${i.pageCount}`;
+  t('library.progress.line', {
+    chapter: i.chapterNumber,
+    page: i.pageIndex + 1,
+    total: i.pageCount,
+  });

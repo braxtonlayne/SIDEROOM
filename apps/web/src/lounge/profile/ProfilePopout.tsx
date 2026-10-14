@@ -2,7 +2,7 @@ import { Avatar, DropdownMenu, Icon, Modal, usePortalTarget, useFloating } from 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { apiFetch } from '../../api/client';
-import { useT } from '../../i18n';
+import { formatDate, useT } from '../../i18n';
 import { useViewer } from '../../settings/server/hooks';
 import {
   useCurrentUser,
@@ -260,7 +260,7 @@ function ProfileCard({ target }: { target: ProfileTarget }) {
             <h3 id="pop-since-h" className="lng-pop-h">
               {t('lounge.profilePopout.memberSince')}
             </h3>
-            <p>{new Date(since).toLocaleDateString([], { dateStyle: 'medium' })}</p>
+            <p>{formatDate(new Date(since), { dateStyle: 'medium' })}</p>
           </section>
         )}
         {target.guildId && <RoleChips target={target} />}
@@ -371,9 +371,7 @@ function FullProfile({ target, onClose }: { target: ProfileTarget; onClose: () =
             {profile.friends_since && (
               <p>
                 {t('lounge.profilePopout.friendsSince', {
-                  date: new Date(profile.friends_since).toLocaleDateString([], {
-                    dateStyle: 'medium',
-                  }),
+                  date: formatDate(new Date(profile.friends_since), { dateStyle: 'medium' }),
                 })}
               </p>
             )}
