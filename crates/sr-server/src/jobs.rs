@@ -37,15 +37,18 @@ const PURGE_MAX_BATCHES: usize = 100;
 
 /// Deletes purge-due messages and their edit history in one statement.
 ///
-/// Messages under a moderation hold are never purged. `message_edits` has no
+/// Messages under a moderation hold are never purged, nor is a message with a held
+/// attachment (deleting it would cascade to the held row; D-122, XC-MOD-001). `message_edits` has no
 /// foreign key to the partitioned `messages` table, so it is deleted explicitly
 /// by the same statement (open question 94). The data-modifying CTEs run in a
 /// single statement, so the two deletes commit together.
-const PURGE_SQL: &str = "\
+pub(crate) const PURGE_SQL: &str = "\
 WITH doomed AS ( \
     DELETE FROM messages WHERE id IN ( \
         SELECT id FROM messages \
         WHERE purge_after IS NOT NULL AND purge_after <= now() AND hold_id IS NULL \
+          AND NOT EXISTS (SELECT 1 FROM attachments a \
+                          WHERE a.message_id = messages.id AND a.hold_id IS NOT NULL) \
         ORDER BY purge_after \
         LIMIT $1) \
     RETURNING id), \
@@ -360,5 +363,155 @@ mod tests {
     fn partitions_run_at_0010_utc() {
         let midnight = 1_772_323_200_000_i64;
         assert_eq!(partitions_delay(midnight), Duration::from_secs(600));
+    }
+}
+
+/// XC-MOD-001: the retention purge skips anything under a moderation hold (D-122).
+#[cfg(test)]
+mod hold_guard_tests {
+    use super::*;
+    use sr_db::testing::TestDb;
+
+    async fn exec(pool: &PgPool, sql: &str, binds: &[i64]) {
+        let mut q = sqlx::query(sqlx::AssertSqlSafe(sql.to_owned()));
+        for b in binds {
+            q = q.bind(*b);
+        }
+        q.execute(pool).await.expect(sql);
+    }
+
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn purge_skips_held_messages_and_messages_with_held_attachments() {
+        let db = TestDb::new().await.expect("test db");
+        let pool = db.pool();
+        exec(pool, "INSERT INTO persons (id) VALUES (1)", &[]).await;
+        exec(
+            pool,
+            "INSERT INTO accounts (id, person_id, username, email, password_hash) \
+             VALUES (1, 1, 'u1', 'u1@example.test', 'x')",
+            &[],
+        )
+        .await;
+        exec(
+            pool,
+            "INSERT INTO moderation_holds (id, reason) VALUES (7, 'case')",
+            &[],
+        )
+        .await;
+        exec(pool, "INSERT INTO channels (id, type) VALUES (10, 1)", &[]).await;
+        let _: String = sqlx::query_scalar("SELECT sr_ensure_message_partition(CURRENT_DATE)")
+            .fetch_one(pool)
+            .await
+            .expect("partition");
+        // Snowflakes in the current month: ids embed the time.
+        let base: i64 =
+            sqlx::query_scalar("SELECT sr_snowflake_floor(date_trunc('month', now())) + 1000")
+                .fetch_one(pool)
+                .await
+                .expect("floor");
+        let (plain, held, held_att, kept) = (base, base + 1, base + 2, base + 3);
+        for id in [plain, held, held_att, kept] {
+            exec(
+                pool,
+                "INSERT INTO messages (id, channel_id, author_id, visibility, deleted_at, purge_after, hold_id) \
+                 VALUES ($1, 10, 1, 'user_deleted', now() - interval '31 days', \
+                         now() - interval '1 day', NULL)",
+                &[id],
+            )
+            .await;
+        }
+        // `kept` is not yet due.
+        exec(
+            pool,
+            "UPDATE messages SET purge_after = now() + interval '1 day' WHERE id = $1",
+            &[kept],
+        )
+        .await;
+        exec(
+            pool,
+            "UPDATE messages SET hold_id = 7 WHERE id = $1",
+            &[held],
+        )
+        .await;
+        exec(
+            pool,
+            "INSERT INTO attachments (id, message_id, uploader_id, filename, size_bytes, storage_key, hold_id) \
+             VALUES (100, $1, 1, 'a.png', 1, 'k', 7)",
+            &[held_att],
+        )
+        .await;
+
+        let purged = purge_deleted_messages(pool).await.expect("purge");
+        assert_eq!(purged, 1, "only the plain, due, unheld message goes");
+        let left: Vec<i64> = sqlx::query_scalar("SELECT id FROM messages ORDER BY id")
+            .fetch_all(pool)
+            .await
+            .expect("ids");
+        assert_eq!(left, vec![held, held_att, kept]);
+        let atts: i64 = sqlx::query_scalar("SELECT count(*) FROM attachments WHERE id = 100")
+            .fetch_one(pool)
+            .await
+            .expect("count");
+        assert_eq!(atts, 1, "the held attachment row survives");
+
+        // Lifting the hold makes the message purgeable again.
+        exec(
+            pool,
+            "UPDATE attachments SET hold_id = NULL WHERE id = 100",
+            &[],
+        )
+        .await;
+        exec(
+            pool,
+            "UPDATE messages SET hold_id = NULL WHERE id = $1",
+            &[held],
+        )
+        .await;
+        assert_eq!(purge_deleted_messages(pool).await.expect("purge"), 2);
+        db.cleanup().await.expect("cleanup");
+    }
+
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn upload_gc_and_row_delete_skip_held_attachments() {
+        let db = TestDb::new().await.expect("test db");
+        let pool = db.pool();
+        exec(pool, "INSERT INTO persons (id) VALUES (1)", &[]).await;
+        exec(
+            pool,
+            "INSERT INTO accounts (id, person_id, username, email, password_hash) \
+             VALUES (1, 1, 'u1', 'u1@example.test', 'x')",
+            &[],
+        )
+        .await;
+        exec(
+            pool,
+            "INSERT INTO moderation_holds (id, reason) VALUES (7, 'case')",
+            &[],
+        )
+        .await;
+        for (id, hold) in [(1_i64, "NULL"), (2, "7")] {
+            exec(
+                pool,
+                &format!(
+                    "INSERT INTO attachments (id, uploader_id, filename, size_bytes, storage_key, hold_id, created_at) \
+                     VALUES ({id}, 1, 'a.png', 1, 'k{id}', {hold}, now() - interval '2 days')"
+                ),
+                &[],
+            )
+            .await;
+        }
+        let stale = sr_db::chat_repo::stale_pending_attachments(pool, now_unix_ms(), 10)
+            .await
+            .expect("stale");
+        assert_eq!(stale.len(), 1);
+        assert_eq!(stale[0].0.get(), 1);
+        let ids = [sr_core::AttachmentId::new(1), sr_core::AttachmentId::new(2)];
+        let removed = sr_db::chat_repo::delete_attachment_rows(pool, &ids)
+            .await
+            .expect("delete");
+        assert_eq!(removed, 1, "the held row is not deletable by the sweep");
+        db.cleanup().await.expect("cleanup");
     }
 }
