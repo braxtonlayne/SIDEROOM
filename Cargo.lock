@@ -5279,6 +5279,7 @@ dependencies = [
  "async-trait",
  "axum",
  "bytes",
+ "futures",
  "http-body-util",
  "serde",
  "serde_json",
@@ -5287,6 +5288,8 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tower",
+ "tracing",
+ "utoipa",
 ]
 
 [[package]]

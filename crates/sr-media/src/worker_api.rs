@@ -19,6 +19,7 @@ use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
+use utoipa::ToSchema;
 
 /// Route prefix; see [`crate::http::router`].
 pub const API_PREFIX: &str = "/api/v1/transcode/worker";
@@ -30,7 +31,7 @@ pub const MAX_OUTPUT_FILES: usize = 200_000;
 
 // ---- wire types ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, ToSchema)]
 pub struct WorkerCapabilities {
     pub nvenc: bool,
     pub encoders: Vec<String>,
@@ -71,7 +72,7 @@ pub struct HeartbeatResponse {
     pub drain: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum JobKind {
     Proxy,
@@ -177,7 +178,7 @@ pub struct ClaimResponse {
     pub job: Option<ClaimedJob>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Stage {
     Download,
@@ -188,7 +189,7 @@ pub enum Stage {
     Upload,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct ProgressRequest {
     pub stage: Stage,
     /// Overall percent, 0..=100.
@@ -212,7 +213,7 @@ pub struct InitUploadRequest {
     pub size: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct PartUrl {
     pub part_number: u32,
     pub url: String,
@@ -228,7 +229,7 @@ pub struct InitUploadResponse {
     pub expires_at: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct PartDone {
     pub part_number: u32,
     pub etag: String,
@@ -351,7 +352,7 @@ pub struct WorkerRecord {
     pub drain: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum JobState {
     Queued,

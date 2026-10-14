@@ -44,6 +44,9 @@ CREATE TABLE video_assets (
     poster_paths       TEXT[] NOT NULL DEFAULT '{}',
     -- The review proxy: a single MP4 (storage key), deleted after publishing.
     proxy_key          TEXT,
+    proxy_created_at   TIMESTAMPTZ,
+    -- Set when retention deleted the original object (a re-transcode then needs a new upload).
+    original_deleted_at TIMESTAMPTZ,
     published_at       TIMESTAMPTZ,
     ended_at           TIMESTAMPTZ,
     created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
