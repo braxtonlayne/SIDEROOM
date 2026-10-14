@@ -10,6 +10,7 @@ pub mod admin_repo;
 pub mod auth_repo;
 pub mod auth_store;
 pub mod chat_repo;
+pub mod cinema_repo;
 mod error;
 mod guild_admin_repo;
 pub mod invite_join;

@@ -1315,6 +1315,2691 @@
         ]
       }
     },
+    "/admin/cinema/collections": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Every collection, drafts included (`MANAGE_COLLECTIONS`).",
+        "operationId": "admin_cinema_collections",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Create a collection (`MANAGE_COLLECTIONS`).",
+        "operationId": "admin_cinema_create_collection",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Collection"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/collections/{collection_id}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "A collection with its titles in order, drafts included (`MANAGE_COLLECTIONS`).",
+        "operationId": "admin_cinema_collection",
+        "parameters": [
+          {
+            "name": "collection_id",
+            "in": "path",
+            "description": "Collection snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Replace the settings of a collection (`MANAGE_COLLECTIONS`).",
+        "operationId": "admin_cinema_update_collection",
+        "parameters": [
+          {
+            "name": "collection_id",
+            "in": "path",
+            "description": "Collection snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Collection"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Delete a collection (`MANAGE_COLLECTIONS`).",
+        "operationId": "admin_cinema_delete_collection",
+        "parameters": [
+          {
+            "name": "collection_id",
+            "in": "path",
+            "description": "Collection snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/collections/{collection_id}/items": {
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Replace the titles of a collection, in display order (`MANAGE_COLLECTIONS`).",
+        "operationId": "admin_cinema_set_collection_items",
+        "parameters": [
+          {
+            "name": "collection_id",
+            "in": "path",
+            "description": "Collection snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionItemsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/episodes/{episode_id}": {
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Replace the editable fields of an episode (`PUBLISH_MEDIA`). The asset link is untouched.",
+        "operationId": "admin_cinema_update_episode",
+        "parameters": [
+          {
+            "name": "episode_id",
+            "in": "path",
+            "description": "Episode snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EpisodeInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Episode"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Delete an episode (`DELETE_CONTENT`). Deleting the last playable thing of a published title unpublishes it.",
+        "operationId": "admin_cinema_delete_episode",
+        "parameters": [
+          {
+            "name": "episode_id",
+            "in": "path",
+            "description": "Episode snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/episodes/{episode_id}/asset": {
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Link or unlink the playable asset of an episode (`PUBLISH_MEDIA`). Unlinking unpublishes the episode.",
+        "operationId": "admin_cinema_link_episode_asset",
+        "parameters": [
+          {
+            "name": "episode_id",
+            "in": "path",
+            "description": "Episode snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssetBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Episode"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/episodes/{episode_id}/markers": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Skip windows of an episode, published or not (`PUBLISH_MEDIA`).",
+        "operationId": "admin_cinema_episode_markers",
+        "parameters": [
+          {
+            "name": "episode_id",
+            "in": "path",
+            "description": "Episode snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkerList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Replace the skip windows of an episode (`PUBLISH_MEDIA`).",
+        "operationId": "admin_cinema_replace_episode_markers",
+        "parameters": [
+          {
+            "name": "episode_id",
+            "in": "path",
+            "description": "Episode snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkersBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkerList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/episodes/{episode_id}/publish": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Publish an episode (`PUBLISH_MEDIA`). An episode without an asset stays a draft (409).",
+        "operationId": "admin_cinema_publish_episode",
+        "parameters": [
+          {
+            "name": "episode_id",
+            "in": "path",
+            "description": "Episode snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Episode"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/episodes/{episode_id}/unpublish": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Unpublish an episode (`PUBLISH_MEDIA` or `DELETE_CONTENT`).",
+        "operationId": "admin_cinema_unpublish_episode",
+        "parameters": [
+          {
+            "name": "episode_id",
+            "in": "path",
+            "description": "Episode snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Episode"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/seasons/{season_id}": {
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Replace the editable fields of a season (`PUBLISH_MEDIA`).",
+        "operationId": "admin_cinema_update_season",
+        "parameters": [
+          {
+            "name": "season_id",
+            "in": "path",
+            "description": "Season snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeasonInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Season"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Delete a season with its episodes (`DELETE_CONTENT`).",
+        "operationId": "admin_cinema_delete_season",
+        "parameters": [
+          {
+            "name": "season_id",
+            "in": "path",
+            "description": "Season snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/seasons/{season_id}/episodes": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Add an episode (`PUBLISH_MEDIA`).",
+        "operationId": "admin_cinema_create_episode",
+        "parameters": [
+          {
+            "name": "season_id",
+            "in": "path",
+            "description": "Season snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EpisodeInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Episode"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/titles": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "All titles, drafts included (`PUBLISH_MEDIA`).",
+        "operationId": "admin_cinema_list",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/TitleKind"
+            }
+          },
+          {
+            "name": "published",
+            "in": "query",
+            "description": "`true` for published, `false` for drafts and unpublished titles.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "title",
+            "in": "query",
+            "description": "Title substring.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "age",
+            "in": "query",
+            "description": "`include` (default), `hide` or `only`.",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/AgeFilter"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "`updated` (default), `newest`, `title`, `year` or `runtime`.",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/SortKey"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 24.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TitlePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Create a draft title (`PUBLISH_MEDIA`).",
+        "operationId": "admin_cinema_create_title",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TitleInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Title"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/titles/{title_id}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "A title with everything under it, published or not (`PUBLISH_MEDIA`).",
+        "operationId": "admin_cinema_title",
+        "parameters": [
+          {
+            "name": "title_id",
+            "in": "path",
+            "description": "Title snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTitleDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Replace the editable fields of a title (`PUBLISH_MEDIA`). The asset link is untouched.",
+        "operationId": "admin_cinema_update_title",
+        "parameters": [
+          {
+            "name": "title_id",
+            "in": "path",
+            "description": "Title snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TitleInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Title"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Delete a title with everything under it (`DELETE_CONTENT`).",
+        "operationId": "admin_cinema_delete_title",
+        "parameters": [
+          {
+            "name": "title_id",
+            "in": "path",
+            "description": "Title snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/titles/{title_id}/artwork": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Reserve an artwork object for a title and get a presigned `PUT` URL (`PUBLISH_MEDIA`).\nUpload the image with the same `Content-Type`, then save the returned `key` as the\ntitle's `poster_key` / `backdrop_key` / `logo_key`, an episode's `still_key` or a\nseason's `poster_key`.",
+        "operationId": "admin_cinema_artwork_upload",
+        "parameters": [
+          {
+            "name": "title_id",
+            "in": "path",
+            "description": "Title snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtworkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtworkUpload"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/titles/{title_id}/asset": {
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Link or unlink the playable asset of a film (`PUBLISH_MEDIA`).",
+        "operationId": "admin_cinema_link_title_asset",
+        "parameters": [
+          {
+            "name": "title_id",
+            "in": "path",
+            "description": "Title snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssetBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Title"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/titles/{title_id}/markers": {
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Replace the skip windows of a title (`PUBLISH_MEDIA`): at most one of each kind, inside 24 hours.",
+        "operationId": "admin_cinema_replace_title_markers",
+        "parameters": [
+          {
+            "name": "title_id",
+            "in": "path",
+            "description": "Title snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkersBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkerList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/titles/{title_id}/merge": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Merge this title into another (`PUBLISH_MEDIA` and `DELETE_CONTENT`): seasons, episodes,\nvariants, trailers, markers and collection places move (the target wins a clash and fills\nits gaps from this title); this title stays as a redirect.",
+        "operationId": "admin_cinema_merge_title",
+        "parameters": [
+          {
+            "name": "title_id",
+            "in": "path",
+            "description": "Title snowflake to merge away",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MergeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Title"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/titles/{title_id}/publish": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Publish a title (`PUBLISH_MEDIA`). A title without a playable asset or a published episode stays a draft (409).",
+        "operationId": "admin_cinema_publish_title",
+        "parameters": [
+          {
+            "name": "title_id",
+            "in": "path",
+            "description": "Title snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Title"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/titles/{title_id}/seasons": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Add a season (`PUBLISH_MEDIA`).",
+        "operationId": "admin_cinema_create_season",
+        "parameters": [
+          {
+            "name": "title_id",
+            "in": "path",
+            "description": "Title snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeasonInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Season"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/titles/{title_id}/trailers": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Add a trailer to a title (`PUBLISH_MEDIA`).",
+        "operationId": "admin_cinema_create_trailer",
+        "parameters": [
+          {
+            "name": "title_id",
+            "in": "path",
+            "description": "Title snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrailerInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Trailer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/titles/{title_id}/unpublish": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Unpublish a title (`PUBLISH_MEDIA` or `DELETE_CONTENT`).",
+        "operationId": "admin_cinema_unpublish_title",
+        "parameters": [
+          {
+            "name": "title_id",
+            "in": "path",
+            "description": "Title snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Title"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/titles/{title_id}/variants": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Add a variant (another cut) to a title (`PUBLISH_MEDIA`).",
+        "operationId": "admin_cinema_create_variant",
+        "parameters": [
+          {
+            "name": "title_id",
+            "in": "path",
+            "description": "Title snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VariantInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Variant"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/trailers/{trailer_id}": {
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Replace a trailer (`PUBLISH_MEDIA`).",
+        "operationId": "admin_cinema_update_trailer",
+        "parameters": [
+          {
+            "name": "trailer_id",
+            "in": "path",
+            "description": "Trailer snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrailerInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Trailer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Delete a trailer (`PUBLISH_MEDIA`).",
+        "operationId": "admin_cinema_delete_trailer",
+        "parameters": [
+          {
+            "name": "trailer_id",
+            "in": "path",
+            "description": "Trailer snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/variants/{variant_id}": {
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Replace a variant (`PUBLISH_MEDIA`).",
+        "operationId": "admin_cinema_update_variant",
+        "parameters": [
+          {
+            "name": "variant_id",
+            "in": "path",
+            "description": "Variant snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VariantInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Variant"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Delete a variant (`PUBLISH_MEDIA`).",
+        "operationId": "admin_cinema_delete_variant",
+        "parameters": [
+          {
+            "name": "variant_id",
+            "in": "path",
+            "description": "Variant snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/features": {
       "get": {
         "tags": [
@@ -9688,6 +12373,949 @@
           {
             "authorization": []
           },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/cinema/collections": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "Published curated collections (the \"Room selection\" dropdown), by position.",
+        "operationId": "cinema_collections",
+        "parameters": [
+          {
+            "name": "surface",
+            "in": "query",
+            "description": "`discover`, `movies`, `series` or `anime`.",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Surface"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/cinema/discover": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "The home page: tonight's feature plus the rows in page order.",
+        "operationId": "cinema_discover",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Discover"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/cinema/episodes/{episode_id}": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "One episode.",
+        "operationId": "cinema_episode",
+        "parameters": [
+          {
+            "name": "episode_id",
+            "in": "path",
+            "description": "Episode snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Episode"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/cinema/episodes/{episode_id}/markers": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "Skip intro / credits / recap windows of an episode.",
+        "operationId": "cinema_episode_markers",
+        "parameters": [
+          {
+            "name": "episode_id",
+            "in": "path",
+            "description": "Episode snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkerList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/cinema/episodes/{episode_id}/play": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "What the player needs to open an episode, with the next and previous playable episodes.\nA restricted title needs age confirmation (403, code 900011).",
+        "operationId": "cinema_play_episode",
+        "parameters": [
+          {
+            "name": "episode_id",
+            "in": "path",
+            "description": "Episode snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayTarget"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Age-restricted title and the account has not confirmed it is 18 or older: error code 900011 (AGE_CONFIRMATION_REQUIRED). Show the 'Are you 18 or older?' dialog, POST /sr/age-gate, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/cinema/facets": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "Genre, rating and language counts plus year and runtime bounds for the filters.",
+        "operationId": "cinema_facets",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/TitleKind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Facets"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/cinema/rows/{key}": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "One row by key: `new-this-week`, `recently-added`, `anime-room`, `one-more-episode`,\n`films`, `animation-banner`, `genre:<name>`, `collection:<id>` or a provided row such as\n`continue-watching` or `trending` (other query parameters, for example `scope`, go to the\nprovider). An unknown key, or a provided row nobody provides, is 404.",
+        "operationId": "cinema_row",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "description": "Row key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 50, default 20.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Row"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/cinema/search": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "Instant search: matching titles plus people, genre and tag suggestions.",
+        "operationId": "cinema_search",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Search-box text; every word is matched as a prefix.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 50, default 8.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/TitleKind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstantSearch"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/cinema/titles": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "Browse the catalog with filters, sort and keyset pagination.",
+        "operationId": "cinema_browse",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/TitleKind"
+            }
+          },
+          {
+            "name": "genres",
+            "in": "query",
+            "description": "Comma-separated; a title must have every one.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "exclude_genres",
+            "in": "query",
+            "description": "Comma-separated; a title with any of them is left out.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tags",
+            "in": "query",
+            "description": "Comma-separated; a title must have every one.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "year_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "year_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "rating",
+            "in": "query",
+            "description": "Comma-separated content ratings (`PG-13,R`); a title with any of them.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runtime_min",
+            "in": "query",
+            "description": "Minutes.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "runtime_max",
+            "in": "query",
+            "description": "Minutes.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "description": "Audio language (BCP 47).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "subtitle_language",
+            "in": "query",
+            "description": "Subtitle language (BCP 47).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "age",
+            "in": "query",
+            "description": "`include` (default), `hide` or `only`. Everyone may see restricted titles; opening them needs age confirmation. A member who set `cinema.hide_age_restricted` gets `hide` as the default.",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/AgeFilter"
+            }
+          },
+          {
+            "name": "collection",
+            "in": "query",
+            "description": "Only the titles of this collection (\"Room selection\").",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "`updated` (default), `newest`, `title`, `year`, `runtime`, or `curated` (needs `collection`).",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/SortKey"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "description": "`asc` or `desc`; default depends on the sort.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 24.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "`next_cursor` of the previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TitlePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/cinema/titles/{title_id}": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "A title with its seasons, variants, trailers and skip markers. A merged title answers with its target.",
+        "operationId": "cinema_title",
+        "parameters": [
+          {
+            "name": "title_id",
+            "in": "path",
+            "description": "Title snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TitleDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/cinema/titles/{title_id}/episodes": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "Seasons and episodes of a title, in season and episode order.",
+        "operationId": "cinema_episodes",
+        "parameters": [
+          {
+            "name": "title_id",
+            "in": "path",
+            "description": "Title snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "season",
+            "in": "query",
+            "description": "Only this season's episodes.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size, 1 to 500. Without it every episode is returned.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "description": "Cursor from the previous page's `next_cursor`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EpisodeList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/cinema/titles/{title_id}/markers": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "Skip intro / credits / recap windows of a title (films).",
+        "operationId": "cinema_title_markers",
+        "parameters": [
+          {
+            "name": "title_id",
+            "in": "path",
+            "description": "Title snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkerList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/cinema/titles/{title_id}/play": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "What the player needs to open a title: the asset, markers and (for an episodic title) the\nfirst playable episode. A restricted title needs age confirmation (403, code 900011).",
+        "operationId": "cinema_play_title",
+        "parameters": [
+          {
+            "name": "title_id",
+            "in": "path",
+            "description": "Title snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "variant",
+            "in": "query",
+            "description": "A variant (cut) of the title, for example the director's cut.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayTarget"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Age-restricted title and the account has not confirmed it is 18 or older: error code 900011 (AGE_CONFIRMATION_REQUIRED). Show the 'Are you 18 or older?' dialog, POST /sr/age-gate, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
           {
             "session": []
           }
@@ -21094,6 +24722,53 @@
           }
         }
       },
+      "AdminTitleDetail": {
+        "type": "object",
+        "description": "Everything about a title, unpublished parts included (staff).",
+        "required": [
+          "title",
+          "seasons",
+          "episodes",
+          "variants",
+          "trailers",
+          "markers"
+        ],
+        "properties": {
+          "episodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Episode"
+            }
+          },
+          "markers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Marker"
+            }
+          },
+          "seasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Season"
+            }
+          },
+          "title": {
+            "$ref": "#/components/schemas/Title"
+          },
+          "trailers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Trailer"
+            }
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Variant"
+            }
+          }
+        }
+      },
       "AgeFilter": {
         "type": "string",
         "description": "How age-restricted series are treated by a listing. Everyone sees them by\ndefault (`include`); `hide` and `only` are optional filters (D-184).",
@@ -21156,6 +24831,59 @@
           }
         }
       },
+      "ArtworkRequest": {
+        "type": "object",
+        "required": [
+          "slot",
+          "content_type"
+        ],
+        "properties": {
+          "content_type": {
+            "type": "string",
+            "description": "`image/webp`, `image/jpeg` or `image/png`."
+          },
+          "slot": {
+            "$ref": "#/components/schemas/ArtworkSlot"
+          }
+        }
+      },
+      "ArtworkSlot": {
+        "type": "string",
+        "description": "What an artwork upload is for; only names the object.",
+        "enum": [
+          "poster",
+          "backdrop",
+          "logo",
+          "still",
+          "season_poster"
+        ]
+      },
+      "ArtworkUpload": {
+        "type": "object",
+        "description": "A reserved artwork object: `PUT` the image to `upload_url` with the same `Content-Type`,\nthen save `key` as `poster_key` / `backdrop_key` / `logo_key` / `still_key` / season `poster_key`.",
+        "required": [
+          "key",
+          "upload_url",
+          "content_type",
+          "expires_in_secs"
+        ],
+        "properties": {
+          "content_type": {
+            "type": "string"
+          },
+          "expires_in_secs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "key": {
+            "type": "string"
+          },
+          "upload_url": {
+            "type": "string"
+          }
+        }
+      },
       "AssertionCredential": {
         "type": "object",
         "description": "The assertion a browser produced for `navigator.credentials.get`.",
@@ -21201,6 +24929,18 @@
               "null"
             ],
             "description": "`userHandle` (present for discoverable credentials)."
+          }
+        }
+      },
+      "AssetBody": {
+        "type": "object",
+        "properties": {
+          "asset_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The playable asset, or `null` to unlink it. Unlinking the last playable thing of a\npublished title unpublishes it."
           }
         }
       },
@@ -22354,6 +26094,164 @@
           }
         }
       },
+      "Collection": {
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "display",
+          "surfaces",
+          "position",
+          "published",
+          "item_count"
+        ],
+        "properties": {
+          "blurb": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "display": {
+            "$ref": "#/components/schemas/CollectionDisplay"
+          },
+          "eyebrow": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "item_count": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Titles in the collection (members count the published ones)."
+          },
+          "name": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "published": {
+            "type": "boolean"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "surfaces": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Surface"
+            }
+          }
+        }
+      },
+      "CollectionDetail": {
+        "type": "object",
+        "required": [
+          "collection",
+          "items"
+        ],
+        "properties": {
+          "collection": {
+            "$ref": "#/components/schemas/Collection"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Title"
+            }
+          }
+        }
+      },
+      "CollectionDisplay": {
+        "type": "string",
+        "description": "How a collection is shown.",
+        "enum": [
+          "row",
+          "hero",
+          "banner"
+        ]
+      },
+      "CollectionInput": {
+        "type": "object",
+        "required": [
+          "slug",
+          "name"
+        ],
+        "properties": {
+          "blurb": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "display": {
+            "$ref": "#/components/schemas/CollectionDisplay"
+          },
+          "eyebrow": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "published": {
+            "type": "boolean"
+          },
+          "slug": {
+            "type": "string",
+            "description": "Lower-case letters, digits and dashes."
+          },
+          "surfaces": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Surface"
+            },
+            "description": "Pages the collection appears on."
+          }
+        }
+      },
+      "CollectionItemsBody": {
+        "type": "object",
+        "required": [
+          "title_ids"
+        ],
+        "properties": {
+          "title_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Titles in display order; replaces the current set."
+          }
+        }
+      },
+      "CollectionList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Collection"
+            }
+          }
+        }
+      },
       "CommentInput": {
         "type": "object",
         "description": "A note on the timeline.",
@@ -23269,6 +27167,25 @@
           }
         }
       },
+      "Discover": {
+        "type": "object",
+        "required": [
+          "hero",
+          "rows"
+        ],
+        "properties": {
+          "hero": {
+            "$ref": "#/components/schemas/Row",
+            "description": "Tonight's feature carousel (display `hero`)."
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Row"
+            }
+          }
+        }
+      },
       "DmChannelObject": {
         "type": "object",
         "required": [
@@ -23516,6 +27433,167 @@
           }
         }
       },
+      "Episode": {
+        "type": "object",
+        "required": [
+          "id",
+          "title_id",
+          "season_id",
+          "season_number",
+          "number",
+          "title",
+          "synopsis",
+          "playable",
+          "published"
+        ],
+        "properties": {
+          "absolute_number": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "air_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`YYYY-MM-DD`."
+          },
+          "asset_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Staff routes only."
+          },
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "playable": {
+            "type": "boolean"
+          },
+          "published": {
+            "type": "boolean"
+          },
+          "published_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "runtime_min": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "season_id": {
+            "type": "string"
+          },
+          "season_number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "still_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "synopsis": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "title_id": {
+            "type": "string"
+          }
+        }
+      },
+      "EpisodeInput": {
+        "type": "object",
+        "required": [
+          "number"
+        ],
+        "properties": {
+          "absolute_number": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Running number across seasons (anime)."
+          },
+          "air_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`YYYY-MM-DD`."
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "runtime_min": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "still_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "synopsis": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "EpisodeList": {
+        "type": "object",
+        "description": "Seasons and a page of episodes.",
+        "required": [
+          "seasons",
+          "episodes"
+        ],
+        "properties": {
+          "episodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Episode"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass as `after` for the next page; absent on the last page."
+          },
+          "seasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Season"
+            }
+          }
+        }
+      },
       "ErrorBody": {
         "type": "object",
         "description": "Discord-style error body (doc 05 section 3).",
@@ -23592,6 +27670,83 @@
               "null"
             ],
             "description": "Accepted; see the module docs (TODO(webhook-author))."
+          }
+        }
+      },
+      "FacetCount": {
+        "type": "object",
+        "required": [
+          "name",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "Facets": {
+        "type": "object",
+        "required": [
+          "genres",
+          "ratings",
+          "languages",
+          "subtitle_languages",
+          "total"
+        ],
+        "properties": {
+          "genres": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FacetCount"
+            }
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FacetCount"
+            }
+          },
+          "ratings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FacetCount"
+            }
+          },
+          "runtime_max": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "subtitle_languages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FacetCount"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "year_max": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "year_min": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
           }
         }
       },
@@ -24703,6 +28858,100 @@
           "credential": {
             "$ref": "#/components/schemas/AssertionCredential",
             "description": "The result of `navigator.credentials.get`."
+          }
+        }
+      },
+      "Marker": {
+        "type": "object",
+        "required": [
+          "kind",
+          "start_ms",
+          "end_ms"
+        ],
+        "properties": {
+          "end_ms": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Staff routes only."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/MarkerKind"
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`manual` or `auto`. Staff routes only."
+          },
+          "start_ms": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "MarkerInput": {
+        "type": "object",
+        "description": "A skip window as sent by editors.",
+        "required": [
+          "kind",
+          "start_ms",
+          "end_ms"
+        ],
+        "properties": {
+          "end_ms": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/MarkerKind"
+          },
+          "start_ms": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "MarkerKind": {
+        "type": "string",
+        "description": "`video_markers.kind`: the windows the player offers to skip.",
+        "enum": [
+          "intro",
+          "credits",
+          "recap"
+        ]
+      },
+      "MarkerList": {
+        "type": "object",
+        "required": [
+          "markers"
+        ],
+        "properties": {
+          "markers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Marker"
+            }
+          }
+        }
+      },
+      "MarkersBody": {
+        "type": "object",
+        "required": [
+          "markers"
+        ],
+        "properties": {
+          "markers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarkerInput"
+            }
           }
         }
       },
@@ -26245,6 +30494,89 @@
           }
         }
       },
+      "PlayTarget": {
+        "type": "object",
+        "description": "What a player needs to open a title or an episode.",
+        "required": [
+          "title_id",
+          "asset_id",
+          "title",
+          "age_restricted",
+          "markers"
+        ],
+        "properties": {
+          "age_restricted": {
+            "type": "boolean"
+          },
+          "asset_id": {
+            "type": "string",
+            "description": "The asset the playback routes take."
+          },
+          "episode_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "episode_number": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "episode_title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "markers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Marker"
+            }
+          },
+          "next_episode_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "previous_episode_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runtime_min": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "season_number": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "title": {
+            "type": "string"
+          },
+          "title_id": {
+            "type": "string"
+          },
+          "variant_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "PollVoters": {
         "type": "object",
         "description": "Users who picked one answer.",
@@ -27079,6 +31411,106 @@
           }
         }
       },
+      "Row": {
+        "type": "object",
+        "required": [
+          "key",
+          "kind",
+          "display",
+          "title",
+          "items"
+        ],
+        "properties": {
+          "collection_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "display": {
+            "$ref": "#/components/schemas/CollectionDisplay"
+          },
+          "explore": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Query string for `GET /cinema/titles` listing the same set (\"Explore all\")."
+          },
+          "eyebrow": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RowItem"
+            }
+          },
+          "key": {
+            "type": "string",
+            "description": "`new-this-week`, `genre:Drama`, `collection:123`, `continue-watching`, ..."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/RowKind"
+          },
+          "subtitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "RowItem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Title"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "episode_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The episode to resume or play next (\"continue watching\")."
+              },
+              "progress_percent": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "format": "float",
+                "description": "0 to 100, for the poster card's progress bar."
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "\"Because you watched X\", \"3 friends are watching\"."
+              }
+            }
+          }
+        ],
+        "description": "A title in a row, with the extras a row provider may attach."
+      },
+      "RowKind": {
+        "type": "string",
+        "description": "Where a row's titles come from.",
+        "enum": [
+          "curated",
+          "generated",
+          "provided"
+        ]
+      },
       "RuleBody": {
         "type": "object",
         "description": "Body of create (all of `name`, `event_type`, `trigger_type`, `actions` required)\nand modify (every field optional; `trigger_type` cannot change).",
@@ -27269,6 +31701,81 @@
           },
           "text": {
             "type": "string"
+          }
+        }
+      },
+      "Season": {
+        "type": "object",
+        "required": [
+          "id",
+          "title_id",
+          "number",
+          "episode_count"
+        ],
+        "properties": {
+          "episode_count": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Published episodes (all of them on staff routes)."
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "poster_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "synopsis": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title_id": {
+            "type": "string"
+          }
+        }
+      },
+      "SeasonInput": {
+        "type": "object",
+        "required": [
+          "number"
+        ],
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32",
+            "description": "0 is the specials season."
+          },
+          "poster_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "synopsis": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -28204,6 +32711,16 @@
           "Withdrawn"
         ]
       },
+      "Surface": {
+        "type": "string",
+        "description": "A page a collection can be placed on.",
+        "enum": [
+          "discover",
+          "movies",
+          "series",
+          "anime"
+        ]
+      },
       "SuspectPerson": {
         "type": "object",
         "required": [
@@ -28548,6 +33065,526 @@
           }
         ],
         "description": "A thread channel object; for forum posts also the starter `message`."
+      },
+      "Title": {
+        "type": "object",
+        "description": "A title as the API shows it.",
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "alt_titles",
+          "synopsis",
+          "genres",
+          "tags",
+          "languages",
+          "subtitle_languages",
+          "cast",
+          "directors",
+          "writers",
+          "studios",
+          "crew",
+          "age_restricted",
+          "external_ids",
+          "season_count",
+          "episode_count",
+          "has_trailer",
+          "playable",
+          "published",
+          "created_at_ms",
+          "updated_at_ms"
+        ],
+        "properties": {
+          "age_restricted": {
+            "type": "boolean"
+          },
+          "alt_titles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "asset_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The playable asset of a film. Staff routes only."
+          },
+          "backdrop_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cast": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "content_rating": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "crew": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "directors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "episode_count": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Published episodes."
+          },
+          "external_ids": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "genres": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "has_trailer": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TitleKind"
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "last_content_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "logo_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "original_title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "playable": {
+            "type": "boolean",
+            "description": "Something can be opened: the title's own asset or a published episode."
+          },
+          "poster_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Signed, short-lived artwork URLs."
+          },
+          "published": {
+            "type": "boolean"
+          },
+          "published_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "runtime_min": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "season_count": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Seasons with a published episode."
+          },
+          "studios": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "subtitle_languages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "synopsis": {
+            "type": "string"
+          },
+          "tagline": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "writers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "TitleDetail": {
+        "type": "object",
+        "description": "A title with what belongs to it, as members see it.",
+        "required": [
+          "title",
+          "seasons",
+          "variants",
+          "trailers",
+          "markers"
+        ],
+        "properties": {
+          "markers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Marker"
+            },
+            "description": "Skip windows of the title itself (films); episodes have their own."
+          },
+          "seasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Season"
+            }
+          },
+          "title": {
+            "$ref": "#/components/schemas/Title"
+          },
+          "trailers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Trailer"
+            }
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Variant"
+            }
+          }
+        }
+      },
+      "TitleInput": {
+        "type": "object",
+        "description": "Editable fields of a title (create, and full replace on update). The asset link is not\npart of it, so editing metadata never unlinks a playable asset.",
+        "required": [
+          "kind",
+          "title"
+        ],
+        "properties": {
+          "age_restricted": {
+            "type": "boolean"
+          },
+          "alt_titles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "backdrop_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cast": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "content_rating": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "\"PG-13\", \"TV-MA\", ..."
+          },
+          "crew": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Other crew as \"Role: Name\" lines."
+          },
+          "directors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "external_ids": {
+            "type": "object",
+            "description": "`{\"imdb\": \"tt0111161\", \"tmdb\": \"278\"}`.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "genres": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TitleKind"
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Audio languages (BCP 47)."
+          },
+          "logo_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "original_title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "poster_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Storage keys under `cinema/`."
+          },
+          "runtime_min": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Minutes: a film's runtime, or the typical episode runtime."
+          },
+          "studios": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "subtitle_languages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Subtitle languages (BCP 47)."
+          },
+          "synopsis": {
+            "type": "string"
+          },
+          "tagline": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "title": {
+            "type": "string"
+          },
+          "writers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "TitleKind": {
+        "type": "string",
+        "description": "`video_titles.kind`.",
+        "enum": [
+          "movie",
+          "series",
+          "anime"
+        ]
+      },
+      "TitlePage": {
+        "type": "object",
+        "description": "A page of a browse listing.",
+        "required": [
+          "items",
+          "total"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Title"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass as `cursor` for the next page; absent on the last page."
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Titles matching the filters, independent of the cursor."
+          }
+        }
+      },
+      "Trailer": {
+        "type": "object",
+        "required": [
+          "id",
+          "title_id",
+          "label",
+          "kind",
+          "playable",
+          "age_gated"
+        ],
+        "properties": {
+          "age_gated": {
+            "type": "boolean",
+            "description": "The title is age-restricted and the account has not confirmed its age, so `asset_id`\nis withheld."
+          },
+          "asset_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TrailerKind"
+          },
+          "label": {
+            "type": "string"
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "playable": {
+            "type": "boolean"
+          },
+          "title_id": {
+            "type": "string"
+          }
+        }
+      },
+      "TrailerInput": {
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TrailerKind"
+          },
+          "label": {
+            "type": "string"
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "TrailerKind": {
+        "type": "string",
+        "description": "`video_trailers.kind`.",
+        "enum": [
+          "trailer",
+          "teaser",
+          "clip"
+        ]
       },
       "TriggerMetadata": {
         "type": "object",
@@ -29149,6 +34186,91 @@
             "type": "integer",
             "format": "int64",
             "description": "Bumps on every save; 0 when nothing was ever saved."
+          }
+        }
+      },
+      "Variant": {
+        "type": "object",
+        "required": [
+          "id",
+          "title_id",
+          "label",
+          "playable",
+          "position"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "playable": {
+            "type": "boolean"
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "runtime_min": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "title_id": {
+            "type": "string"
+          }
+        }
+      },
+      "VariantInput": {
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "properties": {
+          "asset_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "description": "\"Director's Cut\", \"Extended\"."
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "position": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "runtime_min": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
           }
         }
       },

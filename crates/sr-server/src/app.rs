@@ -489,6 +489,35 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             ))),
     );
 
+    // The Cinema catalog (CIN-DATA-*): Postgres repository, signed artwork URLs (the same CDN
+    // signer), and a title search index in `<search dir>/cinema`, rebuilt from the database at
+    // startup. Row providers for user-data rows (continue watching, trending, ...) are added to
+    // this service by the social work (`CinemaService::with_provider`).
+    let cinema_index = Arc::new(
+        sr_cinema::TitleIndex::open_in_dir(&std::path::Path::new(&search_dir).join("cinema"))
+            .context("opening the cinema search index")?,
+    );
+    let cinema_service = sr_cinema::CinemaService::new(
+        Arc::new(sr_db::cinema_repo::PgCinemaRepo::new(pool.clone())),
+        cdn_signer.clone(),
+        clock.clone(),
+        id_src.clone(),
+    )
+    .with_index(cinema_index)
+    .with_storage(storage.clone());
+    let cinema_titles = cinema_service
+        .reindex_all()
+        .await
+        .map_err(|e| anyhow::anyhow!("indexing the cinema catalog: {e}"))?;
+    tracing::info!(titles = cinema_titles, "cinema search index rebuilt");
+    let cinema_deps = Arc::new(
+        routes::cinema::CinemaDeps::new(cinema_service)
+            .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone())))
+            .with_prefs(Arc::new(crate::settings_pg::PgCinemaPrefs::new(
+                pool.clone(),
+            ))),
+    );
+
     // The review pipeline (REV-*): submissions of the Library kinds, reviewed by staff with
     // REVIEW_READING and published through the same Library service. The submitter hears
     // about every step as SR_SUBMISSION_UPDATE.
@@ -618,6 +647,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(Arc::new(AutoModGateHandle(settings_deps)))
         .extension(search_deps)
         .extension(library_deps)
+        .extension(cinema_deps)
         .extension(review_deps)
         .extension(Arc::new(routes::media::MediaDeps::new(storage.clone())))
         .extension(Arc::new(routes::cdn::CdnDeps::new(

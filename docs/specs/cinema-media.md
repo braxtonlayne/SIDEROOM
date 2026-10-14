@@ -73,3 +73,103 @@ Ratings (1–10), reviews (spoiler toggle), episode comments, lists, trending sc
 - [ ] Resume position syncs across devices within 10s.
 - [ ] Non-Patrons get 403 on download endpoints.
 - [ ] Safari iOS (PWA) plays HLS with subtitles and resumes correctly.
+
+## 8. HTTP API as built (catalog)
+
+Owner: `p6-cinema-data` (crate `sr-cinema`, `sr-db::cinema_repo`, `sr-api::routes::cinema`). This section is the contract the web agents code against; it was written before the code and is kept in step with it. Later changes are listed at the end of the handoff (`docs/dev/handoff/feat-p6-cinema-data.md`). Playback manifests, assets, renditions and transcoding (CIN-ING) and watch progress, lists, ratings and the other social tables (CIN-SOC, CIN-MY) belong to other work and are not in this section.
+
+Conventions (same as the Library): ids are Snowflakes and travel as decimal **strings**; timestamps are Unix **milliseconds**; every route needs a session (401 otherwise); errors use the standard `{code, message}` body; unknown, unpublished or merged-away objects are 404 (a merged title answers with its target).
+
+### 8.1 Kinds and age restriction (D-184)
+
+* `kind` is `movie`, `series` or `anime`. An `anime` title is episodic when it has seasons, otherwise it is a single film (playable through the title's own asset). Doc 04 listed four kinds (`anime_series`, `anime_movie`); the catalog uses three because the episode structure already tells them apart.
+* Every account sees age-restricted titles everywhere (browse, search, rows, detail, seasons, episodes, artwork). `age=include|hide|only` on listings, default `include`; a member who set `cinema.hide_age_restricted: true` in the user settings blob (`{"cinema": {"hide_age_restricted": true}}`, default false) gets `hide` as the default. An explicit `age=` always wins. The same flag leaves restricted titles out of search suggestions.
+* **Opening** a restricted title (the `/play` routes below, and the trailers' `asset_id`) answers **403 code 900011** `AGE_CONFIRMATION_REQUIRED` until `accounts.age_confirmed_at` is set (`POST /sr/age-gate {over_18:true}`, D-032); retry afterwards. Other cinema backends gate on the same rule through `CinemaService::resolve_play`.
+
+### 8.2 Member routes (`/cinema/*`)
+
+| Route | Result |
+|---|---|
+| `GET /cinema/discover` | `Discover {hero: Row, rows: Row[]}` |
+| `GET /cinema/rows/{key}?limit=&...` | `Row` (`limit` 1..50, default 20; other query params go to provider rows, e.g. `scope=friends\|known\|global`) |
+| `GET /cinema/collections?surface=` | `CollectionList {items: Collection[]}` (published, by `position`); `surface` is `discover\|movies\|series\|anime` |
+| `GET /cinema/titles` | `TitlePage {items: Title[], total, next_cursor?}` browse, see 8.4 |
+| `GET /cinema/facets?kind=` | `Facets` for the genre chips and the filters drawer |
+| `GET /cinema/titles/{id}` | `TitleDetail {title, seasons, variants, trailers, markers}` |
+| `GET /cinema/titles/{id}/episodes?season=&limit=&after=` | `EpisodeList {seasons, episodes, next_cursor?}` |
+| `GET /cinema/episodes/{id}` | `Episode` |
+| `GET /cinema/titles/{id}/markers`, `GET /cinema/episodes/{id}/markers` | `MarkerList {markers: Marker[]}` |
+| `GET /cinema/titles/{id}/play?variant=` | `PlayTarget`, 403 `900011` for a restricted title without age confirmation |
+| `GET /cinema/episodes/{id}/play` | `PlayTarget` (same gate) |
+| `GET /cinema/search?q=&limit=&kind=` | `InstantSearch {titles, people, genres, tags}` (`limit` 1..50, default 8) |
+
+#### Title
+
+```
+Title {
+  id, kind, title, original_title?, alt_titles[], year?, runtime_min?, content_rating?,
+  synopsis, tagline?, genres[], tags[], languages[], subtitle_languages[],
+  cast[], directors[], writers[], studios[], crew[],      // free text lists (D-089)
+  age_restricted, poster_url?, backdrop_url?, logo_url?,  // signed /cdn/cinema/... links
+  external_ids: {imdb?, tmdb?, ...},
+  season_count, episode_count,                            // published seasons/episodes
+  has_trailer, playable,                                  // playable: something can be opened
+  published, published_at_ms?, last_content_at_ms?, created_at_ms, updated_at_ms,
+  asset_id?                                               // staff routes only
+}
+```
+
+`RowItem` is a `Title` plus optional `episode_id`, `progress_percent` (0..100) and `reason` (row-provider extras), flattened into one object. `Season {id, title_id, number, name?, synopsis?, poster_url?, episode_count}`. `Episode {id, title_id, season_id, season_number, number, absolute_number?, title, synopsis, air_date? ("YYYY-MM-DD"), runtime_min?, still_url?, playable, published, published_at_ms?, asset_id?}`. `Variant {id, title_id, label, notes?, runtime_min?, playable, position, asset_id?}` (the title itself is the default cut; variants are the other cuts, for example "Director's Cut"). `Trailer {id, title_id, label, kind (trailer|teaser|clip), language?, playable, age_gated, asset_id?}` (`asset_id` is withheld for a restricted title until the account confirmed its age). `Marker {kind (intro|credits|recap), start_ms, end_ms}` (staff routes add `id` and `source`).
+
+`PlayTarget {title_id, episode_id?, variant_id?, asset_id, title, episode_title?, season_number?, episode_number?, runtime_min?, age_restricted, markers[], next_episode_id?, previous_episode_id?}`. `asset_id` is what the ingest/playback routes take; `next_episode_id` follows season then episode order over published, playable episodes.
+
+#### Rows
+
+`Row {key, kind (curated|generated|provided), display (row|hero|banner), title, eyebrow?, subtitle?, collection_id?, explore?, items: RowItem[]}`. `explore` is a query string for `GET /cinema/titles` that lists the same set ("Explore all"). Keys:
+
+* generated: `new-this-week` (changed in the last 7 days), `recently-added`, `anime-room`, `one-more-episode` (episodic titles by latest episode), `films` ("For the love of cinema"), `animation-banner` (display `banner`, the fanned poster collage), `genre:<name>`;
+* curated: `collection:<id>` and the spotlight rows (display `hero`);
+* provided (other backends plug these in through `RowProvider`, section 8.6): `continue-watching`, `recently-explored`, `trending`, `because-you-watched`, `friends-watching`, `requests-fulfilled`. A key nobody provides is 404 on `/cinema/rows/{key}` and simply absent from `discover`.
+
+`discover` order: hero, continue-watching, recently-explored, the curated rows for surface `discover`, animation-banner, anime-room, one-more-episode, films, trending, because-you-watched, new-this-week, friends-watching, requests-fulfilled, recently-added. Empty rows are left out. The hero is the published collection with `display=hero` for the surface (staff-curated), falling back to the newest published titles that have a backdrop.
+
+`Collection {id, slug, name, eyebrow?, blurb?, display, surfaces[], position, published, item_count}`.
+
+#### 8.3 Facets
+
+`Facets {genres: [{name, count}], ratings: [{name, count}], languages: [{name, count}], subtitle_languages: [{name, count}], year_min?, year_max?, runtime_max?, total}` over the published titles of `kind` (all kinds when omitted).
+
+#### 8.4 Browse parameters
+
+`GET /cinema/titles`: `kind`, `genres` (csv, every one), `exclude_genres` (csv), `tags` (csv), `year_from`, `year_to`, `rating` (csv of content ratings, any), `runtime_min`, `runtime_max` (minutes), `language` (audio, BCP 47), `subtitle_language`, `age` (`include|hide|only`), `collection` (collection id, "Room selection"), `sort` (`updated` default, `newest`, `title`, `year`, `runtime`, `curated` only with `collection`), `order` (`asc|desc`, default depends on the sort: title, runtime and curated ascending, the others descending), `limit` (1..100, default 24), `cursor` (the previous page's `next_cursor`). Keyset pagination: `next_cursor` is absent on the last page; a cursor made for another sort is 400. `total` is the count for the filters, independent of the cursor.
+
+### 8.5 Staff routes (`/admin/cinema/*`)
+
+Staff session required (401/403). Every successful change is written to the staff access log (`cinema.title.create`, `cinema.title.publish`, `cinema.episode.update`, `cinema.collection.update`, ...). Permissions (doc 07): `PUBLISH_MEDIA` creates, edits and publishes; `DELETE_CONTENT` deletes titles, seasons and episodes; unpublishing takes either; merging takes both; collections take `MANAGE_COLLECTIONS`.
+
+| Route | Body -> result |
+|---|---|
+| `GET\|POST /admin/cinema/titles` | list (filters `kind`, `published`, `title`, `age`, `sort`, `order`, `limit`, `offset`; drafts included) -> `TitlePage`; `TitleInput` -> 201 `Title` |
+| `GET\|PUT\|DELETE /admin/cinema/titles/{id}` | `AdminTitleDetail {title, seasons, episodes, variants, trailers, markers}` (everything, unpublished too); `TitleInput` -> `Title`; 204 |
+| `POST /admin/cinema/titles/{id}/publish`, `/unpublish` | `Title` (publish needs something playable, else 409) |
+| `POST /admin/cinema/titles/{id}/merge` | `{target_id}` -> target `Title` |
+| `POST /admin/cinema/titles/{id}/artwork` | `{slot: poster\|backdrop\|logo\|still\|season-poster, content_type: image/webp\|image/jpeg\|image/png}` -> `ArtworkUpload {key, upload_url, content_type, expires_in_secs}`: `PUT` the image to `upload_url` (same `Content-Type`), then save `key` as `poster_key` / `backdrop_key` / `logo_key` / `still_key` / a season's `poster_key` |
+| `PUT /admin/cinema/titles/{id}/asset` | `{asset_id: string\|null}` -> `Title` (links the playable asset; the asset tables belong to the ingest work) |
+| `POST /admin/cinema/titles/{id}/seasons` | `SeasonInput` -> 201 `Season` |
+| `PUT\|DELETE /admin/cinema/seasons/{id}` | `SeasonInput` -> `Season`; 204 |
+| `POST /admin/cinema/seasons/{id}/episodes` | `EpisodeInput` -> 201 `Episode` |
+| `PUT\|DELETE /admin/cinema/episodes/{id}` | `EpisodeInput` -> `Episode`; 204 |
+| `POST /admin/cinema/episodes/{id}/publish`, `/unpublish` | `Episode` (publish needs an asset, else 409) |
+| `PUT /admin/cinema/episodes/{id}/asset` | `{asset_id\|null}` -> `Episode` |
+| `POST /admin/cinema/titles/{id}/variants`, `PUT\|DELETE /admin/cinema/variants/{id}` | `VariantInput` -> `Variant` |
+| `POST /admin/cinema/titles/{id}/trailers`, `PUT\|DELETE /admin/cinema/trailers/{id}` | `TrailerInput` -> `Trailer` |
+| `PUT /admin/cinema/titles/{id}/markers`, `GET\|PUT /admin/cinema/episodes/{id}/markers` | `{markers: [{kind, start_ms, end_ms}]}` replaces the set -> `MarkerList` |
+| `GET\|POST /admin/cinema/collections` | all collections, drafts too; `CollectionInput` -> 201 `Collection` |
+| `GET\|PUT\|DELETE /admin/cinema/collections/{id}` | `CollectionDetail {collection, items: Title[]}`; `CollectionInput` -> `Collection`; 204 |
+| `PUT /admin/cinema/collections/{id}/items` | `{title_ids: string[]}` (ordered, replaces) -> `CollectionDetail` |
+
+`TitleInput` carries the editable fields of `Title` (`kind`, `title`, `original_title`, `alt_titles`, `year`, `runtime_min`, `content_rating`, `synopsis`, `tagline`, `genres`, `tags`, `languages`, `subtitle_languages`, `cast`, `directors`, `writers`, `studios`, `crew`, `age_restricted`, `poster_key`, `backdrop_key`, `logo_key`, `external_ids`); artwork keys must start with `cinema/`. A published title always has something playable: unlinking the last asset, unpublishing or deleting the last published episode (or its season) unpublishes the title. The asset link is deliberately not part of the metadata input, so editing metadata never unlinks a playable asset. `SeasonInput {number, name?, synopsis?, poster_key?}`, `EpisodeInput {number, absolute_number?, title, synopsis, air_date?, runtime_min?, still_key?}`, `VariantInput {label, notes?, runtime_min?, asset_id?, position?}`, `TrailerInput {label, kind, language?, asset_id?}`, `CollectionInput {slug, name, eyebrow?, blurb?, display (row|hero|banner), surfaces[], position, published}`.
+
+### 8.6 Plugging in user-data rows (`RowProvider`)
+
+Rows that need user data are produced by the social work through `sr_cinema::RowProvider` (`key()`, `async row(&RowContext) -> Option<ProvidedRow>`); register with `CinemaService::with_provider`. The provider returns ordered `RowEntry {title_id, episode_id?, progress_percent?, reason?}`; the service loads the titles through the viewer's scope (published, age filter), so a provider cannot leak a draft. Catalog changes that social tables must follow (a merge) reach them through `sr_cinema::CatalogObserver::title_merged`.

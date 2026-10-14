@@ -1,6 +1,7 @@
 //! Postgres-backed pieces of the settings and search wiring.
 
 use async_trait::async_trait;
+use sr_api::routes::cinema::CinemaPrefs;
 use sr_api::routes::library::LibraryPrefs;
 use sr_api::routes::search::AgeGate;
 use sr_core::UserId;
@@ -66,6 +67,39 @@ impl LibraryPrefs for PgLibraryPrefs {
             Ok(v) => v.flatten().unwrap_or(false),
             Err(e) => {
                 tracing::warn!(error = %e, "library preference lookup failed; using the default");
+                false
+            }
+        }
+    }
+}
+
+/// Reads `cinema.hide_age_restricted` from the user settings blob (D-184):
+/// `{"cinema": {"hide_age_restricted": true}}`. Absent or unreadable means false.
+pub struct PgCinemaPrefs {
+    pool: PgPool,
+}
+
+impl PgCinemaPrefs {
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
+    }
+}
+
+#[async_trait]
+impl CinemaPrefs for PgCinemaPrefs {
+    async fn hide_age_restricted(&self, user: UserId) -> bool {
+        let id = i64::try_from(user.get()).unwrap_or(0);
+        match sqlx::query_scalar::<_, Option<bool>>(
+            "SELECT (settings #>> '{cinema,hide_age_restricted}') = 'true' \
+             FROM user_settings WHERE user_id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        {
+            Ok(v) => v.flatten().unwrap_or(false),
+            Err(e) => {
+                tracing::warn!(error = %e, "cinema preference lookup failed; using the default");
                 false
             }
         }

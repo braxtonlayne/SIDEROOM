@@ -3,12 +3,12 @@
 Phase 5. Spec: [cinema-media](../specs/cinema-media.md). Mockups: `cinema-discover.jpg`, `cinema-movies.jpg`.
 
 ## CIN-DATA — Catalog backend
-- [ ] **CIN-DATA-001** [DB] video_titles, seasons, episodes, video_assets, renditions, audio_tracks, subtitle_tracks, trailers, markers, watch_progress, transcode_jobs, collections
-- [ ] **CIN-DATA-002** [BE] Title/season/episode CRUD (publishers), publish/unpublish, merge duplicates, variants
-- [ ] **CIN-DATA-003** [BE] Catalog API (discover rows, browse by kind with filters/sort, title detail, episodes, search)
-- [ ] **CIN-DATA-004** [BE] Tantivy index for titles (title, original title, cast/crew text, tags)
-- [ ] **CIN-DATA-005** [BE] Collections/rows API (curated + generated: continue watching, trending scoped, because you watched, new this week, friends are watching)
-- [ ] **CIN-DATA-006** [BE] Age-restricted filtering
+- [x] **CIN-DATA-001** [DB] video_titles, seasons, episodes, video_assets, renditions, audio_tracks, subtitle_tracks, trailers, markers, watch_progress, transcode_jobs, collections (catalog side done in migration 0370: titles, seasons, episodes, variants, trailers, markers, collections, collection items; the asset/rendition/track/job tables belong to CIN-ING and `watch_progress` to CIN-PLY-007, they reference `asset_id` / `title_id` / `episode_id` without foreign keys)
+- [x] **CIN-DATA-002** [BE] Title/season/episode CRUD (publishers), publish/unpublish, merge duplicates, variants (`/admin/cinema/*`, merge duplicates, variants, markers, trailers, artwork upload reservation, access log)
+- [x] **CIN-DATA-003** [BE] Catalog API (discover rows, browse by kind with filters/sort, title detail, episodes, search) (`/cinema/*`: discover, rows, browse with keyset paging, facets, title detail, episodes, play target, search; spec section 8)
+- [x] **CIN-DATA-004** [BE] Tantivy index for titles (title, original title, cast/crew text, tags) (tantivy `TitleIndex`, rebuilt from Postgres at boot, `/cinema/search`)
+- [x] **CIN-DATA-005** [BE] Collections/rows API (curated + generated: continue watching, trending scoped, because you watched, new this week, friends are watching) (curated collections + generated rows done; continue watching, trending, because you watched and friends are watching plug in through `RowProvider`, to be implemented by CIN-SOC-002)
+- [x] **CIN-DATA-006** [BE] Age-restricted filtering (`age=hide|include|only`, `cinema.hide_age_restricted`, 403 900011 on `/play`)
 
 ## CIN-ING — Ingest & transcoding
 - [ ] **CIN-ING-001** [BE] Probe service (`ffmpeg-next`): streams, codecs, duration, HDR, interlace, languages, embedded subs
