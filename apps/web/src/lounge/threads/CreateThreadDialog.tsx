@@ -1,4 +1,4 @@
-import { Button, Modal, Select, TextInput } from '@sideroom/ui';
+import { Button, Modal, Select, Switch, TextInput } from '@sideroom/ui';
 import { useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
 import { t, useT, type MessageKey } from '../../i18n';
@@ -43,6 +43,7 @@ export function CreateThreadDialog({
   const message = useStore((s) => (messageId ? s.messages[messageId] : undefined));
   const [name, setName] = useState(() => suggestThreadName(message?.content ?? ''));
   const [archive, setArchive] = useState('1440');
+  const [isPrivate, setIsPrivate] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const openThread = useLoungeGotoThread();
@@ -60,7 +61,7 @@ export function CreateThreadDialog({
       const body = { name: trimmed, auto_archive_duration: Number(archive) };
       const created = messageId
         ? await useThreads.getState().createFromMessage(channelId, messageId, body)
-        : await useThreads.getState().createStandalone(channelId, body);
+        : await useThreads.getState().createStandalone(channelId, { ...body, private: isPrivate });
       onClose();
       openThread(guildId, channelId, created.id);
     } catch (err) {
@@ -95,6 +96,14 @@ export function CreateThreadDialog({
           onValueChange={setArchive}
           options={ARCHIVE_CHOICES.map((c) => ({ value: c.value, label: t(c.labelKey) }))}
         />
+        {!messageId && (
+          <Switch
+            label={t('lounge.createThread.privateLabel')}
+            description={t('lounge.createThread.privateHelp')}
+            checked={isPrivate}
+            onChange={(e) => setIsPrivate(e.target.checked)}
+          />
+        )}
         <div className="lng-form-actions">
           <Button variant="ghost" onClick={onClose}>
             {t('lounge.createThread.cancel')}

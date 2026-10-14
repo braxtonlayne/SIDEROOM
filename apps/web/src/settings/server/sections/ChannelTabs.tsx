@@ -335,6 +335,8 @@ export function ChannelFeatures({
     if (ok) await onChanged();
   };
 
+  if (channel.type === 15 || channel.type === 16)
+    return <ForumSettings channel={channel} onChanged={onChanged} />;
   if (!hostsThreads) return <p className="ss-na">{t('settings.channelTabs.noFeatures')}</p>;
   return (
     <div className="ss-form">
@@ -385,6 +387,127 @@ export function ChannelFeatures({
         </select>
       </div>
       <p className="ss-na">{t('settings.channelTabs.featuresNote')}</p>
+    </div>
+  );
+}
+
+const MAX_TAGS = 20;
+
+/** Forum and media settings: tags, default reaction, sort order and layout (LNG-FRM-006). */
+export function ForumSettings({
+  channel,
+  onChanged,
+}: {
+  channel: api.ChannelObject;
+  onChanged: () => Promise<void>;
+}) {
+  const t = useT();
+  const action = useAction();
+  const [tags, setTags] = useState<api.ForumTag[]>(channel.available_tags ?? []);
+  const [reaction, setReaction] = useState(channel.default_reaction_emoji?.emoji_name ?? '');
+  const [sort, setSort] = useState(String(channel.default_sort_order ?? 0));
+  const [layout, setLayout] = useState(String(channel.default_forum_layout ?? 0));
+  const patchTag = (i: number, patch: Partial<api.ForumTag>) =>
+    setTags((list) => list.map((tag, k) => (k === i ? { ...tag, ...patch } : tag)));
+  const valid = tags.every((tag) => tag.name.trim().length > 0);
+
+  const save = async () => {
+    const ok = await action.run(async () => {
+      await api.modifyChannel(channel.id, {
+        available_tags: tags.map((tag) => ({ ...tag, name: tag.name.trim() })),
+        default_reaction_emoji: reaction.trim() ? { emoji_name: reaction.trim() } : null,
+        default_sort_order: Number(sort),
+        default_forum_layout: Number(layout),
+      });
+      return true;
+    }, t('settings.channelTabs.saved'));
+    if (ok) await onChanged();
+  };
+
+  return (
+    <div className="ss-form">
+      <ActionStatus error={action.error} done={action.done} />
+      <h3 className="ss-sub-title">{t('settings.forumSettings.tags')}</h3>
+      <ul className="ss-list">
+        {tags.map((tag, i) => (
+          <li key={tag.id ?? `new-${i}`} className="ss-row">
+            <TextInput
+              label={t('settings.forumSettings.tagName', { n: i + 1 })}
+              value={tag.name}
+              maxLength={20}
+              onChange={(e) => patchTag(i, { name: e.target.value })}
+            />
+            <label>
+              <input
+                type="checkbox"
+                checked={!!tag.moderated}
+                onChange={(e) => patchTag(i, { moderated: e.target.checked })}
+              />{' '}
+              {t('settings.forumSettings.moderated')}
+            </label>
+            <Button
+              variant="ghost"
+              onClick={() => setTags((list) => list.filter((_, k) => k !== i))}
+            >
+              {t('settings.forumSettings.removeTag', { n: i + 1 })}
+            </Button>
+          </li>
+        ))}
+      </ul>
+      <Button
+        variant="secondary"
+        disabled={tags.length >= MAX_TAGS}
+        onClick={() => setTags((list) => [...list, { name: '' }])}
+      >
+        {t('settings.forumSettings.addTag')}
+      </Button>
+      <div>
+        <label className="ss-field-label" htmlFor="ss-forum-reaction">
+          {t('settings.forumSettings.reaction')}
+        </label>
+        <input
+          id="ss-forum-reaction"
+          className="ss-select"
+          value={reaction}
+          maxLength={8}
+          onChange={(e) => setReaction(e.target.value)}
+        />
+      </div>
+      <div>
+        <label className="ss-field-label" htmlFor="ss-forum-sort">
+          {t('settings.forumSettings.sort')}
+        </label>
+        <select
+          id="ss-forum-sort"
+          className="ss-select"
+          value={sort}
+          onChange={(e) => setSort(e.target.value)}
+        >
+          <option value="0">{t('settings.forumSettings.sortActivity')}</option>
+          <option value="1">{t('settings.forumSettings.sortCreated')}</option>
+        </select>
+      </div>
+      <div>
+        <label className="ss-field-label" htmlFor="ss-forum-layout">
+          {t('settings.forumSettings.layout')}
+        </label>
+        <select
+          id="ss-forum-layout"
+          className="ss-select"
+          value={layout}
+          onChange={(e) => setLayout(e.target.value)}
+        >
+          <option value="0">{t('settings.forumSettings.layoutDefault')}</option>
+          <option value="1">{t('settings.forumSettings.layoutList')}</option>
+          <option value="2">{t('settings.forumSettings.layoutGallery')}</option>
+        </select>
+      </div>
+      <p className="ss-na">{t('settings.forumSettings.guidelinesNote')}</p>
+      <div className="ss-actions">
+        <Button loading={action.busy} disabled={!valid} onClick={() => void save()}>
+          {t('settings.forumSettings.save')}
+        </Button>
+      </div>
     </div>
   );
 }
