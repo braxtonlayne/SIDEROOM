@@ -103,6 +103,7 @@ pub(crate) struct State {
     typing: HashMap<(ChannelId, UserId), Instant>,
     /// Voice states by user (a user is in one voice channel at a time). In memory, per node.
     pub(crate) voice: HashMap<UserId, VoiceState>,
+    pub(crate) vx: crate::voice::VoiceExtra,
     background: Vec<JoinHandle<()>>,
 }
 
@@ -133,7 +134,7 @@ struct Dispatch {
 }
 
 /// Unix milliseconds as an ISO 8601 UTC timestamp (`2026-01-02T03:04:05.678000+00:00`).
-fn iso_utc(ms: i64) -> String {
+pub(crate) fn iso_utc(ms: i64) -> String {
     let secs = ms.div_euclid(1000);
     let millis = ms.rem_euclid(1000);
     let days = secs.div_euclid(86_400);

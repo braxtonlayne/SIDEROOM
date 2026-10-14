@@ -16,6 +16,10 @@ pub mod op {
     pub const INVALID_SESSION: u8 = 9;
     pub const HELLO: u8 = 10;
     pub const HEARTBEAT_ACK: u8 = 11;
+    pub const STREAM_CREATE: u8 = 18;
+    pub const STREAM_DELETE: u8 = 19;
+    pub const STREAM_WATCH: u8 = 20;
+    pub const STREAM_SET_PAUSED: u8 = 22;
     pub const REQUEST_SOUNDBOARD_SOUNDS: u8 = 31;
     pub const WATCH_PARTY_SYNC: u8 = 100;
     pub const E2EE_MLS: u8 = 101;
@@ -27,6 +31,10 @@ pub mod op {
         matches!(
             op,
             HEARTBEAT
+                | STREAM_CREATE
+                | STREAM_DELETE
+                | STREAM_WATCH
+                | STREAM_SET_PAUSED
                 | IDENTIFY
                 | PRESENCE_UPDATE
                 | VOICE_STATE_UPDATE
@@ -114,6 +122,9 @@ pub mod intents {
             "MESSAGE_POLL_VOTE_ADD" | "MESSAGE_POLL_VOTE_REMOVE" => Some(GUILD_MESSAGE_POLLS),
             "MESSAGE_CREATE" => Some(GUILD_MESSAGES),
             "TYPING_START" => Some(GUILD_MESSAGE_TYPING),
+            "STAGE_INSTANCE_CREATE" | "STAGE_INSTANCE_UPDATE" | "STAGE_INSTANCE_DELETE" => {
+                Some(GUILDS)
+            }
             "VOICE_STATE_UPDATE" => Some(GUILD_VOICE_STATES),
             _ => None,
         }

@@ -23,6 +23,10 @@ const TEXT: ChannelId = ChannelId::new(23);
 const STAGE: ChannelId = ChannelId::new(24);
 const STAFF_VOICE: ChannelId = ChannelId::new(25);
 const FOREIGN: ChannelId = ChannelId::new(26);
+const ADULT: ChannelId = ChannelId::new(27);
+const AFK: ChannelId = ChannelId::new(28);
+/// A group DM of MEMBER, FRIEND and MOD.
+const DM: ChannelId = ChannelId::new(300);
 
 const MEMBER: u64 = 1;
 const FRIEND: u64 = 2;
@@ -33,9 +37,13 @@ const OUTSIDER: u64 = 5;
 fn u(n: u64) -> UserId {
     UserId::new(n)
 }
-
 fn member_perms() -> Permissions {
-    Permissions::VIEW_CHANNEL | Permissions::CONNECT | Permissions::SPEAK | Permissions::USE_VAD
+    Permissions::VIEW_CHANNEL
+        | Permissions::CONNECT
+        | Permissions::SPEAK
+        | Permissions::USE_VAD
+        | Permissions::STREAM
+        | Permissions::REQUEST_TO_SPEAK
 }
 
 fn mod_perms() -> Permissions {
@@ -43,16 +51,22 @@ fn mod_perms() -> Permissions {
         | Permissions::MUTE_MEMBERS
         | Permissions::DEAFEN_MEMBERS
         | Permissions::MOVE_MEMBERS
+        | Permissions::MANAGE_CHANNELS
 }
 
 struct Dir {
     perms: Mutex<HashMap<(UserId, ChannelId), Permissions>>,
+    /// Users who answered yes to "Are you 18 or older?".
+    adults: Mutex<Vec<UserId>>,
+    afk: Mutex<VoiceGuildInfo>,
+    limits: Mutex<HashMap<UserId, VoiceLimits>>,
+    default_limits: Mutex<VoiceLimits>,
 }
 
 impl Dir {
     fn new() -> Self {
         let mut p = HashMap::new();
-        for ch in [LOBBY, ROOM_B, SMALL, TEXT, STAGE, STAFF_VOICE] {
+        for ch in [LOBBY, ROOM_B, SMALL, TEXT, STAGE, STAFF_VOICE, ADULT, AFK] {
             p.insert((u(MEMBER), ch), member_perms());
             p.insert((u(FRIEND), ch), member_perms());
             p.insert((u(MOD), ch), mod_perms());
@@ -63,6 +77,10 @@ impl Dir {
         p.insert((u(FRIEND), STAFF_VOICE), Permissions::empty());
         Self {
             perms: Mutex::new(p),
+            adults: Mutex::new(Vec::new()),
+            afk: Mutex::new(VoiceGuildInfo::default()),
+            limits: Mutex::new(HashMap::new()),
+            default_limits: Mutex::new(VoiceLimits::free()),
         }
     }
 }
@@ -101,7 +119,7 @@ impl GuildDirectory for Dir {
             return None;
         }
         let (kind, limit) = match ch {
-            LOBBY | ROOM_B | STAFF_VOICE => (VoiceChannelKind::Voice, 0),
+            LOBBY | ROOM_B | STAFF_VOICE | ADULT | AFK => (VoiceChannelKind::Voice, 0),
             SMALL => (VoiceChannelKind::Voice, 1),
             TEXT => (VoiceChannelKind::Other, 0),
             STAGE => (VoiceChannelKind::Stage, 0),
@@ -111,6 +129,7 @@ impl GuildDirectory for Dir {
             kind,
             user_limit: limit,
             bitrate: Some(64_000),
+            age_restricted: ch == ADULT,
         })
     }
 
@@ -131,6 +150,40 @@ impl GuildDirectory for Dir {
                 .copied()
                 .unwrap_or_else(Permissions::empty),
         )
+    }
+
+    async fn channel_guild(&self, ch: ChannelId) -> Option<GuildId> {
+        matches!(
+            ch,
+            LOBBY | ROOM_B | SMALL | TEXT | STAGE | STAFF_VOICE | FOREIGN | ADULT | AFK
+        )
+        .then_some(G)
+    }
+
+    async fn voice_guild(&self, guild: GuildId) -> VoiceGuildInfo {
+        if guild == G {
+            *self.afk.lock().unwrap()
+        } else {
+            VoiceGuildInfo::default()
+        }
+    }
+
+    async fn age_confirmed(&self, user: UserId) -> bool {
+        self.adults.lock().unwrap().contains(&user)
+    }
+
+    async fn voice_limits(&self, user: UserId, _guild: Option<GuildId>) -> VoiceLimits {
+        self.limits
+            .lock()
+            .unwrap()
+            .get(&user)
+            .cloned()
+            .unwrap_or_else(|| self.default_limits.lock().unwrap().clone())
+    }
+
+    async fn dm_call_members(&self, ch: ChannelId, user: UserId) -> Option<Vec<UserId>> {
+        let members = vec![u(MEMBER), u(FRIEND), u(MOD)];
+        (ch == DM && members.contains(&user)).then_some(members)
     }
 
     async fn member_payload(&self, _guild: GuildId, user: UserId) -> Option<Value> {
@@ -172,6 +225,16 @@ impl Recorder {
     }
 }
 
+#[derive(Default)]
+struct CallLog(Mutex<Vec<CallSummary>>);
+
+#[async_trait]
+impl CallHooks for CallLog {
+    async fn call_ended(&self, summary: CallSummary) {
+        self.0.lock().unwrap().push(summary);
+    }
+}
+
 const SECRET: &[u8] = b"gateway-voice-secret";
 
 struct Env {
@@ -179,10 +242,12 @@ struct Env {
     bus: Arc<InProcessBus>,
     dir: Arc<Dir>,
     relay: Arc<Recorder>,
+    calls: Arc<CallLog>,
 }
 
 fn env_with_voice(enabled: bool) -> Env {
     let relay = Arc::new(Recorder::default());
+    let calls = Arc::new(CallLog::default());
     let cfg = GatewayConfig {
         voice: enabled.then(|| VoiceConfig {
             signer: TokenSigner::new(SECRET.to_vec()),
@@ -197,6 +262,7 @@ fn env_with_voice(enabled: bool) -> Env {
             },
             relay: Some(relay.clone()),
             session_grace: Duration::from_secs(20),
+            calls: Some(calls.clone()),
         }),
         ..GatewayConfig::default()
     };
@@ -209,6 +275,7 @@ fn env_with_voice(enabled: bool) -> Env {
         bus,
         dir,
         relay,
+        calls,
     }
 }
 
@@ -419,8 +486,8 @@ async fn refused_joins_say_why_and_change_nothing() {
     expect_error(&mut no_connect, "missing_permission").await;
     a.voice(1, Some(TEXT.get()), false, false).await;
     expect_error(&mut a, "not_voice_channel").await;
-    a.voice(1, Some(STAGE.get()), false, false).await;
-    expect_error(&mut a, "stage_unsupported").await;
+    a.voice(1, Some(ADULT.get()), false, false).await;
+    expect_error(&mut a, "age_confirmation_required").await;
     a.voice(1, Some(999), false, false).await;
     expect_error(&mut a, "unknown_channel").await;
     // Not in the guild at all.
@@ -429,11 +496,12 @@ async fn refused_joins_say_why_and_change_nothing() {
     // A foreign channel id in the right guild.
     a.voice(1, Some(FOREIGN.get()), false, false).await;
     expect_error(&mut a, "unknown_channel").await;
-    // Malformed: no channel_id key, and no guild for a join.
+    // Malformed: no channel_id key.
     a.send(json!({"op": 4, "d": {"guild_id": "1"}})).await;
     expect_error(&mut a, "bad_request").await;
+    // No guild means a DM call, and a server channel is not a DM of yours.
     a.send(json!({"op": 4, "d": {"channel_id": "20"}})).await;
-    expect_error(&mut a, "bad_request").await;
+    expect_error(&mut a, "not_member").await;
     a.send(json!({"op": 4, "d": "nope"})).await;
     expect_error(&mut a, "bad_request").await;
 
@@ -803,7 +871,7 @@ async fn moderation_is_permission_checked_server_side() {
     );
     for (to, err) in [
         (TEXT, ModError::NotVoiceChannel),
-        (STAGE, ModError::StageUnsupported),
+        (ChannelId::new(998), ModError::UnknownChannel),
         (ChannelId::new(999), ModError::UnknownChannel),
     ] {
         assert_eq!(
@@ -1021,3 +1089,6 @@ async fn voice_state_dispatches_need_the_guild_voice_states_intent() {
         None
     );
 }
+
+#[path = "voice_ext_tests.rs"]
+mod ext;

@@ -237,6 +237,12 @@ impl Conn {
                 }
                 Ok(())
             }
+            op::STREAM_CREATE | op::STREAM_DELETE | op::STREAM_WATCH | op::STREAM_SET_PAUSED => {
+                if let Some(s) = self.session.clone() {
+                    self.gw.stream_op(&s, p.op, p.d).await;
+                }
+                Ok(())
+            }
             // Member requests, SR ops: routed to registered handlers; unclaimed
             // opcodes are ignored.
             _ => {
