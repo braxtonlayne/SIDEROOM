@@ -11,7 +11,7 @@ import { MiniPlayerMount } from '../../player/MiniPlayerMount';
 import { installMediaMocks, makeSession, media, resetSession } from '../../player/__tests__/fakes';
 import { STALL_MS } from '../LiveView';
 import { setLivePrefs } from '../livePrefs';
-import { NOW, guide, useTvApi } from './fixtures';
+import { NOW, block, guide, useTvApi } from './fixtures';
 
 beforeAll(() => {
   installMediaMocks();
@@ -316,6 +316,22 @@ describe('live player', () => {
     vi.useRealTimers();
     await userEvent.setup().click(screen.getByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(calls.tunes.length).toBe(5));
+  });
+
+  it('draws its own slate for a block with no media instead of reporting a dropped signal', async () => {
+    const g = guide();
+    g.blocks.c101 = [
+      block('c101', -5, 30, { id: 'slate', title: "We'll be right back", kind: 'filler' }),
+    ];
+    useTvApi({ guide: g });
+    const ctx = await openAndPlay();
+    expect(await screen.findByTestId('slate')).toHaveTextContent("We'll be right back");
+    act(() => ctx.engine.emit({ type: 'error', fatal: true, kind: 'media' }));
+    act(() => {
+      ctx.video.dispatchEvent(new Event('waiting'));
+    });
+    expect(screen.queryByText('The signal dropped')).not.toBeInTheDocument();
+    expect(screen.queryByText('Signal lost. Reconnecting…')).not.toBeInTheDocument();
   });
 
   it('shows an error with retry when the engine fails fatally', async () => {

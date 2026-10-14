@@ -10,7 +10,7 @@ import { PauseGlyph, PlayGlyph, VolumeGlyph, Fullscreen, ExitFullscreen } from '
 import { Feedback } from '../player/Overlays';
 import { playerSession, usePlayer } from '../player/session';
 import { getChannelNow, getGuide, tvKeys } from './api';
-import { ChannelList, ChannelOsd, InfoBanner, TuningStatic } from './LiveOverlays';
+import { ChannelList, ChannelOsd, InfoBanner, Slate, TuningStatic } from './LiveOverlays';
 import { playStaticBurst, setLivePrefs, useLivePrefs } from './livePrefs';
 import {
   HOUR,
@@ -223,7 +223,16 @@ export function LiveView({
 
   /* ---- stalls and reconnects ---- */
   const gaveUp = reconnects >= MAX_RECONNECTS;
-  const stalled = status === 'ready' && ((waiting && !needsGesture) || ended);
+  // A slate or off-air block has no stream (the playlists answer 404): the client draws its own slate and does not
+  // treat the missing picture as a dropped signal.
+  const onSlate = now?.playable === false;
+  const stalled = status === 'ready' && !onSlate && ((waiting && !needsGesture) || ended);
+  // When the slate ends the player (which gave up on the 404) tunes in again.
+  const wasSlate = useRef(false);
+  useEffect(() => {
+    if (wasSlate.current && !onSlate) retuneRef.current();
+    wasSlate.current = onSlate;
+  }, [onSlate]);
   useEffect(() => {
     if (!stalled || gaveUp) return;
     const t = setTimeout(
@@ -335,7 +344,7 @@ export function LiveView({
   const title = now?.title ?? info?.title ?? 'Live TV';
   const rootLabel = `Live TV: ${channel ? `channel ${channel.number} ${channel.call_sign}` : 'channel'}`;
   const volPct = Math.round((muted ? 0 : volume) * 100);
-  const failed = failure ?? (status === 'error' || gaveUp ? STOPPED : null);
+  const failed = failure ?? (!onSlate && (status === 'error' || gaveUp) ? STOPPED : null);
   const winSpan = win ? win.end - win.start : 0;
   const crtClass = useMemo(() => (prefs.crt ? 'ltv-crt-on' : ''), [prefs.crt]);
 
@@ -361,6 +370,7 @@ export function LiveView({
       />
       {prefs.crt && <div className="ltv-crt" aria-hidden="true" />}
       <TuningStatic visible={showStatic} />
+      {onSlate && now && <Slate title={now.title} />}
 
       <div className="cpl-top">
         <button type="button" className="cpl-btn" aria-label="Back to the guide" onClick={leave}>

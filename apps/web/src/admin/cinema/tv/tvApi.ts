@@ -1,33 +1,11 @@
-// Data layer for the Live TV admin screens (TV-ADM-001..005): channels, schedule rules, generated schedule preview
-// and publish, manual override ("now control"), and the what-aired report. Needs MANAGE_TV (doc 07).
-//
-// ASSUMED CONTRACT until p8-livetv-be documents "HTTP API as built" in docs/specs/cinema-live-tv.md (the spec
-// names the viewer routes only). Change this file and the MSW fixtures when the real routes differ. A server
-// without the routes (404/405/501 without an API error body) gets a "not available yet" state on every screen.
-//
-//   GET    /admin/tv/channels                                  -> {items: AdminChannel[]}
-//   POST   /admin/tv/channels                                  ChannelInput -> AdminChannel
-//   PUT    /admin/tv/channels/{id}                             ChannelInput -> AdminChannel
-//   DELETE /admin/tv/channels/{id}                             -> 204
-//   POST   /admin/tv/channels/{id}/logo                        {content_type} -> {key, upload_url, ...}
-//   GET    /admin/tv/channels/{id}/schedule?from&to[&at]       -> SchedulePreview (generated, not yet published)
-//   POST   /admin/tv/channels/{id}/schedule/publish            {from, to} -> SchedulePreview
-//   GET    /admin/tv/channels/{id}/override                    -> {override, now}
-//   POST   /admin/tv/channels/{id}/override                    {title_id, episode_id?, reason?} -> OverrideState
-//   DELETE /admin/tv/channels/{id}/override                    -> 204 (back to the schedule)
-//   POST   /admin/tv/channels/{id}/skip                        {reason?} -> OverrideState (next programme now)
-//   GET    /admin/tv/channels/{id}/aired?from&to               -> {items: AiredEntry[]}
-//
-// Ids are Snowflake strings, timestamps Unix milliseconds.
+// Data layer for the Live TV admin screens (TV-ADM-001..005): channels, schedule rules, schedule preview and
+// publish, "now" control, placing programmes, and the what-aired report. Needs MANAGE_TV (doc 07). The routes are
+// docs/specs/cinema-live-tv.md section 8.5 (`/admin/tv/*`, crate sr-tv); ids are Snowflake strings, timestamps
+// Unix milliseconds. Not on the server yet (the screens say so): guide import (TV-ADM-004), logo upload, the weekly
+// grid editor (TV-ADM-003), imported_guide channels.
 import { ApiError, apiFetch } from '../../../api/client';
-import type {
-  ChannelCategory,
-  ChannelKind,
-  FillerPolicy,
-  ProgramKind,
-  TvBlock,
-  TvChannel,
-} from '../../../cinema/tv/types';
+import { toBlock, toChannel, type WireBlock, type WireChannel } from '../../../cinema/tv/api';
+import type { FillerPolicy, TvBlock, TvChannel } from '../../../cinema/tv/types';
 
 const enc = encodeURIComponent;
 const send = <T>(path: string, method: string, json?: unknown) =>
@@ -49,14 +27,7 @@ export function isUnavailable(e: unknown): boolean {
   );
 }
 
-export type { ChannelCategory, ChannelKind, FillerPolicy, ProgramKind };
-
-export type Ordering = 'sequential' | 'shuffle' | 'weighted';
-export const ORDERINGS: { value: Ordering; label: string }[] = [
-  { value: 'sequential', label: 'Sequential per series' },
-  { value: 'shuffle', label: 'Shuffle' },
-  { value: 'weighted', label: 'Weighted' },
-];
+export type { FillerPolicy };
 export const FILLER_LABELS: Record<FillerPolicy, string> = {
   bumpers: 'Bumpers (short clips tagged filler)',
   next_program_early: 'Start the next programme early',
@@ -64,122 +35,241 @@ export const FILLER_LABELS: Record<FillerPolicy, string> = {
   off_air: 'Off air (color bars and tone)',
 };
 
+/* ------------------------------------------------------------------ rules */
+
+export type PoolKind = 'movie' | 'series' | 'anime';
+export type RestrictedMode = 'exclude' | 'include' | 'only';
+
+export interface DaypartPool {
+  kinds: PoolKind[];
+  genres: string[];
+  tags: string[];
+  title_ids: string[];
+  year_from: number | null;
+  year_to: number | null;
+  collection_id: string | null;
+  min_runtime_min: number | null;
+  max_runtime_min: number | null;
+  restricted: RestrictedMode;
+}
 export interface Daypart {
-  /** "HH:MM" in the channel's time zone. A start later than the end wraps past midnight (22:00 to 02:00). */
+  /** Unique within the channel; keys the sequential cursor. */
+  name: string;
+  /** "HH:MM" in the channel's time zone. An end at or before the start wraps past midnight. */
   start: string;
   end: string;
-  /** Only age-restricted content airs in this window (needs an age-restricted channel). */
-  restricted_only: boolean;
+  /** 0 = Monday. Empty means every day. */
+  days: number[];
+  /** Sequential keeps counting across days (a series marathon). */
+  mode: 'shuffle' | 'sequential';
+  /** Overrun: the last programme may run past the end. Fit: only items that fit. */
+  fit: 'overrun' | 'fit';
+  pool: DaypartPool;
 }
-
 export interface ScheduleRules {
-  pool: {
-    genres: string[];
-    kinds: Exclude<ProgramKind, 'filler'>[];
-    decades: number[];
-    tags: string[];
-    collection: string | null;
-  };
-  block_minutes: number;
-  ordering: Ordering;
+  /** Programmes start on this grid in channel time; 0 means back to back. */
+  grid_minutes: number;
+  /** Shuffle: the last N picks are not repeated (0 to 64). */
+  no_repeat_window: number;
   dayparts: Daypart[];
-  rerun_spacing_hours: number;
 }
 
+export const EMPTY_POOL: DaypartPool = {
+  kinds: [],
+  genres: [],
+  tags: [],
+  title_ids: [],
+  year_from: null,
+  year_to: null,
+  collection_id: null,
+  min_runtime_min: null,
+  max_runtime_min: null,
+  restricted: 'exclude',
+};
+export const newDaypart = (name: string): Daypart => ({
+  name,
+  start: '00:00',
+  end: '00:00',
+  days: [],
+  mode: 'shuffle',
+  fit: 'overrun',
+  pool: { ...EMPTY_POOL },
+});
 export const EMPTY_RULES: ScheduleRules = {
-  pool: { genres: [], kinds: [], decades: [], tags: [], collection: null },
-  block_minutes: 30,
-  ordering: 'sequential',
-  dayparts: [],
-  rerun_spacing_hours: 24,
+  grid_minutes: 30,
+  no_repeat_window: 8,
+  dayparts: [newDaypart('All day')],
 };
 
+/* --------------------------------------------------------------- channels */
+
+export type AdminKind = 'rule_based' | 'manual' | 'imported_guide';
 export interface AdminChannel extends TvChannel {
   enabled: boolean;
   filler_policy: FillerPolicy;
-  rules?: ScheduleRules | null;
-  /** Schedule published up to here (null: nothing published yet). */
-  published_until_ms?: number | null;
+  rules: ScheduleRules | null;
+  theme: string | null;
+  seed: string | number | null;
+  /** Key behind `logo_url` (`tv/...`), recovered from the signed URL so a save keeps the logo. */
+  logo_key: string | null;
 }
+interface WireAdminChannel extends WireChannel {
+  enabled: boolean;
+  filler_policy: FillerPolicy;
+  rules?: ScheduleRules | null;
+  theme?: string | null;
+  seed?: string | number | null;
+}
+
+/** The storage key behind a signed `/cdn/<key>?ex=&sig=` URL, when it is a TV key. */
+export function logoKeyFromUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const path = new URL(url, 'http://local.invalid').pathname;
+    const at = path.indexOf('/cdn/');
+    if (at < 0) return null;
+    const key = decodeURIComponent(path.slice(at + 5));
+    return key.startsWith('tv/') ? key : null;
+  } catch {
+    return null;
+  }
+}
+
+const toAdmin = (w: WireAdminChannel): AdminChannel => ({
+  ...toChannel(w),
+  enabled: w.enabled,
+  filler_policy: w.filler_policy,
+  rules: w.rules ?? null,
+  theme: w.theme ?? null,
+  seed: w.seed ?? null,
+  logo_key: logoKeyFromUrl(w.logo_url),
+});
 
 export interface ChannelInput {
   number: number;
-  call_sign: string;
   name: string;
-  network: string | null;
+  call_sign: string | null;
   era_label: string | null;
+  theme: string | null;
   logo_key?: string | null;
-  kind: ChannelKind;
-  category: ChannelCategory | null;
+  enabled: boolean;
+  kind: AdminKind;
   timezone: string;
   age_restricted: boolean;
-  enabled: boolean;
   filler_policy: FillerPolicy;
   rules: ScheduleRules | null;
 }
 
-export const listChannels = () => get<{ items: AdminChannel[] }>('/admin/tv/channels');
-export const createChannel = (b: ChannelInput) =>
-  send<AdminChannel>('/admin/tv/channels', 'POST', b);
-export const updateChannel = (id: string, b: ChannelInput) =>
-  send<AdminChannel>(`/admin/tv/channels/${enc(id)}`, 'PUT', b);
+export const listChannels = async (): Promise<{ items: AdminChannel[] }> => {
+  const r = await get<{ items: WireAdminChannel[] }>('/admin/tv/channels');
+  return { items: r.items.map(toAdmin) };
+};
+export const createChannel = async (b: ChannelInput) =>
+  toAdmin(await send<WireAdminChannel>('/admin/tv/channels', 'POST', b));
+export const updateChannel = async (id: string, b: ChannelInput) =>
+  toAdmin(await send<WireAdminChannel>(`/admin/tv/channels/${enc(id)}`, 'PUT', b));
 export const deleteChannel = (id: string) => send<void>(`/admin/tv/channels/${enc(id)}`, 'DELETE');
+/** `GET /tv/timezones`: the names the server accepts. */
+export const listTimezones = async () => (await get<{ items: string[] }>('/tv/timezones')).items;
 
-export interface LogoUpload {
-  key: string;
-  upload_url: string;
-  content_type: string;
-}
-export const reserveLogo = (id: string, contentType: string) =>
-  send<LogoUpload>(`/admin/tv/channels/${enc(id)}/logo`, 'POST', { content_type: contentType });
+/* ------------------------------------------------------ schedule and now */
 
-export interface PreviewBlock extends Pick<TvBlock, 'start_ms' | 'end_ms' | 'title' | 'kind'> {
-  id?: string;
-  episode_label?: string | null;
-  /** Where the block comes from: the rules, a manual placement, an override or filler. */
-  source?: 'rules' | 'manual' | 'guide' | 'override' | 'filler';
+export interface Preview {
+  blocks: TvBlock[];
+  warnings: string[];
 }
-export interface SchedulePreview {
-  channel_id: string;
+/** Generated from the current rules without storing anything. */
+export async function previewSchedule(id: string, fromMs: number, toMs: number): Promise<Preview> {
+  const r = await send<{ blocks: WireBlock[]; warnings?: string[] }>(
+    `/admin/tv/channels/${enc(id)}/preview`,
+    'POST',
+    { from_ms: fromMs, to_ms: toMs },
+  );
+  return { blocks: r.blocks.map(toBlock), warnings: r.warnings ?? [] };
+}
+/** The blocks stored for the window (what viewers get). */
+export async function storedSchedule(id: string, fromMs: number, toMs: number): Promise<TvBlock[]> {
+  const r = await get<{ items: WireBlock[] }>(
+    `/admin/tv/channels/${enc(id)}/schedule${qs({ from: fromMs, to: toMs })}`,
+  );
+  return r.items.map(toBlock);
+}
+export interface Published {
   from_ms: number;
   to_ms: number;
-  blocks: PreviewBlock[];
-  generated_at_ms?: number;
-  /** The generated schedule is what viewers see (true after a publish). */
-  published: boolean;
-  warnings?: string[];
+  written: number;
+  removed: number;
+  warnings: string[];
 }
-export const previewSchedule = (id: string, from: number, to: number, at?: number) =>
-  get<SchedulePreview>(`/admin/tv/channels/${enc(id)}/schedule${qs({ from, to, at })}`);
-export const publishSchedule = (id: string, from: number, to: number) =>
-  send<SchedulePreview>(`/admin/tv/channels/${enc(id)}/schedule/publish`, 'POST', { from, to });
+export const publishSchedule = async (id: string, horizonHours: number): Promise<Published> => {
+  const r = await send<Published>(`/admin/tv/channels/${enc(id)}/publish`, 'POST', {
+    horizon_hours: horizonHours,
+  });
+  return { ...r, warnings: r.warnings ?? [] };
+};
 
-export interface OverrideState {
-  override: {
-    title_id: string;
-    title: string;
-    episode_label?: string | null;
-    started_ms: number;
-  } | null;
-  now: PreviewBlock | null;
+export interface NowState {
+  at_ms: number;
+  offset_ms: number | null;
+  current: TvBlock | null;
+  next: TvBlock | null;
+  viewers: number;
 }
-export const getOverride = (id: string) =>
-  get<OverrideState>(`/admin/tv/channels/${enc(id)}/override`);
-export const setOverride = (
+/** What is on at `atMs` (default: now), from stored blocks only: time travel for "simulate now". */
+export async function getNowAt(id: string, atMs?: number): Promise<NowState> {
+  const r = await get<{
+    at_ms: number;
+    offset_ms?: number | null;
+    current?: WireBlock | null;
+    next?: WireBlock | null;
+    viewers?: number;
+  }>(`/admin/tv/channels/${enc(id)}/now${qs({ at_ms: atMs })}`);
+  return {
+    at_ms: r.at_ms,
+    offset_ms: r.offset_ms ?? null,
+    current: r.current ? toBlock(r.current) : null,
+    next: r.next ? toBlock(r.next) : null,
+    viewers: r.viewers ?? 0,
+  };
+}
+/** Starts that programme now (`offset_ms` into it), cutting the block on air. */
+export const putNow = async (
   id: string,
-  b: { title_id: string; episode_id?: string | null; reason?: string },
-) => send<OverrideState>(`/admin/tv/channels/${enc(id)}/override`, 'POST', b);
-export const clearOverride = (id: string) =>
-  send<void>(`/admin/tv/channels/${enc(id)}/override`, 'DELETE');
-export const skipProgramme = (id: string, reason?: string) =>
-  send<OverrideState>(`/admin/tv/channels/${enc(id)}/skip`, 'POST', reason ? { reason } : {});
+  b: { title_id: string; episode_id?: string | null; offset_ms?: number },
+) => toBlock(await send<WireBlock>(`/admin/tv/channels/${enc(id)}/now`, 'PUT', b));
+/** Places a programme; whatever it overlaps is trimmed, split or removed. */
+export const placeBlock = async (
+  id: string,
+  b: { title_id: string; episode_id?: string | null; start_ms: number; end_ms?: number },
+) => toBlock(await send<WireBlock>(`/admin/tv/channels/${enc(id)}/blocks`, 'POST', b));
+export const deleteBlock = (blockId: string) =>
+  send<void>(`/admin/tv/blocks/${enc(blockId)}`, 'DELETE');
 
-export interface AiredEntry extends PreviewBlock {
-  /** Peak concurrent viewers while it aired, when the server counts them. */
-  peak_viewers?: number | null;
+/* -------------------------------------------------------------- the report */
+
+export interface AiredSummary {
+  channel_id: string;
+  number: number;
+  name: string;
+  aired_ms: number;
+  programmes: number;
+  overrides: number;
 }
-export const getAired = (id: string, from: number, to: number) =>
-  get<{ items: AiredEntry[] }>(`/admin/tv/channels/${enc(id)}/aired${qs({ from, to })}`);
+export interface Report {
+  from_ms: number;
+  to_ms: number;
+  channels: AiredSummary[];
+  items: { block: TvBlock; aired_ms: number }[];
+}
+export async function getReport(fromMs: number, toMs: number, channelId?: string): Promise<Report> {
+  const r = await get<{
+    from_ms: number;
+    to_ms: number;
+    channels: AiredSummary[];
+    items: { block: WireBlock; aired_ms: number }[];
+  }>(`/admin/tv/report${qs({ from: fromMs, to: toMs, channel: channelId })}`);
+  return { ...r, items: r.items.map((i) => ({ block: toBlock(i.block), aired_ms: i.aired_ms })) };
+}
 
-/** Staff title search for the override picker (the catalog's own admin route). */
+/** Staff title search for the pickers (the catalog's own admin route). */
 export { listTitles } from '../api';

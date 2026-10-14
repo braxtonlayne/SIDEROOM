@@ -1,6 +1,6 @@
 // Admin > Cinema > Live TV (TV-ADM-001..005): channels, schedule rules, generated schedule with publish and
 // simulate-now, manual override ("now control") and the what-aired report. Needs MANAGE_TV (Media Curator and up).
-// The routes are assumed (see tvApi.ts); a server without them gets a plain "not available yet" state.
+// Routes: docs/specs/cinema-live-tv.md section 8.5 (see tvApi.ts); a server without them gets "not available yet".
 import { Badge, Button, ConfirmDialog, EmptyState, Notice, Tabs } from '@sideroom/ui';
 import { useState } from 'react';
 import { SectionHeader, useAdminViewer } from '../../ui';
@@ -9,7 +9,7 @@ import { ChannelEditor } from './ChannelEditor';
 import { AiredReport, NowControl, SchedulePanel } from './ChannelPanels';
 import * as tv from './tvApi';
 
-const KIND_LABEL: Record<tv.ChannelKind, string> = {
+const KIND_LABEL: Record<tv.AdminKind, string> = {
   rule_based: 'rule based',
   manual: 'manual',
   imported_guide: 'imported guide',

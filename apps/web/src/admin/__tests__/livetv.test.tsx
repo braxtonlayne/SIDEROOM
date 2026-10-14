@@ -2,52 +2,97 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { axeViolations } from '../../../../../packages/ui/src/test-axe';
+import { ApiError } from '../../api/client';
 import { groupByDay, parseLocalInput } from '../cinema/tv/ChannelPanels';
 import { validTimezone } from '../cinema/tv/ChannelEditor';
 import { validateRules } from '../cinema/tv/RulesEditor';
-import { EMPTY_RULES, isUnavailable } from '../cinema/tv/tvApi';
-import { ApiError } from '../../api/client';
+import { EMPTY_RULES, isUnavailable, logoKeyFromUrl, newDaypart } from '../cinema/tv/tvApi';
 import { asStaff, http, HttpResponse, nav, openAdmin, readJson, server } from './helpers';
 
 const putFile = vi.hoisted(() => vi.fn<(url: string) => Promise<void>>(async () => undefined));
 vi.mock('../../lounge/msg/upload', () => ({ putFile }));
 
 const CURATOR = ['STAFF_BASIC', 'REVIEW_MEDIA', 'PUBLISH_MEDIA', 'MANAGE_TV'] as const;
+const BROWSER_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
+const rules = () => ({
+  grid_minutes: 30,
+  no_repeat_window: 8,
+  dayparts: [
+    {
+      name: 'Evening',
+      start: '18:00',
+      end: '02:00',
+      days: [],
+      mode: 'shuffle',
+      fit: 'overrun',
+      pool: {
+        kinds: ['anime'],
+        genres: ['animation'],
+        tags: [],
+        title_ids: [],
+        year_from: null,
+        year_to: null,
+        collection_id: null,
+        min_runtime_min: null,
+        max_runtime_min: null,
+        restricted: 'exclude',
+      },
+    },
+  ],
+});
 
 const channel = (over: Record<string, unknown> = {}) => ({
   id: '501',
   number: 101,
   call_sign: '[adult swim]',
   name: 'Adult Swim',
-  network: 'Adult Swim',
   era_label: 'Fall 2003',
   logo_url: null,
   kind: 'rule_based',
-  category: 'anime',
-  timezone: 'America/New_York',
+  timezone: BROWSER_TZ,
   age_restricted: false,
   enabled: true,
   filler_policy: 'slate',
-  rules: {
-    pool: { genres: ['animation'], kinds: ['anime'], decades: [], tags: [], collection: null },
-    block_minutes: 30,
-    ordering: 'sequential',
-    dayparts: [],
-    rerun_spacing_hours: 24,
-  },
-  published_until_ms: null,
+  theme: null,
+  seed: 7,
+  viewers: 0,
+  rules: rules(),
   ...over,
+});
+
+const start = new Date(2026, 2, 10, 20, 0).getTime();
+const wireBlock = (o: Record<string, unknown> = {}) => ({
+  id: '9001',
+  channel_id: '501',
+  start_ms: start,
+  end_ms: start + 1_800_000,
+  kind: 'program',
+  title: 'Cowboy Bebop',
+  media_kind: 'anime',
+  season_number: 1,
+  episode_number: 4,
+  episode_title: 'Gateway Shuffle',
+  title_id: '3',
+  age_restricted: false,
+  playable: true,
+  source: 'generated',
+  ...o,
 });
 
 interface Calls {
   writes: { method: string; url: string; body: unknown }[];
-  schedule: string[];
+  gets: string[];
 }
 
 function useTvAdmin(
-  o: { channels?: unknown[]; scheduleStatus?: number; override?: unknown | null } = {},
+  o: {
+    channels?: unknown[];
+    previewStatus?: number;
+    now?: Record<string, unknown>;
+  } = {},
 ) {
-  const calls: Calls = { writes: [], schedule: [] };
+  const calls: Calls = { writes: [], gets: [] };
   const rec = async (method: string, request: Request) => {
     calls.writes.push({
       method,
@@ -55,15 +100,33 @@ function useTvAdmin(
       body: await readJson(request),
     });
   };
-  const start = new Date(2026, 2, 10, 20, 0).getTime();
-  let override = o.override ?? null;
+  const nowState = {
+    channel_id: '501',
+    at_ms: start,
+    offset_ms: 600_000,
+    current: wireBlock(),
+    next: wireBlock({
+      id: '9002',
+      start_ms: start + 1_800_000,
+      end_ms: start + 3_600_000,
+      title: 'Samurai Champloo',
+      episode_number: 5,
+    }),
+    viewers: 3,
+    ...(o.now ?? {}),
+  };
   server.use(
+    http.get('*/api/v1/tv/timezones', () =>
+      HttpResponse.json({ items: ['America/Chicago', 'America/New_York', 'UTC', BROWSER_TZ] }),
+    ),
     http.get('*/api/v1/admin/tv/channels', () =>
       HttpResponse.json({ items: o.channels ?? [channel()] }),
     ),
     http.post('*/api/v1/admin/tv/channels', async ({ request }) => {
       await rec('POST', request);
-      return HttpResponse.json(channel({ id: '777', ...((await readJson(request)) as object) }));
+      return HttpResponse.json(channel({ id: '777', ...((await readJson(request)) as object) }), {
+        status: 201,
+      });
     }),
     http.put('*/api/v1/admin/tv/channels/:id', async ({ request, params }) => {
       await rec('PUT', request);
@@ -75,92 +138,98 @@ function useTvAdmin(
       await rec('DELETE', request);
       return new HttpResponse(null, { status: 204 });
     }),
-    http.get('*/api/v1/admin/tv/channels/:id/schedule', ({ request }) => {
-      calls.schedule.push(new URL(request.url).search);
-      if (o.scheduleStatus) return new HttpResponse(null, { status: o.scheduleStatus });
+    http.post('*/api/v1/admin/tv/channels/:id/preview', async ({ request }) => {
+      await rec('POST', request);
+      if (o.previewStatus) return new HttpResponse(null, { status: o.previewStatus });
       return HttpResponse.json({
-        channel_id: '501',
-        from_ms: start,
-        to_ms: start + 86_400_000,
-        published: false,
-        warnings: ['Two programmes were skipped: not in the library.'],
+        warnings: ['Two programmes were skipped: no asset.'],
         blocks: [
-          {
-            start_ms: start,
-            end_ms: start + 1_800_000,
-            title: 'Cowboy Bebop',
-            kind: 'anime',
-            source: 'rules',
-          },
-          {
+          wireBlock({ id: '0' }),
+          wireBlock({
+            id: '0',
             start_ms: start + 1_800_000,
             end_ms: start + 3_600_000,
             title: 'Samurai Champloo',
-            episode_label: 'S1 · E2',
-            kind: 'anime',
-            source: 'rules',
-          },
-          {
+            episode_number: 5,
+          }),
+          wireBlock({
+            id: '0',
             start_ms: start + 86_400_000,
             end_ms: start + 88_200_000,
             title: 'Next day show',
-            kind: 'series',
-          },
+            media_kind: 'series',
+          }),
         ],
       });
     }),
-    http.post('*/api/v1/admin/tv/channels/:id/schedule/publish', async ({ request }) => {
+    http.get('*/api/v1/admin/tv/channels/:id/schedule', ({ request }) => {
+      calls.gets.push(new URL(request.url).pathname + new URL(request.url).search);
+      return HttpResponse.json({ items: [wireBlock({ source: 'manual' })] });
+    }),
+    http.post('*/api/v1/admin/tv/channels/:id/publish', async ({ request }) => {
       await rec('POST', request);
       return HttpResponse.json({
-        channel_id: '501',
-        from_ms: 0,
-        to_ms: 1,
-        published: true,
-        blocks: [],
+        from_ms: start,
+        to_ms: start + 7 * 86_400_000,
+        written: 12,
+        removed: 3,
+        warnings: [],
       });
     }),
-    http.get('*/api/v1/admin/tv/channels/:id/override', () =>
-      HttpResponse.json({
-        override,
-        now: { start_ms: start, end_ms: start + 1_800_000, title: 'Cowboy Bebop', kind: 'anime' },
-      }),
-    ),
-    http.post('*/api/v1/admin/tv/channels/:id/override', async ({ request }) => {
-      await rec('POST', request);
-      override = { title_id: '9', title: 'Alien', started_ms: start };
-      return HttpResponse.json({ override, now: null });
+    http.get('*/api/v1/admin/tv/channels/:id/now', ({ request }) => {
+      calls.gets.push(new URL(request.url).pathname + new URL(request.url).search);
+      return HttpResponse.json(nowState);
     }),
-    http.delete('*/api/v1/admin/tv/channels/:id/override', async ({ request }) => {
+    http.put('*/api/v1/admin/tv/channels/:id/now', async ({ request }) => {
+      await rec('PUT', request);
+      return HttpResponse.json(wireBlock({ title: 'Alien', source: 'override' }));
+    }),
+    http.post('*/api/v1/admin/tv/channels/:id/blocks', async ({ request }) => {
+      await rec('POST', request);
+      return HttpResponse.json(wireBlock({ source: 'manual' }), { status: 201 });
+    }),
+    http.delete('*/api/v1/admin/tv/blocks/:id', async ({ request }) => {
       await rec('DELETE', request);
-      override = null;
       return new HttpResponse(null, { status: 204 });
     }),
-    http.post('*/api/v1/admin/tv/channels/:id/skip', async ({ request }) => {
-      await rec('POST', request);
-      return HttpResponse.json({ override: null, now: null });
-    }),
-    http.get('*/api/v1/admin/tv/channels/:id/aired', () =>
-      HttpResponse.json({
-        items: [
+    http.get('*/api/v1/admin/tv/report', ({ request }) => {
+      calls.gets.push(new URL(request.url).pathname + new URL(request.url).search);
+      return HttpResponse.json({
+        from_ms: start - 86_400_000,
+        to_ms: start,
+        channels: [
           {
-            start_ms: start - 3_600_000,
-            end_ms: start - 1_800_000,
-            title: 'Earlier show',
-            kind: 'anime',
-            source: 'schedule',
-            peak_viewers: 4,
-          },
-          {
-            start_ms: start - 1_800_000,
-            end_ms: start,
-            title: 'Manual pick',
-            kind: 'movie',
-            source: 'override',
-            peak_viewers: null,
+            channel_id: '501',
+            number: 101,
+            name: 'Adult Swim',
+            aired_ms: 7_200_000,
+            programmes: 4,
+            overrides: 1,
           },
         ],
-      }),
-    ),
+        items: [
+          {
+            block: wireBlock({
+              id: '1',
+              title: 'Earlier show',
+              start_ms: start - 7_200_000,
+              end_ms: start - 5_400_000,
+            }),
+            aired_ms: 1_800_000,
+          },
+          {
+            block: wireBlock({
+              id: '2',
+              title: 'Manual pick',
+              start_ms: start - 5_400_000,
+              end_ms: start - 3_600_000,
+              source: 'override',
+            }),
+            aired_ms: 1_200_000,
+          },
+        ],
+      });
+    }),
     http.get('*/api/v1/admin/cinema/titles', () =>
       HttpResponse.json({
         items: [{ id: '9', title: 'Alien', year: 1979 }],
@@ -244,11 +313,11 @@ describe('Live TV admin: channels', () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
-  it('creates a rule-based channel with rules and dayparts', async () => {
+  it('creates a rule-based channel with dayparts and a pool', async () => {
     asStaff({ perms: [...CURATOR] });
     const calls = useTvAdmin({ channels: [] });
     const user = userEvent.setup();
-    openAdmin('cinema-live-tv');
+    const { container } = openAdmin('cinema-live-tv');
     expect(await screen.findByText('No channels')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'New channel' }));
     await screen.findByRole('form', { name: 'Channel details' });
@@ -257,24 +326,28 @@ describe('Live TV admin: channels', () => {
     await user.type(screen.getByLabelText('Channel number'), '110');
     await user.type(screen.getByLabelText('Call sign'), 'RETRO');
     await user.type(screen.getByLabelText('Channel name'), 'Retro Room');
-    await user.clear(screen.getByLabelText('Time zone'));
-    await user.type(screen.getByLabelText('Time zone'), 'Mars/Olympus');
+    await user.click(screen.getByRole('switch', { name: 'Daypart 1 Anime' }));
+    await user.type(screen.getByLabelText('Daypart 1 genres'), 'animation, comedy');
+    await user.type(screen.getByLabelText('Daypart 1 year from'), '1990');
+    await user.type(screen.getByLabelText('Daypart 1 year to'), '1980');
+    expect(await screen.findByRole('alert')).toHaveTextContent(/first year is after the last/);
     expect(save).toBeDisabled();
-    expect(screen.getAllByText(/IANA name/).length).toBeGreaterThan(0);
-    await user.clear(screen.getByLabelText('Time zone'));
-    await user.type(screen.getByLabelText('Time zone'), 'America/Chicago');
-    await user.click(screen.getByRole('switch', { name: 'Anime' }));
-    await user.type(screen.getByLabelText('Genres'), 'animation, comedy');
+    await user.clear(screen.getByLabelText('Daypart 1 year to'));
+    await user.type(screen.getByLabelText('Daypart 1 year to'), '2009');
+
+    // A second daypart with the same name is refused; renaming fixes it.
     await user.click(screen.getByRole('button', { name: 'Add daypart' }));
-    expect(screen.getByLabelText('Daypart 1 start')).toHaveValue('22:00');
-    await user.click(screen.getByRole('switch', { name: 'Daypart 1 age-restricted only' }));
-    // Restricted dayparts need a restricted channel.
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      /mark the channel age-restricted first/,
-    );
-    expect(save).toBeDisabled();
-    await user.click(screen.getByRole('switch', { name: 'Age-restricted channel' }));
+    await user.clear(screen.getByLabelText('Daypart 2 name'));
+    await user.type(screen.getByLabelText('Daypart 2 name'), 'All day');
+    expect(await screen.findByRole('alert')).toHaveTextContent(/names must be unique/);
+    await user.clear(screen.getByLabelText('Daypart 2 name'));
+    await user.type(screen.getByLabelText('Daypart 2 name'), 'Late night');
+    fireInput(screen.getByLabelText('Daypart 2 start'), '22:00');
+    fireInput(screen.getByLabelText('Daypart 2 end'), '02:00');
+    await user.click(screen.getByRole('switch', { name: 'Daypart 2 Sat' }));
     await waitFor(() => expect(save).toBeEnabled());
+    expect(await axeViolations(container)).toEqual([]);
+
     await user.click(save);
     await waitFor(() => expect(calls.writes).toHaveLength(1));
     expect(calls.writes[0]).toMatchObject({ method: 'POST', url: '/admin/tv/channels' });
@@ -283,41 +356,75 @@ describe('Live TV admin: channels', () => {
       call_sign: 'RETRO',
       name: 'Retro Room',
       kind: 'rule_based',
-      timezone: 'America/Chicago',
-      age_restricted: true,
+      timezone: BROWSER_TZ,
+      age_restricted: false,
+      enabled: true,
       filler_policy: 'slate',
       rules: {
-        pool: { genres: ['animation', 'comedy'], kinds: ['anime'] },
-        block_minutes: 30,
-        ordering: 'sequential',
-        dayparts: [{ start: '22:00', end: '02:00', restricted_only: true }],
+        grid_minutes: 30,
+        no_repeat_window: 8,
+        dayparts: [
+          {
+            name: 'All day',
+            start: '00:00',
+            end: '00:00',
+            days: [],
+            mode: 'shuffle',
+            fit: 'overrun',
+            pool: {
+              kinds: ['anime'],
+              genres: ['animation', 'comedy'],
+              year_from: 1990,
+              year_to: 2009,
+              restricted: 'exclude',
+            },
+          },
+          { name: 'Late night', start: '22:00', end: '02:00', days: [5] },
+        ],
       },
     });
     expect(await screen.findByText('Channel created.')).toBeInTheDocument();
-    // Logo upload is offered once the channel exists.
-    expect(await screen.findByText('Channel logo')).toBeInTheDocument();
+    // Logo upload is not on the server yet and the screen says so.
+    expect(screen.getByText(/Logo upload is not available yet/)).toBeInTheDocument();
   });
 
-  it('edits an existing channel and keeps its rules', async () => {
+  it('edits an existing channel, keeping its rules and its logo key', async () => {
     asStaff({ perms: [...CURATOR] });
-    const calls = useTvAdmin();
+    const calls = useTvAdmin({
+      channels: [channel({ logo_url: '/cdn/tv/logos/as.webp?ex=1&sig=abc' })],
+    });
     const user = userEvent.setup();
     openAdmin('cinema-live-tv');
     await user.click(await screen.findByRole('button', { name: 'Open Adult Swim' }));
     const name = await screen.findByLabelText('Channel name');
     expect(name).toHaveValue('Adult Swim');
-    expect(screen.getByLabelText('Genres')).toHaveValue('animation');
+    expect(screen.getByLabelText('Daypart 1 name')).toHaveValue('Evening');
+    expect(screen.getByLabelText('Daypart 1 genres')).toHaveValue('animation');
+    expect(screen.getByRole('img', { name: 'Channel logo' })).toBeInTheDocument();
     await user.clear(name);
     await user.type(name, 'Adult Swim 2003');
     await user.click(screen.getByRole('button', { name: 'Save channel' }));
     await waitFor(() => expect(calls.writes).toHaveLength(1));
     expect(calls.writes[0]).toMatchObject({ method: 'PUT', url: '/admin/tv/channels/501' });
-    expect(
-      (calls.writes[0]!.body as { name: string; rules: { pool: { kinds: string[] } } }).name,
-    ).toBe('Adult Swim 2003');
-    expect(
-      (calls.writes[0]!.body as { rules: { pool: { kinds: string[] } } }).rules.pool.kinds,
-    ).toEqual(['anime']);
+    const body = calls.writes[0]!.body as {
+      name: string;
+      logo_key: string;
+      rules: { dayparts: { name: string }[] };
+    };
+    expect(body.name).toBe('Adult Swim 2003');
+    expect(body.logo_key).toBe('tv/logos/as.webp');
+    expect(body.rules.dayparts[0]!.name).toBe('Evening');
+  });
+
+  it('refuses to save a channel without a daypart', async () => {
+    asStaff({ perms: [...CURATOR] });
+    useTvAdmin();
+    const user = userEvent.setup();
+    openAdmin('cinema-live-tv');
+    await user.click(await screen.findByRole('button', { name: 'Open Adult Swim' }));
+    await user.click(await screen.findByRole('button', { name: 'Remove daypart 1' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/at least one daypart/);
+    expect(screen.getByRole('button', { name: 'Save channel' })).toBeDisabled();
   });
 
   it('deletes a channel only after its name is typed', async () => {
@@ -342,6 +449,12 @@ describe('Live TV admin: channels', () => {
   });
 });
 
+function fireInput(el: HTMLElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+  setter.call(el, value);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
 describe('Live TV admin: schedule, now control, report', () => {
   const openTab = async (tab: string) => {
     const user = userEvent.setup();
@@ -355,20 +468,21 @@ describe('Live TV admin: schedule, now control, report', () => {
     asStaff({ perms: [...CURATOR] });
     const calls = useTvAdmin();
     const { user, container } = await openTab('Schedule');
-    expect(await screen.findByText('Cowboy Bebop', { exact: false })).toBeInTheDocument();
-    expect(screen.getByText('Samurai Champloo', { exact: false })).toBeInTheDocument();
-    expect(
-      screen.getByText('Two programmes were skipped: not in the library.'),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/Draft preview/)).toBeInTheDocument();
+    expect(await screen.findByText(/Cowboy Bebop · S1 · E4 · Gateway Shuffle/)).toBeInTheDocument();
+    expect(screen.getByText(/Samurai Champloo/)).toBeInTheDocument();
+    expect(screen.getByText('Two programmes were skipped: no asset.')).toBeInTheDocument();
+    expect(screen.getByText(/Draft preview generated from the current rules/)).toBeInTheDocument();
+    const preview = calls.writes.find((w) => w.url.endsWith('/preview'))!;
+    expect(preview.body).toMatchObject({ from_ms: expect.any(Number), to_ms: expect.any(Number) });
     // two days of blocks, grouped under their own headings
     expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(2);
     expect(await axeViolations(container)).toEqual([]);
 
-    // Simulate now passes `at` and marks the programme on air then.
+    // Simulate now asks the server what the stored schedule has at that moment.
     fireInput(screen.getByLabelText('Simulate now'), '2026-03-10T20:10');
-    await waitFor(() => expect(calls.schedule.at(-1)).toContain('at='));
-    expect(await screen.findByText('on air at that time')).toBeInTheDocument();
+    const sim = await screen.findByRole('region', { name: 'Simulated now' });
+    expect(within(sim).getByText(/Cowboy Bebop/)).toBeInTheDocument();
+    expect(calls.gets.some((g) => g.includes('/now?at_ms='))).toBe(true);
 
     await user.click(screen.getByRole('button', { name: 'Publish schedule' }));
     const dialog = await screen.findByRole('dialog', {
@@ -376,122 +490,133 @@ describe('Live TV admin: schedule, now control, report', () => {
     });
     await user.click(within(dialog).getByRole('button', { name: 'Publish' }));
     await waitFor(() =>
-      expect(calls.writes.at(-1)).toMatchObject({
+      expect(calls.writes.find((w) => w.url.endsWith('/publish'))).toMatchObject({
         method: 'POST',
-        url: '/admin/tv/channels/501/schedule/publish',
+        url: '/admin/tv/channels/501/publish',
+        body: { horizon_hours: 168 },
       }),
     );
     expect(await screen.findByText('Schedule published.')).toBeInTheDocument();
+    expect(screen.getByText(/Wrote 12 blocks and removed 3/)).toBeInTheDocument();
   });
 
   it('says the preview is not available yet on a server without it', async () => {
     asStaff({ perms: [...CURATOR] });
-    useTvAdmin({ scheduleStatus: 404 });
+    useTvAdmin({ previewStatus: 404 });
     await openTab('Schedule');
     expect(await screen.findByText('Not available yet')).toBeInTheDocument();
     expect(screen.getByText(/schedule preview needs/i)).toBeInTheDocument();
   });
 
-  it('skips the current programme with an optional reason', async () => {
+  it('shows what is on air and removes an override block', async () => {
     asStaff({ perms: [...CURATOR] });
-    const calls = useTvAdmin();
+    const calls = useTvAdmin({ now: { current: wireBlock({ id: '9100', source: 'override' }) } });
     const { user } = await openTab('Now control');
-    expect(await screen.findByText('Cowboy Bebop')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Skip to the next programme' }));
-    const dialog = await screen.findByRole('dialog', { name: /Skip Cowboy Bebop/ });
-    await user.type(within(dialog).getByLabelText(/Reason/), 'wrong episode');
-    await user.click(within(dialog).getByRole('button', { name: 'Skip' }));
+    const dl = await screen.findByLabelText('On air now');
+    expect(dl).toHaveTextContent('Cowboy Bebop');
+    expect(dl).toHaveTextContent('override');
+    expect(dl).toHaveTextContent('Samurai Champloo');
+    await user.click(screen.getByRole('button', { name: 'Remove this override block' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Remove this block' });
+    await user.click(within(confirm).getByRole('button', { name: 'Remove block' }));
     await waitFor(() =>
-      expect(calls.writes.at(-1)).toMatchObject({
-        url: '/admin/tv/channels/501/skip',
-        body: { reason: 'wrong episode' },
-      }),
+      expect(calls.writes.at(-1)).toMatchObject({ method: 'DELETE', url: '/admin/tv/blocks/9100' }),
     );
-    expect(await screen.findByText('Skipped.')).toBeInTheDocument();
+    expect(await screen.findByText('Block removed.')).toBeInTheDocument();
   });
 
-  it('puts a title on air, then returns to the schedule', async () => {
+  it('puts a title on air with an episode and an offset', async () => {
     asStaff({ perms: [...CURATOR] });
     const calls = useTvAdmin();
     const { user } = await openTab('Now control');
-    await user.type(await screen.findByLabelText('Find a title'), 'alien');
-    await user.click(await screen.findByRole('button', { name: 'Choose Alien' }));
-    await user.click(screen.getByRole('button', { name: 'Put on air now' }));
+    // A generated block cannot be removed here, only replaced.
+    await screen.findByLabelText('On air now');
+    expect(screen.queryByRole('button', { name: /Remove this/ })).not.toBeInTheDocument();
+    const section = screen.getByRole('region', { name: 'Put a title on air' });
+    await user.type(within(section).getByLabelText('Find a title'), 'alien');
+    await user.click(await within(section).findByRole('button', { name: 'Choose Alien' }));
+    await user.type(within(section).getByLabelText('Episode id (series and anime)'), '77');
+    await user.type(within(section).getByLabelText('Start this many minutes in'), '17');
+    await user.click(within(section).getByRole('button', { name: 'Put on air now' }));
     const dialog = await screen.findByRole('dialog', { name: 'Put Alien on air' });
     await user.click(within(dialog).getByRole('button', { name: 'Put on air' }));
     await waitFor(() =>
       expect(calls.writes.at(-1)).toMatchObject({
-        url: '/admin/tv/channels/501/override',
-        body: { title_id: '9' },
+        method: 'PUT',
+        url: '/admin/tv/channels/501/now',
+        body: { title_id: '9', episode_id: '77', offset_ms: 1_020_000 },
       }),
     );
-    expect(await screen.findByText('manual override')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Return to the schedule' }));
-    const confirm = await screen.findByRole('dialog', { name: 'Return to the schedule' });
-    await user.click(within(confirm).getByRole('button', { name: 'Return to schedule' }));
-    await waitFor(() =>
-      expect(calls.writes.at(-1)).toMatchObject({
-        method: 'DELETE',
-        url: '/admin/tv/channels/501/override',
-      }),
-    );
-    await waitFor(() => expect(screen.queryByText('manual override')).not.toBeInTheDocument());
+    expect(await screen.findByText('On air.')).toBeInTheDocument();
   });
 
-  it('shows the what-aired report newest first; passes axe', async () => {
+  it('places a programme at a time', async () => {
     asStaff({ perms: [...CURATOR] });
-    useTvAdmin();
+    const calls = useTvAdmin();
+    const { user } = await openTab('Now control');
+    const section = await screen.findByRole('region', { name: 'Place a programme' });
+    const place = within(section).getByRole('button', { name: 'Place programme' });
+    expect(place).toBeDisabled();
+    await user.type(within(section).getByLabelText('Find a title to place'), 'alien');
+    await user.click(await within(section).findByRole('button', { name: 'Choose Alien' }));
+    fireInput(within(section).getByLabelText('Starts at'), '2026-03-12T21:00');
+    await waitFor(() => expect(place).toBeEnabled());
+    await user.click(place);
+    await waitFor(() =>
+      expect(calls.writes.at(-1)).toMatchObject({
+        method: 'POST',
+        url: '/admin/tv/channels/501/blocks',
+        body: { title_id: '9', start_ms: new Date(2026, 2, 12, 21, 0).getTime() },
+      }),
+    );
+    expect(await screen.findByText('Programme placed.')).toBeInTheDocument();
+  });
+
+  it('shows the what-aired report newest first with its summary; passes axe', async () => {
+    asStaff({ perms: [...CURATOR] });
+    const calls = useTvAdmin();
     const { container } = await openTab('What aired');
     const table = await screen.findByRole('table', { name: 'What aired' });
     const rows = within(table).getAllByRole('row');
     expect(rows[1]).toHaveTextContent('Manual pick');
     expect(rows[1]).toHaveTextContent('override');
-    expect(rows[1]).toHaveTextContent('n/a');
     expect(rows[2]).toHaveTextContent('Earlier show');
-    expect(rows[2]).toHaveTextContent('4');
+    expect(screen.getByText(/4 programmes, 1 overrides, 2h on air/)).toBeInTheDocument();
+    expect(screen.getByText(/Viewer figures are not kept/)).toBeInTheDocument();
+    expect(calls.gets.some((g) => g.includes('channel=501'))).toBe(true);
     expect(await axeViolations(container)).toEqual([]);
   });
 });
 
-function fireInput(el: HTMLElement, value: string) {
-  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
-  setter.call(el, value);
-  el.dispatchEvent(new Event('input', { bubbles: true }));
-}
-
 describe('Live TV admin helpers', () => {
-  it('validates time zones', () => {
-    expect(validTimezone('America/New_York')).toBe(true);
+  it('validates time zones against the server list, with Intl as the fallback', () => {
+    expect(validTimezone('America/New_York', ['America/New_York', 'UTC'])).toBe(true);
+    expect(validTimezone('Europe/Paris', ['America/New_York', 'UTC'])).toBe(false);
     expect(validTimezone('UTC')).toBe(true);
     expect(validTimezone('Mars/Olympus')).toBe(false);
-    expect(validTimezone('  ')).toBe(false);
+    expect(validTimezone('  ', null)).toBe(false);
   });
 
   it('validates rules the way the server will', () => {
-    expect(validateRules(EMPTY_RULES, false)).toBeNull();
-    expect(validateRules({ ...EMPTY_RULES, block_minutes: 2 }, false)).toMatch(/Block length/);
-    expect(validateRules({ ...EMPTY_RULES, rerun_spacing_hours: -1 }, false)).toMatch(/Rerun/);
+    expect(validateRules(EMPTY_RULES)).toBeNull();
+    expect(validateRules({ ...EMPTY_RULES, grid_minutes: -1 })).toMatch(/grid/);
+    expect(validateRules({ ...EMPTY_RULES, no_repeat_window: 65 })).toMatch(/no-repeat/);
+    expect(validateRules({ ...EMPTY_RULES, dayparts: [] })).toMatch(/at least one daypart/);
     expect(
-      validateRules({ ...EMPTY_RULES, pool: { ...EMPTY_RULES.pool, decades: [1995] } }, false),
-    ).toMatch(/Decades/);
-    expect(
-      validateRules(
-        { ...EMPTY_RULES, dayparts: [{ start: '22:00', end: '22:00', restricted_only: false }] },
-        false,
-      ),
-    ).toMatch(/same time/);
-    expect(
-      validateRules(
-        { ...EMPTY_RULES, dayparts: [{ start: '', end: '02:00', restricted_only: false }] },
-        false,
-      ),
+      validateRules({ ...EMPTY_RULES, dayparts: [{ ...newDaypart('A'), start: '' }] }),
     ).toMatch(/start and an end/);
+    expect(validateRules({ ...EMPTY_RULES, dayparts: [newDaypart('A'), newDaypart('A')] })).toMatch(
+      /unique/,
+    );
+    const bad = newDaypart('A');
+    bad.pool = { ...bad.pool, min_runtime_min: 90, max_runtime_min: 30 };
+    expect(validateRules({ ...EMPTY_RULES, dayparts: [bad] })).toMatch(/minimum runtime/);
+    // an end at or before the start is a daypart that wraps past midnight, not an error
     expect(
-      validateRules(
-        { ...EMPTY_RULES, dayparts: [{ start: '22:00', end: '02:00', restricted_only: true }] },
-        true,
-      ),
+      validateRules({
+        ...EMPTY_RULES,
+        dayparts: [{ ...newDaypart('Late'), start: '22:00', end: '02:00' }],
+      }),
     ).toBeNull();
   });
 
@@ -505,6 +630,12 @@ describe('Live TV admin helpers', () => {
     expect(groups.map((g) => g.blocks.length)).toEqual([1, 2]);
     expect(parseLocalInput('')).toBeNull();
     expect(parseLocalInput('2026-03-10T20:10')).toBe(new Date(2026, 2, 10, 20, 10).getTime());
+  });
+
+  it('recovers the logo key from a signed URL', () => {
+    expect(logoKeyFromUrl('/cdn/tv/logos/a.webp?ex=1&sig=x')).toBe('tv/logos/a.webp');
+    expect(logoKeyFromUrl('/cdn/cinema/10/poster.webp')).toBeNull();
+    expect(logoKeyFromUrl(null)).toBeNull();
   });
 
   it('reads a bodiless 404/405/501 as a missing route', () => {

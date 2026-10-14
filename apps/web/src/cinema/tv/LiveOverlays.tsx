@@ -171,3 +171,13 @@ export function TuningStatic({ visible }: { visible: boolean }) {
   if (!visible) return null;
   return <div className="ltv-static" data-testid="tuning-static" aria-hidden="true" />;
 }
+
+/** The client-drawn slate for blocks with no media: colour bars and the block's own title. */
+export function Slate({ title }: { title: string }) {
+  return (
+    <div className="ltv-slate" role="status" data-testid="slate">
+      <div className="ltv-bars" aria-hidden="true" />
+      <p className="ltv-slate-title">{title}</p>
+    </div>
+  );
+}

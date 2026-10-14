@@ -308,3 +308,37 @@
     bottom: 180px;
   }
 }
+
+/* slate and off-air blocks have no stream: the client draws colour bars */
+.ltv-slate {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #000;
+  pointer-events: none;
+}
+.ltv-bars {
+  position: absolute;
+  inset: 0 0 30% 0;
+  background: linear-gradient(
+    to right,
+    #c0c0c0 0 14.28%,
+    #c0c000 0 28.56%,
+    #00c0c0 0 42.84%,
+    #00c000 0 57.12%,
+    #c000c0 0 71.4%,
+    #c00000 0 85.68%,
+    #0000c0 0
+  );
+  opacity: 0.85;
+}
+.ltv-slate-title {
+  position: relative;
+  margin: 0;
+  padding: 8px 18px;
+  background: rgb(0 0 0 / 0.75);
+  font-family: var(--sr-teletext-font, ui-monospace, monospace);
+  font-size: clamp(18px, 3vw, 32px);
+  color: var(--ltv-green);
+}
