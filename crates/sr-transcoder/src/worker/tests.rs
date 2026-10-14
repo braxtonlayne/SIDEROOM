@@ -11,9 +11,9 @@ use std::sync::atomic::AtomicUsize;
 
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
-struct TempRoot(PathBuf);
+pub(crate) struct TempRoot(pub(crate) PathBuf);
 impl TempRoot {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let n = COUNTER.fetch_add(1, Ordering::SeqCst);
         let p = std::env::temp_dir().join(format!("sr-transcoder-test-{}-{n}", std::process::id()));
         fs::create_dir_all(&p).unwrap();
@@ -230,7 +230,7 @@ fn produce(args: &[String], sheets: u32) {
 
 type Failure = Box<dyn Fn(&str, u32, &[String]) -> Option<String> + Send>;
 
-fn runner(sheets: u32, failure: Failure) -> FakeRunner {
+pub(crate) fn runner(sheets: u32, failure: Failure) -> FakeRunner {
     let counts: Mutex<std::collections::HashMap<String, u32>> = Mutex::new(Default::default());
     FakeRunner::new(move |spec| {
         let kind = kind_of(&spec.args);
@@ -254,25 +254,25 @@ fn runner(sheets: u32, failure: Failure) -> FakeRunner {
     })
 }
 
-fn never_fail() -> Failure {
+pub(crate) fn never_fail() -> Failure {
     Box::new(|_, _, _| None)
 }
 
 // ---- helpers ------------------------------------------------------------------------------
 
-fn caps(nvenc: bool) -> FfmpegCaps {
+pub(crate) fn caps(nvenc: bool) -> FfmpegCaps {
     let mut c = crate::args::tests::caps();
     c.nvenc_usable = nvenc;
     c
 }
 
-fn cfg(root: &Path) -> WorkerConfig {
+pub(crate) fn cfg(root: &Path) -> WorkerConfig {
     let mut c = WorkerConfig::new(root.to_path_buf());
     c.progress_interval = Duration::ZERO;
     c
 }
 
-fn ladder_job(id: &str) -> ClaimedJob {
+pub(crate) fn ladder_job(id: &str) -> ClaimedJob {
     let plan = ladder(SDR_1080);
     ClaimedJob {
         job_id: id.into(),
@@ -291,7 +291,7 @@ fn ladder_job(id: &str) -> ClaimedJob {
     }
 }
 
-fn proxy_job(id: &str) -> ClaimedJob {
+pub(crate) fn proxy_job(id: &str) -> ClaimedJob {
     let plan = plan_proxy_job(
         &parse_ffprobe_json(SDR_1080.as_bytes()).unwrap(),
         &TranscodeSettings::default(),
@@ -305,7 +305,7 @@ fn proxy_job(id: &str) -> ClaimedJob {
     }
 }
 
-fn sheets_of(job: &ClaimedJob) -> u32 {
+pub(crate) fn sheets_of(job: &ClaimedJob) -> u32 {
     match &job.spec {
         JobSpec::Ladder { plan } => plan.sprite.sheets,
         JobSpec::Proxy { .. } => 0,

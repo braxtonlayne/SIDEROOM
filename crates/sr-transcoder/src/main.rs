@@ -1,11 +1,16 @@
-//! `sr-transcoder` binary: parse the command line, detect ffmpeg's capabilities and, with
-//! `--check`, print them. The HTTP client for the Worker API is not linked yet (see the
-//! handoff note): until it is, the server mode refuses to start rather than pretend.
+//! `sr-transcoder` binary: parse the command line, detect ffmpeg's capabilities and either
+//! print them (`--check`) or register with the server and process jobs.
+//!
+//! Shutdown: SIGTERM/Ctrl-C end the process immediately. A job in flight keeps its lease
+//! until it expires and is then requeued by the server, so nothing is lost.
 
 use sr_media::runner::ProcessRunner;
 use sr_transcoder::cli::{self, USAGE};
 use sr_transcoder::encoders;
+use sr_transcoder::http_client::{HttpTransfer, HttpWorkerApi};
+use sr_transcoder::worker::{Worker, WorkerConfig};
 use std::process::ExitCode;
+use std::sync::atomic::AtomicBool;
 
 fn main() -> ExitCode {
     let parsed = cli::parse(std::env::args().skip(1), &|k| std::env::var(k).ok(), &|p| {
@@ -41,12 +46,49 @@ fn main() -> ExitCode {
             ExitCode::from(1)
         };
     }
-    if encoder.is_none() {
+    let Some(encoder) = encoder else {
         eprintln!("error: no usable H.264 encoder (is ffmpeg installed with libx264?)");
         return ExitCode::from(1);
-    }
+    };
     eprintln!(
-        "error: this build has no Worker API HTTP client linked; run with --check to verify the machine"
+        "sr-transcoder: ffmpeg {} using {}",
+        caps.version.as_deref().unwrap_or("?"),
+        encoder.name()
     );
-    ExitCode::from(3)
+    // `cli::parse` guarantees both of these in server mode.
+    let (Some(server), Some(token)) = (cli.server.as_deref(), cli.token.as_deref()) else {
+        return ExitCode::from(2);
+    };
+    let api = match HttpWorkerApi::new(server, token) {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::from(1);
+        }
+    };
+    let transfer = match HttpTransfer::new(server) {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return ExitCode::from(1);
+        }
+    };
+    if let Err(e) = std::fs::create_dir_all(&cli.work_dir) {
+        eprintln!("error: cannot create the work directory: {e}");
+        return ExitCode::from(1);
+    }
+    let mut cfg = WorkerConfig::new(cli.work_dir.clone());
+    cfg.name = cli.name.clone();
+    cfg.ffmpeg = cli.ffmpeg.clone();
+    cfg.force_cpu = cli.force_cpu;
+    cfg.concurrency = cli.concurrency;
+    let worker = Worker::new(&api, &transfer, &ProcessRunner, cfg, caps);
+    let shutdown = AtomicBool::new(false);
+    match worker.run(&shutdown) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("error: {e}");
+            ExitCode::from(1)
+        }
+    }
 }

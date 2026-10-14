@@ -879,4 +879,4 @@ pub fn list_outputs(out: &Path) -> Result<Vec<(String, u64)>, String> {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
