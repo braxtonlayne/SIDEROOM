@@ -480,3 +480,87 @@ describe('review queues hub', () => {
     await waitFor(() => expect(sent).toEqual({ hidden: true, reason: 'spoiler' }));
   });
 });
+
+describe('library catalog', () => {
+  const series = (over: Record<string, unknown> = {}) => ({
+    id: '900',
+    kind: 'manga',
+    title: 'Blue Lantern',
+    alt_titles: [],
+    authors: ['A. Writer'],
+    artists: [],
+    status: 'ongoing',
+    year: 2020,
+    synopsis: '',
+    genres: [],
+    tags: [],
+    reading_direction: 'rtl',
+    age_restricted: false,
+    cover_url: null,
+    published: false,
+    published_at_ms: null,
+    merged_into: null,
+    chapter_count: 0,
+    last_chapter_at_ms: null,
+    follower_count: 0,
+    created_at_ms: 1_700_000_000_000,
+    updated_at_ms: 1_700_000_000_000,
+    ...over,
+  });
+
+  it('lists series, edits one, and publishes a chapter', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'PUBLISH_READING'] });
+    let saved: Record<string, unknown> | undefined;
+    let published = false;
+    server.use(
+      http.get('*/api/v1/admin/library/series', () =>
+        HttpResponse.json({ items: [series()], total: 1, limit: 50, offset: 0 }),
+      ),
+      http.get('*/api/v1/admin/library/series/900', () => HttpResponse.json(series())),
+      http.put('*/api/v1/admin/library/series/900', async ({ request }) => {
+        saved = (await readJson(request)) as Record<string, unknown>;
+        return HttpResponse.json(series({ title: 'Blue Lantern 2' }));
+      }),
+      http.get('*/api/v1/admin/library/series/900/chapters', () =>
+        HttpResponse.json({
+          editions: [
+            { id: '1', series_id: '900', language: 'en', label: 'Official', is_default: true },
+          ],
+          volumes: [],
+          chapters: [
+            {
+              id: '11',
+              series_id: '900',
+              edition_id: '1',
+              number: 1,
+              title: 'Start',
+              page_count: 20,
+              format: 'images',
+              published,
+            },
+          ],
+        }),
+      ),
+      http.post('*/api/v1/admin/library/chapters/11/publish', () => {
+        published = true;
+        return HttpResponse.json({});
+      }),
+    );
+    openAdmin('library-catalog');
+    const user = userEvent.setup();
+    await screen.findByRole('table', { name: 'Library series' });
+    await user.click(screen.getByRole('button', { name: 'Edit Blue Lantern' }));
+    const title = await screen.findByLabelText('Title');
+    await user.clear(title);
+    await user.type(title, 'Blue Lantern 2');
+    await user.type(screen.getByLabelText('Genres'), 'drama, sea');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(saved?.title).toBe('Blue Lantern 2'));
+    expect(saved?.genres).toEqual(['drama', 'sea']);
+    expect(saved?.authors).toEqual(['A. Writer']);
+
+    await user.click(await screen.findByRole('button', { name: 'Publish chapter 1' }));
+    await waitFor(() => expect(published).toBe(true));
+    expect(await screen.findByRole('button', { name: 'Unpublish chapter 1' })).toBeInTheDocument();
+  });
+});

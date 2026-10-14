@@ -279,3 +279,87 @@ export function LoadMore({ paged }: { paged: Paged<unknown> }) {
     </div>
   );
 }
+
+// ---- plain form dialog (no reason) ----
+
+export interface FormDialogProps {
+  open: boolean;
+  title: string;
+  description?: ReactNode;
+  confirmLabel: string;
+  danger?: boolean;
+  children: ReactNode;
+  valid?: boolean;
+  onConfirm: () => Promise<unknown>;
+  onCancel: () => void;
+}
+
+/** A modal form for actions that carry fields but no audit reason; errors show inside and keep it open. */
+export function FormDialog({
+  open,
+  title,
+  description,
+  confirmLabel,
+  danger,
+  children,
+  valid = true,
+  onConfirm,
+  onCancel,
+}: FormDialogProps) {
+  const t = useT();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!open) {
+      setError(null);
+      setBusy(false);
+    }
+  }, [open]);
+  const submit = async () => {
+    if (!valid || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onConfirm();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal
+      open={open}
+      onClose={busy ? () => undefined : onCancel}
+      title={title}
+      description={description}
+      size="sm"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onCancel} disabled={busy}>
+            {t('admin.ui.cancel')}
+          </Button>
+          <Button
+            variant={danger ? 'danger' : 'primary'}
+            disabled={!valid}
+            loading={busy}
+            onClick={() => void submit()}
+          >
+            {confirmLabel}
+          </Button>
+        </>
+      }
+    >
+      <form
+        className="adm-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void submit();
+        }}
+      >
+        {children}
+        <ApiProblem error={error} />
+      </form>
+    </Modal>
+  );
+}

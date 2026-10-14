@@ -19,6 +19,7 @@ import * as api from './api';
 import { hasAny, parsePerms } from './permissions';
 import { AccessLogSection } from './sections/AccessLog';
 import { CatalogSection } from './cinema/CatalogSection';
+import { LibraryCatalogSection } from './library/LibraryCatalogSection';
 import { CollectionsSection } from './cinema/CollectionsSection';
 import { TranscodingSection } from './cinema/TranscodingSection';
 import { LiveTvSection } from './cinema/tv/LiveTvSection';
@@ -112,6 +113,13 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     group: 'admin.adminApp.group.content',
     visible: (v) => v.can('MANAGE_TRANSCODE'),
     component: JobsSection,
+  },
+  {
+    id: 'library-catalog',
+    label: 'admin.adminApp.section.libraryCatalog',
+    group: 'admin.adminApp.group.content',
+    visible: (v) => v.can('PUBLISH_READING'),
+    component: LibraryCatalogSection,
   },
   {
     id: 'cinema-catalog',

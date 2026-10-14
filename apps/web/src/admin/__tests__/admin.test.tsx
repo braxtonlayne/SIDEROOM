@@ -95,6 +95,7 @@ describe('admin shell', () => {
       'Staff & roles',
       'Review queues',
       'Jobs',
+      'Library catalog',
       'Cinema catalog',
       'Cinema collections',
       'Cinema transcoding',
