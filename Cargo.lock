@@ -5247,6 +5247,7 @@ dependencies = [
  "sr-core",
  "sr-library",
  "sr-media",
+ "sr-payments",
  "sr-review",
  "sr-storage",
  "thiserror 2.0.21",

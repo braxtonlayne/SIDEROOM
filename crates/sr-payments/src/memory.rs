@@ -34,6 +34,8 @@ struct Mem {
     levels: HashMap<i64, (u8, Option<i64>)>,
     prefs: HashMap<i64, DonorPrefs>,
     hidden_guilds: HashSet<i64>,
+    staff_hidden_users: HashSet<i64>,
+    staff_hidden_guilds: HashSet<i64>,
     members: HashMap<(i64, i64), GuildAccess>,
     notices: HashMap<i64, u8>,
     watcher: WatcherStatus,
@@ -880,6 +882,7 @@ impl PaymentRepo for MemoryRepo {
         let mut totals: HashMap<i64, i64> = HashMap::new();
         for i in m.invoices.iter().filter(|i| {
             m.credits.get(&i.id).copied().unwrap_or(false)
+                && !m.staff_hidden_users.contains(&i.user_id)
                 && i.purpose != Purpose::InviteCredit
                 && since_ms.is_none_or(|s| i.credited_ms.is_some_and(|c| c >= s))
         }) {
@@ -915,7 +918,9 @@ impl PaymentRepo for MemoryRepo {
                 && g.revoked_ms.is_none()
                 && since_ms.is_none_or(|s| g.starts_ms >= s)
         }) {
-            if let Some(gid) = g.guild_id.filter(|gid| !m.hidden_guilds.contains(gid)) {
+            if let Some(gid) = g.guild_id.filter(|gid| {
+                !m.hidden_guilds.contains(gid) && !m.staff_hidden_guilds.contains(gid)
+            }) {
                 *totals.entry(gid).or_default() += g.usd_cents.unwrap_or(0);
             }
         }
@@ -992,6 +997,34 @@ impl PaymentRepo for MemoryRepo {
             .iter()
             .filter_map(|i| m.profiles.get(i).cloned())
             .collect())
+    }
+
+    async fn guild_profiles(&self, ids: &[i64]) -> PayResult<Vec<Profile>> {
+        self.profiles(ids).await
+    }
+
+    async fn set_staff_hidden(
+        &self,
+        user_id: Option<i64>,
+        guild_id: Option<i64>,
+        hidden: bool,
+    ) -> PayResult<()> {
+        let mut m = self.m();
+        if let Some(u) = user_id {
+            if hidden {
+                m.staff_hidden_users.insert(u);
+            } else {
+                m.staff_hidden_users.remove(&u);
+            }
+        }
+        if let Some(g) = guild_id {
+            if hidden {
+                m.staff_hidden_guilds.insert(g);
+            } else {
+                m.staff_hidden_guilds.remove(&g);
+            }
+        }
+        Ok(())
     }
 
     async fn donated_since(&self, since_ms: i64) -> PayResult<i64> {

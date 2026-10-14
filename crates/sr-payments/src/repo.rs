@@ -323,6 +323,15 @@ pub trait PaymentRepo: Send + Sync {
         limit: u32,
     ) -> PayResult<Vec<LeaderRow>>;
     async fn profiles(&self, ids: &[i64]) -> PayResult<Vec<Profile>>;
+    /// Guild names and icons (for the server leaderboard).
+    async fn guild_profiles(&self, ids: &[i64]) -> PayResult<Vec<Profile>>;
+    /// Staff moderation: keep a donor or a server off the leaderboards entirely.
+    async fn set_staff_hidden(
+        &self,
+        user_id: Option<i64>,
+        guild_id: Option<i64>,
+        hidden: bool,
+    ) -> PayResult<()>;
     async fn donated_since(&self, since_ms: i64) -> PayResult<i64>;
     async fn report(&self, from_ms: i64, to_ms: i64) -> PayResult<Report>;
     async fn watcher_status(&self) -> PayResult<WatcherStatus>;

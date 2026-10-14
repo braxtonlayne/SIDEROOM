@@ -14,7 +14,7 @@ mod assets;
 mod downloads;
 mod jobs;
 
-pub use downloads::PgDownloadEntitlements;
+pub use downloads::{EntitlementDownloads, PgDownloadEntitlements};
 
 use sqlx::PgPool;
 use sr_media::assets::MediaError;

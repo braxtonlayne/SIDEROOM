@@ -320,12 +320,10 @@ pub fn next_check_ms(
 ) -> i64 {
     let poll = i64::from(cfg.poll_secs) * 1000;
     let delay = match state {
-        InvoiceState::Open
-        | InvoiceState::Seen
-        | InvoiceState::Confirming
-        | InvoiceState::Underpaid => poll,
+        InvoiceState::Open | InvoiceState::Seen | InvoiceState::Confirming => poll,
+        InvoiceState::Underpaid if now_ms < expires_ms => poll,
         InvoiceState::Confirmed | InvoiceState::Overpaid | InvoiceState::LatePaid => poll * 4,
-        InvoiceState::Expired => {
+        InvoiceState::Expired | InvoiceState::Underpaid => {
             // Recently expired: every 5 minutes; after a day: hourly.
             if now_ms - expires_ms < 86_400_000 {
                 300_000
@@ -341,11 +339,10 @@ pub fn next_check_ms(
 /// Whether an invoice still has to be watched at `now_ms`.
 pub fn watch_until_ms(inv: &Invoice, cfg: &DonationConfig) -> Option<i64> {
     match inv.state {
-        InvoiceState::Open
-        | InvoiceState::Seen
-        | InvoiceState::Confirming
-        | InvoiceState::Underpaid => None,
-        InvoiceState::Expired => Some(inv.expires_ms + i64::from(cfg.late_watch_days) * 86_400_000),
+        InvoiceState::Open | InvoiceState::Seen | InvoiceState::Confirming => None,
+        InvoiceState::Expired | InvoiceState::Underpaid => {
+            Some(inv.expires_ms + i64::from(cfg.late_watch_days) * 86_400_000)
+        }
         // Credited: until the payment is deep enough to be final (checked by the caller via
         // `confirmations`). Cancelled and resolved invoices are not watched.
         _ => None,
@@ -356,7 +353,9 @@ pub fn watch_until_ms(inv: &Invoice, cfg: &DonationConfig) -> Option<i64> {
 pub fn is_final(inv: &Invoice, cfg: &DonationConfig, now_ms: i64) -> bool {
     match inv.state {
         InvoiceState::Cancelled | InvoiceState::Resolved => true,
-        InvoiceState::Expired => watch_until_ms(inv, cfg).is_some_and(|t| now_ms > t),
+        InvoiceState::Expired | InvoiceState::Underpaid => {
+            watch_until_ms(inv, cfg).is_some_and(|t| now_ms > t)
+        }
         s if s.is_credited() => inv
             .confirmations
             .is_some_and(|c| c >= cfg.finality_confirmations.max(cfg.confirmations)),
