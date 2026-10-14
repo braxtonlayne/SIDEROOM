@@ -93,6 +93,39 @@ describe('Overview', () => {
     expect((cap.calls[0]!.body as { icon: string }).icon).toMatch(/^data:image\/png;base64,/);
   });
 
+  it('offers ten preset gradient banners that upload like a custom banner', async () => {
+    seed({ perms: [MANAGE.guild] });
+    const cap = capture();
+    const stops: string[] = [];
+    const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      createLinearGradient: () => ({ addColorStop: (_o: number, c: string) => stops.push(c) }),
+      fillRect: () => undefined,
+      fillStyle: '',
+    } as unknown as CanvasRenderingContext2D);
+    const toDataURL = vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue(PNG);
+    try {
+      server.use(
+        http.get('*/api/v1/guilds/g1', () => HttpResponse.json(guildObj)),
+        http.get('*/api/v1/guilds/g1/sr/community', () => HttpResponse.json(community)),
+        http.patch('*/api/v1/guilds/g1', async ({ request }) => {
+          await cap.record(request);
+          return HttpResponse.json(guildObj);
+        }),
+      );
+      await openSettings('overview');
+      const group = await screen.findByRole('group', { name: 'Banner colour presets' });
+      expect(group.querySelectorAll('button')).toHaveLength(10);
+      await userEvent.click(screen.getByRole('button', { name: 'Use the Teal banner' }));
+      expect(stops).toEqual(['#63e6be', '#0b7285']);
+      await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+      await screen.findByText('Server settings saved.');
+      expect(cap.calls[0]!.body).toEqual({ banner: PNG });
+    } finally {
+      getContext.mockRestore();
+      toDataURL.mockRestore();
+    }
+  });
+
   it('refuses a file that is not an image', async () => {
     seed({ perms: [MANAGE.guild] });
     server.use(
