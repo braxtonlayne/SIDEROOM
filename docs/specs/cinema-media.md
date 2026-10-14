@@ -99,7 +99,7 @@ proxy/proxy.mp4                                      review proxy job only
 
 ### 4.4 Worker API
 
-All routes are under `/api/v1/transcode/worker` and need `Authorization: Bearer <worker token>`. The token is created in Admin → Transcoding; only its SHA-256 is stored. Errors are `{ "code", "message" }` with the statuses below. The routes are built by `sr_media::http::router(Arc<WorkerService>)` and merged into sr-server by the catalog work once a Postgres `JobStore` exists (they are deliberately **not** wired into sr-server in this change, so `openapi.json` is unchanged).
+All routes are under `/api/v1/transcode/worker` and need `Authorization: Bearer <worker token>`. The token is created in Admin → Transcoding; only its SHA-256 is stored. Errors are `{ "code", "message" }` with the statuses below. The routes are built by `sr_media::http::router(Arc<WorkerService>)` and merged into sr-server (phase 7, section 11); they are plain axum, not part of `openapi.json`.
 
 | Method and path | Purpose | Body → response |
 |---|---|---|
@@ -120,9 +120,10 @@ Rules the service enforces:
 - **Staging keys**: outputs land at `transcode/<job_id>/<attempt>/<path>`; the catalog promotes them to the asset's final prefix when it accepts `complete`.
 - **Completion check**: every path in the plan's required outputs was uploaded and finished, declared sizes match, each rung has a non-empty segment index whose segments exist. Logs are clipped to 32 KiB with control characters removed.
 - **Cancel**: an admin cancel of a queued job is immediate; for a running job the flag is returned by `progress` and `heartbeat`, and the worker answers `fail` with `cancelled: true`.
-- Presigned multipart needs part-level presigning (S3 SigV4 `UploadPart`). `ObjectStorage::presign` today only signs whole-object PUTs; until a part presigner exists the `OutputStorage` implementation can set `part_size` above the largest output (every output then has exactly one part, i.e. one presigned PUT).
+- Presigned multipart uses part-level SigV4 presigning (`sr_storage::s3multipart`, section 11). Storage that cannot presign parts uses `SinglePutStorage` with `ServiceConfig::single_part()` (every output is one presigned PUT).
+- A third job kind, `remux` (Patron downloads, section 5), is claimed like the others; its claim carries `inputs` (a signed URL per stored file of the rendition) and the worker writes `remux/video.mp4`.
 
-### 4.5 Proposed tables (not created here; migrations 0420 onward belong to the catalog work)
+### 4.5 Proposed tables (the proposal; the tables as built are in section 11.1)
 
 ```sql
 CREATE TABLE worker_tokens   (id bigint PRIMARY KEY, name text NOT NULL, token_sha256 text NOT NULL UNIQUE,
@@ -417,3 +418,90 @@ pub trait CatalogLookup: Send + Sync {
 ```
 `CatalogTitle {id, kind, title, year, age_restricted, runtime_secs, poster_key, tags}` (tags include genres, lower-case);
 `CatalogEpisode {id, title_id, season, number, title, runtime_secs}`. `sr-cinema-social` ships `MemoryCatalog` for tests.
+
+## 11. Media pipeline as built (phase 7, `p7-cinema-ingest-db`)
+
+Nothing here has run against real FFmpeg or a real S3: ffprobe and ffmpeg are faked, storage is the in-memory
+store, the S3 multipart signer is checked against the AWS documentation vectors and an in-process fake S3.
+
+### 11.1 Tables (migrations 0420..0423)
+
+`video_assets` (state machine `awaiting_upload, uploaded, probing, proxy_ready, in_review, approved, transcoding,
+published, rejected, removed, failed, expired`; original key/size/tier, probe JSON, `hls_prefix`, `proxy_key`),
+`video_renditions` (video rungs with their `segment_index`), `video_audio_tracks`, `video_subtitle_tracks`,
+`worker_tokens` (SHA-256 only), `transcode_workers`, `transcode_jobs` (kinds `proxy`, `ladder`, `remux`; lease,
+attempt, progress, log tail), `transcode_uploads`, `cinema_download_grants`, `cinema_download_cache`,
+`cinema_downloads`, `cinema_media_gc`. `title_id`/`episode_id` on an asset and `video_titles.asset_id` stay plain
+references; the catalog link is `CinemaService::link_title_asset` / `link_episode_asset`.
+
+### 11.2 Where files live
+
+* Originals: `originals/<asset>/source.<ext>`, served signed at `/cdn/originals/<asset>/source.<ext>` (CDN kind
+  `originals`). There is no public access.
+* Transcode outputs stay where the worker uploaded them: `transcode/<job>/<attempt>/<path>`, served signed at
+  `/cdn/hls/<job>/<attempt>/<path>` (CDN kind `hls`). **They are not copied to a final prefix** (the spec said the
+  catalog promotes them): a copy of 4.7 GB per hour would double the storage traffic for nothing, so the asset
+  records the prefix (`video_assets.hls_prefix`) and a re-transcode switches it; the replaced prefix goes to
+  `cinema_media_gc` and is deleted after a grace period.
+* `master.m3u8`, every media playlist, the subtitle wrapper playlists and `sprites/sprites.vtt` are **rendered on
+  request** by the `hls` kind (`PlaylistRenderer`, sr-server `PgPlaylistRenderer`) with every URL signed for 6 hours,
+  because the playlists ffmpeg wrote name their segments relatively. Segments, init files, WebVTT, ASS, fonts and
+  sheet images are stored objects. `?dl=1` on any CDN URL forces `Content-Disposition: attachment`.
+
+### 11.3 Data for the playback endpoints
+
+`MediaRepository::playback(asset)` / `playback_by_prefix(prefix)` return `AssetPlayback {asset_id, base_path
+(/cdn/hls/<job>/<attempt>), duration_secs, profile_version, media: MediaSet, sprite, ass_paths}` (None while no ladder
+exists). `sr_media::playback::playback_grant(&pb, signer, now)` turns it into the answer the player expects
+(`master_url`, `expires_at`, `refresh_at`, `duration_secs`, `subtitles[]`, `sprites_url`; Unix seconds) and
+`manifest_grant` is the refresh. The caller does the permission and age checks first.
+
+### 11.4 HTTP
+
+* Worker API `/api/v1/transcode/worker/*`: section 4.4, merged in `sr-server` outside the rate limiter. A claim of a
+  `remux` job also carries `inputs[{path, url, size_bytes}]`.
+* Staff (`PUBLISH_MEDIA`): `GET|POST /admin/cinema/assets`, `GET /admin/cinema/assets/{id}`, `POST .../complete`
+  (`{upload_id, parts[{part_number, etag}]}`), `POST .../probe` (queue the probe again), `POST .../transcode`
+  (ladder for an asset that waited for approval), `PUT .../link` (`{title_id?, episode_id?, set_playable?}`, links the
+  catalog once the ladder is published), `PUT .../original-downloads`. Upload: `POST` returns presigned multipart
+  URLs (`part_size` 128 MiB); `PUT` each part, keep the `ETag`, complete, poll the asset (`uploaded, probing,
+  transcoding, published | failed + error`). Limit `cinema.upload.max_gb` (default 60), containers mkv mp4 m4v mov avi
+  webm ts m2ts mts wmv flv mpg mpeg ogv. Begin and complete are written to the staff access log
+  (`cinema.asset.upload.begin|complete`).
+* Transcoding admin (`MANAGE_TRANSCODE`): tokens (`GET|POST /admin/transcode/tokens`, `DELETE .../{id}`; the secret
+  `srw_<64 hex>` is in the create response only), workers (`GET`, `PUT .../{id}/drain`), `GET .../queue`, jobs
+  (`GET .../jobs`, `GET .../jobs/{id}` with log tail, `POST .../cancel`, `POST .../retry`), `POST .../retranscode`
+  (`{scope: asset|title|all, id?, only_older_than_profile?, reason?}`, capped at 500 assets), `POST .../sweep`.
+* Patron downloads (`/cinema/titles/{id}/downloads[?episode=]` GET picker / POST start, `/cinema/downloads/{id}`,
+  `/cinema/downloads/{id}/file`): section 11.6.
+
+### 11.5 Jobs
+
+`cinema.probe` (per upload, 3 attempts, 2 at a time): spools the original to `SR_MEDIA_SPOOL` (default OS temp dir,
+needs room for the largest original), runs `SR_FFPROBE` (default `ffprobe`) through `CommandRunner`, stores the probe,
+plans and enqueues the proxy (priority 9) and, for `auto_ladder` assets, the ladder (priority 5). A missing ffprobe,
+an unreadable file or an unplannable video fails the asset with an explanation (`error`); "Probe again" retries.
+`cinema.transcode.reap` (every 30 s) requeues running jobs whose lease (120 s) expired, 3 attempts, then `failed`
+(heartbeats also reap). `cinema.media.sweep` (hourly): `retention::plan_cleanup` (originals and proxies; **moves to the
+cold tier are only counted, no second bucket exists**), upload slots older than a day, unreferenced transcode
+prefixes, expired download files.
+
+### 11.6 Patron downloads (CIN-DL-001)
+
+Who may download: `DownloadEntitlements`. The donations work does not exist, so the Postgres implementation reads
+`cinema_download_grants (user_id, per_day, expires_at)`; that table is the only source of the perk until doc 08 is built.
+A request (`POST`) needs the grant, an open title (same age gate as playback), and fewer than `per_day` requests in the
+last 24 h (429). A rendition nobody prepared gets one `remux` job (stream copy of the HLS rung plus up to four audio
+tracks into `remux/video.mp4`, no re-encode, subtitles not included); the prepared file is shared between members for
+7 days. `original` is offered when staff switch `original_downloads` on for the asset. The link is
+`/cinema/downloads/{id}/file`, which only its owner can use and which redirects to a signed CDN URL valid 15 minutes
+(`dl=1`). Non-Patrons get 403 on all four routes.
+
+### 11.7 Review kinds (CIN-ING-010)
+
+`cinema.title` (a film with `asset_id`, or a series with `seasons[].episodes[]`) and `cinema.episodes`
+(`{title_id, season, episodes[]}` for a published series) create unpublished drafts through `CinemaService` with a
+sponsored actor, ignore member-supplied artwork keys, accept only assets the submitter uploaded, are not ready until every
+item has a published ladder, and publish only the approved episodes (then the title). **The member upload and draft-edit
+HTTP routes (`/submissions/{id}/cinema/*`) are not built**: there is no member upload path for videos yet, so today only
+payloads referencing staff-uploaded assets can be submitted.
