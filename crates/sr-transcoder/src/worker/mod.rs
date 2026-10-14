@@ -7,12 +7,15 @@
 //! (admin cancel) and `lease lost` (the server gave the job to someone else: stop silently)
 //! as the other exits.
 
-use crate::args::{BuildCtx, BuildError, Step, StepKind, ladder_steps, proxy_steps, sandbox_path};
+use crate::args::{
+    BuildCtx, BuildError, Step, StepKind, ladder_steps, proxy_steps, remux_steps, sandbox_path,
+};
 use crate::encoders::{Encoder, FfmpegCaps, looks_like_gpu_failure};
 use crate::progress::{ProgressParser, overall_percent};
 use sr_media::plan::ExtractFormat;
 use sr_media::plan::JobPlan;
 use sr_media::playlist::parse_media_playlist;
+use sr_media::remux::RemuxPlan;
 use sr_media::runner::{CommandRunner, CommandSpec, Control};
 use sr_media::subtitles::{SubtitleError, ass_to_webvtt, sprite_vtt, srt_to_webvtt};
 use sr_media::worker_api::{
@@ -177,7 +180,7 @@ impl JobError {
 
 fn stage_of(kind: StepKind) -> Stage {
     match kind {
-        StepKind::Video | StepKind::Proxy => Stage::Video,
+        StepKind::Video | StepKind::Proxy | StepKind::Remux => Stage::Video,
         StepKind::Audio => Stage::Audio,
         StepKind::Subtitle | StepKind::Font => Stage::Subtitles,
         StepKind::Sprites | StepKind::Poster => Stage::Sprites,
@@ -211,6 +214,9 @@ impl JobDir {
     }
     fn out(&self) -> PathBuf {
         self.root.join("out")
+    }
+    fn input_dir(&self) -> PathBuf {
+        self.root.join("in")
     }
 }
 
@@ -416,6 +422,9 @@ impl<'a> Worker<'a> {
             interval: self.cfg.progress_interval,
         };
         self.report(&mut rep, Stage::Download, 0.0, None, true)?;
+        if let JobSpec::Remux { plan } = &job.spec {
+            return self.run_remux(job, plan, started, notes, &dir, &mut rep);
+        }
 
         // 1. download
         if job.source.size_bytes > self.cfg.max_source_bytes {
@@ -443,6 +452,7 @@ impl<'a> Worker<'a> {
         let (duration, plan_ladder) = match &job.spec {
             JobSpec::Ladder { plan } => (plan.source.duration_secs, Some(plan.as_ref())),
             JobSpec::Proxy { plan } => (plan.duration_secs, None),
+            JobSpec::Remux { plan } => (plan.duration_secs, None),
         };
         let mut encoder = self.caps.choose(self.cfg.force_cpu).ok_or_else(|| {
             JobError::fail(Stage::Video, BuildError::NoEncoder.to_string(), false)
@@ -460,6 +470,7 @@ impl<'a> Worker<'a> {
             match &job.spec {
                 JobSpec::Ladder { plan } => ladder_steps(plan, &ctx),
                 JobSpec::Proxy { plan } => proxy_steps(plan, &ctx),
+                JobSpec::Remux { plan } => remux_steps(plan, &dir.input_dir(), ctx.out_dir),
             }
             .map_err(|e| JobError::fail(Stage::Video, e.to_string(), false))
         };
@@ -531,6 +542,117 @@ impl<'a> Worker<'a> {
             outputs,
             segment_index,
             encoder: encoder.name().to_string(),
+            wall_secs: started.elapsed().as_secs_f64(),
+            log_tail: (!notes.is_empty()).then(|| notes.clone()),
+        })
+    }
+
+    /// The Patron download job: fetch the rendition's files, stream-copy them into one MP4 and
+    /// upload it. No encoder is involved, so there is no GPU fallback.
+    fn run_remux(
+        &self,
+        job: &ClaimedJob,
+        plan: &RemuxPlan,
+        started: Instant,
+        notes: &mut String,
+        dir: &JobDir,
+        rep: &mut Reporter,
+    ) -> Result<CompleteRequest, JobError> {
+        let total: u64 = job.inputs.iter().map(|i| i.size_bytes).sum();
+        if job.inputs.is_empty() || total > self.cfg.max_source_bytes {
+            return Err(JobError::fail(
+                Stage::Download,
+                "the remux has no inputs or too many",
+                false,
+            ));
+        }
+        let in_dir = dir.input_dir();
+        let n = job.inputs.len();
+        for (i, input) in job.inputs.iter().enumerate() {
+            let dest = sandbox_path(&in_dir, &input.path)
+                .map_err(|e| JobError::fail(Stage::Download, e.to_string(), false))?;
+            let dest = PathBuf::from(dest);
+            if let Some(parent) = dest.parent() {
+                fs::create_dir_all(parent)
+                    .map_err(|e| JobError::fail(Stage::Download, format!("work dir: {e}"), true))?;
+            }
+            let source = SourceRef {
+                download_url: input.url.clone(),
+                size_bytes: input.size_bytes,
+                expires_at: job.source.expires_at,
+                extension: "bin".to_string(),
+            };
+            let got = self
+                .transfer
+                .download(&source, &dest, input.size_bytes)
+                .map_err(|e| {
+                    JobError::fail(Stage::Download, format!("{}: {e}", input.path), true)
+                })?;
+            if got != input.size_bytes {
+                return Err(JobError::fail(
+                    Stage::Download,
+                    format!(
+                        "{} is {got} bytes, expected {}",
+                        input.path, input.size_bytes
+                    ),
+                    true,
+                ));
+            }
+            // Fetching is the first 5% of the bar, like the original download of the other kinds.
+            self.report(
+                rep,
+                Stage::Download,
+                5.0 * (i + 1) as f32 / n as f32,
+                None,
+                false,
+            )?;
+        }
+        let out = dir.out();
+        let steps = remux_steps(plan, &in_dir, &out)
+            .map_err(|e| JobError::fail(Stage::Video, e.to_string(), false))?;
+        for step in &steps {
+            let mut attempt = 1;
+            loop {
+                match self.run_step(step, &out, rep, 0.0, step.weight) {
+                    Ok(()) => break,
+                    Err(StepFailure::Job(e)) => return Err(e),
+                    Err(StepFailure::Exit { log, timed_out }) => {
+                        if is_bad_input(&log) {
+                            return Err(JobError::Failed {
+                                stage: Stage::Video,
+                                message: "remux failed: the stored files could not be read"
+                                    .to_string(),
+                                log,
+                                retryable: false,
+                            });
+                        }
+                        if attempt < self.cfg.step_attempts {
+                            attempt += 1;
+                            notes.push_str(&format!(
+                                "Retrying {} (attempt {attempt}).\n",
+                                step.label
+                            ));
+                            continue;
+                        }
+                        return Err(JobError::Failed {
+                            stage: Stage::Video,
+                            message: format!(
+                                "{} {}",
+                                step.label,
+                                if timed_out { "timed out" } else { "failed" }
+                            ),
+                            log,
+                            retryable: true,
+                        });
+                    }
+                }
+            }
+        }
+        let outputs = self.upload_all(job, &out, rep)?;
+        Ok(CompleteRequest {
+            outputs,
+            segment_index: Vec::new(),
+            encoder: "copy".to_string(),
             wall_secs: started.elapsed().as_secs_f64(),
             log_tail: (!notes.is_empty()).then(|| notes.clone()),
         })
@@ -697,7 +819,7 @@ impl<'a> Worker<'a> {
                 let p = sandbox_path(out, &plan.sprite.vtt_path).map_err(|e| bad(e.to_string()))?;
                 fs::write(p, vtt).map_err(|e| bad(e.to_string()))?;
             }
-            StepKind::Proxy => {}
+            StepKind::Proxy | StepKind::Remux => {}
         }
         Ok(())
     }

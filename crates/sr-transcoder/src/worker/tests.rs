@@ -171,6 +171,8 @@ fn kind_of(args: &[String]) -> &'static str {
         "audio"
     } else if args.last().is_some_and(|l| l.ends_with("proxy.mp4")) {
         "proxy"
+    } else if args.last().is_some_and(|l| l.ends_with("remux/video.mp4")) {
+        "remux"
     } else {
         "unknown"
     }
@@ -223,7 +225,7 @@ fn produce(args: &[String], sheets: u32) {
                 write(&last.replace("%03d", &format!("{n:03}")), b"jpeg");
             }
         }
-        "poster" | "proxy" => write(last, b"jpeg-or-mp4"),
+        "poster" | "proxy" | "remux" => write(last, b"jpeg-or-mp4"),
         _ => {}
     }
 }
@@ -288,6 +290,7 @@ pub(crate) fn ladder_job(id: &str) -> ClaimedJob {
         },
         lease_expires_at: 0,
         max_output_bytes: 1 << 30,
+        inputs: Vec::new(),
     }
 }
 
@@ -308,7 +311,7 @@ pub(crate) fn proxy_job(id: &str) -> ClaimedJob {
 pub(crate) fn sheets_of(job: &ClaimedJob) -> u32 {
     match &job.spec {
         JobSpec::Ladder { plan } => plan.sprite.sheets,
-        JobSpec::Proxy { .. } => 0,
+        JobSpec::Proxy { .. } | JobSpec::Remux { .. } => 0,
     }
 }
 
@@ -820,4 +823,108 @@ fn list_outputs_skips_empty_and_tmp_files() {
     fs::write(root.0.join("a/partial.m4s.tmp"), b"1").unwrap();
     let files = list_outputs(&root.0).unwrap();
     assert_eq!(files, [("a/b/x.m4s".to_string(), 1)]);
+}
+
+fn remux_job(id: &str) -> ClaimedJob {
+    use sr_media::remux::{RemuxFile, RemuxRequest, RemuxTrack, plan_remux};
+    use sr_media::worker_api::ClaimInput;
+    let track = |dir: &str| RemuxTrack {
+        playlist: format!("{dir}/index.m3u8"),
+        init: format!("{dir}/init.mp4"),
+        segments: vec![RemuxFile {
+            path: format!("{dir}/seg_00000.m4s"),
+            size_bytes: 10,
+        }],
+        playlist_size: 5,
+        init_size: 7,
+    };
+    let plan = plan_remux(&RemuxRequest {
+        rendition: "1080p".into(),
+        cdn_base: "/cdn/hls/9/1".into(),
+        video: track("v/1080p"),
+        audio: vec![track("a/00-eng-stereo")],
+        duration_secs: 60.0,
+    })
+    .unwrap();
+    let inputs = plan
+        .inputs
+        .iter()
+        .map(|i| ClaimInput {
+            path: i.path.clone(),
+            url: format!("https://storage.invalid{}?sig=1", i.cdn_path),
+            size_bytes: i.size_bytes,
+        })
+        .collect();
+    ClaimedJob {
+        spec: JobSpec::Remux {
+            plan: Box::new(plan),
+        },
+        inputs,
+        ..ladder_job(id)
+    }
+}
+
+#[test]
+fn remux_job_downloads_the_inputs_copies_streams_and_uploads_the_mp4() {
+    let root = TempRoot::new();
+    let api = FakeApi::default();
+    let job = remux_job("rmx1");
+    let run = runner(0, never_fail());
+    let w = Worker::new(
+        &api,
+        &FakeTransfer { short_by: 0 },
+        &run,
+        cfg(&root.0),
+        caps(false),
+    );
+    assert_eq!(w.process_job(&job), JobOutcome::Completed);
+    let st = api.st();
+    assert!(st.fails.is_empty(), "{:?}", st.fails);
+    let calls = run.calls();
+    assert_eq!(calls.len(), 1);
+    let args = &calls[0].args;
+    // Stream copy, never an encoder; video input first, then the audio, mapped in that order.
+    assert!(args.windows(2).any(|w| w[0] == "-c" && w[1] == "copy"));
+    assert!(!args.iter().any(|a| a == "libx264" || a == "h264_nvenc"));
+    let inputs: Vec<&String> = args
+        .iter()
+        .zip(args.iter().skip(1))
+        .filter(|(a, _)| *a == "-i")
+        .map(|(_, b)| b)
+        .collect();
+    assert_eq!(inputs.len(), 2);
+    assert!(inputs[0].ends_with("/in/v/1080p/index.m3u8"));
+    assert!(inputs[1].ends_with("/in/a/00-eng-stereo/index.m3u8"));
+    assert!(args.windows(2).any(|w| w[0] == "-map" && w[1] == "0:v:0"));
+    assert!(args.windows(2).any(|w| w[0] == "-map" && w[1] == "1:a:0"));
+    assert!(args.last().unwrap().ends_with("/out/remux/video.mp4"));
+    // Only the MP4 is uploaded: the downloaded inputs never go back.
+    let uploaded: Vec<&str> = st.uploads.iter().map(|u| u.path.as_str()).collect();
+    assert_eq!(uploaded, ["remux/video.mp4"]);
+    assert_eq!(st.completes[0].encoder, "copy");
+    assert!(st.completes[0].segment_index.is_empty());
+    assert!(!root.0.join("rmx1").exists());
+}
+
+#[test]
+fn remux_job_with_a_short_input_is_a_retryable_download_failure() {
+    let root = TempRoot::new();
+    let api = FakeApi::default();
+    let job = remux_job("rmx2");
+    let run = runner(0, never_fail());
+    let w = Worker::new(
+        &api,
+        &FakeTransfer { short_by: 1 },
+        &run,
+        cfg(&root.0),
+        caps(false),
+    );
+    assert_eq!(
+        w.process_job(&job),
+        JobOutcome::Failed {
+            stage: Stage::Download,
+            retryable: true
+        }
+    );
+    assert!(run.calls().is_empty());
 }

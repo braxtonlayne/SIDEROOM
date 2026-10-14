@@ -14,6 +14,7 @@ use sr_media::plan::{
     SpritePlan, SubtitleOutput, VideoPlan,
 };
 use sr_media::probe::TonemapSource;
+use sr_media::remux::RemuxPlan;
 use std::path::Path;
 use thiserror::Error;
 
@@ -40,6 +41,7 @@ pub enum StepKind {
     Sprites,
     Poster,
     Proxy,
+    Remux,
 }
 
 /// One ffmpeg invocation.
@@ -619,6 +621,49 @@ pub fn proxy_steps(plan: &ProxyPlan, ctx: &BuildCtx) -> Result<Vec<Step>, BuildE
         weight: 1.0,
         expect_secs: ctx.duration_secs,
         wipe: vec!["proxy".to_string()],
+        mkdir: vec![],
+    }])
+}
+
+/// The stream-copy remux of a stored rendition into one MP4 (Patron download). `in_dir` holds
+/// the downloaded playlists and segments in their original layout; ffmpeg reads the local
+/// playlists, so nothing is decoded or re-encoded.
+pub fn remux_steps(
+    plan: &RemuxPlan,
+    in_dir: &Path,
+    out_dir: &Path,
+) -> Result<Vec<Step>, BuildError> {
+    let mut args = base();
+    args.extend([
+        "-i".to_string(),
+        sandbox_path(in_dir, &plan.video_playlist)?,
+    ]);
+    for a in &plan.audio_playlists {
+        args.extend(["-i".to_string(), sandbox_path(in_dir, a)?]);
+    }
+    args.extend(strs(&["-map", "0:v:0"]));
+    for i in 0..plan.audio_playlists.len() {
+        args.extend(["-map".to_string(), format!("{}:a:0", i + 1)]);
+    }
+    args.extend(strs(&[
+        "-c",
+        "copy",
+        "-sn",
+        "-dn",
+        "-movflags",
+        "+faststart",
+        "-f",
+        "mp4",
+    ]));
+    args.push(sandbox_path(out_dir, &plan.output)?);
+    Ok(vec![Step {
+        kind: StepKind::Remux,
+        index: 0,
+        label: format!("remux {}", plan.rendition),
+        args,
+        weight: 1.0,
+        expect_secs: plan.duration_secs,
+        wipe: vec!["remux".to_string()],
         mkdir: vec![],
     }])
 }

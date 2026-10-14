@@ -14,9 +14,11 @@
 //! * [`retranscode`]: re-transcode planning (CIN-ING-011).
 
 pub mod http;
+pub mod output_storage;
 pub mod plan;
 pub mod playlist;
 pub mod probe;
+pub mod remux;
 pub mod retention;
 pub mod retranscode;
 pub mod runner;

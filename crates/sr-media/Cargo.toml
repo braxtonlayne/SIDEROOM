@@ -21,6 +21,7 @@ axum = { version = "0.8", default-features = false, features = ["http1", "json",
 serde.workspace = true
 serde_json.workspace = true
 sha2 = "0.11"
+bytes = "1"
 sr-storage = { path = "../sr-storage" }
 thiserror.workspace = true
 
