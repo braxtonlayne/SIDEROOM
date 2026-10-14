@@ -30,6 +30,7 @@ sr-media = { path = "../sr-media" }
 sr-tv = { path = "../sr-tv" }
 sr-cinema-social = { path = "../sr-cinema-social" }
 sr-watchparty = { path = "../sr-watchparty" }
+sr-payments = { path = "../sr-payments" }
 sr-review = { path = "../sr-review" }
 sr-chat = { path = "../sr-chat" }
 sr-core = { path = "../sr-core" }

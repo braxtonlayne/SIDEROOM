@@ -38,6 +38,7 @@ sr-gateway = { path = "../sr-gateway" }
 sr-library = { path = "../sr-library" }
 sr-cinema = { path = "../sr-cinema" }
 sr-media = { path = "../sr-media" }
+sr-payments = { path = "../sr-payments" }
 sr-cinema-social = { path = "../sr-cinema-social" }
 sr-tv = { path = "../sr-tv" }
 sr-watchparty = { path = "../sr-watchparty" }

@@ -966,6 +966,243 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/donations/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The donation settings (prices, thresholds, perks, depths, expiry). */
+        get: operations["admin_donations_get_config"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change settings with a JSON merge patch. The result is validated as a whole; nothing applies
+         *     on a failure. Takes effect immediately (no restart).
+         */
+        patch: operations["admin_donations_patch_config"];
+        trace?: never;
+    };
+    "/admin/donations/entitlements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Entitlement grants (from invoices, staff, or the legacy download table), newest first. */
+        get: operations["admin_donations_entitlements"];
+        put?: never;
+        /** Grant Patron time or a server pool contribution by hand. */
+        post: operations["admin_donations_grant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/donations/entitlements/{grant_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke a grant. */
+        delete: operations["admin_donations_revoke"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/donations/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search invoices (newest first). */
+        get: operations["admin_donations_invoices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/donations/invoices/{invoice_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One invoice with its payer, transactions and full audit trail. The read is access-logged. */
+        get: operations["admin_donations_invoice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/donations/invoices/{invoice_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close an invoice by hand: `mark_paid` (credits the purpose once), `refund_noted` (the operator
+         *     refunded outside this system; a credit already given is reversed) or `dismiss`. The server
+         *     never moves funds.
+         */
+        post: operations["admin_donations_resolve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/donations/leaderboard/hide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Keep a donor or a server off the public leaderboards (or put them back). */
+        post: operations["admin_donations_hide"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/donations/leaderboard/{board}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The ranking with real names and amounts (staff view; the read is access-logged). Entries staff
+         *     hid are not listed.
+         */
+        get: operations["admin_donations_leaderboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/donations/rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The price sources and the current median. */
+        get: operations["admin_donations_rates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/donations/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Credited totals by purpose and by day, and invoice counts by state (default: this month). */
+        get: operations["admin_donations_report"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/donations/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Wallet health, watcher status, rate sources and invoice counts. Reveals no descriptor or key. */
+        get: operations["admin_donations_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/donations/wallet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set the active wallet from a watch-only descriptor. Descriptors with private keys are
+         *     refused. Older wallets stay watched for their open invoices. Returns the first addresses to
+         *     compare with the operator's own wallet.
+         */
+        put: operations["admin_donations_set_wallet"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/donations/wallet/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Derive the first receive addresses of a descriptor without saving anything. */
+        post: operations["admin_donations_test_wallet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/features": {
         parameters: {
             query?: never;
@@ -4079,6 +4316,153 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/donations/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Public donation settings: prices, tiers, perks, the current BTC price, and this month's
+         *     donations against the hosting cost.
+         */
+        get: operations["donations_config"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/donations/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's invoices, newest first (transactions are only in the single-invoice read). */
+        get: operations["donations_list_invoices"];
+        put?: never;
+        /**
+         * Create an invoice: a fresh address derived from the operator's watch-only wallet, the amount
+         *     in satoshis locked at the current rate. 503 when the address gap limit is reached or no fresh
+         *     price exists; 403 `SR_FEATURE_DISABLED` when donations are off; 429 over 10 open invoices.
+         */
+        post: operations["donations_create_invoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/donations/invoices/{invoice_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One of the caller's invoices with its transactions. */
+        get: operations["donations_get_invoice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/donations/invoices/{invoice_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel an open invoice that has received nothing (409 otherwise). */
+        post: operations["donations_cancel_invoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/donations/invoices/{invoice_id}/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** The "I've paid" button: reads the chain for this invoice now (at most once per 10 seconds). */
+        post: operations["donations_check_invoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/donations/leaderboards/{board}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A public leaderboard: `donors` (individuals) or `servers`. Donors who hide their name show as
+         *     "Anonymous patron"; hidden amounts are omitted (rank only). Cached for an hour.
+         */
+        get: operations["donations_leaderboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/donations/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's Patron status, effective limits and leaderboard preferences. */
+        get: operations["donations_me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/donations/me/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change leaderboard privacy and the Patron badge. */
+        patch: operations["donations_patch_preferences"];
+        trace?: never;
+    };
     "/gateway": {
         parameters: {
             query?: never;
@@ -4670,6 +5054,24 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/support": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A server's support level, pool and top contributors (members only). */
+        get: operations["donations_guild_support"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Hide the server from the public leaderboard (owner only). */
+        patch: operations["donations_patch_guild_support"];
         trace?: never;
     };
     "/guilds/{guild_id}/templates": {
@@ -6918,6 +7320,19 @@ export interface components {
             /** Format: int64 */
             balance: number;
         };
+        AdminInvoicePage: {
+            items: components["schemas"]["AdminInvoiceView"][];
+            next_before?: string | null;
+        };
+        AdminInvoiceView: components["schemas"]["InvoiceView"] & {
+            audit: components["schemas"]["AuditView"][];
+            /** Format: int32 */
+            derivation_index: number;
+            resolution_note?: string | null;
+            resolved_by?: string | null;
+            user_id: string;
+            user_name?: string | null;
+        };
         /** @description Everything about a title, unpublished parts included (staff). */
         AdminTitleDetail: {
             episodes: components["schemas"]["Episode"][];
@@ -7170,6 +7585,12 @@ export interface components {
             users: components["schemas"]["UserRef"][];
             webhooks: Record<string, never>[];
         };
+        AuditView: {
+            /** Format: int64 */
+            at_ms: number;
+            detail: Record<string, never>;
+            kind: string;
+        };
         AuthorizeBody: {
             authorize: boolean;
             client_id: string;
@@ -7263,6 +7684,29 @@ export interface components {
              *     after decoding those fields.
              */
             options: unknown;
+        };
+        BoardItem: {
+            anonymous: boolean;
+            avatar?: string | null;
+            /**
+             * Format: int64
+             * @description Omitted when the donor hides the amount.
+             */
+            cents?: number | null;
+            guild_id?: string | null;
+            /** @description "Anonymous patron" when the donor hides the name. */
+            name: string;
+            /** Format: int32 */
+            rank: number;
+            user_id?: string | null;
+        };
+        BoardView: {
+            board: string;
+            /** Format: int64 */
+            generated_at_ms: number;
+            items: components["schemas"]["BoardItem"][];
+            me?: null | components["schemas"]["MyRank"];
+            window: string;
         };
         Bookmark: {
             chapter_id: string;
@@ -8038,6 +8482,17 @@ export interface components {
             /** Format: int32 */
             year?: number | null;
         };
+        ContributorView: {
+            anonymous: boolean;
+            avatar?: string | null;
+            /**
+             * Format: int64
+             * @description Omitted when the contributor hides the amount.
+             */
+            cents?: number | null;
+            name: string;
+            user_id?: string | null;
+        };
         /** @description A count after a vote. */
         CountBody: {
             /** Format: int32 */
@@ -8130,6 +8585,29 @@ export interface components {
             temporary?: boolean | null;
             /** @description Accepted for Discord compatibility; every call creates a new invite. */
             unique?: boolean | null;
+        };
+        CreateInvoiceBody: {
+            /** @description Contribute without showing the name (server contributions). */
+            anonymous?: boolean | null;
+            /**
+             * Format: int32
+             * @description Platform invite credits (`invite_credit`).
+             */
+            credits?: number | null;
+            /** @description The server (`server_level`). */
+            guild_id?: string | null;
+            /**
+             * Format: int32
+             * @description Months of Patron (`patron`).
+             */
+            months?: number | null;
+            /** @description `donate`, `patron`, `server_level` or `invite_credit`. */
+            purpose: string;
+            /**
+             * Format: int64
+             * @description USD cents (`donate`, `server_level`).
+             */
+            usd_cents?: number | null;
         };
         CreateMessageBody: {
             allowed_mentions?: null | components["schemas"]["AllowedMentionsBody"];
@@ -8350,6 +8828,30 @@ export interface components {
              * @description 1 DM, 3 group DM.
              */
             type: number;
+        };
+        DonationConfigView: {
+            /** Format: int32 */
+            confirmations: number;
+            /** @description Invoices can be created (a wallet is configured and donations are switched on). */
+            enabled: boolean;
+            free_perks: Record<string, never>;
+            hosting: components["schemas"]["HostingView"];
+            /** Format: int32 */
+            invite_credit_price_cents: number;
+            /** Format: int32 */
+            invoice_expiry_minutes: number;
+            levels: components["schemas"]["LevelOffer"][];
+            /** Format: int32 */
+            max_donation_cents: number;
+            /** Format: int32 */
+            max_invite_credits: number;
+            /** Format: int32 */
+            min_donation_cents: number;
+            network?: string | null;
+            patron: components["schemas"]["PatronOffer"];
+            rate?: null | components["schemas"]["RateView"];
+            /** Format: int32 */
+            rate_lock_minutes: number;
         };
         /** @description What the download modal polls. */
         DownloadJob: {
@@ -8648,6 +9150,50 @@ export interface components {
         GatewayInfo: {
             url: string;
         };
+        GrantBody: {
+            /**
+             * Format: int64
+             * @description Patron: days of time.
+             */
+            days?: number | null;
+            guild_id?: string | null;
+            /** @description `patron` or `server_pool`. */
+            kind: string;
+            /** @description Patron: never ends. */
+            permanent?: boolean | null;
+            reason?: string | null;
+            /**
+             * Format: int64
+             * @description Server pool: USD cents.
+             */
+            usd_cents?: number | null;
+            user_id?: string | null;
+        };
+        GrantPage: {
+            items: components["schemas"]["GrantView"][];
+            next_before?: string | null;
+        };
+        GrantView: {
+            /** Format: int64 */
+            days?: number | null;
+            /** Format: int64 */
+            ends_at_ms?: number | null;
+            guild_id?: string | null;
+            id: string;
+            kind: string;
+            permanent: boolean;
+            reason?: string | null;
+            /** Format: int64 */
+            revoked_at_ms?: number | null;
+            /** @description `invoice`, `admin` or `migrated`. */
+            source: string;
+            source_id?: string | null;
+            /** Format: int64 */
+            starts_at_ms: number;
+            /** Format: int64 */
+            usd_cents?: number | null;
+            user_id?: string | null;
+        };
         /** @description A guild on the consent screen. */
         GuildChoice: {
             can_install: boolean;
@@ -8722,6 +9268,36 @@ export interface components {
             suppress_highlights?: boolean | null;
             suppress_roles?: boolean | null;
         };
+        GuildSupportPatch: {
+            hidden_from_leaderboard: boolean;
+        };
+        GuildSupportView: {
+            /**
+             * Format: int64
+             * @description While set, the pool is below the level and the level is held until then.
+             */
+            grace_until_ms?: number | null;
+            guild_id: string;
+            hidden_from_leaderboard: boolean;
+            is_owner: boolean;
+            /** Format: int32 */
+            level: number;
+            /** Format: int32 */
+            next_threshold_cents?: number | null;
+            /** @description What the server's current level gives every member (`PerkSet`). */
+            perks: Record<string, never>;
+            /** Format: int64 */
+            pool_cents: number;
+            /** Format: int32 */
+            pool_window_days: number;
+            top_contributors: components["schemas"]["ContributorView"][];
+        };
+        HideBody: {
+            guild_id?: string | null;
+            hidden: boolean;
+            reason?: string | null;
+            user_id?: string | null;
+        };
         /** @description One row of the reading history. */
         HistoryItem: {
             /** @description The chapter, with `progress` set. */
@@ -8732,6 +9308,14 @@ export interface components {
             items: components["schemas"]["HistoryItem"][];
             /** @description Pass back as `before` for the next page; absent at the end. */
             next_before?: string | null;
+        };
+        HostingView: {
+            /** Format: int32 */
+            cost_cents: number;
+            /** Format: int64 */
+            donated_this_month_cents: number;
+            /** Format: int64 */
+            month_start_ms: number;
         };
         InstallObject: {
             created_at: string;
@@ -8873,6 +9457,61 @@ export interface components {
             ancestors: components["schemas"]["InviteNode"][];
             stats: components["schemas"]["InviteStats"];
         };
+        InvoicePage: {
+            items: components["schemas"]["InvoiceView"][];
+            next_before?: string | null;
+        };
+        InvoiceView: {
+            address: string;
+            anonymous: boolean;
+            /** @description `bitcoin:ADDRESS?amount=BTC&label=...` */
+            bip21: string;
+            /** @description `sats` as a BTC decimal string. */
+            btc: string;
+            /** Format: int32 */
+            confirmations?: number | null;
+            /** Format: int32 */
+            confirmations_required: number;
+            /** Format: int64 */
+            confirmed_sats: number;
+            /** Format: int64 */
+            created_at_ms: number;
+            /** Format: int64 */
+            credited_at_ms?: number | null;
+            /** Format: int32 */
+            credits?: number | null;
+            /** Format: int64 */
+            excess_sats: number;
+            /** Format: int64 */
+            expires_at_ms: number;
+            explorer_url?: string | null;
+            guild_id?: string | null;
+            id: string;
+            late: boolean;
+            /** Format: int32 */
+            months?: number | null;
+            network: string;
+            purpose: string;
+            /** Format: int64 */
+            quote_expires_at_ms: number;
+            rate: components["schemas"]["RateView"];
+            /** Format: int64 */
+            received_sats: number;
+            /** @description How staff closed it, if they did (`mark_paid`, `refund_noted`, `dismiss`); notes stay staff-only. */
+            resolution?: string | null;
+            /** Format: int64 */
+            sats: number;
+            /** Format: int64 */
+            shortfall_sats: number;
+            /**
+             * @description `open`, `seen`, `confirming`, `confirmed`, `overpaid`, `late_paid`, `underpaid`, `expired`,
+             *     `cancelled` or `resolved`.
+             */
+            state: string;
+            txs: components["schemas"]["TxView"][];
+            /** Format: int64 */
+            usd_cents: number;
+        };
         /** @description A decision on one item. */
         ItemDecisionInput: {
             note?: string | null;
@@ -8950,6 +9589,13 @@ export interface components {
             reason: string;
             ref_id?: string | null;
         };
+        LevelOffer: {
+            /** Format: int32 */
+            level: number;
+            perks: Record<string, never>;
+            /** Format: int32 */
+            threshold_cents: number;
+        };
         LinkBody: {
             /** @description The episode the asset is the video of. With an episode, the episode is linked. */
             episode_id?: string | null;
@@ -9019,6 +9665,12 @@ export interface components {
             /** @description `PlatformPermissions` bits as a decimal string (`OWNER` is bit 63). */
             platform_permissions: string;
             user_id: string;
+        };
+        MeView: {
+            /** @description The caller's effective limits outside any server (`Limits`). */
+            limits: Record<string, never>;
+            patron: components["schemas"]["PatronView"];
+            preferences: components["schemas"]["PrefsView"];
         };
         MemberObject: {
             avatar?: string | null;
@@ -9263,6 +9915,12 @@ export interface components {
             /** @description The profile owner's nickname in that guild. */
             nick?: string | null;
         };
+        MyRank: {
+            /** Format: int64 */
+            cents: number;
+            /** Format: int32 */
+            rank: number;
+        };
         NicknameBody: {
             /** @description Empty or null clears the nickname (max 32 characters). */
             nickname?: string | null;
@@ -9448,6 +10106,11 @@ export interface components {
         PatchBotBody: {
             username: string;
         };
+        PatchConfigBody: {
+            /** @description A JSON merge patch over the configuration (`DonationConfig` fields). */
+            changes: Record<string, never>;
+            reason?: string | null;
+        };
         PatchFeatureBody: {
             /** @description Turn the feature on or off at the platform scope. */
             enabled?: boolean | null;
@@ -9486,6 +10149,27 @@ export interface components {
              *     or 256 top-level keys.
              */
             settings: Record<string, never>;
+        };
+        PatronOffer: {
+            /** Format: int32 */
+            days_per_month: number;
+            /** Format: int32 */
+            grace_days: number;
+            /** Format: int32 */
+            max_months: number;
+            /** @description What Patron unlocks (the `PerkSet` of the configuration). */
+            perks: Record<string, never>;
+            /** Format: int32 */
+            price_cents: number;
+        };
+        PatronView: {
+            active: boolean;
+            in_grace: boolean;
+            permanent: boolean;
+            /** Format: int64 */
+            started_ms?: number | null;
+            /** Format: int64 */
+            until_ms?: number | null;
         };
         PersonBanBody: {
             category: components["schemas"]["BanCategory"];
@@ -9533,6 +10217,16 @@ export interface components {
         /** @description Users who picked one answer. */
         PollVoters: {
             users: components["schemas"]["UserRef"][];
+        };
+        PrefsBody: {
+            hide_amount?: boolean | null;
+            hide_badge?: boolean | null;
+            hide_name?: boolean | null;
+        };
+        PrefsView: {
+            hide_amount: boolean;
+            hide_badge: boolean;
+            hide_name: boolean;
         };
         PresenceBody: {
             custom_status?: null | components["schemas"]["CustomStatusBody"];
@@ -9708,6 +10402,30 @@ export interface components {
             /** Format: int32 */
             succeeded_last_day: number;
         };
+        RateSourceView: {
+            /** Format: int64 */
+            last_cents?: number | null;
+            last_error?: string | null;
+            /** Format: int64 */
+            last_ok_ms?: number | null;
+            name: string;
+        };
+        RateView: {
+            /** Format: int64 */
+            age_secs: number;
+            /**
+             * Format: int64
+             * @description USD cents for one BTC.
+             */
+            cents_per_btc: number;
+            source: string;
+            /** @description The sources are failing and this is the last good answer. */
+            stale: boolean;
+        };
+        RatesView: {
+            current?: null | components["schemas"]["RateView"];
+            sources: components["schemas"]["RateSourceView"][];
+        };
         ReactionObject: {
             /** Format: int32 */
             count: number;
@@ -9818,6 +10536,18 @@ export interface components {
             /** Format: int32 */
             position: number;
         };
+        ReportView: {
+            by_day: Record<string, never>[];
+            /** @description `[purpose, cents, count]`. */
+            by_purpose: Record<string, never>[];
+            by_state: Record<string, never>;
+            /** Format: int64 */
+            credited_cents: number;
+            /** Format: int64 */
+            from_ms: number;
+            /** Format: int64 */
+            to_ms: number;
+        };
         RequestPage: {
             items: components["schemas"]["ContentRequest"][];
             /** Format: int32 */
@@ -9847,6 +10577,13 @@ export interface components {
         };
         ResetTokenResult: {
             token: string;
+        };
+        ResolveBody: {
+            /** @description What was done (a refund note says how and when it was sent from the operator's own wallet). */
+            note: string;
+            reason?: string | null;
+            /** @description `mark_paid`, `refund_noted` or `dismiss`. */
+            resolution: string;
         };
         RetranscodeBody: {
             /** @description The asset or title id; required unless the scope is `all`. */
@@ -10100,6 +10837,15 @@ export interface components {
             /** Format: int32 */
             total: number;
         };
+        SetWalletBody: {
+            /** @description A watch-only descriptor such as `wpkh(xpub.../0/*)`. Private keys are refused. */
+            descriptor: string;
+            /** Format: int32 */
+            gap_limit?: number | null;
+            /** @description `mainnet`, `testnet`, `signet` or `regtest`. */
+            network: string;
+            reason?: string | null;
+        };
         /** @enum {string} */
         SettingKind: "integer" | "number" | "boolean" | "text";
         /** @description One platform setting with its current value, for Admin -> Limits. */
@@ -10202,6 +10948,17 @@ export interface components {
              * @description 10 announcement, 11 public (default) or 12 private thread.
              */
             type?: number | null;
+        };
+        StatusView: {
+            /** @description Counts by invoice state over the last 90 days. */
+            counts: Record<string, never>;
+            enabled: boolean;
+            /** Format: int64 */
+            needs_attention: number;
+            rate?: null | components["schemas"]["RateView"];
+            rate_sources: components["schemas"]["RateSourceView"][];
+            wallet?: null | components["schemas"]["WalletStatus"];
+            watcher: components["schemas"]["WatcherView"];
         };
         StickerObject: {
             available: boolean;
@@ -10406,6 +11163,14 @@ export interface components {
             updated_at: string;
             /** Format: int32 */
             usage_count: number;
+        };
+        TestWalletBody: {
+            descriptor: string;
+            network: string;
+        };
+        TestWalletResult: {
+            addresses: string[];
+            fingerprint: string;
         };
         /** @description Thread listings: the threads plus the caller's memberships among them. */
         ThreadList: {
@@ -10890,6 +11655,15 @@ export interface components {
         };
         /** @enum {string} */
         TvTuneState: "live" | "off_air";
+        TxView: {
+            /** Format: int64 */
+            amount_sats: number;
+            /** Format: int32 */
+            confirmations: number;
+            /** @description The chain source stopped showing it (replaced or reorged out). */
+            dropped: boolean;
+            txid: string;
+        };
         UnbanOutcome: {
             /**
              * Format: int64
@@ -11105,6 +11879,23 @@ export interface components {
             /** Format: double */
             number: number;
             title?: string | null;
+        };
+        WalletResult: {
+            /** @description The first addresses, to compare with the operator's own wallet. */
+            addresses: string[];
+            fingerprint: string;
+            network: string;
+        };
+        WalletStatus: {
+            /** @description First 8 hex characters of SHA-256 of the descriptor. The descriptor itself is never returned. */
+            fingerprint: string;
+            /** Format: int32 */
+            gap_limit: number;
+            /** Format: int32 */
+            gap_used: number;
+            network: string;
+            /** Format: int32 */
+            next_index: number;
         };
         /** @description A watch party, as returned by the API and carried by `WATCH_PARTY_UPDATE`. */
         WatchParty: {
@@ -11371,6 +12162,17 @@ export interface components {
             can_queue: boolean;
             host: boolean;
             member: boolean;
+        };
+        WatcherView: {
+            last_error?: string | null;
+            /** Format: int64 */
+            last_ok_ms?: number | null;
+            /** Format: int64 */
+            last_run_ms?: number | null;
+            /** Format: int32 */
+            polled: number;
+            /** Format: int32 */
+            tip_height?: number | null;
         };
         WebhookObject: {
             avatar?: string | null;
@@ -14937,6 +15739,713 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_get_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_patch_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchConfigBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_entitlements: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description `patron` or `server_pool`. */
+                kind: string | null;
+                user_id: string | null;
+                guild_id: string | null;
+                active: boolean | null;
+                before: string | null;
+                limit: number | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantPage"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_grant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_revoke: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Grant snowflake */
+                grant_id: string;
+            };
+            cookie?: never;
+        };
+        /** @description The reason may also be sent as X-Audit-Log-Reason. */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_invoices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                state: string | null;
+                purpose: string | null;
+                user_id: string | null;
+                /** @description An invoice id, an address, or a transaction id prefix. */
+                q: string | null;
+                /** @description Only underpaid, overpaid and late-paid invoices. */
+                needs_attention: boolean | null;
+                before: string | null;
+                limit: number | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminInvoicePage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_invoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invoice snowflake */
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminInvoiceView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_resolve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invoice snowflake */
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminInvoiceView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_hide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HideBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_leaderboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description `donors` or `servers` */
+                board: string;
+                /** @description `30d` (default) or `lifetime`. */
+                window: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BoardView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_rates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RatesView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_report: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                from_ms: number | null;
+                to_ms: number | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_set_wallet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetWalletBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WalletResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_test_wallet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TestWalletBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestWalletResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -25644,6 +27153,358 @@ export interface operations {
             };
         };
     };
+    donations_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DonationConfigView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    donations_list_invoices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Return invoices older than this id. */
+                before: string | null;
+                /** @description At most 50 (default 25). */
+                limit: number | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoicePage"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    donations_create_invoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInvoiceBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    donations_get_invoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invoice snowflake */
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    donations_cancel_invoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invoice snowflake */
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    donations_check_invoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invoice snowflake */
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    donations_leaderboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description `donors` or `servers` */
+                board: string;
+                /** @description `30d` (default) or `lifetime`. */
+                window: string | null;
+                /** @description At most 100 (default 50). */
+                limit: number | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BoardView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    donations_me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    donations_patch_preferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PrefsBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrefsView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     gateway: {
         parameters: {
             query?: never;
@@ -28071,6 +29932,94 @@ export interface operations {
                 };
             };
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    donations_guild_support: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Server snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuildSupportView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    donations_patch_guild_support: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Server snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuildSupportPatch"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuildSupportPatch"];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

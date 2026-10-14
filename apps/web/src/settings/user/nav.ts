@@ -9,6 +9,7 @@ export const USER_SETTINGS_SECTIONS = [
   { id: 'apps', label: 'Authorized Apps', group: 'User Settings' },
   { id: 'devices', label: 'Devices', group: 'User Settings' },
   { id: 'connections', label: 'Connections', group: 'User Settings' },
+  { id: 'support', label: 'Support / Patron', group: 'User Settings' },
   { id: 'appearance', label: 'Appearance', group: 'App Settings' },
   { id: 'accessibility', label: 'Accessibility', group: 'App Settings' },
   { id: 'text', label: 'Text & Images', group: 'App Settings' },

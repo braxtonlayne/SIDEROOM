@@ -12,6 +12,7 @@ import { createUserSettingsRoutes } from './settings/user/routes';
 import { createServerSettingsRoutes } from './routes/settingsServer';
 import { createAdminRoutes } from './admin/routes';
 import { createDeveloperRoutes } from './developers/routes';
+import { createSupportRoutes } from './support/routes';
 import { Landing } from './routes/entrance/Landing';
 import { Login } from './routes/entrance/Login';
 import { LoginLink } from './routes/entrance/LoginLink';
@@ -92,6 +93,7 @@ const routeTree = root.addChildren([
   createLibraryRoutes(root),
   ...createAdminRoutes(root),
   ...createDeveloperRoutes(root),
+  ...createSupportRoutes(root),
   r('/support', Support),
 ]);
 

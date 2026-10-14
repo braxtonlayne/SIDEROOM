@@ -24,7 +24,7 @@ mod system;
 #[cfg(test)]
 mod tests;
 
-pub use ctx::{AdminDeps, StaffCtx};
+pub use ctx::{AdminDeps, ReasonBody, StaffCtx, map_err, reason as reason_from};
 
 use crate::{openapi::ErrorBody, state::AppState};
 use axum::{

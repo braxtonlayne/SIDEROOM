@@ -641,10 +641,20 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     } else {
         media_service
     };
+    // Donations (DON-*): watch-only Bitcoin payments, entitlements, and the Patron download perk
+    // on top of them (the legacy `cinema_download_grants` table is a fallback until the cutover).
+    let payments = crate::payments_jobs::build(&pool, id_src.clone(), bus.clone()).await;
+    let download_entitlements: Arc<dyn sr_media::downloads::DownloadEntitlements> =
+        Arc::new(sr_db::media_repo::EntitlementDownloads::new(
+            payments.entitlements.clone(),
+            payments
+                .legacy_fallback
+                .then(|| sr_db::media_repo::PgDownloadEntitlements::new(pool.clone())),
+        ));
     let download_service = Arc::new(sr_media::downloads::DownloadService::new(
         media_repo.clone(),
         media_repo.clone(),
-        Arc::new(sr_db::media_repo::PgDownloadEntitlements::new(pool.clone())),
+        download_entitlements,
         Arc::new(cdn_signer.clone()),
         storage.clone(),
         id_src.clone(),
@@ -832,6 +842,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(media_deps)
         .extension(cinema_social_deps)
         .extension(watchparty_deps)
+        .extension(Arc::new(routes::donations::DonationsDeps::new(
+            payments.service.clone(),
+        )))
         .extension(review_deps)
         .extension(Arc::new(routes::media::MediaDeps::new(storage.clone())))
         .extension(Arc::new(
@@ -927,6 +940,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         media_service_shared,
         download_service,
     );
+    let runner = crate::payments_jobs::register(runner, &pool, payments.service.clone());
     crate::jobs::schedule_recurring(&pool).await?;
     crate::jobs::schedule_audit_purge(&pool).await?;
     crate::jobs::schedule_thread_archive(&pool).await?;
@@ -938,6 +952,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::cinema_jobs::schedule(&pool).await?;
     crate::watchparty::schedule(&pool).await?;
     crate::media_jobs::schedule(&pool).await?;
+    crate::payments_jobs::schedule(&pool).await?;
     let jobs_task = tokio::spawn(runner.run(job_rx));
 
     // REST: every feature module, feature-owned routes, and the guild backend.
