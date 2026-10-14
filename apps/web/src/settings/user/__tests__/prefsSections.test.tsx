@@ -165,6 +165,11 @@ describe('Activity Privacy', () => {
 
 describe('Authorized Apps and Connections', () => {
   it('says why there are no authorized apps', async () => {
+    server.use(
+      http.get('*/api/v1/oauth2/tokens', () =>
+        HttpResponse.json({ message: 'Not Found' }, { status: 404 }),
+      ),
+    );
     openSettings('apps');
     expect(await screen.findByText(/cannot authorize third-party apps yet/)).toBeInTheDocument();
     expect(await axeViolations(document.body)).toEqual([]);

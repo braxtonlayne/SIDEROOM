@@ -10,7 +10,7 @@ Phase 6. Spec: doc 11, doc 05.
 - [ ] **DEV-APP-005** [BE] Release review (versions with manifest diff, scopes/intents changes force review), suspend app
 - [ ] **DEV-APP-006** [BE] Privileged intents approval flow
 - [ ] **DEV-APP-007** [BE] Install flows (guild install with permissions, user install), OAuth2 authorize/token/revoke, scopes
-- [ ] **DEV-APP-008** [FE] OAuth2 authorize screen (app, scopes list, server picker, permissions checkboxes, Authorize)
+- [x] **DEV-APP-008** [FE] OAuth2 authorize screen (app, scopes list, server picker, permissions checkboxes, Authorize)
 
 ## DEV-BOT — Bot runtime API
 - [ ] **DEV-BOT-001** [BE] Bot auth on REST + gateway, intents filtering (incl. MESSAGE_CONTENT)
@@ -27,10 +27,10 @@ Phase 6. Spec: doc 11, doc 05.
 - [ ] **DEV-BOT-012** [FE] App Directory (approved released apps: search, categories, app page, Add App)
 
 ## DEV-PORT — Developer portal
-- [ ] **DEV-PORT-001** [FE] `/developers` landing + Apply flow + status
-- [ ] **DEV-PORT-002** [FE] Applications list + New Application modal
-- [ ] **DEV-PORT-003** [FE] App pages: General Information, Installation, OAuth2 (redirects, URL generator), Bot (token, intents toggles, public bot), Emojis, Webhooks, Rich Presence assets, App Testers, Activities (URL mappings), Review (submit version, status, reviewer messages)
-- [ ] **DEV-PORT-004** [DOC] API docs site (generated from OpenAPI + gateway docs), porting-from-Discord guide
+- [x] **DEV-PORT-001** [FE] `/developers` landing + Apply flow + status
+- [x] **DEV-PORT-002** [FE] Applications list + New Application modal
+- [ ] **DEV-PORT-003** [FE] App pages: General Information, Installation, OAuth2 (redirects, URL generator), Bot (token, intents toggles, public bot), Emojis, Webhooks, Rich Presence assets, App Testers, Activities (URL mappings), Review (submit version, status, reviewer messages) _(web partial: General, OAuth2, Bot, Installation, Commands builder, Review done; Emojis, Webhooks, Rich Presence, App Testers, Activities not built because the backend has none)_
+- [ ] **DEV-PORT-004** [DOC] API docs site (generated from OpenAPI + gateway docs), porting-from-Discord guide _(web partial: hand-written hub with samples, not generated from OpenAPI)_
 
 ## DEV-SDK — SDKs & compatibility
 - [ ] **DEV-SDK-001** [BE] `sr-sdk` Rust (client, gateway shard manager, cache, command framework)
