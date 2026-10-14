@@ -186,6 +186,10 @@ pub async fn create_invite(
     let channel_id: ChannelId = id("channel_id", &channel_id)?;
     let body = body.map(|Json(b)| b).unwrap_or_default();
     let acc = deps.channel_access(user, channel_id).await?;
+    // Ordinary invites to the Staff Server are refused; staff join by appointment.
+    if acc.guild.guild.is_staff_guild {
+        return Err(se(sr_chat::settings::SettingsError::StaffServerInvites));
+    }
     let base = InviteOptions::for_request(body.external.unwrap_or(false));
     let opts = InviteOptions {
         max_age_secs: body.max_age.unwrap_or(base.max_age_secs),

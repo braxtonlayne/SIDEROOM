@@ -2363,3 +2363,38 @@ async fn webhook_token_can_be_reset_but_never_read_back() {
     assert!(!text.contains(&old) && !text.contains(&new));
     assert!(e.audit_actions().await.contains(&51));
 }
+
+// ---- Staff Server invites (ADM-STF-003) ---------------------------------------------
+
+#[tokio::test]
+async fn nobody_creates_or_redeems_invites_to_the_staff_server() {
+    let e = wired().await;
+    // An invite made while the server was ordinary...
+    let old = new_invite(&e, json!({"max_uses": 3})).await;
+    // ...stops working once the server is the Staff Server.
+    e.backend
+        .data()
+        .guilds
+        .get_mut(&e.guild)
+        .unwrap()
+        .is_staff_guild = true;
+    let (s, body) = e.post(&e.invites_path(), "owner", json!({})).await;
+    assert_eq!(
+        (s, body["code"].as_u64()),
+        (StatusCode::FORBIDDEN, Some(40006)),
+        "{body}"
+    );
+    assert!(body["message"].as_str().unwrap().contains("Staff Server"));
+    let r = e.accept(CAROL, &old).await;
+    assert_eq!(code_of(&r), (StatusCode::FORBIDDEN, Some(40006)));
+    assert!(!is_member(&e, CAROL));
+    assert_eq!(uses(&e, &old), 0, "a refusal keeps the use");
+    // Other servers are unaffected.
+    e.backend
+        .data()
+        .guilds
+        .get_mut(&e.guild)
+        .unwrap()
+        .is_staff_guild = false;
+    assert_eq!(e.accept(CAROL, &old).await.0, StatusCode::OK);
+}

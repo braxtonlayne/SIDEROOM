@@ -433,6 +433,13 @@ impl super::join::InviteJoinRepository for MemoryInviteJoin {
             }
             let mut data = self.chat.data();
             if data
+                .guilds
+                .get(&inv.guild_id)
+                .is_some_and(|g| g.is_staff_guild)
+            {
+                return Err(SettingsError::StaffServerInvites);
+            }
+            if data
                 .members
                 .iter()
                 .any(|m| m.guild_id == inv.guild_id && m.user_id == user)

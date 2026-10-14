@@ -13,6 +13,8 @@ pub enum SettingsError {
     InviteExhausted,
     #[error("invites are paused in this server")]
     InvitesPaused,
+    #[error("invites to the Staff Server are disabled")]
+    StaffServerInvites,
     #[error("user is banned from this guild")]
     Banned,
     #[error("maximum number of invites reached")]
@@ -59,6 +61,10 @@ impl SettingsError {
             Self::InvitesPaused => {
                 ApiError::with_message(ErrorCode::FeatureDisabled, "Invites are paused")
             }
+            Self::StaffServerInvites => ApiError::with_message(
+                ErrorCode::FeatureDisabled,
+                "Invites to the Staff Server are disabled. Staff join by appointment.",
+            ),
             Self::Banned => ApiError::new(ErrorCode::UserBanned),
             Self::MaxInvites => ApiError::new(ErrorCode::MaxInvites),
             Self::UnknownEmoji | Self::UnknownSticker => ApiError::new(ErrorCode::UnknownEmoji),
