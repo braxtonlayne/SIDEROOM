@@ -1,0 +1,79 @@
+name: Release dry run
+# XC-CI: exercise the release path without publishing anything. Builds the server image (no push), the web
+# bundle and the tarball layout that deploy/INSTALL.md describes, so a broken Dockerfile, a missing file or a
+# service worker without its build id fails on the pull request instead of on the tag.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "deploy/**"
+      - ".github/workflows/release*.yml"
+      - "apps/web/public/**"
+      - "apps/web/vite/**"
+      - "apps/web/vite.config.ts"
+      - "Cargo.lock"
+concurrency:
+  group: release-dry-run-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  web-bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown }
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with: { tool: "wasm-pack" }
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @sideroom/wasm build
+      - run: pnpm --filter @sideroom/web build
+      - name: The service worker was finished by the build
+        run: |
+          ! grep -q '__SR_BUILD__' apps/web/dist/sw.js
+          grep -q 'sr-static-' apps/web/dist/sw.js
+          test -f apps/web/dist/manifest.webmanifest
+          test -f apps/web/dist/offline.html
+      - name: Package the web bundle
+        run: tar -C apps/web -czf sideroom-web-dryrun.tar.gz dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-bundle-dryrun
+          path: sideroom-web-dryrun.tar.gz
+          retention-days: 3
+
+  server-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      # push: false, single platform: this proves the Dockerfile builds, nothing more.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/server.Dockerfile
+          platforms: linux/amd64
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  compose-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: prod.yml renders with the example environment
+        run: |
+          cp deploy/compose/.env.prod.example deploy/compose/.env.prod
+          docker compose -f deploy/compose/prod.yml --env-file deploy/compose/.env.prod --profile monitoring config -q
+      - name: Caddyfile.prod is valid
+        run: |
+          docker run --rm -e SR_DOMAIN=chat.example.org \
+            -v "$PWD/deploy/compose/caddy/Caddyfile.prod:/etc/caddy/Caddyfile:ro" \
+            caddy:2 caddy validate --config /etc/caddy/Caddyfile

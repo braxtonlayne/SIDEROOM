@@ -11,3 +11,9 @@ server.log
 /data/
 packages/wasm/pkg/
 coverage/
+
+# Production deploy files carrying secrets (copied from the *.example templates)
+.env.prod
+deploy/compose/garage/garage.prod.toml
+deploy/compose/coturn/turnserver.prod.conf
+e2e/test-results/

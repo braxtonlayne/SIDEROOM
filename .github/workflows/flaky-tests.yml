@@ -1,0 +1,45 @@
+name: Flaky test hunt
+# XC-TEST: run the web unit suite repeatedly and report tests that fail some runs but not others
+# (scripts/flake-detect.mjs). Nightly, plus on demand with a custom command and run count.
+on:
+  schedule:
+    - cron: "37 2 * * *"
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: Number of repetitions
+        default: "10"
+      command:
+        description: Command to repeat
+        default: pnpm --filter @sideroom/web exec vitest run
+permissions:
+  contents: read
+jobs:
+  hunt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown }
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with: { tool: "wasm-pack" }
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @sideroom/wasm build
+      - name: Repeat the suite
+        run: node scripts/flake-detect.mjs --runs "${RUNS}" --json flakes.json -- ${COMMAND}
+        env:
+          RUNS: ${{ inputs.runs || '10' }}
+          COMMAND: ${{ inputs.command || 'pnpm --filter @sideroom/web exec vitest run' }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: flakes
+          path: flakes.json
+          if-no-files-found: ignore

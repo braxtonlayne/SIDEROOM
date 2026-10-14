@@ -1,5 +1,6 @@
 import { DisplayHeading, Eyebrow } from '@sideroom/ui';
 import type { ReactNode } from 'react';
+import { useT } from '../i18n/react';
 import { Door } from './Door';
 import { EntranceShell } from './EntranceShell';
 
@@ -24,10 +25,11 @@ export function AuthSplit({
   children,
   nav = 'back-to-entrance',
 }: AuthSplitProps) {
+  const t = useT();
   return (
     <EntranceShell nav={nav}>
       <main className="ent-split">
-        <section className="ent-split-left" aria-label="Welcome">
+        <section className="ent-split-left" aria-label={t('entrance.auth.welcome')}>
           <Door className="ent-door-bg" />
           <div className="ent-split-copy">
             <Eyebrow>{eyebrow}</Eyebrow>
@@ -38,8 +40,7 @@ export function AuthSplit({
           </div>
           <div className="ent-split-foot">
             <p>
-              <span className="ent-bullet" aria-hidden="true" /> A little less noise. A little more
-              belonging.
+              <span className="ent-bullet" aria-hidden="true" /> {t('entrance.auth.foot')}
             </p>
             <p className="ent-meta">{footLabel}</p>
           </div>

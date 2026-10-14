@@ -17,7 +17,7 @@ import { LoginLink } from './routes/entrance/LoginLink';
 import { Forgot, Reset } from './routes/entrance/PasswordReset';
 import { Register } from './routes/entrance/Register';
 import { ServerInvite } from './routes/entrance/ServerInvite';
-import { HouseNotes, NoInvitation } from './routes/entrance/Static';
+import { HouseNotes, NoInvitation, Support } from './routes/entrance/Static';
 import { TwoFactor } from './routes/entrance/TwoFactor';
 import { DiscordCallback } from './routes/entrance/DiscordCallback';
 import { VerifyEmail } from './routes/entrance/VerifyEmail';
@@ -89,7 +89,7 @@ const routeTree = root.addChildren([
   createLibraryRoutes(root),
   ...createAdminRoutes(root),
   r('/developers', P.Developers),
-  r('/support', P.Support),
+  r('/support', Support),
 ]);
 
 export const createAppRouter = (history?: RouterHistory) =>

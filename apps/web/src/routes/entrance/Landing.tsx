@@ -6,27 +6,45 @@ import { checkInvite } from '../../api/entrance';
 import { Door } from '../../components/Door';
 import { EntranceShell } from '../../components/EntranceShell';
 import { BookIcon, ChatIcon, DoorIcon, FilmIcon, KeyIcon, LockIcon } from '../../components/icons';
+import { useT } from '../../i18n/react';
+import type { MessageKey } from '../../i18n/messages/en';
 import { formatInviteCode, holdInviteCode, isCompleteInviteCode } from '../../lib/inviteCode';
 import { useRedirectIfLoggedIn } from '../../lib/useRedirectIfLoggedIn';
 
 type CheckState = 'idle' | 'checking' | 'valid' | 'invalid' | 'closed' | 'limited' | 'error';
 
-const MESSAGES: Partial<Record<CheckState, { tone: 'good' | 'bad'; text: string }>> = {
-  valid: { tone: 'good', text: "You're on the list." },
-  invalid: { tone: 'bad', text: "That invitation doesn't open this door." },
-  closed: { tone: 'bad', text: "The door's closed for now. We're at capacity." },
-  limited: { tone: 'bad', text: 'Too many tries. Take a breath and try again later.' },
-  error: { tone: 'bad', text: 'Something went wrong on our side. Try again in a moment.' },
+const MESSAGES: Partial<Record<CheckState, { tone: 'good' | 'bad'; key: MessageKey }>> = {
+  valid: { tone: 'good', key: 'entrance.landing.valid' },
+  invalid: { tone: 'bad', key: 'entrance.landing.invalid' },
+  closed: { tone: 'bad', key: 'entrance.landing.closed' },
+  limited: { tone: 'bad', key: 'entrance.landing.limited' },
+  error: { tone: 'bad', key: 'entrance.landing.error' },
 };
 
-const WORLDS = [
-  { n: '01', Icon: ChatIcon, title: 'The lounge', copy: 'Good company. Open conversations.' },
-  { n: '02', Icon: FilmIcon, title: 'The cinema', copy: 'Something worth staying up for.' },
-  { n: '03', Icon: BookIcon, title: 'The library', copy: 'One more chapter. Then another.' },
+const WORLDS: { n: string; Icon: typeof ChatIcon; title: MessageKey; copy: MessageKey }[] = [
+  {
+    n: '01',
+    Icon: ChatIcon,
+    title: 'entrance.landing.world.lounge.title',
+    copy: 'entrance.landing.world.lounge.copy',
+  },
+  {
+    n: '02',
+    Icon: FilmIcon,
+    title: 'entrance.landing.world.cinema.title',
+    copy: 'entrance.landing.world.cinema.copy',
+  },
+  {
+    n: '03',
+    Icon: BookIcon,
+    title: 'entrance.landing.world.library.title',
+    copy: 'entrance.landing.world.library.copy',
+  },
 ];
 
 export function Landing({ initialCode = '' }: { initialCode?: string }) {
   useRedirectIfLoggedIn();
+  const t = useT();
   const router = useRouter();
   const [code, setCode] = useState(() => formatInviteCode(initialCode));
   const [state, setState] = useState<CheckState>('idle');
@@ -80,17 +98,23 @@ export function Landing({ initialCode = '' }: { initialCode?: string }) {
       <main>
         <section className="ent-hero" aria-labelledby="hero-title">
           <div className="ent-hero-left">
-            <Eyebrow>Good things stay between us.</Eyebrow>
-            <DisplayHeading id="hero-title" size="xl" accent="closed." className="ent-big">
-              The internet, with the door
+            <Eyebrow>{t('entrance.landing.eyebrow')}</Eyebrow>
+            <DisplayHeading
+              id="hero-title"
+              size="xl"
+              accent={t('entrance.landing.headingAccent')}
+              className="ent-big"
+            >
+              {t('entrance.landing.heading')}
             </DisplayHeading>
             <p className="ent-lede">
-              A little less noise. A little more belonging.
-              <br />A place for your people, and everything you’re into.
+              {t('entrance.landing.lede1')}
+              <br />
+              {t('entrance.landing.lede2')}
             </p>
             <form onSubmit={onSubmit} noValidate>
               <label className="ent-invite-label" htmlFor="invite-code">
-                Your invitation
+                {t('entrance.landing.inviteLabel')}
               </label>
               <div
                 className={`ent-invite${shakes ? ' ent-shake' : ''}`}
@@ -105,7 +129,7 @@ export function Landing({ initialCode = '' }: { initialCode?: string }) {
                     setCode(formatInviteCode(e.target.value));
                     if (state !== 'checking') setState('idle');
                   }}
-                  placeholder="Enter your invite code"
+                  placeholder={t('entrance.landing.invitePlaceholder')}
                   autoComplete="off"
                   autoCapitalize="characters"
                   spellCheck={false}
@@ -118,7 +142,9 @@ export function Landing({ initialCode = '' }: { initialCode?: string }) {
                   disabled={!complete || busy}
                   aria-busy={state === 'checking'}
                 >
-                  {state === 'checking' ? 'Checking…' : 'Check invitation'}
+                  {state === 'checking'
+                    ? t('entrance.landing.checking')
+                    : t('entrance.landing.check')}
                 </GoldButton>
               </div>
               <p
@@ -128,47 +154,47 @@ export function Landing({ initialCode = '' }: { initialCode?: string }) {
                 role="status"
                 aria-live="polite"
               >
-                {msg?.text}
+                {msg ? t(msg.key) : null}
               </p>
             </form>
             <div className="ent-helper">
               <span>
-                <LockIcon width={14} height={14} /> Invitation required. Always.
+                <LockIcon width={14} height={14} /> {t('entrance.landing.required')}
               </span>
-              <Link to="/no-invitation">No invitation?</Link>
+              <Link to="/no-invitation">{t('entrance.landing.noInvitation')}</Link>
             </div>
           </div>
           <div className="ent-hero-right">
             <Door className="ent-door-bg" />
             <div className="ent-corner" aria-hidden="true">
-              <span>Est. after hours</span>
+              <span>{t('entrance.landing.est')}</span>
               <DoorIcon width={34} height={34} />
-              <span>By invitation only</span>
+              <span>{t('entrance.landing.invOnly')}</span>
             </div>
             <p className="ent-vertical" aria-hidden="true">
-              Some doors are worth finding.
+              {t('entrance.landing.vertical')}
             </p>
           </div>
           <div className="ent-hero-foot">
             <p>
               <span className="ent-bullet" aria-hidden="true" />
-              The outside is quiet. The inside is yours.
+              {t('entrance.landing.footLine')}
             </p>
             <button
               type="button"
               className="ent-glimpse"
               onClick={() => strip.current?.scrollIntoView({ behavior: 'smooth' })}
             >
-              A glimpse inside <span aria-hidden="true">↓</span>
+              {t('entrance.landing.glimpse')} <span aria-hidden="true">↓</span>
             </button>
           </div>
         </section>
         <section className="ent-strip" ref={strip} aria-labelledby="strip-title">
           <div className="ent-strip-head">
             <h2 id="strip-title">
-              One door. <em>A few different worlds.</em>
+              {t('entrance.landing.stripTitle')} <em>{t('entrance.landing.stripAccent')}</em>
             </h2>
-            <p>For members, together.</p>
+            <p>{t('entrance.landing.stripSub')}</p>
           </div>
           <ul className="ent-worlds">
             {WORLDS.map(({ n, Icon, title, copy }) => (
@@ -177,8 +203,8 @@ export function Landing({ initialCode = '' }: { initialCode?: string }) {
                   <span>{n} /</span>
                   <Icon />
                 </div>
-                <h3>{title}</h3>
-                <p>{copy}</p>
+                <h3>{t(title)}</h3>
+                <p>{t(copy)}</p>
               </li>
             ))}
           </ul>

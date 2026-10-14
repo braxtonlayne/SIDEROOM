@@ -34,6 +34,8 @@ env:
   SR_TEST_S3_ENDPOINT: http://127.0.0.1:3900
   SR_TEST_S3_REGION: garage
 
+permissions:
+  contents: read
 jobs:
   live-s3:
     runs-on: ubuntu-latest

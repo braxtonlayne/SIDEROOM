@@ -16,6 +16,10 @@ pub mod names {
     pub const HTTP_REQUESTS_TOTAL: &str = "http_requests_total";
     /// Histogram (seconds): `method`, `route`.
     pub const HTTP_REQUEST_DURATION: &str = "http_request_duration_seconds";
+    /// Bucket bounds (seconds) for [`HTTP_REQUEST_DURATION`].
+    pub const HTTP_LATENCY_BUCKETS: &[f64] = &[
+        0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
+    ];
     /// Gauge.
     pub const HTTP_IN_FLIGHT: &str = "http_requests_in_flight";
     /// Gauge: connections currently open in the pool.
@@ -82,6 +86,14 @@ impl Metrics {
                         Matcher::Full(names::GATEWAY_DISPATCH_BYTES.to_owned()),
                         names::GATEWAY_DISPATCH_BUCKETS,
                     )
+                    .and_then(|b| {
+                        // Real histograms (not summaries) so Grafana can compute
+                        // p95 across instances; 100 ms is the REST p95 budget.
+                        b.set_buckets_for_metric(
+                            Matcher::Full(names::HTTP_REQUEST_DURATION.to_owned()),
+                            names::HTTP_LATENCY_BUCKETS,
+                        )
+                    })
                     .map_or_else(
                         |_| PrometheusBuilder::new().build_recorder(),
                         |b| b.build_recorder(),

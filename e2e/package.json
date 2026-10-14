@@ -6,11 +6,13 @@
   "scripts": {
     "test:e2e": "playwright test",
     "list": "playwright test --list",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:static": "playwright test -c playwright.static.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0",
     "@types/node": "^22.9.0",
-    "typescript": "~5.6.3"
+    "typescript": "~5.6.3",
+    "axe-core": "^4.14.0"
   }
 }

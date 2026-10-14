@@ -1,0 +1,39 @@
+# Starter alert rules (XC-OPS-007). Metric names come from crates/sr-api/src/observability.rs.
+groups:
+  - name: sideroom
+    rules:
+      - alert: ServerDown
+        expr: up{job="sr-server"} == 0
+        for: 2m
+        labels: { severity: page }
+        annotations:
+          summary: sr-server metrics are unreachable
+          runbook: deploy/RUNBOOK.md#server-down
+      - alert: HighErrorRate
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) > 0.02
+        for: 10m
+        labels: { severity: page }
+        annotations:
+          summary: more than 2% of requests are failing
+          runbook: deploy/RUNBOOK.md#high-error-rate
+      - alert: SlowRequests
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m]))) > 0.5
+        for: 10m
+        labels: { severity: ticket }
+        annotations:
+          summary: REST p95 latency is above 500 ms (budget is 100 ms)
+          runbook: deploy/RUNBOOK.md#slow-requests
+      - alert: DatabasePoolExhausted
+        expr: db_pool_idle_connections == 0 and db_pool_connections > 0
+        for: 5m
+        labels: { severity: ticket }
+        annotations:
+          summary: no idle database connections for 5 minutes
+          runbook: deploy/RUNBOOK.md#database-pool-exhausted
+      - alert: JobsFailing
+        expr: sum(rate(jobs_processed_total{outcome=~"failed|dead"}[15m])) > 0
+        for: 30m
+        labels: { severity: ticket }
+        annotations:
+          summary: background jobs have been failing for 30 minutes
+          runbook: deploy/RUNBOOK.md#jobs-failing

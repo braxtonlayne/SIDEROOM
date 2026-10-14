@@ -1,22 +1,16 @@
-import { ThemeProvider, ToastProvider } from '@sideroom/ui';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import {
-  createRoute,
-  Outlet,
-  useRouter,
-  useRouterState,
-  type AnyRoute,
-} from '@tanstack/react-router';
-import { useState, type MouseEvent } from 'react';
-import { AgeGateProvider } from '../lib/ageGate';
-import { useAppliedTheme } from '../settings/user/prefs';
+import { createRoute, type AnyRoute } from '@tanstack/react-router';
+import { lazyNamed } from '../lib/lazyRoute';
 import { Browse, validateBrowseSearch } from './Browse';
-import { Home } from './Home';
-import { HistoryPage, MyLibraryPage, SoonPage, UpdatesPage } from './Pages';
-import { Reader } from './reader/Reader';
-import { SeriesPage } from './SeriesPage';
-import { LibraryShell, useRequireSession } from './Shell';
-import './library.css';
+// Pages load on demand (XC-PERF-001); the reader alone is the bulk of the section.
+const Home = lazyNamed(() => import('./Home'), 'Home');
+const UpdatesPage = lazyNamed(() => import('./Pages'), 'UpdatesPage');
+const MyLibraryPage = lazyNamed(() => import('./Pages'), 'MyLibraryPage');
+const HistoryPage = lazyNamed(() => import('./Pages'), 'HistoryPage');
+const SoonPage = lazyNamed(() => import('./Pages'), 'SoonPage');
+const Reader = lazyNamed(() => import('./reader/Reader'), 'Reader');
+const SeriesPage = lazyNamed(() => import('./SeriesPage'), 'SeriesPage');
+
+const LibraryRoot = lazyNamed(() => import('./LibraryRoot'), 'LibraryRoot');
 
 /**
  * Library routes (spec library-reader section 3):
@@ -28,66 +22,6 @@ import './library.css';
  *   /library/me, /history, /lists, /requests, /submissions, /upload
  * The section owns its own query cache, the "Are you 18 or older?" gate and the theme.
  */
-function Frame() {
-  const reading = useRouterState({ select: (s) => s.location.pathname.startsWith('/library/r/') });
-  const unauthorized = useRequireSession();
-  if (unauthorized) return null;
-  return reading ? <Outlet /> : <LibraryShell />;
-}
-
-function LibraryRoot() {
-  const theme = useAppliedTheme();
-  const router = useRouter();
-  const [client] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: {
-            retry: import.meta.env.MODE === 'test' ? false : 1,
-            refetchOnWindowFocus: false,
-          },
-        },
-      }),
-  );
-
-  // The shared UI kit renders plain anchors (PosterCard, ArrowLink): route in-app links without a reload.
-  const onClick = (e: MouseEvent<HTMLElement>) => {
-    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)
-      return;
-    const a = (e.target as HTMLElement).closest?.('a');
-    const href = a?.getAttribute('href');
-    if (
-      !a ||
-      !href ||
-      a.target ||
-      a.hasAttribute('download') ||
-      !href.startsWith('/') ||
-      href.startsWith('//')
-    )
-      return;
-    e.preventDefault();
-    router.history.push(href);
-  };
-
-  return (
-    <QueryClientProvider client={client}>
-      <ThemeProvider
-        section="library"
-        appearance={theme.appearance}
-        style={theme.style}
-        className="lib-root"
-        onClick={onClick}
-      >
-        <ToastProvider>
-          <AgeGateProvider>
-            <Frame />
-          </AgeGateProvider>
-        </ToastProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
-  );
-}
-
 export function createLibraryRoutes(root: AnyRoute) {
   const layout = createRoute({
     getParentRoute: () => root,
