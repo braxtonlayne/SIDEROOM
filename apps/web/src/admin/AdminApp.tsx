@@ -18,6 +18,7 @@ import { t as translate, useT } from '../i18n';
 import * as api from './api';
 import { hasAny, parsePerms } from './permissions';
 import { AccessLogSection } from './sections/AccessLog';
+import { AuditLogSection } from './sections/AuditLog';
 import { CatalogSection } from './cinema/CatalogSection';
 import { LibraryCatalogSection } from './library/LibraryCatalogSection';
 import { CollectionsSection } from './cinema/CollectionsSection';
@@ -197,6 +198,13 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     group: 'admin.adminApp.group.platform',
     visible: (v) => v.can('OPERATOR'),
     component: SystemSection,
+  },
+  {
+    id: 'audit-log',
+    label: 'admin.adminApp.section.auditLog',
+    group: 'admin.adminApp.group.audit',
+    visible: (v) => v.can('VIEW_ACCESS_LOG'),
+    component: AuditLogSection,
   },
   {
     id: 'access-log',

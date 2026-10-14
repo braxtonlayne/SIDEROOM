@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { buildCsv, csvField, DataTable, type Column } from '../DataTable';
 import { buildTree } from '../sections/InviteGraph';
+import { overridesOf, schemaFields, type SchemaField } from '../SchemaForm';
 import type { Paged } from '../ui';
 import {
   account,
@@ -662,5 +663,105 @@ describe('dashboard tiles and setup checklist', () => {
     expect(screen.queryByText('Setup checklist')).toBeNull();
     expect(screen.queryByText('Donations against hosting cost')).toBeNull();
     expect(screen.queryByRole('group', { name: 'Review queue sizes' })).toBeNull();
+  });
+});
+
+describe('feature settings form', () => {
+  const fields: SchemaField[] = [
+    { key: 'on', label: 'On', type: 'bool', default: true },
+    { key: 'n', label: 'Limit', type: 'int', default: 5, min: 1, max: 10 },
+    { key: 'note', label: 'Note', type: 'string' },
+    {
+      key: 'g',
+      label: 'Group',
+      type: 'group',
+      fields: [{ key: 'x', label: 'X', type: 'bool', default: false }],
+    },
+  ];
+
+  it('stores only values that differ from the schema defaults', () => {
+    expect(overridesOf(fields, { on: true, n: 5, note: '', g: { x: false } })).toEqual({});
+    expect(overridesOf(fields, { on: false, n: 7, note: 'hi', g: { x: true } })).toEqual({
+      on: false,
+      n: 7,
+      note: 'hi',
+      g: { x: true },
+    });
+    expect(schemaFields(null)).toEqual([]);
+    expect(schemaFields({ fields })).toHaveLength(4);
+  });
+
+  it('edits a feature setting and saves the overrides with an optional reason', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_FEATURES'] });
+    let sent: unknown;
+    const feature = {
+      id: 'moderation',
+      name: 'Moderation',
+      description: 'Auto moderation',
+      section: 'lounge',
+      phase: 1,
+      scopes: ['platform'],
+      enabled: true,
+      default_enabled: true,
+      schema: { fields },
+      settings: { on: true, n: 5, note: '', g: { x: false } },
+    };
+    server.use(
+      http.get('*/api/v1/admin/features', () => HttpResponse.json([feature])),
+      http.patch('*/api/v1/admin/features/moderation', async ({ request }) => {
+        sent = await readJson(request);
+        return HttpResponse.json(feature);
+      }),
+    );
+    openAdmin('features');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Settings for Moderation' }));
+    const limit = await screen.findByLabelText('Limit');
+    await user.clear(limit);
+    await user.type(limit, '8');
+    await user.click(screen.getByRole('button', { name: 'Save settings' }));
+    const dialog = await screen.findByRole('dialog', { name: /Save Moderation settings/ });
+    await user.click(within(dialog).getByRole('button', { name: 'Save settings' }));
+    await waitFor(() => expect(sent).toEqual({ settings: { n: 8 } }));
+    expect(await screen.findByText('Moderation settings saved.')).toBeInTheDocument();
+  });
+});
+
+describe('platform audit log', () => {
+  it('lists only action rows and passes the filters to the server', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'VIEW_ACCESS_LOG'] });
+    const queries: string[] = [];
+    server.use(
+      http.get('*/api/v1/admin/access-log', ({ request }) => {
+        queries.push(new URL(request.url).search);
+        return HttpResponse.json({
+          items: [
+            {
+              seq: 9,
+              at_us: 1_700_000_000_000_000,
+              actor_id: '1',
+              kind: 'admin_action',
+              action: 'settings.patch',
+              target_kind: 'setting',
+              target_id: '77',
+              reason: 'raise cap',
+              detail: '',
+              ip: null,
+              prev_hash: 'a',
+              hash: 'b',
+            },
+          ],
+          next_before: null,
+        });
+      }),
+    );
+    openAdmin('audit-log');
+    const user = userEvent.setup();
+    const table = await screen.findByRole('table', { name: 'Platform audit log' });
+    expect(within(table).getByText('settings.patch')).toBeInTheDocument();
+    expect(queries[0]).toContain('kind=admin_action');
+    await user.type(screen.getByLabelText('Action'), 'settings.patch');
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+    await waitFor(() => expect(queries.at(-1)).toContain('action=settings.patch'));
   });
 });

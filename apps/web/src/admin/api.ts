@@ -324,7 +324,12 @@ export interface FeatureView {
 export const listFeatures = () => get<FeatureView[]>('/admin/features');
 export const patchFeature = (
   id: string,
-  body: { enabled?: boolean; reset_enabled?: boolean; reason?: string },
+  body: {
+    enabled?: boolean;
+    reset_enabled?: boolean;
+    settings?: Record<string, unknown>;
+    reason?: string;
+  },
 ) => send<FeatureView>(`/admin/features/${id}`, 'PATCH', body);
 
 // ---- access log ----
