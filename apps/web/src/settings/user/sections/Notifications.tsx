@@ -12,6 +12,7 @@ import {
   type GuildLite,
   type GuildSettings,
 } from '../api';
+import { WebPushCard } from '../../../pwa/WebPushCard';
 import { Card, Loaded, SectionTitle, Unavailable } from '../parts';
 import { PUSH_INACTIVE_CHOICES } from '../prefs';
 import type { PrefsFormProps } from './Appearance';
@@ -259,6 +260,9 @@ export function NotificationsSection({ prefs, setPrefs }: PrefsFormProps) {
           />
         </div>
         <Unavailable>{t('settings.notifications.pushUnavailable')}</Unavailable>
+      </Card>
+      <Card id="us-webpush" title={t('pwa.push.title')}>
+        <WebPushCard />
       </Card>
       <Card
         id="us-servers"
