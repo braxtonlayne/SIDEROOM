@@ -5077,6 +5077,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "sr-cinema"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "serde",
+ "serde_json",
+ "sr-core",
+ "sr-storage",
+ "tantivy",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "utoipa",
+]
+
+[[package]]
 name = "sr-cli"
 version = "0.0.0"
 dependencies = [
@@ -5122,6 +5138,7 @@ dependencies = [
  "sr-admin",
  "sr-auth",
  "sr-chat",
+ "sr-cinema",
  "sr-core",
  "sr-library",
  "sr-review",
