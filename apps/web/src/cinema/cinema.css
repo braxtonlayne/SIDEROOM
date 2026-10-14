@@ -50,7 +50,7 @@
 .cin-sectionbar-nav {
   display: flex;
   gap: 24px;
-  margin-left: 12px;
+  margin-inline-start: 12px;
 }
 .cin-sectionbar-link {
   text-decoration: none;
@@ -130,7 +130,7 @@
   white-space: pre;
 }
 .cin-header-tools {
-  margin-left: auto;
+  margin-inline-start: auto;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -307,7 +307,7 @@
 }
 .cin-hero-index {
   position: absolute;
-  right: clamp(16px, 5vw, 80px);
+  inset-inline-end: clamp(16px, 5vw, 80px);
   bottom: 24px;
   display: flex;
   align-items: center;
@@ -332,8 +332,8 @@
 .cin-hero-dot::after {
   content: '';
   position: absolute;
-  left: 3px;
-  right: 3px;
+  inset-inline-start: 3px;
+  inset-inline-end: 3px;
   top: 10px;
   height: 2px;
   background: var(--sr-text-3);
@@ -365,7 +365,7 @@
   width: 100%;
 }
 .cin-row-label {
-  margin-left: 24px;
+  margin-inline-start: 24px;
   font-family: var(--sr-font-body);
   font-size: 11px;
   letter-spacing: 0.2em;
@@ -391,7 +391,7 @@
 .cin-age-badge-card {
   position: absolute;
   top: 8px;
-  right: 8px;
+  inset-inline-end: 8px;
   background: rgb(0 0 0 / 0.7);
 }
 .cin-qa {
@@ -445,7 +445,7 @@
 .cin-banner-fan {
   position: absolute;
   top: 0;
-  right: 0;
+  inset-inline-end: 0;
   bottom: 0;
   width: 62%;
   display: flex;
@@ -456,7 +456,7 @@
   height: 150%;
   aspect-ratio: 2 / 3;
   object-fit: cover;
-  margin-left: -4%;
+  margin-inline-start: -4%;
   transform: rotate(calc((var(--i) - (var(--n) - 1) / 2) * 5deg));
   border: 1px solid var(--sr-line);
   box-shadow: -8px 0 24px rgb(0 0 0 / 0.5);
@@ -504,7 +504,7 @@
   border-color: var(--sr-gold);
 }
 .cin-filters-btn {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 .cin-filters-btn svg {
   vertical-align: -3px;
@@ -589,12 +589,12 @@
     padding-bottom: 72px;
   }
   .cin-hero-index {
-    left: 16px;
-    right: 16px;
+    inset-inline-start: 16px;
+    inset-inline-end: 16px;
     justify-content: space-between;
   }
   .cin-filters-btn {
-    margin-left: 0;
+    margin-inline-start: 0;
   }
   .cin-footer {
     flex-direction: column;
@@ -730,8 +730,8 @@
 }
 .cin-ep-progress {
   position: absolute;
-  left: 0;
-  right: 0;
+  inset-inline-start: 0;
+  inset-inline-end: 0;
   bottom: 0;
   border-radius: 0;
 }
@@ -818,7 +818,7 @@
   }
   .cin-sectionbar-nav {
     gap: 12px;
-    margin-left: 4px;
+    margin-inline-start: 4px;
   }
   .cin-sectionbar-brand {
     letter-spacing: 0.12em;

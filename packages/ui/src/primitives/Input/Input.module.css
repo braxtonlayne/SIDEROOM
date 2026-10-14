@@ -25,10 +25,10 @@
 :global([data-theme^="sideroom"]) .error { color: #d98270; }
 
 .passwordWrap { position: relative; display: flex; }
-.hasToggle { padding-right: 64px; }
+.hasToggle { padding-inline-end: 64px; }
 .toggle {
   position: absolute;
-  right: 4px;
+  inset-inline-end: 4px;
   top: 4px;
   bottom: 4px;
   padding: 0 10px;

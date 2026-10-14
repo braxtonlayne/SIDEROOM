@@ -15,7 +15,7 @@ import {
   TextInput,
 } from '@sideroom/ui';
 import { useCallback, useEffect, useState } from 'react';
-import { useT, type MessageKey } from '../../i18n';
+import { formatTime, type MessageKey, useT } from '../../i18n';
 import * as rv from '../../review/api';
 import {
   ChangeList,
@@ -312,7 +312,7 @@ function claimText(t: TFn, s: Submission, me: string): string {
     s.claimed_by === me ? t('admin.review.you') : t('admin.review.account', { id: s.claimed_by });
   return t('admin.review.claimUntil', {
     by,
-    time: new Date(s.claim_expires_at_ms).toLocaleTimeString(undefined, { timeStyle: 'short' }),
+    time: formatTime(s.claim_expires_at_ms),
   });
 }
 

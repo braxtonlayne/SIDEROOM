@@ -2,7 +2,7 @@
 
 .sr-skip-link {
   position: absolute;
-  left: 8px;
+  inset-inline-start: 8px;
   top: -64px;
   z-index: 10000;
   padding: 10px 16px;

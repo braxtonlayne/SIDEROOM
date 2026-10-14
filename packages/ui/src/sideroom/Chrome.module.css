@@ -9,7 +9,7 @@
 .brand:focus-visible, .topBrand:focus-visible, .topLink:focus-visible, .footerLinks a:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 3px; }
 .wordmark { font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.28em; }
 .tagline { margin: 0; font-size: 0.75rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--sr-text-2, var(--ui-text-muted)); }
-.action { margin-left: auto; }
+.action { margin-inline-start: auto; }
 
 .footer {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 40px 32px;
@@ -36,4 +36,4 @@
 }
 .topLink:hover { color: var(--sr-text, var(--ui-text)); }
 .topLink[aria-current="page"] { color: var(--sr-gold, var(--ui-accent)); border-bottom-color: var(--sr-gold, var(--ui-accent)); }
-.voice { margin-left: auto; display: flex; align-items: center; }
+.voice { margin-inline-start: auto; display: flex; align-items: center; }

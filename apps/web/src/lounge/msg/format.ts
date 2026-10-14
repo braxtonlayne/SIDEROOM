@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 /** Small formatting helpers shared by the message renderers. */
 
 export function formatBytes(n: number): string {
@@ -29,11 +30,11 @@ export function timeLeft(iso: string | null, now = Date.now()): string | null {
   if (!iso) return null;
   const ms = new Date(iso).getTime() - now;
   if (Number.isNaN(ms)) return null;
-  if (ms <= 0) return 'Poll closed';
+  if (ms <= 0) return t('lounge.poll.closed');
   const min = Math.ceil(ms / 60_000);
-  if (min < 60) return `${min} minute${min === 1 ? '' : 's'} left`;
+  if (min < 60) return t('lounge.msgFormat.minutesLeft', { n: min });
   const h = Math.ceil(min / 60);
-  if (h < 48) return `${h} hour${h === 1 ? '' : 's'} left`;
+  if (h < 48) return t('lounge.msgFormat.hoursLeft', { n: h });
   const d = Math.ceil(h / 24);
-  return `${d} days left`;
+  return t('lounge.msgFormat.daysLeft', { n: d });
 }

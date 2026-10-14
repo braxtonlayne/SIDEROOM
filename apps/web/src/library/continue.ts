@@ -1,5 +1,6 @@
 // Which chapter "Start reading" / "Continue reading" opens, and how a chapter row's read mark reads.
 import type { Chapter, ChapterProgress } from './types';
+import { t } from '../i18n';
 
 export type ProgressMap = Record<string, ChapterProgress | undefined>;
 
@@ -46,7 +47,7 @@ export function pickContinue(
 /** Text of a chapter row's read mark. */
 export function readMark(c: Chapter, local: ProgressMap): string {
   const p = progressOf(c, local);
-  if (!p) return 'Unread';
-  if (p.completed) return 'Read';
-  return `Page ${p.page_index + 1} of ${c.page_count}`;
+  if (!p) return t('library.continue.unread');
+  if (p.completed) return t('library.continue.read');
+  return t('library.continue.pageOf', { page: p.page_index + 1, total: c.page_count });
 }

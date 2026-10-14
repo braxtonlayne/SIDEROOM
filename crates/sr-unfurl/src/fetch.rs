@@ -8,21 +8,21 @@
 
 use crate::policy::{Blocked, Policy};
 use async_trait::async_trait;
-use std::net::{IpAddr, SocketAddr};
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
-use url::{Host, Url};
+use url::Url;
 
 /// `Accept` header of image proxy requests.
 pub const ACCEPT_IMAGE: &str = "image/png,image/jpeg,image/gif,image/webp;q=0.9";
 /// Value of the `User-Agent` header on every outgoing request.
 pub const USER_AGENT: &str = "SIDEROOM-Unfurl";
 /// Redirects followed before giving up.
-pub const MAX_REDIRECTS: usize = 3;
+pub const MAX_REDIRECTS: usize = sr_net::MAX_REDIRECTS;
 /// TCP/TLS connect timeout.
-pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+pub const CONNECT_TIMEOUT: Duration = sr_net::CONNECT_TIMEOUT;
 /// Whole-fetch timeout (resolution, redirects and body).
-pub const TOTAL_TIMEOUT: Duration = Duration::from_secs(10);
+pub const TOTAL_TIMEOUT: Duration = sr_net::TOTAL_TIMEOUT;
 /// Largest HTML document read.
 pub const MAX_HTML_BYTES: usize = 2 * 1024 * 1024;
 /// Images larger than this (by `Content-Length`) are refused.
@@ -84,23 +84,23 @@ pub fn classify(content_type: Option<&str>) -> Option<BodyClass> {
     }
 }
 
-/// Resolves a host name to addresses.
-#[async_trait]
-pub trait Resolver: Send + Sync {
-    async fn resolve(&self, host: &str, port: u16) -> Result<Vec<IpAddr>, String>;
-}
+// The resolver seam and the address validation live in sr-net (XC-SEC-003).
+pub use sr_net::{Resolver, SystemResolver};
 
-/// The operating system resolver.
-#[derive(Debug, Default, Clone, Copy)]
-pub struct SystemResolver;
-
-#[async_trait]
-impl Resolver for SystemResolver {
-    async fn resolve(&self, host: &str, port: u16) -> Result<Vec<IpAddr>, String> {
-        let addrs = tokio::net::lookup_host((host, port))
-            .await
-            .map_err(|e| e.to_string())?;
-        Ok(addrs.map(|a| a.ip()).collect())
+impl From<sr_net::NetError> for FetchError {
+    fn from(e: sr_net::NetError) -> Self {
+        use sr_net::NetError as N;
+        match e {
+            N::Blocked(b) => FetchError::Blocked(b),
+            N::BadUrl(s) => FetchError::BadUrl(s),
+            N::Resolve(s) => FetchError::Resolve(s),
+            N::Http(s) => FetchError::Http(s),
+            N::Timeout => FetchError::Timeout,
+            N::TooManyRedirects => FetchError::TooManyRedirects,
+            N::BadRedirect => FetchError::BadRedirect,
+            N::BadStatus(c) => FetchError::BadStatus(c),
+            N::TooLarge => FetchError::TooLarge,
+        }
     }
 }
 
@@ -168,27 +168,7 @@ impl SafeFetcher {
 
     /// The validated socket addresses for `url`, or why it is refused.
     async fn validated_addrs(&self, url: &Url) -> Result<Vec<SocketAddr>, FetchError> {
-        self.policy.check_url(url)?;
-        let port = url
-            .port_or_known_default()
-            .ok_or_else(|| FetchError::BadUrl("no port".into()))?;
-        let ips = match url.host() {
-            Some(Host::Ipv4(ip)) => vec![IpAddr::V4(ip)],
-            Some(Host::Ipv6(ip)) => vec![IpAddr::V6(ip)],
-            Some(Host::Domain(d)) => {
-                let d = d.trim_end_matches('.');
-                tokio::time::timeout(CONNECT_TIMEOUT, self.resolver.resolve(d, port))
-                    .await
-                    .map_err(|_| FetchError::Timeout)?
-                    .map_err(FetchError::Resolve)?
-            }
-            None => return Err(Blocked::NoHost.into()),
-        };
-        self.policy.check_all(&ips)?;
-        Ok(ips
-            .into_iter()
-            .map(|ip| SocketAddr::new(ip, port))
-            .collect())
+        Ok(sr_net::resolve_validated(&self.policy, &*self.resolver, url).await?)
     }
 
     /// GET `url`, following at most [`MAX_REDIRECTS`] redirects and validating every
@@ -274,6 +254,7 @@ impl SafeFetcher {
 pub(crate) mod testing {
     use super::*;
     use std::collections::HashMap;
+    use std::net::IpAddr;
     use std::sync::Mutex;
 
     /// Resolver that answers from a table; unknown hosts fail.
@@ -334,6 +315,7 @@ pub(crate) mod testing {
 mod tests {
     use super::testing::*;
     use super::*;
+    use std::net::IpAddr;
     use std::sync::Mutex;
 
     fn fetcher(

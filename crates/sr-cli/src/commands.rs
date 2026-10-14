@@ -359,7 +359,9 @@ async fn reset_2fa(pool: &PgPool, cfg: &Config, ids: IdSource, user: &str) -> Re
         .find_by_id(id)
         .await
         .map_err(|e| anyhow::anyhow!("{e}"))?
-        && let Err(e) = mailer(cfg)?.send(two_factor_reset(&account.email)).await
+        && let Err(e) = mailer(cfg)?
+            .send(two_factor_reset(&account.email, &account.locale))
+            .await
     {
         eprintln!("warning: the notice email was not sent: {e}");
     }

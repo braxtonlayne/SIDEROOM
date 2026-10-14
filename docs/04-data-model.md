@@ -204,3 +204,23 @@ Phase 4 adds migrations 0210 and 0211. `reading_gc_keys` (key, chapter_id, queue
 - `attachments`: (expires_at) WHERE is_large AND state='ready'.
 - `guild_members`: (user_id) for "my guilds".
 - `accounts`: partial count index for `state='active'` used by the cap check (run inside the invite-redemption transaction with `SERIALIZABLE` or an advisory lock to prevent cap races).
+
+### 13.1 Hot-path review (XC-PERF-004)
+
+`crates/sr-db/tests/explain_hot_paths.rs` (`just explain-hot-paths`, needs `SR_TEST_DATABASE_URL`) seeds a scratch database (20k users, one 20k-member server plus 199 small ones, 5,000 channels, 400k messages, 200k read states; `SR_EXPLAIN_SCALE` multiplies the volume), runs `EXPLAIN (FORMAT JSON)` on the statements below and fails on any sequential scan of a table estimated above 1,000 rows (except those listed as allowed). Result on PostgreSQL 17: no failures, so no index migration was added (range 0570-0579 is unused).
+
+| Path | Plan |
+|---|---|
+| Message list (latest, before cursor) | `messages_channel_visible_idx` index scan per partition (merge append, `LIMIT 50`) |
+| Pins | bitmap scan on the populated partition; empty partitions are trivial seq scans |
+| Channel list of a server | `channels_guild_idx` |
+| Member list page | `guild_members` primary key range, `member_roles` primary key |
+| My servers | `guild_members_user_idx` |
+| Unread: read states, newer-than-read join, mention total | `read_states` primary key prefix, `channels` primary key |
+| Member count | index-only scan over the server's rows (allowed; cache the count if it becomes hot) |
+| Member search (substring `ILIKE`) | bounded by the server's members through the primary key; a leading wildcard cannot use a btree, accepted |
+
+Findings that are not index gaps:
+
+- Message queries without an `id` bound touch every monthly partition of `messages` (pruning needs an `id` range). Each probe is a cheap index lookup, but the partition count grows by one per month; pass an id lower bound (for example the channel's creation snowflake) when listing the first page if this shows up in profiles.
+- Full-text message search runs in Tantivy (`sr-search`), not Postgres, so it has no EXPLAIN here.

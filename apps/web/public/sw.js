@@ -104,6 +104,41 @@ if (typeof self !== 'undefined' && typeof self.addEventListener === 'function') 
       ),
     );
   });
+
+  // Web Push (XC-PWA-004). Payload: { title, body, url?, tag? }. Shown only when no app window is focused.
+  self.addEventListener('push', (event) => {
+    let data = {};
+    try {
+      data = event.data ? event.data.json() : {};
+    } catch {
+      /* not JSON */
+    }
+    event.waitUntil(
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
+        if (wins.some((w) => w.focused)) return undefined;
+        const url =
+          typeof data.url === 'string' && data.url.startsWith('/') ? data.url : '/channels';
+        return self.registration.showNotification(data.title || 'SIDE ROOM', {
+          body: data.body || '',
+          tag: data.tag,
+          icon: '/icons/icon-192.png',
+          data: { url },
+        });
+      }),
+    );
+  });
+
+  self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    const url = (event.notification.data && event.notification.data.url) || '/channels';
+    event.waitUntil(
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
+        const w = wins[0];
+        if (w) return w.focus().then(() => w.navigate && w.navigate(url));
+        return self.clients.openWindow(url);
+      }),
+    );
+  });
 }
 
 if (typeof module !== 'undefined') module.exports = { classify, BYPASS_PREFIXES };

@@ -112,7 +112,7 @@
   position: absolute;
   top: 6%;
   bottom: 0;
-  left: 18%;
+  inset-inline-start: 18%;
   width: 46%;
   background: linear-gradient(95deg, #1a0f0a, #3a2114 55%, #24140d);
   box-shadow: inset -8px 0 18px #0008;
@@ -122,7 +122,7 @@
   position: absolute;
   top: 6%;
   bottom: 0;
-  left: 64%;
+  inset-inline-start: 64%;
   width: 11%;
   background: linear-gradient(180deg, #7a5a34, #b88c52 60%, #6d4d2a);
   box-shadow: 0 0 70px 18px #b88c5244;
@@ -255,7 +255,7 @@
 .ent-corner {
   position: absolute;
   top: 80px;
-  right: 0;
+  inset-inline-end: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -294,7 +294,7 @@
   height: 6px;
   border-radius: 50%;
   background: var(--sr-gold);
-  margin-right: 10px;
+  margin-inline-end: 10px;
   vertical-align: middle;
 }
 .ent-glimpse {
@@ -341,7 +341,7 @@
 }
 .ent-worlds li {
   padding: 0 40px;
-  border-left: 1px solid var(--sr-line);
+  border-inline-start: 1px solid var(--sr-line);
 }
 @media (prefers-reduced-motion: no-preference) {
   /* Micro-interaction: a world quietly lifts when you rest on it. */
@@ -352,12 +352,12 @@
   }
   .ent-worlds li:hover {
     transform: translateY(-3px);
-    border-left-color: var(--sr-gold);
+    border-inline-start-color: var(--sr-gold);
   }
 }
 .ent-worlds li:first-child {
-  padding-left: 0;
-  border-left: 0;
+  padding-inline-start: 0;
+  border-inline-start: 0;
 }
 .ent-world-num {
   display: flex;
@@ -390,7 +390,7 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  border-right: 1px solid var(--sr-line);
+  border-inline-end: 1px solid var(--sr-line);
   background: var(--sr-bg-0);
   overflow: hidden;
 }
@@ -474,7 +474,7 @@
 }
 .ent-discord-arrow {
   position: absolute;
-  right: 28px;
+  inset-inline-end: 28px;
   color: var(--sr-text-2);
 }
 .ent-divider {
@@ -602,7 +602,7 @@
   scroll-margin-top: 24px;
 }
 .ent-notes ol {
-  padding-left: 1.4em;
+  padding-inline-start: 1.4em;
 }
 .ent-notes a {
   color: var(--sr-gold);
@@ -702,7 +702,7 @@
   .ent-worlds li,
   .ent-worlds li:first-child {
     padding: 0;
-    border-left: 0;
+    border-inline-start: 0;
   }
   .ent-split {
     display: block;
@@ -711,7 +711,7 @@
   .ent-split-left {
     min-height: 0;
     padding-bottom: 24px;
-    border-right: 0;
+    border-inline-end: 0;
   }
   .ent-split-copy {
     margin-top: 48px;

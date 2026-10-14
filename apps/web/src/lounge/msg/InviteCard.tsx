@@ -1,7 +1,7 @@
 import { Button } from '@sideroom/ui';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
-import { useT } from '../../i18n';
+import { formatNumber, useT } from '../../i18n';
 import { rest, useStore } from '../../store';
 import { inviteErrorMessage } from '../inviteFlow';
 
@@ -75,14 +75,14 @@ export function InviteCard({ code }: { code: string }) {
         <div className="lng-muted lng-invite-counts">
           {invite.approximate_presence_count !== undefined &&
             t('lounge.inviteCard.online', {
-              count: invite.approximate_presence_count.toLocaleString(),
+              count: formatNumber(invite.approximate_presence_count),
             })}
           {invite.approximate_presence_count !== undefined &&
             invite.approximate_member_count !== undefined &&
             ' • '}
           {invite.approximate_member_count !== undefined &&
             t('lounge.inviteCard.members', {
-              count: invite.approximate_member_count.toLocaleString(),
+              count: formatNumber(invite.approximate_member_count),
             })}
         </div>
         {err && (

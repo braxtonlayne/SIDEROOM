@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 /** Connection quality from RTCPeerConnection stats (VOX-UI-001/003 indicators). */
 export type QualityLevel = 'unknown' | 'good' | 'fair' | 'poor';
 
@@ -24,11 +25,20 @@ export function levelFor(pingMs: number | null, lossPct: number | null): Quality
 export const barsFor = (level: QualityLevel): number =>
   level === 'good' ? 3 : level === 'fair' ? 2 : level === 'poor' ? 1 : 0;
 
+/** Labels resolve when read, so they follow the active language. */
 export const QUALITY_LABEL: Record<QualityLevel, string> = {
-  unknown: 'Measuring connection',
-  good: 'Good connection',
-  fair: 'Fair connection',
-  poor: 'Poor connection',
+  get unknown() {
+    return t('voice.quality.unknown');
+  },
+  get good() {
+    return t('voice.quality.good');
+  },
+  get fair() {
+    return t('voice.quality.fair');
+  },
+  get poor() {
+    return t('voice.quality.poor');
+  },
 };
 
 interface StatsLike {

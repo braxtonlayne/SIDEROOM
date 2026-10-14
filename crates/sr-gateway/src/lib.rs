@@ -12,6 +12,8 @@ pub mod conn;
 pub mod hub;
 pub mod protocol;
 mod session;
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
 pub mod traits;
 pub mod voice;
 pub mod ws;

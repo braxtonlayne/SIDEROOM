@@ -288,6 +288,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     registry
         .register(crate::rich_jobs::UnfurlFeature)
         .context("registering the unfurl feature")?;
+    registry
+        .register(sr_features::ModerationReportsFeature)
+        .context("registering the moderation.reports feature")?;
     let registry = Arc::new(registry);
     let features = FeatureService::new(
         registry.clone(),
@@ -402,6 +405,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         deny_hosts: cfg.unfurl.deny_hosts.clone(),
         allow_hosts: cfg.unfurl.allow_hosts.clone(),
         allow_private_for_tests: cfg.unfurl.allow_private_for_tests,
+        ..sr_unfurl::Policy::default()
     };
     let unfurler = Arc::new(sr_unfurl::production(
         unfurl_policy.clone(),

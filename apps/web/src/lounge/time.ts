@@ -1,15 +1,12 @@
-import { usePrefsStore } from '../settings/user/prefs';
+import { formatDate, formatDateTime, formatTime, t } from '../i18n';
 
 const DAY = 86_400_000;
 
-/** The language/region and 12/24-hour choice from User Settings > Language (the browser's when left on auto). */
-function localeOptions(): { locale: string | undefined; hour12: boolean | undefined } {
-  const { locale, timeFormat } = usePrefsStore.getState().prefs;
-  return {
-    locale: locale === 'auto' ? undefined : locale,
-    hour12: timeFormat === 'auto' ? undefined : timeFormat === '12h',
-  };
-}
+/*
+ * Message times follow the language/region and 12/24-hour choice from User Settings > Language (the
+ * browser's when left on auto). The i18n runtime holds both (`settings/user/prefs.ts` keeps it in step),
+ * so these are thin wrappers that pick the shape of each label.
+ */
 
 export const sameDay = (a: Date, b: Date) =>
   a.getFullYear() === b.getFullYear() &&
@@ -17,30 +14,21 @@ export const sameDay = (a: Date, b: Date) =>
   a.getDate() === b.getDate();
 
 export function formatClock(d: Date): string {
-  const { locale, hour12 } = localeOptions();
-  return d.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit', hour12 });
+  return formatTime(d, { hour: 'numeric', minute: '2-digit' });
 }
 
 /** Message timestamp: "Today at 4:05 PM" / "Yesterday at ..." / "MM/DD/YYYY". */
 export function formatMessageTime(iso: string, now: Date = new Date()): string {
   const d = new Date(iso);
-  if (sameDay(d, now)) return `Today at ${formatClock(d)}`;
-  if (sameDay(d, new Date(now.getTime() - DAY))) return `Yesterday at ${formatClock(d)}`;
-  return d.toLocaleDateString(localeOptions().locale, {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
+  if (sameDay(d, now)) return t('lounge.time.todayAt', { time: formatClock(d) });
+  if (sameDay(d, new Date(now.getTime() - DAY))) {
+    return t('lounge.time.yesterdayAt', { time: formatClock(d) });
+  }
+  return formatDate(d, { year: 'numeric', month: '2-digit', day: '2-digit' });
 }
 
-export const formatFullTime = (iso: string) => {
-  const { locale, hour12 } = localeOptions();
-  return new Date(iso).toLocaleString(locale, { dateStyle: 'full', timeStyle: 'short', hour12 });
-};
+export const formatFullTime = (iso: string) =>
+  formatDateTime(new Date(iso), { dateStyle: 'full', timeStyle: 'short' });
 
 export const formatDividerDate = (iso: string) =>
-  new Date(iso).toLocaleDateString(localeOptions().locale, {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+  formatDate(new Date(iso), { year: 'numeric', month: 'long', day: 'numeric' });

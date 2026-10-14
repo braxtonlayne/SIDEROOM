@@ -17,7 +17,7 @@ use sr_core::{AttachmentId, ChannelId, ErrorCode, UserId};
 use sr_storage::StorageError;
 use sr_storage::storage::PresignMethod;
 use sr_storage::upload::sniff::is_strippable_image;
-use sr_storage::upload::{SizeError, sniff_mime, strip_metadata};
+use sr_storage::upload::{SizeError, Surface, strip_metadata};
 
 /// Bytes read from the start of the object for sniffing.
 const SNIFF_BYTES: u64 = 512;
@@ -213,7 +213,10 @@ pub async fn finalize(deps: &MessagesDeps, att: &mut Attachment) -> MsgResult<()
         .storage
         .get_range(&att.key, 0, info.size.min(SNIFF_BYTES))
         .await?;
-    let sniffed = sniff_mime(&head);
+    // Markup (SVG, HTML, XML) is kept as an opaque download, whatever the client declared
+    // (XC-SEC-002): it gets no sniffed type and is stored as application/octet-stream.
+    let active = sr_storage::upload::is_active_content(&head);
+    let sniffed = Surface::ChatAttachment.check(&head).unwrap_or(None);
     let declared = att.declared_content_type.as_deref().map(|s| {
         s.split(';')
             .next()
@@ -234,7 +237,9 @@ pub async fn finalize(deps: &MessagesDeps, att: &mut Attachment) -> MsgResult<()
         }
         (Some(got), _) => Some(got.to_owned()),
         // Plain text has no magic bytes: accept it only when it really is UTF-8.
-        (None, Some("text/plain")) if utf8_prefix_ok(&head) => Some("text/plain".to_owned()),
+        (None, Some("text/plain")) if !active && utf8_prefix_ok(&head) => {
+            Some("text/plain".to_owned())
+        }
         (None, _) => None,
     };
     let content_type = content_type.unwrap_or_else(|| "application/octet-stream".to_owned());

@@ -3,7 +3,7 @@
 use super::{
     common::{AuthRouteError, AuthService, R, Svc, user_agent},
     discord::{LINK_COOKIE, clear_oauth_cookie},
-    mail,
+    mail, mail_text,
     store::{InviteState, RegisterRejection, RegisterTx},
     throttle::Rule,
     validate,
@@ -210,8 +210,13 @@ pub(super) async fn send_verification(
         .await
         .map_err(|e| e.to_string())?;
     let link = svc.link("verify-email", token.expose());
+    // The mail is in the account's language; an unreadable account falls back to English.
+    let locale = match svc.store.find_by_id(user_id).await {
+        Ok(Some(account)) => account.locale,
+        _ => mail_text::DEFAULT_LOCALE.to_owned(),
+    };
     svc.mailer
-        .send(mail::verify_email(email, &link))
+        .send(mail::verify_email(email, &link, &locale))
         .await
         .map_err(|e| e.to_string())
 }

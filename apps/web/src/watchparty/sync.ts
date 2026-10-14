@@ -1,6 +1,7 @@
 // The pure part of watch party synchronisation (spec section 4): the clock-offset estimate, the expected
 // position and the drift policy. No timers, no DOM: `controller.ts` drives these with real or fake time.
 import type { Playback } from './types';
+import { t } from '../i18n';
 
 /** |drift| below this is ignored (spec says 250 ms; 100 ms keeps any two viewers within 300 ms of each other). */
 export const DRIFT_IGNORE_MS = 100;
@@ -105,9 +106,10 @@ export function planCorrection(
 /** "Waiting for Ana and 2 others" from the usernames of the stalled participants. */
 export function waitingLabel(names: string[]): string | null {
   if (names.length === 0) return null;
-  if (names.length === 1) return `Waiting for ${names[0]}`;
-  if (names.length === 2) return `Waiting for ${names[0]} and ${names[1]}`;
-  return `Waiting for ${names[0]} and ${names.length - 1} others`;
+  if (names.length === 1) return t('watchparty.sync.waitingOne', { a: names[0] ?? '' });
+  if (names.length === 2)
+    return t('watchparty.sync.waitingTwo', { a: names[0] ?? '', b: names[1] ?? '' });
+  return t('watchparty.sync.waitingMany', { a: names[0] ?? '', n: names.length - 1 });
 }
 
 /** mm:ss or h:mm:ss. */

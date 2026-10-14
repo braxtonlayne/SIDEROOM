@@ -9,7 +9,7 @@
 
 pub mod fetch;
 pub mod parse;
-pub mod policy;
+pub use sr_net::policy;
 pub mod transport;
 pub mod unfurl;
 

@@ -14,7 +14,7 @@
 .errorTitle { margin: 0; font-family: var(--ui-font-display); font-size: 2rem; font-weight: 500; }
 .desc { margin: 0; max-width: 42ch; color: var(--ui-text-muted); }
 .action { margin-top: 12px; }
-.details { margin-top: 16px; max-width: 60ch; color: var(--ui-text-muted); font-size: 0.8125rem; text-align: left; }
+.details { margin-top: 16px; max-width: 60ch; color: var(--ui-text-muted); font-size: 0.8125rem; text-align: start; }
 .details pre { overflow: auto; margin: 8px 0 0; padding: 12px; border-radius: var(--ui-radius); background: var(--ui-bg-raised); font-family: var(--ui-font-mono); white-space: pre-wrap; }
 .retry {
   min-height: 36px; padding: 0 18px; border: 0; border-radius: var(--ui-radius);

@@ -1,6 +1,6 @@
 .stack { display: inline-flex; align-items: center; }
 .item { display: inline-flex; border-radius: 50%; box-shadow: 0 0 0 2px var(--ui-bg); }
-.item + .item { margin-left: calc(var(--stack-size) * -0.3); }
+.item + .item { margin-inline-start: calc(var(--stack-size) * -0.3); }
 .more {
   width: var(--stack-size);
   height: var(--stack-size);

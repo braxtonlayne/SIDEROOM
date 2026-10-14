@@ -1,23 +1,152 @@
 import { useRouter } from '@tanstack/react-router';
 import { useCallback } from 'react';
+import { t } from '../../i18n';
 
 export const USER_SETTINGS_SECTIONS = [
-  { id: 'account', label: 'My Account', group: 'User Settings' },
-  { id: 'profile', label: 'Profiles', group: 'User Settings' },
-  { id: 'privacy', label: 'Privacy & Safety', group: 'User Settings' },
-  { id: 'activity', label: 'Activity Privacy', group: 'User Settings' },
-  { id: 'apps', label: 'Authorized Apps', group: 'User Settings' },
-  { id: 'devices', label: 'Devices', group: 'User Settings' },
-  { id: 'connections', label: 'Connections', group: 'User Settings' },
-  { id: 'support', label: 'Support / Patron', group: 'User Settings' },
-  { id: 'appearance', label: 'Appearance', group: 'App Settings' },
-  { id: 'accessibility', label: 'Accessibility', group: 'App Settings' },
-  { id: 'text', label: 'Text & Images', group: 'App Settings' },
-  { id: 'notifications', label: 'Notifications', group: 'App Settings' },
-  { id: 'voice', label: 'Voice & Video', group: 'App Settings' },
-  { id: 'keybinds', label: 'Keybinds', group: 'App Settings' },
-  { id: 'language', label: 'Language', group: 'App Settings' },
-  { id: 'advanced', label: 'Advanced', group: 'App Settings' },
+  {
+    id: 'account',
+    get label() {
+      return t('settings.userNav.account');
+    },
+    get group() {
+      return t('settings.userNav.groupUser');
+    },
+  },
+  {
+    id: 'profile',
+    get label() {
+      return t('settings.userNav.profile');
+    },
+    get group() {
+      return t('settings.userNav.groupUser');
+    },
+  },
+  {
+    id: 'privacy',
+    get label() {
+      return t('settings.userNav.privacy');
+    },
+    get group() {
+      return t('settings.userNav.groupUser');
+    },
+  },
+  {
+    id: 'activity',
+    get label() {
+      return t('settings.userNav.activity');
+    },
+    get group() {
+      return t('settings.userNav.groupUser');
+    },
+  },
+  {
+    id: 'apps',
+    get label() {
+      return t('settings.userNav.apps');
+    },
+    get group() {
+      return t('settings.userNav.groupUser');
+    },
+  },
+  {
+    id: 'devices',
+    get label() {
+      return t('settings.userNav.devices');
+    },
+    get group() {
+      return t('settings.userNav.groupUser');
+    },
+  },
+  {
+    id: 'connections',
+    get label() {
+      return t('settings.userNav.connections');
+    },
+    get group() {
+      return t('settings.userNav.groupUser');
+    },
+  },
+  {
+    id: 'support',
+    get label() {
+      return t('settings.userNav.support');
+    },
+    get group() {
+      return t('settings.userNav.groupUser');
+    },
+  },
+  {
+    id: 'appearance',
+    get label() {
+      return t('settings.userNav.appearance');
+    },
+    get group() {
+      return t('settings.userNav.groupApp');
+    },
+  },
+  {
+    id: 'accessibility',
+    get label() {
+      return t('settings.userNav.accessibility');
+    },
+    get group() {
+      return t('settings.userNav.groupApp');
+    },
+  },
+  {
+    id: 'text',
+    get label() {
+      return t('settings.userNav.text');
+    },
+    get group() {
+      return t('settings.userNav.groupApp');
+    },
+  },
+  {
+    id: 'notifications',
+    get label() {
+      return t('settings.userNav.notifications');
+    },
+    get group() {
+      return t('settings.userNav.groupApp');
+    },
+  },
+  {
+    id: 'voice',
+    get label() {
+      return t('settings.userNav.voice');
+    },
+    get group() {
+      return t('settings.userNav.groupApp');
+    },
+  },
+  {
+    id: 'keybinds',
+    get label() {
+      return t('settings.userNav.keybinds');
+    },
+    get group() {
+      return t('settings.userNav.groupApp');
+    },
+  },
+  {
+    id: 'language',
+    get label() {
+      return t('settings.userNav.language');
+    },
+    get group() {
+      return t('settings.userNav.groupApp');
+    },
+  },
+  {
+    id: 'advanced',
+    get label() {
+      return t('settings.userNav.advanced');
+    },
+    get group() {
+      return t('settings.userNav.groupApp');
+    },
+  },
 ] as const;
 
 export type UserSettingsSectionId = (typeof USER_SETTINGS_SECTIONS)[number]['id'];

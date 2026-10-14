@@ -51,8 +51,8 @@ Settings → Data & Privacy → **Request my data**. A Discord-style package (JS
 
 ## 5. Future: moderation & compliance (Phase 7)
 
-Not built now (D-126). Reserved now so nothing needs a painful migration later:
-- `moderation_holds` + `messages.hold_id` + `attachments` hold propagation.
-- `reason_category` on platform bans (needed for D-031 "serious cause").
+Not built now (D-126); the full Phase 7 design is `docs/specs/moderation-compliance.md`. Reserved now so nothing needs a painful migration later:
+- `moderation_holds` + `messages.hold_id` + `attachments.hold_id` + `submissions.hold_id` (migrations 0011, 0012, 0580). Purge jobs skip held rows.
+- `reason_category` on platform bans (migration 0580; taxonomy in `docs/specs/moderation-compliance.md` section 8), alongside the `serious`/`standard` severity needed for D-031.
 - Report buttons are designed into the message and profile menus but disabled behind feature flag `moderation.reports`.
 - An operator-facing note in `12-deployment-and-operations.md` lists jurisdiction-dependent obligations (copyright takedown handling, illegal-content reporting, data-subject rights) to address before Phase 7.

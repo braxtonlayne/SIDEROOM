@@ -1,0 +1,18 @@
+[package]
+name = "sr-net"
+version = "0.0.0"
+edition.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+async-trait.workspace = true
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls"] }
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt", "time", "net", "macros"] }
+url = "2.5.8"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "time", "net", "macros", "test-util", "io-util"] }

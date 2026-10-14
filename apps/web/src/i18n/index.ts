@@ -1,14 +1,17 @@
 export { useLocale, useT } from './react';
 export {
   formatDate,
+  formatDateTime,
   formatNumber,
   formatRelative,
   formatTime,
+  getHour12,
   getLocale,
   initLocale,
   LOCALES,
   negotiateLocale,
   registerLocale,
+  setFormatLocale,
   setHour12,
   setLocale,
   t,

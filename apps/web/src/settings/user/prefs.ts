@@ -12,6 +12,7 @@ import type { AppearanceSettings, ThemeId } from '@sideroom/ui';
 import { isThemeId } from '@sideroom/ui';
 import type { CSSProperties } from 'react';
 import { create } from 'zustand';
+import { getHour12, setFormatLocale, setHour12 } from '../../i18n';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import './prefs-effects.css';
 
@@ -281,6 +282,15 @@ export const usePrefsStore = create<PrefsState>()(
     },
   ),
 );
+
+/** Dates, numbers and the 12/24 hour clock everywhere follow the Language prefs (XC-I18N-002). */
+function syncFormatting(p: UserPrefs) {
+  const hour12 = p.timeFormat === 'auto' ? undefined : p.timeFormat === '12h';
+  if (getHour12() !== hour12) setHour12(hour12);
+  setFormatLocale(p.locale === 'auto' ? undefined : p.locale);
+}
+syncFormatting(usePrefsStore.getState().prefs);
+usePrefsStore.subscribe((s) => syncFormatting(s.prefs));
 
 export const useSavedPrefs = () => usePrefsStore((s) => s.prefs);
 

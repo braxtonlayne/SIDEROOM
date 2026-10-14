@@ -4,6 +4,10 @@ version = "0.0.0"
 edition.workspace = true
 publish.workspace = true
 
+[features]
+# In-process gateway test client utilities (XC-TEST-002) for other crates dev-dependencies.
+test-support = []
+
 [dependencies]
 sr-core = { path = "../sr-core", default-features = false }
 sr-events = { path = "../sr-events" }

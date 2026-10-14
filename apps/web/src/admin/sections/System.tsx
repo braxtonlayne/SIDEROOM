@@ -1,7 +1,7 @@
 import { Badge, Button, ConfirmDialog, EmptyState, Select } from '@sideroom/ui';
 import { useState } from 'react';
 import * as api from '../api';
-import { useT, type MessageKey } from '../../i18n';
+import { formatNumber, type MessageKey, useT } from '../../i18n';
 import {
   ActionStatus,
   Async,
@@ -36,7 +36,7 @@ export function SystemSection() {
               <Stat label={t('admin.system.version')} value={s.version} />
               <Stat
                 label={t('admin.system.gatewayConnections')}
-                value={s.gateway_sessions == null ? '–' : s.gateway_sessions.toLocaleString()}
+                value={s.gateway_sessions == null ? '–' : formatNumber(s.gateway_sessions)}
               />
               <Stat
                 label={t('admin.system.jobsQueued')}

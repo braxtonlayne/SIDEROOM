@@ -1,5 +1,6 @@
 // Pure player logic: no DOM, no network. Unit tested in model.test.ts.
 import type { Marker, NextEpisode, PlaybackInfo, SpriteCue, WatchProgress } from './types';
+import { t, type MessageKey } from '../../i18n';
 
 export const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
@@ -14,14 +15,20 @@ export function formatClock(seconds: number): string {
 
 /** Spoken form for aria-valuetext: "1 hour 2 minutes 5 seconds". */
 export function spokenClock(seconds: number): string {
+  // Each unit is a plural message, so other languages can inflect it.
   const s = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0;
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
-  const part = (n: number, w: string) => (n ? `${n} ${w}${n === 1 ? '' : 's'}` : '');
+  const part = (n: number, key: MessageKey) => (n ? t(key, { n }) : '');
   return (
-    [part(h, 'hour'), part(m, 'minute'), part(sec, 'second')].filter(Boolean).join(' ') ||
-    '0 seconds'
+    [
+      part(h, 'cinema.playerModel.hours'),
+      part(m, 'cinema.playerModel.minutes'),
+      part(sec, 'cinema.playerModel.seconds'),
+    ]
+      .filter(Boolean)
+      .join(' ') || t('cinema.playerModel.zeroSeconds')
   );
 }
 
@@ -72,7 +79,8 @@ export function activeMarker(markers: Marker[], t: number): Marker | null {
     ) ?? null
   );
 }
-export const skipLabel = (m: Marker) => (m.kind === 'intro' ? 'Skip intro' : 'Skip credits');
+export const skipLabel = (m: Marker) =>
+  m.kind === 'intro' ? t('cinema.playerModel.skipIntro') : t('cinema.playerModel.skipCredits');
 
 export const NEXT_CARD_FALLBACK_S = 20;
 export const NEXT_COUNTDOWN_S = 10;

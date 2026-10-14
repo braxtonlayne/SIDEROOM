@@ -3,7 +3,7 @@
 // "I've paid" check. Status arrives as SR_PAYMENT_UPDATE over the gateway, with polling as the fallback.
 import { Badge, Button, Modal, Notice, QRCode, useToast } from '@sideroom/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { t, useT } from '../i18n';
+import { formatDateTime, t, useT } from '../i18n';
 import { onDispatch } from '../store/events';
 import * as api from './api';
 import { errorText, sats, usd, type Invoice } from './api';
@@ -348,7 +348,7 @@ export function InvoiceModal({
             {invoice.credited_at_ms && (
               <div>
                 <dt>{t('support.invoice.credited')}</dt>
-                <dd>{new Date(invoice.credited_at_ms).toLocaleString()}</dd>
+                <dd>{formatDateTime(invoice.credited_at_ms)}</dd>
               </div>
             )}
           </dl>

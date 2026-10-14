@@ -86,13 +86,9 @@ fn now_ms() -> i64 {
 pub async fn build(pool: &PgPool, ids: IdSource, bus: Arc<dyn EventBus>) -> PaymentsRuntime {
     let repo: Arc<dyn PaymentRepo> = Arc::new(PgPaymentRepo::new(pool.clone(), ids.clone()));
     let clock: Arc<dyn Fn() -> i64 + Send + Sync> = Arc::new(now_ms);
-    let http: Option<Arc<dyn HttpGet>> = match ReqwestGet::new(Duration::from_secs(10)) {
-        Ok(h) => Some(Arc::new(h)),
-        Err(e) => {
-            tracing::error!(error = %e, "payments: HTTP client unavailable");
-            None
-        }
-    };
+    let allow_private = std::env::var("SR_PAYMENTS_ALLOW_PRIVATE_HOSTS")
+        .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
+    let http: Option<Arc<dyn HttpGet>> = Some(Arc::new(ReqwestGet::new(allow_private)));
     let esplora = std::env::var("SR_PAYMENTS_ESPLORA_URL")
         .ok()
         .filter(|u| !u.trim().is_empty());

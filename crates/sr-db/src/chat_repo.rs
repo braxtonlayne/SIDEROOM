@@ -1541,7 +1541,7 @@ pub async fn stale_pending_attachments(
 ) -> crate::DbResult<Vec<(AttachmentId, String)>> {
     let rows: Vec<(i64, String)> = sqlx::query_as(
         "SELECT id, storage_key FROM attachments \
-         WHERE state = 'pending' AND message_id IS NULL \
+         WHERE state = 'pending' AND message_id IS NULL AND hold_id IS NULL \
            AND created_at < to_timestamp($1::double precision / 1000.0) \
          ORDER BY created_at LIMIT $2",
     )
@@ -1558,9 +1558,11 @@ pub async fn stale_pending_attachments(
 /// Delete attachment rows by id; returns how many were removed.
 pub async fn delete_attachment_rows(pool: &PgPool, ids: &[AttachmentId]) -> crate::DbResult<u64> {
     let ids: Vec<i64> = ids.iter().map(|a| i(a.get())).collect();
-    let res = sqlx::query("DELETE FROM attachments WHERE id = ANY($1) AND message_id IS NULL")
-        .bind(ids)
-        .execute(pool)
-        .await?;
+    let res = sqlx::query(
+        "DELETE FROM attachments WHERE id = ANY($1) AND message_id IS NULL AND hold_id IS NULL",
+    )
+    .bind(ids)
+    .execute(pool)
+    .await?;
     Ok(res.rows_affected())
 }

@@ -12,6 +12,7 @@ import {
   type MenuEntry,
 } from '@sideroom/ui';
 import { useId, useState } from 'react';
+import { RovingNav } from '../a11y/RovingNav';
 import { useT } from '../i18n';
 import { useVoiceSession } from '../voice/session';
 import { useJoinVoice } from './voice/actions';
@@ -398,9 +399,10 @@ export function ChannelSidebar({ guildId }: { guildId: string }) {
           {error}
         </Notice>
       )}
-      <nav
+      <RovingNav
         className="lng-channels"
         aria-label={t('lounge.channelSidebar.channels', { name: guild.name })}
+        selector=":is(a, button).lng-channel, .lng-category-btn"
       >
         {groups.length === 0 && (
           <p className="lng-muted lng-pad">{t('lounge.channelSidebar.noChannels')}</p>
@@ -442,7 +444,7 @@ export function ChannelSidebar({ guildId }: { guildId: string }) {
             </section>
           );
         })}
-      </nav>
+      </RovingNav>
     </div>
   );
 }

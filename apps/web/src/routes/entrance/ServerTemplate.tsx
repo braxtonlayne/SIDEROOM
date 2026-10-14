@@ -152,7 +152,7 @@ function Preview({
         {t.usage_count === 1 ? 'time' : 'times'}
         {by ? ` · by ${by}` : ''}
       </p>
-      <ul aria-label="Channels in this template" style={{ textAlign: 'left', margin: 0 }}>
+      <ul aria-label="Channels in this template" style={{ textAlign: 'start', margin: 0 }}>
         {channels
           .filter((c) => c.kind !== 4)
           .slice(0, 12)
@@ -168,7 +168,7 @@ function Preview({
           e.preventDefault();
           if (nameOk) void create();
         }}
-        style={{ display: 'flex', flexDirection: 'column', gap: 12, textAlign: 'left' }}
+        style={{ display: 'flex', flexDirection: 'column', gap: 12, textAlign: 'start' }}
       >
         <TextInput
           label="Server name"

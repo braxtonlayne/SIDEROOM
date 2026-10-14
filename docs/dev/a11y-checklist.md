@@ -10,7 +10,7 @@
 | Reduced motion, forced colours | same spec | animations collapse, focus outline survives Windows high contrast |
 | Focus trap, Escape, focus restore | `packages/ui/src/primitives/overlays.test.tsx`, `menus.test.tsx` | Modal, Drawer, Menu, Popover |
 
-Signed-in screens (Lounge, Library, Admin, Settings) are not in the browser axe run yet because they need a session; add a route to `ROUTES` once a fixture user exists (XC-TEST-004), or stub `/api/v1/users/@me` in the spec.
+Signed-in screens are covered in jsdom by `apps/web/src/a11y/signedInRoutes.test.tsx` (a table of routes with the API mocked by MSW; add a row per new route) and by the axe cases in the Library, Cinema, Admin and Developers suites. They are not in the real-browser run yet because that needs a session; add a route to `ROUTES` in `e2e/static/a11y.spec.ts` once a fixture user exists (XC-TEST-004), or stub `/api/v1/users/@me` in the spec.
 
 ## Conventions
 
@@ -19,6 +19,25 @@ Signed-in screens (Lounge, Library, Admin, Settings) are not in the browser axe 
 - Never rely on colour alone. Muted text must reach 4.5:1: entrance copy uses `--ent-muted` because `--sr-text-3` is about 3.6:1 (see `components/entrance.css`).
 - New icon-only buttons get an `aria-label` from the i18n catalog, never a hard-coded string.
 - Respect `prefers-reduced-motion`; the global rule in `styles/a11y.css` is a safety net, not a licence to animate.
+
+## Keyboard navigation map (XC-A11Y-001)
+
+Tab moves between regions; arrow keys move inside a list. A list is one Tab stop (roving tabindex, `a11y/useRovingTabindex.ts`, used through `<RovingNav>`). Home and End jump to the ends. Shortcuts below are the defaults and can be rebound in Settings, Keybinds; the full list is in the shortcut sheet.
+
+| Section | Region | Keys |
+|---|---|---|
+| Everywhere | Skip link (entrance pages) | Tab once, Enter: focus moves to `main` |
+| Everywhere | Dialogs, menus, popovers | Focus trapped and restored; Escape closes; arrows move in menus |
+| Lounge | Server rail | Roving: Up/Down move, Home/End ends, Enter opens. Ctrl+Alt+Up/Down switch server (Cmd on macOS) |
+| Lounge | Channel list | Roving across channels and category headers: Up/Down, Home/End, Enter/Space (category toggles). Alt+Up/Down previous or next channel, Alt+Shift+Up/Down next unread |
+| Lounge | Message list | Tab reaches each message's actions; the list itself is a log region (new messages are announced, focus never moves). Esc marks the channel read; typing a character focuses the composer. *Follow-up: arrow-key message cursor.* |
+| Lounge | Composer | Enter sends, Shift+Enter newline, autocomplete popup: Up/Down/Tab/Enter/Esc |
+| Lounge | Member list | Tab per member (virtualised). *Follow-up: roving with virtual scroll.* |
+| Lounge | Quick switcher | Ctrl+K opens (Cmd on macOS); Up/Down, Enter, Esc. Ctrl+/ opens the shortcut sheet, Ctrl+, user settings |
+| Library | Search results, series grid, reader | Tab per card; reader: arrows turn pages, Esc leaves. *Follow-up: roving grid.* |
+| Cinema | Browse rows, live guide grid | Tab per tile; guide grid has its own arrow-key grid navigation (`cinema/tv/GuideGrid.tsx`). *Follow-up: roving rows.* |
+| Settings and Admin | Section nav, forms | Tab through nav then content; section nav uses the `SettingsLayout` roving list; Esc closes settings |
+| Share | Channel picker | Tab per channel, Enter picks |
 
 ## Manual screen-reader pass (before each phase exit)
 

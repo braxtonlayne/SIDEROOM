@@ -25,8 +25,8 @@
 .lng-rail-item[data-drop='after']::after {
   content: '';
   position: absolute;
-  left: 8px;
-  right: 8px;
+  inset-inline-start: 8px;
+  inset-inline-end: 8px;
   height: 3px;
   border-radius: 2px;
   background: var(--brand);
@@ -82,12 +82,12 @@
   position: relative;
 }
 .lng-channel-item .lng-pill {
-  left: -8px;
+  inset-inline-start: -8px;
 }
 .lng-channel-actions {
   position: absolute;
   top: 2px;
-  right: 4px;
+  inset-inline-end: 4px;
   display: none;
   gap: 2px;
 }
@@ -105,8 +105,8 @@
 .lng-category-head[data-drop='after']::after {
   content: '';
   position: absolute;
-  left: 8px;
-  right: 8px;
+  inset-inline-start: 8px;
+  inset-inline-end: 8px;
   height: 2px;
   background: var(--brand);
 }
@@ -157,7 +157,7 @@
   background: color-mix(in srgb, var(--warning, #faa61a) 25%, var(--bg-base-low));
 }
 .lng-friends-tabs {
-  margin-left: 16px;
+  margin-inline-start: 16px;
   flex: 1;
 }
 .lng-friends-body {
@@ -221,7 +221,7 @@
   width: 280px;
   flex-shrink: 0;
   padding: 16px;
-  border-left: 1px solid var(--ui-border);
+  border-inline-start: 1px solid var(--ui-border);
   overflow-y: auto;
 }
 .lng-active-title {
@@ -278,7 +278,7 @@
   border-radius: 6px;
   background: var(--bg-base-lowest);
   color: var(--text-normal);
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 .lng-template:hover {
@@ -302,7 +302,7 @@
 }
 .lng-examples {
   margin: 0;
-  padding-left: 18px;
+  padding-inline-start: 18px;
   color: var(--text-muted);
   font-size: 13px;
 }
@@ -335,7 +335,7 @@
   border-radius: 8px;
   background: var(--bg-base-low);
   color: var(--text-normal);
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 .lng-welcome-card:hover:not(:disabled) {

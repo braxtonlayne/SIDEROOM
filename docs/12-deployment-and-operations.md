@@ -29,6 +29,40 @@ Everything ships as **Docker Compose** (`deploy/compose/`) **and** as systemd un
 
 `/etc/sideroom/config.toml` (figment, overridable by `SR_*` env vars). Contains infrastructure only: DB URL, storage endpoint and keys, domains, secrets, voice ports, TURN shared secret. **Everything product-level** (limits, prices, feature toggles, cap) lives in the database and is edited in Admin pages, so changing it never needs a restart.
 
+### 3.1 Secrets: files, stored credentials and rotation (XC-SEC-004)
+
+**File-based secrets.** Every secret config key can be supplied from a file instead of the environment, which keeps it out of `/proc/<pid>/environ`, `docker inspect` and shell history. Set `SR_<KEY>_FILE` to the path (the key written as the env name, `.` becoming `__`): `SR_SERVER__SECRET_KEY_FILE`, `SR_DATABASE__URL_FILE`, `SR_SMTP__PASSWORD_FILE`, `SR_STORAGE__ACCESS_KEY_FILE`, `SR_STORAGE__SECRET_KEY_FILE`, `SR_VOICE__TOKEN_SECRET_FILE`, `SR_VOICE__TURN__SECRET_FILE`, `SR_DISCORD__CLIENT_SECRET_FILE`, and `SR_SERVER__SECRET_KEY_PREVIOUS_FILE` (one key per line). The standalone voice node reads `SR_VOICE_TOKEN_SECRET_FILE`, the transcode worker `--token-file`. Rules: the file's trailing newline is trimmed; a missing or empty file is a startup error; setting both `SR_X` and `SR_X_FILE` is a startup error (so a stale plain value cannot shadow a rotated file). Use Docker/Kubernetes secrets or systemd `LoadCredential=` and mode 0600/0400 files owned by the service account. The list of keys is `sr_core::config::SECRET_FILE_KEYS`; a test fails if a new secret field is added without it.
+
+**Stored credentials.** Nothing that grants access is stored in a recoverable form.
+
+| Credential | Stored as |
+|---|---|
+| Account password | argon2id PHC string (`accounts.password_hash`) |
+| Session token, trusted-device token, email verification/reset token | SHA-256 digest (`sessions`, `trusted_devices`, `email_tokens`; `token_hash`) |
+| Recovery codes | argon2id PHC / SHA-256 digest (`recovery_codes`) |
+| Bot token, interaction token, OAuth2 access/refresh token and authorization code, application client secret | SHA-256 digest (`bot_tokens`, `interactions`, `oauth2_*`, `applications.client_secret_hash`) |
+| Webhook token | SHA-256 digest (`webhooks.token_hash`) |
+| Transcode worker token | SHA-256 hex digest (`worker_tokens.token_sha256`) |
+| TOTP secret | AES-GCM ciphertext under `server.secret_key` (`secret_enc`); it must be recoverable to verify codes |
+| Passkeys | public key only (`passkey_credentials.cose_key`) |
+| Platform invite, server invite, server template and watch-party codes | plaintext, deliberately: shareable identifiers the issuer must be able to re-display; they grant a narrow, revocable, rate-limited capability and never account access |
+
+The crate test `crates/sr-db/tests/secret_columns.rs` scans every migration and fails if a column named like a credential is neither a digest/ciphertext (`*_hash`, `*_sha256`, `*_phc`, `*_enc`) nor on the plaintext allow list above. Secrets shown once at creation (bot tokens, client secrets, worker tokens, webhook URLs) cannot be shown again; rotating means issuing a new one.
+
+**Rotation.**
+
+- `server.secret_key` (TOTP encryption): generate a new key (`openssl rand -hex 32`), move the old one to `server.secret_key_previous`, restart, then run `sr-cli rotate-secret-key` to re-encrypt every TOTP secret. After it reports zero remaining, remove the old key from `server.secret_key_previous`.
+- `database.url` password: create the new password in Postgres, update the secret file, restart, then drop the old password. Use a separate Postgres role per service so each rotates independently.
+- `storage.*` keys: create a second key pair at the provider, switch the secret files, restart, delete the old pair.
+- `voice.token_secret`: the gateway and every SFU must share it. Change it on all nodes and restart them together; open voice sessions reconnect and fetch new join tokens. `voice.turn.secret` must match coturn's `static-auth-secret`; change both and restart coturn then the server.
+- `smtp.password`, `discord.client_secret`: rotate at the provider, update the file, restart.
+- Per-user and per-application credentials: bot tokens and client secrets are rotated from the Developer portal (the old value stops working immediately); worker tokens are revoked and re-issued in Admin → Transcoding; webhook tokens are reset from server settings; users revoke sessions in Settings → Security.
+- After any suspected leak: rotate the secret, then revoke sessions (Admin → Accounts, or `sr-cli user reset-2fa <user>` for one account) if `server.secret_key` or the database was exposed.
+
+**Outbound requests.** All fetches of URLs a user or remote server influenced (link previews, the image proxy, payment rate and chain sources) go through the shared SSRF-safe client in `crates/sr-net`: only http/https, no embedded credentials, every resolved address checked against private/loopback/link-local/metadata ranges, the connection pinned to the checked address, redirects revalidated hop by hop (max 3), bounded size and time, no environment proxies. If your esplora node or rate source lives on a private network, set `SR_PAYMENTS_ALLOW_PRIVATE_HOSTS=1`; it applies only to the payments client.
+
+**Upload hygiene.** Uploaded bytes are sniffed, never trusted by declared type. Profile and expression images accept only PNG, JPEG, GIF and WebP (re-encoded); SVG, HTML and XML are rejected there. Chat attachments of those formats are stored as `application/octet-stream` and served as downloads under `nosniff` and a sandboxing CSP, so they never render on the site origin.
+
 ## 4. Transcode workers
 
 - `sr-transcoder` is a single static binary plus FFmpeg (with NVENC) in a Docker image `ghcr.io/<owner>/sideroom-transcoder:<ver>-cuda`.

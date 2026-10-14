@@ -19,6 +19,7 @@ import {
   type Message,
   type Snowflake,
 } from './data';
+import { announce } from '../a11y/announcer';
 import { useT } from '../i18n';
 import { MessageItem, type NameDecor, type ReplyState } from './MessageItem';
 import { DeleteMessageDialog, ForwardDialog, PinMessageDialog } from './msg/MessageDialogs';
@@ -244,6 +245,24 @@ export function MessageList({
     prevLast.current = lastKey;
     wasLatest.current = atLatest ?? true;
   }, [lastKey, lastMsg, me.id, scrollToEnd, atLatest]);
+
+  // Screen readers hear a new message from someone else in the open channel (XC-A11Y-002) without focus
+  // moving. Loading history or opening a channel changes the last row too, so only a newly arrived id counts.
+  const announced = useRef<{ channel: Snowflake; id: string | undefined } | null>(null);
+  useEffect(() => {
+    const prev = announced.current;
+    announced.current = { channel: channelId, id: lastMsg?.id };
+    if (!prev || prev.channel !== channelId || !lastMsg || prev.id === lastMsg.id) return;
+    if (lastMsg.pending || lastMsg.author.id === me.id) return;
+    if (!prev.id || cmpId(lastMsg.id, prev.id) <= 0) return;
+    const author = lastMsg.author.displayName;
+    const text = lastMsg.content.trim();
+    announce(
+      text
+        ? t('a11y.announce.messageFrom', { author, text: text.slice(0, 200) })
+        : t('a11y.announce.messageFromAttachment', { author }),
+    );
+  }, [channelId, lastMsg, me.id, t]);
 
   // History prepended (Q170): keep the reader's place by the measured growth of the scroll height. The
   // recorded height is taken at the end of every commit, so the next prepend sees the pre-prepend height.

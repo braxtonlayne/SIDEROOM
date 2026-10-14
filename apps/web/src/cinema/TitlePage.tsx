@@ -19,6 +19,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { lazy, Suspense, useState } from 'react';
 import { ApiError } from '../api/client';
 import { useT } from '../i18n';
+import { ReportButton } from '../moderation/reports';
 import {
   getEpisodes,
   getRelated,
@@ -206,6 +207,7 @@ function Header({
           >
             <Icon name="download" size={16} /> {tr('cinema.title.download')}
           </Button>
+          <ReportButton target={{ kind: 'cinema', id: t.id }} />
           {(t.trailer_url || t.has_trailer) && (
             <Button
               variant="secondary"

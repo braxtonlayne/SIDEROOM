@@ -25,7 +25,7 @@
   content: "";
   width: 9px;
   height: 5px;
-  border-left: 2px solid var(--ui-accent-ink);
+  border-inline-start: 2px solid var(--ui-accent-ink);
   border-bottom: 2px solid var(--ui-accent-ink);
   transform: translateY(-1px) rotate(-45deg);
 }
@@ -40,7 +40,7 @@
   content: "";
   position: absolute;
   top: 2px;
-  left: 2px;
+  inset-inline-start: 2px;
   width: 16px;
   height: 16px;
   border-radius: 50%;

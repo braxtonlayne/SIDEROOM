@@ -2,6 +2,7 @@
 // Shapes mirror crates/sr-api/src/routes/donations/dto.rs. Ids are snowflake strings, money is integer USD
 // cents and satoshis, times are Unix milliseconds. Mutations never retry on 429.
 import { apiFetch } from '../api/client';
+import { formatNumber, t } from '../i18n';
 
 export { errorText } from '../settings/server/api';
 
@@ -210,28 +211,58 @@ export const getBoard = (board: 'donors' | 'servers', window: '30d' | 'lifetime'
 // ---- formatting ----
 
 export const usd = (cents: number) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
-export const sats = (n: number) => `${new Intl.NumberFormat('en-US').format(n)} sats`;
+  formatNumber(cents / 100, { style: 'currency', currency: 'USD' });
+export const sats = (n: number) => t('support.api.sats', { amount: formatNumber(n) });
+/** Labels resolve when read, so they follow the active language. */
 export const STATE_COPY: Record<InvoiceState, string> = {
-  open: 'Waiting for payment',
-  seen: 'Payment seen, waiting for a block',
-  confirming: 'Confirming',
-  confirmed: 'Paid',
-  overpaid: 'Paid (extra received)',
-  late_paid: 'Paid after expiry',
-  underpaid: 'Underpaid',
-  expired: 'Expired',
-  cancelled: 'Cancelled',
-  resolved: 'Closed by staff',
+  get open() {
+    return t('support.api.state.open');
+  },
+  get seen() {
+    return t('support.api.state.seen');
+  },
+  get confirming() {
+    return t('support.api.state.confirming');
+  },
+  get confirmed() {
+    return t('support.api.state.confirmed');
+  },
+  get overpaid() {
+    return t('support.api.state.overpaid');
+  },
+  get late_paid() {
+    return t('support.api.state.latePaid');
+  },
+  get underpaid() {
+    return t('support.api.state.underpaid');
+  },
+  get expired() {
+    return t('support.api.state.expired');
+  },
+  get cancelled() {
+    return t('support.api.state.cancelled');
+  },
+  get resolved() {
+    return t('support.api.state.resolved');
+  },
 };
 /** States the chain can still change. */
 export const isLive = (s: InvoiceState) =>
   s === 'open' || s === 'seen' || s === 'confirming' || s === 'underpaid';
 export const isPaid = (s: InvoiceState) =>
   s === 'confirmed' || s === 'overpaid' || s === 'late_paid';
+/** Labels resolve when read, so they follow the active language. */
 export const PURPOSE_COPY: Record<Purpose, string> = {
-  donate: 'Donation',
-  patron: 'Patron',
-  server_level: 'Server support',
-  invite_credit: 'Invite credits',
+  get donate() {
+    return t('support.api.purpose.donate');
+  },
+  get patron() {
+    return t('support.api.purpose.patron');
+  },
+  get server_level() {
+    return t('support.api.purpose.serverLevel');
+  },
+  get invite_credit() {
+    return t('support.api.purpose.inviteCredit');
+  },
 };

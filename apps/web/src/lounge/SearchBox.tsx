@@ -2,7 +2,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { Icon } from '@sideroom/ui';
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { ApiError } from '../api/client';
-import { useT } from '../i18n';
+import { formatNumber, useT } from '../i18n';
 import { rest } from '../store';
 import { HOME } from './channels';
 import { useChannels, useUsers } from './data';
@@ -325,7 +325,7 @@ export function SearchBox({
                     ? t('lounge.searchBox.noResults')
                     : t('lounge.searchBox.resultCount', {
                         count: status.total,
-                        formatted: status.total.toLocaleString(),
+                        formatted: formatNumber(status.total),
                       })}
                 </h2>
                 <label className="lng-search-sort">

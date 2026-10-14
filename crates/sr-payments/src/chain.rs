@@ -51,36 +51,38 @@ pub trait HttpGet: Send + Sync {
     async fn get(&self, url: &str) -> Result<String, String>;
 }
 
-/// `reqwest` over rustls.
+/// The production [`HttpGet`]: the shared SSRF-safe client from `sr-net` (XC-SEC-003).
+/// Private and loopback addresses are refused unless the operator opts in because their
+/// esplora node or rate source lives on the private network.
 pub struct ReqwestGet {
-    client: reqwest::Client,
+    client: sr_net::SafeClient,
 }
 
+/// Largest esplora or rate-source body read.
+const MAX_BODY_BYTES: usize = 4 * 1024 * 1024;
+
 impl ReqwestGet {
-    pub fn new(timeout: std::time::Duration) -> Result<Self, String> {
-        let client = reqwest::Client::builder()
-            .timeout(timeout)
-            .user_agent("sideroom-payments/1")
-            .build()
-            .map_err(|e| e.to_string())?;
-        Ok(Self { client })
+    pub fn new(allow_private_hosts: bool) -> Self {
+        let policy = sr_net::Policy {
+            allow_private_hosts,
+            ..sr_net::Policy::default()
+        };
+        Self {
+            client: sr_net::SafeClient::production(policy, "sideroom-payments/1"),
+        }
     }
 }
 
 #[async_trait]
 impl HttpGet for ReqwestGet {
     async fn get(&self, url: &str) -> Result<String, String> {
+        let url = url::Url::parse(url).map_err(|e| e.to_string())?;
         let resp = self
             .client
-            .get(url)
-            .send()
+            .get(&url, "application/json,text/plain", MAX_BODY_BYTES)
             .await
             .map_err(|e| e.to_string())?;
-        let status = resp.status();
-        if !status.is_success() {
-            return Err(format!("HTTP {status}"));
-        }
-        resp.text().await.map_err(|e| e.to_string())
+        Ok(resp.text())
     }
 }
 

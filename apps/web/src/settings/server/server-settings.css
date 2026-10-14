@@ -185,7 +185,7 @@
   font-size: 0.875rem;
 }
 .ss-table th {
-  text-align: left;
+  text-align: start;
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -236,7 +236,7 @@
   color: var(--ui-text-muted);
 }
 .ss-tree-child {
-  padding-left: 24px;
+  padding-inline-start: 24px;
 }
 .ss-emoji-img {
   width: 32px;
@@ -269,7 +269,7 @@
   border: 0;
   color: inherit;
   font: inherit;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
   padding: 0;
 }

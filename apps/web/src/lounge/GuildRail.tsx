@@ -3,6 +3,7 @@ import { Avatar, ContextMenu, CounterBadge, Icon, Tooltip, type MenuEntry } from
 import { useState, type ReactNode } from 'react';
 import { RailPill, type RailPillState } from '@sideroom/ui';
 import { ComingSoon } from '@sideroom/ui';
+import { RovingNav } from '../a11y/RovingNav';
 import { useT } from '../i18n';
 import { firstTextChannel, HOME } from './channels';
 import {
@@ -329,7 +330,11 @@ export function GuildRail() {
   const unreadDms = dms.filter((d) => d.unread);
   const homeSelected = guildId === HOME || guildId === undefined;
   return (
-    <nav className="lng-rail" aria-label={t('lounge.guildRail.servers')}>
+    <RovingNav
+      className="lng-rail"
+      aria-label={t('lounge.guildRail.servers')}
+      selector=".lng-rail-item :is(a[href], button)"
+    >
       <ul className="lng-rail-list">
         <li>
           <div className="lng-rail-item" data-selected={homeSelected || undefined}>
@@ -445,6 +450,6 @@ export function GuildRail() {
       >
         <p>{t('lounge.guildRail.directoryNote')}</p>
       </ComingSoon>
-    </nav>
+    </RovingNav>
   );
 }
