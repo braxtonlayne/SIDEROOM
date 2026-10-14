@@ -237,6 +237,14 @@ impl Conn {
                 }
                 Ok(())
             }
+            op::LAZY_REQUEST => {
+                if let Some(s) = self.session.clone()
+                    && s.intents & intents::GUILD_MEMBERS != 0
+                {
+                    self.gw.lazy_request(&s, &p.d).await;
+                }
+                Ok(())
+            }
             // Member requests, SR ops: routed to registered handlers; unclaimed
             // opcodes are ignored.
             _ => {

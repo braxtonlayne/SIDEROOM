@@ -149,13 +149,22 @@ async fn world() -> World {
     admin_repo.set_owner(ADMIN_OWNER);
     let admin_svc = AdminService::new(admin_repo.clone());
     let op = Caller::operator(SYSTEM_USER_ID);
-    admin_svc.appoint(&op, STAFF, &[1], Some("t")).await.unwrap();
-    admin_svc.appoint(&op, BASIC, &[2], Some("t")).await.unwrap();
+    admin_svc
+        .appoint(&op, STAFF, &[1], Some("t"))
+        .await
+        .unwrap();
+    admin_svc
+        .appoint(&op, BASIC, &[2], Some("t"))
+        .await
+        .unwrap();
 
     // Sessions for everybody.
     let sessions = Arc::new(MemorySessions::new());
     let mut tokens = HashMap::new();
-    for (n, uid) in [OWNER, BOB, CAROL, DAVE, STAFF, BASIC].into_iter().enumerate() {
+    for (n, uid) in [OWNER, BOB, CAROL, DAVE, STAFF, BASIC]
+        .into_iter()
+        .enumerate()
+    {
         let t = SessionToken::generate().unwrap();
         sessions
             .create(SessionRecord {
@@ -289,9 +298,13 @@ impl World {
     }
 
     fn is_member(&self, gid: &str, user: i64) -> bool {
-        self.repo.store.lock().unwrap().members.iter().any(|m| {
-            m.guild_id.to_string() == gid && m.user_id == UserId::new(user as u64)
-        })
+        self.repo
+            .store
+            .lock()
+            .unwrap()
+            .members
+            .iter()
+            .any(|m| m.guild_id.to_string() == gid && m.user_id == UserId::new(user as u64))
     }
 
     fn events(&self, gid: &str) -> BoxStream<'static, DomainEvent> {
@@ -331,7 +344,8 @@ impl World {
         assert_eq!(s, StatusCode::OK, "{inv}");
         let code = inv["code"].as_str().unwrap().to_owned();
         let _ = gid;
-        self.post(user, &format!("/invites/{code}"), json!({})).await
+        self.post(user, &format!("/invites/{code}"), json!({}))
+            .await
     }
 }
 
@@ -357,7 +371,11 @@ async fn server_tag_is_shown_next_to_members_who_opt_in() {
     let uri = format!("/guilds/{gid}");
     let (s, _) = w.patch(BOB, &uri, json!({ "tag": "ZZ" })).await;
     assert_eq!(s, StatusCode::FORBIDDEN);
-    for bad in [json!({"tag": "x"}), json!({"tag": "toolong"}), json!({"tag_badge": "crown"})] {
+    for bad in [
+        json!({"tag": "x"}),
+        json!({"tag": "toolong"}),
+        json!({"tag_badge": "crown"}),
+    ] {
         let (s, e) = w.patch(OWNER, &uri, bad).await;
         assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");
     }
@@ -365,8 +383,13 @@ async fn server_tag_is_shown_next_to_members_who_opt_in() {
         .patch(OWNER, &uri, json!({ "tag": "SR1", "tag_badge": "crown" }))
         .await;
     assert_eq!(s, StatusCode::OK, "{e}");
-    assert_eq!((e["tag"].as_str(), e["tag_badge"].as_str()), (Some("SR1"), Some("crown")));
-    let (s, e) = w.patch(OWNER, &uri, json!({ "tag_badge": "unicorn" })).await;
+    assert_eq!(
+        (e["tag"].as_str(), e["tag_badge"].as_str()),
+        (Some("SR1"), Some("crown"))
+    );
+    let (s, e) = w
+        .patch(OWNER, &uri, json!({ "tag_badge": "unicorn" }))
+        .await;
     assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");
 
     // Nobody shows it until they choose to.
@@ -375,7 +398,11 @@ async fn server_tag_is_shown_next_to_members_who_opt_in() {
 
     // Bob opts in; non-members and tagless servers are refused.
     let (s, u) = w
-        .patch(BOB, "/users/@me/primary-guild", json!({ "identity_guild_id": gid }))
+        .patch(
+            BOB,
+            "/users/@me/primary-guild",
+            json!({ "identity_guild_id": gid }),
+        )
         .await;
     assert_eq!(s, StatusCode::OK, "{u}");
     assert_eq!(u["primary_guild"]["tag"], "SR1");
@@ -385,24 +412,39 @@ async fn server_tag_is_shown_next_to_members_who_opt_in() {
     let (_, m) = w.get(OWNER, &format!("{uri}/members/{BOB}")).await;
     assert_eq!(m["user"]["primary_guild"]["tag"], "SR1");
     let (s, _) = w
-        .patch(CAROL, "/users/@me/primary-guild", json!({ "identity_guild_id": gid }))
+        .patch(
+            CAROL,
+            "/users/@me/primary-guild",
+            json!({ "identity_guild_id": gid }),
+        )
         .await;
     assert_eq!(s, StatusCode::FORBIDDEN, "carol is not a member");
     let (other, _) = w.guild("No Tag").await;
     let (s, e) = w
-        .patch(OWNER, "/users/@me/primary-guild", json!({ "identity_guild_id": other }))
+        .patch(
+            OWNER,
+            "/users/@me/primary-guild",
+            json!({ "identity_guild_id": other }),
+        )
         .await;
     assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");
 
     // Opting out hides it again; removing the tag removes the badge too.
     let (s, u) = w
-        .patch(BOB, "/users/@me/primary-guild", json!({ "identity_guild_id": null }))
+        .patch(
+            BOB,
+            "/users/@me/primary-guild",
+            json!({ "identity_guild_id": null }),
+        )
         .await;
     assert_eq!(s, StatusCode::OK);
     assert!(u.get("primary_guild").is_none(), "{u}");
     let (s, e) = w.patch(OWNER, &uri, json!({ "tag": null })).await;
     assert_eq!(s, StatusCode::OK, "{e}");
-    assert!(e.get("tag").is_none() && e.get("tag_badge").is_none(), "{e}");
+    assert!(
+        e.get("tag").is_none() && e.get("tag_badge").is_none(),
+        "{e}"
+    );
 }
 
 // ------------------------------------------------------------------ LNG-GLD-012
@@ -421,11 +463,24 @@ async fn members_edit_their_own_per_server_profile() {
         )
         .await;
     assert_eq!(s, StatusCode::OK, "{m}");
-    assert_eq!((m["nick"].as_str(), m["bio"].as_str()), (Some("Bobby"), Some("hello there")));
+    assert_eq!(
+        (m["nick"].as_str(), m["bio"].as_str()),
+        (Some("Bobby"), Some("hello there"))
+    );
     let avatar = m["avatar"].as_str().unwrap().to_owned();
     let banner = m["banner"].as_str().unwrap().to_owned();
-    assert!(w.storage.get(&format!("avatars/{BOB}/{avatar}")).await.is_ok());
-    assert!(w.storage.get(&format!("avatars/{BOB}/{banner}")).await.is_ok());
+    assert!(
+        w.storage
+            .get(&format!("avatars/{BOB}/{avatar}"))
+            .await
+            .is_ok()
+    );
+    assert!(
+        w.storage
+            .get(&format!("avatars/{BOB}/{banner}"))
+            .await
+            .is_ok()
+    );
 
     // Everybody sees it on the member object, and bob can read his own.
     let (_, seen) = w.get(OWNER, &format!("/guilds/{gid}/members/{BOB}")).await;
@@ -437,17 +492,35 @@ async fn members_edit_their_own_per_server_profile() {
 
     // The same picture in another server is a different object.
     let (other, _) = w.guild("Second").await;
-    let (s, m2) = w.patch(BOB, &format!("/guilds/{other}/members/@me"), json!({ "avatar": PNG })).await;
+    let (s, m2) = w
+        .patch(
+            BOB,
+            &format!("/guilds/{other}/members/@me"),
+            json!({ "avatar": PNG }),
+        )
+        .await;
     assert_eq!(s, StatusCode::OK, "{m2}");
     assert_ne!(m2["avatar"], m["avatar"]);
 
     // Replacing or clearing deletes the old object but not the other server's.
-    let (s, m3) = w.patch(BOB, &uri, json!({ "avatar": null, "bio": null })).await;
+    let (s, m3) = w
+        .patch(BOB, &uri, json!({ "avatar": null, "bio": null }))
+        .await;
     assert_eq!(s, StatusCode::OK, "{m3}");
     assert!(m3["avatar"].is_null() && m3.get("bio").is_none(), "{m3}");
-    assert!(w.storage.get(&format!("avatars/{BOB}/{avatar}")).await.is_err());
+    assert!(
+        w.storage
+            .get(&format!("avatars/{BOB}/{avatar}"))
+            .await
+            .is_err()
+    );
     let other_avatar = m2["avatar"].as_str().unwrap();
-    assert!(w.storage.get(&format!("avatars/{BOB}/{other_avatar}")).await.is_ok());
+    assert!(
+        w.storage
+            .get(&format!("avatars/{BOB}/{other_avatar}"))
+            .await
+            .is_ok()
+    );
     assert_eq!(m3["banner"], m["banner"], "untouched fields stay");
 
     // Bad input fails the whole edit.
@@ -476,8 +549,14 @@ async fn vanity_url_works_like_a_free_invite_that_never_expires() {
     assert_eq!(s, StatusCode::OK);
     assert!(v["code"].is_null() && v["uses"] == 0, "{v}");
     assert_eq!(w.get(BOB, &uri).await.0, StatusCode::FORBIDDEN);
-    assert_eq!(w.patch(BOB, &uri, json!({ "code": "club" })).await.0, StatusCode::FORBIDDEN);
-    assert_eq!(w.get(CAROL, "/invites/club-house").await.0, StatusCode::NOT_FOUND);
+    assert_eq!(
+        w.patch(BOB, &uri, json!({ "code": "club" })).await.0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        w.get(CAROL, "/invites/club-house").await.0,
+        StatusCode::NOT_FOUND
+    );
 
     for bad in ["ab", "has space", "-lead", "login"] {
         let (s, e) = w.patch(OWNER, &uri, json!({ "code": bad })).await;
@@ -492,17 +571,27 @@ async fn vanity_url_works_like_a_free_invite_that_never_expires() {
     // Codes are unique, whatever the case, and may not shadow a real invite.
     let (second, second_general) = w.guild("Other").await;
     let (s, e) = w
-        .patch(OWNER, &format!("/guilds/{second}/vanity-url"), json!({ "code": "CLUB-house" }))
+        .patch(
+            OWNER,
+            &format!("/guilds/{second}/vanity-url"),
+            json!({ "code": "CLUB-house" }),
+        )
         .await;
     assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");
     let (_, inv) = w
-        .post(OWNER, &format!("/channels/{second_general}/invites"), json!({}))
+        .post(
+            OWNER,
+            &format!("/channels/{second_general}/invites"),
+            json!({}),
+        )
         .await;
     let taken = inv["code"].as_str().unwrap();
-    let (s, e) = w
-        .patch(OWNER, &uri, json!({ "code": taken }))
-        .await;
-    assert_eq!(s, StatusCode::BAD_REQUEST, "an invite already has this text: {e}");
+    let (s, e) = w.patch(OWNER, &uri, json!({ "code": taken })).await;
+    assert_eq!(
+        s,
+        StatusCode::BAD_REQUEST,
+        "an invite already has this text: {e}"
+    );
 
     // Any member can look it up; the invite object carries the splash and the code.
     let (s, preview) = w.get(CAROL, "/invites/club-house?with_counts=true").await;
@@ -522,15 +611,25 @@ async fn vanity_url_works_like_a_free_invite_that_never_expires() {
     let (_, v) = w.get(OWNER, &uri).await;
     assert_eq!(v["uses"], 2);
     // It is not a stored invite: it cannot be revoked as one.
-    assert_eq!(w.delete(OWNER, "/invites/club-house").await.0, StatusCode::NOT_FOUND);
+    assert_eq!(
+        w.delete(OWNER, "/invites/club-house").await.0,
+        StatusCode::NOT_FOUND
+    );
 
     // Releasing it frees the code.
     let (s, v) = w.patch(OWNER, &uri, json!({ "code": null })).await;
     assert_eq!(s, StatusCode::OK, "{v}");
     assert!(v["code"].is_null());
-    assert_eq!(w.get(CAROL, "/invites/club-house").await.0, StatusCode::NOT_FOUND);
+    assert_eq!(
+        w.get(CAROL, "/invites/club-house").await.0,
+        StatusCode::NOT_FOUND
+    );
     let (s, v) = w
-        .patch(OWNER, &format!("/guilds/{second}/vanity-url"), json!({ "code": "club-house" }))
+        .patch(
+            OWNER,
+            &format!("/guilds/{second}/vanity-url"),
+            json!({ "code": "club-house" }),
+        )
         .await;
     assert_eq!(s, StatusCode::OK, "{v}");
 }
@@ -545,7 +644,11 @@ async fn membership_screening_holds_new_members_until_they_agree() {
 
     // Screening needs rules; it only applies to a Community.
     let (s, e) = w
-        .patch(OWNER, &format!("{g}/sr/community"), json!({ "screening_enabled": true }))
+        .patch(
+            OWNER,
+            &format!("{g}/sr/community"),
+            json!({ "screening_enabled": true }),
+        )
         .await;
     assert_eq!(s, StatusCode::BAD_REQUEST, "no rules, no screening: {e}");
     let (s, v) = w.get(BOB, &format!("{g}/member-verification")).await;
@@ -574,13 +677,28 @@ async fn membership_screening_holds_new_members_until_they_agree() {
     assert_eq!(form["enabled"], true);
     assert_eq!(form["description"], "Welcome!");
     assert_eq!(form["form_fields"][0]["field_type"], "TERMS");
-    assert_eq!(form["form_fields"][0]["values"], json!(["Be kind", "No spam"]));
+    assert_eq!(
+        form["form_fields"][0]["values"],
+        json!(["Be kind", "No spam"])
+    );
 
     // Not agreeing keeps them pending; agreeing releases them (and announces it).
     let mut events = w.events(&gid);
-    let (s, e) = w.put(CAROL, &format!("{g}/requests/@me"), json!({ "agreed": false })).await;
+    let (s, e) = w
+        .put(
+            CAROL,
+            &format!("{g}/requests/@me"),
+            json!({ "agreed": false }),
+        )
+        .await;
     assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");
-    let (s, m) = w.put(CAROL, &format!("{g}/requests/@me"), json!({ "agreed": true })).await;
+    let (s, m) = w
+        .put(
+            CAROL,
+            &format!("{g}/requests/@me"),
+            json!({ "agreed": true }),
+        )
+        .await;
     assert_eq!(s, StatusCode::OK, "{m}");
     assert_eq!(m["pending"], false);
     let mut updated = false;
@@ -589,12 +707,24 @@ async fn membership_screening_holds_new_members_until_they_agree() {
     }
     assert!(updated, "GUILD_MEMBER_UPDATE after accepting");
     // Accepting again is harmless; an outsider cannot accept for a server they are not in.
-    assert_eq!(w.put(CAROL, &format!("{g}/requests/@me"), json!({})).await.0, StatusCode::OK);
-    assert_eq!(w.put(DAVE, &format!("{g}/requests/@me"), json!({})).await.0, StatusCode::FORBIDDEN);
+    assert_eq!(
+        w.put(CAROL, &format!("{g}/requests/@me"), json!({}))
+            .await
+            .0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        w.put(DAVE, &format!("{g}/requests/@me"), json!({})).await.0,
+        StatusCode::FORBIDDEN
+    );
 
     // Switching Community off switches screening off with it.
     let (s, c) = w
-        .patch(OWNER, &format!("{g}/sr/community"), json!({ "community_enabled": false }))
+        .patch(
+            OWNER,
+            &format!("{g}/sr/community"),
+            json!({ "community_enabled": false }),
+        )
         .await;
     assert_eq!(s, StatusCode::OK, "{c}");
     assert_eq!(c["screening_enabled"], false);
@@ -610,9 +740,13 @@ async fn onboarding_answers_grant_safe_roles_and_unlock_channels() {
     let (gid, general) = w.guild("Club House").await;
     let g = format!("/guilds/{gid}");
     let role = |name: &str, perms: &str| json!({ "name": name, "permissions": perms });
-    let (_, gamer) = w.post(OWNER, &format!("{g}/roles"), role("gamer", "0")).await;
+    let (_, gamer) = w
+        .post(OWNER, &format!("{g}/roles"), role("gamer", "0"))
+        .await;
     // ADMINISTRATOR = 8, KICK_MEMBERS = 2.
-    let (_, boss) = w.post(OWNER, &format!("{g}/roles"), role("boss", "8")).await;
+    let (_, boss) = w
+        .post(OWNER, &format!("{g}/roles"), role("boss", "8"))
+        .await;
     let gamer_id = gamer["id"].as_str().unwrap().to_owned();
     let boss_id = boss["id"].as_str().unwrap().to_owned();
     let (_, side) = w
@@ -646,15 +780,27 @@ async fn onboarding_answers_grant_safe_roles_and_unlock_channels() {
         )
         .await;
     assert_eq!(s, StatusCode::OK, "{o}");
-    let opt_games = o["prompts"][0]["options"][0]["id"].as_str().unwrap().to_owned();
-    let opt_none = o["prompts"][0]["options"][1]["id"].as_str().unwrap().to_owned();
+    let opt_games = o["prompts"][0]["options"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let opt_none = o["prompts"][0]["options"][1]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
 
     // Onboarding has to be on.
     let answer = format!("{g}/onboarding-responses");
-    let (s, e) = w.post(BOB, &answer, json!({ "option_ids": [opt_games] })).await;
+    let (s, e) = w
+        .post(BOB, &answer, json!({ "option_ids": [opt_games] }))
+        .await;
     assert_eq!(s, StatusCode::BAD_REQUEST, "off: {e}");
     let (s, _) = w
-        .patch(OWNER, &format!("{g}/sr/community"), json!({ "onboarding_enabled": true }))
+        .patch(
+            OWNER,
+            &format!("{g}/sr/community"),
+            json!({ "onboarding_enabled": true }),
+        )
         .await;
     assert_eq!(s, StatusCode::OK);
 
@@ -668,17 +814,26 @@ async fn onboarding_answers_grant_safe_roles_and_unlock_channels() {
         let (s, e) = w.post(who, &answer, body.clone()).await;
         assert_eq!(s, StatusCode::BAD_REQUEST, "{body}: {e}");
     }
-    assert_eq!(w.post(CAROL, &answer, json!({ "option_ids": [opt_games] })).await.0, StatusCode::FORBIDDEN);
+    assert_eq!(
+        w.post(CAROL, &answer, json!({ "option_ids": [opt_games] }))
+            .await
+            .0,
+        StatusCode::FORBIDDEN
+    );
 
     // A good answer grants the harmless role, never the powerful one, and lists channels.
-    let (s, r) = w.post(BOB, &answer, json!({ "option_ids": [opt_games] })).await;
+    let (s, r) = w
+        .post(BOB, &answer, json!({ "option_ids": [opt_games] }))
+        .await;
     assert_eq!(s, StatusCode::OK, "{r}");
     assert_eq!(r["role_ids"], json!([gamer_id]));
     assert_eq!(r["channel_ids"], json!([general, games]));
     let (_, m) = w.get(OWNER, &format!("{g}/members/{BOB}")).await;
     assert_eq!(m["roles"], json!([gamer_id]));
     // Answering again changes nothing more.
-    let (_, r) = w.post(BOB, &answer, json!({ "option_ids": [opt_games] })).await;
+    let (_, r) = w
+        .post(BOB, &answer, json!({ "option_ids": [opt_games] }))
+        .await;
     assert_eq!(r["role_ids"], json!([]));
 }
 
@@ -689,7 +844,9 @@ async fn temporary_members_leave_when_they_go_offline_unless_they_hold_a_role() 
     let w = world().await;
     let (gid, general) = w.guild("Club House").await;
     let g = format!("/guilds/{gid}");
-    let (_, role) = w.post(OWNER, &format!("{g}/roles"), json!({ "name": "regular" })).await;
+    let (_, role) = w
+        .post(OWNER, &format!("{g}/roles"), json!({ "name": "regular" }))
+        .await;
     let role_id: sr_core::RoleId = role["id"].as_str().unwrap().parse().unwrap();
 
     let invite = |temporary: bool| {
@@ -697,7 +854,11 @@ async fn temporary_members_leave_when_they_go_offline_unless_they_hold_a_role() 
         let w = &w;
         async move {
             let (s, inv) = w
-                .post(OWNER, &format!("/channels/{general}/invites"), json!({ "temporary": temporary }))
+                .post(
+                    OWNER,
+                    &format!("/channels/{general}/invites"),
+                    json!({ "temporary": temporary }),
+                )
                 .await;
             assert_eq!(s, StatusCode::OK, "{inv}");
             assert_eq!(inv["temporary"], temporary);
@@ -706,10 +867,21 @@ async fn temporary_members_leave_when_they_go_offline_unless_they_hold_a_role() 
     };
     let temp = invite(true).await;
     let perm = invite(false).await;
-    assert_eq!(w.post(CAROL, &format!("/invites/{temp}"), json!({})).await.0, StatusCode::OK);
-    assert_eq!(w.post(DAVE, &format!("/invites/{temp}"), json!({})).await.0, StatusCode::OK);
+    assert_eq!(
+        w.post(CAROL, &format!("/invites/{temp}"), json!({}))
+            .await
+            .0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        w.post(DAVE, &format!("/invites/{temp}"), json!({})).await.0,
+        StatusCode::OK
+    );
     // Bob is already in; a normal invite never marks anyone.
-    assert_eq!(w.post(BOB, &format!("/invites/{perm}"), json!({})).await.0, StatusCode::OK);
+    assert_eq!(
+        w.post(BOB, &format!("/invites/{perm}"), json!({})).await.0,
+        StatusCode::OK
+    );
     // Dave earns a role before disconnecting and stays.
     w.repo
         .store
@@ -730,11 +902,27 @@ async fn temporary_members_leave_when_they_go_offline_unless_they_hold_a_role() 
         next_event(&mut events).await,
         Some(DomainEvent::MemberLeft { user, .. }) if user == UserId::new(CAROL as u64)
     ));
-    assert!(w.joiner.drop_temporary(UserId::new(DAVE as u64)).await.is_empty());
-    assert!(w.is_member(&gid, DAVE), "a role makes the membership permanent");
-    assert!(w.joiner.drop_temporary(UserId::new(BOB as u64)).await.is_empty());
+    assert!(
+        w.joiner
+            .drop_temporary(UserId::new(DAVE as u64))
+            .await
+            .is_empty()
+    );
+    assert!(
+        w.is_member(&gid, DAVE),
+        "a role makes the membership permanent"
+    );
+    assert!(
+        w.joiner
+            .drop_temporary(UserId::new(BOB as u64))
+            .await
+            .is_empty()
+    );
     assert!(w.is_member(&gid, BOB));
-    assert!(w.settings.with(|s| s.temporary.contains(&(GuildId::new(gid.parse().unwrap()), UserId::new(DAVE as u64)))));
+    assert!(w.settings.with(|s| {
+        s.temporary
+            .contains(&(GuildId::new(gid.parse().unwrap()), UserId::new(DAVE as u64)))
+    }));
 }
 
 // ------------------------------------------------------------------ LNG-GLD-013
@@ -746,61 +934,124 @@ async fn server_directory_listing_approval_search_and_join() {
     let listing = format!("/guilds/{gid}/directory");
 
     // A server needs Community, a known category and MANAGE_GUILD.
-    let (s, e) = w.put(OWNER, &listing, json!({ "category": "gaming" })).await;
+    let (s, e) = w
+        .put(OWNER, &listing, json!({ "category": "gaming" }))
+        .await;
     assert_eq!(s, StatusCode::BAD_REQUEST, "no community: {e}");
     w.community(&gid, &general, json!({})).await;
-    assert_eq!(w.put(BOB, &listing, json!({ "category": "gaming" })).await.0, StatusCode::FORBIDDEN);
+    assert_eq!(
+        w.put(BOB, &listing, json!({ "category": "gaming" }))
+            .await
+            .0,
+        StatusCode::FORBIDDEN
+    );
     let (s, e) = w.put(OWNER, &listing, json!({ "category": "nope" })).await;
     assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");
     assert_eq!(w.get(OWNER, &listing).await.0, StatusCode::NOT_FOUND);
 
     let (s, l) = w
-        .put(OWNER, &listing, json!({ "category": "gaming", "description": "Boards and clocks" }))
+        .put(
+            OWNER,
+            &listing,
+            json!({ "category": "gaming", "description": "Boards and clocks" }),
+        )
         .await;
     assert_eq!(s, StatusCode::OK, "{l}");
-    assert_eq!((l["status"].as_str(), l["category"].as_str()), (Some("pending"), Some("gaming")));
-    assert_eq!(w.get(BOB, &listing).await.0, StatusCode::FORBIDDEN, "listing state is for managers");
+    assert_eq!(
+        (l["status"].as_str(), l["category"].as_str()),
+        (Some("pending"), Some("gaming"))
+    );
+    assert_eq!(
+        w.get(BOB, &listing).await.0,
+        StatusCode::FORBIDDEN,
+        "listing state is for managers"
+    );
 
     // Pending listings are invisible to members; categories are listed.
     let (s, cats) = w.get(CAROL, "/directory/categories").await;
     assert_eq!(s, StatusCode::OK);
     assert!(cats.as_array().unwrap().iter().any(|c| c == "gaming"));
     assert_eq!(w.get(CAROL, "/directory").await.1, json!([]));
-    assert_eq!(w.get(CAROL, &format!("/directory/{gid}")).await.0, StatusCode::NOT_FOUND);
-    assert_eq!(w.post(CAROL, &format!("/directory/{gid}/join"), json!({})).await.0, StatusCode::NOT_FOUND);
+    assert_eq!(
+        w.get(CAROL, &format!("/directory/{gid}")).await.0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        w.post(CAROL, &format!("/directory/{gid}/join"), json!({}))
+            .await
+            .0,
+        StatusCode::NOT_FOUND
+    );
 
     // Staff: only MANAGE_DIRECTORY works the queue.
-    assert_eq!(w.get(BASIC, "/admin/directory").await.0, StatusCode::FORBIDDEN);
-    assert_eq!(w.get(OWNER, "/admin/directory").await.0, StatusCode::FORBIDDEN);
+    assert_eq!(
+        w.get(BASIC, "/admin/directory").await.0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        w.get(OWNER, "/admin/directory").await.0,
+        StatusCode::FORBIDDEN
+    );
     let (s, queue) = w.get(STAFF, "/admin/directory").await;
     assert_eq!(s, StatusCode::OK, "{queue}");
     assert_eq!(queue[0]["guild_id"], gid);
     assert_eq!(queue[0]["guild_name"], "Chess Club");
     assert_eq!(queue[0]["community_enabled"], true);
-    assert_eq!(w.get(STAFF, "/admin/directory?status=bogus").await.0, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        w.get(STAFF, "/admin/directory?status=bogus").await.0,
+        StatusCode::BAD_REQUEST
+    );
     let decide = |body: Value| {
         let w = &w;
         let gid = gid.clone();
-        async move { w.patch(STAFF, &format!("/admin/directory/{gid}"), body).await }
+        async move {
+            w.patch(STAFF, &format!("/admin/directory/{gid}"), body)
+                .await
+        }
     };
-    assert_eq!(decide(json!({ "decision": "maybe" })).await.0, StatusCode::BAD_REQUEST);
     assert_eq!(
-        w.patch(BASIC, &format!("/admin/directory/{gid}"), json!({ "decision": "approve" })).await.0,
+        decide(json!({ "decision": "maybe" })).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        w.patch(
+            BASIC,
+            &format!("/admin/directory/{gid}"),
+            json!({ "decision": "approve" })
+        )
+        .await
+        .0,
         StatusCode::FORBIDDEN
     );
     let (s, d) = decide(json!({ "decision": "reject", "note": "add a description" })).await;
     assert_eq!(s, StatusCode::OK, "{d}");
-    assert_eq!((d["status"].as_str(), d["decision_note"].as_str()), (Some("rejected"), Some("add a description")));
+    assert_eq!(
+        (d["status"].as_str(), d["decision_note"].as_str()),
+        (Some("rejected"), Some("add a description"))
+    );
     let (_, l) = w.get(OWNER, &listing).await;
     assert_eq!(l["decision_note"], "add a description");
-    assert_eq!(decide(json!({ "decision": "remove" })).await.0, StatusCode::BAD_REQUEST, "only approved ones");
+    assert_eq!(
+        decide(json!({ "decision": "remove" })).await.0,
+        StatusCode::BAD_REQUEST,
+        "only approved ones"
+    );
 
     // Asking again after a rejection, then approval and featuring.
-    let (_, l) = w.put(OWNER, &listing, json!({ "category": "gaming", "description": "Boards and clocks" })).await;
+    let (_, l) = w
+        .put(
+            OWNER,
+            &listing,
+            json!({ "category": "gaming", "description": "Boards and clocks" }),
+        )
+        .await;
     assert_eq!(l["status"], "pending");
     let (s, d) = decide(json!({ "decision": "approve", "featured": true })).await;
     assert_eq!(s, StatusCode::OK, "{d}");
-    assert_eq!((d["status"].as_str(), d["featured"].as_bool()), (Some("approved"), Some(true)));
+    assert_eq!(
+        (d["status"].as_str(), d["featured"].as_bool()),
+        (Some("approved"), Some(true))
+    );
 
     // Members find it, with the member count; filters and text search work.
     let (s, found) = w.get(CAROL, "/directory?query=boards").await;
@@ -813,18 +1064,36 @@ async fn server_directory_listing_approval_search_and_join() {
     assert_eq!(found[0]["featured"], true);
     assert_eq!(found[0]["approximate_member_count"], 2);
     assert_eq!(found[0]["joined"], false);
-    assert_eq!(w.get(CAROL, "/directory?query=chess+clocks").await.1.as_array().unwrap().len(), 1);
+    assert_eq!(
+        w.get(CAROL, "/directory?query=chess+clocks")
+            .await
+            .1
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
     assert_eq!(w.get(CAROL, "/directory?query=poker").await.1, json!([]));
     assert_eq!(w.get(CAROL, "/directory?category=music").await.1, json!([]));
-    assert_eq!(w.get(CAROL, "/directory?category=bogus").await.0, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        w.get(CAROL, "/directory?category=bogus").await.0,
+        StatusCode::BAD_REQUEST
+    );
     assert_eq!(w.get(BOB, "/directory").await.1[0]["joined"], true);
-    assert_eq!(w.get(CAROL, &format!("/directory/{gid}")).await.0, StatusCode::OK);
+    assert_eq!(
+        w.get(CAROL, &format!("/directory/{gid}")).await.0,
+        StatusCode::OK
+    );
 
     // Joining from the directory needs no invite and respects bans.
-    let (s, m) = w.post(CAROL, &format!("/directory/{gid}/join"), json!({})).await;
+    let (s, m) = w
+        .post(CAROL, &format!("/directory/{gid}/join"), json!({}))
+        .await;
     assert_eq!(s, StatusCode::OK, "{m}");
     assert!(w.is_member(&gid, CAROL));
-    let (s, again) = w.post(CAROL, &format!("/directory/{gid}/join"), json!({})).await;
+    let (s, again) = w
+        .post(CAROL, &format!("/directory/{gid}/join"), json!({}))
+        .await;
     assert_eq!(s, StatusCode::OK, "{again}");
     assert_eq!(
         w.put(OWNER, &format!("/guilds/{gid}/bans/{DAVE}"), json!({}))
@@ -837,17 +1106,35 @@ async fn server_directory_listing_approval_search_and_join() {
         s.bans
             .insert((GuildId::new(gid.parse().unwrap()), UserId::new(DAVE as u64)))
     });
-    assert_eq!(w.post(DAVE, &format!("/directory/{gid}/join"), json!({})).await.0, StatusCode::FORBIDDEN);
+    assert_eq!(
+        w.post(DAVE, &format!("/directory/{gid}/join"), json!({}))
+            .await
+            .0,
+        StatusCode::FORBIDDEN
+    );
 
     // Editing the blurb sends an approved listing back to review and hides it.
-    let (_, l) = w.put(OWNER, &listing, json!({ "category": "gaming", "description": "New text" })).await;
+    let (_, l) = w
+        .put(
+            OWNER,
+            &listing,
+            json!({ "category": "gaming", "description": "New text" }),
+        )
+        .await;
     assert_eq!(l["status"], "pending");
     assert_eq!(w.get(BOB, "/directory").await.1, json!([]));
     decide(json!({ "decision": "approve" })).await;
-    assert_eq!(w.get(BOB, "/directory").await.1.as_array().unwrap().len(), 1);
+    assert_eq!(
+        w.get(BOB, "/directory").await.1.as_array().unwrap().len(),
+        1
+    );
     // Taking Community away hides it too; the manager can withdraw.
     let (s, _) = w
-        .patch(OWNER, &format!("/guilds/{gid}/sr/community"), json!({ "community_enabled": false }))
+        .patch(
+            OWNER,
+            &format!("/guilds/{gid}/sr/community"),
+            json!({ "community_enabled": false }),
+        )
         .await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(w.get(BOB, "/directory").await.1, json!([]));

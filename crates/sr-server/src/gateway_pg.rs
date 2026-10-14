@@ -366,6 +366,89 @@ impl GuildDirectory for PgGuildDirectory {
         }
     }
 
+    async fn member_list(
+        &self,
+        guild: GuildId,
+        channel: ChannelId,
+    ) -> Option<sr_gateway::member_list::MemberListSource> {
+        use sr_gateway::member_list::{ListMember, MemberListSource};
+        /// Lists beyond this many members are not served lazily; the sidebar falls back to
+        /// the paged `GET /guilds/{id}/members`.
+        const MAX_LIST_MEMBERS: usize = 20_000;
+        let built = async {
+            let g = self.chat.get_guild(guild).await?;
+            let Some(g) = g else { return Ok(None) };
+            let roles = self.chat.list_roles(guild).await?;
+            let overwrites = self.chat.get_overwrites(channel).await?;
+            let now = self.clock.now_unix_ms();
+            let mut all = Vec::new();
+            let mut after = None;
+            loop {
+                let page = self.chat.page_members(guild, after, 1000).await?;
+                let full = page.len() == 1000;
+                after = page.last().map(|m| m.user_id);
+                all.extend(page);
+                if !full {
+                    break;
+                }
+                if all.len() > MAX_LIST_MEMBERS {
+                    return Ok::<_, sr_chat::RepoError>(None);
+                }
+            }
+            let total = all.len();
+            let visible: Vec<_> = all
+                .into_iter()
+                .filter(|m| {
+                    sr_chat::perms::channel_permissions(&g, m, &roles, &overwrites, now)
+                        .contains(Permissions::VIEW_CHANNEL)
+                })
+                .collect();
+            let mut users = std::collections::HashMap::new();
+            for chunk in visible.chunks(1000) {
+                let ids: Vec<UserId> = chunk.iter().map(|m| m.user_id).collect();
+                for u in self.chat.users(&ids).await? {
+                    users.insert(u.id, u);
+                }
+            }
+            let members = visible
+                .iter()
+                .map(|m| {
+                    let hoist = roles
+                        .iter()
+                        .filter(|r| r.hoist && m.role_ids.contains(&r.id))
+                        .max_by_key(|r| r.position)
+                        .map(|r| (r.id.to_string(), r.position));
+                    let user = users.get(&m.user_id);
+                    let sort_key = m
+                        .nick
+                        .clone()
+                        .or_else(|| user.and_then(|u| u.display_name.clone()))
+                        .or_else(|| user.map(|u| u.username.clone()))
+                        .unwrap_or_default();
+                    ListMember {
+                        user: m.user_id,
+                        member: serde_json::to_value(MemberObject::new(m, false, &users))
+                            .unwrap_or(Value::Null),
+                        hoist,
+                        sort_key,
+                    }
+                })
+                .collect::<Vec<_>>();
+            Ok(Some(MemberListSource {
+                everyone: members.len() == total,
+                members,
+            }))
+        }
+        .await;
+        match built {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::error!(error = %e, "building a member list failed");
+                None
+            }
+        }
+    }
+
     async fn guilds_for_user(&self, user: UserId) -> Vec<GuildId> {
         let rows = sqlx::query_scalar::<_, i64>(
             "SELECT guild_id FROM guild_members WHERE user_id = $1 ORDER BY guild_id",
@@ -723,5 +806,118 @@ mod tests {
             );
             assert!(c.get("recipient_ids").is_none());
         }
+    }
+
+    /// The lazy member list lists the members who can see the channel, with their hoisted
+    /// role and display name, and says whether it is the `everyone` list.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn member_list_has_the_channels_viewers_with_hoisted_roles() {
+        use sr_chat::{ChatLimits, ChatService, role_rules::NewRole};
+        use sr_core::permissions::{Overwrite, OverwriteKind};
+        let url = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL must be set");
+        let pool = sr_db::connect(&sr_db::DbConfig::new(url))
+            .await
+            .expect("connect");
+        sr_db::migrate(&pool).await.expect("migrate");
+        let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+        let w = ((std::process::id() % 8) * 2) as u8 + 3;
+        let ids = SnowflakeGenerator::new(clock.clone(), w, w).expect("ids");
+        let svc = ChatService::new(
+            PgChatRepo::new(pool.clone()),
+            clock.clone(),
+            SnowflakeGenerator::new(clock.clone(), w + 16, w + 16).expect("ids"),
+            ChatLimits::default(),
+        );
+        let (owner, regular, outsider) = (
+            account(&pool, &ids).await,
+            account(&pool, &ids).await,
+            account(&pool, &ids).await,
+        );
+        let bp = svc.create_guild(owner, "List Club").await.unwrap();
+        let (guild, general) = (bp.guild.id, bp.channels[2].id);
+        for u in [regular, outsider] {
+            sqlx::query("INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2)")
+                .bind(guild.get() as i64)
+                .bind(u.get() as i64)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        let mods = svc
+            .create_role(
+                owner,
+                guild,
+                NewRole {
+                    name: Some("mods".into()),
+                    hoist: true,
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO member_roles (guild_id, user_id, role_id) VALUES ($1, $2, $3)")
+            .bind(guild.get() as i64)
+            .bind(regular.get() as i64)
+            .bind(mods.id.get() as i64)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE guild_members SET nick = 'Zoe' WHERE guild_id = $1 AND user_id = $2")
+            .bind(guild.get() as i64)
+            .bind(regular.get() as i64)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let dir = PgGuildDirectory::new(pool.clone(), clock.clone());
+        let open = dir.member_list(guild, general).await.expect("a list");
+        assert!(open.everyone);
+        assert_eq!(open.members.len(), 3);
+        let zoe = open.members.iter().find(|m| m.user == regular).unwrap();
+        assert_eq!(zoe.sort_key, "Zoe");
+        assert_eq!(zoe.hoist, Some((mods.id.to_string(), mods.position)));
+        assert_eq!(zoe.member["nick"], "Zoe");
+        assert_eq!(zoe.member["roles"][0], mods.id.to_string());
+        assert!(
+            open.members
+                .iter()
+                .find(|m| m.user == owner)
+                .unwrap()
+                .hoist
+                .is_none()
+        );
+
+        // Only the role may see the channel: the outsider drops out and the list is no
+        // longer the `everyone` list.
+        let deny_everyone = Overwrite {
+            id: guild.snowflake(),
+            kind: OverwriteKind::Role,
+            allow: Permissions::empty(),
+            deny: Permissions::VIEW_CHANNEL,
+        };
+        let allow_mods = Overwrite {
+            id: mods.id.snowflake(),
+            kind: OverwriteKind::Role,
+            allow: Permissions::VIEW_CHANNEL,
+            deny: Permissions::empty(),
+        };
+        svc.set_overwrite(owner, general, deny_everyone)
+            .await
+            .unwrap();
+        svc.set_overwrite(owner, general, allow_mods).await.unwrap();
+        let private = dir.member_list(guild, general).await.expect("a list");
+        assert!(!private.everyone);
+        let mut users: Vec<_> = private.members.iter().map(|m| m.user).collect();
+        users.sort();
+        let mut want = vec![owner, regular];
+        want.sort();
+        assert_eq!(users, want);
+        // Unknown guilds have no list.
+        assert!(
+            dir.member_list(GuildId::new(1), ChannelId::new(1))
+                .await
+                .is_none()
+        );
     }
 }

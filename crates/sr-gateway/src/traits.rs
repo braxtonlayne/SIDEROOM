@@ -129,6 +129,17 @@ pub trait GuildDirectory: Send + Sync {
     /// broadcast. Default: nothing.
     async fn user_offline(&self, _user: UserId) {}
 
+    /// The members of `guild` who can see `channel`, for the lazy member list (op 102,
+    /// LNG-GLD-010). `None` when the directory cannot build one (default; the request is
+    /// then ignored).
+    async fn member_list(
+        &self,
+        _guild: GuildId,
+        _channel: ChannelId,
+    ) -> Option<crate::member_list::MemberListSource> {
+        None
+    }
+
     /// Extra READY fields (`private_channels`, `relationships`, ...).
     async fn ready_extras(&self, _user: UserId) -> Value {
         json!({})

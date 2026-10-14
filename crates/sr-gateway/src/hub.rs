@@ -103,6 +103,10 @@ pub(crate) struct State {
     typing: HashMap<(ChannelId, UserId), Instant>,
     /// Voice states by user (a user is in one voice channel at a time). In memory, per node.
     pub(crate) voice: HashMap<UserId, VoiceState>,
+    /// Lazy member lists by (guild, channel) while somebody is subscribed (LNG-GLD-010).
+    pub(crate) lists: HashMap<(GuildId, ChannelId), crate::lists::ListState>,
+    /// Guilds whose lists wait for a debounced refresh; the flag asks for a member refetch.
+    pub(crate) list_dirty: HashMap<GuildId, bool>,
     background: Vec<JoinHandle<()>>,
 }
 
@@ -729,6 +733,9 @@ impl Gateway {
 
     async fn on_guild_event(&self, guild: GuildId, ev: DomainEvent) {
         self.note_typing(&ev);
+        if crate::lists::changes_members(&ev) {
+            self.schedule_list_refresh(guild, true);
+        }
         self.voice_on_guild_event(guild, &ev).await;
         if let Some(mut d) = to_dispatch(&ev) {
             // The changed user's own sessions hear about it as a self event.
@@ -824,6 +831,7 @@ impl Gateway {
         {
             let mut st = self.st();
             st.sessions.remove(&s.id);
+            Self::drop_list_subs(&mut st, &s.id, None);
             for g in s.guilds() {
                 if let Some(set) = st.by_guild.get_mut(&g) {
                     set.remove(&s.id);
@@ -981,6 +989,7 @@ impl Gateway {
         for s in sessions {
             if s.remove_guild(guild) {
                 s.deliver("GUILD_DELETE", json!({ "id": guild }));
+                Self::drop_list_subs(&mut st, &s.id, Some(guild));
                 if let Some(set) = st.by_guild.get_mut(&guild) {
                     set.remove(&s.id);
                 }
@@ -992,6 +1001,7 @@ impl Gateway {
     fn drop_guild(&self, guild: GuildId) {
         let mut st = self.st();
         let ids = st.by_guild.remove(&guild).unwrap_or_default();
+        st.lists.retain(|k, _| k.0 != guild);
         for id in ids {
             if let Some(s) = st.sessions.get(&id) {
                 s.remove_guild(guild);
@@ -1017,7 +1027,7 @@ impl Gateway {
         self.refresh_presence(user, true).await;
     }
 
-    fn effective(st: &State, user: UserId) -> Option<PresenceUpdate> {
+    pub(crate) fn effective(st: &State, user: UserId) -> Option<PresenceUpdate> {
         if !st.sessions.values().any(|s| s.user == user) {
             return None;
         }
@@ -1074,6 +1084,7 @@ impl Gateway {
         if changed || force {
             self.notify_friends(user, &update, &guilds).await;
             for g in guilds {
+                self.schedule_list_refresh(g, false);
                 self.dispatch_guild(
                     g,
                     "PRESENCE_UPDATE",
