@@ -60,6 +60,9 @@ function api(s: object = support(), cfg: object = config) {
   server.use(
     http.get('*/api/v1/guilds/g1/support', () => HttpResponse.json(s)),
     http.get('*/api/v1/donations/config', () => HttpResponse.json(cfg)),
+    http.get('*/api/v1/donations/invoices', () =>
+      HttpResponse.json({ items: [], next_before: null }),
+    ),
   );
 }
 
@@ -78,6 +81,49 @@ describe('Server Support settings', () => {
     expect(within(list).getByText('Alice')).toBeInTheDocument();
     expect(within(list).getByText('Anonymous')).toBeInTheDocument();
     expect(await axeViolations(document.body)).toEqual([]);
+  });
+
+  it('compares the levels and lists your own contributions to this server', async () => {
+    seed({ perms: [MANAGE.guild] });
+    const l1 = { ...perks, upload_mib: 100 };
+    api(support(), {
+      ...config,
+      free_perks: { ...perks, upload_mib: 25 },
+      levels: [{ level: 1, threshold_cents: 2500, perks: l1 }],
+    });
+    const inv = (id: string, guild: string, purpose: string, cents: number) => ({
+      id,
+      purpose,
+      state: 'confirmed',
+      usd_cents: cents,
+      guild_id: guild,
+      anonymous: false,
+      created_at_ms: Date.parse('2030-01-05T00:00:00Z'),
+    });
+    server.use(
+      http.get('*/api/v1/donations/invoices', () =>
+        HttpResponse.json({
+          items: [
+            inv('1', 'g1', 'server_level', 1200),
+            inv('2', 'g2', 'server_level', 3300),
+            inv('3', 'g1', 'donate', 4400),
+          ],
+          next_before: null,
+        }),
+      ),
+    );
+    await openSettings('support');
+    const table = await screen.findByRole('table', { name: /What each server level gives/ });
+    expect(within(table).getByRole('columnheader', { name: /Level 0/ })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: /Level 1/ })).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
+    expect(within(table).getByText('25 MiB')).toBeInTheDocument();
+    expect(within(table).getByText('100 MiB')).toBeInTheDocument();
+    const mine = screen.getByRole('list', { name: 'Your contributions' });
+    expect(within(mine).getAllByRole('listitem')).toHaveLength(1);
+    expect(within(mine).getByText('$12.00')).toBeInTheDocument();
   });
 
   it('warns while the level is held in the grace period', async () => {

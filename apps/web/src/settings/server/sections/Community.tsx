@@ -1,10 +1,12 @@
 import { Button, Checkbox, MultiSelect, Switch, Tabs, TextArea, TextInput } from '@sideroom/ui';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { t as translate, useT } from '../../../i18n';
 import { useChannels, useGuild } from '../../../store';
 import * as api from '../api';
 import { useDraft, useGuildEvents, useResource, useSettingsForm } from '../hooks';
 import type { SectionProps } from '../ServerSettings';
+import { CommunityWizard } from './CommunityWizard';
+import { OnboardingPreview } from './OnboardingPreview';
 import { ActionStatus, Async, NotAvailable, SectionHeader, useAction } from '../ui';
 
 export function CommunitySection({ guildId }: SectionProps) {
@@ -140,6 +142,7 @@ function CommunityForm({
   const base = useMemo(() => toCommunityFields(community), [community]);
   const draft = useDraft(base);
   const action = useAction();
+  const [wizard, setWizard] = useState(false);
   const channels = useChannels(guildId).filter((c) => c.type === 0 || c.type === 5);
   const { guild } = useGuild(guildId);
   const v = draft.value;
@@ -192,8 +195,23 @@ function CommunityForm({
           name: guild?.name ?? t('settings.community.thisServer'),
         })}
         checked={v.community_enabled}
-        onChange={(e) => draft.set('community_enabled', e.target.checked)}
+        onChange={(e) => {
+          // Turning Community on goes through the wizard; turning it off is a plain setting.
+          if (e.target.checked && !community.community_enabled) setWizard(true);
+          else draft.set('community_enabled', e.target.checked);
+        }}
       />
+      {wizard && (
+        <CommunityWizard
+          guildId={guildId}
+          onClose={() => setWizard(false)}
+          onDone={(c) => {
+            setWizard(false);
+            onSaved(c);
+            draft.reset();
+          }}
+        />
+      )}
       <ChannelSelect
         id="ss-rules-channel"
         label={t('settings.community.rulesChannel')}
@@ -458,7 +476,13 @@ function OnboardingForm({
           </div>
         </fieldset>
       ))}
-      <div>
+      <div className="ss-actions">
+        <OnboardingPreview
+          prompts={f.prompts}
+          defaultChannelIds={f.default_channel_ids}
+          channels={channels}
+          roles={roles}
+        />
         <Button
           variant="secondary"
           disabled={f.prompts.length >= 5}

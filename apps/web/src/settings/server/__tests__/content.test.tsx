@@ -1,5 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useStore } from '../../../store';
 import { emojiNameFromFile, validEmojiName } from '../sections/Expressions';
 import { capture, http, HttpResponse, MANAGE, openSettings, seed, server } from './helpers';
 
@@ -372,13 +373,45 @@ describe('Integrations', () => {
 });
 
 describe('Community', () => {
-  it('requires channels to enable community, then saves the changed fields', async () => {
+  it('enables community through the three-step wizard and applies its safety settings', async () => {
     seed({ perms: [MANAGE.guild] });
-    const cap = capture();
+    // @everyone holds Kick Members (bit 1) next to the harmless bits 10 and 11.
+    useStore.setState((st) => ({
+      roles: {
+        ...st.roles,
+        g1: { ...st.roles['g1']!, permissions: String((1n << 1n) | (1n << 10n) | (1n << 11n)) },
+      },
+    }));
+    const guildCap = capture();
+    const roleCap = capture();
+    const comCap = capture();
     server.use(
+      http.get('*/api/v1/guilds/g1', () =>
+        HttpResponse.json({
+          id: 'g1',
+          name: 'Book Club',
+          icon: null,
+          description: null,
+          owner_id: '9',
+          system_channel_id: null,
+          verification_level: 0,
+          default_message_notifications: 0,
+          explicit_content_filter: 0,
+          preferred_locale: 'en-US',
+          features: [],
+        }),
+      ),
       http.get('*/api/v1/guilds/g1/sr/community', () => HttpResponse.json(community)),
+      http.patch('*/api/v1/guilds/g1', async ({ request }) => {
+        await guildCap.record(request);
+        return HttpResponse.json({});
+      }),
+      http.patch('*/api/v1/guilds/g1/roles/g1', async ({ request }) => {
+        await roleCap.record(request);
+        return HttpResponse.json({});
+      }),
       http.patch('*/api/v1/guilds/g1/sr/community', async ({ request }) => {
-        await cap.record(request);
+        await comCap.record(request);
         return HttpResponse.json({
           ...community,
           community_enabled: true,
@@ -389,18 +422,35 @@ describe('Community', () => {
     );
     await openSettings('community');
     await userEvent.click(await screen.findByRole('switch', { name: /Enable Community/ }));
-    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
-    expect(await screen.findByText(/Choose a rules channel/)).toBeInTheDocument();
-    expect(cap.calls).toHaveLength(0);
-    await userEvent.selectOptions(screen.getByLabelText('Rules channel'), 'c1');
-    await userEvent.selectOptions(screen.getByLabelText('Community updates channel'), 'c2');
-    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
-    await waitFor(() => expect(cap.calls).toHaveLength(1));
-    expect(cap.calls[0]!.body).toEqual({
+    const dialog = await screen.findByRole('dialog', { name: 'Enable Community' });
+    expect(within(dialog).getByText('Step 1 of 3')).toBeInTheDocument();
+    await within(dialog).findByText(/verification level will be raised to Low/);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Next' }));
+    // Step 2 needs both channels.
+    expect(within(dialog).getByRole('button', { name: 'Next' })).toBeDisabled();
+    await userEvent.selectOptions(within(dialog).getByLabelText('Rules channel'), 'c1');
+    await userEvent.selectOptions(within(dialog).getByLabelText('Community updates channel'), 'c2');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Next' }));
+    // Step 3 needs the guidelines to be accepted.
+    const finish = within(dialog).getByRole('button', { name: 'Enable Community' });
+    expect(finish).toBeDisabled();
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: /community guidelines/ }));
+    await userEvent.click(finish);
+    await waitFor(() => expect(comCap.calls).toHaveLength(1));
+    expect(guildCap.calls[0]!.body).toEqual({
+      verification_level: 1,
+      explicit_content_filter: 2,
+      default_message_notifications: 1,
+    });
+    expect(roleCap.calls[0]!.body).toEqual({ permissions: String((1n << 10n) | (1n << 11n)) });
+    expect(comCap.calls[0]!.body).toEqual({
       community_enabled: true,
       rules_channel_id: 'c1',
       public_updates_channel_id: 'c2',
     });
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Enable Community' })).toBeNull(),
+    );
   });
 
   it('validates onboarding questions and saves the welcome screen', async () => {
@@ -434,6 +484,45 @@ describe('Community', () => {
       description: 'Hi',
       welcome_channels: [],
     });
+  });
+
+  it('previews onboarding: the answers hand out channels and roles', async () => {
+    seed({ perms: [MANAGE.guild] });
+    server.use(
+      http.get('*/api/v1/guilds/g1/sr/community', () => HttpResponse.json(community)),
+      http.get('*/api/v1/guilds/g1/onboarding', () =>
+        HttpResponse.json({
+          guild_id: 'g1',
+          enabled: true,
+          default_channel_ids: ['c1'],
+          prompts: [
+            {
+              title: 'What do you read?',
+              single_select: false,
+              required: true,
+              in_onboarding: true,
+              options: [
+                { title: 'Manga', channel_ids: ['c2'], role_ids: ['mod'] },
+                { title: 'Novels', channel_ids: [], role_ids: [] },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+    await openSettings('community');
+    await userEvent.click(await screen.findByRole('tab', { name: 'Onboarding' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Preview onboarding' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Onboarding preview' });
+    expect(within(dialog).getByText(/Channels:/).parentElement).toHaveTextContent('#general');
+    expect(within(dialog).getByText(/Channels:/).parentElement).not.toHaveTextContent('#random');
+    expect(within(dialog).getByText(/must answer every required/)).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Manga' }));
+    expect(within(dialog).getByText(/Channels:/).parentElement).toHaveTextContent(
+      '#general, #random',
+    );
+    expect(within(dialog).getByText(/Roles:/).parentElement).toHaveTextContent('Mod');
+    expect(screen.queryByText(/must answer every required/)).toBeNull();
   });
 
   it('lists what is not available yet', async () => {
