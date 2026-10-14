@@ -99,6 +99,8 @@ export function MessageList({
   const chanPerms = channels.find((c) => c.id === channelId)?.permissions;
   const canManage = chanPerms ? chanPerms.manageMessages : !!guild?.permissions.manageMessages;
   const canPin = chanPerms ? chanPerms.pinMessages : guild ? !!guild.permissions.pinMessages : true;
+  const canEditChannel =
+    !!guildId && !inThread && (chanPerms?.manageChannels ?? !!guild?.permissions.manageChannels);
   const [deleting, setDeleting] = useState<Message | null>(null);
   const [pinning, setPinning] = useState<Message | null>(null);
   const [forwarding, setForwarding] = useState<Message | null>(null);
@@ -194,6 +196,21 @@ export function MessageList({
     const idx = from ? messages.findIndex((m) => m.id === from) : -1;
     return idx < 0 ? 0 : messages.slice(idx + 1).filter((m) => m.author.id !== me.id).length;
   }, [messages, lastReadId, unreadFrom, me.id]);
+  // First unread message and first unread mention for the floating jump pills (LNG-CHN-012).
+  const { firstUnreadId, mentionIds } = useMemo(() => {
+    const from = unreadFrom ?? lastReadId;
+    const idx = from ? messages.findIndex((m) => m.id === from) : -1;
+    const after = idx < 0 ? [] : messages.slice(idx + 1).filter((m) => m.author.id !== me.id);
+    const ids = after
+      .filter(
+        (m) =>
+          !!m.mentionIds?.includes(me.id) ||
+          !!m.mentionEveryone ||
+          !!m.mentionRoleIds?.some((r) => myRoleIds.includes(r)),
+      )
+      .map((m) => m.id);
+    return { firstUnreadId: after[0]?.id, mentionIds: ids };
+  }, [messages, lastReadId, unreadFrom, me.id, myRoleIds]);
   const [atBottom, setAtBottom] = useState(true);
   const atBottomRef = useRef(true);
   const lastKey = rows[rows.length - 1]?.key;
@@ -487,12 +504,16 @@ export function MessageList({
     <div className="lng-messages-wrap">
       {unreadCount > 0 && !bannerDismissed && !atBottom && (
         <div className="lng-unread-banner" role="status">
-          <span>
+          <button
+            type="button"
+            className="lng-unread-jump"
+            onClick={() => firstUnreadId && jumpTo(firstUnreadId)}
+          >
             {t('lounge.messageList.newMessages', {
               count: unreadCount >= 50 ? '50+' : unreadCount,
               n: unreadCount,
             })}
-          </span>
+          </button>
           <button
             type="button"
             onClick={() => {
@@ -505,6 +526,17 @@ export function MessageList({
             {t('lounge.messageList.markAsRead')}
           </button>
         </div>
+      )}
+      {mentionIds.length > 0 && !bannerDismissed && (
+        <button
+          type="button"
+          className="lng-jump-pill"
+          data-edge="top"
+          style={{ insetBlockStart: unreadCount > 0 && !atBottom ? 40 : 8 }}
+          onClick={() => mentionIds[0] && jumpTo(mentionIds[0])}
+        >
+          {t('lounge.jumpPills.mentions', { n: mentionIds.length })}
+        </button>
       )}
       <div
         ref={scroller}
@@ -536,6 +568,17 @@ export function MessageList({
                         ? t('lounge.messageList.dmStart', { title })
                         : t('lounge.messageList.channelStart', { title })}
                     </p>
+                    {canEditChannel && guildId && (
+                      <div className="lng-welcome-actions">
+                        <button
+                          type="button"
+                          className="lng-link-btn"
+                          onClick={() => openDialog({ kind: 'editChannel', guildId, channelId })}
+                        >
+                          <Icon name="edit" size={16} /> {t('lounge.messageList.editChannel')}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
                 {row.kind === 'date' && (

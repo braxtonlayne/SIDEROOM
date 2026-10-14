@@ -1,6 +1,8 @@
 import { Avatar, Icon, Modal, Tooltip, type IconName } from '@sideroom/ui';
 import { useState } from 'react';
 import { useT } from '../i18n';
+import { NotifyButton } from './header/NotifyButton';
+import { PinsButton } from './header/PinsButton';
 import { SearchBox } from './SearchBox';
 import { ThreadsButton } from './threads/ThreadsButton';
 
@@ -19,6 +21,10 @@ export interface ChannelHeaderProps {
   /** Guild (undefined or '@me' for a DM) and channel the search box queries. */
   guildId?: string | undefined;
   channelId?: string | undefined;
+  /** The viewer may unpin messages (shown in the pins popout). */
+  canUnpin?: boolean | undefined;
+  /** Small label after the name for Community channels: "Rules", "Announcements". */
+  badge?: string | undefined;
 }
 
 function Soon({ icon, label }: { icon: IconName; label: string }) {
@@ -50,6 +56,8 @@ export function ChannelHeader({
   searchLabel,
   guildId,
   channelId,
+  canUnpin,
+  badge,
 }: ChannelHeaderProps) {
   const t = useT();
   const [topicOpen, setTopicOpen] = useState(false);
@@ -71,6 +79,7 @@ export function ChannelHeader({
         <Icon name={icon} size={24} />
       )}
       <h1 className="lng-header-title">{title}</h1>
+      {badge && <span className="lng-chan-badge">{badge}</span>}
       {topic && (
         <>
           <span className="lng-header-sep" aria-hidden="true" />
@@ -86,8 +95,17 @@ export function ChannelHeader({
       )}
       <div className="lng-header-tools">
         {!isDm && guildId && channelId && <ThreadsButton guildId={guildId} channelId={channelId} />}
-        <Soon icon="bell" label={t('lounge.channelHeader.notificationSettings')} />
-        <Soon icon="pin" label={t('lounge.channelHeader.pinnedMessages')} />
+        {guildId && channelId ? (
+          <>
+            <NotifyButton guildId={guildId} channelId={channelId} />
+            <PinsButton guildId={guildId} channelId={channelId} canUnpin={!!canUnpin} />
+          </>
+        ) : (
+          <>
+            <Soon icon="bell" label={t('lounge.channelHeader.notificationSettings')} />
+            <Soon icon="pin" label={t('lounge.channelHeader.pinnedMessages')} />
+          </>
+        )}
         <Tooltip
           content={
             membersOpen
