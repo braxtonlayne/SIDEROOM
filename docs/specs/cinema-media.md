@@ -73,3 +73,142 @@ Ratings (1–10), reviews (spoiler toggle), episode comments, lists, trending sc
 - [ ] Resume position syncs across devices within 10s.
 - [ ] Non-Patrons get 403 on download endpoints.
 - [ ] Safari iOS (PWA) plays HLS with subtitles and resumes correctly.
+
+## 8. Social and progress API as built (phase 6, crate `sr-cinema-social`)
+
+Ids are decimal strings, times are Unix milliseconds, errors are the usual `{code, message}` body, all routes need a signed-in
+user session. The OpenAPI document (`packages/api-client/openapi.json`) is the exact contract; this is the reading guide.
+The tables keep plain `title_id` / `episode_id` columns **without foreign keys** to the catalog (the catalog lives in
+`sr-cinema`); every request is validated through the `CatalogLookup` port (section 8.9). **A movie is addressed by its title
+alone; its `episode_id` is `"0"` everywhere** (progress, ratings, comments, history).
+
+Shared shapes:
+- `TitleRef` `{id, kind: movie|series|anime, title, year?, age_restricted, poster_key?}` and `EpisodeRef`
+  `{id, title_id, season, number, title?, runtime_secs?}` come from the catalog at read time (a title that is unpublished or
+  gone is left out of lists).
+- `Progress` `{title_id, episode_id, position_secs, duration_secs, percent, completed, updated_at_ms}`.
+- Pages: `{items, next_before?}`; pass `next_before` back as `before`; `limit` 1 to 100 (default 24).
+
+### 8.1 Watch progress (CIN-PLY-007)
+
+| Route | Meaning |
+|---|---|
+| `GET /cinema/titles/{title_id}/progress`, `GET /cinema/titles/{title_id}/episodes/{episode_id}/progress` | The caller's progress (`404` when none). |
+| `PUT` the same paths | Heartbeat / save. Body `{position_secs, duration_secs, completed?, playing?, base_updated_at_ms?, force?}`. Answers `{progress, applied, recorded}`. |
+| `DELETE` the same paths | Forget this item (history per-item delete). `204`, or `404`. |
+| `GET /cinema/titles/{title_id}/watch-state` | `{items: Progress[]}`: every item of a title (episode ticks, "mark season watched" state). |
+| `POST /cinema/titles/{title_id}/watched` | Body `{watched, episode_id?, season?}`: mark one episode, a season, or (neither) the whole title watched/unwatched. Answers `{changed}`. |
+
+The player saves every 10 s while playing, on pause and on unload. `completed` is `percent >= 90` unless the body says
+otherwise, and it is sticky: a rewatch keeps the item watched until the client sends `completed:false` (or `DELETE`).
+`playing:false` (pause, stop) also ends the "watching" presence at once. Writes cost one row; the default API bucket (40 per
+10 s per route) is far above the 10 s cadence. Opening an age-restricted title needs age confirmation (`900011`) like the Library.
+
+**Conflicts** work as in the Library: with `base_updated_at_ms` (the `updated_at_ms` last seen, `0` for none) and a newer stored
+row, nothing is written and the answer is `{applied:false, progress:<server's>}`; repeat with `force:true` to overwrite. Without a
+base the write always applies. **Paused history** (section 8.2): the heartbeat is accepted (`applied:true`) but not stored
+(`recorded:false`).
+
+### 8.2 History, continue watching
+
+| Route | Meaning |
+|---|---|
+| `GET /cinema/me/history` | `{items: [{title, episode?, progress}], next_before}`, newest first, every item (episodes separately). |
+| `DELETE /cinema/me/history` | Clear all history (progress included). `204`. |
+| `GET /cinema/me/history/settings`, `PUT` | `{paused}`. While paused nothing is recorded and no presence is shown. |
+| `GET /cinema/me/continue-watching` | `{items: [{reason, title, episode?, progress?}]}`: per title the latest touched item. `reason: "resume"` is an unfinished item with its `progress`; `"up_next"` is a finished episode whose next episode exists (`episode` is the next one, no `progress`). Finished movies are left out. Capped at `limit` (default 24). |
+
+### 8.3 Gateway: `SR_CINEMA_UPDATE` (cross-device sync)
+
+User-scoped, to the caller's own sessions (doc 05 section 6.3). `d.type`: `progress` (the `Progress`), `progress_cleared`
+(`title_id`, `episode_id`), `watched` (`title_id`, `changed`), `history_cleared`, `history_settings` (`paused`),
+`list_item_added` / `list_item_removed` (`list_id`, `title_id`), `list_changed` (the list), `list_deleted` (`list_id`),
+`rating` (`title_id`, `episode_id`, `score`) / `rating_removed`. Clients treat it as a hint and refetch. Resume position
+reaches the other device within the 10 s heartbeat plus delivery.
+
+### 8.4 "Watching" presence (CIN-PLY-009)
+
+User setting **`cinema.share_watching`** in the settings blob: `"off"`, `"friends"` (default) or `"everyone"` (friends and people
+who share a server, D-120). Absent or unknown means `friends`. A heartbeat with `playing` true writes a short-lived record
+(45 s, refreshed by each heartbeat) and, when the item changed or the record had lapsed, dispatches **`SR_ACTIVITY_UPDATE`**
+to the audience: `{type:"watching", user_id, activity:{type:3, name:"SIDE ROOM Cinema", details, state, timestamps:{start},
+application_id:null}, title_id?, episode_id?, expires_at_ms}`; `{type:"stopped", user_id}` when it ends. `activity` is
+the Discord "Watching" shape so it renders like an activity card. Clients drop the activity at `expires_at_ms` if no refresh
+came. **Age-restricted titles** are announced to friends only (never to the shared-server audience) and masked
+(`details:"An age-restricted title"`, no ids); `GET /cinema/me/friends-watching` shows the real title only to a
+viewer who confirmed 18+. `GET /cinema/me/friends-watching` returns `{items: [{user_id, title, episode?, started_at_ms,
+expires_at_ms}]}` for the friends who share. `DELETE /cinema/me/watching` stops the caller's own presence. Merging the activity
+into the gateway's `PRESENCE_UPDATE.activities` is a gateway follow-up; the dedicated event carries the same object.
+
+### 8.5 Lists (CIN-MY-002)
+
+`visibility`: `private` (default), `friends` (shared with friends), `public` (everyone signed in). List: `{id, owner_id, name,
+description, kind: saved|custom, visibility, item_count, created_at_ms, updated_at_ms}`; item `{title, note, added_at_ms}` in order.
+
+| Route | Meaning |
+|---|---|
+| `GET /cinema/me/list` | "My list": the saved titles `{items, next_before}`, newest first. |
+| `PUT /cinema/me/list/{title_id}`, `DELETE` | Save / unsave. `PUT` is idempotent. |
+| `GET /cinema/lists` | The caller's lists (the saved one first), `{lists}`. |
+| `POST /cinema/lists` | `{name, description?, visibility?}`. 100 lists per account. |
+| `GET /cinema/lists/{id}` | `{list, items, next_before}` if the caller owns it or its visibility allows (else `404`). Items in the owner's order (`before` is an offset cursor). |
+| `PATCH /cinema/lists/{id}` | Rename / describe / change visibility. The saved list cannot be renamed. |
+| `DELETE /cinema/lists/{id}` | Delete (custom lists only). |
+| `PUT /cinema/lists/{id}/items/{title_id}` | Add at the end (body `{note?}`); 1000 items per list. `DELETE` removes. |
+| `PUT /cinema/lists/{id}/order` | Body `{title_ids: []}`, the complete new order (must be the same set). |
+| `GET /cinema/users/{user_id}/lists` | The lists of someone else that the caller may see. |
+
+The Library has no lists yet (LIB-SOC-006), so there was nothing to generalise; the table shapes are generic enough to share later.
+
+### 8.6 Ratings, reviews, comments (CIN-SOC-001)
+
+Ratings are integers 1 to 10 (no thumbs). `PUT /cinema/titles/{id}/rating` and `PUT .../episodes/{eid}/rating` with `{score}`;
+`DELETE` removes. `GET .../ratings` answers `{mine?, global, friends, known}` each `{average?, count}` (ratings are public
+independent of history, D-120; `known` is people sharing a server).
+
+Reviews (one per account and title): `GET /cinema/titles/{id}/reviews?sort=helpful|recent`, `PUT /cinema/titles/{id}/review`
+(`{body, spoiler?, rating?}`, creates or replaces; `rating` also sets the rating), `DELETE ...`, `PUT/DELETE /cinema/reviews/{id}/helpful`.
+Review `{id, title_id, author_id, rating?, body, spoiler, helpful_count, voted, mine, created_at_ms, updated_at_ms}`.
+
+Comments on a title or an episode, threaded one level: `GET/POST /cinema/titles/{id}/comments`,
+`GET/POST /cinema/titles/{id}/episodes/{eid}/comments` (`{body, spoiler?, parent_id?}`; a reply's parent must be top level),
+`GET /cinema/comments/{id}/replies`, `PATCH/DELETE /cinema/comments/{id}` (author), `PUT/DELETE /cinema/comments/{id}/like`.
+Comment `{id, title_id, episode_id, parent_id?, author_id, body, spoiler, like_count, reply_count, liked, mine, created_at_ms,
+edited_at_ms?}`. Authors the caller blocked or ignored are left out. Deleting a comment with replies removes the replies.
+
+**Moderation hooks.** `POST /cinema/reviews/{id}/report` and `POST /cinema/comments/{id}/report` (`{reason}`) store a report (once per
+reporter and target) and call `ModerationHook::on_report`; `ModerationHook::screen` runs before a review or comment is stored and
+may reject it. Staff hiding is `CinemaService::set_hidden`; hidden content is not listed. No staff HTTP surface yet (gap).
+
+### 8.7 Trending and recommendations (CIN-SOC-002)
+
+`GET /cinema/trending?scope=global|friends|known&kind=movie|series|anime&limit=` answers `{scope, items: [{title, score, viewers}]}`.
+Score is distinct viewers in the last 7 days plus twice the completions plus high ratings (7+). Scopes count only people whose
+`cinema.share_watching` allows it (friends scope: not `off`; known scope: `everyone`); global is an anonymous aggregate of everyone
+who is not `off`, and a title needs at least 2 viewers to appear in it. Age-restricted titles appear in the `friends` scope for confirmed
+adults only and are never in `known` or `global`.
+`GET /cinema/me/recommendations` answers `{rows: [{because: TitleRef, items: [{title, score, reasons}]}]}` ("Because you watched X"):
+candidates are the titles other viewers of X also watched (at least 2 of them) plus catalog titles sharing tags with X
+(`CatalogLookup::titles_with_tags`), scored together, minus what the caller already started.
+
+### 8.8 Gaps
+
+CIN-SOC-003 contribution credits are not built: they need the cinema submissions pipeline (D-074 counts approved movies and episodes).
+No staff HTTP surface for moderation or featured lists. No expiry sweeper job for presence rows (expired rows are ignored by every read
+and replaced by the next heartbeat; `CinemaService::sweep_presence` is available for a job).
+
+### 8.9 `CatalogLookup` (implemented by `sr-cinema`)
+
+```rust
+#[async_trait]
+pub trait CatalogLookup: Send + Sync {
+    async fn title(&self, id: i64) -> CatalogResult<Option<CatalogTitle>>;        // None: unknown, unpublished or merged
+    async fn titles(&self, ids: &[i64]) -> CatalogResult<Vec<CatalogTitle>>;      // missing ids are skipped
+    async fn episode(&self, title_id: i64, episode_id: i64) -> CatalogResult<Option<CatalogEpisode>>;
+    async fn episodes(&self, title_id: i64, season: Option<i32>) -> CatalogResult<Vec<CatalogEpisode>>; // published, in order
+    async fn next_episode(&self, title_id: i64, after_episode_id: i64) -> CatalogResult<Option<CatalogEpisode>>;
+    async fn titles_with_tags(&self, tags: &[String], exclude: &[i64], limit: u32) -> CatalogResult<Vec<CatalogTitle>>;
+}
+```
+`CatalogTitle {id, kind, title, year, age_restricted, runtime_secs, poster_key, tags}` (tags include genres, lower-case);
+`CatalogEpisode {id, title_id, season, number, title, runtime_secs}`. `sr-cinema-social` ships `MemoryCatalog` for tests.
