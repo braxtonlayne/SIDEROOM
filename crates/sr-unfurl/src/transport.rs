@@ -1,13 +1,11 @@
 //! The real [`HttpTransport`]: reqwest over rustls, pinned to validated addresses.
 
 use crate::fetch::{
-    BodyClass, CONNECT_TIMEOUT, FetchError, HopRequest, HopResponse, HttpTransport,
-    IMAGE_HEAD_BYTES, MAX_HTML_BYTES, MAX_IMAGE_BYTES, MAX_JSON_BYTES, TOTAL_TIMEOUT, USER_AGENT,
-    classify,
+    BodyClass, FetchError, HopRequest, HopResponse, HttpTransport, IMAGE_HEAD_BYTES,
+    MAX_HTML_BYTES, MAX_IMAGE_BYTES, MAX_JSON_BYTES, USER_AGENT, classify,
 };
 use async_trait::async_trait;
 use reqwest::header::{ACCEPT, CONTENT_LENGTH, CONTENT_TYPE, LOCATION};
-use url::Host;
 
 /// One short-lived client per hop. The client never follows redirects, never reads
 /// proxy settings from the environment, and resolves the target host only to the
@@ -27,17 +25,7 @@ fn http_err(e: &reqwest::Error) -> FetchError {
 #[async_trait]
 impl HttpTransport for ReqwestTransport {
     async fn get(&self, req: &HopRequest) -> Result<HopResponse, FetchError> {
-        let mut builder = reqwest::Client::builder()
-            .user_agent(USER_AGENT)
-            .redirect(reqwest::redirect::Policy::none())
-            .no_proxy()
-            .connect_timeout(CONNECT_TIMEOUT)
-            .timeout(TOTAL_TIMEOUT)
-            .pool_max_idle_per_host(0);
-        if let Some(Host::Domain(d)) = req.url.host() {
-            builder = builder.resolve_to_addrs(d.trim_end_matches('.'), &req.addrs);
-        }
-        let client = builder
+        let client = sr_net::pinned_builder(USER_AGENT, &req.url, &req.addrs)
             .build()
             .map_err(|e| FetchError::Http(e.to_string()))?;
         let mut resp = client
