@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { voiceController } from '../../voice/controller';
 import { useVoiceSession } from '../../voice/session';
 import { useVoicePerms } from './perms';
+import { useVoiceAnnouncements } from '../../a11y/voiceAnnounce';
 
 /**
  * Mounted once at the app root (not inside the Lounge shell), so a call survives navigating to User Settings,
@@ -13,6 +14,7 @@ export function VoiceBridge() {
   const channelId = useVoiceSession((s) => s.channelId);
   const perms = useVoicePerms(guildId ?? undefined, channelId ?? undefined);
 
+  useVoiceAnnouncements();
   useEffect(() => voiceController().start(), []);
 
   useEffect(() => {
