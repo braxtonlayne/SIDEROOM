@@ -8,7 +8,7 @@ All prices are **operator-configurable** (Admin → Donations). The numbers belo
 
 ## 1. Payment rails (D-071)
 
-- **Bitcoin on-chain** (required, Phase 3). This is a self-custodial, watch-only setup: the operator pastes an **xpub/output descriptor** in Admin → Donations → Wallet. `sr-payments` (Rust, `bdk_wallet` + `bdk_esplora`) derives a fresh address per invoice and watches for payment through a configurable Esplora endpoint (self-hosted `electrs`/mempool, or mempool.space). The server **never holds private keys**.
+- **Bitcoin on-chain** (required, Phase 3; as built: [docs/specs/donations.md](specs/donations.md)). The derivation is implemented on `secp256k1`/`bitcoin_hashes`/`bech32` instead of `bdk_wallet`, see the spec. This is a self-custodial, watch-only setup: the operator pastes an **xpub/output descriptor** in Admin → Donations → Wallet. `sr-payments` (Rust) derives a fresh address per invoice and watches for payment through a configurable Esplora endpoint (self-hosted `electrs`/mempool, or mempool.space). The server **never holds private keys**.
 - **Lightning** (optional, later): LDK node, or an operator-supplied LND/CLN connection. Recommended for $5 payments.
 - **Monero** (optional, later): `monero-wallet-rpc` in view-only mode.
 - No card or PayPal processors.
@@ -16,7 +16,7 @@ All prices are **operator-configurable** (Admin → Donations). The numbers belo
 ### Invoice lifecycle
 `open` → (tx seen in mempool) `seen` → (N confirmations, default 1) `confirmed` → entitlement applied. Other outcomes: `expired` (no payment in 60 min; a late payment is still credited and flagged for staff), `underpaid` (> 1% short: staff alert, user can top up), `overpaid` (credited, excess noted).
 - USD → BTC rate is locked at invoice creation for 30 minutes, from a configurable price source (default: two sources, median).
-- The invoice UI shows the amount in sats and BTC, the address, a BIP21 QR (`bitcoin:addr?amount=`), a live status (via gateway `SR_INVOICE_UPDATE`), and a fee-estimate hint.
+- The invoice UI shows the amount in sats and BTC, the address, a BIP21 QR (`bitcoin:addr?amount=`), a live status (via gateway `SR_PAYMENT_UPDATE`), and a fee-estimate hint.
 
 ## 2. What donations buy
 

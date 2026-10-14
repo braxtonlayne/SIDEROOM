@@ -38,18 +38,19 @@ against the BIP-84 vectors. The ADR's intent (self-custody, watch-only, esplora)
 
 ## 2. Data
 
-Migrations `0540`..`0543`:
+Migrations `0540`..`0542` (times in the payment tables are Unix milliseconds):
 
 * `payment_wallets` (network, watch-only descriptor, fingerprint, `next_index`, `gap_limit`, `active`), one active row.
 * `payment_invoices` (user, purpose, guild, months, credits, `usd_cents`, `sats`, rate snapshot, address and derivation
   index, state, confirmation counters, expiry, late/excess/shortfall, `next_check_ms`, resolution), unique address and
   unique `(wallet_id, derivation_index)`.
-* `payment_txs` (invoice, txid, amount, block height, first/last seen, `dropped_at`), unique `(invoice_id, txid)`: this is
+* `payment_txs` (invoice, txid, amount, block height, first/last seen, `dropped_ms`), unique `(invoice_id, txid)`: this is
   the idempotent tx matching.
-* `payment_credits` (one row per invoice, `credited_at`, `reverted_at`): the idempotency key of crediting.
-* `entitlement_grants` (source invoice/admin/migrated, kind `patron` / `server_pool` / `donation`, user or guild, `days`
-  or `usd_cents`, `starts_at`, `ends_at`, `revoked_at`, reason).
-* `guild_support_levels` (level, `below_since`), `donor_preferences`, `payment_config` (one JSON row),
+* `payment_credits` (one row per invoice, `active`, `credited_ms`, `reverted_ms`, the invite credits to reverse): the idempotency key of crediting.
+* `entitlement_grants` (source invoice/admin/migrated, kind `patron` / `server_pool`, user or guild, `days`, a fixed
+  `ends_ms` or `permanent`, or `usd_cents`, `starts_ms`, `revoked_ms`, reason).
+* `guild_support_levels` (level, `below_since_ms`, owner and staff hiding), `user_patron_notices`, `donor_preferences`
+  (hide name/amount/badge, staff hiding), `payment_config` (one JSON row), `payment_watcher` (health of the job),
   `payment_audit` (every state change, append-only).
 
 ## 3. Invoice lifecycle
@@ -119,10 +120,10 @@ installation has no wallet or `enabled` is false: 403 `SR_FEATURE_DISABLED` on c
 | `GET /donations/invoices/{id}` | | `Invoice` (404 for other people's) |
 | `POST /donations/invoices/{id}/check` | | the "I've paid" button: polls this invoice now (at most once per 10 s per invoice), returns `Invoice` |
 | `POST /donations/invoices/{id}/cancel` | | 200 `Invoice`; only `open` with nothing received (409 otherwise) |
-| `GET /donations/me` | | `{patron:{active,in_grace,until_ms,started_ms}, limits, invite_credits_bought, preferences}` |
+| `GET /donations/me` | | `{patron:{active,in_grace,permanent,until_ms,started_ms}, limits, preferences}` |
 | `PATCH /donations/me/preferences` | `{hide_name?, hide_amount?, hide_badge?}` | preferences |
 | `GET /guilds/{id}/support` | | `{level, pool_cents, next_threshold_cents, grace_until_ms, perks, top_contributors:[{user_id?, name?, cents?}], hidden_from_leaderboard}` (members only) |
-| `PATCH /guilds/{id}/support` | `{hidden_from_leaderboard}` | guild owner only |
+| `PATCH /guilds/{id}/support` | `{hidden_from_leaderboard}` | guild owner only (403 for other members, 404 for non-members) |
 | `GET /donations/leaderboards/{board}` | board `donors` \| `servers`; `window` `30d`\|`lifetime`; `limit` (<= 100) | `{board, window, items:[{rank, user_id?, guild_id?, name, avatar?, cents?, anonymous}], me:{rank, cents?}\|null, generated_at_ms}` cached 1 h. Hidden names read "Anonymous patron", hidden amounts are omitted |
 
 `Invoice`: `{id, purpose, state, usd_cents, sats, btc, address, bip21, network, guild_id, months, credits, anonymous,
@@ -142,7 +143,7 @@ txs:[{txid, amount_sats, confirmations, dropped}], resolution:null|{kind}}`.
 | `POST /admin/donations/invoices/{id}/resolve` | `{resolution:"mark_paid"\|"refund_noted"\|"dismiss", note, reason}`; `mark_paid` credits the purpose once (still idempotent) |
 | `GET /admin/donations/entitlements` | `kind?`, `user_id?`, `guild_id?`, `active?`, paged |
 | `POST /admin/donations/entitlements` | `{kind:"patron"\|"server_pool", user_id? \| guild_id?, days? \| usd_cents?, permanent?, reason}` |
-| `DELETE /admin/donations/entitlements/{id}` | `{reason}` revokes |
+| `DELETE /admin/donations/entitlements/{id}` | reason in the body (`{reason}`) or `X-Audit-Log-Reason`; revokes |
 | `GET /admin/donations/rates` | per-source status (last value, age, error) and the current median |
 | `GET /admin/donations/report` | `from_ms?`, `to_ms?`: totals by purpose and by day, counts by state |
 | `GET /admin/donations/leaderboard/{board}` | unfiltered ranking with real names (staff view; access-logged) |
@@ -150,3 +151,47 @@ txs:[{txid, amount_sats, confirmations, dropped}], resolution:null|{kind}}`.
 
 Every admin write appends a row to the staff access log (`donations.*`) with the reason, and every state change of an
 invoice appends to `payment_audit`.
+
+## 7. Runtime and configuration
+
+All optional; without an Esplora endpoint donations stay off (`GET /donations/config` says `enabled:false`, invoice
+creation answers 403 `SR_FEATURE_DISABLED`). Misconfiguration is logged, never fatal.
+
+| Environment variable | Meaning |
+|---|---|
+| `SR_PAYMENTS_ESPLORA_URL` | Esplora REST base (`https://mempool.space/api` or a self-hosted electrs/mempool). Read-only: `GET /blocks/tip/height` and `GET /address/{a}/txs` for addresses this server derived |
+| `SR_PAYMENTS_RATE_SOURCES` | JSON array `[{"name","url","pointer"}]` of price sources; `pointer` is an RFC 6901 pointer to the USD price (`/data/amount`). At most 5. The median is used; sources that disagree by more than 10% are refused |
+| `SR_PAYMENTS_DESCRIPTOR`, `SR_PAYMENTS_NETWORK` | A watch-only descriptor to register at startup when no wallet exists (`mainnet` default). Admin > Donations > Wallet does the same with a reason and an access-log row |
+| `SR_DOWNLOADS_LEGACY_FALLBACK` | `1` (default): `cinema_download_grants` still grants the download perk; `0`: only entitlements do |
+
+Jobs (`sr-server/src/payments_jobs.rs`): `payments.watch` every 15 s (polls invoices whose `next_check_ms` passed: 30 s
+for open and confirming invoices, 5 min for freshly expired ones, hourly for old ones; stops at `finality_confirmations`
+or after `late_watch_days`) and `payments.housekeeping` every 5 min (server level refresh with grace, Patron
+reminder/grace/lapse events). Everything else in the table above that an operator tunes (prices, thresholds, perks,
+depths, expiry) is `DonationConfig`, edited in Admin > Donations > Pricing and perks without a restart.
+
+## 8. Web
+
+* Settings > **Support / Patron** (`apps/web/src/support/`): hosting bar, Patron months, donations, invite credits,
+  supporting a server, privacy switches, history and receipts. The **invoice dialog** shows sats, BTC and USD, the
+  address with a copy button, a BIP-21 QR drawn by `@sideroom/ui`'s `QRCode`, a countdown, progress steps and an
+  explorer link. It follows `SR_PAYMENT_UPDATE` and polls every 15 s as the fallback; "I've paid" checks now.
+* Server Settings > **Server Support** (owners and `MANAGE_GUILD`): level, pool and progress, perks, top contributors,
+  contribute flow, owner-only leaderboard switch.
+* `/support/leaderboards`: donors and servers, 30 days or lifetime.
+* Admin > **Donations**, **Invoices**, **Entitlements**, **Pricing and perks** (group MONEY, `MANAGE_DONATIONS`).
+
+## 9. Cutover of the Cinema download perk
+
+1. Migration `0542` copies unexpired `cinema_download_grants` rows into `entitlement_grants` (source `migrated`;
+   permanent when the legacy row never expired). The legacy `per_day` is replaced by the Patron perk
+   `downloads_per_day` (20).
+2. `EntitlementDownloads` (sr-db) implements `sr_media::downloads::DownloadEntitlements` over `Entitlements`; with
+   `SR_DOWNLOADS_LEGACY_FALLBACK=1` it still honours the old table for anyone who is not a Patron yet.
+3. When staff have checked Admin > Entitlements, set `SR_DOWNLOADS_LEGACY_FALLBACK=0`. A later migration may drop
+   `cinema_download_grants` (not done here).
+
+## 10. What no test or code here touched
+
+No real chain, wallet, key or payment: tests use the public BIP-84 vector, an in-memory `FakeChain` and `FakeRate`.
+The Esplora client and the HTTP rate sources are exercised only against canned responses.
