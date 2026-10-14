@@ -305,7 +305,7 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 
 export function MyListPage() {
   return (
-    <main className="cpl-my">
+    <div className="cpl-my">
       <p className="cpl-my-eyebrow">— Your space</p>
       <h1 className="cpl-my-h1">My list.</h1>
       <Tabs
@@ -349,6 +349,6 @@ export function MyListPage() {
           },
         ]}
       />
-    </main>
+    </div>
   );
 }
