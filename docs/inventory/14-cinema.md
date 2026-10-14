@@ -11,17 +11,17 @@ Phase 5. Spec: [cinema-media](../specs/cinema-media.md). Mockups: `cinema-discov
 - [ ] **CIN-DATA-006** [BE] Age-restricted filtering
 
 ## CIN-ING — Ingest & transcoding
-- [ ] **CIN-ING-001** [BE] Probe service (`ffmpeg-next`): streams, codecs, duration, HDR, interlace, languages, embedded subs
-- [ ] **CIN-ING-002** [BE] Review proxy job (480p fast encode) for reviewers
-- [ ] **CIN-ING-003** [BE] Transcode job planner (ladder ≤ source ≤ 1080p, audio tracks, subtitle extraction, sprites)
-- [ ] **CIN-ING-004** [BE] Worker API: register/heartbeat, claim job, signed download of original, presigned multipart uploads for outputs, progress, complete/fail with logs
-- [ ] **CIN-ING-005** [BE] `sr-transcoder` binary: NVENC detection, h264_nvenc / libx264 fallback, scale, HDR→SDR tonemap, deinterlace, closed aligned GOPs, fMP4 HLS 6s segments, AAC tracks, WebVTT subs, thumbnail sprite + VTT, segment index output
-- [ ] **CIN-ING-006** [OPS] Transcoder CUDA container image + CPU image + "rent a GPU" guide
-- [ ] **CIN-ING-007** [BE] Master/media playlist generation with signed segment URLs (6h), refresh endpoint
-- [ ] **CIN-ING-008** [BE] ASS subtitle retention + WebVTT conversion
-- [ ] **CIN-ING-009** [BE] Originals retention (cold bucket / Storage Box), proxy cleanup after publish
+- [x] **CIN-ING-001** [BE] Probe service (`ffmpeg-next`): streams, codecs, duration, HDR, interlace, languages, embedded subs · *parser tested on canned ffprobe JSON; ffprobe never run*
+- [x] **CIN-ING-002** [BE] Review proxy job (480p fast encode) for reviewers · *logic and tests only, not exercised with real ffmpeg*
+- [x] **CIN-ING-003** [BE] Transcode job planner (ladder ≤ source ≤ 1080p, audio tracks, subtitle extraction, sprites) · *logic and tests only, not exercised with real ffmpeg*
+- [x] **CIN-ING-004** [BE] Worker API: register/heartbeat, claim job, signed download of original, presigned multipart uploads for outputs, progress, complete/fail with logs · *contract, service, routes and in-memory store done and tested; the Postgres `JobStore` and sr-server wiring are the catalog work*
+- [x] **CIN-ING-005** [BE] `sr-transcoder` binary: NVENC detection, h264_nvenc / libx264 fallback, scale, HDR→SDR tonemap, deinterlace, closed aligned GOPs, fMP4 HLS 6s segments, AAC tracks, WebVTT subs, thumbnail sprite + VTT, segment index output · *logic and tests only, not exercised with real ffmpeg*
+- [x] **CIN-ING-006** [OPS] Transcoder CUDA container image + CPU image + "rent a GPU" guide · *Dockerfiles and guide written (`deploy/TRANSCODER.md`); images not built here*
+- [x] **CIN-ING-007** [BE] Master/media playlist generation with signed segment URLs (6h), refresh endpoint · *pure functions and tests; the playback and refresh endpoints call them once the catalog exists*
+- [x] **CIN-ING-008** [BE] ASS subtitle retention + WebVTT conversion · *converter tested on hand-written ASS/SRT, not on real ffmpeg-extracted files*
+- [x] **CIN-ING-009** [BE] Originals retention (cold bucket / Storage Box), proxy cleanup after publish · *pure decision logic and tests; the sweep job is catalog work*
 - [ ] **CIN-ING-010** [BE] Cinema `SubmissionKind` impls (title, episodes batch) with publish actions
-- [ ] **CIN-ING-011** [BE] Re-transcode action (single asset / whole title / all — admin)
+- [x] **CIN-ING-011** [BE] Re-transcode action (single asset / whole title / all — admin) · *pure planner and tests; the admin action and job enqueue are catalog work*
 
 ## CIN-UI — Section chrome
 - [ ] **CIN-UI-001** [FE] Section top bar with "The cinema" active

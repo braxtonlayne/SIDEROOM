@@ -37,6 +37,7 @@ Everything ships as **Docker Compose** (`deploy/compose/`) **and** as systemd un
 - Workers authenticate with a worker token created in Admin → Transcoding. They claim jobs over HTTPS, download originals with signed URLs, encode, and upload renditions with presigned multipart PUTs. **No inbound ports are needed on the worker.**
 - CPU fallback (x264) is automatic when no NVENC is detected (slow but works).
 - Admin → Transcoding shows the queue, ETA, per-worker throughput, failures with logs, and a "rent a GPU" checklist.
+- Images (CUDA and CPU), the run commands and the full "rent a GPU" guide are in [`deploy/TRANSCODER.md`](../deploy/TRANSCODER.md); the Worker API is in [`specs/cinema-media.md`](specs/cinema-media.md) section 4.4.
 
 ## 5. Backups and restore
 

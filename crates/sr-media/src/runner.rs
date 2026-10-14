@@ -392,6 +392,30 @@ mod tests {
         assert_eq!(seen, ["a", "b"]);
     }
 
+    /// Real processes: `cargo` is always present where these tests run.
+    #[test]
+    fn process_runner_runs_a_real_command_and_streams_lines() {
+        let spec = CommandSpec::new("cargo", vec!["--version".into()]);
+        let out = ProcessRunner.run(&spec).unwrap();
+        assert!(out.success(), "{out:?}");
+        assert!(String::from_utf8_lossy(&out.stdout).starts_with("cargo "));
+        assert!(!out.stdout_truncated);
+
+        let capped = ProcessRunner.run(&spec.clone().with_max_stdout(3)).unwrap();
+        assert!(capped.stdout_truncated);
+        assert_eq!(capped.stdout, b"car");
+
+        let mut lines = Vec::new();
+        let info = ProcessRunner
+            .run_streaming(&spec, &mut |l| {
+                lines.push(l.to_string());
+                Control::Continue
+            })
+            .unwrap();
+        assert!(info.success());
+        assert!(lines[0].starts_with("cargo "));
+    }
+
     #[test]
     fn process_runner_reports_missing_program() {
         let spec = CommandSpec::new("definitely-not-a-real-program-sr", vec![]);
