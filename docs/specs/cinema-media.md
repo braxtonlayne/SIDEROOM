@@ -417,3 +417,61 @@ pub trait CatalogLookup: Send + Sync {
 ```
 `CatalogTitle {id, kind, title, year, age_restricted, runtime_secs, poster_key, tags}` (tags include genres, lower-case);
 `CatalogEpisode {id, title_id, season, number, title, runtime_secs}`. `sr-cinema-social` ships `MemoryCatalog` for tests.
+
+## 10. Playback source contract (phase 7, `sr-api` playback routes)
+
+The player calls two routes with an `asset_id` (the id the catalog's `/play` answer carries). Both live in
+`crates/sr-api/src/routes/cinema/playback.rs` and need a signed-in session:
+
+| Route | Meaning |
+|---|---|
+| `GET /cinema/assets/{asset_id}/playback` | `{master_url, expires_at, refresh_at, duration_secs?, subtitles[], audio_tracks[], sprites_url?, sprite?, markers[]}`; times are Unix **seconds**. |
+| `POST /cinema/assets/{asset_id}/refresh` | `{master_url, expires_at, refresh_at}`: a fresh `sr_media::playlist::grant`; nothing stored per viewer. |
+
+Both run the **catalog play check** first. The catalog finds which published title, episode, variant or trailer uses the asset
+(`asset_id` columns of `video_titles`, `video_episodes`, `video_title_variants`, `video_trailers`); an unknown or unpublished owner
+is `404`; a restricted title needs age confirmation (`403`, code `900011`, D-184). Only then is the `PlaybackSource` asked for
+renditions, so a non-owner never learns whether an asset exists. The restricted rule for trailers is the catalog's (withheld until confirmed).
+
+### 10.1 The trait (what the Postgres implementation must provide)
+
+```rust
+#[async_trait]
+pub trait PlaybackSource: Send + Sync {
+    /// `None`: no such asset, or it is not playable (state other than published, or no video rendition yet).
+    async fn asset(&self, asset_id: i64) -> Result<Option<PlaybackAsset>, PlaybackError>;
+}
+pub struct PlaybackAsset {
+    pub id: i64,
+    pub duration_ms: Option<i64>,
+    /// URL path prefix of the asset's files, the CDN kind `hls`: `/cdn/hls/<asset_id>`.
+    pub media: sr_media::playlist::MediaSet,          // video + audio + subtitle variants, segments included
+    pub sprite: Option<sr_media::plan::SpritePlan>,   // None: no scrub thumbnails
+}
+```
+`sr_api::routes::cinema::playback::MemoryPlaybackSource` is the in-memory implementation used by the route tests.
+
+### 10.2 Table shape needed (columns of section 4.5, with the additions marked NEW)
+
+An asset is playable when `video_assets.state = 'published'` and it has at least one `kind = 'video'` rendition with a non-empty
+`segment_index`. The implementation maps rows to a `MediaSet` like this (the `path` values are relative to the asset root, forward
+slashes, exactly the layout of section 4.3):
+
+| Rendition `kind` | Maps to | Columns used |
+|---|---|---|
+| `video` | `VideoVariant` | `name` (`1080p`), `width`, `height`, `bandwidth_bps` (peak), `codecs` (`avc1.640028`), `playlist_key` (`v/1080p/index.m3u8`), `segment_index` = JSON array `[{"path":"v/1080p/seg_00000.m4s","duration_secs":6.0}, ...]`; NEW `frame_rate double precision`; NEW `average_bandwidth_bps bigint NULL`; `init_path` = `v/<name>/init.mp4` (the directory of `playlist_key` plus `init.mp4`) |
+| `audio` | `AudioVariant` | `name`, `language` (BCP 47 or null), NEW `channels int`, `is_default`, `playlist_key` (`a/00-eng-stereo/index.m3u8`), `segment_index` as above, `init_path` as for video |
+| `subtitle` | `SubtitleVariant` | `name`/`label`, `language`, `forced`, `is_default`, `playlist_key` = the virtual wrapper `subs/00-eng.m3u8` (rendered on demand, never stored), NEW `meta jsonb` = `{"vtt_path":"subs/00-eng.vtt","ass_path":"subs/00-eng.ass"|null,"duration_secs":5400.0}` |
+| `sprite` | `SpritePlan` | NEW `meta jsonb` = the serialized `sr_media::plan::SpritePlan` (it is `Serialize`/`Deserialize`) |
+| `poster`, `proxy` | not played | |
+
+`video_assets.duration_ms` supplies `duration_ms`. Rendition `id` (decimal string on the wire) is the subtitle track id.
+Everything is read-only for the playback routes; one query per table by `asset_id` is enough (renditions per asset are < 30).
+
+### 10.3 Files and playlists under `/cdn/hls`
+
+The master URL is `/cdn/hls/<asset_id>/master.m3u8?ex=&sig=` (CDN signer, 6 h). The CDN gets a new kind `hls` whose object key prefix is
+`video` (the asset root is `video/<asset_id>/`; ingest promotes `transcode/<job>/<attempt>/...` there on `complete`). Segments, init files,
+WebVTT, ASS, fonts and sprite sheets are plain objects; every `.m3u8` and the sprite `.vtt` map are **rendered on request** from the
+`PlaybackSource` with `sr_media::playlist` (`render_master`, `render_video_playlist`, `render_audio_playlist`, `render_subtitle_playlist`,
+`render_sprite_vtt`), so the URLs inside carry fresh signatures. (Delivery of rendered playlists: see the handoff of `feat/p7-cinema-wiring` for what is built.)
