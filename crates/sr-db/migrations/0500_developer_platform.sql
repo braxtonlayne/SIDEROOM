@@ -1,6 +1,6 @@
 -- 0500: developer platform foundations. docs/specs/developer-platform.md, doc 11 section 2.
 -- Bot accounts are ordinary rows in `accounts` marked `is_bot`; they never log in
--- (the password hash is a non-PHC marker) and never count toward the account cap.
+-- (the password hash is a well-formed Argon2id hash nothing can match) and never count toward the account cap.
 ALTER TABLE accounts ADD COLUMN is_bot BOOLEAN NOT NULL DEFAULT FALSE;
 CREATE INDEX accounts_bot_idx ON accounts (id) WHERE is_bot;
 

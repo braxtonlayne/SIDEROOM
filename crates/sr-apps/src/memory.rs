@@ -721,6 +721,7 @@ impl AppsRepository for MemoryAppsRepo {
             install,
             member_added,
             role: (req.with_bot).then(|| (req.role_id, req.bot_name.clone(), req.permissions)),
+            role_created: member_added,
             audit_entry: member_added.then(
                 || serde_json::json!({"id": req.guild_audit_id.to_string(), "action_type": 28}),
             ),

@@ -7,6 +7,7 @@
 
 pub mod accounts;
 pub mod admin_repo;
+pub mod apps_repo;
 pub mod auth_repo;
 pub mod auth_store;
 pub mod chat_repo;

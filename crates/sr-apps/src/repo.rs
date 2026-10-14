@@ -58,6 +58,8 @@ pub struct InstallOutcome {
     pub member_added: bool,
     /// The managed role created or refreshed (id, name, permissions).
     pub role: Option<(i64, String, u64)>,
+    /// The role was created by this install (else an existing one was updated).
+    pub role_created: bool,
     /// The guild audit entry written (Discord shape), when one was.
     pub audit_entry: Option<Value>,
 }
