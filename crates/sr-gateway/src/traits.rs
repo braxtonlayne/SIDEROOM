@@ -124,6 +124,11 @@ pub trait GuildDirectory: Send + Sync {
         None
     }
 
+    /// The user's last attached socket closed: they are offline now (LNG-INV-005 uses this to
+    /// drop temporary memberships). Called once per transition, after the presence was
+    /// broadcast. Default: nothing.
+    async fn user_offline(&self, _user: UserId) {}
+
     /// Extra READY fields (`private_channels`, `relationships`, ...).
     async fn ready_extras(&self, _user: UserId) -> Value {
         json!({})

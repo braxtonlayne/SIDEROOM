@@ -139,6 +139,34 @@ impl Webhook {
         })
     }
 
+    /// A follower webhook (LNG-CHN-004): the subscription of `channel_id` to announcements
+    /// published in `source`. It has no execution token; messages arrive through
+    /// crossposting. `name` is shown where Discord shows the webhook's name.
+    pub fn new_follower(
+        id: WebhookId,
+        guild_id: GuildId,
+        channel_id: ChannelId,
+        creator_id: UserId,
+        name: &str,
+        source: ChannelId,
+        now_ms: i64,
+    ) -> SettingsResult<Self> {
+        let name: String = name.trim().chars().take(80).collect();
+        Ok(Self {
+            id,
+            guild_id,
+            channel_id,
+            kind: WebhookKind::ChannelFollower,
+            creator_id: Some(creator_id),
+            name: validate_name(&name)?,
+            avatar_key: None,
+            token_hash: None,
+            application_id: None,
+            source_channel_id: Some(source),
+            created_at_ms: now_ms,
+        })
+    }
+
     /// Constant-time comparison of a presented token hash.
     pub fn token_matches(&self, presented_hash: &str) -> bool {
         let Some(stored) = &self.token_hash else {

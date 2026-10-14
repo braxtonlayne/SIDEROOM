@@ -1044,7 +1044,7 @@ impl Gateway {
     /// presence on a transition (or always when `force`). Offline is immediate when
     /// the last socket closes; the resume buffer does not keep the user online.
     pub(crate) async fn refresh_presence(&self, user: UserId, force: bool) {
-        let (changed, update, guilds) = {
+        let (changed, update, guilds, online) = {
             let mut st = self.st();
             let online = st
                 .sessions
@@ -1062,9 +1062,15 @@ impl Gateway {
                 .filter(|s| s.user == user)
                 .flat_map(|s| s.guilds())
                 .collect();
-            (online != was, Self::effective(&st, user), guilds)
+            (online != was, Self::effective(&st, user), guilds, online)
         };
-        let Some(update) = update else { return };
+        let went_offline = changed && !online;
+        let Some(update) = update else {
+            if went_offline {
+                self.inner.dir.user_offline(user).await;
+            }
+            return;
+        };
         if changed || force {
             self.notify_friends(user, &update, &guilds).await;
             for g in guilds {
@@ -1077,6 +1083,9 @@ impl Gateway {
                 )
                 .await;
             }
+        }
+        if went_offline {
+            self.inner.dir.user_offline(user).await;
         }
     }
 

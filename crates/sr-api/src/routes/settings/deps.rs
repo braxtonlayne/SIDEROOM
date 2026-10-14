@@ -109,7 +109,7 @@ impl SettingsDeps {
         self
     }
 
-    pub(super) fn presence(&self) -> Option<&dyn PresenceCounter> {
+    pub(crate) fn presence(&self) -> Option<&dyn PresenceCounter> {
         self.presence.as_deref()
     }
 
@@ -127,7 +127,7 @@ impl SettingsDeps {
         &*self.timeouter
     }
 
-    pub(super) fn joiner(&self) -> &dyn MemberJoiner {
+    pub(crate) fn joiner(&self) -> &dyn MemberJoiner {
         &*self.joiner
     }
 

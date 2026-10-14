@@ -44,6 +44,32 @@ pub trait GuildBackend: Send + Sync {
     async fn list_my_guilds(&self, user: UserId) -> ChatResult<Vec<(Guild, Permissions)>>;
     async fn edit_guild(&self, actor: UserId, id: GuildId, patch: GuildPatch) -> ChatResult<Guild>;
     async fn delete_guild(&self, actor: UserId, id: GuildId) -> ChatResult<()>;
+    /// The vanity invite code (`MANAGE_GUILD`).
+    async fn vanity_code(&self, actor: UserId, id: GuildId) -> ChatResult<Option<String>>;
+    /// Claim, change or release (`None`) the vanity invite code (`MANAGE_GUILD`); emits
+    /// `GUILD_UPDATE`.
+    async fn set_vanity_code(
+        &self,
+        actor: UserId,
+        id: GuildId,
+        code: Option<String>,
+    ) -> ChatResult<Guild>;
+    /// Choose the server whose tag the user shows (LNG-GLD-011).
+    async fn set_primary_guild(
+        &self,
+        user: UserId,
+        guild: Option<GuildId>,
+        enabled: bool,
+    ) -> ChatResult<()>;
+    /// Agree to the membership screening (LNG-GLD-008); emits `GUILD_MEMBER_UPDATE`.
+    async fn accept_screening(&self, user: UserId, guild: GuildId) -> ChatResult<Member>;
+    /// Grant the roles chosen through onboarding answers; returns the roles newly added.
+    async fn apply_onboarding_roles(
+        &self,
+        user: UserId,
+        guild: GuildId,
+        roles: &[RoleId],
+    ) -> ChatResult<Vec<RoleId>>;
     async fn leave_guild(&self, user: UserId, id: GuildId) -> ChatResult<()>;
     // channels
     async fn list_channels(
@@ -378,6 +404,60 @@ impl<R: ChatRepository + GuildAdminRepository + 'static> GuildBackend for ChatBa
         self.svc.delete_guild(actor, id).await?;
         self.emit(DomainEvent::GuildDeleted { guild: id }).await;
         Ok(())
+    }
+
+    async fn vanity_code(&self, actor: UserId, id: GuildId) -> ChatResult<Option<String>> {
+        self.svc.vanity_code(actor, id).await
+    }
+
+    async fn set_vanity_code(
+        &self,
+        actor: UserId,
+        id: GuildId,
+        code: Option<String>,
+    ) -> ChatResult<Guild> {
+        let g = self.svc.set_vanity_code(actor, id, code.as_deref()).await?;
+        self.audit(id, actor, AuditAction::GuildUpdate, id.get(), None)
+            .await;
+        let roles = self.svc.list_roles(actor, id).await.unwrap_or_default();
+        self.emit(DomainEvent::GuildUpdated {
+            guild: id,
+            payload: val(&GuildObject::new(&g, Some(&roles), None)),
+        })
+        .await;
+        Ok(g)
+    }
+
+    async fn set_primary_guild(
+        &self,
+        user: UserId,
+        guild: Option<GuildId>,
+        enabled: bool,
+    ) -> ChatResult<()> {
+        self.svc.set_primary_guild(user, guild, enabled).await
+    }
+
+    async fn accept_screening(&self, user: UserId, guild: GuildId) -> ChatResult<Member> {
+        let before = self.svc.get_member_view(user, guild, user).await?;
+        let m = self.svc.accept_screening(user, guild).await?;
+        if before.pending {
+            self.emit_member_updated(&m).await;
+        }
+        Ok(m)
+    }
+
+    async fn apply_onboarding_roles(
+        &self,
+        user: UserId,
+        guild: GuildId,
+        roles: &[RoleId],
+    ) -> ChatResult<Vec<RoleId>> {
+        let added = self.svc.apply_onboarding_roles(user, guild, roles).await?;
+        if !added.is_empty() {
+            let m = self.svc.get_member_view(user, guild, user).await?;
+            self.emit_member_updated(&m).await;
+        }
+        Ok(added)
     }
 
     async fn leave_guild(&self, user: UserId, id: GuildId) -> ChatResult<()> {

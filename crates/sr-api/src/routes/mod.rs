@@ -40,6 +40,7 @@ pub mod cinema;
 pub mod cinema_media;
 pub mod cinema_social;
 pub mod developer;
+pub mod directory;
 pub mod donations;
 pub mod guilds;
 pub mod library;
@@ -115,6 +116,7 @@ pub fn all() -> Router<AppState> {
         .merge(tv::router())
         .merge(watchparty::router())
         .merge(developer::router())
+        .merge(directory::router())
         .merge(donations::router())
 }
 
@@ -138,6 +140,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(guilds::openapi());
     doc.merge(social::openapi());
     doc.merge(settings::openapi());
+    doc.merge(directory::openapi());
     doc.merge(search::openapi());
     doc.merge(threads::openapi());
     doc.merge(library::openapi());

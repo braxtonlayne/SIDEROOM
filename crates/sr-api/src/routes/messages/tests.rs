@@ -88,6 +88,9 @@ async fn env_full(
         joined_at_ms: T0,
         communication_disabled_until_ms: None,
         pending: false,
+        avatar_key: None,
+        banner_key: None,
+        bio: None,
     });
 
     let bots = Arc::new(MemoryBots::new());

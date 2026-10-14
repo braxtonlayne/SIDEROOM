@@ -120,6 +120,7 @@ pub(super) fn summary(id: i64, name: &str, bot: bool) -> UserSummary {
         avatar_key: None,
         banner_key: None,
         bot,
+        primary_guild: None,
     }
 }
 
@@ -142,6 +143,9 @@ pub(super) async fn env_with(enforce: bool) -> Env {
         joined_at_ms: T0,
         communication_disabled_until_ms: None,
         pending: false,
+        avatar_key: None,
+        banner_key: None,
+        bio: None,
     });
     for (id, name) in [
         (OWNER, "owner"),
@@ -434,6 +438,9 @@ impl Env {
             joined_at_ms: T0,
             communication_disabled_until_ms: None,
             pending: false,
+            avatar_key: None,
+            banner_key: None,
+            bio: None,
         });
     }
 

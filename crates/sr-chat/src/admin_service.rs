@@ -119,6 +119,79 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
         Ok(updated)
     }
 
+    /// The vanity invite code of the guild (`MANAGE_GUILD`).
+    pub async fn vanity_code(&self, actor: UserId, id: GuildId) -> ChatResult<Option<String>> {
+        let c = self.ctx(actor, id).await?;
+        if !c.actor.perms.has(Permissions::MANAGE_GUILD) {
+            return Err(ChatError::MissingPermissions);
+        }
+        Ok(c.guild.vanity_code)
+    }
+
+    /// Claim, change or (with `None`) release the vanity invite code (LNG-INV-004,
+    /// `MANAGE_GUILD`). Codes are unique across servers and free of charge. Returns the
+    /// updated guild; a code that is taken answers `VANITY_URL_TAKEN`.
+    pub async fn set_vanity_code(
+        &self,
+        actor: UserId,
+        id: GuildId,
+        code: Option<&str>,
+    ) -> ChatResult<Guild> {
+        let c = self.ctx(actor, id).await?;
+        if !c.actor.perms.has(Permissions::MANAGE_GUILD) {
+            return Err(ChatError::MissingPermissions);
+        }
+        let code = admin_rules::validate_vanity_code(code)?;
+        let taken = || {
+            ChatError::invalid(
+                "code",
+                "VANITY_URL_TAKEN",
+                "This vanity URL is already taken.",
+            )
+        };
+        if let Some(code) = &code
+            && self
+                .repo
+                .guild_by_vanity(code)
+                .await?
+                .is_some_and(|g| g != id)
+        {
+            return Err(taken());
+        }
+        if !self.repo.set_vanity(id, code.as_deref()).await? {
+            return Err(taken());
+        }
+        let mut guild = c.guild;
+        guild.vanity_code = code;
+        Ok(guild)
+    }
+
+    /// Choose the server whose tag `user` shows (LNG-GLD-011), or stop showing one with
+    /// `guild: None`. The server must have a tag and the user must be a member.
+    pub async fn set_primary_guild(
+        &self,
+        user: UserId,
+        guild: Option<GuildId>,
+        enabled: bool,
+    ) -> ChatResult<()> {
+        if let Some(gid) = guild {
+            let g = self.guild(gid).await?;
+            self.repo
+                .get_member(gid, user)
+                .await?
+                .ok_or(ChatError::MissingAccess)?;
+            if g.tag.is_none() {
+                return Err(ChatError::invalid(
+                    "identity_guild_id",
+                    "NO_SERVER_TAG",
+                    "This server has no tag.",
+                ));
+            }
+        }
+        self.repo.set_primary_guild(user, guild, enabled).await?;
+        Ok(())
+    }
+
     /// Owner-only; returns the deleted guild.
     pub async fn delete_guild(&self, actor: UserId, id: GuildId) -> ChatResult<Guild> {
         let c = self.ctx(actor, id).await?;
@@ -535,6 +608,61 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
         let updated = plan_edit_member(&c.guild, actor, &c.actor, &t, &c.roles, patch, self.now())?;
         self.repo.update_member(&updated).await?;
         Ok(updated)
+    }
+
+    /// Agree to the membership screening (LNG-GLD-008): the member stops being `pending`
+    /// and may talk. Accepting twice is harmless.
+    pub async fn accept_screening(&self, user: UserId, id: GuildId) -> ChatResult<Member> {
+        let mut m = self
+            .repo
+            .get_member(id, user)
+            .await?
+            .ok_or(ChatError::MissingAccess)?;
+        if m.pending {
+            m.pending = false;
+            self.repo.update_member(&m).await?;
+        }
+        Ok(m)
+    }
+
+    /// Grant the roles a member picked through onboarding answers (LNG-GLD-008). No
+    /// `MANAGE_ROLES` is needed because the server owner configured the mapping, but a role
+    /// that carries moderation power or is managed by an integration is never granted
+    /// (see [`crate::settings::community::onboarding_role_is_safe`]); unknown roles are
+    /// skipped. Returns the roles newly added.
+    pub async fn apply_onboarding_roles(
+        &self,
+        user: UserId,
+        id: GuildId,
+        wanted: &[RoleId],
+    ) -> ChatResult<Vec<RoleId>> {
+        let mut member = self
+            .repo
+            .get_member(id, user)
+            .await?
+            .ok_or(ChatError::MissingAccess)?;
+        let roles = self.repo.list_roles(id).await?;
+        let mut added = Vec::new();
+        for rid in wanted {
+            let Some(role) = roles.iter().find(|r| r.id == *rid) else {
+                continue;
+            };
+            if role.is_everyone()
+                || member.role_ids.contains(rid)
+                || !crate::settings::community::onboarding_role_is_safe(
+                    role.permissions,
+                    role.managed,
+                )
+            {
+                continue;
+            }
+            member.role_ids.push(*rid);
+            added.push(*rid);
+        }
+        if !added.is_empty() {
+            self.repo.update_member(&member).await?;
+        }
+        Ok(added)
     }
 
     pub async fn kick_member(&self, actor: UserId, id: GuildId, user: UserId) -> ChatResult<()> {

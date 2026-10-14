@@ -44,6 +44,7 @@ pub async fn create_message(
     p: Principal,
     Ext(deps): Ext<MessagesDeps>,
     MaybeExt(gate): MaybeExt<AutoModGateHandle>,
+    MaybeExt(settings): MaybeExt<crate::routes::settings::SettingsDeps>,
     Path(channel_id): Path<String>,
     ApiJson(body): ApiJson<CreateMessageBody>,
 ) -> MsgResult<Json<MessageObject>> {
@@ -240,6 +241,11 @@ pub async fn create_message(
     .await;
     if let (Some(v), Some(guild)) = (&verdict, msg.guild_id) {
         publish_alerts(&deps, guild, v, Some(msg.id)).await;
+    }
+    // Announcement channels set to auto-publish send the message on to their followers
+    // (LNG-CHN-004).
+    if let Some(s) = &settings {
+        super::crosspost::auto_publish(&deps, s, &msg).await;
     }
     if msg.poll.is_some() {
         deps.schedule_poll_finalize(&msg).await;

@@ -54,6 +54,9 @@ impl InviteRepository for DynRepo {
     async fn is_banned(&self, guild: GuildId, user: UserId) -> RepoResult<bool> {
         self.0.is_banned(guild, user).await
     }
+    async fn vanity_uses(&self, guild: GuildId) -> RepoResult<u32> {
+        self.0.vanity_uses(guild).await
+    }
 }
 
 #[async_trait]
@@ -129,6 +132,9 @@ impl WebhookRepository for DynRepo {
     }
     async fn list_guild_webhooks(&self, guild: GuildId) -> RepoResult<Vec<Webhook>> {
         self.0.list_guild_webhooks(guild).await
+    }
+    async fn list_channel_followers(&self, source: ChannelId) -> RepoResult<Vec<Webhook>> {
+        self.0.list_channel_followers(source).await
     }
     async fn count_channel_webhooks(&self, channel: ChannelId) -> RepoResult<usize> {
         self.0.count_channel_webhooks(channel).await

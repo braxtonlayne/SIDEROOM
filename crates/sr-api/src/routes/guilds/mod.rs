@@ -26,6 +26,7 @@ pub mod members;
 pub mod prune;
 pub mod roles;
 pub mod util;
+pub mod vanity;
 
 use crate::state::AppState;
 use axum::Router;
@@ -44,6 +45,7 @@ pub fn router() -> Router<AppState> {
         .merge(members::routes())
         .merge(prune::routes())
         .merge(bans::routes())
+        .merge(vanity::routes())
 }
 
 /// OpenAPI fragment for these routes; merge it into [`crate::openapi::base`].
@@ -56,6 +58,8 @@ pub fn router() -> Router<AppState> {
         guild::delete_guild,
         guild::list_my_guilds,
         guild::leave_guild,
+        guild::list_tag_badges,
+        guild::set_primary_guild,
         channels::list_channels,
         channels::create_channel,
         channels::reorder_channels,
@@ -75,6 +79,8 @@ pub fn router() -> Router<AppState> {
         members::get_member,
         members::modify_member,
         members::kick_member,
+        members::get_own_member,
+        members::modify_own_member,
         members::search_members,
         roles::list_role_members,
         prune::prune_count,
@@ -84,9 +90,13 @@ pub fn router() -> Router<AppState> {
         bans::create_ban,
         bans::remove_ban,
         bans::bulk_ban,
+        vanity::get_vanity,
+        vanity::set_vanity,
     ),
     components(schemas(
         dto::UserRef,
+        dto::PrimaryGuildObject,
+        guild::PrimaryGuildBody,
         dto::RoleObject,
         dto::OverwriteObject,
         dto::ChannelObject,
@@ -104,10 +114,13 @@ pub fn router() -> Router<AppState> {
         dto::ModifyRoleBody,
         dto::ReorderRoleEntry,
         dto::ModifyMemberBody,
+        members::ModifyOwnMemberBody,
         dto::BanBody,
         prune::PruneBody,
         prune::PruneResult,
         bans::BulkBanBody,
+        vanity::VanityObject,
+        vanity::VanityBody,
         bans::BulkBanResult,
     ))
 )]

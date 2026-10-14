@@ -61,6 +61,11 @@ fn diff(old: &CommunitySettings, new: &CommunitySettings) -> Vec<AuditChange> {
         new.age_restricted.into(),
     );
     push(
+        "screening_enabled",
+        old.screening_enabled.into(),
+        new.screening_enabled.into(),
+    );
+    push(
         "raid_alert_joins_per_minute",
         old.raid_alert_joins_per_minute.into(),
         new.raid_alert_joins_per_minute.into(),
@@ -108,6 +113,13 @@ impl<R: SettingsRepository> SettingsService<R> {
                 "must be 300 or fewer in length",
             ));
         }
+        let (screening_description, screening_rules) = community::validate_screening(
+            new.screening_enabled,
+            new.screening_description.as_deref(),
+            &new.screening_rules,
+        )?;
+        new.screening_description = screening_description;
+        new.screening_rules = screening_rules;
         if new.community_enabled && !old.community_enabled {
             let (Some(rules), Some(updates)) = (new.rules_channel_id, new.updates_channel_id)
             else {

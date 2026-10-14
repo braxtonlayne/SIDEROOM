@@ -119,6 +119,31 @@ pub fn is_valid_code(code: &str) -> bool {
 }
 
 impl GuildInvite {
+    /// The invite behind a server's vanity code (LNG-INV-004): it never expires, has no use
+    /// limit, is created by the owner and is never stored in `guild_invites`; `uses` counts
+    /// the members who joined through the code.
+    pub fn vanity(
+        code: String,
+        guild_id: GuildId,
+        channel_id: ChannelId,
+        owner: UserId,
+        uses: u32,
+        now_ms: i64,
+    ) -> Self {
+        Self {
+            code,
+            guild_id,
+            channel_id,
+            inviter_id: owner,
+            max_age_secs: 0,
+            max_uses: 0,
+            uses,
+            temporary: false,
+            created_at_ms: now_ms,
+            revoked_at_ms: None,
+        }
+    }
+
     pub fn new(
         code: String,
         guild_id: GuildId,

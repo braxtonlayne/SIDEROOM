@@ -71,7 +71,8 @@ fn vis_parse(s: &str) -> RepoResult<Visibility> {
 
 pub(crate) const GUILD_COLS: &str = "id, name, description, icon_key, banner_key, splash_key, \
     owner_id, is_staff_guild, system_channel_id, verification_level, default_message_notifications, \
-    explicit_content_filter, preferred_locale, afk_channel_id, afk_timeout";
+    explicit_content_filter, preferred_locale, afk_channel_id, afk_timeout, tag, tag_badge, \
+    vanity_code::text AS vanity_code";
 
 pub(crate) fn guild_from(r: &PgRow) -> Result<Guild, sqlx::Error> {
     Ok(Guild {
@@ -98,6 +99,9 @@ pub(crate) fn guild_from(r: &PgRow) -> Result<Guild, sqlx::Error> {
         explicit_content_filter: u8::try_from(r.try_get::<i16, _>("explicit_content_filter")?)
             .unwrap_or(0),
         preferred_locale: r.try_get("preferred_locale")?,
+        tag: r.try_get("tag")?,
+        tag_badge: r.try_get("tag_badge")?,
+        vanity_code: r.try_get("vanity_code")?,
     })
 }
 
@@ -453,6 +457,15 @@ impl GuildRepository for PgChatRepo {
         row.as_ref().map(guild_from).transpose().map_err(db)
     }
 
+    async fn guild_by_vanity(&self, code: &str) -> RepoResult<Option<GuildId>> {
+        let row: Option<i64> = sqlx::query_scalar("SELECT id FROM guilds WHERE vanity_code = $1")
+            .bind(code)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db)?;
+        Ok(row.map(|v| GuildId::new(u(v))))
+    }
+
     async fn count_members(&self, guild: GuildId) -> RepoResult<u64> {
         let n: i64 = sqlx::query_scalar("SELECT count(*) FROM guild_members WHERE guild_id = $1")
             .bind(i(guild.get()))
@@ -469,7 +482,7 @@ impl GuildRepository for PgChatRepo {
         limit: usize,
     ) -> RepoResult<Vec<Member>> {
         let rows = sqlx::query(
-            "SELECT gm.user_id, gm.nick, gm.pending, \
+            "SELECT gm.user_id, gm.nick, gm.pending, gm.avatar_key, gm.banner_key, gm.bio, \
              (extract(epoch FROM gm.joined_at) * 1000)::bigint AS joined_ms, \
              (extract(epoch FROM gm.communication_disabled_until) * 1000)::bigint AS timeout_ms, \
              COALESCE((SELECT array_agg(mr.role_id) FROM member_roles mr \
@@ -498,6 +511,9 @@ impl GuildRepository for PgChatRepo {
                     joined_at_ms: r.try_get("joined_ms").map_err(db)?,
                     communication_disabled_until_ms: r.try_get("timeout_ms").map_err(db)?,
                     pending: r.try_get("pending").map_err(db)?,
+                    avatar_key: r.try_get("avatar_key").map_err(db)?,
+                    banner_key: r.try_get("banner_key").map_err(db)?,
+                    bio: r.try_get("bio").map_err(db)?,
                 })
             })
             .collect()
@@ -505,7 +521,7 @@ impl GuildRepository for PgChatRepo {
 
     async fn get_member(&self, guild: GuildId, user: UserId) -> RepoResult<Option<Member>> {
         let row = sqlx::query(
-            "SELECT gm.nick, gm.pending, \
+            "SELECT gm.nick, gm.pending, gm.avatar_key, gm.banner_key, gm.bio, \
              (extract(epoch FROM gm.joined_at) * 1000)::bigint AS joined_ms, \
              (extract(epoch FROM gm.communication_disabled_until) * 1000)::bigint AS timeout_ms, \
              COALESCE((SELECT array_agg(mr.role_id) FROM member_roles mr \
@@ -531,6 +547,9 @@ impl GuildRepository for PgChatRepo {
             joined_at_ms: r.try_get("joined_ms").map_err(db)?,
             communication_disabled_until_ms: r.try_get("timeout_ms").map_err(db)?,
             pending: r.try_get("pending").map_err(db)?,
+            avatar_key: r.try_get("avatar_key").map_err(db)?,
+            banner_key: r.try_get("banner_key").map_err(db)?,
+            bio: r.try_get("bio").map_err(db)?,
         }))
     }
 
@@ -1076,6 +1095,21 @@ impl MessageRepository for PgChatRepo {
         Ok(out)
     }
 
+    async fn set_message_flags(
+        &self,
+        _channel: ChannelId,
+        message: MessageId,
+        flags: u32,
+    ) -> RepoResult<()> {
+        sqlx::query("UPDATE messages SET flags = $2 WHERE id = $1")
+            .bind(i(message.get()))
+            .bind(i32::try_from(flags).unwrap_or(0))
+            .execute(&self.pool)
+            .await
+            .map_err(db)?;
+        Ok(())
+    }
+
     async fn set_pinned(
         &self,
         channel: ChannelId,
@@ -1509,9 +1543,17 @@ impl MessageStore for PgMessageStore {
 impl UserLookup for PgChatRepo {
     async fn users(&self, ids: &[UserId]) -> RepoResult<Vec<UserSummary>> {
         let ids: Vec<i64> = ids.iter().map(|u| i(u.get())).collect();
+        // The server tag shows only while the user still belongs to that server, the
+        // server still has a tag, and the user kept showing it (LNG-GLD-011).
         let rows = sqlx::query(
-            "SELECT id, username::text AS username, display_name, avatar_key, \
-             banner_key, is_bot FROM accounts WHERE id = ANY($1)",
+            "SELECT a.id, a.username::text AS username, a.display_name, a.avatar_key, \
+             a.banner_key, a.is_bot, pg.id AS pg_id, pg.tag AS pg_tag, pg.tag_badge AS pg_badge \
+             FROM accounts a \
+             LEFT JOIN guilds pg ON pg.id = a.primary_guild_id AND a.primary_guild_enabled \
+                  AND pg.tag IS NOT NULL \
+                  AND EXISTS (SELECT 1 FROM guild_members gm \
+                              WHERE gm.guild_id = pg.id AND gm.user_id = a.id) \
+             WHERE a.id = ANY($1)",
         )
         .bind(ids)
         .fetch_all(&self.pool)
@@ -1519,6 +1561,14 @@ impl UserLookup for PgChatRepo {
         .map_err(db)?;
         let mut out = Vec::with_capacity(rows.len());
         for r in &rows {
+            let primary_guild = match r.try_get::<Option<i64>, _>("pg_id").map_err(db)? {
+                Some(g) => Some(sr_chat::server_tag::PrimaryGuild {
+                    guild_id: GuildId::new(u(g)),
+                    tag: r.try_get("pg_tag").map_err(db)?,
+                    badge: r.try_get("pg_badge").map_err(db)?,
+                }),
+                None => None,
+            };
             out.push(UserSummary {
                 id: UserId::new(u(r.try_get("id").map_err(db)?)),
                 username: r.try_get("username").map_err(db)?,
@@ -1526,6 +1576,7 @@ impl UserLookup for PgChatRepo {
                 avatar_key: r.try_get("avatar_key").map_err(db)?,
                 banner_key: r.try_get("banner_key").map_err(db)?,
                 bot: r.try_get("is_bot").map_err(db)?,
+                primary_guild,
             });
         }
         Ok(out)

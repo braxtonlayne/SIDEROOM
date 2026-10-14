@@ -153,6 +153,7 @@ pub struct PgGuildDirectory {
     social: PgSocialRepo,
     clock: Arc<dyn Clock>,
     apps: Option<Arc<sr_apps::AppsService>>,
+    offline: Option<Arc<TemporaryMembers>>,
 }
 
 impl PgGuildDirectory {
@@ -163,7 +164,14 @@ impl PgGuildDirectory {
             pool,
             clock,
             apps: None,
+            offline: None,
         }
+    }
+
+    /// Drop temporary memberships when a user goes offline (LNG-INV-005).
+    pub fn with_temporary_members(mut self, hook: Arc<TemporaryMembers>) -> Self {
+        self.offline = Some(hook);
+        self
     }
 
     /// Lets READY describe a bot's application (`application: {id, flags}`).
@@ -352,6 +360,12 @@ impl PgGuildDirectory {
 
 #[async_trait]
 impl GuildDirectory for PgGuildDirectory {
+    async fn user_offline(&self, user: UserId) {
+        if let Some(hook) = &self.offline {
+            hook.schedule(user);
+        }
+    }
+
     async fn guilds_for_user(&self, user: UserId) -> Vec<GuildId> {
         let rows = sqlx::query_scalar::<_, i64>(
             "SELECT guild_id FROM guild_members WHERE user_id = $1 ORDER BY guild_id",
@@ -561,6 +575,52 @@ impl GuildDirectory for PgGuildDirectory {
             tracing::error!(error = %e, "ready_extras failed");
             json!({})
         })
+    }
+}
+
+/// Temporary membership (LNG-INV-005): a member who joined through a temporary invite and holds
+/// no role is removed once they have been offline for `grace`. The grace period spares them a
+/// removal when the connection merely blinks (a reload, a flaky network).
+///
+/// The gateway is built after the settings state, so it is attached late with
+/// [`TemporaryMembers::attach`].
+pub struct TemporaryMembers {
+    joiner: Arc<sr_api::routes::settings::InviteMemberJoiner>,
+    gateway: std::sync::OnceLock<sr_gateway::Gateway>,
+    grace: std::time::Duration,
+}
+
+impl TemporaryMembers {
+    pub fn new(
+        joiner: Arc<sr_api::routes::settings::InviteMemberJoiner>,
+        grace: std::time::Duration,
+    ) -> Self {
+        Self {
+            joiner,
+            gateway: std::sync::OnceLock::new(),
+            grace,
+        }
+    }
+
+    pub fn attach(&self, gateway: sr_gateway::Gateway) {
+        let _ = self.gateway.set(gateway);
+    }
+
+    /// `user` just went offline: after the grace period, drop their temporary memberships
+    /// unless they came back.
+    pub fn schedule(self: &Arc<Self>, user: UserId) {
+        let me = self.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(me.grace).await;
+            let back = me
+                .gateway
+                .get()
+                .and_then(|gw| gw.presence(user))
+                .is_some_and(|p| p.status != "offline");
+            if !back {
+                me.joiner.drop_temporary(user).await;
+            }
+        });
     }
 }
 

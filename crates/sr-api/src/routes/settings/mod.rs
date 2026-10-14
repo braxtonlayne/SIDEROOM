@@ -28,6 +28,7 @@ pub mod community;
 pub mod deps;
 pub mod events;
 pub mod expressions;
+pub mod follow;
 pub mod invites;
 pub mod join;
 pub mod presence;
@@ -63,6 +64,7 @@ pub fn router() -> Router<AppState> {
         .merge(expressions::routes())
         .merge(automod::routes())
         .merge(webhooks::routes())
+        .merge(follow::routes())
         .merge(templates::routes())
         .merge(community::routes())
 }
@@ -106,6 +108,7 @@ pub fn router() -> Router<AppState> {
         webhooks::modify_webhook_with_token,
         webhooks::delete_webhook_with_token,
         webhooks::execute_webhook,
+        follow::follow_channel,
         templates::list_builtin_templates,
         templates::create_guild_from_template,
         templates::get_template,
@@ -120,6 +123,9 @@ pub fn router() -> Router<AppState> {
         community::put_onboarding,
         community::get_welcome_screen,
         community::modify_welcome_screen,
+        community::get_member_verification,
+        community::accept_screening,
+        community::post_onboarding_responses,
     ),
     components(schemas(
         ErrorBody,
@@ -146,6 +152,8 @@ pub fn router() -> Router<AppState> {
         webhooks::CreateWebhookBody,
         webhooks::ModifyWebhookBody,
         webhooks::ExecuteWebhookBody,
+        follow::FollowBody,
+        follow::FollowedChannelObject,
         templates::TemplateObject,
         templates::BuiltinTemplateObject,
         templates::GuildFromTemplateBody,
@@ -160,6 +168,11 @@ pub fn router() -> Router<AppState> {
         community::WelcomeScreenObject,
         community::WelcomeChannelDto,
         community::ModifyWelcomeScreenBody,
+        community::MemberVerificationObject,
+        community::VerificationField,
+        community::AcceptScreeningBody,
+        community::OnboardingResponseBody,
+        community::OnboardingResultObject,
     ))
 )]
 pub struct SettingsApiDoc;

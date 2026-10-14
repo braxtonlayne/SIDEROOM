@@ -14,6 +14,8 @@ use sr_core::permissions::Permissions;
 use sr_core::{ChannelId, GuildId, RoleId, UserId};
 
 pub const NICK_MAX: usize = 32;
+/// Longest per-server bio (Discord: 190).
+pub const MEMBER_BIO_MAX: usize = 190;
 pub const GUILD_DESCRIPTION_MAX: usize = 120;
 pub const BAN_REASON_MAX: usize = 512;
 /// Allowed voice AFK timeouts in seconds (Discord: 1, 5, 15, 30 and 60 minutes).
@@ -41,6 +43,10 @@ pub struct GuildPatch {
     pub icon_key: Option<Option<String>>,
     pub banner_key: Option<Option<String>>,
     pub splash_key: Option<Option<String>>,
+    /// Server tag text (LNG-GLD-011); `Some(None)` removes it.
+    pub tag: Option<Option<String>>,
+    /// Server tag badge slug; `Some(None)` removes it.
+    pub tag_badge: Option<Option<String>>,
 }
 
 impl GuildPatch {
@@ -57,6 +63,8 @@ impl GuildPatch {
             && self.icon_key.is_none()
             && self.banner_key.is_none()
             && self.splash_key.is_none()
+            && self.tag.is_none()
+            && self.tag_badge.is_none()
     }
 }
 
@@ -69,6 +77,37 @@ fn range_u8(field: &str, v: u8, max: u8) -> ChatResult<u8> {
         ));
     }
     Ok(v)
+}
+
+/// Longest and shortest vanity invite code.
+pub const VANITY_MIN: usize = 3;
+pub const VANITY_MAX: usize = 32;
+/// Codes that would collide with a route of the web app.
+const RESERVED_VANITY: &[&str] = &[
+    "admin", "api", "app", "invite", "invites", "login", "register", "logout", "settings",
+    "channels", "library", "cinema", "tv", "staff", "me", "home", "discover", "download",
+];
+
+/// Normalise a vanity invite code (LNG-INV-004): 3 to 32 letters, digits and inner
+/// hyphens, not one of the reserved route names. `None` or an empty string releases it.
+pub fn validate_vanity_code(code: Option<&str>) -> ChatResult<Option<String>> {
+    let Some(c) = code.map(str::trim).filter(|c| !c.is_empty()) else {
+        return Ok(None);
+    };
+    let bad = |msg: &str| ChatError::invalid("code", "VANITY_URL_INVALID", msg);
+    if !(VANITY_MIN..=VANITY_MAX).contains(&c.len())
+        || !c.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+        || c.starts_with('-')
+        || c.ends_with('-')
+    {
+        return Err(bad(
+            "Use 3 to 32 letters, digits or hyphens, not starting or ending with a hyphen.",
+        ));
+    }
+    if RESERVED_VANITY.contains(&c.to_ascii_lowercase().as_str()) {
+        return Err(bad("This vanity URL is reserved."));
+    }
+    Ok(Some(c.to_owned()))
 }
 
 /// Apply a guild patch. Needs `MANAGE_GUILD`; changing the owner needs the owner
@@ -158,6 +197,23 @@ pub fn plan_edit_guild(
     if let Some(k) = patch.splash_key {
         out.splash_key = k;
     }
+    if let Some(t) = patch.tag {
+        out.tag = crate::server_tag::validate_tag(t.as_deref())?;
+        if out.tag.is_none() {
+            // A badge without a tag would show nowhere.
+            out.tag_badge = None;
+        }
+    }
+    if let Some(b) = patch.tag_badge {
+        out.tag_badge = crate::server_tag::validate_badge(b.as_deref())?;
+        if out.tag_badge.is_some() && out.tag.is_none() {
+            return Err(ChatError::invalid(
+                "tag_badge",
+                "TAG_REQUIRED",
+                "Set a tag before choosing a badge.",
+            ));
+        }
+    }
     if let Some(l) = patch.preferred_locale {
         let l = l.trim();
         if l.is_empty() || l.len() > 16 {
@@ -194,6 +250,11 @@ pub struct MemberPatch {
     pub roles: Option<Vec<RoleId>>,
     /// `Some(None)` clears the timeout.
     pub communication_disabled_until_ms: Option<Option<i64>>,
+    /// Per-server profile (LNG-GLD-012): content hashes from the media pipeline, and the bio.
+    /// Only members edit their own; `Some(None)` clears a field.
+    pub avatar_key: Option<Option<String>>,
+    pub banner_key: Option<Option<String>>,
+    pub bio: Option<Option<String>>,
 }
 
 /// The member being edited plus what the hierarchy checks need to know about them.
@@ -242,6 +303,32 @@ pub fn plan_edit_member(
             Some(n) if !n.is_empty() => Some(n),
             _ => None,
         };
+    }
+
+    if patch.avatar_key.is_some() || patch.banner_key.is_some() || patch.bio.is_some() {
+        // The per-server profile is the member's own; nobody edits it for them.
+        if !is_self {
+            return Err(ChatError::MissingPermissions);
+        }
+        if let Some(a) = patch.avatar_key {
+            out.avatar_key = a;
+        }
+        if let Some(b) = patch.banner_key {
+            out.banner_key = b;
+        }
+        if let Some(bio) = patch.bio {
+            out.bio = match bio.map(|b| b.trim().to_owned()) {
+                Some(b) if b.chars().count() > MEMBER_BIO_MAX => {
+                    return Err(ChatError::invalid(
+                        "bio",
+                        "BASE_TYPE_MAX_LENGTH",
+                        format!("Must be {MEMBER_BIO_MAX} or fewer in length."),
+                    ));
+                }
+                Some(b) if !b.is_empty() => Some(b),
+                _ => None,
+            };
+        }
     }
 
     if let Some(new_roles) = patch.roles {
@@ -504,6 +591,135 @@ mod tests {
             perms,
             top_position: top,
         }
+    }
+
+    #[test]
+    fn server_tag_and_badge_rules() {
+        let g = guild();
+        let manager = actor_with(Permissions::MANAGE_GUILD, 1);
+        let edit = |patch: GuildPatch, g: &Guild| {
+            plan_edit_guild(UserId::new(5), &manager, g, patch, None, false, false)
+        };
+        let tagged = edit(
+            GuildPatch {
+                tag: Some(Some(" SR1 ".into())),
+                tag_badge: Some(Some("crown".into())),
+                ..Default::default()
+            },
+            &g,
+        )
+        .unwrap();
+        assert_eq!(
+            (tagged.tag.as_deref(), tagged.tag_badge.as_deref()),
+            (Some("SR1"), Some("crown"))
+        );
+        // A badge needs a tag; bad text and unknown badges are refused.
+        assert!(
+            edit(
+                GuildPatch {
+                    tag_badge: Some(Some("crown".into())),
+                    ..Default::default()
+                },
+                &g
+            )
+            .is_err()
+        );
+        for bad in ["a", "toolong", "no space"] {
+            let p = GuildPatch {
+                tag: Some(Some(bad.into())),
+                ..Default::default()
+            };
+            assert!(edit(p, &g).is_err(), "{bad}");
+        }
+        let bad_badge = GuildPatch {
+            tag_badge: Some(Some("unicorn".into())),
+            ..Default::default()
+        };
+        assert!(edit(bad_badge, &tagged).is_err());
+        // Removing the tag takes the badge with it.
+        let cleared = edit(
+            GuildPatch {
+                tag: Some(None),
+                ..Default::default()
+            },
+            &tagged,
+        )
+        .unwrap();
+        assert_eq!((cleared.tag, cleared.tag_badge), (None, None));
+        // Plain members cannot set a tag.
+        let plain = actor_with(Permissions::empty(), 0);
+        let set = GuildPatch {
+            tag: Some(Some("SR".into())),
+            ..Default::default()
+        };
+        assert!(plan_edit_guild(UserId::new(5), &plain, &g, set, None, false, false).is_err());
+    }
+
+    #[test]
+    fn vanity_codes() {
+        assert_eq!(validate_vanity_code(None).unwrap(), None);
+        assert_eq!(validate_vanity_code(Some("  ")).unwrap(), None);
+        assert_eq!(
+            validate_vanity_code(Some(" My-Club ")).unwrap().as_deref(),
+            Some("My-Club")
+        );
+        for bad in [
+            "ab",
+            "-club",
+            "club-",
+            "has space",
+            "dot.dot",
+            "ünï",
+            "Login",
+            "ADMIN",
+        ] {
+            assert!(validate_vanity_code(Some(bad)).is_err(), "{bad}");
+        }
+        assert!(validate_vanity_code(Some(&"x".repeat(33))).is_err());
+        assert!(validate_vanity_code(Some(&"x".repeat(32))).is_ok());
+    }
+
+    #[test]
+    fn own_profile_is_the_members_alone() {
+        let g = guild();
+        let actor_m = member(5, &[]);
+        let me = actor_with(Permissions::CHANGE_NICKNAME, 0);
+        let target = MemberTarget {
+            member: &actor_m,
+            top_position: 0,
+            perms: Permissions::empty(),
+        };
+        let roles = [everyone()];
+        let out = plan_edit_member(
+            &g,
+            actor_m.user_id,
+            &me,
+            &target,
+            &roles,
+            MemberPatch {
+                bio: Some(Some("  hi there ".into())),
+                avatar_key: Some(Some("a".repeat(32))),
+                banner_key: Some(None),
+                ..Default::default()
+            },
+            0,
+        )
+        .unwrap();
+        assert_eq!(out.bio.as_deref(), Some("hi there"));
+        assert_eq!(out.avatar_key.as_deref(), Some("a".repeat(32).as_str()));
+        assert_eq!(out.banner_key, None);
+        let long = MemberPatch {
+            bio: Some(Some("x".repeat(MEMBER_BIO_MAX + 1))),
+            ..Default::default()
+        };
+        assert!(plan_edit_member(&g, actor_m.user_id, &me, &target, &roles, long, 0).is_err());
+        // Even a moderator with every permission cannot edit someone else's profile.
+        let admin = actor_with(Permissions::ALL, 99);
+        let other = MemberPatch {
+            bio: Some(Some("hijack".into())),
+            ..Default::default()
+        };
+        assert!(plan_edit_member(&g, UserId::new(9), &admin, &target, &roles, other, 0).is_err());
     }
 
     #[test]

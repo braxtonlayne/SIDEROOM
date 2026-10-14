@@ -529,6 +529,9 @@ mod tests {
             joined_at_ms: 0,
             communication_disabled_until_ms: None,
             pending: false,
+            avatar_key: None,
+            banner_key: None,
+            bio: None,
         });
         let svc = sr_chat::ChatService::new(
             backend.clone(),

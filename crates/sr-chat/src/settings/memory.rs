@@ -23,6 +23,10 @@ use super::webhooks::Webhook;
 #[derive(Default)]
 pub struct Store {
     pub invites: Vec<GuildInvite>,
+    /// Joins through each guild's vanity code (LNG-INV-004).
+    pub vanity_uses: HashMap<GuildId, u32>,
+    /// Memberships made through a temporary invite (LNG-INV-005).
+    pub temporary: HashSet<(GuildId, UserId)>,
     pub bans: HashSet<(GuildId, UserId)>,
     pub audit: Vec<AuditEntry>,
     pub emoji: Vec<Emoji>,
@@ -116,6 +120,10 @@ impl InviteRepository for MemorySettingsRepo {
 
     async fn is_banned(&self, guild: GuildId, user: UserId) -> RepoResult<bool> {
         Ok(self.with(|s| s.bans.contains(&(guild, user))))
+    }
+
+    async fn vanity_uses(&self, guild: GuildId) -> RepoResult<u32> {
+        Ok(self.with(|s| s.vanity_uses.get(&guild).copied().unwrap_or(0)))
     }
 }
 
@@ -293,6 +301,19 @@ impl WebhookRepository for MemorySettingsRepo {
         }))
     }
 
+    async fn list_channel_followers(&self, source: ChannelId) -> RepoResult<Vec<Webhook>> {
+        Ok(self.with(|s| {
+            s.webhooks
+                .iter()
+                .filter(|w| {
+                    w.kind == super::webhooks::WebhookKind::ChannelFollower
+                        && w.source_channel_id == Some(source)
+                })
+                .cloned()
+                .collect()
+        }))
+    }
+
     async fn count_channel_webhooks(&self, channel: ChannelId) -> RepoResult<usize> {
         Ok(self.with(|s| {
             s.webhooks
@@ -401,15 +422,58 @@ impl CommunityRepository for MemorySettingsRepo {
     }
 }
 
+/// The parts of an in-memory chat store the invite join touches: members, guilds and
+/// channels. Implemented by both in-memory chat backends so tests can use either.
+pub trait ChatMemory: Send + Sync {
+    fn with_state<R>(
+        &self,
+        f: impl FnOnce(
+            &mut Vec<crate::domain::Member>,
+            &HashMap<GuildId, crate::domain::Guild>,
+            &HashMap<ChannelId, crate::domain::Channel>,
+        ) -> R,
+    ) -> R;
+}
+
+impl ChatMemory for crate::memory::MemoryBackend {
+    fn with_state<R>(
+        &self,
+        f: impl FnOnce(
+            &mut Vec<crate::domain::Member>,
+            &HashMap<GuildId, crate::domain::Guild>,
+            &HashMap<ChannelId, crate::domain::Channel>,
+        ) -> R,
+    ) -> R {
+        let mut d = self.data();
+        let d = &mut *d;
+        f(&mut d.members, &d.guilds, &d.channels)
+    }
+}
+
+impl ChatMemory for crate::memory::MemoryRepo {
+    fn with_state<R>(
+        &self,
+        f: impl FnOnce(
+            &mut Vec<crate::domain::Member>,
+            &HashMap<GuildId, crate::domain::Guild>,
+            &HashMap<ChannelId, crate::domain::Channel>,
+        ) -> R,
+    ) -> R {
+        let mut s = self.store.lock().unwrap_or_else(|p| p.into_inner());
+        let s = &mut *s;
+        f(&mut s.members, &s.guilds, &s.channels)
+    }
+}
+
 /// In-memory [`InviteJoinRepository`] over a chat backend and a settings store.
 /// Each join runs inside one pair of locks with no await, so it is atomic.
-pub struct MemoryInviteJoin {
-    pub chat: crate::memory::MemoryBackend,
+pub struct MemoryInviteJoin<C = crate::memory::MemoryBackend> {
+    pub chat: C,
     pub settings: std::sync::Arc<MemorySettingsRepo>,
 }
 
 #[async_trait]
-impl super::join::InviteJoinRepository for MemoryInviteJoin {
+impl<C: ChatMemory> super::join::InviteJoinRepository for MemoryInviteJoin<C> {
     async fn join_via_invite(
         &self,
         code: &str,
@@ -419,55 +483,171 @@ impl super::join::InviteJoinRepository for MemoryInviteJoin {
         use super::SettingsError;
         use super::join::InviteJoin;
         self.settings.with(|s| {
-            let inv = s
-                .invites
-                .iter()
-                .find(|i| i.code == code)
-                .cloned()
-                .ok_or(SettingsError::UnknownInvite)?;
-            match inv.status(now_ms) {
-                InviteStatus::Revoked => return Err(SettingsError::UnknownInvite),
-                InviteStatus::Expired => return Err(SettingsError::InviteExpired),
-                InviteStatus::Exhausted => return Err(SettingsError::InviteExhausted),
-                InviteStatus::Active => {}
-            }
-            let mut data = self.chat.data();
-            if data
-                .members
-                .iter()
-                .any(|m| m.guild_id == inv.guild_id && m.user_id == user)
-            {
-                return Ok(InviteJoin::AlreadyMember { invite: inv });
-            }
-            if s.community
-                .get(&inv.guild_id)
-                .is_some_and(|c| c.invites_paused)
-            {
-                return Err(SettingsError::InvitesPaused);
-            }
-            if s.bans.contains(&(inv.guild_id, user)) {
-                return Err(SettingsError::Banned);
-            }
-            let member = crate::domain::Member {
-                guild_id: inv.guild_id,
-                user_id: user,
-                nick: None,
-                role_ids: vec![],
-                joined_at_ms: now_ms,
-                communication_disabled_until_ms: None,
-                pending: false,
-            };
-            data.members.push(member.clone());
-            let stored = s
-                .invites
-                .iter_mut()
-                .find(|i| i.code == code)
-                .ok_or(SettingsError::UnknownInvite)?;
-            stored.consume(now_ms)?;
-            Ok(InviteJoin::Joined {
-                invite: stored.clone(),
-                member,
+            self.chat.with_state(|members, guilds, channels| {
+                // A real invite wins over a vanity code with the same text.
+                let (inv, vanity) = match s.invites.iter().find(|i| i.code == code).cloned() {
+                    Some(inv) => (inv, false),
+                    None => {
+                        let g = guilds
+                            .values()
+                            .find(|g| {
+                                g.vanity_code
+                                    .as_deref()
+                                    .is_some_and(|v| v.eq_ignore_ascii_case(code))
+                            })
+                            .ok_or(SettingsError::UnknownInvite)?;
+                        let channel = g
+                            .system_channel_id
+                            .or_else(|| {
+                                let mut text: Vec<_> = channels
+                                    .values()
+                                    .filter(|c| {
+                                        c.guild_id == Some(g.id)
+                                            && matches!(
+                                                c.kind,
+                                                crate::domain::ChannelType::Text
+                                                    | crate::domain::ChannelType::Announcement
+                                            )
+                                    })
+                                    .collect();
+                                text.sort_by_key(|c| (c.position, c.id));
+                                text.first().map(|c| c.id)
+                            })
+                            .ok_or(SettingsError::UnknownInvite)?;
+                        let uses = s.vanity_uses.get(&g.id).copied().unwrap_or(0);
+                        (
+                            GuildInvite::vanity(
+                                g.vanity_code.clone().unwrap_or_default(),
+                                g.id,
+                                channel,
+                                g.owner_id,
+                                uses,
+                                now_ms,
+                            ),
+                            true,
+                        )
+                    }
+                };
+                match inv.status(now_ms) {
+                    InviteStatus::Revoked => return Err(SettingsError::UnknownInvite),
+                    InviteStatus::Expired => return Err(SettingsError::InviteExpired),
+                    InviteStatus::Exhausted => return Err(SettingsError::InviteExhausted),
+                    InviteStatus::Active => {}
+                }
+                if members
+                    .iter()
+                    .any(|m| m.guild_id == inv.guild_id && m.user_id == user)
+                {
+                    return Ok(InviteJoin::AlreadyMember { invite: inv });
+                }
+                let community = s.community.get(&inv.guild_id);
+                if community.is_some_and(|c| c.invites_paused) {
+                    return Err(SettingsError::InvitesPaused);
+                }
+                if s.bans.contains(&(inv.guild_id, user)) {
+                    return Err(SettingsError::Banned);
+                }
+                let pending = community.is_some_and(|c| c.community_enabled && c.screening_enabled);
+                let member = crate::domain::Member {
+                    guild_id: inv.guild_id,
+                    user_id: user,
+                    nick: None,
+                    role_ids: vec![],
+                    joined_at_ms: now_ms,
+                    communication_disabled_until_ms: None,
+                    pending,
+                    avatar_key: None,
+                    banner_key: None,
+                    bio: None,
+                };
+                members.push(member.clone());
+                if inv.temporary {
+                    s.temporary.insert((inv.guild_id, user));
+                }
+                let invite = if vanity {
+                    let uses = s.vanity_uses.entry(inv.guild_id).or_insert(0);
+                    *uses += 1;
+                    GuildInvite { uses: *uses, ..inv }
+                } else {
+                    let stored = s
+                        .invites
+                        .iter_mut()
+                        .find(|i| i.code == code)
+                        .ok_or(SettingsError::UnknownInvite)?;
+                    stored.consume(now_ms)?;
+                    stored.clone()
+                };
+                Ok(InviteJoin::Joined { invite, member })
             })
         })
+    }
+
+    async fn join_listed(
+        &self,
+        guild: sr_core::GuildId,
+        user: UserId,
+        now_ms: i64,
+    ) -> super::SettingsResult<Option<crate::domain::Member>> {
+        use super::SettingsError;
+        self.settings.with(|s| {
+            self.chat.with_state(|members, _, _| {
+                if members
+                    .iter()
+                    .any(|m| m.guild_id == guild && m.user_id == user)
+                {
+                    return Ok(None);
+                }
+                let community = s.community.get(&guild);
+                if community.is_some_and(|c| c.invites_paused) {
+                    return Err(SettingsError::InvitesPaused);
+                }
+                if s.bans.contains(&(guild, user)) {
+                    return Err(SettingsError::Banned);
+                }
+                let member = crate::domain::Member {
+                    guild_id: guild,
+                    user_id: user,
+                    nick: None,
+                    role_ids: vec![],
+                    joined_at_ms: now_ms,
+                    communication_disabled_until_ms: None,
+                    pending: community.is_some_and(|c| c.community_enabled && c.screening_enabled),
+                    avatar_key: None,
+                    banner_key: None,
+                    bio: None,
+                };
+                members.push(member.clone());
+                Ok(Some(member))
+            })
+        })
+    }
+
+    async fn take_temporary_memberships(
+        &self,
+        user: UserId,
+    ) -> super::SettingsResult<Vec<sr_core::GuildId>> {
+        let mut gone = Vec::new();
+        self.settings.with(|s| {
+            self.chat.with_state(|members, _, _| {
+                let held: Vec<_> = s
+                    .temporary
+                    .iter()
+                    .filter(|(_, u)| *u == user)
+                    .map(|(g, _)| *g)
+                    .collect();
+                for g in held {
+                    let has_role = members
+                        .iter()
+                        .any(|m| m.guild_id == g && m.user_id == user && !m.role_ids.is_empty());
+                    if has_role {
+                        continue;
+                    }
+                    members.retain(|m| !(m.guild_id == g && m.user_id == user));
+                    s.temporary.remove(&(g, user));
+                    gone.push(g);
+                }
+            });
+        });
+        Ok(gone)
     }
 }

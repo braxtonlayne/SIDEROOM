@@ -18,6 +18,8 @@ pub trait GuildRepository: Send + Sync {
     /// Insert guild, `@everyone`, owner membership and default channels atomically.
     async fn insert_guild(&self, blueprint: &GuildBlueprint) -> RepoResult<()>;
     async fn get_guild(&self, id: GuildId) -> RepoResult<Option<Guild>>;
+    /// Guild that owns the vanity invite code `code` (case-insensitive), if any (LNG-INV-004).
+    async fn guild_by_vanity(&self, code: &str) -> RepoResult<Option<GuildId>>;
     async fn get_member(&self, guild: GuildId, user: UserId) -> RepoResult<Option<Member>>;
     /// Members ordered by user id, strictly after `after`, at most `limit`. Used by
     /// the `@everyone`/role mention fan-out (open question 117).
@@ -105,6 +107,14 @@ pub trait MessageRepository: Send + Sync {
     /// (types other than default and reply) do not count (open question 154).
     async fn last_sent_ms(&self, channel: ChannelId, user: UserId) -> RepoResult<Option<i64>>;
     async fn count_pins(&self, channel: ChannelId) -> RepoResult<usize>;
+    /// Replace the flags of a message without touching its content or edit time (used when a
+    /// message is published to followers, LNG-CHN-004).
+    async fn set_message_flags(
+        &self,
+        channel: ChannelId,
+        message: MessageId,
+        flags: u32,
+    ) -> RepoResult<()>;
     async fn set_pinned(
         &self,
         channel: ChannelId,
@@ -146,6 +156,9 @@ pub struct UserSummary {
     pub banner_key: Option<String>,
     /// A bot account (an application's bot user).
     pub bot: bool,
+    /// The server tag the user chose to show (LNG-GLD-011); only set while they are still
+    /// a member of that server and it still has a tag.
+    pub primary_guild: Option<crate::server_tag::PrimaryGuild>,
 }
 
 /// Looks up the user fields that Discord embeds in member, ban and message

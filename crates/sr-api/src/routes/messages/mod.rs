@@ -13,6 +13,7 @@
 //! ```
 
 pub mod attachments;
+pub mod crosspost;
 pub mod deps;
 pub mod error;
 pub mod list;
@@ -28,6 +29,7 @@ pub mod rich_jobs;
 pub mod rich_model;
 pub mod send;
 pub mod store;
+pub mod system;
 pub mod typing;
 
 #[cfg(test)]
@@ -61,6 +63,10 @@ pub fn router() -> Router<AppState> {
             get(list::get_message)
                 .patch(send::edit_message)
                 .delete(send::delete_message),
+        )
+        .route(
+            "/channels/{channel_id}/messages/{message_id}/crosspost",
+            post(crosspost::crosspost),
         )
         .route(
             "/channels/{channel_id}/messages/{message_id}/reactions",
@@ -119,6 +125,7 @@ pub fn router() -> Router<AppState> {
         send::edit_message,
         send::delete_message,
         send::bulk_delete,
+        crosspost::crosspost,
         reactions::add_own,
         reactions::remove_own,
         reactions::remove_user,

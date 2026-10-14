@@ -35,15 +35,22 @@ pub enum MediaKind {
     WebhookAvatar,
     /// Image icon of a role; the owner is the guild (`icons/<guild_id>/<hash>`).
     RoleIcon,
+    /// Per-server avatar of a member (LNG-GLD-012); the owner is the user
+    /// (`avatars/<user_id>/<hash>`, the hash is salted with the guild).
+    MemberAvatar,
+    /// Per-server banner of a member; same layout as [`Self::MemberAvatar`].
+    MemberBanner,
 }
 
 impl MediaKind {
     /// Square crop vs aspect-preserving bound, and the largest stored size.
     pub const fn fit(self) -> Fit {
         match self {
-            Self::UserAvatar | Self::GuildIcon | Self::WebhookAvatar => Fit::Square { max: 1024 },
+            Self::UserAvatar | Self::GuildIcon | Self::WebhookAvatar | Self::MemberAvatar => {
+                Fit::Square { max: 1024 }
+            }
             Self::RoleIcon => Fit::Square { max: 256 },
-            Self::UserBanner | Self::GuildBanner | Self::GuildSplash => {
+            Self::UserBanner | Self::GuildBanner | Self::GuildSplash | Self::MemberBanner => {
                 Fit::Bound { w: 1920, h: 1080 }
             }
         }
@@ -58,13 +65,19 @@ impl MediaKind {
             Self::GuildSplash => "splash",
             Self::WebhookAvatar => "webhook-avatar",
             Self::RoleIcon => "role-icon",
+            Self::MemberAvatar => "member-avatar",
+            Self::MemberBanner => "member-banner",
         }
     }
 
     /// First path segment under `/cdn` and prefix in object storage.
     pub const fn namespace(self) -> &'static str {
         match self {
-            Self::UserAvatar | Self::UserBanner | Self::WebhookAvatar => "avatars",
+            Self::UserAvatar
+            | Self::UserBanner
+            | Self::WebhookAvatar
+            | Self::MemberAvatar
+            | Self::MemberBanner => "avatars",
             Self::GuildIcon | Self::GuildBanner | Self::GuildSplash | Self::RoleIcon => "icons",
         }
     }
@@ -72,10 +85,12 @@ impl MediaKind {
     /// Field name used in error trees.
     pub const fn field(self) -> &'static str {
         match self {
-            Self::UserAvatar | Self::GuildIcon | Self::WebhookAvatar | Self::RoleIcon => {
-                "icon_or_avatar"
-            }
-            Self::UserBanner | Self::GuildBanner => "banner",
+            Self::UserAvatar
+            | Self::GuildIcon
+            | Self::WebhookAvatar
+            | Self::RoleIcon
+            | Self::MemberAvatar => "icon_or_avatar",
+            Self::UserBanner | Self::GuildBanner | Self::MemberBanner => "banner",
             Self::GuildSplash => "splash",
         }
     }
@@ -175,6 +190,18 @@ pub fn prepare_bytes(
     raw: &[u8],
     limits: &Limits,
 ) -> Result<PreparedMedia, MediaError> {
+    prepare_bytes_scoped(kind, raw, limits, None)
+}
+
+/// [`prepare_bytes`] with a scope mixed into the hash, so the same picture used in two
+/// scopes (a member's avatar in two servers) is stored as two objects and removing one
+/// never deletes the other.
+pub fn prepare_bytes_scoped(
+    kind: MediaKind,
+    raw: &[u8],
+    limits: &Limits,
+    scope: Option<u64>,
+) -> Result<PreparedMedia, MediaError> {
     // SVG, HTML and XML never reach the decoder (XC-SEC-002).
     if crate::upload::surface::is_active_content(raw) {
         return Err(MediaError::BadType);
@@ -183,6 +210,9 @@ pub fn prepare_bytes(
     let mut h = Sha256::new();
     h.update(kind.salt().as_bytes());
     h.update([0]);
+    if let Some(s) = scope {
+        h.update(s.to_be_bytes());
+    }
     h.update(&n.bytes);
     let digest = h.finalize();
     let mut hex = String::with_capacity(34);
@@ -243,6 +273,25 @@ mod tests {
             cdn_path(MediaKind::GuildIcon, 9, &p.hash, "png"),
             format!("/cdn/icons/9/{}.png", p.hash)
         );
+    }
+
+    #[test]
+    fn member_images_are_scoped_to_the_server() {
+        let u = png_uri(64, 64, "image/png");
+        let raw = parse_data_uri(&u, MAX_UPLOAD_BYTES).unwrap();
+        let limits = Limits::default();
+        let a = prepare_bytes_scoped(MediaKind::MemberAvatar, &raw, &limits, Some(1)).unwrap();
+        let b = prepare_bytes_scoped(MediaKind::MemberAvatar, &raw, &limits, Some(2)).unwrap();
+        let a2 = prepare_bytes_scoped(MediaKind::MemberAvatar, &raw, &limits, Some(1)).unwrap();
+        let own = prepare(MediaKind::UserAvatar, &u).unwrap();
+        assert_ne!(a.hash, b.hash, "same picture, two servers, two objects");
+        assert_eq!(a.hash, a2.hash);
+        assert_ne!(a.hash, own.hash, "never the user's own avatar object");
+        assert_eq!(
+            object_key(MediaKind::MemberAvatar, 7, &a.hash),
+            format!("avatars/7/{}", a.hash)
+        );
+        assert!(is_valid_hash(&a.hash));
     }
 
     #[test]

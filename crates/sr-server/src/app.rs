@@ -441,6 +441,17 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // audit entries it stores are announced on the gateway. The search index lives
     // in `[search] dir` (default `data/search`).
     let gateway_presence = Arc::new(crate::gateway_pg::GatewayPresence::default());
+    // Joining by invite, vanity code or the directory; also drops temporary memberships
+    // once their member has been offline for a minute (LNG-INV-005).
+    let member_joiner = Arc::new(routes::settings::InviteMemberJoiner::new(
+        Arc::new(sr_db::invite_join::PgInviteJoinRepo::new(pool.clone())),
+        Arc::new(PgChatRepo::new(pool.clone())),
+        bus.clone(),
+    ));
+    let temporary_members = Arc::new(crate::gateway_pg::TemporaryMembers::new(
+        member_joiner.clone(),
+        std::time::Duration::from_secs(60),
+    ));
     let settings_deps = Arc::new(
         SettingsDeps::new(
             Arc::new(PgSettingsRepo::new(pool.clone())),
@@ -453,11 +464,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         )
         .context("settings snowflake generator")?
         .with_events(Arc::new(BusSettingsEvents::new(bus.clone())))
-        .with_joiner(Arc::new(routes::settings::InviteMemberJoiner::new(
-            Arc::new(sr_db::invite_join::PgInviteJoinRepo::new(pool.clone())),
-            Arc::new(PgChatRepo::new(pool.clone())),
-            bus.clone(),
-        )))
+        .with_joiner(member_joiner.clone())
         .with_presence(gateway_presence.clone())
         .with_timeouter(Arc::new(routes::settings::AdminMemberTimeouter::new(
             Arc::new(PgChatRepo::new(pool.clone())),
@@ -771,12 +778,15 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                 .with_apps(apps_service.clone()),
         ),
         Arc::new(
-            PgGuildDirectory::new(pool.clone(), clock.clone()).with_apps(apps_service.clone()),
+            PgGuildDirectory::new(pool.clone(), clock.clone())
+                .with_apps(apps_service.clone())
+                .with_temporary_members(temporary_members.clone()),
         ),
         bus.clone(),
     );
     gateway.start();
     gateway_presence.attach(gateway.clone());
+    temporary_members.attach(gateway.clone());
 
     // Social endpoints (relationships, DMs, acks, notification settings, profiles):
     // their own service on its own snowflake worker (process id + 3).
@@ -840,6 +850,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(threads_deps.clone())
         .extension(social_api)
         .extension(settings_deps.clone())
+        .extension(Arc::new(routes::directory::DirectoryDeps::new(Arc::new(
+            sr_db::directory_repo::PgDirectoryRepo::new(pool.clone()),
+        ))))
         .extension(Arc::new(AutoModGateHandle(settings_deps)))
         .extension(search_deps)
         .extension(library_deps)

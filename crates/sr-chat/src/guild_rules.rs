@@ -77,6 +77,9 @@ pub fn plan_new_guild(
         icon_key: None,
         banner_key: None,
         splash_key: None,
+        tag: None,
+        tag_badge: None,
+        vanity_code: None,
         owner_id: owner,
         is_staff_guild: false,
         system_channel_id: Some(general),
@@ -108,6 +111,9 @@ pub fn plan_new_guild(
         joined_at_ms: now_ms,
         communication_disabled_until_ms: None,
         pending: false,
+        avatar_key: None,
+        banner_key: None,
+        bio: None,
     };
     Ok(GuildBlueprint {
         guild,

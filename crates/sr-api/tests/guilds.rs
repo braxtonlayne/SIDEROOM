@@ -179,6 +179,9 @@ async fn guild(f: &Fx) -> (String, Value) {
             joined_at_ms: T0,
             communication_disabled_until_ms: None,
             pending: false,
+            avatar_key: None,
+            banner_key: None,
+            bio: None,
         });
     }
     (id, g)
@@ -1093,6 +1096,7 @@ fn name_user(f: &Fx, id: u64, username: &str, display: Option<&str>) {
             avatar_key: None,
             banner_key: None,
             bot: false,
+            primary_guild: None,
         },
     );
 }

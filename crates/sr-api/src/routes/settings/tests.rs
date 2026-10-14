@@ -90,6 +90,9 @@ async fn env_with(opts: Opts) -> Env {
             joined_at_ms: T0,
             communication_disabled_until_ms: None,
             pending: false,
+            avatar_key: None,
+            banner_key: None,
+            bio: None,
         });
     }
     let mod_role = RoleId::new(gen_ids.generate().get());
@@ -2158,6 +2161,9 @@ async fn admin_timeouter_sets_the_deadline_and_announces_the_member() {
         joined_at_ms: T0,
         communication_disabled_until_ms: None,
         pending: false,
+        avatar_key: None,
+        banner_key: None,
+        bio: None,
     });
     let bus = Arc::new(InProcessBus::new());
     let mut events = bus.subscribe(Topic::Guild(guild));

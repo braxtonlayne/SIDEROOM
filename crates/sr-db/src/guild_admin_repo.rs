@@ -32,6 +32,7 @@ fn like_pattern(text: &str) -> String {
 }
 
 const MEMBER_SELECT: &str = "SELECT gm.guild_id, gm.user_id, gm.nick, gm.pending, \
+    gm.avatar_key, gm.banner_key, gm.bio, \
     (extract(epoch FROM gm.joined_at) * 1000)::bigint AS joined_ms, \
     (extract(epoch FROM gm.communication_disabled_until) * 1000)::bigint AS timeout_ms, \
     COALESCE((SELECT array_agg(mr.role_id) FROM member_roles mr \
@@ -51,6 +52,9 @@ fn member_from(r: &PgRow) -> Result<Member, sqlx::Error> {
         joined_at_ms: r.try_get("joined_ms")?,
         communication_disabled_until_ms: r.try_get("timeout_ms")?,
         pending: r.try_get("pending")?,
+        avatar_key: r.try_get("avatar_key")?,
+        banner_key: r.try_get("banner_key")?,
+        bio: r.try_get("bio")?,
     })
 }
 
@@ -78,12 +82,46 @@ fn kind_str(k: OverwriteKind) -> &'static str {
 
 #[async_trait]
 impl GuildAdminRepository for PgChatRepo {
+    async fn set_vanity(&self, guild: GuildId, code: Option<&str>) -> RepoResult<bool> {
+        match sqlx::query("UPDATE guilds SET vanity_code = $2, updated_at = now() WHERE id = $1")
+            .bind(i(guild.get()))
+            .bind(code)
+            .execute(&self.pool)
+            .await
+        {
+            Ok(_) => Ok(true),
+            // The code is unique across guilds (CITEXT UNIQUE); a lost race reads as taken.
+            Err(sqlx::Error::Database(e)) if e.is_unique_violation() => Ok(false),
+            Err(e) => Err(db(e)),
+        }
+    }
+
+    async fn set_primary_guild(
+        &self,
+        user: UserId,
+        guild: Option<GuildId>,
+        enabled: bool,
+    ) -> RepoResult<()> {
+        sqlx::query(
+            "UPDATE accounts SET primary_guild_id = $2, primary_guild_enabled = $3, \
+             updated_at = now() WHERE id = $1",
+        )
+        .bind(i(user.get()))
+        .bind(guild.map(|g| i(g.get())))
+        .bind(enabled)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
+
     async fn update_guild(&self, g: &Guild) -> RepoResult<()> {
         sqlx::query(
             "UPDATE guilds SET name = $2, description = $3, icon_key = $4, owner_id = $5, \
              system_channel_id = $6, verification_level = $7, default_message_notifications = $8, \
              explicit_content_filter = $9, preferred_locale = $10, banner_key = $11, splash_key = $12, \
-             afk_channel_id = $13, afk_timeout = $14, updated_at = now() WHERE id = $1",
+             afk_channel_id = $13, afk_timeout = $14, tag = $15, tag_badge = $16, \
+             updated_at = now() WHERE id = $1",
         )
         .bind(i(g.id.get()))
         .bind(&g.name)
@@ -99,6 +137,8 @@ impl GuildAdminRepository for PgChatRepo {
         .bind(g.splash_key.as_deref())
         .bind(g.afk_channel_id.map(|c| i(c.get())))
         .bind(i32::try_from(g.afk_timeout).unwrap_or(300))
+        .bind(g.tag.as_deref())
+        .bind(g.tag_badge.as_deref())
         .execute(&self.pool)
         .await
         .map_err(db)?;
@@ -211,12 +251,17 @@ impl GuildAdminRepository for PgChatRepo {
         sqlx::query(
             "UPDATE guild_members SET nick = $3, \
              communication_disabled_until = to_timestamp($4::bigint::double precision / 1000.0), \
+             pending = $5, avatar_key = $6, banner_key = $7, bio = $8, \
              updated_at = now() WHERE guild_id = $1 AND user_id = $2",
         )
         .bind(i(m.guild_id.get()))
         .bind(i(m.user_id.get()))
         .bind(m.nick.as_deref())
         .bind(m.communication_disabled_until_ms)
+        .bind(m.pending)
+        .bind(m.avatar_key.as_deref())
+        .bind(m.banner_key.as_deref())
+        .bind(m.bio.as_deref())
         .execute(&mut *tx)
         .await
         .map_err(db)?;

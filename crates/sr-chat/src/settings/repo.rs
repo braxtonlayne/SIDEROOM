@@ -31,6 +31,8 @@ pub trait InviteRepository: Send + Sync {
     /// Delete invites that expired or were revoked before `before_ms`.
     async fn purge_dead_invites(&self, before_ms: i64) -> RepoResult<u64>;
     async fn is_banned(&self, guild: GuildId, user: UserId) -> RepoResult<bool>;
+    /// How many members joined through the guild's vanity code (LNG-INV-004).
+    async fn vanity_uses(&self, guild: GuildId) -> RepoResult<u32>;
 }
 
 #[async_trait]
@@ -72,6 +74,8 @@ pub trait WebhookRepository: Send + Sync {
     async fn get_webhook(&self, id: WebhookId) -> RepoResult<Option<Webhook>>;
     async fn list_guild_webhooks(&self, guild: GuildId) -> RepoResult<Vec<Webhook>>;
     async fn count_channel_webhooks(&self, channel: sr_core::ChannelId) -> RepoResult<usize>;
+    /// The follower webhooks (kind 2) subscribed to announcements published in `source`.
+    async fn list_channel_followers(&self, source: sr_core::ChannelId) -> RepoResult<Vec<Webhook>>;
     async fn update_webhook(&self, webhook: &Webhook) -> RepoResult<()>;
     async fn delete_webhook(&self, id: WebhookId) -> RepoResult<bool>;
 }

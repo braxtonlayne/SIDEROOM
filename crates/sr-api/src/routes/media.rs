@@ -67,6 +67,19 @@ impl MediaDeps {
         field: &str,
         uri: String,
     ) -> Result<String, HttpError> {
+        self.store_scoped(kind, owner, None, field, uri).await
+    }
+
+    /// [`Self::store`] with a hash scope (see [`media::prepare_bytes_scoped`]): per-server
+    /// member images pass the guild id.
+    pub async fn store_scoped(
+        &self,
+        kind: MediaKind,
+        owner: u64,
+        scope: Option<u64>,
+        field: &str,
+        uri: String,
+    ) -> Result<String, HttpError> {
         let permit = self
             .permits
             .acquire()
@@ -75,7 +88,7 @@ impl MediaDeps {
         let limits = self.limits;
         let prepared = tokio::task::spawn_blocking(move || {
             let raw = media::parse_data_uri(&uri, media::MAX_UPLOAD_BYTES)?;
-            media::prepare_bytes(kind, &raw, &limits)
+            media::prepare_bytes_scoped(kind, &raw, &limits, scope)
         })
         .await
         .map_err(|_| sr_core::ErrorCode::SrInternal)?

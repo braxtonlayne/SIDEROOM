@@ -53,6 +53,9 @@ fn member(guild: GuildId, user: u64) -> Member {
         joined_at_ms: T0,
         communication_disabled_until_ms: None,
         pending: false,
+        avatar_key: None,
+        banner_key: None,
+        bio: None,
     }
 }
 

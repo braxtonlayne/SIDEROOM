@@ -7,7 +7,7 @@
 //! we; `INVITE_CREATE`/`INVITE_DELETE` are the only invite audit actions.
 
 use async_trait::async_trait;
-use sr_core::UserId;
+use sr_core::{GuildId, UserId};
 
 use crate::domain::Member;
 
@@ -49,4 +49,19 @@ pub trait InviteJoinRepository: Send + Sync {
         user: UserId,
         now_ms: i64,
     ) -> SettingsResult<InviteJoin>;
+
+    /// Join a listed Community straight from the Server Directory, without an invite: the
+    /// same pause, ban and screening rules as an invite, no use counter. `None` when the user
+    /// already is a member. The caller checked that the listing is approved.
+    async fn join_listed(
+        &self,
+        guild: GuildId,
+        user: UserId,
+        now_ms: i64,
+    ) -> SettingsResult<Option<crate::domain::Member>>;
+
+    /// Drop the temporary memberships of `user` that hold no role (LNG-INV-005), as when
+    /// they disconnect: an invite marked `temporary` only keeps a member while they are
+    /// online or have been given a role. Returns the guilds they were removed from.
+    async fn take_temporary_memberships(&self, user: UserId) -> SettingsResult<Vec<GuildId>>;
 }

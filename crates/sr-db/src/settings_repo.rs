@@ -227,6 +227,15 @@ impl InviteRepository for PgSettingsRepo {
         .await
         .map_err(db)
     }
+
+    async fn vanity_uses(&self, guild: GuildId) -> RepoResult<u32> {
+        let n: Option<i32> = sqlx::query_scalar("SELECT vanity_uses FROM guilds WHERE id = $1")
+            .bind(i(guild.get()))
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db)?;
+        Ok(u32::try_from(n.unwrap_or(0)).unwrap_or(0))
+    }
 }
 
 // ---- audit log ----------------------------------------------------------------
@@ -739,6 +748,21 @@ impl WebhookRepository for PgSettingsRepo {
             .collect()
     }
 
+    async fn list_channel_followers(&self, source: ChannelId) -> RepoResult<Vec<Webhook>> {
+        let sql = format!(
+            "SELECT {} FROM webhooks WHERE kind = 2 AND source_channel_id = $1 ORDER BY id",
+            webhook_cols()
+        );
+        sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(i(source.get()))
+            .fetch_all(&self.pool)
+            .await
+            .map_err(db)?
+            .iter()
+            .map(webhook_from)
+            .collect()
+    }
+
     async fn count_channel_webhooks(&self, channel: ChannelId) -> RepoResult<usize> {
         let n: i64 = sqlx::query_scalar("SELECT count(*) FROM webhooks WHERE channel_id = $1")
             .bind(i(channel.get()))
@@ -909,7 +933,8 @@ impl CommunityRepository for PgSettingsRepo {
         let row = sqlx::query(
             "SELECT community_enabled, safety_alerts_channel_id, \
              description, preferred_locale, onboarding_enabled, welcome_screen_enabled, guide_enabled, \
-             invites_paused, raid_alert_joins_per_minute, age_restricted \
+             invites_paused, raid_alert_joins_per_minute, age_restricted, \
+             screening_enabled, screening_description, screening_rules \
              FROM guild_community WHERE guild_id = $1",
         )
         .bind(i(guild.get()))
@@ -941,6 +966,9 @@ impl CommunityRepository for PgSettingsRepo {
             )?)
             .map_err(|_| bad("raid_alert_joins_per_minute"))?,
             age_restricted: get(&r, "age_restricted")?,
+            screening_enabled: get(&r, "screening_enabled")?,
+            screening_description: get(&r, "screening_description")?,
+            screening_rules: get::<Json<Vec<String>>>(&r, "screening_rules")?.0,
         })
     }
 
@@ -959,8 +987,9 @@ impl CommunityRepository for PgSettingsRepo {
             "INSERT INTO guild_community (guild_id, community_enabled, \
              safety_alerts_channel_id, description, preferred_locale, \
              onboarding_enabled, welcome_screen_enabled, guide_enabled, invites_paused, \
-             raid_alert_joins_per_minute, age_restricted) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) \
+             raid_alert_joins_per_minute, age_restricted, screening_enabled, \
+             screening_description, screening_rules) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) \
              ON CONFLICT (guild_id) DO UPDATE SET \
                community_enabled = EXCLUDED.community_enabled, \
                safety_alerts_channel_id = EXCLUDED.safety_alerts_channel_id, \
@@ -969,7 +998,10 @@ impl CommunityRepository for PgSettingsRepo {
                welcome_screen_enabled = EXCLUDED.welcome_screen_enabled, \
                guide_enabled = EXCLUDED.guide_enabled, invites_paused = EXCLUDED.invites_paused, \
                raid_alert_joins_per_minute = EXCLUDED.raid_alert_joins_per_minute, \
-               age_restricted = EXCLUDED.age_restricted, updated_at = now()",
+               age_restricted = EXCLUDED.age_restricted, \
+               screening_enabled = EXCLUDED.screening_enabled, \
+               screening_description = EXCLUDED.screening_description, \
+               screening_rules = EXCLUDED.screening_rules, updated_at = now()",
         )
         .bind(i(s.guild_id.get()))
         .bind(s.community_enabled)
@@ -982,6 +1014,9 @@ impl CommunityRepository for PgSettingsRepo {
         .bind(s.invites_paused)
         .bind(s.raid_alert_joins_per_minute as i32)
         .bind(s.age_restricted)
+        .bind(s.screening_enabled)
+        .bind(s.screening_description.as_deref())
+        .bind(Json(&s.screening_rules))
         .execute(&mut *tx)
         .await
         .map_err(db)?;

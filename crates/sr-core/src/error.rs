@@ -66,6 +66,7 @@ error_codes! {
     FeatureDisabled = 40006, 403, "This feature has been temporarily disabled server-side";
     UserBanned = 40007, 403, "The user is banned from this guild";
     TargetNotInVoice = 40032, 400, "Target user is not connected to voice.";
+    MessageAlreadyCrossposted = 40033, 400, "This message has already been crossposted.";
     InteractionAlreadyAcknowledged = 40060, 400, "Interaction has already been acknowledged.";
     TooManyRequests = 40062, 429, "You are being rate limited";
     TagRequired = 40067, 400, "A tag is required to create a forum post in this channel";
@@ -73,6 +74,7 @@ error_codes! {
     InvalidAccountType = 50002, 403, "Invalid Account Type";
     CannotExecuteOnDm = 50003, 403, "Cannot execute action on a DM channel";
     CannotEditMessageByOther = 50005, 403, "Cannot edit a message authored by another user";
+    CannotExecuteOnChannelType = 50024, 400, "Cannot execute action on this channel type";
     CannotSendEmptyMessage = 50006, 400, "Cannot send an empty message";
     CannotSendMessagesToUser = 50007, 403, "Cannot send messages to this user";
     MissingPermissions = 50013, 403, "Missing Permissions";

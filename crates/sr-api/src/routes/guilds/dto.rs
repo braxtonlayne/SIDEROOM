@@ -124,6 +124,30 @@ pub struct UserRef {
     /// Present (true) for bot accounts only.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub bot: bool,
+    /// The server tag the user shows next to their name (LNG-GLD-011).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub primary_guild: Option<PrimaryGuildObject>,
+}
+
+/// Discord's `primary_guild`: the server tag a user chose to show.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct PrimaryGuildObject {
+    pub identity_guild_id: String,
+    pub identity_enabled: bool,
+    pub tag: String,
+    /// Badge slug, one of the tag badges (see `GET /guilds/tag-badges`).
+    pub badge: Option<String>,
+}
+
+impl From<&sr_chat::server_tag::PrimaryGuild> for PrimaryGuildObject {
+    fn from(p: &sr_chat::server_tag::PrimaryGuild) -> Self {
+        Self {
+            identity_guild_id: p.guild_id.to_string(),
+            identity_enabled: true,
+            tag: p.tag.clone(),
+            badge: p.badge.clone(),
+        }
+    }
 }
 
 impl UserRef {
@@ -134,6 +158,7 @@ impl UserRef {
             username: None,
             global_name: None,
             bot: false,
+            primary_guild: None,
         }
     }
 
@@ -145,6 +170,7 @@ impl UserRef {
                 username: Some(u.username.clone()),
                 global_name: u.display_name.clone(),
                 bot: u.bot,
+                primary_guild: u.primary_guild.as_ref().map(PrimaryGuildObject::from),
             },
             None => Self::new(id),
         }
@@ -389,6 +415,15 @@ pub struct GuildObject {
     pub explicit_content_filter: u8,
     pub preferred_locale: String,
     pub features: Vec<String>,
+    /// Server tag (LNG-GLD-011).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
+    /// Server tag badge slug.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag_badge: Option<String>,
+    /// Vanity invite code (LNG-INV-004).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vanity_url_code: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub roles: Option<Vec<RoleObject>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -413,6 +448,9 @@ impl GuildObject {
             explicit_content_filter: g.explicit_content_filter,
             preferred_locale: g.preferred_locale.clone(),
             features: Vec::new(),
+            tag: g.tag.clone(),
+            tag_badge: g.tag_badge.clone(),
+            vanity_url_code: g.vanity_code.clone(),
             roles: roles.map(|r| r.iter().map(RoleObject::from).collect()),
             channels: channels.map(<[ChannelObject]>::to_vec),
         }
@@ -435,6 +473,12 @@ pub struct MemberObject {
     pub user: UserRef,
     pub nick: Option<String>,
     pub avatar: Option<String>,
+    /// Per-server banner hash (LNG-GLD-012).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub banner: Option<String>,
+    /// Per-server bio (LNG-GLD-012).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bio: Option<String>,
     pub roles: Vec<String>,
     pub joined_at: String,
     pub premium_since: Option<String>,
@@ -453,7 +497,9 @@ impl MemberObject {
         Self {
             user: UserRef::of(m.user_id, users),
             nick: m.nick.clone(),
-            avatar: None,
+            avatar: m.avatar_key.clone(),
+            banner: m.banner_key.clone(),
+            bio: m.bio.clone(),
             roles: m.role_ids.iter().map(ToString::to_string).collect(),
             joined_at: iso8601(m.joined_at_ms),
             premium_since: None,
@@ -515,6 +561,15 @@ pub struct ModifyGuildBody {
     pub default_message_notifications: Option<u8>,
     pub explicit_content_filter: Option<u8>,
     pub preferred_locale: Option<String>,
+    /// Server tag, 2 to 4 letters or digits; `null` or an empty string removes it
+    /// (`MANAGE_GUILD`, LNG-GLD-011).
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub tag: Option<Option<String>>,
+    /// Server tag badge slug (see `GET /guilds/tag-badges`); `null` removes it.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub tag_badge: Option<Option<String>>,
     /// Transfers ownership (owner only).
     pub owner_id: Option<String>,
     /// Image data URI (PNG, JPEG, GIF or WebP, 8 MiB at most; cropped to a square);
@@ -605,6 +660,10 @@ pub struct CreateChannelBody {
 #[derive(Debug, Default, Deserialize, ToSchema)]
 pub struct ModifyChannelBody {
     pub name: Option<String>,
+    /// Convert a text channel (0) to an announcement channel (5) or back; no other change of
+    /// type is allowed.
+    #[serde(rename = "type", default)]
+    pub kind: Option<i16>,
     #[serde(default, deserialize_with = "nullable")]
     #[schema(value_type = Option<String>)]
     pub topic: Option<Option<String>>,

@@ -10,6 +10,7 @@
 pub mod audit;
 pub mod automod;
 pub mod community;
+pub mod directory;
 pub mod error;
 pub mod expressions;
 pub mod invites;
