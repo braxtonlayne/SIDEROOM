@@ -6,3 +6,8 @@ publish.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+bitcoin_hashes = { version = "0.14", default-features = false, features = ["std"] }
+secp256k1 = { version = "0.29", default-features = false, features = ["std"] }
+bech32 = { version = "0.11", default-features = false, features = ["std"] }
