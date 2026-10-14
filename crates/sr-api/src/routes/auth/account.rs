@@ -210,8 +210,8 @@ pub async fn verify_email(
 /// cooldown per account). A no-op once verified.
 pub async fn resend_verification(
     State(state): State<AppState>,
-    Svc { svc, .. }: Svc,
     UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
 ) -> R<StatusCode> {
     session_id(&p)?;
     let now = state.now_secs();
@@ -250,8 +250,8 @@ pub struct AgeGateBody {
 /// content. The Settings re-ask path calls the same endpoint.
 pub async fn age_gate(
     State(state): State<AppState>,
-    Svc { svc, .. }: Svc,
     UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
     Json(body): Json<AgeGateBody>,
 ) -> R<StatusCode> {
     session_id(&p)?;

@@ -82,8 +82,8 @@ fn yes() -> bool {
 )]
 pub async fn change_password(
     State(state): State<AppState>,
-    Svc { svc, .. }: Svc,
     UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
     Json(body): Json<ChangePasswordBody>,
 ) -> R<StatusCode> {
     let current_session = session_id(&p)?;
@@ -163,8 +163,8 @@ pub struct ChangeUsernameBody {
 )]
 pub async fn change_username(
     State(state): State<AppState>,
-    Svc { svc, .. }: Svc,
     UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
     crate::routes::MaybeExt(social): crate::routes::MaybeExt<crate::routes::social::SocialDeps>,
     Json(body): Json<ChangeUsernameBody>,
 ) -> R<Json<Value>> {
@@ -405,8 +405,8 @@ pub async fn cancel_change_email(
 )]
 pub async fn change_email(
     State(state): State<AppState>,
-    Svc { svc, .. }: Svc,
     UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
     Json(body): Json<ChangeEmailBody>,
 ) -> R<StatusCode> {
     let sid = session_id(&p)?;
@@ -531,3 +531,64 @@ pub(super) async fn apply_email_change(
     ))
 )]
 pub struct IdentityApiDoc;
+
+// ---- second factor for staff (ADM-STF-009) ----------------------------------------
+
+/// Where a staff session stands on the 15-minute second-factor window.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StaffMfa {
+    /// A check on this session is younger than 15 minutes.
+    Fresh,
+    /// The account has a second factor but the last check is older (or never happened).
+    Stale,
+    /// The account has no second factor, so the window can never be opened.
+    NotEnrolled,
+}
+
+/// The window length in seconds (D-167).
+pub const STAFF_MFA_WINDOW_SECS: i64 = MFA_FRESH_SECS;
+
+pub(super) async fn staff_mfa_state(
+    svc: &AuthService,
+    now: i64,
+    user_id: i64,
+    session: i64,
+) -> R<StaffMfa> {
+    let account = current_account(svc, user_id).await?;
+    let has_totp = svc
+        .store
+        .totp_get(account.id)
+        .await?
+        .is_some_and(|t| t.confirmed);
+    if !has_totp && !svc.has_passkeys(account.id).await? {
+        return Ok(StaffMfa::NotEnrolled);
+    }
+    Ok(match svc.store.session_mfa_verified_at(session).await? {
+        Some(at) if now >= at && now - at < MFA_FRESH_SECS => StaffMfa::Fresh,
+        _ => StaffMfa::Stale,
+    })
+}
+
+/// Open the window with a TOTP, recovery or passkey proof; shares the login lockout.
+pub(super) async fn staff_mfa_prove(
+    svc: &AuthService,
+    now: i64,
+    user_id: i64,
+    session: i64,
+    method: &str,
+    code: &str,
+) -> R<()> {
+    if staff_mfa_state(svc, now, user_id, session).await? == StaffMfa::NotEnrolled {
+        return Err(ApiError::with_message(
+            sr_core::ErrorCode::SrReauthRequired,
+            "Set up two-factor authentication before using this admin action.",
+        )
+        .into());
+    }
+    let account = current_account(svc, user_id).await?;
+    let proof = MfaProof {
+        method: method.to_owned(),
+        code: code.to_owned(),
+    };
+    require_second_factor(svc, now, &account, session, Some(&proof)).await
+}

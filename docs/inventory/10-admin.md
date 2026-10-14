@@ -3,15 +3,15 @@
 Phase 3. Spec: [admin-staff-server](../specs/admin-staff-server.md), docs 06, 07.
 
 ## ADM-STF — Staff mechanics
-- [ ] **ADM-STF-001** [DB] `is_staff_guild` partial unique index, `roles.platform_permissions`, staff_appointments, appointment_delegations, staff_access_log, platform_audit_log
+- [x] **ADM-STF-001** [DB] `is_staff_guild` partial unique index, `roles.platform_permissions`, staff_appointments, appointment_delegations, staff_access_log, platform_audit_log _Migrations 0010 (is_staff_guild unique index, roles.platform_permissions), 0042, 0130 and 0650 (appointment_delegations, staff_appointment_offers, staff_alerts, platform_announcements)._
 - [x] **ADM-STF-002** [BE] Platform permission resolver (active appointment ∧ staff-guild member ∧ role bits; Owner = all)
-- [ ] **ADM-STF-003** [BE] Block server invites to the staff guild; hide Invite to Server there
-- [ ] **ADM-STF-004** [BE] Appointment API (appoint, accept/decline via system DM, revoke, delegate)
-- [ ] **ADM-STF-005** [BE] Instant revocation on leave/kick (drop staff claims, close admin WS subscriptions)
+- [x] **ADM-STF-003** [BE] Block server invites to the staff guild; hide Invite to Server there _Create and redeem both refuse the Staff Server: SettingsError::StaffServerInvites, tests in settings/tests.rs and sr-db tests/invite_join.rs. Hiding the Invite to Server button is a client job._
+- [x] **ADM-STF-004** [BE] Appointment API (appoint, accept/decline via system DM, revoke, delegate) _Offers: POST/GET/DELETE /admin/staff/offers, appointee answers POST /staff/offers/{id}/respond from the system DM (Accept/Decline buttons carry sr:offer-accept:/sr:offer-decline:), delegations PUT/DELETE /admin/staff/{id}/delegation. sr-admin service_ext.rs, tests_ext.rs, admin/tests.rs. The DM button click handler is a client job._
+- [x] **ADM-STF-005** [BE] Instant revocation on leave/kick (drop staff claims, close admin WS subscriptions) _Trigger sr_staff_member_left (0650) closes the appointment when the member row goes; standing is evaluated per request so access ends at once; SR_STAFF_ALERT {revoked} is pushed to the removed member (staff_feed.rs). Test: sr-server staff_feed_pg_tests.rs._
 - [x] **ADM-STF-006** [BE] Staff-guild seed (channels, roles) in bootstrap
-- [ ] **ADM-STF-007** [BE] System user + bot-style card poster for staff channels (components with action handlers)
+- [x] **ADM-STF-007** [BE] System user + bot-style card poster for staff channels (components with action handlers) _sr-server staff_feed.rs: StaffVoice posts cards as the system user, POST /admin/card-actions runs sr:ack:, sr:clear-suspicion: and sr:retry-job: with the presser own permissions. Review-queue Approve/Reject buttons belong to the REV items._
 - [x] **ADM-STF-008** [BE] Hash-chained access log writer + nightly verifier job + alert
-- [ ] **ADM-STF-009** [BE] Re-auth (2FA within 15 min) middleware for sensitive admin routes
+- [x] **ADM-STF-009** [BE] Re-auth (2FA within 15 min) middleware for sensitive admin routes _AdminDeps::with_reauth + StaffCtx::require_reauth; GET/POST /admin/reauth; applied to private reads, email change, forced password reset, reset-2fa, staff appoint/offer/roles/revoke/delegate, announcements. SR_ADMIN_REQUIRE_REAUTH=0 turns it off for dev. Test: admin/tests.rs sensitive_routes_wait_for_a_fresh_second_factor._
 - [ ] **ADM-STF-010** [FE] Staff Server rail frame, "SIDE ROOM Staff" profile badge
 - [ ] **ADM-STF-011** [FE] "Platform Admin" entry in Staff Server dropdown and user menu
 
@@ -22,13 +22,13 @@ Phase 3. Spec: [admin-staff-server](../specs/admin-staff-server.md), docs 06, 07
 
 ## ADM-DASH — Overview
 - [ ] **ADM-DASH-001** [FE] Dashboard tiles: accounts vs cap gauge, online now, voice rooms + egress, storage used, job backlog, review queue counts, donations vs hosting cost, recent alerts
-- [ ] **ADM-DASH-002** [BE] Stats endpoint (cached 30s)
+- [x] **ADM-DASH-002** [BE] Stats endpoint (cached 30s) _GET /admin/stats cached 30 s in AdminService (cached_counts); adds accounts_cap, review_pending, invites_open, alerts_unacked, storage_bytes; GET /admin/alerts for recent alerts._
 - [ ] **ADM-DASH-003** [FE] Setup Wizard checklist (SMTP test, Discord OAuth, wallet, storage test, voice/TURN test, default limits)
 
 ## ADM-PPL — People
 - [ ] **ADM-PPL-001** [FE] Accounts search (username, email, id, Discord id, IP), state filter
 - [ ] **ADM-PPL-002** [FE] Account drawer: profile, state, Person link, sessions, IP history, invited by, invites issued, servers, entitlements, flags, audit trail
-- [ ] **ADM-PPL-003** [BE] Account actions: deactivate, reactivate (cap check), force password reset, reset 2FA, rename, change email, badges, force logout
+- [x] **ADM-PPL-003** [BE] Account actions: deactivate, reactivate (cap check), force password reset, reset 2FA, rename, change email, badges, force logout _New: rename, change-email, badges, force-password-reset (POST /admin/accounts/{id}/...). Suspend/unsuspend (cap check), reset-2fa and force-logout already existed._
 - [ ] **ADM-PPL-004** [FE] Persons view: account chain timeline, link/unlink accounts, notes, suspicion level with history
 - [x] **ADM-PPL-005** [BE] Platform bans (reason category serious/standard, note) applied to Person, unban
 - [x] **ADM-PPL-006** [BE] Inviter suspicion propagation on serious bans + thresholds (freeze, escalate) + clear
@@ -37,7 +37,7 @@ Phase 3. Spec: [admin-staff-server](../specs/admin-staff-server.md), docs 06, 07
 
 ## ADM-GRAPH — Invite graph
 - [x] **ADM-GRAPH-001** [BE] Graph API (subtree, ancestors path, stats per node, search)
-- [ ] **ADM-GRAPH-002** [WASM] Force-directed layout for large graphs (Rust, Barnes–Hut) → positions
+- [x] **ADM-GRAPH-002** [WASM] Force-directed layout for large graphs (Rust, Barnes–Hut) → positions _crates/sr-graph-wasm (layout.rs, Barnes-Hut quadtree), loadGraph() in @sideroom/wasm, packages/wasm/test/graph.test.ts._
 - [ ] **ADM-GRAPH-003** [FE] WebGL graph renderer (pan/zoom, collapse subtrees, node colors by state, suspicion halo, banned marker)
 - [ ] **ADM-GRAPH-004** [FE] Node side panel (account summary, open codes, credits ledger, grant/revoke credit, freeze invites, clear suspicion)
 - [ ] **ADM-GRAPH-005** [FE] Tree/list fallback view + path-to-root breadcrumb
@@ -54,7 +54,7 @@ Phase 3. Spec: [admin-staff-server](../specs/admin-staff-server.md), docs 06, 07
 - [ ] **ADM-COM-001** [FE] Server Directory approvals (request detail, preview server, approve/deny with note, categories manager, featured)
 - [ ] **ADM-COM-002** [FE] Servers search (all guilds), metadata view, transfer ownership, delete
 - [ ] **ADM-COM-003** [FE] Private Content Viewer (channel/DM picker, reason + 2FA gate, read-only message list incl. deleted ≤ 30d and edit history, banner "Access is logged")
-- [ ] **ADM-COM-004** [BE] Private content read API (deleted + edits), logging every request
+- [x] **ADM-COM-004** [BE] Private content read API (deleted + edits), logging every request _GET /admin/private/channels/{id}/messages (deleted within retention.deleted_message_days plus edit history), /admin/private/accounts/{id}/dms, /admin/private/guilds/{id}/channels. Reason required, fresh 2FA, hash-chained private_read row written before content returns._
 
 ## ADM-PLT — Platform settings
 - [ ] **ADM-PLT-001** [FE] Features page (all modules, platform settings via SchemaForm, kill switches)
@@ -65,9 +65,9 @@ Phase 3. Spec: [admin-staff-server](../specs/admin-staff-server.md), docs 06, 07
 - [ ] **ADM-PLT-006** [FE] System page (health, versions, backups last run/verify, disk, Garage status, coturn status)
 - [ ] **ADM-PLT-007** [FE] Platform Audit Log viewer
 - [x] **ADM-PLT-008** [FE] Access Log viewer + chain verification status
-- [ ] **ADM-PLT-009** [BE] Platform announcements (banner to all users, optional DM from system user)
+- [x] **ADM-PLT-009** [BE] Platform announcements (banner to all users, optional DM from system user) _POST/GET/DELETE /admin/announcements, GET /announcements/active for every signed-in user, optional system DMs to every active account._
 
 ## ADM-ALR — Alerts
-- [ ] **ADM-ALR-001** [BE] Alert bus → `#alerts` channel cards (suspicion, payments anomalies, transcode failures, disk > 80%, backup failure, access-log chain break, banned-Person registration attempt)
-- [ ] **ADM-ALR-002** [BE] `#new-members` and `#donations` feeds
-- [ ] **ADM-ALR-003** [BE] Optional email alerts to Owner
+- [x] **ADM-ALR-001** [BE] Alert bus → `#alerts` channel cards (suspicion, payments anomalies, transcode failures, disk > 80%, backup failure, access-log chain break, banned-Person registration attempt) _staff_feed.rs consumes Topic::Platform StaffAlert into #alerts cards (stored in staff_alerts); admin_jobs.rs health job adds disk, backup and transcode alerts. Suspicion, payment, chain-break and banned-Person alerts already published events._
+- [x] **ADM-ALR-002** [BE] `#new-members` and `#donations` feeds _StaffFeed events: registration posts to #new-members (usernames only), a credited invoice posts to #donations (no donor name)._
+- [x] **ADM-ALR-003** [BE] Optional email alerts to Owner _alerts.email_to_owner setting; StaffFeed::mail_owner, throttled to one mail per kind per 30 minutes._

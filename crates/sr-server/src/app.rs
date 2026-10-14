@@ -227,7 +227,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             auth_repo.clone(),
             id_src.clone(),
         )),
-        mailer,
+        mailer.clone(),
         id_src.clone(),
     )
     .with_config(auth_cfg.clone())
@@ -819,18 +819,42 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // Platform admin API: permissions are resolved per request from the Staff Server; every
     // action is written to the hash-chained access log. Feature toggles go through the shared
     // feature service and the System page reports the live gateway session count.
-    let admin = routes::admin::AdminDeps::new(
-        sr_admin::AdminService::new(Arc::new(sr_db::admin_repo::PgAdminRepo::new(
-            pool.clone(),
-            id_src.clone(),
-        )))
-        .with_bus(bus.clone()),
-    )
-    .with_features(features.clone())
-    .with_gateway_sessions({
-        let gw = gateway.clone();
-        Arc::new(move || gw.session_count())
-    });
+    // The system user speaks through the message stack: appointment DMs, announcement DMs and
+    // the cards of the Staff Server feeds (ADM-STF-007, ADM-ALR-001/002/003).
+    let admin_repo = Arc::new(sr_db::admin_repo::PgAdminRepo::new(
+        pool.clone(),
+        id_src.clone(),
+    ));
+    let staff_voice = Arc::new(crate::staff_feed::StaffVoice::new(
+        pool.clone(),
+        messages.clone(),
+        &cfg.server.public_url,
+    ));
+    let admin_service = sr_admin::AdminService::new(admin_repo.clone())
+        .with_extras(admin_repo)
+        .with_notifier(staff_voice.clone())
+        .with_bus(bus.clone());
+    crate::staff_feed::spawn(Arc::new(crate::staff_feed::StaffFeed {
+        voice: staff_voice,
+        admin: admin_service.clone(),
+        mailer,
+        bus: bus.clone(),
+        throttle: crate::staff_feed::MailThrottle::default(),
+    }));
+    // Sensitive admin actions (private content, account email and password, staff changes,
+    // announcements) need a second factor checked in the last 15 minutes (ADM-STF-009).
+    // `SR_ADMIN_REQUIRE_REAUTH=0` switches that off, for development and end-to-end tests.
+    let require_reauth = !matches!(
+        std::env::var("SR_ADMIN_REQUIRE_REAUTH").as_deref(),
+        Ok("0" | "false" | "off")
+    );
+    let admin = routes::admin::AdminDeps::new(admin_service)
+        .with_features(features.clone())
+        .with_reauth(require_reauth)
+        .with_gateway_sessions({
+            let gw = gateway.clone();
+            Arc::new(move || gw.session_count())
+        });
 
     let settings = ApiSettings {
         trust_forwarded_for: cfg.server.trust_forwarded_for,

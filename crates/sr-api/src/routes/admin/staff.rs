@@ -91,6 +91,7 @@ pub async fn appoint(
     Json(b): Json<AppointBody>,
 ) -> ApiResult<Json<StaffMember>> {
     let r = reason(&headers, b.reason.as_deref());
+    ctx.require_reauth().await?;
     ctx.svc()
         .appoint(
             &ctx.caller,
@@ -118,6 +119,7 @@ pub async fn set_roles(
     Json(b): Json<RolesBody>,
 ) -> ApiResult<Json<StaffMember>> {
     let r = reason(&headers, b.reason.as_deref());
+    ctx.require_reauth().await?;
     ctx.svc()
         .set_staff_roles(
             &ctx.caller,
@@ -145,6 +147,7 @@ pub async fn revoke(
     body: Option<Json<ReasonBody>>,
 ) -> ApiResult<axum::http::StatusCode> {
     let r = reason(&headers, body.and_then(|Json(b)| b.reason).as_deref());
+    ctx.require_reauth().await?;
     ctx.svc()
         .revoke_staff(&ctx.caller, id(&account_id)?, r.as_deref())
         .await

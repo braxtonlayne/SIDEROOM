@@ -13,7 +13,7 @@ use sqlx::{PgConnection, PgPool, Row, postgres::PgRow};
 use sr_admin::{
     AccessKind, AccessLogEntry, AccessLogFilter, AccountDetail, AccountQuery, AccountRef,
     AccountState, AccountSummary, AdminError, AdminRepository, AdminResult, AuditEntry,
-    BanCategory, BanOutcome, BanRecord, ChainReport, CreditLedger, DeleteRequest,
+    BanCategory, BanOutcome, BanRecord, ChainReport, CreditLedger, Delegation, DeleteRequest,
     InviteDescendants, InviteNode, InviteQuery, InviteRow, InviteStats, InviteTree, JobRow,
     LedgerEntry, LoginEvent, PersonDetail, Reset2faReport, StaffMember, StaffRole, Standing,
     StoredSetting, SuspectPerson, SuspicionChange, SystemCounts, UnbanOutcome,
@@ -28,11 +28,11 @@ pub const ACCESS_LOG_LOCK: i64 = lock::lock_key("sr.staff_access_log");
 
 const MS: &str = "(extract(epoch FROM {c}) * 1000)::bigint";
 
-fn ms(col: &str) -> String {
+pub(crate) fn ms(col: &str) -> String {
     MS.replace("{c}", col)
 }
 
-fn db(e: sqlx::Error) -> AdminError {
+pub(crate) fn db(e: sqlx::Error) -> AdminError {
     AdminError::Storage(e.to_string())
 }
 
@@ -40,7 +40,7 @@ fn db2(e: crate::DbError) -> AdminError {
     AdminError::Storage(e.to_string())
 }
 
-fn is_unique(e: &sqlx::Error) -> bool {
+pub(crate) fn is_unique(e: &sqlx::Error) -> bool {
     e.as_database_error()
         .and_then(|d| d.code())
         .is_some_and(|c| c == "23505")
@@ -187,6 +187,22 @@ impl PgAdminRepo {
         Self { pool, ids }
     }
 
+    pub(crate) fn pool(&self) -> &PgPool {
+        &self.pool
+    }
+
+    pub(crate) fn next_id(&self) -> i64 {
+        (self.ids)()
+    }
+
+    pub(crate) async fn audit_in(
+        &self,
+        conn: &mut PgConnection,
+        a: &AuditEntry,
+    ) -> AdminResult<()> {
+        self.audit(conn, a).await
+    }
+
     /// Platform audit row plus chained access-log row, inside the caller's transaction.
     async fn audit(&self, conn: &mut PgConnection, a: &AuditEntry) -> AdminResult<()> {
         sqlx::query(
@@ -301,6 +317,38 @@ impl PgAdminRepo {
         acct_from(&r).map_err(db)
     }
 
+    async fn delegations_in(
+        conn: &mut PgConnection,
+        only: Option<i64>,
+    ) -> AdminResult<Vec<Delegation>> {
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT d.account_id, a.username::text AS username, d.max_permissions, d.granted_by, \
+                    {} AS granted_ms, d.reason \
+             FROM appointment_delegations d JOIN accounts a ON a.id = d.account_id \
+             WHERE d.revoked_at IS NULL AND ($1::bigint IS NULL OR d.account_id = $1) \
+             ORDER BY d.id",
+            ms("d.granted_at")
+        )))
+        .bind(only)
+        .fetch_all(conn)
+        .await
+        .map_err(db)?;
+        rows.iter()
+            .map(|r| {
+                let bits: i64 = r.try_get("max_permissions")?;
+                Ok(Delegation {
+                    account_id: r.try_get("account_id")?,
+                    username: r.try_get("username")?,
+                    max_permissions: (bits as u64).to_string(),
+                    granted_by: r.try_get("granted_by")?,
+                    granted_at_ms: r.try_get("granted_ms")?,
+                    reason: r.try_get("reason")?,
+                })
+            })
+            .collect::<Result<_, sqlx::Error>>()
+            .map_err(db)
+    }
+
     fn node_from(r: &PgRow) -> Result<InviteNode, sqlx::Error> {
         Ok(InviteNode {
             account_id: r.try_get("id")?,
@@ -377,13 +425,15 @@ impl AdminRepository for PgAdminRepo {
     // ---- staff ----------------------------------------------------------
 
     async fn standing(&self, user_id: i64) -> AdminResult<Option<Standing>> {
-        let row: Option<(bool, bool, bool, i64)> = sqlx::query_as(
+        let row: Option<(bool, bool, bool, i64, Option<i64>)> = sqlx::query_as(
             "SELECT (g.owner_id = $1), \
                     EXISTS(SELECT 1 FROM staff_appointments ap WHERE ap.account_id = $1 AND ap.revoked_at IS NULL), \
                     EXISTS(SELECT 1 FROM guild_members gm WHERE gm.guild_id = g.id AND gm.user_id = $1), \
                     COALESCE((SELECT bit_or(r.platform_permissions) FROM member_roles mr \
                               JOIN roles r ON r.id = mr.role_id \
-                              WHERE mr.guild_id = g.id AND mr.user_id = $1 AND r.guild_id = g.id), 0)::bigint \
+                              WHERE mr.guild_id = g.id AND mr.user_id = $1 AND r.guild_id = g.id), 0)::bigint, \
+                    (SELECT d.max_permissions FROM appointment_delegations d \
+                      WHERE d.account_id = $1 AND d.revoked_at IS NULL) \
              FROM guilds g JOIN accounts a ON a.id = $1 AND a.state = 'active' \
              WHERE g.is_staff_guild",
         )
@@ -392,14 +442,24 @@ impl AdminRepository for PgAdminRepo {
         .await
         .map_err(db)?;
         Ok(match row {
-            Some((true, _, _, _)) => Some(Standing {
+            Some((true, _, _, _, _)) => Some(Standing {
                 permissions: P::OWNER,
                 is_owner: true,
+                grant_ceiling: None,
             }),
-            Some((false, true, true, bits)) => Some(Standing {
-                permissions: P::from_bits_truncate(bits as u64),
-                is_owner: false,
-            }),
+            Some((false, true, true, bits, delegation)) => {
+                let mut permissions = P::from_bits_truncate(bits as u64);
+                // A delegate may appoint, within the ceiling the Owner set (D-132).
+                let grant_ceiling = delegation.map(|d| P::from_bits_truncate(d as u64));
+                if grant_ceiling.is_some() {
+                    permissions |= P::APPOINT_STAFF;
+                }
+                Some(Standing {
+                    permissions,
+                    is_owner: false,
+                    grant_ceiling,
+                })
+            }
             _ => None,
         })
     }
@@ -552,6 +612,15 @@ impl AdminRepository for PgAdminRepo {
         if closed == 0 {
             return Err(AdminError::NotFound("staff member"));
         }
+        sqlx::query(
+            "UPDATE appointment_delegations SET revoked_at = now(), revoked_by = $2 \
+             WHERE account_id = $1 AND revoked_at IS NULL",
+        )
+        .bind(account_id)
+        .bind(by)
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
         // Leaving the Staff Server removes the member's roles with it.
         sqlx::query("DELETE FROM guild_members WHERE guild_id = $1 AND user_id = $2")
             .bind(guild)
@@ -1532,6 +1601,199 @@ impl AdminRepository for PgAdminRepo {
 
     // ---- system ---------------------------------------------------------
 
+    async fn set_delegation(
+        &self,
+        account_id: i64,
+        max_permissions: u64,
+        by: i64,
+        reason: &str,
+        audit: &AuditEntry,
+    ) -> AdminResult<Delegation> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        if Self::staff_members(&mut tx, Some(account_id))
+            .await?
+            .is_empty()
+        {
+            return Err(AdminError::NotFound("staff member"));
+        }
+        sqlx::query(
+            "UPDATE appointment_delegations SET revoked_at = now(), revoked_by = $2 \
+             WHERE account_id = $1 AND revoked_at IS NULL",
+        )
+        .bind(account_id)
+        .bind(by)
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
+        sqlx::query(
+            "INSERT INTO appointment_delegations (id, account_id, granted_by, max_permissions, reason) \
+             VALUES ($1, $2, $3, $4, $5)",
+        )
+        .bind((self.ids)())
+        .bind(account_id)
+        .bind(by)
+        .bind(max_permissions as i64)
+        .bind(reason)
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
+        self.audit(&mut tx, audit).await?;
+        let d = Self::delegations_in(&mut tx, Some(account_id)).await?.pop();
+        tx.commit().await.map_err(db)?;
+        d.ok_or_else(|| AdminError::Storage("delegation vanished".into()))
+    }
+
+    async fn remove_delegation(&self, account_id: i64, audit: &AuditEntry) -> AdminResult<()> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        let n = sqlx::query(
+            "UPDATE appointment_delegations SET revoked_at = now(), revoked_by = $2 \
+             WHERE account_id = $1 AND revoked_at IS NULL",
+        )
+        .bind(account_id)
+        .bind(audit.actor_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?
+        .rows_affected();
+        if n == 0 {
+            return Err(AdminError::NotFound("delegation"));
+        }
+        self.audit(&mut tx, audit).await?;
+        tx.commit().await.map_err(db)
+    }
+
+    async fn list_delegations(&self) -> AdminResult<Vec<Delegation>> {
+        let mut c = self.pool.acquire().await.map_err(db)?;
+        Self::delegations_in(&mut c, None).await
+    }
+
+    async fn rename_account(
+        &self,
+        id: i64,
+        username: Option<&str>,
+        display_name: Option<Option<&str>>,
+        audit: &AuditEntry,
+    ) -> AdminResult<AccountSummary> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        Self::account_summary(&mut tx, id).await?;
+        sqlx::query(
+            "UPDATE accounts SET username = COALESCE($2::citext, username), \
+                    display_name = CASE WHEN $3 THEN $4 ELSE display_name END, updated_at = now() \
+             WHERE id = $1",
+        )
+        .bind(id)
+        .bind(username)
+        .bind(display_name.is_some())
+        .bind(display_name.flatten())
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| {
+            if is_unique(&e) {
+                AdminError::Conflict("That username is taken".into())
+            } else {
+                db(e)
+            }
+        })?;
+        self.audit(&mut tx, audit).await?;
+        let out = Self::account_summary(&mut tx, id).await?;
+        tx.commit().await.map_err(db)?;
+        Ok(out)
+    }
+
+    async fn set_account_email(
+        &self,
+        id: i64,
+        email: &str,
+        audit: &AuditEntry,
+    ) -> AdminResult<AccountSummary> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        Self::account_summary(&mut tx, id).await?;
+        sqlx::query(
+            "UPDATE accounts SET email = $2::citext, email_verified_at = NULL, updated_at = now() \
+             WHERE id = $1",
+        )
+        .bind(id)
+        .bind(email)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| {
+            if is_unique(&e) {
+                AdminError::Conflict("That email address is used by another account".into())
+            } else {
+                db(e)
+            }
+        })?;
+        // Links mailed to the old address (password reset, verification) die with it.
+        sqlx::query(
+            "UPDATE email_tokens SET used_at = now(), updated_at = now() \
+             WHERE account_id = $1 AND used_at IS NULL AND email <> $2::citext",
+        )
+        .bind(id)
+        .bind(email)
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
+        self.audit(&mut tx, audit).await?;
+        let out = Self::account_summary(&mut tx, id).await?;
+        tx.commit().await.map_err(db)?;
+        Ok(out)
+    }
+
+    async fn update_account_flags(
+        &self,
+        id: i64,
+        set: i64,
+        clear: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<AccountSummary> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        Self::account_summary(&mut tx, id).await?;
+        sqlx::query(
+            "UPDATE accounts SET flags = (flags | $2) & ~$3, updated_at = now() WHERE id = $1",
+        )
+        .bind(id)
+        .bind(set)
+        .bind(clear)
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
+        self.audit(&mut tx, audit).await?;
+        let out = Self::account_summary(&mut tx, id).await?;
+        tx.commit().await.map_err(db)?;
+        Ok(out)
+    }
+
+    async fn force_password_reset(&self, id: i64, audit: &AuditEntry) -> AdminResult<u64> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        Self::account_summary(&mut tx, id).await?;
+        // An unusable hash: no password matches, so only "Forgot password" gets back in.
+        sqlx::query("UPDATE accounts SET password_hash = '!', updated_at = now() WHERE id = $1")
+            .bind(id)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        let n = sqlx::query(
+            "UPDATE sessions SET revoked_at = now(), updated_at = now() \
+             WHERE account_id = $1 AND revoked_at IS NULL",
+        )
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?
+        .rows_affected();
+        sqlx::query(
+            "UPDATE trusted_devices SET revoked_at = now(), updated_at = now() \
+             WHERE account_id = $1 AND revoked_at IS NULL",
+        )
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
+        self.audit(&mut tx, audit).await?;
+        tx.commit().await.map_err(db)?;
+        Ok(n)
+    }
+
     async fn counts(&self) -> AdminResult<SystemCounts> {
         let r = sqlx::query(
             "SELECT \
@@ -1543,7 +1805,11 @@ impl AdminRepository for PgAdminRepo {
               (SELECT count(*) FROM jobs WHERE state = 'queued') AS queued, \
               (SELECT count(*) FROM jobs WHERE state = 'running') AS running, \
               (SELECT count(*) FROM jobs WHERE state = 'dead') AS dead, \
-              (SELECT count(*) FROM staff_appointments WHERE revoked_at IS NULL) AS staff",
+              (SELECT count(*) FROM staff_appointments WHERE revoked_at IS NULL) AS staff, \
+              (SELECT count(*) FROM submissions WHERE state IN ('submitted', 'in_review')) AS review, \
+              (SELECT count(*) FROM platform_invites WHERE state = 'open') AS invites_open, \
+              (SELECT count(*) FROM staff_alerts WHERE acked_at IS NULL) AS alerts_unacked, \
+              (SELECT COALESCE(sum(size_bytes), 0) FROM attachments)::bigint AS storage",
         )
         .fetch_one(&self.pool)
         .await
@@ -1559,6 +1825,11 @@ impl AdminRepository for PgAdminRepo {
             jobs_running: g("running")?,
             jobs_dead: g("dead")?,
             staff: g("staff")?,
+            accounts_cap: 0,
+            review_pending: g("review")?,
+            invites_open: g("invites_open")?,
+            alerts_unacked: g("alerts_unacked")?,
+            storage_bytes: g("storage")?,
         })
     }
 

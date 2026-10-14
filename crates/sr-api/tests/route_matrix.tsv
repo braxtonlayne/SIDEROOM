@@ -1,5 +1,6 @@
 # XC-SEC-005 route matrix. See crates/sr-api/tests/route_matrix.rs.
 # METHOD	PATH	ACCESS	AUTHZ	BOT	BEARER (a trailing ? on AUTHZ means unreviewed)
+DELETE	/admin/announcements/{announcement_id}	authenticated	staff	deny	-
 DELETE	/admin/cinema/collections/{collection_id}	authenticated	staff	deny	-
 DELETE	/admin/cinema/episodes/{episode_id}	authenticated	staff	deny	-
 DELETE	/admin/cinema/seasons/{season_id}	authenticated	staff	deny	-
@@ -13,7 +14,9 @@ DELETE	/admin/library/chapters/{chapter_id}	authenticated	staff	deny	-
 DELETE	/admin/library/editions/{edition_id}	authenticated	staff	deny	-
 DELETE	/admin/library/series/{series_id}	authenticated	staff	deny	-
 DELETE	/admin/library/volumes/{volume_id}	authenticated	staff	deny	-
+DELETE	/admin/staff/offers/{offer_id}	authenticated	staff	deny	-
 DELETE	/admin/staff/{account_id}	authenticated	staff	deny	-
+DELETE	/admin/staff/{account_id}/delegation	authenticated	staff	deny	-
 DELETE	/admin/transcode/tokens/{token_id}	authenticated	staff	deny	-
 DELETE	/admin/tv/blocks/{block_id}	authenticated	staff	deny	-
 DELETE	/admin/tv/channels/{channel_id}	authenticated	staff	deny	-
@@ -82,6 +85,8 @@ GET	/admin/accounts/{account_id}	authenticated	staff	deny	-
 GET	/admin/accounts/{account_id}/credits	authenticated	staff	deny	-
 GET	/admin/accounts/{account_id}/invite-descendants	authenticated	staff	deny	-
 GET	/admin/accounts/{account_id}/invite-tree	authenticated	staff	deny	-
+GET	/admin/alerts	authenticated	staff	deny	-
+GET	/admin/announcements	authenticated	staff	deny	-
 GET	/admin/bans	authenticated	staff	deny	-
 GET	/admin/cinema/assets	authenticated	staff	deny	-
 GET	/admin/cinema/assets/{asset_id}	authenticated	staff	deny	-
@@ -113,12 +118,18 @@ GET	/admin/library/series/{series_id}/chapters	authenticated	staff	deny	-
 GET	/admin/library/uploads/{upload_id}	authenticated	staff	deny	-
 GET	/admin/me	authenticated	staff	deny	-
 GET	/admin/persons/{person_id}	authenticated	staff	deny	-
+GET	/admin/private/accounts/{account_id}/dms	authenticated	staff	deny	-
+GET	/admin/private/channels/{channel_id}/messages	authenticated	staff	deny	-
+GET	/admin/private/guilds/{guild_id}/channels	authenticated	staff	deny	-
+GET	/admin/reauth	authenticated	staff	deny	-
 GET	/admin/review/queue	authenticated	staff	deny	-
 GET	/admin/review/submissions/{submission_id}	authenticated	staff	deny	-
 GET	/admin/review/submissions/{submission_id}/library/chapters/{chapter_id}/pages	authenticated	staff	deny	-
 GET	/admin/review/submissions/{submission_id}/preview	authenticated	staff	deny	-
 GET	/admin/settings	authenticated	staff	deny	-
 GET	/admin/staff	authenticated	staff	deny	-
+GET	/admin/staff/delegations	authenticated	staff	deny	-
+GET	/admin/staff/offers	authenticated	staff	deny	-
 GET	/admin/staff/roles	authenticated	staff	deny	-
 GET	/admin/stats	authenticated	staff	deny	-
 GET	/admin/suspicion	authenticated	staff	deny	-
@@ -133,6 +144,7 @@ GET	/admin/tv/channels/{channel_id}	authenticated	staff	deny	-
 GET	/admin/tv/channels/{channel_id}/now	authenticated	staff	deny	-
 GET	/admin/tv/channels/{channel_id}/schedule	authenticated	staff	deny	-
 GET	/admin/tv/report	authenticated	staff	deny	-
+GET	/announcements/active	authenticated	other	deny	-
 GET	/applications	authenticated	owner	deny	-
 GET	/applications/@me	authenticated	owner	allow	-
 GET	/applications/{application_id}	authenticated	owner	deny	-
@@ -361,13 +373,20 @@ PATCH	/watch-parties/{party_id}/queue/{item_id}	authenticated	other	allow	-
 PATCH	/webhooks/{application_id}/{token}/messages/{message_id}	public	none	allow	-
 PATCH	/webhooks/{webhook_id}	authenticated	other	allow	-
 PATCH	/webhooks/{webhook_id}/{token}	public	none	allow	-
+POST	/admin/accounts/{account_id}/badges	authenticated	staff	deny	-
 POST	/admin/accounts/{account_id}/ban	authenticated	staff	deny	-
+POST	/admin/accounts/{account_id}/change-email	authenticated	staff	deny	-
 POST	/admin/accounts/{account_id}/credits	authenticated	staff	deny	-
 POST	/admin/accounts/{account_id}/delete-request	authenticated	staff	deny	-
 POST	/admin/accounts/{account_id}/force-logout	authenticated	staff	deny	-
+POST	/admin/accounts/{account_id}/force-password-reset	authenticated	staff	deny	-
+POST	/admin/accounts/{account_id}/rename	authenticated	staff	deny	-
 POST	/admin/accounts/{account_id}/reset-2fa	authenticated	staff	deny	-
 POST	/admin/accounts/{account_id}/suspend	authenticated	staff	deny	-
 POST	/admin/accounts/{account_id}/unsuspend	authenticated	staff	deny	-
+POST	/admin/alerts/{alert_id}/ack	authenticated	staff	deny	-
+POST	/admin/announcements	authenticated	staff	deny	-
+POST	/admin/card-actions	authenticated	staff	deny	-
 POST	/admin/cinema/assets	authenticated	staff	deny	-
 POST	/admin/cinema/assets/{asset_id}/complete	authenticated	staff	deny	-
 POST	/admin/cinema/assets/{asset_id}/probe	authenticated	staff	deny	-
@@ -408,6 +427,7 @@ POST	/admin/library/uploads/{upload_id}/complete	authenticated	staff	deny	-
 POST	/admin/persons/{person_id}/ban	authenticated	staff	deny	-
 POST	/admin/persons/{person_id}/clear-suspicion	authenticated	staff	deny	-
 POST	/admin/persons/{person_id}/unban	authenticated	staff	deny	-
+POST	/admin/reauth	authenticated	staff	deny	-
 POST	/admin/review/requests/{request_id}/decline	authenticated	staff	deny	-
 POST	/admin/review/submissions/{submission_id}/approve	authenticated	staff	deny	-
 POST	/admin/review/submissions/{submission_id}/claim	authenticated	staff	deny	-
@@ -418,6 +438,7 @@ POST	/admin/review/submissions/{submission_id}/reject	authenticated	staff	deny	-
 POST	/admin/review/submissions/{submission_id}/release	authenticated	staff	deny	-
 POST	/admin/review/submissions/{submission_id}/request-changes	authenticated	staff	deny	-
 POST	/admin/staff	authenticated	staff	deny	-
+POST	/admin/staff/offers	authenticated	staff	deny	-
 POST	/admin/transcode/jobs/{job_id}/cancel	authenticated	staff	deny	-
 POST	/admin/transcode/jobs/{job_id}/retry	authenticated	staff	deny	-
 POST	/admin/transcode/retranscode	authenticated	staff	deny	-
@@ -498,6 +519,7 @@ POST	/sr/auth/passkeys/register/begin	authenticated	self	deny	-
 POST	/sr/auth/passkeys/register/finish	authenticated	self	deny	-
 POST	/sr/auth/passkeys/verify/begin	authenticated	self	deny	-
 POST	/sr/auth/password	authenticated	self	deny	-
+POST	/staff/offers/{offer_id}/respond	authenticated	self	deny	-
 POST	/stage-instances	authenticated	membership	allow	-
 POST	/streams/{stream_key}/preview	authenticated	membership	allow	-
 POST	/submissions	authenticated	other	allow	-
@@ -542,6 +564,7 @@ PUT	/admin/library/chapters/{chapter_id}/pages	authenticated	staff	deny	-
 PUT	/admin/library/editions/{edition_id}	authenticated	staff	deny	-
 PUT	/admin/library/series/{series_id}	authenticated	staff	deny	-
 PUT	/admin/review/submissions/{submission_id}/items/{item_id}	authenticated	staff	deny	-
+PUT	/admin/staff/{account_id}/delegation	authenticated	staff	deny	-
 PUT	/admin/staff/{account_id}/roles	authenticated	staff	deny	-
 PUT	/admin/transcode/workers/{worker_id}/drain	authenticated	staff	deny	-
 PUT	/admin/tv/channels/{channel_id}	authenticated	staff	deny	-

@@ -173,16 +173,32 @@ pub async fn force_logout(
         .map_err(map_err)
 }
 
-reason_action!(
-    reset_2fa,
-    "/admin/accounts/{account_id}/reset-2fa",
-    "Remove TOTP, recovery codes and passkeys and end all sessions (`MANAGE_ACCOUNTS`).",
-    Reset2faReport,
-    |c: &StaffCtx, a, r: Option<String>| {
-        let (svc, caller) = (c.deps.clone(), c.caller.clone());
-        async move { svc.service.reset_2fa(&caller, a, r.as_deref()).await }
-    }
-);
+/// Remove TOTP, recovery codes and passkeys and end all sessions (`MANAGE_ACCOUNTS`).
+/// Needs a second factor checked within the last 15 minutes.
+#[utoipa::path(
+    post, path = "/admin/accounts/{account_id}/reset-2fa",
+    params(("account_id" = String, Path, description = "Account snowflake")),
+    request_body(content = ReasonBody, description = "Reason (or X-Audit-Log-Reason header)"),
+    responses((status = 200, body = Reset2faReport), (status = 400, body = ErrorBody),
+              (status = 401, body = ErrorBody), (status = 403, body = ErrorBody),
+              (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn reset_2fa(
+    ctx: StaffCtx,
+    Path(account_id): Path<String>,
+    headers: HeaderMap,
+    body: Option<Json<ReasonBody>>,
+) -> ApiResult<Json<Reset2faReport>> {
+    let r = reason(&headers, body.and_then(|Json(b)| b.reason).as_deref());
+    let aid = id(&account_id)?;
+    ctx.require_reauth().await?;
+    ctx.svc()
+        .reset_2fa(&ctx.caller, aid, r.as_deref())
+        .await
+        .map(Json)
+        .map_err(map_err)
+}
 
 reason_action!(
     delete_request,

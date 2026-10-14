@@ -758,6 +758,10 @@ impl<C: ChatMemory> super::join::InviteJoinRepository for MemoryInviteJoin<C> {
                     InviteStatus::Exhausted => return Err(SettingsError::InviteExhausted),
                     InviteStatus::Active => {}
                 }
+                // The Staff Server is joined through staff tooling only (admin-be).
+                if guilds.get(&inv.guild_id).is_some_and(|g| g.is_staff_guild) {
+                    return Err(SettingsError::StaffServerInvites);
+                }
                 if members
                     .iter()
                     .any(|m| m.guild_id == inv.guild_id && m.user_id == user)

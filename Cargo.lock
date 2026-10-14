@@ -5332,6 +5332,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sr-graph-wasm"
+version = "0.0.0"
+dependencies = [
+ "thiserror 2.0.21",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
+]
+
+[[package]]
 name = "sr-library"
 version = "0.0.0"
 dependencies = [
@@ -5481,6 +5490,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "axum",
+ "fs4",
  "futures",
  "http-body-util",
  "serde",

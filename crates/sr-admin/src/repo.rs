@@ -5,6 +5,7 @@
 
 use crate::{
     error::AdminResult,
+    ext::Delegation,
     model::{
         AccessLogEntry, AccessLogFilter, AccountDetail, AccountQuery, AccountState, AccountSummary,
         AuditEntry, BanCategory, BanOutcome, BanRecord, ChainReport, CreditLedger, DeleteRequest,
@@ -57,6 +58,20 @@ pub trait AdminRepository: Send + Sync {
     /// the previous owner stays staff with the highest non-Owner role.
     async fn transfer_owner(&self, new_owner: i64, audit: &AuditEntry) -> AdminResult<()>;
 
+    /// Record the Owner's delegation of appointment rights to a staff member (or replace its
+    /// ceiling). While it is open the delegate's standing includes `APPOINT_STAFF`.
+    async fn set_delegation(
+        &self,
+        account_id: i64,
+        max_permissions: u64,
+        by: i64,
+        reason: &str,
+        audit: &AuditEntry,
+    ) -> AdminResult<Delegation>;
+    /// Close the delegation. `NotFound` when there is none.
+    async fn remove_delegation(&self, account_id: i64, audit: &AuditEntry) -> AdminResult<()>;
+    async fn list_delegations(&self) -> AdminResult<Vec<Delegation>>;
+
     // ---- accounts -------------------------------------------------------
     /// Up to `q.limit` rows ordered by id; the service asks for one extra to build the cursor.
     async fn search_accounts(&self, q: &AccountQuery) -> AdminResult<Vec<AccountSummary>>;
@@ -71,6 +86,33 @@ pub trait AdminRepository: Send + Sync {
         audit: &AuditEntry,
     ) -> AdminResult<AccountSummary>;
     async fn revoke_sessions(&self, id: i64, audit: &AuditEntry) -> AdminResult<u64>;
+    /// Change the username and/or display name (`Some(None)` clears the display name).
+    /// `Conflict` when the username is taken.
+    async fn rename_account(
+        &self,
+        id: i64,
+        username: Option<&str>,
+        display_name: Option<Option<&str>>,
+        audit: &AuditEntry,
+    ) -> AdminResult<AccountSummary>;
+    /// Replace the email (it becomes unverified). `Conflict` when another account uses it.
+    async fn set_account_email(
+        &self,
+        id: i64,
+        email: &str,
+        audit: &AuditEntry,
+    ) -> AdminResult<AccountSummary>;
+    /// `flags = (flags | set) & !clear`.
+    async fn update_account_flags(
+        &self,
+        id: i64,
+        set: i64,
+        clear: i64,
+        audit: &AuditEntry,
+    ) -> AdminResult<AccountSummary>;
+    /// Make the current password unusable and end every session and trusted device, so the
+    /// owner must use "Forgot password". Returns the number of sessions ended.
+    async fn force_password_reset(&self, id: i64, audit: &AuditEntry) -> AdminResult<u64>;
     async fn reset_2fa(&self, id: i64, audit: &AuditEntry) -> AdminResult<Reset2faReport>;
     async fn create_delete_request(
         &self,

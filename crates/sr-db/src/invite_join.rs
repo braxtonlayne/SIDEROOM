@@ -120,6 +120,18 @@ impl InviteJoinRepository for PgInviteJoinRepo {
         classify(&inv, now_ms)?;
         let (guild, uid) = (i(inv.guild_id.get()), i(user.get()));
 
+        // Nobody joins the Staff Server by invite; staff arrive by appointment (doc 07 section 4).
+        let staff: bool = sqlx::query_scalar(
+            "SELECT COALESCE((SELECT is_staff_guild FROM guilds WHERE id = $1), FALSE)",
+        )
+        .bind(guild)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(db)?;
+        if staff {
+            return Err(SettingsError::StaffServerInvites);
+        }
+
         let member: bool = sqlx::query_scalar(
             "SELECT EXISTS (SELECT 1 FROM guild_members WHERE guild_id = $1 AND user_id = $2)",
         )
