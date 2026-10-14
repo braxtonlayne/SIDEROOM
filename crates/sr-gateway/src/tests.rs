@@ -359,6 +359,33 @@ async fn privileged_and_invalid_intents() {
 }
 
 #[tokio::test]
+async fn only_the_single_shard_is_accepted() {
+    let e = env();
+    // The default every library sends.
+    let mut c = connect(&e);
+    c.recv().await;
+    c.send(json!({"op": 2, "d": {"token": "bot:1", "intents": intents::GUILDS, "shard": [0, 1]}}))
+        .await;
+    c.expect_event("READY").await;
+    // Any other shard layout is refused with 4010.
+    for shard in [json!([0, 2]), json!([1, 2]), json!([1, 1]), json!([0])] {
+        let mut c = connect(&e);
+        c.recv().await;
+        c.send(
+            json!({"op": 2, "d": {"token": "bot:1", "intents": intents::GUILDS, "shard": shard}}),
+        )
+        .await;
+        assert_eq!(c.recv_close().await, close::INVALID_SHARD, "{shard}");
+    }
+    // User clients do not shard and are not asked to.
+    let mut c = connect(&e);
+    c.recv().await;
+    c.send(json!({"op": 2, "d": {"token": "user:1", "shard": [3, 9]}}))
+        .await;
+    c.expect_event("READY").await;
+}
+
+#[tokio::test]
 async fn fan_out_is_permission_filtered_per_recipient() {
     let e = env();
     let mut a = connect(&e);

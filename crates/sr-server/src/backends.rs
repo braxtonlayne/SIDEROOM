@@ -1,44 +1,51 @@
-//! Bot-token and OAuth-bearer backends.
+//! Bot-token and OAuth2 bearer backends.
 //!
-//! No bot or OAuth token tables exist yet (doc 11 schema is unwritten), so
-//! these reject every credential. They are explicit implementations so a
-//! guessed `Bot ...` header can never authenticate by accident; replace them
-//! when the application tables land (docs/open-questions.md). Session cookies
-//! are served by `sr_db::auth_repo::PgAuthRepo`, which `sr-api` accepts
-//! directly through its blanket `SessionBackend` impl.
+//! `NoBots` and `NoBearers` rejected every credential until the application tables existed
+//! (open questions 56 and 102). They are gone: [`AppsAuth`] authenticates `Authorization: Bot`
+//! against `bot_tokens` and `Authorization: Bearer` against `oauth2_tokens`, both by digest
+//! (docs/specs/developer-platform.md). Session cookies are served by
+//! `sr_db::auth_repo::PgAuthRepo`, which `sr-api` accepts directly through its blanket
+//! `SessionBackend` impl.
 
-use async_trait::async_trait;
-use sr_api::auth::{BackendError, BearerBackend, BearerIdentity, BotBackend, BotIdentity};
-
-/// Rejects every bot token.
-#[derive(Debug, Default, Clone, Copy)]
-pub struct NoBots;
-
-#[async_trait]
-impl BotBackend for NoBots {
-    async fn authenticate(&self, _token: &str) -> Result<Option<BotIdentity>, BackendError> {
-        Ok(None)
-    }
-}
-
-/// Rejects every OAuth2 bearer token.
-#[derive(Debug, Default, Clone, Copy)]
-pub struct NoBearers;
-
-#[async_trait]
-impl BearerBackend for NoBearers {
-    async fn authenticate(&self, _token: &str) -> Result<Option<BearerIdentity>, BackendError> {
-        Ok(None)
-    }
-}
+pub use sr_apps::auth::AppsAuth;
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sr_api::auth::{BearerBackend, BotBackend};
+    use sr_apps::{AppsService, memory::MemoryAppsRepo};
+    use std::sync::Arc;
 
+    fn auth() -> AppsAuth {
+        AppsAuth::new(Arc::new(AppsService::new(
+            Arc::new(MemoryAppsRepo::new()),
+            Arc::new(sr_core::SystemClock),
+            Arc::new(|| 1),
+        )))
+    }
+
+    /// With empty stores nothing authenticates, and a guessed header never does.
     #[tokio::test]
-    async fn rejects_everything() {
-        assert!(NoBots.authenticate("x").await.unwrap().is_none());
-        assert!(NoBearers.authenticate("x").await.unwrap().is_none());
+    async fn rejects_unknown_credentials() {
+        let a = auth();
+        assert!(BotBackend::authenticate(&a, "x").await.unwrap().is_none());
+        assert!(
+            BotBackend::authenticate(&a, "a.b.c")
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            BearerBackend::authenticate(&a, "x")
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            BearerBackend::authenticate(&a, &"A".repeat(43))
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 }

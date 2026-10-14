@@ -144,6 +144,8 @@ pub struct UserSummary {
     pub avatar_key: Option<String>,
     /// Profile banner hash, when one is set.
     pub banner_key: Option<String>,
+    /// A bot account (an application's bot user).
+    pub bot: bool,
 }
 
 /// Looks up the user fields that Discord embeds in member, ban and message

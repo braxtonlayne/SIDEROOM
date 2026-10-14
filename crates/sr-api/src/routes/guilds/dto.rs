@@ -121,6 +121,9 @@ pub struct UserRef {
     pub username: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub global_name: Option<String>,
+    /// Present (true) for bot accounts only.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub bot: bool,
 }
 
 impl UserRef {
@@ -130,6 +133,7 @@ impl UserRef {
             id: id.to_string(),
             username: None,
             global_name: None,
+            bot: false,
         }
     }
 
@@ -140,6 +144,7 @@ impl UserRef {
                 id: id.to_string(),
                 username: Some(u.username.clone()),
                 global_name: u.display_name.clone(),
+                bot: u.bot,
             },
             None => Self::new(id),
         }

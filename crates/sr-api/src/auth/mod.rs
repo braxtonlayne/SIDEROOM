@@ -10,10 +10,12 @@ mod backend;
 pub mod csrf;
 mod extract;
 pub mod memory;
+pub mod policy;
 
 pub use backend::{
     BackendError, BearerBackend, BearerIdentity, BotBackend, BotIdentity, SessionBackend,
 };
 pub use extract::{
-    AuthKind, BotOnly, Principal, SESSION_COOKIE, UserOnly, parse_cookie, session_cookie,
+    AuthKind, BotOnly, Principal, SESSION_COOKIE, SessionOnly, UserOnly, parse_cookie,
+    session_cookie,
 };

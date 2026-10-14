@@ -35,6 +35,18 @@ pub mod mail;
 pub mod memory;
 
 pub use common::{AuthConfig, AuthRouteError, AuthService, IdSource};
+
+/// Re-check a signed-in user's password before a sensitive operation outside `/sr/auth`
+/// (the developer portal). Shares the failure lockout with login.
+pub async fn confirm_password(
+    svc: &AuthService,
+    now_secs: i64,
+    user_id: i64,
+    password: &str,
+) -> Result<(), AuthRouteError> {
+    let account = mfa::current_account(svc, user_id).await?;
+    mfa::reauthenticate(svc, now_secs, &account, password).await
+}
 pub use discord::DiscordSettings;
 pub use store::{
     AccountRecord, AccountState, AuthStore, InviteState, RegisterRejection, RegisterTx, Registered,

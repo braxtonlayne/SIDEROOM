@@ -151,10 +151,12 @@ impl AuthStore for PgAuthStore {
     }
 
     async fn counted_accounts(&self) -> StoreResult<u64> {
-        let n: i64 = sqlx::query_scalar("SELECT count(*) FROM accounts WHERE state = 'active'")
-            .fetch_one(&self.pool)
-            .await
-            .map_err(store_err)?;
+        let n: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM accounts WHERE state = 'active' AND NOT is_bot",
+        )
+        .fetch_one(&self.pool)
+        .await
+        .map_err(store_err)?;
         Ok(u64::try_from(n).unwrap_or(0))
     }
 

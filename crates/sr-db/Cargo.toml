@@ -19,6 +19,7 @@ thiserror = "2"
 tracing = "0.1"
 sr-auth = { path = "../sr-auth" }
 sr-admin = { path = "../sr-admin" }
+sr-apps = { path = "../sr-apps" }
 sr-library = { path = "../sr-library" }
 sr-cinema = { path = "../sr-cinema" }
 sr-review = { path = "../sr-review" }

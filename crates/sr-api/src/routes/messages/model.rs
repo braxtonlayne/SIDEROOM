@@ -41,6 +41,9 @@ pub struct UserRef {
     pub username: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub global_name: Option<String>,
+    /// Present (true) for bot accounts only.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub bot: bool,
 }
 
 impl UserRef {
@@ -54,6 +57,7 @@ impl UserRef {
             id: id.to_string(),
             username,
             global_name,
+            bot: users.get(&id).is_some_and(|u| u.bot),
         }
     }
 }

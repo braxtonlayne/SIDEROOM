@@ -160,7 +160,7 @@ fn with_common_layers(app: Router<AppState>, state: &AppState) -> Router<AppStat
                         tracing::info_span!(
                             "request",
                             method = %req.method(),
-                            path = %req.uri().path(),
+                            path = %redact_path(req.uri().path()),
                             request_id,
                         )
                     })
@@ -181,4 +181,39 @@ fn with_common_layers(app: Router<AppState>, state: &AppState) -> Router<AppStat
                 state.settings().request_timeout,
             )),
     )
+}
+
+/// The request path for logs, with credentials carried in the path masked: the token of
+/// `/interactions/{id}/{token}/callback` and of `/webhooks/{id}/{token}[/...]`.
+fn redact_path(path: &str) -> String {
+    let mut segs: Vec<&str> = path.split('/').collect();
+    for i in 0..segs.len() {
+        if matches!(segs[i], "interactions" | "webhooks") && i + 2 < segs.len() {
+            segs[i + 2] = ":redacted:";
+        }
+    }
+    segs.join("/")
+}
+
+#[cfg(test)]
+mod redact_tests {
+    use super::redact_path;
+
+    #[test]
+    fn tokens_in_paths_are_masked() {
+        assert_eq!(
+            redact_path("/api/v1/interactions/123/SECRET/callback"),
+            "/api/v1/interactions/123/:redacted:/callback"
+        );
+        assert_eq!(
+            redact_path("/api/v10/webhooks/5/SECRET/messages/@original"),
+            "/api/v10/webhooks/5/:redacted:/messages/@original"
+        );
+        assert_eq!(redact_path("/api/v1/webhooks/5"), "/api/v1/webhooks/5");
+        assert_eq!(
+            redact_path("/api/v1/channels/1/messages"),
+            "/api/v1/channels/1/messages"
+        );
+        assert_eq!(redact_path("/api/v1/interactions"), "/api/v1/interactions");
+    }
 }

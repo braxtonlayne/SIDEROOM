@@ -33,6 +33,9 @@ pub struct UserObject {
     pub avatar: Option<String>,
     /// Profile banner hash (`/cdn/avatars/{id}/{hash}.png`), when one is set.
     pub banner: Option<String>,
+    /// Present (true) for bot accounts only.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub bot: bool,
 }
 
 impl UserObject {
@@ -44,6 +47,7 @@ impl UserObject {
                 global_name: u.display_name.clone(),
                 avatar: u.avatar_key.clone(),
                 banner: u.banner_key.clone(),
+                bot: u.bot,
             },
             None => Self {
                 id: id.to_string(),
@@ -51,6 +55,7 @@ impl UserObject {
                 global_name: None,
                 avatar: None,
                 banner: None,
+                bot: false,
             },
         }
     }

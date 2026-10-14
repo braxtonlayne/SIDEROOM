@@ -95,9 +95,10 @@ pub async fn register_with_invite(
     }
 
     lock::xact_lock(&mut tx, lock::CAP_LOCK).await?;
-    let active: i64 = sqlx::query_scalar("SELECT count(*) FROM accounts WHERE state = 'active'")
-        .fetch_one(&mut *tx)
-        .await?;
+    let active: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM accounts WHERE state = 'active' AND NOT is_bot")
+            .fetch_one(&mut *tx)
+            .await?;
     if active >= r.account_cap {
         return Ok(Err(Rejection::AtCap));
     }

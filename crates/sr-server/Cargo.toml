@@ -27,6 +27,7 @@ thiserror.workspace = true
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "postgres", "json"] }
 sr-admin = { path = "../sr-admin" }
 sr-api = { path = "../sr-api" }
+sr-apps = { path = "../sr-apps" }
 sr-auth = { path = "../sr-auth", features = ["webauthn"] }
 sr-chat = { path = "../sr-chat" }
 sr-core = { path = "../sr-core" }
@@ -50,5 +51,7 @@ tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "sig
 tracing = "0.1"
 
 [dev-dependencies]
+http-body-util = "0.1"
+tower = { version = "0.5", features = ["util"] }
 sr-chat = { path = "../sr-chat", features = ["memory"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }

@@ -29,6 +29,8 @@ pub enum AuthKind {
     Bearer {
         /// Granted scopes.
         scopes: Vec<String>,
+        /// The application the token was issued to.
+        application_id: i64,
     },
 }
 
@@ -46,7 +48,7 @@ impl Principal {
     /// bots are not scope-limited.
     pub fn require_scope(&self, scope: &str) -> Result<(), HttpError> {
         match &self.kind {
-            AuthKind::Bearer { scopes } if !scopes.iter().any(|s| s == scope) => Err(
+            AuthKind::Bearer { scopes, .. } if !scopes.iter().any(|s| s == scope) => Err(
                 ApiError::with_message(ErrorCode::MissingAccess, format!("Missing scope: {scope}"))
                     .into(),
             ),
@@ -92,12 +94,54 @@ impl FromRequestParts<AppState> for Principal {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
+        let p = Principal::resolve(parts, state).await?;
+        gate(state, parts, &p)?;
+        Ok(p)
+    }
+}
+
+impl Principal {
+    /// Authenticate without the route policy (the kind-specific extractors check the
+    /// credential kind first so their own error codes win, then call [`gate`]).
+    async fn resolve(parts: &mut Parts, state: &AppState) -> Result<Self, HttpError> {
         if let Some(p) = parts.extensions.get::<Principal>() {
             return Ok(p.clone());
         }
         let p = authenticate(parts, state).await?;
         parts.extensions.insert(p.clone());
         Ok(p)
+    }
+}
+
+/// The route policy of [`super::policy`]: bearers only on the listed routes and with the
+/// scope the route needs, bots never on the denied routes.
+fn gate(state: &AppState, parts: &Parts, p: &Principal) -> Result<(), HttpError> {
+    if !state.settings().enforce_credential_policy {
+        return Ok(());
+    }
+    let Some(matched) = parts.extensions.get::<axum::extract::MatchedPath>() else {
+        return Ok(());
+    };
+    match &p.kind {
+        AuthKind::Session { .. } => Ok(()),
+        AuthKind::Bot { .. } => {
+            if super::policy::bot_denied(&parts.method, matched.as_str()) {
+                Err(ErrorCode::BotsCannotUseThisEndpoint.into())
+            } else {
+                Ok(())
+            }
+        }
+        AuthKind::Bearer { .. } => {
+            match super::policy::bearer_scope(&parts.method, matched.as_str()) {
+                None => Err(ApiError::with_message(
+                    ErrorCode::MissingAccess,
+                    "This endpoint does not accept OAuth2 access tokens",
+                )
+                .into()),
+                Some("") => Ok(()),
+                Some(scope) => p.require_scope(scope),
+            }
+        }
     }
 }
 
@@ -128,7 +172,10 @@ async fn authenticate(parts: &Parts, state: &AppState) -> Result<Principal, Http
                 .ok_or_else(invalid)?;
             Ok(Principal {
                 user_id: id.user_id,
-                kind: AuthKind::Bearer { scopes: id.scopes },
+                kind: AuthKind::Bearer {
+                    scopes: id.scopes,
+                    application_id: id.application_id,
+                },
             })
         } else {
             Err(invalid())
@@ -185,11 +232,12 @@ impl FromRequestParts<AppState> for UserOnly {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let p = Principal::from_request_parts(parts, state).await?;
-        match p.kind {
-            AuthKind::Bot { .. } => Err(ErrorCode::BotsCannotUseThisEndpoint.into()),
-            _ => Ok(Self(p)),
+        let p = Principal::resolve(parts, state).await?;
+        if matches!(p.kind, AuthKind::Bot { .. }) {
+            return Err(ErrorCode::BotsCannotUseThisEndpoint.into());
         }
+        gate(state, parts, &p)?;
+        Ok(Self(p))
     }
 }
 
@@ -203,10 +251,35 @@ impl FromRequestParts<AppState> for BotOnly {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let p = Principal::from_request_parts(parts, state).await?;
+        let p = Principal::resolve(parts, state).await?;
+        if !matches!(p.kind, AuthKind::Bot { .. }) {
+            return Err(ErrorCode::OnlyBotsCanUseThisEndpoint.into());
+        }
+        gate(state, parts, &p)?;
+        Ok(Self(p))
+    }
+}
+
+/// Accepts only a browser session: owner-only operations (application management, the
+/// OAuth consent POST) stay with a signed-in human. Bots get 20001, bearer tokens 50001.
+#[derive(Debug, Clone)]
+pub struct SessionOnly(pub Principal);
+
+impl FromRequestParts<AppState> for SessionOnly {
+    type Rejection = HttpError;
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let p = Principal::resolve(parts, state).await?;
         match p.kind {
-            AuthKind::Bot { .. } => Ok(Self(p)),
-            _ => Err(ErrorCode::OnlyBotsCanUseThisEndpoint.into()),
+            AuthKind::Session { .. } => Ok(Self(p)),
+            AuthKind::Bot { .. } => Err(ErrorCode::BotsCannotUseThisEndpoint.into()),
+            AuthKind::Bearer { .. } => Err(ApiError::with_message(
+                ErrorCode::MissingAccess,
+                "This endpoint needs a signed-in session",
+            )
+            .into()),
         }
     }
 }

@@ -278,6 +278,10 @@ impl Conn {
             .authenticate(&id.token)
             .await
             .map_err(|_| Stop::Close(close::AUTHENTICATION_FAILED, "authentication failed"))?;
+        // There is no sharding: a bot may name shard [0, 1] (what libraries send by default).
+        if user.bot && id.shard.as_deref().is_some_and(|s| s != [0, 1].as_slice()) {
+            return Err(Stop::Close(close::INVALID_SHARD, "invalid shard"));
+        }
         // User clients send no intents and receive everything.
         let wanted = if user.bot {
             if id.intents & !intents::ALL_KNOWN != 0 {
