@@ -10516,6 +10516,1023 @@
         ]
       }
     },
+    "/admin/tv/blocks/{block_id}": {
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Remove one block from a schedule.",
+        "operationId": "admin_tv_remove_block",
+        "parameters": [
+          {
+            "name": "block_id",
+            "in": "path",
+            "description": "Block snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/tv/channels": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "All channels with their rules, disabled ones too.",
+        "operationId": "admin_tv_channels",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvAdminChannelList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Create a channel (`MANAGE_TV`). A taken number is 409.",
+        "operationId": "admin_tv_create_channel",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TvChannelInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvChannel"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/tv/channels/{channel_id}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "A channel with its rules.",
+        "operationId": "admin_tv_channel",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvChannel"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Replace the editable fields of a channel.",
+        "operationId": "admin_tv_update_channel",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TvChannelInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvChannel"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Delete a channel with its schedule.",
+        "operationId": "admin_tv_delete_channel",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/tv/channels/{channel_id}/blocks": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Place a programme at a time; what it overlaps is trimmed, split or removed.",
+        "operationId": "admin_tv_place_block",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TvPlaceInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvBlock"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/tv/channels/{channel_id}/now": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "What is on at any moment, from the stored blocks.",
+        "operationId": "admin_tv_now",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "at_ms",
+            "in": "query",
+            "description": "Unix milliseconds; default now (\"simulate now\").",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvNow"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Put a programme on the air now, cutting the block on air.",
+        "operationId": "admin_tv_set_now",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TvSetNowInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvBlock"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/tv/channels/{channel_id}/preview": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Generate a schedule from the current rules without storing anything.",
+        "operationId": "admin_tv_preview",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TvPreviewBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/tv/channels/{channel_id}/publish": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Regenerate the part of the schedule that has not started from the current rules and store it.",
+        "operationId": "admin_tv_publish",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TvPublishBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvPublished"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/tv/channels/{channel_id}/schedule": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Stored blocks of a channel overlapping a window (no lazy extension).",
+        "operationId": "admin_tv_schedule",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Unix milliseconds; default now.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Unix milliseconds; default `from` plus 24 hours; at most 7 days.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvBlockList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/tv/report": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "What aired in a window (at most 31 days).",
+        "operationId": "admin_tv_report",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Unix milliseconds; default 24 hours before `to`.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Unix milliseconds; default now (never later).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "channel",
+            "in": "query",
+            "description": "One channel id; default all.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/channels/{channel_id}": {
       "get": {
         "tags": [
@@ -27737,6 +28754,556 @@
         ]
       }
     },
+    "/tv/channels": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "Enabled channels by number, each with what is on now and next.",
+        "operationId": "tv_channels",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvChannelList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/tv/channels/{channel_id}": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "One channel with what is on now and next.",
+        "operationId": "tv_channel",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvChannel"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/tv/channels/{channel_id}/live/audio.m3u8": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "The live audio playlist (the default track of each programme).",
+        "operationId": "tv_live_audio",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/vnd.apple.mpegurl": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Age confirmation required (code 900011)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown channel, or off air",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/tv/channels/{channel_id}/live/master.m3u8": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "The live master playlist: the rungs every upcoming programme has, one audio group.",
+        "operationId": "tv_live_master",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/vnd.apple.mpegurl": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Age confirmation required (code 900011)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown channel, or off air",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/tv/channels/{channel_id}/live/v/{file}": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "The live video playlist of a rung: a sliding window of the segments on air. `file` is `{height}.m3u8`.\nFetching it counts the member as a viewer of the channel.",
+        "operationId": "tv_live_video",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "file",
+            "in": "path",
+            "description": "`{height}.m3u8`, for example `720.m3u8`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/vnd.apple.mpegurl": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Age confirmation required (code 900011)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown channel, or off air",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/tv/channels/{channel_id}/now": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "What is on a channel now, how far into it the wall clock is, and what comes next.",
+        "operationId": "tv_channel_now",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvNow"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/tv/channels/{channel_id}/tune": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "Open a channel: what is on and the API path of its live master playlist. A restricted programme on air\nanswers 403 with code 900011 until the account confirmed it is 18 or older (D-184).",
+        "operationId": "tv_channel_tune",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvTune"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Age confirmation required (code 900011)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/tv/guide": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "The programme guide for a window.",
+        "operationId": "tv_guide",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Start of the window, Unix milliseconds. Default: now rounded down to the half hour.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "End of the window, Unix milliseconds. Default: `from` plus 4 hours; at most 48 hours.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "channels",
+            "in": "query",
+            "description": "Comma-separated channel ids. Default: every enabled channel.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvGuide"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/tv/timezones": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "The time zones a channel can use.",
+        "operationId": "tv_timezones",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvTimezoneList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/users/@me": {
       "get": {
         "tags": [],
@@ -41502,6 +43069,923 @@
             "type": "string"
           }
         }
+      },
+      "TvAdminChannelList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TvChannel"
+            }
+          }
+        }
+      },
+      "TvBlock": {
+        "type": "object",
+        "description": "A block as the API shows it.",
+        "required": [
+          "id",
+          "channel_id",
+          "start_ms",
+          "end_ms",
+          "kind",
+          "title",
+          "age_restricted",
+          "playable",
+          "source"
+        ],
+        "properties": {
+          "age_restricted": {
+            "type": "boolean"
+          },
+          "channel_id": {
+            "type": "string"
+          },
+          "end_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "episode_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "episode_number": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "episode_title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TvBlockKind"
+          },
+          "media_kind": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TvMediaKind"
+              }
+            ]
+          },
+          "playable": {
+            "type": "boolean"
+          },
+          "season_number": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "source": {
+            "$ref": "#/components/schemas/TvBlockSource"
+          },
+          "start_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "title": {
+            "type": "string"
+          },
+          "title_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "TvBlockKind": {
+        "type": "string",
+        "enum": [
+          "program",
+          "filler",
+          "slate",
+          "off_air"
+        ]
+      },
+      "TvBlockList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TvBlock"
+            }
+          }
+        }
+      },
+      "TvBlockSource": {
+        "type": "string",
+        "enum": [
+          "generated",
+          "manual",
+          "override"
+        ]
+      },
+      "TvChannel": {
+        "type": "object",
+        "description": "A channel as the API shows it.",
+        "required": [
+          "id",
+          "number",
+          "name",
+          "kind",
+          "timezone",
+          "age_restricted",
+          "enabled",
+          "filler_policy",
+          "viewers"
+        ],
+        "properties": {
+          "age_restricted": {
+            "type": "boolean"
+          },
+          "call_sign": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "era_label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "filler_policy": {
+            "$ref": "#/components/schemas/TvFillerPolicy"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TvChannelKind"
+          },
+          "logo_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Signed `/cdn/...` URL of the logo."
+          },
+          "name": {
+            "type": "string"
+          },
+          "next": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TvBlock"
+              }
+            ]
+          },
+          "now": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TvBlock"
+              }
+            ]
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "rules": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TvRules",
+                "description": "Staff only."
+              }
+            ]
+          },
+          "seed": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Staff only: the shuffle seed."
+          },
+          "theme": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "viewers": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Distinct members who fetched a live playlist in the last 45 seconds.",
+            "minimum": 0
+          }
+        }
+      },
+      "TvChannelInput": {
+        "type": "object",
+        "description": "Staff input to create or replace a channel.",
+        "required": [
+          "number",
+          "name",
+          "kind"
+        ],
+        "properties": {
+          "age_restricted": {
+            "type": "boolean"
+          },
+          "call_sign": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "era_label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "filler_policy": {
+            "$ref": "#/components/schemas/TvFillerPolicy"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TvChannelKind"
+          },
+          "logo_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Storage key of the logo; must start with `tv/`."
+          },
+          "name": {
+            "type": "string"
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "rules": {
+            "$ref": "#/components/schemas/TvRules"
+          },
+          "theme": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timezone": {
+            "type": "string"
+          }
+        }
+      },
+      "TvChannelKind": {
+        "type": "string",
+        "enum": [
+          "rule_based",
+          "manual"
+        ]
+      },
+      "TvChannelList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TvChannel"
+            }
+          }
+        }
+      },
+      "TvDaypart": {
+        "type": "object",
+        "required": [
+          "name",
+          "start",
+          "end"
+        ],
+        "properties": {
+          "days": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            },
+            "description": "0 = Monday. Empty: every day."
+          },
+          "end": {
+            "type": "string",
+            "description": "`HH:MM` channel time; not after `start` means past midnight."
+          },
+          "fit": {
+            "$ref": "#/components/schemas/TvFit"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/TvPickMode"
+          },
+          "name": {
+            "type": "string"
+          },
+          "pool": {
+            "$ref": "#/components/schemas/TvPool"
+          },
+          "start": {
+            "type": "string",
+            "description": "`HH:MM` channel time."
+          }
+        }
+      },
+      "TvFillerPolicy": {
+        "type": "string",
+        "description": "What fills the time between programmes (spec section 4).",
+        "enum": [
+          "bumpers",
+          "next_program_early",
+          "slate",
+          "off_air"
+        ]
+      },
+      "TvFit": {
+        "type": "string",
+        "enum": [
+          "overrun",
+          "fit"
+        ]
+      },
+      "TvGuide": {
+        "type": "object",
+        "required": [
+          "from_ms",
+          "to_ms",
+          "now_ms",
+          "channels"
+        ],
+        "properties": {
+          "channels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TvGuideChannel"
+            }
+          },
+          "from_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "now_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "to_ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "TvGuideChannel": {
+        "type": "object",
+        "required": [
+          "channel",
+          "blocks"
+        ],
+        "properties": {
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TvBlock"
+            }
+          },
+          "channel": {
+            "$ref": "#/components/schemas/TvChannel"
+          }
+        }
+      },
+      "TvMediaKind": {
+        "type": "string",
+        "description": "The catalog kind of a title as Live TV sees it.",
+        "enum": [
+          "movie",
+          "series",
+          "anime"
+        ]
+      },
+      "TvNow": {
+        "type": "object",
+        "required": [
+          "channel_id",
+          "at_ms",
+          "viewers"
+        ],
+        "properties": {
+          "at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "channel_id": {
+            "type": "string"
+          },
+          "current": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TvBlock"
+              }
+            ]
+          },
+          "next": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TvBlock"
+              }
+            ]
+          },
+          "offset_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "How far into the current programme `at_ms` is."
+          },
+          "viewers": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "TvPickMode": {
+        "type": "string",
+        "enum": [
+          "shuffle",
+          "sequential"
+        ]
+      },
+      "TvPlaceInput": {
+        "type": "object",
+        "description": "Staff placement of a programme.",
+        "required": [
+          "title_id",
+          "start_ms"
+        ],
+        "properties": {
+          "end_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "episode_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "start_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "title_id": {
+            "type": "string"
+          }
+        }
+      },
+      "TvPool": {
+        "type": "object",
+        "description": "What may air in a daypart. Empty lists do not filter.",
+        "properties": {
+          "collection_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "genres": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "A title must have every genre (lower case)."
+          },
+          "kinds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TvMediaKind"
+            }
+          },
+          "max_runtime_min": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "min_runtime_min": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "restricted": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TvRestricted",
+                "description": "Default: exclude, or include on an age-restricted channel."
+              }
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "A title must have every tag (lower case)."
+          },
+          "title_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "year_from": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "year_to": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "TvPreview": {
+        "type": "object",
+        "required": [
+          "blocks",
+          "warnings"
+        ],
+        "properties": {
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TvBlock"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "TvPreviewBody": {
+        "type": "object",
+        "properties": {
+          "from_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "to_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "TvPublishBody": {
+        "type": "object",
+        "properties": {
+          "horizon_hours": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "1 to 336, default 168 (one week).",
+            "minimum": 0
+          }
+        }
+      },
+      "TvPublished": {
+        "type": "object",
+        "required": [
+          "from_ms",
+          "to_ms",
+          "written",
+          "removed",
+          "warnings"
+        ],
+        "properties": {
+          "from_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "removed": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "to_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "written": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "TvReport": {
+        "type": "object",
+        "required": [
+          "from_ms",
+          "to_ms",
+          "channels",
+          "items"
+        ],
+        "properties": {
+          "channels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TvReportChannel"
+            }
+          },
+          "from_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TvReportItem"
+            }
+          },
+          "to_ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "TvReportChannel": {
+        "type": "object",
+        "required": [
+          "channel_id",
+          "number",
+          "name",
+          "aired_ms",
+          "programmes",
+          "overrides"
+        ],
+        "properties": {
+          "aired_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Time on air with media (programmes and bumpers) in the window."
+          },
+          "channel_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "overrides": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "programmes": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "TvReportItem": {
+        "type": "object",
+        "required": [
+          "block",
+          "aired_ms"
+        ],
+        "properties": {
+          "aired_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "block": {
+            "$ref": "#/components/schemas/TvBlock"
+          }
+        }
+      },
+      "TvRestricted": {
+        "type": "string",
+        "description": "How a pool treats age-restricted titles.",
+        "enum": [
+          "exclude",
+          "include",
+          "only"
+        ]
+      },
+      "TvRules": {
+        "type": "object",
+        "properties": {
+          "dayparts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TvDaypart"
+            }
+          },
+          "grid_minutes": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Programmes start on this grid in channel time (0: back to back).",
+            "minimum": 0
+          },
+          "no_repeat_window": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Shuffle never repeats one of the last N picks (0 to 64).",
+            "minimum": 0
+          }
+        }
+      },
+      "TvSetNowInput": {
+        "type": "object",
+        "description": "\"On now\": start a programme at once.",
+        "required": [
+          "title_id"
+        ],
+        "properties": {
+          "episode_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "offset_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "title_id": {
+            "type": "string"
+          }
+        }
+      },
+      "TvTimezoneList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "TvTune": {
+        "type": "object",
+        "required": [
+          "channel_id",
+          "state",
+          "viewers"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": "string"
+          },
+          "current": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TvBlock"
+              }
+            ]
+          },
+          "master_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "API path of the master playlist."
+          },
+          "next": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TvBlock"
+              }
+            ]
+          },
+          "offset_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "state": {
+            "$ref": "#/components/schemas/TvTuneState"
+          },
+          "viewers": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "TvTuneState": {
+        "type": "string",
+        "enum": [
+          "live",
+          "off_air"
+        ]
       },
       "UnbanOutcome": {
         "type": "object",

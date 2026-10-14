@@ -51,3 +51,100 @@ Channel editor: number, call sign, name, era label, logo upload, kind, timezone,
 - [ ] With zero viewers, no CPU or I/O is attributable to the channel (verified by metrics).
 - [ ] An imported guide with 30% missing shows plays continuously with skips/filler and never errors.
 - [ ] Safari (native HLS) handles discontinuities between programs with different audio layouts.
+
+## 8. HTTP API as built (phase 8, crate `sr-tv`)
+
+Owner: `p8-livetv-be` (crate `sr-tv`, routes in `sr-api::routes::tv`, tables `tv_channels` and `tv_blocks`, migrations 0460 and 0461). This section is the contract the web agent codes against; it is written before the code and kept in step with it (changes are listed in `docs/dev/handoff/feat-p8-livetv-be.md`). The OpenAPI document is the exact contract; this is the reading guide. **Nothing here has played a real stream**: playlists are verified against fixture assets and the in-repo playlist parser only.
+
+Conventions (as Cinema): ids are Snowflakes and travel as decimal **strings**; timestamps are Unix **milliseconds** (`*_ms`); errors are the standard `{code, message}` body; every route needs a session (401 otherwise). Staff routes need a staff session holding `MANAGE_TV` (the Media Curator role has it); everything else is any signed-in member.
+
+### 8.1 Concepts and scope
+
+* A channel has a `kind`: `rule_based` (the schedule is generated from `rules`) or `manual` (staff place programmes). `imported_guide` (section 4), the guide import (TV-ADM-004), favorites, reminders and logo upload are **not built yet**; `logo_key` is stored and shown as a signed `/cdn/<key>` URL when set.
+* The schedule is a list of non-overlapping **blocks** per channel. Rule-based channels are extended lazily and deterministically (same rules, same catalog, same seed give the same blocks): a read that needs blocks the channel does not have yet generates and stores them, up to 24 h ahead. Staff can also preview and publish a schedule explicitly (8.5).
+* A block is `kind` `program` (a title or an episode from the Cinema catalog), `filler` (a short bumper), `slate` or `off_air` (no media; the client shows its own slate or colour bars). Gaps between programmes are filled by the channel's filler policy.
+* Times of day in rules are in the channel `timezone` (an IANA name from a built-in list, `GET /tv/timezones`; DST rules for US, EU and Australia). The guide itself is in absolute milliseconds; clients render viewer-local or channel time.
+* Age restriction (D-184): restricted titles are scheduled on any channel whose rules include them and are always listed; **opening a stream** (`tune`, the live playlists) whose window contains a restricted programme answers **403 code 900011** until `POST /sr/age-gate {over_18:true}`.
+
+### 8.2 Shapes
+
+```
+Block {
+  id, channel_id, start_ms, end_ms,
+  kind: "program"|"filler"|"slate"|"off_air",
+  title,                       // series or film title ("Off air" / "We'll be right back" for slates)
+  episode_title?, title_id?, episode_id?,
+  media_kind?: "movie"|"series"|"anime",
+  season_number?, episode_number?, year?,
+  age_restricted, playable,    // playable: a stream exists for it (not a slate)
+  source: "generated"|"manual"|"override"
+}
+Channel {
+  id, number, name, call_sign?, era_label?, theme?, logo_url?, kind, timezone,
+  age_restricted, enabled, filler_policy: "bumpers"|"next_program_early"|"slate"|"off_air",
+  viewers,                     // distinct members who fetched a live playlist in the last 45 s
+  now?: Block, next?: Block    // omitted by the admin list
+}
+```
+`ChannelInput` (staff) is `{number (1..9999, unique), name, call_sign?, era_label?, theme?, logo_key? ("tv/..."), enabled, kind, timezone, age_restricted, filler_policy, rules}`; the staff `Channel` additionally carries `rules` and `seed`.
+
+`rules`:
+```
+{ "grid_minutes": 30,             // programmes start on this grid in channel time; 0: back to back
+  "no_repeat_window": 8,          // shuffle: the last N picks are not repeated (0..64)
+  "dayparts": [ {
+      "name": "Late night",       // unique, keys the sequential cursor
+      "start": "22:00", "end": "02:00",   // channel time; end <= start wraps past midnight
+      "days": [0,1,2,3,4,5,6],            // 0 = Monday; empty = every day. A wrapped daypart belongs to the day it starts on
+      "mode": "shuffle"|"sequential",     // sequential keeps counting across days (series marathon: one title id)
+      "fit": "overrun"|"fit",             // overrun: the last programme may run past `end`; fit: only items that fit
+      "pool": { "kinds": ["movie","series","anime"], "genres": [], "tags": [], "title_ids": [],
+                "year_from": null, "year_to": null, "collection_id": null,
+                "min_runtime_min": null, "max_runtime_min": null,
+                "restricted": "exclude"|"include"|"only"   // default exclude; include on an age_restricted channel
+      } } ] }
+```
+Items without a runtime or an asset are never scheduled. Bumpers are published titles tagged `filler` with a runtime of at most 10 minutes.
+
+### 8.3 Member routes
+
+| Route | Result |
+|---|---|
+| `GET /tv/channels` | `{items: Channel[]}` enabled channels by number, each with `now` and `next` |
+| `GET /tv/channels/{id}` | `Channel` |
+| `GET /tv/channels/{id}/now` | `{channel_id, at_ms, offset_ms?, current?: Block, next?: Block, viewers}`; `offset_ms` is how far into the current block's programme the wall clock is (17 minutes in = 1020000) |
+| `GET /tv/guide?from=&to=&channels=` | `{from_ms, to_ms, now_ms, channels: [{channel: Channel (no now/next), blocks: Block[]}]}`; `from` default now rounded down to the half hour, `to` default `from`+4 h, window at most 48 h (400 otherwise), `channels` is a comma list of ids (default all enabled). Blocks overlapping the window are returned whole |
+| `GET /tv/timezones` | `{items: string[]}` |
+| `GET /tv/channels/{id}/tune` | `{channel_id, state: "live"\|"off_air", master_url?, current?: Block, offset_ms?, next?: Block, viewers}`; 403 `900011` when the airing programme is restricted and the age is unconfirmed. `master_url` is the API path to use as the HLS source (see 8.4) |
+
+### 8.4 Live HLS (`TV-HLS`)
+
+Session-authenticated playlists (the player's HLS loader must send cookies, same origin). Each request computes the playlist from the wall clock; no process runs per channel.
+
+| Route | Result |
+|---|---|
+| `GET /tv/channels/{id}/live/master.m3u8` | master playlist: one audio group (`aud`), variants for the heights **every programme of the next 3 hours has**, each `URI` `v/{height}.m3u8` (relative) |
+| `GET /tv/channels/{id}/live/v/{height}.m3u8` | live video media playlist: sliding window of 6 fMP4 segments ending at the segment on air now, signed `/cdn/hls/<asset>/...` URLs (6 h), `#EXT-X-MEDIA-SEQUENCE` and `#EXT-X-DISCONTINUITY-SEQUENCE` derived from stored per-block bases (identical for every viewer), `#EXT-X-DISCONTINUITY` plus a new `#EXT-X-MAP` at every programme boundary, `#EXT-X-PROGRAM-DATE-TIME` on the first segment and after every discontinuity, no `ENDLIST`. A programme without that exact height uses the nearest rung |
+| `GET /tv/channels/{id}/live/audio.m3u8` | the same window for each programme's default audio track |
+
+Content type `application/vnd.apple.mpegurl`, `Cache-Control: no-store`. Off air (no playable block now): 404 with the message "Channel is off air". Disabled channel: 404. Fetching a media playlist counts the member as a viewer of the channel (45 s). Joining 17 minutes into a programme starts 17 minutes in because the window is cut at the segment containing the wall-clock position.
+
+### 8.5 Staff routes (`/admin/tv/*`, `MANAGE_TV`)
+
+Every successful change is written to the staff access log: `tv.channel.create|update|delete`, `tv.schedule.publish`, `tv.block.place|remove`, `tv.now.set`.
+
+| Route | Body -> result |
+|---|---|
+| `GET /admin/tv/channels` | `{items: Channel[]}` all channels with `rules`, disabled too |
+| `POST /admin/tv/channels` | `ChannelInput` -> 201 `Channel` |
+| `GET\|PUT\|DELETE /admin/tv/channels/{id}` | `Channel`; `ChannelInput` -> `Channel`; 204 (deletes its schedule) |
+| `GET /admin/tv/channels/{id}/schedule?from=&to=` | `{items: Block[]}` stored blocks overlapping the window (default now to +24 h, at most 7 days), no lazy extension |
+| `POST /admin/tv/channels/{id}/preview` | `{from_ms?, to_ms?}` (default now to +24 h, at most 7 days) -> `{blocks: Block[], warnings: string[]}` generated from the *current* rules without storing anything, continuing the stored schedule's cursor (or starting at `from_ms`); `id` of preview blocks is `"0"` |
+| `POST /admin/tv/channels/{id}/publish` | `{horizon_hours?: 1..336 default 168}` -> `{from_ms, to_ms, written, removed, warnings}`: removes the **generated** blocks that have not started, generates again from the programme on air now, keeps manual and override blocks (generated blocks are trimmed around them) |
+| `POST /admin/tv/channels/{id}/blocks` | `{title_id, episode_id?, start_ms, end_ms?}` -> 201 `Block` places a programme (end defaults to start plus runtime); whatever it overlaps is trimmed, split or removed. `source` is `manual` on a manual channel, `override` otherwise |
+| `DELETE /admin/tv/blocks/{id}` | 204 |
+| `PUT /admin/tv/channels/{id}/now` | `{title_id, episode_id?, offset_ms?}` -> `Block`: starts that programme now (`offset_ms` into it), cutting the block on air; the schedule continues after it |
+| `GET /admin/tv/channels/{id}/now?at_ms=` | as the member `now` but at any moment (time travel, "simulate now"), reads stored blocks only |
+| `GET /admin/tv/report?from=&to=&channel=` | `{from_ms, to_ms, channels: [{channel_id, number, name, aired_ms, programmes, overrides}], items: [{block: Block, aired_ms}]}` what aired: stored blocks that started before now, clipped to the window (default the last 24 h, at most 31 days). Viewer figures are not persisted (D-101) |
+
+Staff validation errors are 400 `{code: 50035}` with a message; a taken channel number is 409.

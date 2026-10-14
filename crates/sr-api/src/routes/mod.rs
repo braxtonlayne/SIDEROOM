@@ -43,6 +43,7 @@ pub mod search;
 pub mod settings;
 pub mod social;
 pub mod threads;
+pub mod tv;
 pub mod voice;
 
 /// Extractor for a service registered on [`AppState`]. A missing service is a
@@ -103,6 +104,7 @@ pub fn all() -> Router<AppState> {
         .merge(review::router())
         .merge(voice::router())
         .merge(cinema_social::router())
+        .merge(tv::router())
 }
 
 /// Feature-owned routers (`Feature::routes()`), nested under
@@ -133,6 +135,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(review::openapi());
     doc.merge(voice::openapi());
     doc.merge(cinema_social::openapi());
+    doc.merge(tv::openapi());
     doc
 }
 

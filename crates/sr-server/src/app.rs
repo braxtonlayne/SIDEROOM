@@ -511,7 +511,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     )
     .with_events(Arc::new(sr_cinema_social::BusEvents::new(bus.clone())));
     let mut cinema_service = sr_cinema::CinemaService::new(
-        cinema_repo,
+        cinema_repo.clone(),
         cdn_signer.clone(),
         clock.clone(),
         id_src.clone(),
@@ -548,6 +548,24 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             .with_prefs(Arc::new(crate::settings_pg::PgCinemaPrefs::new(
                 pool.clone(),
             ))),
+    );
+
+    // Live TV (TV-ENG, TV-HLS): the schedule is stored in Postgres, pools come from the catalog repository,
+    // and the live playlists are cut from the same renditions the VOD player uses (`/cdn/hls/<asset>/...`).
+    let tv_deps = Arc::new(
+        routes::tv::TvDeps::new(
+            sr_tv::TvService::new(
+                Arc::new(sr_tv::pg::PgTvRepo::new(pool.clone())),
+                Arc::new(crate::tv_catalog::RepoTvCatalog::new(cinema_repo)),
+                clock.clone(),
+                id_src.clone(),
+            )
+            .with_live(sr_tv::LiveDeps {
+                source: Arc::new(crate::media_jobs::PgPlaybackSource::new(media_repo.clone())),
+                signer: Arc::new(cdn_signer.clone()),
+            }),
+        )
+        .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone()))),
     );
 
     // Cinema media (CIN-ING-004/010, CIN-DL-001): the Postgres job store behind the Worker API
@@ -773,6 +791,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(search_deps)
         .extension(library_deps)
         .extension(cinema_deps)
+        .extension(tv_deps)
         .extension(media_deps)
         .extension(cinema_social_deps)
         .extension(review_deps)
