@@ -29,6 +29,7 @@ import { MembersSection } from './sections/Members';
 import { ModerationSection } from './sections/Moderation';
 import { OverviewSection } from './sections/Overview';
 import { RolesSection } from './sections/Roles';
+import { ServerSupportSection } from './sections/ServerSupport';
 
 export interface SectionProps {
   guildId: string;
@@ -60,6 +61,13 @@ export const SECTIONS: SectionDef[] = [
     group: 'SERVER',
     visible: (v) => v.can('MANAGE_ROLES'),
     component: RolesSection,
+  },
+  {
+    id: 'support',
+    label: 'Server Support',
+    group: 'SERVER',
+    visible: (v) => v.isOwner || v.can('MANAGE_GUILD'),
+    component: ServerSupportSection,
   },
   {
     id: 'channels',

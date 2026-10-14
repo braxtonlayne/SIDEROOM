@@ -33,6 +33,7 @@ import { ProfileSection, useProfileForm } from './sections/Profile';
 import { TextImagesSection } from './sections/TextImages';
 import { SettingsSearch } from './SettingsSearch';
 import { WHATS_NEW } from './whatsNew';
+import { SupportSection } from '../../support/SupportPanel';
 
 export interface UserSettingsProps {
   section: UserSettingsSectionId;
@@ -157,6 +158,7 @@ function Body({
         {section === 'apps' && <AuthorizedAppsSection />}
         {section === 'devices' && <DevicesSection onSignedOut={onSignedOut} />}
         {section === 'connections' && <ConnectionsSection />}
+        {section === 'support' && <SupportSection />}
         {section === 'appearance' && <AppearanceSection {...prefsProps} />}
         {section === 'accessibility' && <AccessibilitySection {...prefsProps} />}
         {section === 'text' && <TextImagesSection {...prefsProps} />}
