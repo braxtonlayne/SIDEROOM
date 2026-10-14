@@ -491,6 +491,30 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             ))),
     );
 
+    // The review pipeline (REV-*): submissions of the Library kinds, reviewed by staff with
+    // REVIEW_READING and published through the same Library service. The submitter hears
+    // about every step as SR_SUBMISSION_UPDATE.
+    let review_deps = Arc::new(
+        routes::review::ReviewDeps::new(
+            sr_review::ReviewService::new(
+                Arc::new(sr_db::review_repo::PgReviewRepo::new(pool.clone())),
+                sr_review::KindRegistry::new()
+                    .with(Arc::new(sr_library::submissions::LibraryKind::series(
+                        library_service.clone(),
+                    )))
+                    .with(Arc::new(sr_library::submissions::LibraryKind::items(
+                        library_service.clone(),
+                    ))),
+                clock.clone(),
+                id_src.clone(),
+            )
+            .with_events(Arc::new(routes::review::BusReviewEvents::new(bus.clone()))),
+        )
+        .with_library(sr_library::submissions::LibraryDraftOps::new(
+            library_service.clone(),
+        )),
+    );
+
     // Index jobs for every message event, DMs included, and search cache
     // invalidation, from one firehose subscription (see `search_jobs`).
     let search_consumer = {
@@ -581,6 +605,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(Arc::new(AutoModGateHandle(settings_deps)))
         .extension(search_deps)
         .extension(library_deps)
+        .extension(review_deps)
         .extension(Arc::new(routes::media::MediaDeps::new(storage.clone())))
         .extension(Arc::new(routes::cdn::CdnDeps::new(
             storage.clone(),

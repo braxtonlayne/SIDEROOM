@@ -9,6 +9,8 @@ const HistoryPage = lazyNamed(() => import('./Pages'), 'HistoryPage');
 const SoonPage = lazyNamed(() => import('./Pages'), 'SoonPage');
 const Reader = lazyNamed(() => import('./reader/Reader'), 'Reader');
 const SeriesPage = lazyNamed(() => import('./SeriesPage'), 'SeriesPage');
+const SubmissionsPage = lazyNamed(() => import('./Submissions'), 'SubmissionsPage');
+const SubmissionPage = lazyNamed(() => import('./Submissions'), 'SubmissionPage');
 
 const LibraryRoot = lazyNamed(() => import('./LibraryRoot'), 'LibraryRoot');
 
@@ -19,7 +21,8 @@ const LibraryRoot = lazyNamed(() => import('./LibraryRoot'), 'LibraryRoot');
  *   /library/updates              Latest updates
  *   /library/s/:seriesId          Series page
  *   /library/r/:chapterId[/:page] Reader (full screen, outside the section chrome); ?s= is the series id
- *   /library/me, /history, /lists, /requests, /submissions, /upload
+ *   /library/me, /history, /lists, /requests, /upload
+ *   /library/submissions[?series=ID]  My submissions;  /library/submissions/:submissionId  one submission
  * The section owns its own query cache, the "Are you 18 or older?" gate and the theme.
  */
 export function createLibraryRoutes(root: AnyRoute) {
@@ -56,6 +59,27 @@ export function createLibraryRoutes(root: AnyRoute) {
       return <Reader chapterId={chapterId} page={page} />;
     },
   });
+  const submissions = createRoute({
+    getParentRoute: () => layout,
+    path: 'submissions',
+    validateSearch: (s: Record<string, unknown>): { series?: string } => {
+      // The router parses ?series=123 into a number.
+      const v =
+        typeof s.series === 'number' || typeof s.series === 'string' ? String(s.series) : '';
+      return /^[0-9]+$/.test(v) ? { series: v } : {};
+    },
+    component: function SubmissionsRoute() {
+      return <SubmissionsPage series={submissions.useSearch().series} />;
+    },
+  });
+  const submission = createRoute({
+    getParentRoute: () => layout,
+    path: 'submissions/$submissionId',
+    component: function SubmissionRoute() {
+      const { submissionId } = submission.useParams();
+      return <SubmissionPage key={submissionId} id={submissionId} />;
+    },
+  });
   return layout.addChildren([
     index,
     browse,
@@ -66,7 +90,8 @@ export function createLibraryRoutes(root: AnyRoute) {
     child('history', HistoryPage),
     child('lists', () => <SoonPage page="lists" />),
     child('requests', () => <SoonPage page="requests" />),
-    child('submissions', () => <SoonPage page="submissions" />),
+    submissions,
+    submission,
     child('upload', () => <SoonPage page="upload" />),
   ]);
 }

@@ -163,6 +163,8 @@ id, message_id, uploader_id, filename, content_type, size_bytes, width, height, 
 ## 8. Libraries (shared)
 
 ### Review pipeline (`sr-review`)
+**As built (migration 0290):** `submissions` (kind `library.series` / `library.items`, submitter_id, state: draft / submitted / in_review / changes_requested / approved / rejected / published / withdrawn, title, summary, ref_id, payload, flags, claimed_by + claim_expires_at (reviewer lease), decided_by, decision_reason, submitted_at / decided_at / published_at), `submission_items` (ref_id, label, position, state pending / approved / rejected / published, note; unique per submission and ref), `submission_events` (kind, actor_id, body, internal, data jsonb), `content_requests` + `content_request_votes`. The text below is the original plan; `contribution_credits` is still to do.
+
 `submissions` (id, kind: video_title / video_items / reading_series / reading_items / app / theme / extension / profile_layout, submitter_id, state: draft / processing / pending_review / changes_requested / approved / rejected / withdrawn, payload jsonb, reviewer_id, decision_note, decided_at), `submission_items` (per file/episode/chapter, so reviewers can approve individual items within a batch), `submission_events` (timeline/comments).
 
 ### Contribution counters

@@ -25,7 +25,8 @@ import { FeaturesSection } from './sections/Features';
 import { InvitesSection } from './sections/Invites';
 import { LimitsSection } from './sections/Limits';
 import { StaffSection } from './sections/Staff';
-import { JobsSection, ReviewQueuesSection, SystemSection } from './sections/System';
+import { ReviewSection } from './sections/Review';
+import { JobsSection, SystemSection } from './sections/System';
 import { AdminViewerContext, Loading, errorText, makeViewer, type AdminViewer } from './ui';
 
 interface SectionDef {
@@ -85,7 +86,7 @@ export const ADMIN_SECTIONS: SectionDef[] = [
         'REVIEW_PACKAGES',
         'MANAGE_DIRECTORY',
       ),
-    component: ReviewQueuesSection,
+    component: ReviewSection,
   },
   {
     id: 'jobs',

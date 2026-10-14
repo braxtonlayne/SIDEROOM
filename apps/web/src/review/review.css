@@ -1,0 +1,190 @@
+/* Review pipeline pieces shared by the Admin reviewer workspace and the Library submitter view.
+   Tokens come from @sideroom/ui (--ui-*). */
+.rv-muted {
+  color: var(--ui-text-muted);
+  font-size: 0.875rem;
+}
+.rv-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.rv-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rv-panel {
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+  background: var(--ui-bg-raised);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.rv-panel > h3,
+.rv-panel > h2 {
+  margin: 0 0 12px;
+  font-size: 1rem;
+}
+.rv-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+.rv-head h2 {
+  margin: 0;
+  font-size: 1.375rem;
+}
+.rv-kv {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  font-size: 0.875rem;
+}
+.rv-kv-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 200px) 1fr;
+  gap: 4px 16px;
+}
+.rv-kv dt {
+  color: var(--ui-text-muted);
+}
+.rv-kv dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.rv-timeline {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rv-event {
+  border-left: 3px solid var(--ui-border);
+  padding: 2px 0 2px 12px;
+}
+.rv-event-changes_requested,
+.rv-event-publish_failed {
+  border-left-color: var(--ui-warning, #c9972b);
+}
+.rv-event-rejected {
+  border-left-color: var(--ui-danger, #c4513d);
+}
+.rv-event-approved,
+.rv-event-published {
+  border-left-color: var(--ui-success, #3c9a63);
+}
+.rv-event-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: center;
+  font-size: 0.875rem;
+}
+.rv-event-body {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.rv-changes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.875rem;
+}
+.rv-changes li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+}
+.rv-before {
+  text-decoration: line-through;
+  color: var(--ui-text-muted);
+  overflow-wrap: anywhere;
+}
+.rv-after {
+  overflow-wrap: anywhere;
+}
+.sr-only-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.rv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.rv-table th,
+.rv-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--ui-border);
+  vertical-align: top;
+}
+.rv-table th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ui-text-muted);
+  font-weight: 600;
+}
+.rv-table-wrap {
+  overflow-x: auto;
+}
+.rv-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.rv-pages {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.rv-pages img {
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--ui-border);
+  background: var(--ui-bg-sunken, #0003);
+}
+.rv-banner {
+  border: 1px solid var(--ui-warning, #c9972b);
+  border-radius: var(--ui-radius-lg, 8px);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+.rv-banner p {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+}
+.rv-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+}
+.rv-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 560px;
+}
+.rv-file {
+  font-size: 0.875rem;
+}

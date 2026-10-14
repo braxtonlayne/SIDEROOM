@@ -4548,6 +4548,7 @@ dependencies = [
  "sr-features",
  "sr-library",
  "sr-markdown",
+ "sr-review",
  "sr-search",
  "sr-storage",
  "sr-unfurl",
@@ -4649,6 +4650,7 @@ dependencies = [
  "sr-chat",
  "sr-core",
  "sr-library",
+ "sr-review",
  "sr-storage",
  "thiserror 2.0.21",
  "tokio",
@@ -4723,6 +4725,7 @@ dependencies = [
  "serde_json",
  "sevenz-rust2",
  "sr-core",
+ "sr-review",
  "sr-storage",
  "tantivy",
  "tempfile",
@@ -4781,6 +4784,16 @@ version = "0.0.0"
 [[package]]
 name = "sr-review"
 version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "serde",
+ "serde_json",
+ "sr-core",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "utoipa",
+]
 
 [[package]]
 name = "sr-sdk"
@@ -4820,6 +4833,7 @@ dependencies = [
  "sr-features",
  "sr-gateway",
  "sr-library",
+ "sr-review",
  "sr-search",
  "sr-storage",
  "sr-unfurl",

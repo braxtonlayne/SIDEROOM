@@ -33,6 +33,7 @@ pub mod guilds;
 pub mod library;
 pub mod media;
 pub mod messages;
+pub mod review;
 pub mod search;
 pub mod settings;
 pub mod social;
@@ -91,6 +92,7 @@ pub fn all() -> Router<AppState> {
         .merge(search::router())
         .merge(threads::router())
         .merge(library::router())
+        .merge(review::router())
 }
 
 /// Feature-owned routers (`Feature::routes()`), nested under
@@ -116,6 +118,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(search::openapi());
     doc.merge(threads::openapi());
     doc.merge(library::openapi());
+    doc.merge(review::openapi());
     doc
 }
 

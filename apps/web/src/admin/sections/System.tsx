@@ -1,4 +1,4 @@
-import { Badge, Button, ConfirmDialog, EmptyState, Notice, Select } from '@sideroom/ui';
+import { Badge, Button, ConfirmDialog, EmptyState, Select } from '@sideroom/ui';
 import { useState } from 'react';
 import * as api from '../api';
 import {
@@ -179,22 +179,6 @@ export function JobsSection() {
             });
         }}
       />
-    </>
-  );
-}
-
-export function ReviewQueuesSection() {
-  return (
-    <>
-      <SectionHeader
-        title="Review queues"
-        description="Cinema, Library, Apps and Packages submissions land here."
-      />
-      <Notice variant="info" title="Not built yet">
-        The submissions backend (docs/specs/submissions-and-review.md) has no endpoints in this
-        release, so there is nothing to review here yet. Your role already carries the review
-        permissions; the tabs will appear when the queues ship.
-      </Notice>
     </>
   );
 }
