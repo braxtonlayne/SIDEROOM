@@ -26,6 +26,7 @@ pub type AuditObserver = Arc<dyn Fn(&AuditEntry) + Send + Sync>;
 /// Source of invite-code entropy.
 pub type Entropy = Arc<dyn Fn() -> u64 + Send + Sync>;
 
+mod application_ops;
 mod community_ops;
 mod expression_ops;
 mod tag_ops;

@@ -8,14 +8,16 @@ use sr_core::{ChannelId, EmojiId, GuildId, StickerId, UserId, WebhookId};
 
 use crate::repo::RepoResult;
 
+use super::applications::{Application, ApplicationForm, ApplicationStatus};
 use super::audit::{AuditEntry, AuditQuery};
 use super::automod::AutoModRule;
 use super::community::{CommunitySettings, Onboarding, WelcomeScreen};
 use super::expressions::{Emoji, Sticker};
 use super::invites::{GuildInvite, InviteStatus};
 use super::repo::{
-    AuditRepository, AutoModRepository, CommunityRepository, ExpressionRepository, GuideRepository,
-    InsightsRepository, InviteRepository, TagRepository, TemplateRepository, WebhookRepository,
+    ApplicationRepository, AuditRepository, AutoModRepository, CommunityRepository,
+    ExpressionRepository, GuideRepository, InsightsRepository, InviteRepository, TagRepository,
+    TemplateRepository, WebhookRepository,
 };
 use super::tags::GuildTag;
 use super::templates::GuildTemplate;
@@ -38,6 +40,8 @@ pub struct Store {
     pub primary_guilds: HashMap<UserId, GuildId>,
     pub insights: HashMap<GuildId, super::insights::Insights>,
     pub guides: HashMap<GuildId, super::guide::Guide>,
+    pub app_forms: HashMap<GuildId, ApplicationForm>,
+    pub applications: Vec<Application>,
 }
 
 #[derive(Default)]
@@ -403,6 +407,109 @@ impl CommunityRepository for MemorySettingsRepo {
     async fn put_welcome_screen(&self, screen: &WelcomeScreen) -> RepoResult<()> {
         self.with(|s| s.welcome.insert(screen.guild_id, screen.clone()));
         Ok(())
+    }
+}
+
+#[async_trait]
+impl ApplicationRepository for MemorySettingsRepo {
+    async fn get_application_form(&self, guild: GuildId) -> RepoResult<ApplicationForm> {
+        Ok(self.with(|s| {
+            s.app_forms.get(&guild).cloned().unwrap_or(ApplicationForm {
+                guild_id: guild,
+                ..Default::default()
+            })
+        }))
+    }
+
+    async fn put_application_form(&self, form: &ApplicationForm) -> RepoResult<()> {
+        self.with(|s| s.app_forms.insert(form.guild_id, form.clone()));
+        Ok(())
+    }
+
+    async fn insert_application(&self, app: &Application) -> RepoResult<bool> {
+        Ok(self.with(|s| {
+            let open = s.applications.iter().any(|a| {
+                a.guild_id == app.guild_id
+                    && a.user_id == app.user_id
+                    && a.status == ApplicationStatus::Pending
+            });
+            if !open {
+                s.applications.push(app.clone());
+            }
+            !open
+        }))
+    }
+
+    async fn get_application(&self, guild: GuildId, id: u64) -> RepoResult<Option<Application>> {
+        Ok(self.with(|s| {
+            s.applications
+                .iter()
+                .find(|a| a.guild_id == guild && a.id == id)
+                .cloned()
+        }))
+    }
+
+    async fn latest_application(
+        &self,
+        guild: GuildId,
+        user: UserId,
+    ) -> RepoResult<Option<Application>> {
+        Ok(self.with(|s| {
+            s.applications
+                .iter()
+                .filter(|a| a.guild_id == guild && a.user_id == user)
+                .max_by_key(|a| a.id)
+                .cloned()
+        }))
+    }
+
+    async fn list_applications(
+        &self,
+        guild: GuildId,
+        status: Option<ApplicationStatus>,
+        before: Option<u64>,
+        limit: usize,
+    ) -> RepoResult<Vec<Application>> {
+        Ok(self.with(|s| {
+            let mut v: Vec<Application> = s
+                .applications
+                .iter()
+                .filter(|a| a.guild_id == guild)
+                .filter(|a| status.is_none_or(|st| a.status == st))
+                .filter(|a| before.is_none_or(|b| a.id < b))
+                .cloned()
+                .collect();
+            v.sort_by_key(|a| std::cmp::Reverse(a.id));
+            v.truncate(limit);
+            v
+        }))
+    }
+
+    /// Records the decision only: the member rows live in the chat store, which this
+    /// repository cannot see.
+    async fn decide_application(
+        &self,
+        guild: GuildId,
+        id: u64,
+        approve: bool,
+        reviewer: UserId,
+        now_ms: i64,
+        reason: Option<&str>,
+    ) -> RepoResult<Option<Application>> {
+        Ok(self.with(|s| {
+            let a = s.applications.iter_mut().find(|a| {
+                a.guild_id == guild && a.id == id && a.status == ApplicationStatus::Pending
+            })?;
+            a.status = if approve {
+                ApplicationStatus::Approved
+            } else {
+                ApplicationStatus::Rejected
+            };
+            a.reviewed_by = Some(reviewer);
+            a.reviewed_at_ms = Some(now_ms);
+            a.rejection_reason = reason.filter(|_| !approve).map(str::to_owned);
+            Some(a.clone())
+        }))
     }
 }
 

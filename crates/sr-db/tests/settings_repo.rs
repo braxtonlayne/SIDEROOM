@@ -531,3 +531,117 @@ async fn guide_round_trips() {
     repo.put_guide(&cleared).await.unwrap();
     assert_eq!(repo.get_guide(gid).await.unwrap(), cleared);
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn applications_queue_and_approval_adds_the_member() {
+    use sr_chat::settings::applications::{
+        Answer, Application, ApplicationForm, ApplicationStatus, Question, QuestionKind,
+    };
+    use sr_chat::settings::repo::ApplicationRepository;
+
+    let pool = pool().await;
+    let test_ids = ids(10);
+    let repo = PgSettingsRepo::new(pool.clone());
+    let (gid, _, owner) = guild(&pool, &test_ids).await;
+    let applicant = account(&pool, &test_ids).await;
+    let other = account(&pool, &test_ids).await;
+
+    let form = ApplicationForm {
+        guild_id: gid,
+        enabled: true,
+        description: Some("hi".into()),
+        questions: vec![Question {
+            id: 5,
+            label: "Why?".into(),
+            kind: QuestionKind::Paragraph,
+            required: true,
+        }],
+    };
+    repo.put_application_form(&form).await.unwrap();
+    assert_eq!(repo.get_application_form(gid).await.unwrap(), form);
+
+    let app = |user: UserId| Application {
+        id: test_ids.generate().get(),
+        guild_id: gid,
+        user_id: user,
+        answers: vec![Answer {
+            question_id: 5,
+            value: "because".into(),
+        }],
+        status: ApplicationStatus::Pending,
+        created_at_ms: NOW,
+        reviewed_by: None,
+        reviewed_at_ms: None,
+        rejection_reason: None,
+    };
+    let first = app(applicant);
+    assert!(repo.insert_application(&first).await.unwrap());
+    assert!(
+        !repo.insert_application(&app(applicant)).await.unwrap(),
+        "one pending application per person"
+    );
+    let second = app(other);
+    assert!(repo.insert_application(&second).await.unwrap());
+
+    let pending = repo
+        .list_applications(gid, Some(ApplicationStatus::Pending), None, 10)
+        .await
+        .unwrap();
+    assert_eq!(
+        pending.iter().map(|a| a.id).collect::<Vec<_>>(),
+        vec![second.id, first.id],
+        "newest first"
+    );
+    let paged = repo
+        .list_applications(gid, None, Some(second.id), 10)
+        .await
+        .unwrap();
+    assert_eq!(paged.len(), 1);
+
+    // Rejecting keeps the person out and records the reason.
+    let rejected = repo
+        .decide_application(gid, second.id, false, owner, NOW + 5, Some("no"))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(rejected.status, ApplicationStatus::Rejected);
+    assert_eq!(rejected.rejection_reason.as_deref(), Some("no"));
+    assert_eq!(rejected.reviewed_by, Some(owner));
+    let member_of = |user: UserId| {
+        let pool = pool.clone();
+        async move {
+            sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS (SELECT 1 FROM guild_members WHERE guild_id = $1 AND user_id = $2)",
+            )
+            .bind(gid.get() as i64)
+            .bind(user.get() as i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+        }
+    };
+    assert!(!member_of(other).await);
+
+    // Approving adds the member in the same transaction; a decided one cannot be redone.
+    let approved = repo
+        .decide_application(gid, first.id, true, owner, NOW + 9, Some("ignored"))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(approved.status, ApplicationStatus::Approved);
+    assert_eq!(approved.rejection_reason, None);
+    assert_eq!(approved.reviewed_at_ms, Some(NOW + 9));
+    assert!(member_of(applicant).await);
+    assert!(
+        repo.decide_application(gid, first.id, false, owner, NOW + 10, None)
+            .await
+            .unwrap()
+            .is_none()
+    );
+
+    // A rejected person may apply again.
+    assert!(repo.insert_application(&app(other)).await.unwrap());
+    let latest = repo.latest_application(gid, other).await.unwrap().unwrap();
+    assert_eq!(latest.status, ApplicationStatus::Pending);
+}

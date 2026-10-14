@@ -6,6 +6,7 @@ use sr_core::{EmojiId, GuildId, StickerId, UserId, WebhookId};
 
 use crate::repo::RepoResult;
 
+use super::applications::{Application, ApplicationForm, ApplicationStatus};
 use super::audit::{AuditEntry, AuditQuery};
 use super::automod::AutoModRule;
 use super::community::{CommunitySettings, Onboarding, WelcomeScreen};
@@ -113,6 +114,42 @@ pub trait TagRepository: Send + Sync {
 }
 
 #[async_trait]
+pub trait ApplicationRepository: Send + Sync {
+    /// A disabled, empty form when nothing was saved yet.
+    async fn get_application_form(&self, guild: GuildId) -> RepoResult<ApplicationForm>;
+    async fn put_application_form(&self, form: &ApplicationForm) -> RepoResult<()>;
+    /// Store a new pending application. `false` when the user already has one pending.
+    async fn insert_application(&self, app: &Application) -> RepoResult<bool>;
+    async fn get_application(&self, guild: GuildId, id: u64) -> RepoResult<Option<Application>>;
+    /// The user's most recent application to the guild.
+    async fn latest_application(
+        &self,
+        guild: GuildId,
+        user: UserId,
+    ) -> RepoResult<Option<Application>>;
+    /// Newest first; `before` is an application id to page from.
+    async fn list_applications(
+        &self,
+        guild: GuildId,
+        status: Option<ApplicationStatus>,
+        before: Option<u64>,
+        limit: usize,
+    ) -> RepoResult<Vec<Application>>;
+    /// Decide a pending application. Approving also adds the member (the Postgres
+    /// implementation does both in one transaction). `None` when it is unknown or no
+    /// longer pending.
+    async fn decide_application(
+        &self,
+        guild: GuildId,
+        id: u64,
+        approve: bool,
+        reviewer: UserId,
+        now_ms: i64,
+        reason: Option<&str>,
+    ) -> RepoResult<Option<Application>>;
+}
+
+#[async_trait]
 pub trait GuideRepository: Send + Sync {
     /// An empty guide when nothing was saved yet.
     async fn get_guide(&self, guild: GuildId) -> RepoResult<Guide>;
@@ -138,6 +175,7 @@ pub trait SettingsRepository:
     + TagRepository
     + InsightsRepository
     + GuideRepository
+    + ApplicationRepository
 {
 }
 impl<
@@ -150,7 +188,8 @@ impl<
         + CommunityRepository
         + TagRepository
         + InsightsRepository
-        + GuideRepository,
+        + GuideRepository
+        + ApplicationRepository,
 > SettingsRepository for T
 {
 }

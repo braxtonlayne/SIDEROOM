@@ -10,6 +10,9 @@ use sqlx::{PgPool, Row};
 
 use sr_chat::error::RepoError;
 use sr_chat::repo::RepoResult;
+use sr_chat::settings::applications::{
+    Answer, Application, ApplicationForm, ApplicationStatus, Question,
+};
 use sr_chat::settings::audit::{AuditAction, AuditChange, AuditEntry, AuditQuery};
 use sr_chat::settings::automod::{Action, AutoModRule, EventType, Trigger};
 use sr_chat::settings::community::{
@@ -20,8 +23,9 @@ use sr_chat::settings::guide::{Guide, GuideResource, GuideTodo};
 use sr_chat::settings::insights::{Insights, InsightsDay, TOP_CHANNELS, TopChannel};
 use sr_chat::settings::invites::GuildInvite;
 use sr_chat::settings::repo::{
-    AuditRepository, AutoModRepository, CommunityRepository, ExpressionRepository, GuideRepository,
-    InsightsRepository, InviteRepository, TagRepository, TemplateRepository, WebhookRepository,
+    ApplicationRepository, AuditRepository, AutoModRepository, CommunityRepository,
+    ExpressionRepository, GuideRepository, InsightsRepository, InviteRepository, TagRepository,
+    TemplateRepository, WebhookRepository,
 };
 use sr_chat::settings::tags::GuildTag;
 use sr_chat::settings::templates::{GuildTemplate, TemplateSnapshot};
@@ -1319,5 +1323,183 @@ impl GuideRepository for PgSettingsRepo {
         .await
         .map_err(db)?;
         Ok(())
+    }
+}
+
+fn application_from(r: &PgRow) -> RepoResult<Application> {
+    let answers: Json<Vec<Answer>> = get(r, "answers")?;
+    let status: String = get(r, "status")?;
+    let reviewed_by: Option<i64> = get(r, "reviewed_by")?;
+    Ok(Application {
+        id: u(get(r, "id")?),
+        guild_id: GuildId::new(u(get(r, "guild_id")?)),
+        user_id: UserId::new(u(get(r, "user_id")?)),
+        answers: answers.0,
+        status: ApplicationStatus::parse(&status)
+            .ok_or_else(|| RepoError(format!("bad application status {status}")))?,
+        created_at_ms: get(r, "created_ms")?,
+        reviewed_by: reviewed_by.map(|v| UserId::new(u(v))),
+        reviewed_at_ms: get(r, "reviewed_ms")?,
+        rejection_reason: get(r, "rejection_reason")?,
+    })
+}
+
+const APPLICATION_COLS: &str = "id, guild_id, user_id, answers, status, reviewed_by, \
+     rejection_reason, (extract(epoch FROM created_at) * 1000)::bigint AS created_ms, \
+     (extract(epoch FROM reviewed_at) * 1000)::bigint AS reviewed_ms";
+
+#[async_trait]
+impl ApplicationRepository for PgSettingsRepo {
+    async fn get_application_form(&self, guild: GuildId) -> RepoResult<ApplicationForm> {
+        let row = sqlx::query(
+            "SELECT enabled, description, questions FROM guild_application_forms WHERE guild_id = $1",
+        )
+        .bind(i(guild.get()))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        let Some(r) = row else {
+            return Ok(ApplicationForm {
+                guild_id: guild,
+                ..ApplicationForm::default()
+            });
+        };
+        let questions: Json<Vec<Question>> = get(&r, "questions")?;
+        Ok(ApplicationForm {
+            guild_id: guild,
+            enabled: get(&r, "enabled")?,
+            description: get(&r, "description")?,
+            questions: questions.0,
+        })
+    }
+
+    async fn put_application_form(&self, f: &ApplicationForm) -> RepoResult<()> {
+        sqlx::query(
+            "INSERT INTO guild_application_forms (guild_id, enabled, description, questions) \
+             VALUES ($1, $2, $3, $4) \
+             ON CONFLICT (guild_id) DO UPDATE SET enabled = EXCLUDED.enabled, \
+               description = EXCLUDED.description, questions = EXCLUDED.questions, \
+               updated_at = now()",
+        )
+        .bind(i(f.guild_id.get()))
+        .bind(f.enabled)
+        .bind(f.description.as_deref())
+        .bind(Json(&f.questions))
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
+
+    async fn insert_application(&self, a: &Application) -> RepoResult<bool> {
+        let n = sqlx::query(
+            "INSERT INTO guild_applications (id, guild_id, user_id, answers, status, created_at) \
+             VALUES ($1, $2, $3, $4, 'pending', to_timestamp($5::double precision / 1000.0)) \
+             ON CONFLICT DO NOTHING",
+        )
+        .bind(i(a.id))
+        .bind(i(a.guild_id.get()))
+        .bind(i(a.user_id.get()))
+        .bind(Json(&a.answers))
+        .bind(a.created_at_ms)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?
+        .rows_affected();
+        Ok(n > 0)
+    }
+
+    async fn get_application(&self, guild: GuildId, id: u64) -> RepoResult<Option<Application>> {
+        let row = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT {APPLICATION_COLS} FROM guild_applications WHERE guild_id = $1 AND id = $2"
+        )))
+        .bind(i(guild.get()))
+        .bind(i(id))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        row.as_ref().map(application_from).transpose()
+    }
+
+    async fn latest_application(
+        &self,
+        guild: GuildId,
+        user: UserId,
+    ) -> RepoResult<Option<Application>> {
+        let row = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT {APPLICATION_COLS} FROM guild_applications \
+             WHERE guild_id = $1 AND user_id = $2 ORDER BY id DESC LIMIT 1"
+        )))
+        .bind(i(guild.get()))
+        .bind(i(user.get()))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        row.as_ref().map(application_from).transpose()
+    }
+
+    async fn list_applications(
+        &self,
+        guild: GuildId,
+        status: Option<ApplicationStatus>,
+        before: Option<u64>,
+        limit: usize,
+    ) -> RepoResult<Vec<Application>> {
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT {APPLICATION_COLS} FROM guild_applications \
+             WHERE guild_id = $1 AND ($2::text IS NULL OR status = $2) \
+               AND ($3::bigint IS NULL OR id < $3) ORDER BY id DESC LIMIT $4"
+        )))
+        .bind(i(guild.get()))
+        .bind(status.map(ApplicationStatus::as_str))
+        .bind(before.map(i))
+        .bind(i64::try_from(limit).unwrap_or(100))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter().map(application_from).collect()
+    }
+
+    async fn decide_application(
+        &self,
+        guild: GuildId,
+        id: u64,
+        approve: bool,
+        reviewer: UserId,
+        now_ms: i64,
+        reason: Option<&str>,
+    ) -> RepoResult<Option<Application>> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        let row = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "UPDATE guild_applications SET status = $3, reviewed_by = $4, \
+               reviewed_at = to_timestamp($5::double precision / 1000.0), rejection_reason = $6 \
+             WHERE guild_id = $1 AND id = $2 AND status = 'pending' \
+             RETURNING {APPLICATION_COLS}"
+        )))
+        .bind(i(guild.get()))
+        .bind(i(id))
+        .bind(if approve { "approved" } else { "rejected" })
+        .bind(i(reviewer.get()))
+        .bind(now_ms)
+        .bind(reason.filter(|_| !approve))
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(db)?;
+        let Some(row) = row else { return Ok(None) };
+        let app = application_from(&row)?;
+        if approve {
+            // The applicant may have joined another way meanwhile; the join is idempotent.
+            sqlx::query(
+                "INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2) \
+                 ON CONFLICT DO NOTHING",
+            )
+            .bind(i(guild.get()))
+            .bind(i(app.user_id.get()))
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        }
+        tx.commit().await.map_err(db)?;
+        Ok(Some(app))
     }
 }

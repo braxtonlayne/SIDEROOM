@@ -21,6 +21,7 @@
 //! joined member through [`join::MemberJoiner`] (the composition root wires the
 //! bus-backed [`join::InviteMemberJoiner`]).
 
+pub mod applications;
 pub mod audit;
 pub mod automod;
 pub mod automod_gate;
@@ -71,6 +72,7 @@ pub fn router() -> Router<AppState> {
         .merge(tags::routes())
         .merge(insights::routes())
         .merge(guide::routes())
+        .merge(applications::routes())
 }
 
 /// OpenAPI fragment for these routes; merge into [`crate::openapi::base`].
@@ -134,6 +136,12 @@ pub fn router() -> Router<AppState> {
         insights::get_insights,
         guide::get_guide,
         guide::put_guide,
+        applications::get_form,
+        applications::put_form,
+        applications::submit_application,
+        applications::get_my_application,
+        applications::list_applications,
+        applications::decide_application,
     ),
     components(schemas(
         ErrorBody,
@@ -183,6 +191,14 @@ pub fn router() -> Router<AppState> {
         guide::GuideTodoDto,
         guide::GuideResourceDto,
         guide::PutGuideBody,
+        applications::QuestionDto,
+        applications::PutFormBody,
+        applications::FormObject,
+        applications::AnswerDto,
+        applications::ApplicationObject,
+        applications::AnswerBody,
+        applications::SubmitBody,
+        applications::DecisionBody,
         insights::InsightsDayObject,
         insights::InsightsChannelObject,
         crate::routes::social::model::PrimaryGuildObject,

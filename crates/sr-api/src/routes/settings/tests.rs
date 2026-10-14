@@ -2486,3 +2486,134 @@ async fn server_guide_is_edited_by_managers_and_read_by_members_while_enabled() 
     assert_eq!(g["enabled"], true);
     assert_eq!(e.get(&url, "carol").await.0, StatusCode::FORBIDDEN);
 }
+
+#[tokio::test]
+async fn membership_applications_flow() {
+    let e = env().await;
+    let form = e.g("/sr/applications/form");
+    let apps = e.g("/sr/applications");
+
+    // Closed: outsiders cannot see the form, cannot apply.
+    assert_eq!(e.get(&form, "carol").await.0, StatusCode::FORBIDDEN);
+    assert_eq!(
+        e.post(&apps, "carol", json!({"answers": []})).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    // Only managers set it up.
+    let body = json!({"enabled": true, "description": "Tell us about you",
+        "questions": [{"label": "Why join?", "kind": "paragraph", "required": true},
+                      {"label": "Handle", "kind": "short"}]});
+    assert_eq!(
+        e.put(&form, "bob", body.clone()).await.0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        e.put(
+            &form,
+            "mod",
+            json!({"questions": [{"label": "x", "kind": "huge"}]})
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    let (s, f) = e.put(&form, "mod", body).await;
+    assert_eq!(s, StatusCode::OK, "{f}");
+    let q1 = f["questions"][0]["id"].as_str().unwrap().to_owned();
+    assert_eq!(f["questions"][1]["kind"], "short");
+
+    // Open: an outsider reads the form and applies; members cannot.
+    assert_eq!(
+        e.get(&form, "carol").await.1["description"],
+        "Tell us about you"
+    );
+    assert_eq!(
+        e.post(
+            &apps,
+            "bob",
+            json!({"answers": [{"question_id": q1, "value": "x"}]})
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        e.post(&apps, "carol", json!({"answers": []})).await.0,
+        StatusCode::BAD_REQUEST,
+        "a required question is unanswered"
+    );
+    let (s, a) = e
+        .post(
+            &apps,
+            "carol",
+            json!({"answers": [{"question_id": q1, "value": "I like manga"}]}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{a}");
+    assert_eq!(a["status"], "pending");
+    let app_id = a["id"].as_str().unwrap().to_owned();
+    // One at a time.
+    assert_eq!(
+        e.post(
+            &apps,
+            "carol",
+            json!({"answers": [{"question_id": q1, "value": "again"}]})
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        e.get(&format!("{apps}/@me"), "carol").await.1["id"],
+        app_id.as_str()
+    );
+
+    // The queue is for managers.
+    assert_eq!(e.get(&apps, "bob").await.0, StatusCode::FORBIDDEN);
+    let (s, q) = e.get(&format!("{apps}?status=pending"), "mod").await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(q.as_array().unwrap().len(), 1);
+    assert_eq!(q[0]["answers"][0]["value"], "I like manga");
+    assert_eq!(
+        e.get(&format!("{apps}?status=bogus"), "mod").await.0,
+        StatusCode::BAD_REQUEST
+    );
+
+    // Reject, then apply again and get approved; a decided application stays decided.
+    let decision = format!("{apps}/{app_id}/decision");
+    assert_eq!(
+        e.post(&decision, "bob", json!({"approve": false})).await.0,
+        StatusCode::FORBIDDEN
+    );
+    let (s, r) = e
+        .post(
+            &decision,
+            "mod",
+            json!({"approve": false, "reason": "not now"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    assert_eq!(r["status"], "rejected");
+    assert_eq!(r["rejection_reason"], "not now");
+    assert_eq!(
+        e.post(&decision, "mod", json!({"approve": true})).await.0,
+        StatusCode::NOT_FOUND
+    );
+    let (_, a2) = e
+        .post(
+            &apps,
+            "carol",
+            json!({"answers": [{"question_id": q1, "value": "second try"}]}),
+        )
+        .await;
+    let (s, ok) = e
+        .post(
+            &format!("{apps}/{}/decision", a2["id"].as_str().unwrap()),
+            "mod",
+            json!({"approve": true}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{ok}");
+    assert_eq!(ok["status"], "approved");
+    assert_eq!(ok["reviewed_by"], MOD.to_string().as_str());
+}

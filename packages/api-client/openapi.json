@@ -27214,6 +27214,483 @@
         ]
       }
     },
+    "/guilds/{guild_id}/sr/applications": {
+      "get": {
+        "tags": [
+          "applications"
+        ],
+        "summary": "The review queue, newest first (`MANAGE_GUILD`).",
+        "operationId": "list_applications",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "path",
+            "description": "`pending`, `approved` or `rejected`; all when absent.",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "before",
+            "in": "path",
+            "description": "Application id to page from (newest first).",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "path",
+            "description": "1 to 100 (default 50).",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApplicationObject"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "applications"
+        ],
+        "summary": "Apply to join a server that has applications open. One application at a time.",
+        "operationId": "submit_application",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/sr/applications/@me": {
+      "get": {
+        "tags": [
+          "applications"
+        ],
+        "summary": "The caller's latest application to this server (404 when they never applied).",
+        "operationId": "get_my_application",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationObject"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/sr/applications/form": {
+      "get": {
+        "tags": [
+          "applications"
+        ],
+        "summary": "The applications form. Open to anyone signed in while applications are on;\nmanagers always see it.",
+        "operationId": "get_form",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "applications"
+        ],
+        "summary": "Save the form (`MANAGE_GUILD`): up to 5 questions.",
+        "operationId": "put_form",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Audit-Log-Reason",
+            "in": "header",
+            "description": "Stored in the audit log",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutFormBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/sr/applications/{application_id}/decision": {
+      "post": {
+        "tags": [
+          "applications"
+        ],
+        "summary": "Approve or reject a pending application (`MANAGE_GUILD`). Approving adds the member.",
+        "operationId": "decide_application",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/sr/community": {
       "get": {
         "tags": [
@@ -27317,6 +27794,230 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/sr/guide": {
+      "get": {
+        "tags": [
+          "guide"
+        ],
+        "summary": "The Server Guide. Members see it while it is enabled; managers always.",
+        "operationId": "get_guide",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "guide"
+        ],
+        "summary": "Replace the Server Guide content (`MANAGE_GUILD`): a welcome message (300), up to\n5 to-dos and up to 10 resource pages.",
+        "operationId": "put_guide",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Audit-Log-Reason",
+            "in": "header",
+            "description": "Stored in the audit log",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutGuideBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/sr/insights": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Basic Server Insights (`MANAGE_GUILD` or `VIEW_GUILD_INSIGHTS`).",
+        "operationId": "get_insights",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "days",
+            "in": "path",
+            "description": "How many completed days to return, 1 to 90 (default 30).",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsightsObject"
                 }
               }
             }
@@ -38443,6 +39144,36 @@
           }
         }
       },
+      "AnswerBody": {
+        "type": "object",
+        "required": [
+          "question_id",
+          "value"
+        ],
+        "properties": {
+          "question_id": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      },
+      "AnswerDto": {
+        "type": "object",
+        "required": [
+          "question_id",
+          "value"
+        ],
+        "properties": {
+          "question_id": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      },
       "AppVersionAdmin": {
         "allOf": [
           {
@@ -38534,118 +39265,54 @@
       },
       "ApplicationObject": {
         "type": "object",
-        "description": "An application. The client secret is never part of it.",
         "required": [
           "id",
-          "name",
-          "description",
-          "tags",
-          "bot_public",
-          "bot_require_code_grant",
-          "flags",
-          "release_state",
-          "owner",
-          "bot",
-          "privileged_intents",
+          "guild_id",
+          "user",
+          "answers",
+          "status",
           "created_at"
         ],
         "properties": {
-          "bot": {
-            "$ref": "#/components/schemas/BotUserObject"
-          },
-          "bot_public": {
-            "type": "boolean"
-          },
-          "bot_require_code_grant": {
-            "type": "boolean"
-          },
-          "client_secret_hint": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Last four characters of the client secret (owner view only)."
+          "answers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnswerDto"
+            }
           },
           "created_at": {
             "type": "string"
           },
-          "description": {
+          "guild_id": {
             "type": "string"
-          },
-          "flags": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Discord application flags (`GATEWAY_*` intent bits).",
-            "minimum": 0
-          },
-          "icon": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Icon hash, served at `/cdn/avatars/{bot.id}/{hash}.png`."
           },
           "id": {
             "type": "string"
           },
-          "install_params": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/InstallParamsObject",
-                "description": "Owner view only."
-              }
-            ]
-          },
-          "name": {
-            "type": "string"
-          },
-          "owner": {
-            "$ref": "#/components/schemas/OwnerObject"
-          },
-          "privacy_policy_url": {
+          "rejection_reason": {
             "type": [
               "string",
               "null"
             ]
           },
-          "privileged_intents": {
-            "$ref": "#/components/schemas/IntentsObject"
-          },
-          "redirect_uris": {
+          "reviewed_at": {
             "type": [
-              "array",
+              "string",
               "null"
-            ],
-            "items": {
-              "type": "string"
-            },
-            "description": "Owner view only."
+            ]
           },
-          "release_state": {
+          "reviewed_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
             "type": "string",
-            "description": "`development`, `in_review`, `released` or `suspended`."
+            "description": "`pending`, `approved` or `rejected`."
           },
-          "suspended_reason": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Staff view of a suspension."
-          },
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "terms_of_service_url": {
-            "type": [
-              "string",
-              "null"
-            ]
+          "user": {
+            "$ref": "#/components/schemas/UserObject"
           }
         }
       },
@@ -43189,6 +43856,25 @@
           }
         }
       },
+      "DecisionBody": {
+        "type": "object",
+        "required": [
+          "approve"
+        ],
+        "properties": {
+          "approve": {
+            "type": "boolean",
+            "description": "`true` admits the applicant, `false` rejects."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why it was rejected, shown to the applicant (512 characters)."
+          }
+        }
+      },
       "DecisionInput": {
         "type": "object",
         "description": "A decision with its reason (request changes, reject, approve).",
@@ -44358,6 +45044,34 @@
           }
         }
       },
+      "FormObject": {
+        "type": "object",
+        "required": [
+          "guild_id",
+          "enabled",
+          "questions"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "guild_id": {
+            "type": "string"
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuestionDto"
+            }
+          }
+        }
+      },
       "ForumSettingsBody": {
         "type": "object",
         "description": "Forum and media settings, plus the thread defaults of text channels.",
@@ -44614,6 +45328,93 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "GuideObject": {
+        "type": "object",
+        "required": [
+          "guild_id",
+          "enabled",
+          "todos",
+          "resources"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether members see the guide (the community setting)."
+          },
+          "guild_id": {
+            "type": "string"
+          },
+          "resources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GuideResourceDto"
+            }
+          },
+          "todos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GuideTodoDto"
+            }
+          },
+          "welcome_message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "GuideResourceDto": {
+        "type": "object",
+        "required": [
+          "title",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "Markdown."
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "GuideTodoDto": {
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
           }
         }
       },
@@ -45088,6 +45889,77 @@
           "month_start_ms": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "InsightsChannelObject": {
+        "type": "object",
+        "required": [
+          "channel_id",
+          "messages"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": "string"
+          },
+          "messages": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "InsightsDayObject": {
+        "type": "object",
+        "required": [
+          "date",
+          "members",
+          "joins",
+          "messages",
+          "voice_minutes"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "`YYYY-MM-DD` (UTC)."
+          },
+          "joins": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "members": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Members at the end of the day."
+          },
+          "messages": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "voice_minutes": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "InsightsObject": {
+        "type": "object",
+        "required": [
+          "days",
+          "top_channels"
+        ],
+        "properties": {
+          "days": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InsightsDayObject"
+            },
+            "description": "Oldest first; days the daily job has not computed yet are absent."
+          },
+          "top_channels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InsightsChannelObject"
+            }
           }
         }
       },
@@ -48767,6 +49639,50 @@
           }
         }
       },
+      "PutFormBody": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether people may apply."
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuestionDto"
+            }
+          }
+        }
+      },
+      "PutGuideBody": {
+        "type": "object",
+        "properties": {
+          "resources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GuideResourceDto"
+            }
+          },
+          "todos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GuideTodoDto"
+            }
+          },
+          "welcome_message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "PutGuildTagBody": {
         "type": "object",
         "required": [
@@ -48814,6 +49730,31 @@
             ],
             "format": "int32",
             "description": "1 (default) sends or accepts a friend request, 2 blocks."
+          }
+        }
+      },
+      "QuestionDto": {
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "properties": {
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Omit for a new question; the server assigns one."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`short` (one line) or `paragraph`."
+          },
+          "label": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
           }
         }
       },
@@ -51020,6 +51961,17 @@
           "Published",
           "Withdrawn"
         ]
+      },
+      "SubmitBody": {
+        "type": "object",
+        "properties": {
+          "answers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnswerBody"
+            }
+          }
+        }
       },
       "SubmitVersionBody": {
         "type": "object",

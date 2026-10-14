@@ -222,7 +222,12 @@ GET	/guilds/{guild_id}/onboarding	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/prune	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/roles	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/roles/{role_id}/members	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/sr/applications	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/sr/applications/@me	authenticated	other	allow	-
+GET	/guilds/{guild_id}/sr/applications/form	authenticated	other	allow	-
 GET	/guilds/{guild_id}/sr/community	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/sr/guide	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/sr/insights	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/stickers	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/stickers/{sticker_id}/url	authenticated	membership	allow	-
@@ -436,6 +441,8 @@ POST	/guilds/{guild_id}/channels	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/emojis	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/prune	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/roles	authenticated	membership	allow	-
+POST	/guilds/{guild_id}/sr/applications	authenticated	other	allow	-
+POST	/guilds/{guild_id}/sr/applications/{application_id}/decision	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/stickers	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/templates	authenticated	membership	allow	-
 POST	/interactions	authenticated	other	deny	-
@@ -526,6 +533,8 @@ PUT	/cinema/titles/{title_id}/review	authenticated	other	allow	-
 PUT	/guilds/{guild_id}/bans/{user_id}	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/members/{user_id}/roles/{role_id}	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/onboarding	authenticated	membership	allow	-
+PUT	/guilds/{guild_id}/sr/applications/form	authenticated	membership	allow	-
+PUT	/guilds/{guild_id}/sr/guide	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/tag	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-
 PUT	/library/chapters/{chapter_id}/bookmarks	authenticated	other	allow	-

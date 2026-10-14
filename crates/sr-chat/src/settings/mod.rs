@@ -7,6 +7,7 @@
 //! implementation lives in `sr-db::settings_repo`. The REST routes are in
 //! `sr-api::routes::settings`.
 
+pub mod applications;
 pub mod audit;
 pub mod automod;
 pub mod community;
