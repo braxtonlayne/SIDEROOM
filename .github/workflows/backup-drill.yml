@@ -46,9 +46,13 @@ jobs:
         run: |
           ./target/debug/sr-cli migrate
           ./target/debug/sr-cli seed
-      # The runner ships PostgreSQL 16 client tools; pg_dump refuses to dump a newer server.
+      # The runner ships PostgreSQL 16 client tools and no PGDG apt repository; pg_dump refuses to dump a newer
+      # server, so add the official repository and install the 17 client.
       - name: Install the PostgreSQL 17 client tools
         run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
           sudo apt-get install -y postgresql-client-17
           echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
