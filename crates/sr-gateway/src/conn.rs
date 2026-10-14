@@ -237,6 +237,12 @@ impl Conn {
                 }
                 Ok(())
             }
+            op::REQUEST_SOUNDBOARD_SOUNDS => {
+                if let Some(s) = self.session.clone() {
+                    self.gw.soundboard_request(&s, p.d).await;
+                }
+                Ok(())
+            }
             op::STREAM_CREATE | op::STREAM_DELETE | op::STREAM_WATCH | op::STREAM_SET_PAUSED => {
                 if let Some(s) = self.session.clone() {
                     self.gw.stream_op(&s, p.op, p.d).await;

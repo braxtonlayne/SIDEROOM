@@ -443,6 +443,9 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
         DomainEvent::StickersUpdated { payload, .. } => {
             passthrough("GUILD_STICKERS_UPDATE", payload, None)
         }
+        DomainEvent::SoundboardUpdated { payload, .. } => {
+            passthrough("GUILD_SOUNDBOARD_SOUNDS_UPDATE", payload, None)
+        }
         DomainEvent::WebhooksUpdated { guild, channel } => Dispatch {
             name: "WEBHOOKS_UPDATE",
             data: json!({ "guild_id": guild, "channel_id": channel }),

@@ -149,6 +149,20 @@ impl Gateway {
         out
     }
 
+    /// The stage running in `channel` when `viewer` may see that channel.
+    pub async fn stage_visible_to(
+        &self,
+        viewer: UserId,
+        channel: ChannelId,
+    ) -> Option<StageInstance> {
+        let inst = self.stage_instance(channel)?;
+        self.inner
+            .dir
+            .can_view_channel(viewer, inst.guild_id, channel)
+            .await
+            .then_some(inst)
+    }
+
     /// Resolve `channel` to a stage channel and `actor`'s permissions in it.
     async fn stage_target(
         &self,

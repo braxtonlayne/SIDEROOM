@@ -28,6 +28,8 @@ Layering: defaults, TOML file, `SR_*` env (`__` separates nested keys).
 | `storage.*` | see `sr-core` | S3-compatible (Garage in dev). |
 | `voice.enabled` | `false` | Starts the embedded SFU (WebSocket at `/voice/ws` on the public listener, media on UDP). Everything below applies only when on. |
 | `voice.udp_port_min`, `voice.udp_port_max` | `50000`, `50099` | Media UDP range (at most 256 sockets bound). Open it in the firewall. |
+| `voice.egress_budget_mbps` | `0` | Egress budget of the SFU node for the egress governor. Above it, simulcast layers are capped (server level 0 first, Patrons last) and clients get a "Reduced quality: the room is busy" notice. `0` is off. Use about 70 % of the measured uplink. |
+| `voice.video_bwe` | `false` | Per-subscriber TWCC bandwidth estimation for choosing video layers. Off by default because it makes the SFU pad every sending connection to 50 kbit/s (audio-only ones too); the fallback uses receiver-report loss. Turn on for nodes that mostly carry video. |
 | `voice.tcp_port` | `0` (off) | ICE-TCP passive port for clients that cannot use UDP. |
 | `voice.announce_ips` | `["127.0.0.1"]` | Addresses advertised as ICE candidates: set the node's public IP(s) in production. |
 | `voice.bind_ip` | `0.0.0.0` | Interface for the media sockets. |

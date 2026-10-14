@@ -21,9 +21,12 @@ use sr_chat::settings::repo::{
     AuditRepository, AutoModRepository, CommunityRepository, ExpressionRepository,
     InviteRepository, TemplateRepository, WebhookRepository,
 };
+use sr_chat::settings::soundboard::{Sound, SoundFormat};
 use sr_chat::settings::templates::{GuildTemplate, TemplateSnapshot};
 use sr_chat::settings::webhooks::{Webhook, WebhookKind};
-use sr_core::{ApplicationId, ChannelId, EmojiId, GuildId, RoleId, StickerId, UserId, WebhookId};
+use sr_core::{
+    ApplicationId, ChannelId, EmojiId, GuildId, RoleId, SoundId, StickerId, UserId, WebhookId,
+};
 
 /// Postgres-backed settings repository.
 #[derive(Clone)]
@@ -370,6 +373,33 @@ fn sticker_from(r: &PgRow) -> RepoResult<Sticker> {
     })
 }
 
+fn sound_cols() -> String {
+    format!(
+        "id, guild_id, name, volume, emoji_id, emoji_name, available, creator_id, media_key, \
+         format_type, duration_ms, {} AS created_ms",
+        ms("created_at")
+    )
+}
+
+fn sound_from(r: &PgRow) -> RepoResult<Sound> {
+    let emoji_id: Option<i64> = get(r, "emoji_id")?;
+    let duration: i32 = get(r, "duration_ms")?;
+    Ok(Sound {
+        id: SoundId::new(u(get(r, "id")?)),
+        guild_id: GuildId::new(u(get(r, "guild_id")?)),
+        name: get(r, "name")?,
+        volume: get(r, "volume")?,
+        emoji_id: emoji_id.map(|e| EmojiId::new(u(e))),
+        emoji_name: get(r, "emoji_name")?,
+        available: get(r, "available")?,
+        creator_id: UserId::new(u(get(r, "creator_id")?)),
+        media_key: get(r, "media_key")?,
+        format: SoundFormat::from_code(get(r, "format_type")?).ok_or_else(|| bad("format_type"))?,
+        duration_ms: u32::try_from(duration).unwrap_or(0),
+        created_at_ms: get(r, "created_ms")?,
+    })
+}
+
 #[async_trait]
 impl ExpressionRepository for PgSettingsRepo {
     async fn list_emoji(&self, guild: GuildId) -> RepoResult<Vec<Emoji>> {
@@ -525,6 +555,89 @@ impl ExpressionRepository for PgSettingsRepo {
 
     async fn delete_sticker(&self, guild: GuildId, id: StickerId) -> RepoResult<bool> {
         let r = sqlx::query("DELETE FROM stickers WHERE guild_id = $1 AND id = $2")
+            .bind(i(guild.get()))
+            .bind(i(id.get()))
+            .execute(&self.pool)
+            .await
+            .map_err(db)?;
+        Ok(r.rows_affected() > 0)
+    }
+
+    async fn list_sounds(&self, guild: GuildId) -> RepoResult<Vec<Sound>> {
+        let sql = format!(
+            "SELECT {} FROM soundboard_sounds WHERE guild_id = $1 ORDER BY created_at, id",
+            sound_cols()
+        );
+        sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(i(guild.get()))
+            .fetch_all(&self.pool)
+            .await
+            .map_err(db)?
+            .iter()
+            .map(sound_from)
+            .collect()
+    }
+
+    async fn get_sound(&self, guild: GuildId, id: SoundId) -> RepoResult<Option<Sound>> {
+        let sql = format!(
+            "SELECT {} FROM soundboard_sounds WHERE guild_id = $1 AND id = $2",
+            sound_cols()
+        );
+        sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(i(guild.get()))
+            .bind(i(id.get()))
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db)?
+            .as_ref()
+            .map(sound_from)
+            .transpose()
+    }
+
+    async fn insert_sound(&self, s: &Sound) -> RepoResult<()> {
+        sqlx::query(
+            "INSERT INTO soundboard_sounds (id, guild_id, name, volume, emoji_id, emoji_name, \
+             available, creator_id, media_key, format_type, duration_ms, created_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, \
+             to_timestamp($12::double precision / 1000.0))",
+        )
+        .bind(i(s.id.get()))
+        .bind(i(s.guild_id.get()))
+        .bind(&s.name)
+        .bind(s.volume)
+        .bind(s.emoji_id.map(|e| i(e.get())))
+        .bind(s.emoji_name.as_deref())
+        .bind(s.available)
+        .bind(i(s.creator_id.get()))
+        .bind(&s.media_key)
+        .bind(s.format.code())
+        .bind(i32::try_from(s.duration_ms).unwrap_or(i32::MAX))
+        .bind(s.created_at_ms)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
+
+    async fn update_sound(&self, s: &Sound) -> RepoResult<()> {
+        sqlx::query(
+            "UPDATE soundboard_sounds SET name = $2, volume = $3, emoji_id = $4, emoji_name = $5, \
+             available = $6, updated_at = now() WHERE id = $1",
+        )
+        .bind(i(s.id.get()))
+        .bind(&s.name)
+        .bind(s.volume)
+        .bind(s.emoji_id.map(|e| i(e.get())))
+        .bind(s.emoji_name.as_deref())
+        .bind(s.available)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
+
+    async fn delete_sound(&self, guild: GuildId, id: SoundId) -> RepoResult<bool> {
+        let r = sqlx::query("DELETE FROM soundboard_sounds WHERE guild_id = $1 AND id = $2")
             .bind(i(guild.get()))
             .bind(i(id.get()))
             .execute(&self.pool)

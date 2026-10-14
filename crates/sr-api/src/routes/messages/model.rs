@@ -153,6 +153,10 @@ pub struct MessageObject {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     #[schema(value_type = Vec<Object>)]
     pub message_snapshots: Vec<serde_json::Value>,
+    /// `CALL` messages: who was in the call and when it ended.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<Object>)]
+    pub call: Option<serde_json::Value>,
 }
 
 impl MessageObject {
@@ -164,12 +168,19 @@ impl MessageObject {
         users: &HashMap<UserId, UserSummary>,
     ) -> Self {
         let gid = m.guild_id.map(|g| g.to_string());
+        let call = (m.kind == sr_chat::MessageType::Call)
+            .then(|| super::call_record::call_object(&m.content))
+            .flatten();
         Self {
             id: m.id.to_string(),
             channel_id: m.channel_id.to_string(),
             guild_id: gid.clone(),
             author: UserRef::new(m.author_id, users),
-            content: m.content.clone(),
+            content: if call.is_some() {
+                String::new()
+            } else {
+                m.content.clone()
+            },
             timestamp: iso(m.id.snowflake().unix_ms()),
             edited_timestamp: m.edited_at_ms.map(iso),
             tts: m.flags & message_flags::TTS != 0,
@@ -214,6 +225,7 @@ impl MessageObject {
             poll: None,
             sticker_items: Vec::new(),
             message_snapshots: Vec::new(),
+            call,
         }
     }
 

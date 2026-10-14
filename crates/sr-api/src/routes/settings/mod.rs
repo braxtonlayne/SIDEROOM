@@ -32,6 +32,7 @@ pub mod invites;
 pub mod join;
 pub mod presence;
 pub mod repo;
+pub mod soundboard;
 pub mod templates;
 pub mod timeout;
 pub mod webhooks;
@@ -61,6 +62,7 @@ pub fn router() -> Router<AppState> {
         .merge(invites::routes())
         .merge(audit::routes())
         .merge(expressions::routes())
+        .merge(soundboard::routes())
         .merge(automod::routes())
         .merge(webhooks::routes())
         .merge(templates::routes())
@@ -90,6 +92,15 @@ pub fn router() -> Router<AppState> {
         expressions::create_sticker,
         expressions::modify_sticker,
         expressions::delete_sticker,
+        soundboard::list_default_sounds,
+        soundboard::default_sound_audio,
+        soundboard::list_sounds,
+        soundboard::get_sound,
+        soundboard::sound_audio,
+        soundboard::create_sound,
+        soundboard::modify_sound,
+        soundboard::delete_sound,
+        soundboard::send_sound,
         automod::list_rules,
         automod::get_rule,
         automod::create_rule,
@@ -137,6 +148,9 @@ pub fn router() -> Router<AppState> {
         expressions::ModifyEmojiBody,
         expressions::CreateStickerBody,
         expressions::ModifyStickerBody,
+        soundboard::CreateSoundBody,
+        soundboard::ModifySoundBody,
+        soundboard::SendSoundBody,
         automod::RuleObject,
         automod::RuleBody,
         automod::TriggerMetadata,

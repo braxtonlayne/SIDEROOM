@@ -30,6 +30,8 @@ pub struct VoicePatch {
     pub deaf: Option<bool>,
     /// `Some(None)` disconnects, `Some(Some(c))` moves.
     pub channel: Option<Option<ChannelId>>,
+    /// Stage: `false` invites the member to speak, `true` sends them back to the audience.
+    pub suppress: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,7 +40,27 @@ pub enum VoiceError {
     MissingPermissions,
     UnknownChannel,
     NotVoiceChannel,
-    StageUnsupported,
+    /// The channel is not a stage channel.
+    NotStageChannel,
+    /// No stage is running in the channel.
+    NoStageInstance,
+    /// A stage is already running in the channel.
+    StageExists,
+    InvalidTopic,
+    InvalidPrivacy,
+    /// The stream, call or preview does not exist, or is not yours to see.
+    NotFound,
+    NotJpeg,
+    TooLarge,
+    RateLimited,
+    /// The caller is not connected to the call.
+    NotInCall,
+    /// A named recipient is not in the DM.
+    NotAMember,
+    /// Muted, deafened, in the stage audience or in the AFK channel: nobody would hear it.
+    Silenced,
+    /// Another sound was played a moment ago.
+    Cooldown,
     /// Voice is not enabled on this installation.
     Unavailable,
 }
@@ -53,7 +75,50 @@ pub struct TurnCredentialsObject {
     pub uris: Vec<String>,
 }
 
+/// A stage instance, in Discord's shape.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+pub struct StageInstanceObject {
+    pub id: String,
+    pub guild_id: String,
+    pub channel_id: String,
+    pub topic: String,
+    /// 2 = `GUILD_ONLY`, the only level in use.
+    pub privacy_level: u8,
+    pub discoverable_disabled: bool,
+    pub guild_scheduled_event_id: Option<String>,
+}
+
+/// What a member changes about their own stage state.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SelfStageRequest {
+    /// `false` to become a speaker (needs Mute Members), `true` to step down.
+    pub suppress: Option<bool>,
+    /// `Some(true)` raises a hand, `Some(false)` lowers it.
+    pub request_to_speak: Option<bool>,
+}
+
+/// A soundboard sound being played in a voice channel.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SoundEffect {
+    pub sound_id: String,
+    /// 0 to 1.
+    pub volume: f64,
+    pub emoji_id: Option<String>,
+    pub emoji_name: Option<String>,
+}
+
+/// The newest preview thumbnail of a stream.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StreamPreview {
+    pub jpeg: Vec<u8>,
+    /// Unix milliseconds of the upload; doubles as the ETag.
+    pub uploaded_ms: i64,
+}
+
 /// What the routes need from the voice system.
+///
+/// The stage, stream and call methods default to "voice is off" so a backend (or a test
+/// double) only implements what it serves.
 #[async_trait]
 pub trait VoiceBackend: Send + Sync {
     /// Credentials for `user`; `None` when TURN is not configured.
@@ -69,6 +134,117 @@ pub trait VoiceBackend: Send + Sync {
         patch: VoicePatch,
         reason: Option<String>,
     ) -> Result<(), VoiceError>;
+
+    /// Start a stage in `channel` (moderators).
+    async fn stage_create(
+        &self,
+        _actor: UserId,
+        _channel: ChannelId,
+        _topic: String,
+        _privacy_level: Option<u8>,
+    ) -> Result<StageInstanceObject, VoiceError> {
+        Err(VoiceError::Unavailable)
+    }
+
+    /// The stage running in `channel`, for members who can see it.
+    async fn stage_get(
+        &self,
+        _actor: UserId,
+        _channel: ChannelId,
+    ) -> Result<StageInstanceObject, VoiceError> {
+        Err(VoiceError::Unavailable)
+    }
+
+    /// Stages running in `guild` that `actor` can see.
+    async fn stage_list(
+        &self,
+        _actor: UserId,
+        _guild: GuildId,
+    ) -> Result<Vec<StageInstanceObject>, VoiceError> {
+        Err(VoiceError::Unavailable)
+    }
+
+    async fn stage_update(
+        &self,
+        _actor: UserId,
+        _channel: ChannelId,
+        _topic: Option<String>,
+        _privacy_level: Option<u8>,
+    ) -> Result<StageInstanceObject, VoiceError> {
+        Err(VoiceError::Unavailable)
+    }
+
+    async fn stage_end(&self, _actor: UserId, _channel: ChannelId) -> Result<(), VoiceError> {
+        Err(VoiceError::Unavailable)
+    }
+
+    /// Raise or lower a hand, or step down from the stage (`PATCH .../voice-states/@me`).
+    async fn stage_self(
+        &self,
+        _actor: UserId,
+        _guild: GuildId,
+        _channel: ChannelId,
+        _req: SelfStageRequest,
+    ) -> Result<(), VoiceError> {
+        Err(VoiceError::Unavailable)
+    }
+
+    /// The streamer replaces the stream's preview thumbnail.
+    async fn stream_preview_put(
+        &self,
+        _actor: UserId,
+        _stream_key: &str,
+        _jpeg: Vec<u8>,
+    ) -> Result<(), VoiceError> {
+        Err(VoiceError::Unavailable)
+    }
+
+    async fn stream_preview_get(
+        &self,
+        _actor: UserId,
+        _stream_key: &str,
+    ) -> Result<StreamPreview, VoiceError> {
+        Err(VoiceError::Unavailable)
+    }
+
+    /// The running call of a DM, as `CALL_CREATE` shows it.
+    async fn call_get(
+        &self,
+        _actor: UserId,
+        _channel: ChannelId,
+    ) -> Result<serde_json::Value, VoiceError> {
+        Err(VoiceError::Unavailable)
+    }
+
+    async fn call_ring(
+        &self,
+        _actor: UserId,
+        _channel: ChannelId,
+        _recipients: Option<Vec<UserId>>,
+    ) -> Result<(), VoiceError> {
+        Err(VoiceError::Unavailable)
+    }
+
+    /// Announce that `actor` played a sound in `channel` (they must be in it and audible;
+    /// at most one play per few seconds).
+    async fn soundboard_play(
+        &self,
+        _actor: UserId,
+        _guild: GuildId,
+        _channel: ChannelId,
+        _effect: SoundEffect,
+    ) -> Result<(), VoiceError> {
+        Err(VoiceError::Unavailable)
+    }
+
+    async fn call_stop_ringing(
+        &self,
+        _actor: UserId,
+        _channel: ChannelId,
+        _recipients: Option<Vec<UserId>>,
+    ) -> Result<(), VoiceError> {
+        Err(VoiceError::Unavailable)
+    }
 }
 
 /// Registered on the composition root with `AppStateBuilder::extension`.
@@ -82,6 +258,7 @@ pub fn router() -> Router<AppState> {
             "/guilds/{guild_id}/voice-states/{user_id}",
             patch(modify_voice_state),
         )
+        .merge(super::voice_live::router())
 }
 
 impl From<VoiceError> for HttpError {
@@ -95,10 +272,41 @@ impl From<VoiceError> for HttpError {
                 "CHANNEL_TYPE_INVALID",
                 "Must be a voice channel.",
             ),
-            VoiceError::StageUnsupported => ApiError::invalid_form().field(
+            VoiceError::NotStageChannel => ApiError::invalid_form().field(
                 "channel_id",
                 "CHANNEL_TYPE_INVALID",
-                "Stage channels are not supported yet.",
+                "Must be a stage channel.",
+            ),
+            VoiceError::NoStageInstance => ApiError::new(ErrorCode::UnknownStageInstance),
+            VoiceError::StageExists => ApiError::new(ErrorCode::StageAlreadyOpen),
+            VoiceError::InvalidTopic => ApiError::invalid_form().field(
+                "topic",
+                "BASE_TYPE_BAD_LENGTH",
+                "Must be between 1 and 120 characters.",
+            ),
+            VoiceError::InvalidPrivacy => ApiError::invalid_form().field(
+                "privacy_level",
+                "ENUM_TYPE_COERCE",
+                "Must be 2 (GUILD_ONLY).",
+            ),
+            VoiceError::NotFound => ApiError::new(ErrorCode::SrNotFound),
+            VoiceError::NotJpeg => ApiError::invalid_form().field(
+                "thumbnail",
+                "IMAGE_INVALID",
+                "Must be a JPEG image.",
+            ),
+            VoiceError::TooLarge => ApiError::new(ErrorCode::RequestEntityTooLarge),
+            VoiceError::RateLimited => ApiError::new(ErrorCode::TooManyRequests),
+            VoiceError::NotInCall => ApiError::new(ErrorCode::SrConflict),
+            VoiceError::Silenced => ApiError::with_message(
+                ErrorCode::SrConflict,
+                "You cannot play sounds while muted, deafened or in the audience.",
+            ),
+            VoiceError::Cooldown => ApiError::new(ErrorCode::SrSoundboardCooldown),
+            VoiceError::NotAMember => ApiError::invalid_form().field(
+                "recipients",
+                "BASE_TYPE_INVALID",
+                "Every recipient must be a member of this conversation.",
             ),
             VoiceError::Unavailable => ApiError::new(ErrorCode::SrFeatureDisabled),
         })
@@ -138,6 +346,15 @@ pub struct ModifyVoiceStateBody {
     pub mute: Option<bool>,
     /// Server deafen (`DEAFEN_MEMBERS`).
     pub deaf: Option<bool>,
+    /// Stage channels: `false` invites the member to speak (`MUTE_MEMBERS`; for `@me`,
+    /// the member becomes a speaker, which needs `MUTE_MEMBERS` too), `true` sends them
+    /// back to the audience (anyone may do that to themselves).
+    pub suppress: Option<bool>,
+    /// Stage channels, `@me` only: an ISO 8601 time raises the member's hand (`REQUEST_TO_SPEAK`),
+    /// `null` lowers it. The server stamps the time itself; the value only has to be present.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub request_to_speak_timestamp: Option<Option<String>>,
     /// Audit log reason (the `X-Audit-Log-Reason` header wins).
     pub reason: Option<String>,
 }
@@ -177,11 +394,16 @@ pub async fn modify_voice_state(
     } else {
         id("user_id", &user_id)?
     };
-    if body.channel_id.is_none() && body.mute.is_none() && body.deaf.is_none() {
+    if body.channel_id.is_none()
+        && body.mute.is_none()
+        && body.deaf.is_none()
+        && body.suppress.is_none()
+        && body.request_to_speak_timestamp.is_none()
+    {
         return Err(HttpError(ApiError::invalid_form().field(
             "mute",
             "BASE_TYPE_REQUIRED",
-            "Provide at least one of channel_id, mute or deaf.",
+            "Provide at least one of channel_id, mute, deaf, suppress or request_to_speak_timestamp.",
         )));
     }
     let channel = match body.channel_id {
@@ -189,6 +411,39 @@ pub async fn modify_voice_state(
         Some(None) => Some(None),
         Some(Some(c)) => Some(Some(id::<ChannelId>("channel_id", &c)?)),
     };
+    // A member changing their own stage state: raise or lower a hand, step down.
+    if target == me
+        && body.mute.is_none()
+        && body.deaf.is_none()
+        && (body.request_to_speak_timestamp.is_some() || body.suppress.is_some())
+    {
+        let Some(Some(channel)) = channel else {
+            return Err(HttpError(ApiError::invalid_form().field(
+                "channel_id",
+                "BASE_TYPE_REQUIRED",
+                "The stage channel you are in is required.",
+            )));
+        };
+        api.0
+            .stage_self(
+                me,
+                guild,
+                channel,
+                SelfStageRequest {
+                    suppress: body.suppress,
+                    request_to_speak: body.request_to_speak_timestamp.map(|t| t.is_some()),
+                },
+            )
+            .await?;
+        return Ok(StatusCode::NO_CONTENT);
+    }
+    if body.request_to_speak_timestamp.is_some() {
+        return Err(HttpError(ApiError::invalid_form().field(
+            "request_to_speak_timestamp",
+            "BASE_TYPE_INVALID",
+            "Only @me can raise a hand.",
+        )));
+    }
     let reason = headers
         .get("x-audit-log-reason")
         .and_then(|v| v.to_str().ok())
@@ -203,6 +458,7 @@ pub async fn modify_voice_state(
                 mute: body.mute,
                 deaf: body.deaf,
                 channel,
+                suppress: body.suppress,
             },
             reason,
         )
@@ -219,7 +475,9 @@ pub async fn modify_voice_state(
 pub struct VoiceApiDoc;
 
 pub fn openapi() -> utoipa::openapi::OpenApi {
-    VoiceApiDoc::openapi()
+    let mut doc = VoiceApiDoc::openapi();
+    doc.merge(super::voice_live::openapi());
+    doc
 }
 
 #[cfg(test)]
@@ -422,7 +680,9 @@ mod tests {
             (VoiceError::MissingPermissions, StatusCode::FORBIDDEN, 50013),
             (VoiceError::UnknownChannel, StatusCode::NOT_FOUND, 10003),
             (VoiceError::NotVoiceChannel, StatusCode::BAD_REQUEST, 50035),
-            (VoiceError::StageUnsupported, StatusCode::BAD_REQUEST, 50035),
+            (VoiceError::NotStageChannel, StatusCode::BAD_REQUEST, 50035),
+            (VoiceError::NoStageInstance, StatusCode::NOT_FOUND, 10067),
+            (VoiceError::StageExists, StatusCode::BAD_REQUEST, 150006),
             (VoiceError::Unavailable, StatusCode::FORBIDDEN, 900_001),
         ] {
             *fake.result.lock().unwrap() = Some(err);

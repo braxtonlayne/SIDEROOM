@@ -13,9 +13,10 @@ use sr_chat::settings::repo::{
     AuditRepository, AutoModRepository, CommunityRepository, ExpressionRepository,
     InviteRepository, SettingsRepository, TemplateRepository, WebhookRepository,
 };
+use sr_chat::settings::soundboard::Sound;
 use sr_chat::settings::templates::GuildTemplate;
 use sr_chat::settings::webhooks::Webhook;
-use sr_core::{ChannelId, EmojiId, GuildId, StickerId, UserId, WebhookId};
+use sr_core::{ChannelId, EmojiId, GuildId, SoundId, StickerId, UserId, WebhookId};
 use std::sync::Arc;
 
 /// A shared handle to any [`SettingsRepository`].
@@ -100,6 +101,21 @@ impl ExpressionRepository for DynRepo {
     }
     async fn delete_sticker(&self, guild: GuildId, id: StickerId) -> RepoResult<bool> {
         self.0.delete_sticker(guild, id).await
+    }
+    async fn list_sounds(&self, guild: GuildId) -> RepoResult<Vec<Sound>> {
+        self.0.list_sounds(guild).await
+    }
+    async fn get_sound(&self, guild: GuildId, id: SoundId) -> RepoResult<Option<Sound>> {
+        self.0.get_sound(guild, id).await
+    }
+    async fn insert_sound(&self, sound: &Sound) -> RepoResult<()> {
+        self.0.insert_sound(sound).await
+    }
+    async fn update_sound(&self, sound: &Sound) -> RepoResult<()> {
+        self.0.update_sound(sound).await
+    }
+    async fn delete_sound(&self, guild: GuildId, id: SoundId) -> RepoResult<bool> {
+        self.0.delete_sound(guild, id).await
     }
 }
 

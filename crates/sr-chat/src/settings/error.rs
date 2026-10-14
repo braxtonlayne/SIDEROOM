@@ -21,6 +21,8 @@ pub enum SettingsError {
     UnknownEmoji,
     #[error("unknown sticker")]
     UnknownSticker,
+    #[error("unknown soundboard sound")]
+    UnknownSound,
     #[error("unknown webhook")]
     UnknownWebhook,
     #[error("unknown automod rule")]
@@ -62,11 +64,13 @@ impl SettingsError {
             Self::Banned => ApiError::new(ErrorCode::UserBanned),
             Self::MaxInvites => ApiError::new(ErrorCode::MaxInvites),
             Self::UnknownEmoji | Self::UnknownSticker => ApiError::new(ErrorCode::UnknownEmoji),
+            Self::UnknownSound => ApiError::new(ErrorCode::UnknownSound),
             Self::UnknownWebhook => ApiError::new(ErrorCode::UnknownWebhook),
             Self::UnknownRule | Self::UnknownTemplate => ApiError::new(ErrorCode::General),
             Self::LimitReached(what) => match *what {
                 "static emoji" | "animated emoji" => ApiError::new(ErrorCode::MaxEmojis),
                 "stickers" => ApiError::new(ErrorCode::MaxStickers),
+                "soundboard sounds" => ApiError::new(ErrorCode::MaxSounds),
                 _ => ApiError::with_message(
                     ErrorCode::InvalidFormBody,
                     format!("Maximum number of {what} reached"),

@@ -36,6 +36,7 @@ use std::time::Duration;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sr_core::{ChannelId, GuildId, Permissions, UserId};
+use sr_voice_proto::VoiceCommand;
 use tokio::time::Instant;
 
 use crate::hub::Gateway;
@@ -134,6 +135,17 @@ struct StreamKeyIn {
 }
 
 impl Gateway {
+    /// Tell the SFU who may receive the screen of `s` (it forwards it to nobody else).
+    async fn relay_viewers(&self, s: &StreamState, live: bool) {
+        self.relay(VoiceCommand::StreamViewers {
+            channel: s.channel_id,
+            owner: s.owner,
+            viewers: s.viewers.iter().copied().collect(),
+            live,
+        })
+        .await;
+    }
+
     /// Users who should hear about `s`: the owner and every viewer.
     fn stream_audience(s: &StreamState) -> Vec<UserId> {
         let mut v = vec![s.owner];
@@ -269,6 +281,7 @@ impl Gateway {
         let mut new = cur.clone();
         new.self_stream = true;
         new.exempt = limits.exempt;
+        new.tier = limits.tier;
         {
             // Re-check under the lock: two requests must not both slip in.
             let mut st = self.st();
@@ -281,6 +294,7 @@ impl Gateway {
         }
         self.voice_touch(user);
         self.relay_flags(&new, media_flags(perms, &new)).await;
+        self.relay_viewers(&stream, true).await;
         let member = match new.guild_id {
             Some(g) => self.inner.dir.member_payload(g, user).await,
             None => None,
@@ -354,6 +368,7 @@ impl Gateway {
             s.viewers.insert(user);
             s.clone()
         };
+        self.relay_viewers(&after, true).await;
         self.stream_tell(&[user], "STREAM_CREATE", &after.body())
             .await;
         self.stream_tell(
@@ -376,6 +391,7 @@ impl Gateway {
             }
             s.clone()
         };
+        self.relay_viewers(&after, true).await;
         self.stream_tell(
             &[viewer],
             "STREAM_DELETE",
@@ -420,6 +436,7 @@ impl Gateway {
         let Some(stream) = self.st().vx.streams.remove(key) else {
             return;
         };
+        self.relay_viewers(&stream, false).await;
         let body = json!({ "stream_key": key, "reason": reason, "unavailable": false });
         self.stream_tell(&Self::stream_audience(&stream), "STREAM_DELETE", &body)
             .await;

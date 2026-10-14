@@ -41,6 +41,7 @@ id_types!(
     RoleId,
     EmojiId,
     StickerId,
+    SoundId,
     WebhookId,
     ApplicationId,
     AttachmentId,

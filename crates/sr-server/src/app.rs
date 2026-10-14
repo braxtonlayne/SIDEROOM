@@ -757,11 +757,16 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     } else {
         None
     };
+    let call_recorder = Arc::new(crate::voice::CallRecorder::default());
     let gateway = Gateway::new(
         GatewayConfig {
             // Cookie-authenticated web sessions may IDENTIFY from the public origin only.
             allowed_origins: vec![cfg.server.public_url.trim_end_matches('/').to_owned()],
-            voice: voice_setup.as_ref().map(|v| v.gateway.clone()),
+            voice: voice_setup.as_ref().map(|v| {
+                let mut g = v.gateway.clone();
+                g.calls = Some(call_recorder.clone());
+                g
+            }),
             ..GatewayConfig::default()
         },
         Arc::new(
@@ -769,7 +774,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                 .with_apps(apps_service.clone()),
         ),
         Arc::new(
-            PgGuildDirectory::new(pool.clone(), clock.clone()).with_apps(apps_service.clone()),
+            PgGuildDirectory::new(pool.clone(), clock.clone())
+                .with_apps(apps_service.clone())
+                .with_entitlements(payments.entitlements.clone()),
         ),
         bus.clone(),
     );
@@ -792,6 +799,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // each recipient before the message itself.
     let social_api = Arc::new(social_api);
     let messages = Arc::new(messages.with_dm_announcer(social_api.clone()));
+    call_recorder.bind(messages.clone());
 
     // Platform admin API: permissions are resolved per request from the Staff Server; every
     // action is written to the hash-chained access log. Feature toggles go through the shared
@@ -992,7 +1000,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         tokio::spawn(async move {
             loop {
                 match rx.recv().await {
-                    Ok(e) => gw.voice_media_lost(e.user, e.channel).await,
+                    Ok(e) => match e.kind {
+                        sr_voice::SfuEventKind::Lost => {
+                            gw.voice_media_lost(e.user, e.channel).await
+                        }
+                        sr_voice::SfuEventKind::Active => gw.voice_activity(e.user, e.channel),
+                    },
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                 }

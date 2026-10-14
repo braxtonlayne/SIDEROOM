@@ -925,3 +925,295 @@ async fn video_in_a_call_uses_the_free_allowance() {
         .await;
     assert_eq!(error_code(&mut b).await["code"], "video_limit_reached");
 }
+
+// ---- soundboard (VOX-SB-001) ----------------------------------------------------------------------
+
+fn ding() -> SoundPlay {
+    SoundPlay {
+        sound_id: "9".into(),
+        volume: 0.7,
+        emoji_id: None,
+        emoji_name: Some("\u{1F514}".into()),
+    }
+}
+
+#[tokio::test]
+async fn a_played_sound_is_announced_to_the_voice_channel() {
+    let e = env();
+    let mut a = join(&e, MEMBER, LOBBY).await;
+    let mut listener = join(&e, FRIEND, LOBBY).await;
+    let mut elsewhere = client(&e, MOD).await;
+    elsewhere.drain().await;
+    // MOD cannot see the staff room: sounds there are not announced to them.
+    e.dir
+        .perms
+        .lock()
+        .unwrap()
+        .insert((u(MOD), LOBBY), Permissions::empty());
+    a.drain().await;
+
+    e.gw.voice_sound_effect(u(MEMBER), G, LOBBY, &ding())
+        .await
+        .unwrap();
+    for c in [&mut a, &mut listener] {
+        let ev = c.event("VOICE_CHANNEL_EFFECT_SEND").await;
+        assert_eq!(ev["channel_id"], "20");
+        assert_eq!(ev["guild_id"], "1");
+        assert_eq!(ev["user_id"], "1");
+        assert_eq!(ev["sound_id"], "9");
+        assert_eq!(ev["sound_volume"], 0.7);
+        assert_eq!(ev["emoji"]["name"], "\u{1F514}");
+    }
+    assert!(
+        elsewhere
+            .drain()
+            .await
+            .iter()
+            .all(|v| v["t"] != "VOICE_CHANNEL_EFFECT_SEND")
+    );
+}
+
+#[tokio::test]
+async fn a_member_who_cannot_be_heard_cannot_play_a_sound() {
+    let e = env();
+    assert_eq!(
+        e.gw.voice_sound_effect(u(MEMBER), G, LOBBY, &ding()).await,
+        Err(SoundPlayError::NotInVoice)
+    );
+    let mut a = client(&e, MEMBER).await;
+    a.voice(1, Some(LOBBY.get()), true, false).await;
+    a.event("VOICE_SERVER_UPDATE").await;
+    assert_eq!(
+        e.gw.voice_sound_effect(u(MEMBER), G, LOBBY, &ding()).await,
+        Err(SoundPlayError::Silenced),
+        "self muted"
+    );
+    assert_eq!(
+        e.gw.voice_sound_effect(u(MEMBER), G, ROOM_B, &ding()).await,
+        Err(SoundPlayError::NotInVoice),
+        "a different channel"
+    );
+    a.voice(1, Some(LOBBY.get()), false, false).await;
+    a.drain().await;
+    e.gw.moderate_voice(
+        u(MOD),
+        G,
+        u(MEMBER),
+        ModPatch {
+            mute: Some(true),
+            ..ModPatch::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        e.gw.voice_sound_effect(u(MEMBER), G, LOBBY, &ding()).await,
+        Err(SoundPlayError::Silenced),
+        "server muted"
+    );
+    // The stage audience is silent too.
+    let _s = join(&e, FRIEND, STAGE).await;
+    assert_eq!(
+        e.gw.voice_sound_effect(u(FRIEND), G, STAGE, &ding()).await,
+        Err(SoundPlayError::Silenced)
+    );
+    let off = env_with_voice(false);
+    assert_eq!(
+        off.gw
+            .voice_sound_effect(u(MEMBER), G, LOBBY, &ding())
+            .await,
+        Err(SoundPlayError::Unavailable)
+    );
+}
+
+#[tokio::test]
+async fn soundboard_sounds_are_sent_for_the_guilds_you_are_in() {
+    let e = env();
+    let mut a = client(&e, MEMBER).await;
+    let mut outsider = client(&e, OUTSIDER).await;
+    a.send(json!({"op": 31, "d": {"guild_ids": ["1", "2"]}}))
+        .await;
+    let ev = a.event("SOUNDBOARD_SOUNDS").await;
+    assert_eq!(ev["guild_id"], "1");
+    assert_eq!(ev["soundboard_sounds"][0]["name"], "ding");
+    // Guild 2 is not theirs: only one answer arrives.
+    assert!(
+        a.drain()
+            .await
+            .iter()
+            .all(|v| v["t"] != "SOUNDBOARD_SOUNDS")
+    );
+    // A stranger asking for guild 1 gets nothing.
+    outsider
+        .send(json!({"op": 31, "d": {"guild_ids": ["1"]}}))
+        .await;
+    assert!(
+        outsider
+            .drain()
+            .await
+            .iter()
+            .all(|v| v["t"] != "SOUNDBOARD_SOUNDS")
+    );
+    // Garbage is ignored.
+    a.send(json!({"op": 31, "d": {"guild_ids": "x"}})).await;
+    assert!(a.drain().await.is_empty());
+}
+
+#[tokio::test]
+async fn sounds_have_a_cooldown_per_member() {
+    let e = env();
+    let _a = join(&e, MEMBER, LOBBY).await;
+    let _b = join(&e, FRIEND, LOBBY).await;
+    e.gw.voice_sound_effect(u(MEMBER), G, LOBBY, &ding())
+        .await
+        .unwrap();
+    let again = e.gw.voice_sound_effect(u(MEMBER), G, LOBBY, &ding()).await;
+    assert!(matches!(again, Err(SoundPlayError::Cooldown(w)) if w > 0 && w <= 4_000));
+    // Someone else is not held up by it.
+    assert!(
+        e.gw.voice_sound_effect(u(FRIEND), G, LOBBY, &ding())
+            .await
+            .is_ok()
+    );
+}
+
+// ---- what the SFU is told about video -------------------------------------------------------------
+
+#[tokio::test]
+async fn the_sfu_only_accepts_the_video_the_allowance_let_start() {
+    let e = env();
+    set_limits(&e, 1, 25);
+    let mut a = client(&e, MEMBER).await;
+    a.voice_video(1, LOBBY, true).await;
+    let srv = a.event("VOICE_SERVER_UPDATE").await;
+    let claims = TokenSigner::new(SECRET.to_vec())
+        .verify(srv["token"].as_str().unwrap(), unix_now())
+        .unwrap();
+    assert!(claims.camera && !claims.screen);
+    assert_eq!(claims.tier, 0);
+
+    // The second camera is refused, so its token and flags carry no camera.
+    let mut b = client(&e, FRIEND).await;
+    b.voice_video(1, LOBBY, true).await;
+    let srv = b.event("VOICE_SERVER_UPDATE").await;
+    let claims = TokenSigner::new(SECRET.to_vec())
+        .verify(srv["token"].as_str().unwrap(), unix_now())
+        .unwrap();
+    assert!(
+        !claims.camera,
+        "the SFU would drop the camera it was never allowed"
+    );
+
+    // Turning the camera off and on again relays the permission to the SFU each time.
+    e.relay.take();
+    a.voice_video(1, LOBBY, false).await;
+    a.drain().await;
+    a.voice_video(1, LOBBY, true).await;
+    a.drain().await;
+    let cams: Vec<bool> = e
+        .relay
+        .take()
+        .into_iter()
+        .filter_map(|c| match c {
+            VoiceCommand::SetFlags { camera, .. } => Some(camera),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(cams, vec![false, true]);
+}
+
+#[tokio::test]
+async fn video_needs_the_stream_permission() {
+    let e = env();
+    e.dir
+        .perms
+        .lock()
+        .unwrap()
+        .insert((u(MEMBER), LOBBY), member_perms() - Permissions::STREAM);
+    let mut a = client(&e, MEMBER).await;
+    a.voice_video(1, LOBBY, true).await;
+    let err = error_code(&mut a).await;
+    assert_eq!(err["code"], "missing_permission");
+    assert!(!e.gw.voice_state(u(MEMBER)).unwrap().self_video);
+}
+
+#[tokio::test]
+async fn the_sfu_is_told_who_may_watch_a_screen() {
+    let e = env();
+    let mut owner = join(&e, MEMBER, LOBBY).await;
+    let mut viewer = join(&e, FRIEND, LOBBY).await;
+    e.relay.take();
+
+    owner.stream_start(LOBBY, None).await;
+    owner.event("STREAM_CREATE").await;
+    let cmds = e.relay.take();
+    assert!(cmds.iter().any(|c| matches!(
+        c,
+        VoiceCommand::SetFlags {
+            screen: true,
+            user,
+            ..
+        } if *user == u(MEMBER)
+    )));
+    assert!(cmds.contains(&VoiceCommand::StreamViewers {
+        channel: LOBBY,
+        owner: u(MEMBER),
+        viewers: vec![],
+        live: true,
+    }));
+
+    viewer.stream_op(20, KEY).await;
+    viewer.event("STREAM_CREATE").await;
+    assert_eq!(
+        e.relay.take(),
+        vec![VoiceCommand::StreamViewers {
+            channel: LOBBY,
+            owner: u(MEMBER),
+            viewers: vec![u(FRIEND)],
+            live: true,
+        }]
+    );
+
+    viewer.stream_op(19, KEY).await;
+    viewer.event("STREAM_DELETE").await;
+    owner.drain().await;
+    assert_eq!(
+        e.relay.take(),
+        vec![VoiceCommand::StreamViewers {
+            channel: LOBBY,
+            owner: u(MEMBER),
+            viewers: vec![],
+            live: true,
+        }]
+    );
+
+    owner.stream_op(19, KEY).await;
+    owner.event("STREAM_DELETE").await;
+    let cmds = e.relay.take();
+    assert!(cmds.contains(&VoiceCommand::StreamViewers {
+        channel: LOBBY,
+        owner: u(MEMBER),
+        viewers: vec![],
+        live: false,
+    }));
+    assert!(cmds.iter().any(|c| matches!(
+        c,
+        VoiceCommand::SetFlags { screen: false, user, .. } if *user == u(MEMBER)
+    )));
+}
+
+#[tokio::test]
+async fn the_governor_tier_comes_from_the_server_level_and_patron_status() {
+    let e = env();
+    let mut patron = e.dir.default_limits.lock().unwrap().clone();
+    patron.tier = 4;
+    patron.exempt = true;
+    e.dir.limits.lock().unwrap().insert(u(MEMBER), patron);
+    let mut a = client(&e, MEMBER).await;
+    a.voice(1, Some(LOBBY.get()), false, false).await;
+    let srv = a.event("VOICE_SERVER_UPDATE").await;
+    let claims = TokenSigner::new(SECRET.to_vec())
+        .verify(srv["token"].as_str().unwrap(), unix_now())
+        .unwrap();
+    assert_eq!(claims.tier, 4);
+}

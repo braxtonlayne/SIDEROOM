@@ -112,6 +112,11 @@ pub trait GuildDirectory: Send + Sync {
         None
     }
 
+    /// The soundboard sounds of `guild` as `SOUNDBOARD_SOUNDS` carries them. Default: none.
+    async fn soundboard_sounds(&self, _guild: GuildId) -> Vec<Value> {
+        Vec::new()
+    }
+
     /// Per-guild voice settings (AFK channel and timeout). Default: none configured.
     async fn voice_guild(&self, _guild: GuildId) -> crate::voice::VoiceGuildInfo {
         crate::voice::VoiceGuildInfo::default()

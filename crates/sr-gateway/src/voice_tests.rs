@@ -168,6 +168,14 @@ impl GuildDirectory for Dir {
         }
     }
 
+    async fn soundboard_sounds(&self, guild: GuildId) -> Vec<Value> {
+        if guild == G {
+            vec![json!({"name": "ding", "sound_id": "9", "volume": 1.0, "guild_id": "1"})]
+        } else {
+            vec![]
+        }
+    }
+
     async fn age_confirmed(&self, user: UserId) -> bool {
         self.adults.lock().unwrap().contains(&user)
     }
@@ -630,6 +638,8 @@ async fn self_mute_and_deafen_update_in_place_without_a_new_token() {
             deaf: false,
             ptt_required: false,
             priority: false,
+            camera: false,
+            screen: false,
         }]
     );
 

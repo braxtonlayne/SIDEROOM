@@ -100,6 +100,8 @@ pub struct VoiceLimits {
     pub exempt: bool,
     /// Allowed `(height, fps)` ceilings; a request fits when one ceiling covers it.
     pub profiles: Vec<(u16, u8)>,
+    /// Governor tier: the server level (0 to 3), or 4 for a Patron.
+    pub tier: u8,
 }
 
 impl VoiceLimits {
@@ -110,6 +112,7 @@ impl VoiceLimits {
             stream_viewers: 25,
             exempt: false,
             profiles: vec![(720, 30)],
+            tier: 0,
         }
     }
 
@@ -143,6 +146,8 @@ pub struct VoiceState {
     pub afk: bool,
     /// Does not count against the channel's sender allowance (Patron, D-052).
     pub exempt: bool,
+    /// The allowance tier for the egress governor: the server level, or 4 for a Patron.
+    pub tier: u8,
 }
 
 impl VoiceState {
@@ -290,6 +295,10 @@ pub struct MediaFlags {
     pub deaf: bool,
     pub ptt_required: bool,
     pub priority: bool,
+    /// The sender allowance let this member start a camera.
+    pub camera: bool,
+    /// ... or a screen share.
+    pub screen: bool,
 }
 
 /// Media-path flags from permissions and state. Self-mute also stops forwarding, so a
@@ -306,6 +315,11 @@ pub fn media_flags(perms: Permissions, st: &VoiceState) -> MediaFlags {
         // D-046: voice activity or push-to-talk, and a channel can force push-to-talk by denying USE_VAD.
         ptt_required: !perms.contains(Permissions::USE_VAD),
         priority: perms.contains(Permissions::PRIORITY_SPEAKER),
+        // The allowance checks already refused a camera or stream that does not fit, so the
+        // flags on the state are what the SFU may accept. A stage audience, the AFK channel
+        // and members without the permission publish nothing.
+        camera: st.self_video && !st.suppress && !st.afk && perms.contains(Permissions::STREAM),
+        screen: st.self_stream && !st.suppress && !st.afk && perms.contains(Permissions::STREAM),
     }
 }
 
@@ -399,6 +413,8 @@ pub(crate) struct VoiceExtra {
     pub streams: HashMap<String, crate::voice_stream::StreamState>,
     pub stages: HashMap<ChannelId, crate::voice_stage::StageInstance>,
     pub calls: HashMap<ChannelId, crate::voice_call::CallState>,
+    /// One soundboard play per member per few seconds.
+    pub cooldown: sr_chat::settings::soundboard::PlayCooldown,
 }
 
 /// What a member of a DM call may do: everything a voice channel member can.
@@ -476,6 +492,8 @@ impl Gateway {
             deaf: f.deaf,
             ptt_required: f.ptt_required,
             priority: f.priority,
+            camera: f.camera,
+            screen: f.screen,
         })
         .await;
     }
@@ -625,6 +643,9 @@ impl Gateway {
                 deaf: flags.deaf,
                 ptt_required: flags.ptt_required,
                 priority: flags.priority,
+                camera: flags.camera,
+                screen: flags.screen,
+                tier: st.tier,
             })
             .ok_or(JoinDenied::Unavailable)?;
         let session = self.st().sessions.get(&st.session_id).cloned();
@@ -751,13 +772,20 @@ impl Gateway {
         // Starting a camera is checked against the channel's allowance; a refusal keeps the
         // join and drops only the video.
         let mut self_video = inp.self_video;
-        let mut video_denied = None;
+        let mut video_denied: Option<(JoinDenied, Value)> = None;
         if self_video && !(same && carry.is_some_and(|c| c.self_video)) {
             let others = self.sender_count(channel, s.user);
             let mine_after = 1 + u16::from(self_stream);
-            if !allowance_ok(others, mine_after, limits.video_senders, limits.exempt) {
+            if !perms.contains(Permissions::STREAM) {
+                // "Video" in the permission list: camera and screen share alike.
                 self_video = false;
-                video_denied = Some(json!({ "limit": limits.video_senders, "count": others }));
+                video_denied = Some((JoinDenied::MissingPermission, Value::Null));
+            } else if !allowance_ok(others, mine_after, limits.video_senders, limits.exempt) {
+                self_video = false;
+                video_denied = Some((
+                    JoinDenied::VideoLimitReached,
+                    json!({ "limit": limits.video_senders, "count": others }),
+                ));
             }
         }
         let new = VoiceState {
@@ -779,6 +807,7 @@ impl Gateway {
             },
             afk,
             exempt: limits.exempt,
+            tier: limits.tier,
         };
         let flags = media_flags(perms, &new);
         // Refuse before changing anything if no SFU can be named.
@@ -827,14 +856,8 @@ impl Gateway {
         } else {
             self.relay_flags(&new, flags).await;
         }
-        if let Some(extra) = video_denied {
-            self.voice_error_with(
-                s,
-                guild,
-                Some(channel),
-                JoinDenied::VideoLimitReached,
-                extra,
-            );
+        if let Some((why, extra)) = video_denied {
+            self.voice_error_with(s, guild, Some(channel), why, extra);
         }
         Ok(())
     }
@@ -1335,6 +1358,7 @@ mod tests {
             request_to_speak_ms: None,
             afk: false,
             exempt: false,
+            tier: 0,
         }
     }
 
@@ -1420,7 +1444,9 @@ mod tests {
                 speak: true,
                 deaf: false,
                 ptt_required: false,
-                priority: false
+                priority: false,
+                camera: false,
+                screen: false,
             }
         );
         // No SPEAK: listen only.

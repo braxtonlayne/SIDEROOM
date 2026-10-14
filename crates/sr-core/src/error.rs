@@ -46,6 +46,8 @@ error_codes! {
     UnknownBan = 10026, 404, "Unknown Ban";
     UnknownInteraction = 10062, 404, "Unknown interaction";
     UnknownApplicationCommand = 10063, 404, "Unknown application command";
+    UnknownStageInstance = 10067, 404, "Unknown Stage Instance";
+    UnknownSound = 10097, 404, "Unknown Soundboard Sound";
     BotsCannotUseThisEndpoint = 20001, 403, "Bots cannot use this endpoint";
     OnlyBotsCanUseThisEndpoint = 20002, 403, "Only bots can use this endpoint";
     MaxGuilds = 30001, 400, "Maximum number of guilds reached";
@@ -58,6 +60,7 @@ error_codes! {
     MaxGroupDms = 30011, 400, "Maximum number of group DMs reached (10)";
     MaxEmojis = 30008, 400, "Maximum number of emojis reached";
     MaxStickers = 30039, 400, "Maximum number of stickers reached";
+    MaxSounds = 30045, 400, "Maximum number of soundboard sounds reached";
     SlowmodeRateLimit = 20016, 429, "This action cannot be performed due to slowmode rate limit";
     NoUsersWithDiscordTag = 80004, 400, "No users with DiscordTag exist";
     Unauthorized = 40001, 401, "Unauthorized";
@@ -87,6 +90,7 @@ error_codes! {
     ApiResourceOverloaded = 130000, 503, "API resource is currently overloaded. Try again a little later";
     ThreadAlreadyCreated = 160004, 400, "A thread has already been created for this message";
     ThreadLocked = 160005, 400, "Thread is locked";
+    StageAlreadyOpen = 150006, 400, "A stage instance is already open for this channel";
     MaxActiveThreads = 160006, 400, "Maximum number of active threads reached";
     AutoModBlocked = 200000, 400, "Message was blocked by AutoMod";
 
@@ -102,6 +106,7 @@ error_codes! {
     SrNotFound = 900009, 404, "Unknown resource";
     SrConflict = 900010, 409, "The current state does not allow this action";
     SrAgeConfirmationRequired = 900011, 403, "You need to confirm you are 18 or older to open this";
+    SrSoundboardCooldown = 900012, 429, "Wait a moment before playing another sound";
     SrAppNotReleased = 900120, 403, "App not released";
     SrAppSuspended = 900121, 403, "This application is suspended";
     SrIgnoreListFull = 900101, 400, "Your ignore list is full";
