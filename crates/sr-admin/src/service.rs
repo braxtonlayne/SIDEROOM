@@ -1077,6 +1077,24 @@ impl AdminService {
         self.require(c, perm, action).await
     }
 
+    /// Append a `read` row for a view of sensitive detail served by another subsystem
+    /// (donations: an invoice with its payer). The caller has already authorised the read.
+    pub async fn record_read(
+        &self,
+        c: &Caller,
+        action: &str,
+        target: Option<(&str, i64)>,
+        detail: Value,
+    ) -> AdminResult<()> {
+        let e = self.entry(c, AccessKind::Read, action, target, "", detail);
+        self.repo.append_log(&e).await.map(|_| ())
+    }
+
+    /// Require a reason (trimmed, non-empty, bounded) for an action performed by another subsystem.
+    pub fn require_reason(reason: Option<&str>) -> AdminResult<String> {
+        Self::reason(reason)
+    }
+
     /// Append an `admin_action` row to the access log for a change made by another
     /// subsystem (the Library catalog). The caller has already authorised and applied it.
     pub async fn record_action(

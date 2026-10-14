@@ -23,7 +23,7 @@ use sr_media::worker_api::JobStore;
 pub const PROBE_KIND: &str = "cinema.probe";
 pub const SWEEP_KIND: &str = "cinema.media.sweep";
 pub const REAP_KIND: &str = "cinema.transcode.reap";
-pub const SWEEP_JOB_ID: i64 = 160;
+pub const SWEEP_JOB_ID: i64 = 162;
 pub const REAP_JOB_ID: i64 = 161;
 const SWEEP_INTERVAL: Duration = Duration::from_secs(3600);
 const REAP_INTERVAL: Duration = Duration::from_secs(30);

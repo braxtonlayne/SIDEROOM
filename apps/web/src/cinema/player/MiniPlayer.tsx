@@ -5,6 +5,7 @@ import { Icon, ThemeProvider } from '@sideroom/ui';
 import type { RouterHistory } from '@tanstack/react-router';
 import { useLayoutEffect, useRef } from 'react';
 import { useAppliedTheme } from '../../settings/user/useAppliedTheme';
+import { useMiniPlayerActive } from './bridge';
 import { Expand, PauseGlyph, PlayGlyph } from './icons';
 import { watchHref } from './model';
 import { playerSession, usePlayer } from './session';
@@ -90,13 +91,19 @@ export function MiniPlayerHost({ history }: { history: RouterHistory }) {
   const status = usePlayer((x) => x.status);
   const mode = usePlayer((x) => x.mode);
   const info = usePlayer((x) => x.info);
+  const expandHref = useMiniPlayerActive((x) => x.expandHref);
   // The full player sets 'mini' when it is left while playing; until then it owns the picture.
   if (!info || status === 'idle' || mode !== 'mini') return null;
   const s = playerSession();
   return (
     <Themed
       onExpand={() => {
-        history.push(watchHref(info.title_id, info.episode_id));
+        history.push(
+          expandHref ??
+            (info.live
+              ? `/cinema/tv/watch/${encodeURIComponent(info.live.channel_id)}`
+              : watchHref(info.title_id, info.episode_id)),
+        );
       }}
       onClose={() => s.close()}
     />

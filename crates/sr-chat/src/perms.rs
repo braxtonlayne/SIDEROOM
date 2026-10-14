@@ -32,6 +32,7 @@ pub fn default_everyone_permissions() -> Permissions {
         | P::SEND_VOICE_MESSAGES
         | P::SEND_POLLS
         | P::USE_EXTERNAL_APPS
+        | P::START_WATCH_PARTY
 }
 
 /// Permissions of each participant in a DM or group DM.

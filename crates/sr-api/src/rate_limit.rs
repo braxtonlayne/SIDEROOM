@@ -107,6 +107,36 @@ impl Default for RateLimitConfig {
             ),
             ("GET /cdn/external (fetch)", BucketSpec::new(30, 60)),
             ("GET /cdn/external (global)", BucketSpec::new(240, 60)),
+            // Developer platform (docs/specs/developer-platform.md section 3.8). The token endpoints
+            // are limited per client id and per address inside the handlers.
+            ("POST /oauth2/token (client)", BucketSpec::new(30, 60)),
+            ("POST /oauth2/token (address)", BucketSpec::new(30, 60)),
+            (
+                "POST /oauth2/token/revoke (client)",
+                BucketSpec::new(30, 60),
+            ),
+            (
+                "POST /oauth2/token/revoke (address)",
+                BucketSpec::new(30, 60),
+            ),
+            ("POST /oauth2/introspect (client)", BucketSpec::new(60, 60)),
+            ("POST /oauth2/introspect (address)", BucketSpec::new(60, 60)),
+            ("POST /oauth2/authorize", BucketSpec::new(20, 60)),
+            ("POST /interactions", BucketSpec::new(20, 10)),
+            (
+                "POST /interactions/{interaction_id}/{token}/callback",
+                BucketSpec::new(5, 5),
+            ),
+            ("POST /applications", BucketSpec::new(5, 3600)),
+            ("POST /developers/apply", BucketSpec::new(3, 86_400)),
+            (
+                "POST /applications/{application_id}/reset-secret",
+                BucketSpec::new(5, 3600),
+            ),
+            (
+                "POST /applications/{application_id}/bot/reset-token",
+                BucketSpec::new(5, 3600),
+            ),
         ]
         .into_iter()
         .map(|(k, v)| (k.to_owned(), v))

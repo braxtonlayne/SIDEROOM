@@ -603,7 +603,7 @@ Status: `DONE`
 ## Server wiring (`feat/FND-SERVER-wiring`)
 
 **102. Bot and OAuth bearer backends reject everything.**
-Decision: correct until Phase 6; schema and token format are fixed by Q56. No action now.
+Decision: correct until Phase 6; schema and token format are fixed by Q56. No action now. (Done in wave 8: `sr_apps::auth::AppsAuth` authenticates both against `bot_tokens` and `oauth2_tokens`; `NoBots`/`NoBearers` are gone.)
 Rationale: D-062; doc 13 Phase 6.
 Status: `NO-CODE`
 

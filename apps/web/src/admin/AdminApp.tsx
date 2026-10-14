@@ -20,6 +20,11 @@ import { AccessLogSection } from './sections/AccessLog';
 import { CatalogSection } from './cinema/CatalogSection';
 import { CollectionsSection } from './cinema/CollectionsSection';
 import { TranscodingSection } from './cinema/TranscodingSection';
+import { LiveTvSection } from './cinema/tv/LiveTvSection';
+import { EntitlementsSection } from './donations/EntitlementsSection';
+import { InvoicesSection } from './donations/InvoicesSection';
+import { DonationsOverviewSection } from './donations/OverviewSection';
+import { PricingSection } from './donations/PricingSection';
 import { AccountsSection } from './sections/Accounts';
 import { BansSection } from './sections/Bans';
 import { CliParitySection } from './sections/CliParity';
@@ -118,6 +123,41 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     group: 'CINEMA',
     visible: (v) => v.can('MANAGE_TRANSCODE'),
     component: TranscodingSection,
+  },
+  {
+    id: 'cinema-live-tv',
+    label: 'Live TV',
+    group: 'CINEMA',
+    visible: (v) => v.can('MANAGE_TV'),
+    component: LiveTvSection,
+  },
+  {
+    id: 'donations',
+    label: 'Donations',
+    group: 'MONEY',
+    visible: (v) => v.can('MANAGE_DONATIONS'),
+    component: DonationsOverviewSection,
+  },
+  {
+    id: 'donation-invoices',
+    label: 'Invoices',
+    group: 'MONEY',
+    visible: (v) => v.can('MANAGE_DONATIONS'),
+    component: InvoicesSection,
+  },
+  {
+    id: 'donation-entitlements',
+    label: 'Entitlements',
+    group: 'MONEY',
+    visible: (v) => v.can('MANAGE_DONATIONS'),
+    component: EntitlementsSection,
+  },
+  {
+    id: 'donation-pricing',
+    label: 'Pricing and perks',
+    group: 'MONEY',
+    visible: (v) => v.can('MANAGE_DONATIONS'),
+    component: PricingSection,
   },
   {
     id: 'features',

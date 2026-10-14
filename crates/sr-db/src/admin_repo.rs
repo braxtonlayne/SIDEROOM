@@ -779,11 +779,12 @@ impl AdminRepository for PgAdminRepo {
             lock::xact_lock(&mut tx, lock::CAP_LOCK)
                 .await
                 .map_err(db2)?;
-            let active: i64 =
-                sqlx::query_scalar("SELECT count(*) FROM accounts WHERE state = 'active'")
-                    .fetch_one(&mut *tx)
-                    .await
-                    .map_err(db)?;
+            let active: i64 = sqlx::query_scalar(
+                "SELECT count(*) FROM accounts WHERE state = 'active' AND NOT is_bot",
+            )
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(db)?;
             if active >= cap {
                 return Err(AdminError::Conflict("The account cap is reached".into()));
             }
@@ -1084,11 +1085,12 @@ impl AdminRepository for PgAdminRepo {
         if lifted == 0 {
             return Err(AdminError::Conflict("The Person is not banned".into()));
         }
-        let mut active: i64 =
-            sqlx::query_scalar("SELECT count(*) FROM accounts WHERE state = 'active'")
-                .fetch_one(&mut *tx)
-                .await
-                .map_err(db)?;
+        let mut active: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM accounts WHERE state = 'active' AND NOT is_bot",
+        )
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(db)?;
         let ids: Vec<i64> = sqlx::query_scalar(
             "SELECT id FROM accounts WHERE person_id = $1 AND state = 'platform_banned' ORDER BY id",
         )
@@ -1533,7 +1535,7 @@ impl AdminRepository for PgAdminRepo {
     async fn counts(&self) -> AdminResult<SystemCounts> {
         let r = sqlx::query(
             "SELECT \
-              (SELECT count(*) FROM accounts WHERE state = 'active') AS active, \
+              (SELECT count(*) FROM accounts WHERE state = 'active' AND NOT is_bot) AS active, \
               (SELECT count(*) FROM accounts WHERE state = 'deactivated' AND id <> 1) AS deactivated, \
               (SELECT count(*) FROM accounts WHERE state = 'platform_banned') AS banned, \
               (SELECT count(*) FROM accounts WHERE state = 'deleted') AS deleted, \

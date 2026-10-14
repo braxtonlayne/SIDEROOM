@@ -19,7 +19,7 @@ export * from './types';
 export * from './hooks';
 export { useStore, resetStore } from './store';
 export type { StoreState, StoreActions } from './store';
-export { connectGateway, disconnectGateway, getGateway } from './connect';
+export { connectGateway, disconnectGateway, getGateway, holdGateway } from './connect';
 export { DM_GUILD } from './reducer';
 export * as rest from './rest';
 export { cdnUrl, cdnSize, isAnimatedHash } from './cdn';

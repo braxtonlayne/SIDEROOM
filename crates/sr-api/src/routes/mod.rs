@@ -18,7 +18,12 @@
 //!   outside `/api/v1`; the composition root merges [`cdn::layered`] at the top level.
 //! * `library`: `/library/*` catalog for members, `/admin/library/*` for publishers.
 //! * `cinema`: `/cinema/*` catalog for members, `/admin/cinema/*` for publishers.
+//! * `watchparty`: `/watch-parties/*` and `GET /channels/{id}/watch-party` (Watch Parties).
 //! * `voice`: `GET /sr/voice/turn` and `PATCH /guilds/{id}/voice-states/{user_id}`.
+//! * `developer`: `/developers/*`, `/applications*`, `/oauth2/*`, `/interactions*`, `/gateway*`,
+//!   `/applications/{id}/commands*`, `/webhooks/{app}/{token}/messages/*` and `/admin/developers/*`.
+//!   The follow-up `POST /webhooks/{app}/{interaction token}` stays with `settings`, which asks
+//!   `developer` first.
 //! * `social`: relationships, ignores, notes, DMs (`/users/@me/channels*`, `/channels/{id}/recipients/*`),
 //!   acks and read states, notification settings, profiles (`PATCH /users/@me`, `/users/{id}/profile`)
 //!   and `/users/@me/presence`. Only `GET /users/@me` stays with the base router.
@@ -34,6 +39,8 @@ pub mod cdn;
 pub mod cinema;
 pub mod cinema_media;
 pub mod cinema_social;
+pub mod developer;
+pub mod donations;
 pub mod guilds;
 pub mod library;
 pub mod media;
@@ -43,7 +50,9 @@ pub mod search;
 pub mod settings;
 pub mod social;
 pub mod threads;
+pub mod tv;
 pub mod voice;
+pub mod watchparty;
 
 /// Extractor for a service registered on [`AppState`]. A missing service is a
 /// server misconfiguration: it logs once per request and answers 500
@@ -103,6 +112,10 @@ pub fn all() -> Router<AppState> {
         .merge(review::router())
         .merge(voice::router())
         .merge(cinema_social::router())
+        .merge(tv::router())
+        .merge(watchparty::router())
+        .merge(developer::router())
+        .merge(donations::router())
 }
 
 /// Feature-owned routers (`Feature::routes()`), nested under
@@ -133,6 +146,10 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(review::openapi());
     doc.merge(voice::openapi());
     doc.merge(cinema_social::openapi());
+    doc.merge(tv::openapi());
+    doc.merge(watchparty::openapi());
+    doc.merge(developer::openapi());
+    doc.merge(donations::openapi());
     doc
 }
 

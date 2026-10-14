@@ -436,6 +436,9 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
         DomainEvent::EmojisUpdated { payload, .. } => {
             passthrough("GUILD_EMOJIS_UPDATE", payload, None)
         }
+        DomainEvent::GuildEntitlementUpdated { payload, .. } => {
+            passthrough("SR_ENTITLEMENT_UPDATE", payload, None)
+        }
         DomainEvent::StickersUpdated { payload, .. } => {
             passthrough("GUILD_STICKERS_UPDATE", payload, None)
         }

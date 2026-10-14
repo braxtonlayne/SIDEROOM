@@ -11,7 +11,8 @@ import { createLoungeRoutes } from './routes/lounge';
 import { createUserSettingsRoutes } from './settings/user/routes';
 import { createServerSettingsRoutes } from './routes/settingsServer';
 import { createAdminRoutes } from './admin/routes';
-import * as P from './routes/pages';
+import { createDeveloperRoutes } from './developers/routes';
+import { createSupportRoutes } from './support/routes';
 import { Landing } from './routes/entrance/Landing';
 import { Login } from './routes/entrance/Login';
 import { LoginLink } from './routes/entrance/LoginLink';
@@ -91,7 +92,8 @@ const routeTree = root.addChildren([
   createCinemaRoutes(root),
   createLibraryRoutes(root),
   ...createAdminRoutes(root),
-  r('/developers', P.Developers),
+  ...createDeveloperRoutes(root),
+  ...createSupportRoutes(root),
   r('/support', Support),
 ]);
 

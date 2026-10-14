@@ -1,0 +1,344 @@
+/* Live TV player chrome (TV-PLY). Builds on the Cinema player styles (cpl-); prefix ltv-. Tokens only. */
+.ltv-player {
+  --ltv-green: #b9e3a0;
+}
+.ltv-osd {
+  position: absolute;
+  top: 28px;
+  right: 32px;
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  font-family: var(--sr-teletext-font, ui-monospace, monospace);
+  color: var(--ltv-green);
+  text-shadow:
+    0 0 6px rgb(0 0 0 / 0.9),
+    0 2px 2px #000;
+  pointer-events: none;
+  animation: ltv-osd-out 0.5s ease 2.5s forwards;
+}
+.ltv-osd-num {
+  font-size: clamp(40px, 6vw, 72px);
+  font-weight: 700;
+  line-height: 1;
+}
+.ltv-osd-call {
+  font-size: 18px;
+  text-transform: uppercase;
+}
+.ltv-osd-title {
+  font-size: 15px;
+  max-width: 40ch;
+  text-align: right;
+}
+@keyframes ltv-osd-out {
+  to {
+    opacity: 0;
+  }
+}
+
+.ltv-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px 32px;
+  margin-bottom: 8px;
+}
+.ltv-banner-main {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.ltv-banner-kicker {
+  margin: 0 0 4px;
+  font-family: var(--sr-teletext-font, ui-monospace, monospace);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--sr-text-2);
+}
+.ltv-banner-title {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+}
+.ltv-banner-ep {
+  font-weight: 400;
+  color: var(--sr-text-2);
+}
+.ltv-banner-next {
+  margin: 0;
+  font-size: 14px;
+  color: var(--sr-text-2);
+}
+.ltv-chip {
+  display: inline-block;
+  padding: 1px 6px;
+  margin-right: 4px;
+  background: var(--sr-gold);
+  color: var(--sr-gold-ink);
+  font-family: var(--sr-teletext-font, ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.ltv-chip-dim {
+  background: transparent;
+  border: 1px solid var(--sr-text-3);
+  color: var(--sr-text-2);
+}
+.ltv-progress {
+  height: 4px;
+  background: rgb(255 255 255 / 0.18);
+}
+.ltv-progress > div {
+  height: 100%;
+  background: var(--sr-gold);
+}
+
+.ltv-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 12px;
+  padding: 3px 10px;
+  border: 1px solid #c0584a;
+  color: #f1b3a9;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+.ltv-live span {
+  color: #e2584a;
+}
+.ltv-golive {
+  margin: 0 12px;
+  padding: 4px 12px;
+  border: 1px solid var(--sr-gold);
+  background: transparent;
+  color: var(--sr-gold);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ltv-golive:hover {
+  background: var(--sr-gold);
+  color: var(--sr-gold-ink);
+}
+.ltv-volume {
+  width: 90px;
+}
+.ltv-dvr {
+  flex: 1 1 160px;
+  max-width: 420px;
+}
+.ltv-textbtn {
+  padding: 0 12px;
+  font-size: 14px;
+}
+.ltv-textbtn[aria-pressed='true'] {
+  color: var(--sr-gold);
+}
+.ltv-settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  align-items: center;
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: rgb(0 0 0 / 0.7);
+  font-size: 14px;
+}
+.ltv-settings label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.ltv-settings-note {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 12px;
+  color: var(--sr-text-2);
+}
+.ltv-reconnect {
+  padding: 10px 18px;
+  background: rgb(0 0 0 / 0.75);
+  font-family: var(--sr-teletext-font, ui-monospace, monospace);
+}
+
+/* channel list overlay */
+.ltv-guide {
+  position: absolute;
+  top: 70px;
+  right: 20px;
+  bottom: 150px;
+  display: flex;
+  flex-direction: column;
+  width: min(460px, calc(100vw - 40px));
+  padding: 14px;
+  background: rgb(10 10 9 / 0.92);
+  border: 1px solid var(--sr-line);
+}
+.ltv-guide-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--sr-gold);
+}
+.ltv-guide-list {
+  flex: 1;
+  overflow-y: auto;
+}
+.ltv-guide-item {
+  display: grid;
+  grid-template-columns: 3em minmax(5em, 9em) 1fr;
+  gap: 2px 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+}
+.ltv-guide-item[aria-selected='true'] {
+  background: var(--sr-guide-cell-now, #3a3d2d);
+}
+.ltv-guide-item[data-current] {
+  border-left-color: var(--sr-gold);
+}
+.ltv-guide-num {
+  font-family: var(--sr-teletext-font, ui-monospace, monospace);
+  color: var(--sr-text-3);
+}
+.ltv-guide-call {
+  font-weight: 700;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ltv-guide-now {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ltv-guide-next {
+  grid-column: 3;
+  font-size: 12px;
+  color: var(--sr-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ltv-guide-list:focus-visible {
+  outline: 2px solid var(--ui-focus, var(--sr-gold));
+}
+.ltv-guide-close {
+  align-self: flex-end;
+  margin-top: 8px;
+  padding: 0 14px;
+}
+.ltv-guide-empty {
+  margin: 8px;
+  color: var(--sr-text-2);
+}
+
+/* CRT filter (TV-PLY-004): scanlines, vignette, slight rounding. Static unless motion is allowed. */
+.ltv-crt-on .ltv-stage {
+  border-radius: 3% / 4%;
+  overflow: hidden;
+  filter: contrast(1.06) saturate(1.1);
+}
+.ltv-crt {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    var(
+      --sr-scanline,
+      repeating-linear-gradient(to bottom, rgb(0 0 0 / 0.18) 0 1px, transparent 1px 3px)
+    ),
+    radial-gradient(ellipse at center, transparent 55%, rgb(0 0 0 / 0.55) 100%);
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-reduced-motion='false'] .ltv-crt {
+    animation: ltv-flicker 0.18s steps(2) infinite;
+  }
+}
+@keyframes ltv-flicker {
+  50% {
+    opacity: 0.94;
+  }
+}
+
+/* tuning static (TV-PLY-003) */
+.ltv-static {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-color: #777;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  opacity: 0.85;
+  animation: ltv-static 0.12s steps(3) infinite;
+}
+@keyframes ltv-static {
+  0% {
+    background-position: 0 0;
+  }
+  33% {
+    background-position: -40px 25px;
+  }
+  66% {
+    background-position: 30px -60px;
+  }
+  100% {
+    background-position: -20px 50px;
+  }
+}
+[data-reduced-motion='true'] .ltv-static,
+[data-reduced-motion='true'] .ltv-osd,
+[data-reduced-motion='true'] .ltv-crt {
+  animation: none;
+}
+
+@media (max-width: 640px) {
+  .ltv-volume {
+    display: none;
+  }
+  .ltv-guide {
+    top: 56px;
+    right: 8px;
+    bottom: 180px;
+  }
+}
+
+/* slate and off-air blocks have no stream: the client draws colour bars */
+.ltv-slate {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #000;
+  pointer-events: none;
+}
+.ltv-bars {
+  position: absolute;
+  inset: 0 0 30% 0;
+  background: linear-gradient(
+    to right,
+    #c0c0c0 0 14.28%,
+    #c0c000 0 28.56%,
+    #00c0c0 0 42.84%,
+    #00c000 0 57.12%,
+    #c000c0 0 71.4%,
+    #c00000 0 85.68%,
+    #0000c0 0
+  );
+  opacity: 0.85;
+}
+.ltv-slate-title {
+  position: relative;
+  margin: 0;
+  padding: 8px 18px;
+  background: rgb(0 0 0 / 0.75);
+  font-family: var(--sr-teletext-font, ui-monospace, monospace);
+  font-size: clamp(18px, 3vw, 32px);
+  color: var(--ltv-green);
+}

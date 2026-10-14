@@ -8,6 +8,8 @@ import { CHANNEL_ICON } from '../ChannelSidebar';
 import { useCurrentUser, useUsers, useVoiceMembers, type Channel, type VoiceMember } from '../data';
 import { useJoinVoice } from './actions';
 import { useVoicePerms } from './perms';
+import { StartPartyButton } from '../../watchparty/StartPartyButton';
+import { WatchPartyStrip } from '../../watchparty/WatchPartyStrip';
 import { useVoiceMenuEntries } from './useVoiceMenu';
 
 function stateLabel(p: VoiceMember, name: string, self: boolean): string {
@@ -142,6 +144,7 @@ export function VoiceChannelView({
         guildId={channel.guildId}
         channelId={channel.id}
       />
+      <WatchPartyStrip channelId={channel.id} />
       <div className="vc-stage">
         {error && (
           <p role="alert" className="vc-inline-error">
@@ -216,6 +219,7 @@ export function VoiceChannelView({
           >
             <Icon name={deafNow ? 'volume-off' : 'headphones'} size={24} />
           </button>
+          <StartPartyButton channelId={channel.id} />
           <button
             type="button"
             className="vc-ctl vc-ctl-danger"

@@ -19,10 +19,12 @@ thiserror = "2"
 tracing = "0.1"
 sr-auth = { path = "../sr-auth" }
 sr-admin = { path = "../sr-admin" }
+sr-apps = { path = "../sr-apps" }
 sr-library = { path = "../sr-library" }
 sr-cinema = { path = "../sr-cinema" }
 sr-review = { path = "../sr-review" }
 sr-media = { path = "../sr-media" }
+sr-payments = { path = "../sr-payments" }
 aes-gcm = "0.10"
 sha2 = "0.11"
 

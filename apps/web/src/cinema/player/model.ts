@@ -296,3 +296,6 @@ export const watchHref = (titleId: string, episode?: string | null, t?: number) 
   const s = q.toString();
   return `/cinema/watch/${encodeURIComponent(titleId)}${s ? `?${s}` : ''}`;
 };
+
+/** Media ids of live channels in the player session: `tv:<channelId>`. */
+export const LIVE_MEDIA_PREFIX = 'tv:';

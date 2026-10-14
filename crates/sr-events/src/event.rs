@@ -39,6 +39,8 @@ pub enum StaffAlertKind {
     StaffRevoked,
     /// The staff access-log hash chain failed verification.
     AccessLogChainBroken,
+    /// A donation invoice needs a human (underpaid, overpaid or paid late).
+    PaymentAttention,
 }
 
 impl StaffAlertKind {
@@ -49,6 +51,7 @@ impl StaffAlertKind {
             Self::InviterEscalated => "inviter_escalated",
             Self::StaffRevoked => "staff_revoked",
             Self::AccessLogChainBroken => "access_log_chain_broken",
+            Self::PaymentAttention => "payment_attention",
         }
     }
 }
@@ -301,6 +304,12 @@ pub enum DomainEvent {
         guild: GuildId,
         payload: Value,
     },
+    /// `SR_ENTITLEMENT_UPDATE` for the members of a guild (its support level or pool changed);
+    /// `payload` is `{type:"guild", guild_id, level, pool_cents}`.
+    GuildEntitlementUpdated {
+        guild: GuildId,
+        payload: Value,
+    },
     /// `WEBHOOKS_UPDATE`; the gateway builds `{guild_id, channel_id}`.
     WebhooksUpdated {
         guild: GuildId,
@@ -450,6 +459,7 @@ impl DomainEvent {
             | Self::InviteDeleted { guild, .. }
             | Self::EmojisUpdated { guild, .. }
             | Self::StickersUpdated { guild, .. }
+            | Self::GuildEntitlementUpdated { guild, .. }
             | Self::WebhooksUpdated { guild, .. }
             | Self::AutoModRuleCreated { guild, .. }
             | Self::AutoModRuleUpdated { guild, .. }
@@ -647,6 +657,10 @@ mod tests {
                 payload: p.clone(),
             },
             DomainEvent::EmojisUpdated {
+                guild: g,
+                payload: p.clone(),
+            },
+            DomainEvent::GuildEntitlementUpdated {
                 guild: g,
                 payload: p.clone(),
             },

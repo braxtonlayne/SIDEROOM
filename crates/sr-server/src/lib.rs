@@ -14,11 +14,14 @@ pub mod jobs;
 pub mod lag_bus;
 pub mod library_jobs;
 pub mod media_jobs;
+pub mod payments_jobs;
 pub mod ready;
 pub mod rich_jobs;
 pub mod search_jobs;
 pub mod settings_pg;
+pub mod tv_catalog;
 pub mod voice;
+pub mod watchparty;
 
 /// The OpenAPI document served at `/api/v1/openapi.json` and printed by
 /// `sr-server openapi`.
@@ -43,3 +46,10 @@ mod voice_pg_tests;
 
 #[cfg(test)]
 mod cinema_wiring_pg_tests;
+
+#[cfg(test)]
+mod bot_pg_tests;
+#[cfg(test)]
+mod tv_wiring_pg_tests;
+#[cfg(test)]
+mod watchparty_pg_tests;

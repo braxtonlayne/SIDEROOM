@@ -69,6 +69,8 @@ export interface PlaybackInfo {
   progress: WatchProgress | null;
   /** A trailer: no resume, no progress saving, no next episode. */
   trailer?: boolean;
+  /** A live TV channel (p8-livetv-web): no progress saving or duration; the mini player links back to it. */
+  live?: { channel_id: string };
 }
 
 /** A fresh grant for the same asset (ManifestGrant in sr-media). */

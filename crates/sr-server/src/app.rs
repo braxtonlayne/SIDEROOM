@@ -48,7 +48,6 @@ use std::{future::Future, net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{net::TcpListener, sync::watch, task::JoinHandle};
 
 use crate::{
-    backends::{NoBearers, NoBots},
     features_store::PgSettingsStore,
     gateway_pg::{PgAuthenticator, PgGuildDirectory},
     ready::{DbReady, StorageReady},
@@ -251,6 +250,25 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             .map_err(|e| anyhow::anyhow!("configuring [discord]: {e}"))?
     };
     let auth_service = Arc::new(auth_service);
+
+    // The developer platform: applications, bot tokens, OAuth2, commands, interactions. Bot
+    // and bearer credentials authenticate against its stores (open question 56).
+    let apps_service = Arc::new(sr_apps::AppsService::new(
+        Arc::new(sr_db::apps_repo::PgAppsRepo::new(pool.clone())),
+        clock.clone(),
+        id_src.clone(),
+    ));
+    let apps_auth = Arc::new(sr_apps::auth::AppsAuth::new(apps_service.clone()));
+    let dev_deps = Arc::new(routes::developer::DevDeps::new(
+        (*apps_service).clone(),
+        Arc::new(PgChatRepo::new(pool.clone())),
+        bus.clone(),
+        Arc::new(routes::developer::AuthPasswordConfirm::new(
+            auth_service.clone(),
+        )),
+        clock.clone(),
+        &cfg.server.public_url,
+    ));
 
     let s = &cfg.storage;
     let storage: Arc<dyn ObjectStorage> = Arc::new(
@@ -511,7 +529,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     )
     .with_events(Arc::new(sr_cinema_social::BusEvents::new(bus.clone())));
     let mut cinema_service = sr_cinema::CinemaService::new(
-        cinema_repo,
+        cinema_repo.clone(),
         cdn_signer.clone(),
         clock.clone(),
         id_src.clone(),
@@ -548,6 +566,24 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             .with_prefs(Arc::new(crate::settings_pg::PgCinemaPrefs::new(
                 pool.clone(),
             ))),
+    );
+
+    // Live TV (TV-ENG, TV-HLS): the schedule is stored in Postgres, pools come from the catalog repository,
+    // and the live playlists are cut from the same renditions the VOD player uses (`/cdn/hls/<asset>/...`).
+    let tv_deps = Arc::new(
+        routes::tv::TvDeps::new(
+            sr_tv::TvService::new(
+                Arc::new(sr_tv::pg::PgTvRepo::new(pool.clone())),
+                Arc::new(crate::tv_catalog::RepoTvCatalog::new(cinema_repo)),
+                clock.clone(),
+                id_src.clone(),
+            )
+            .with_live(sr_tv::LiveDeps {
+                source: Arc::new(crate::media_jobs::PgPlaybackSource::new(media_repo.clone())),
+                signer: Arc::new(cdn_signer.clone()),
+            }),
+        )
+        .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone()))),
     );
 
     // Cinema media (CIN-ING-004/010, CIN-DL-001): the Postgres job store behind the Worker API
@@ -605,10 +641,20 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     } else {
         media_service
     };
+    // Donations (DON-*): watch-only Bitcoin payments, entitlements, and the Patron download perk
+    // on top of them (the legacy `cinema_download_grants` table is a fallback until the cutover).
+    let payments = crate::payments_jobs::build(&pool, id_src.clone(), bus.clone()).await;
+    let download_entitlements: Arc<dyn sr_media::downloads::DownloadEntitlements> =
+        Arc::new(sr_db::media_repo::EntitlementDownloads::new(
+            payments.entitlements.clone(),
+            payments
+                .legacy_fallback
+                .then(|| sr_db::media_repo::PgDownloadEntitlements::new(pool.clone())),
+        ));
     let download_service = Arc::new(sr_media::downloads::DownloadService::new(
         media_repo.clone(),
         media_repo.clone(),
-        Arc::new(sr_db::media_repo::PgDownloadEntitlements::new(pool.clone())),
+        download_entitlements,
         Arc::new(cdn_signer.clone()),
         storage.clone(),
         id_src.clone(),
@@ -634,6 +680,23 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         routes::cinema_social::CinemaSocialDeps::new(cinema_social_service.clone())
             .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone()))),
     );
+
+    // Watch Parties (WP-BE-*): the catalog play gate, channel permissions from the chat repository,
+    // gateway events on the bus. The timer worker settles buffering waits; the sweep job covers the rest.
+    let watchparty_service =
+        sr_watchparty::PartyService::new(pool.clone(), clock.clone(), id_src.clone())
+            .with_play_gate(Arc::new(crate::watchparty::CinemaPlayGate::new(
+                cinema_service.clone(),
+            )))
+            .with_channels(Arc::new(crate::watchparty::ChatChannelAccess::new(
+                PgChatRepo::new(pool.clone()),
+                clock.clone(),
+            )))
+            .with_events(Arc::new(sr_watchparty::BusEvents::new(bus.clone())));
+    watchparty_service.spawn_timers();
+    let watchparty_deps = Arc::new(routes::watchparty::WatchPartyDeps::new(
+        watchparty_service.clone(),
+    ));
 
     // The review pipeline (REV-*): submissions of the Library kinds, reviewed by staff with
     // REVIEW_READING and published through the same Library service. The submitter hears
@@ -697,12 +760,13 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             voice: voice_setup.as_ref().map(|v| v.gateway.clone()),
             ..GatewayConfig::default()
         },
-        Arc::new(PgAuthenticator::new(
-            auth_repo.clone(),
-            pool.clone(),
-            clock.clone(),
-        )),
-        Arc::new(PgGuildDirectory::new(pool.clone(), clock.clone())),
+        Arc::new(
+            PgAuthenticator::new(auth_repo.clone(), pool.clone(), clock.clone())
+                .with_apps(apps_service.clone()),
+        ),
+        Arc::new(
+            PgGuildDirectory::new(pool.clone(), clock.clone()).with_apps(apps_service.clone()),
+        ),
         bus.clone(),
     );
     gateway.start();
@@ -753,8 +817,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(auth_service)
         .extension(Arc::new(admin))
         .sessions(Arc::new(auth_repo))
-        .bots(Arc::new(NoBots))
-        .bearers(Arc::new(NoBearers))
+        .bots(apps_auth.clone())
+        .bearers(apps_auth)
+        .extension(dev_deps)
         .openapi(routes::openapi())
         .extension(Arc::new(routes::voice::VoiceApi(Arc::new(
             crate::voice::ServerVoice::new(
@@ -773,8 +838,13 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(search_deps)
         .extension(library_deps)
         .extension(cinema_deps)
+        .extension(tv_deps)
         .extension(media_deps)
         .extension(cinema_social_deps)
+        .extension(watchparty_deps)
+        .extension(Arc::new(routes::donations::DonationsDeps::new(
+            payments.service.clone(),
+        )))
         .extension(review_deps)
         .extension(Arc::new(routes::media::MediaDeps::new(storage.clone())))
         .extension(Arc::new(
@@ -836,6 +906,18 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         }
     });
 
+    // Interactions and their message mappings outlive their token by a day, then go.
+    let gc_apps = apps_service.clone();
+    let apps_gc_task = tokio::spawn(async move {
+        let mut tick = tokio::time::interval(Duration::from_secs(3600));
+        loop {
+            tick.tick().await;
+            if let Err(e) = gc_apps.purge_interactions().await {
+                tracing::warn!(error = %e, "could not purge expired interactions");
+            }
+        }
+    });
+
     let (job_tx, job_rx) = watch::channel(false);
     let runner = crate::jobs::register(
         JobRunner::new(pool.clone(), format!("srv-{}", std::process::id())),
@@ -850,6 +932,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::external_jobs::register(runner, &pool, storage.clone());
     let runner = crate::library_jobs::register(runner, &pool, library_service.clone());
     let runner = crate::cinema_jobs::register(runner, &pool, cinema_social_service.clone());
+    let runner = crate::watchparty::register(runner, &pool, watchparty_service.clone());
     let runner = crate::media_jobs::register(
         runner,
         &pool,
@@ -857,6 +940,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         media_service_shared,
         download_service,
     );
+    let runner = crate::payments_jobs::register(runner, &pool, payments.service.clone());
     crate::jobs::schedule_recurring(&pool).await?;
     crate::jobs::schedule_audit_purge(&pool).await?;
     crate::jobs::schedule_thread_archive(&pool).await?;
@@ -866,7 +950,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::external_jobs::schedule(&pool).await?;
     crate::library_jobs::schedule_gc(&pool).await?;
     crate::cinema_jobs::schedule(&pool).await?;
+    crate::watchparty::schedule(&pool).await?;
     crate::media_jobs::schedule(&pool).await?;
+    crate::payments_jobs::schedule(&pool).await?;
     let jobs_task = tokio::spawn(runner.run(job_rx));
 
     // REST: every feature module, feature-owned routes, and the guild backend.
@@ -945,6 +1031,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     }
     gauge_task.abort();
     seen_task.abort();
+    apps_gc_task.abort();
     metrics_task.abort();
     search_consumer.abort();
     if let Some(h) = features_listener {

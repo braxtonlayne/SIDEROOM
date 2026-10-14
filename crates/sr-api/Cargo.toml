@@ -21,12 +21,16 @@ serde.workspace = true
 serde_json.workspace = true
 sha2 = "0.11"
 sr-admin = { path = "../sr-admin" }
+sr-apps = { path = "../sr-apps" }
 sr-auth = { path = "../sr-auth", features = ["webauthn"] }
 sr-features = { path = "../sr-features" }
 sr-library = { path = "../sr-library" }
 sr-cinema = { path = "../sr-cinema" }
 sr-media = { path = "../sr-media" }
+sr-tv = { path = "../sr-tv" }
 sr-cinema-social = { path = "../sr-cinema-social" }
+sr-watchparty = { path = "../sr-watchparty" }
+sr-payments = { path = "../sr-payments" }
 sr-review = { path = "../sr-review" }
 sr-chat = { path = "../sr-chat" }
 sr-core = { path = "../sr-core" }

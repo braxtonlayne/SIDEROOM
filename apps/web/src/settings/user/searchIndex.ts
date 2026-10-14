@@ -76,6 +76,12 @@ export const SETTINGS_INDEX: readonly SettingsEntry[] = [
   },
   { section: 'apps', label: 'Authorized apps', keywords: 'oauth deauthorize bots' },
   { section: 'devices', label: 'Devices and sessions', keywords: 'log out sign out trusted' },
+  {
+    section: 'support',
+    label: 'Support / Patron',
+    keywords:
+      'donate donation patron bitcoin invoice leaderboard invite credits server level boost',
+  },
   { section: 'connections', label: 'Connected accounts', keywords: 'discord link' },
   {
     section: 'appearance',

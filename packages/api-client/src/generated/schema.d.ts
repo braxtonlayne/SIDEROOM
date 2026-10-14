@@ -864,6 +864,345 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/developers/apps/{application_id}/suspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Staff: switch an application off. */
+        post: operations["admin_suspend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/developers/apps/{application_id}/unsuspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Staff: lift a suspension. */
+        post: operations["admin_unsuspend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/developers/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Staff: developer requests. */
+        get: operations["admin_requests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/developers/requests/{request_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Staff: approve or reject a developer request. */
+        post: operations["admin_decide_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/developers/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Staff: version queue. */
+        get: operations["admin_versions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/developers/versions/{version_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Staff: approve, reject or send back a version. */
+        post: operations["admin_decide_version"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/donations/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The donation settings (prices, thresholds, perks, depths, expiry). */
+        get: operations["admin_donations_get_config"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change settings with a JSON merge patch. The result is validated as a whole; nothing applies
+         *     on a failure. Takes effect immediately (no restart).
+         */
+        patch: operations["admin_donations_patch_config"];
+        trace?: never;
+    };
+    "/admin/donations/entitlements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Entitlement grants (from invoices, staff, or the legacy download table), newest first. */
+        get: operations["admin_donations_entitlements"];
+        put?: never;
+        /** Grant Patron time or a server pool contribution by hand. */
+        post: operations["admin_donations_grant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/donations/entitlements/{grant_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke a grant. */
+        delete: operations["admin_donations_revoke"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/donations/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search invoices (newest first). */
+        get: operations["admin_donations_invoices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/donations/invoices/{invoice_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One invoice with its payer, transactions and full audit trail. The read is access-logged. */
+        get: operations["admin_donations_invoice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/donations/invoices/{invoice_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close an invoice by hand: `mark_paid` (credits the purpose once), `refund_noted` (the operator
+         *     refunded outside this system; a credit already given is reversed) or `dismiss`. The server
+         *     never moves funds.
+         */
+        post: operations["admin_donations_resolve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/donations/leaderboard/hide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Keep a donor or a server off the public leaderboards (or put them back). */
+        post: operations["admin_donations_hide"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/donations/leaderboard/{board}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The ranking with real names and amounts (staff view; the read is access-logged). Entries staff
+         *     hid are not listed.
+         */
+        get: operations["admin_donations_leaderboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/donations/rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The price sources and the current median. */
+        get: operations["admin_donations_rates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/donations/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Credited totals by purpose and by day, and invoice counts by state (default: this month). */
+        get: operations["admin_donations_report"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/donations/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Wallet health, watcher status, rate sources and invoice counts. Reveals no descriptor or key. */
+        get: operations["admin_donations_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/donations/wallet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set the active wallet from a watch-only descriptor. Descriptors with private keys are
+         *     refused. Older wallets stay watched for their open invoices. Returns the first addresses to
+         *     compare with the operator's own wallet.
+         */
+        put: operations["admin_donations_set_wallet"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/donations/wallet/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Derive the first receive addresses of a descriptor without saving anything. */
+        post: operations["admin_donations_test_wallet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/features": {
         parameters: {
             query?: never;
@@ -2003,6 +2342,452 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/tv/blocks/{block_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove one block from a schedule. */
+        delete: operations["admin_tv_remove_block"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tv/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** All channels with their rules, disabled ones too. */
+        get: operations["admin_tv_channels"];
+        put?: never;
+        /** Create a channel (`MANAGE_TV`). A taken number is 409. */
+        post: operations["admin_tv_create_channel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tv/channels/{channel_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A channel with its rules. */
+        get: operations["admin_tv_channel"];
+        /** Replace the editable fields of a channel. */
+        put: operations["admin_tv_update_channel"];
+        post?: never;
+        /** Delete a channel with its schedule. */
+        delete: operations["admin_tv_delete_channel"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tv/channels/{channel_id}/blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Place a programme at a time; what it overlaps is trimmed, split or removed. */
+        post: operations["admin_tv_place_block"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tv/channels/{channel_id}/now": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What is on at any moment, from the stored blocks. */
+        get: operations["admin_tv_now"];
+        /** Put a programme on the air now, cutting the block on air. */
+        put: operations["admin_tv_set_now"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tv/channels/{channel_id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate a schedule from the current rules without storing anything. */
+        post: operations["admin_tv_preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tv/channels/{channel_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Regenerate the part of the schedule that has not started from the current rules and store it. */
+        post: operations["admin_tv_publish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tv/channels/{channel_id}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stored blocks of a channel overlapping a window (no lazy extension). */
+        get: operations["admin_tv_schedule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tv/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What aired in a window (at most 31 days). */
+        get: operations["admin_tv_report"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My applications. */
+        get: operations["list_apps"];
+        put?: never;
+        /** Create an application and its bot. */
+        post: operations["create_app"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/@me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The bot's own application (public fields). */
+        get: operations["current_application"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One of my applications. */
+        get: operations["get_app"];
+        put?: never;
+        post?: never;
+        /** Delete my application and remove its bot everywhere. */
+        delete: operations["delete_app"];
+        options?: never;
+        head?: never;
+        /** Change my application's settings. */
+        patch: operations["patch_app"];
+        trace?: never;
+    };
+    "/applications/{application_id}/audit-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The application's audit trail. */
+        get: operations["audit_log"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/bot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Rename the bot account. */
+        patch: operations["patch_bot"];
+        trace?: never;
+    };
+    "/applications/{application_id}/bot/reset-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Replace the bot token (shown once). */
+        post: operations["reset_token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/commands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Global commands of the application. */
+        get: operations["list_global"];
+        /** Replace all global commands. */
+        put: operations["overwrite_global"];
+        /** Create (or update by name) a global command. */
+        post: operations["create_global"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/commands/{command_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One global command. */
+        get: operations["get_global"];
+        put?: never;
+        post?: never;
+        /** Delete a global command. */
+        delete: operations["delete_global"];
+        options?: never;
+        head?: never;
+        /** Modify a global command. */
+        patch: operations["patch_global"];
+        trace?: never;
+    };
+    "/applications/{application_id}/guilds/{guild_id}/commands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Commands of the application in one server. */
+        get: operations["list_guild"];
+        /** Replace all commands of one server. */
+        put: operations["overwrite_guild"];
+        /** Create (or update by name) a server command. */
+        post: operations["create_guild"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/guilds/{guild_id}/commands/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Overwrites of every command in a server. */
+        get: operations["guild_permissions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/guilds/{guild_id}/commands/{command_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One server command. */
+        get: operations["get_guild"];
+        put?: never;
+        post?: never;
+        /** Delete a server command. */
+        delete: operations["delete_guild"];
+        options?: never;
+        head?: never;
+        /** Modify a server command. */
+        patch: operations["patch_guild"];
+        trace?: never;
+    };
+    "/applications/{application_id}/guilds/{guild_id}/commands/{command_id}/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Overwrites of one command. */
+        get: operations["command_permissions"];
+        /**
+         * Replace the overwrites of one command. Needs a bearer token with
+         *     `applications.commands.permissions.update`, issued to this application, of a user who
+         *     manages the server. Bot tokens and sessions are refused (as on Discord).
+         */
+        put: operations["set_command_permissions"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/installs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Servers the application is installed in. */
+        get: operations["installs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/reset-secret": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Replace the client secret (shown once). */
+        post: operations["reset_secret"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Release versions of an application. */
+        get: operations["list_versions"];
+        put?: never;
+        /** Submit the current settings for release review. */
+        post: operations["submit_version"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/versions/{version_id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Withdraw a pending version. */
+        post: operations["withdraw_version"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/channels/{channel_id}": {
         parameters: {
             query?: never;
@@ -2547,6 +3332,23 @@ export interface paths {
         };
         /** Archived private threads of a channel that the caller joined. */
         get: operations["archived_joined_private"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/watch-party": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The live party of a channel or DM. */
+        get: operations["watch_party_in_channel"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3480,6 +4282,221 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/developers/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ask to build apps. */
+        post: operations["apply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/developers/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Am I a developer, and where is my request? */
+        get: operations["status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/donations/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Public donation settings: prices, tiers, perks, the current BTC price, and this month's
+         *     donations against the hosting cost.
+         */
+        get: operations["donations_config"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/donations/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's invoices, newest first (transactions are only in the single-invoice read). */
+        get: operations["donations_list_invoices"];
+        put?: never;
+        /**
+         * Create an invoice: a fresh address derived from the operator's watch-only wallet, the amount
+         *     in satoshis locked at the current rate. 503 when the address gap limit is reached or no fresh
+         *     price exists; 403 `SR_FEATURE_DISABLED` when donations are off; 429 over 10 open invoices.
+         */
+        post: operations["donations_create_invoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/donations/invoices/{invoice_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One of the caller's invoices with its transactions. */
+        get: operations["donations_get_invoice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/donations/invoices/{invoice_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel an open invoice that has received nothing (409 otherwise). */
+        post: operations["donations_cancel_invoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/donations/invoices/{invoice_id}/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** The "I've paid" button: reads the chain for this invoice now (at most once per 10 seconds). */
+        post: operations["donations_check_invoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/donations/leaderboards/{board}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A public leaderboard: `donors` (individuals) or `servers`. Donors who hide their name show as
+         *     "Anonymous patron"; hidden amounts are omitted (rank only). Cached for an hour.
+         */
+        get: operations["donations_leaderboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/donations/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's Patron status, effective limits and leaderboard preferences. */
+        get: operations["donations_me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/donations/me/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change leaderboard privacy and the Patron badge. */
+        patch: operations["donations_patch_preferences"];
+        trace?: never;
+    };
+    "/gateway": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Where to connect (Discord's unauthenticated `GET /gateway`). */
+        get: operations["gateway"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gateway/bot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Gateway URL and session limits for a bot. There is no sharding: `shards` is always 1. */
+        get: operations["gateway_bot"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds": {
         parameters: {
             query?: never;
@@ -4039,6 +5056,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/support": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A server's support level, pool and top contributors (members only). */
+        get: operations["donations_guild_support"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Hide the server from the public leaderboard (owner only). */
+        patch: operations["donations_patch_guild_support"];
+        trace?: never;
+    };
     "/guilds/{guild_id}/templates": {
         parameters: {
             query?: never;
@@ -4149,6 +5184,40 @@ export interface paths {
         head?: never;
         /** Edit the welcome screen (`MANAGE_GUILD`): up to 5 channel cards. */
         patch: operations["modify_welcome_screen"];
+        trace?: never;
+    };
+    "/interactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Use an application: run a command, press a component, ask for autocomplete, submit a modal. */
+        post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/interactions/{interaction_id}/{token}/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Answer an interaction. Within 3 seconds of its creation, once. */
+        post: operations["callback"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/invites/{code}": {
@@ -4428,6 +5497,129 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/oauth2/@me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The token's application, scopes, expiry and (with `identify`) user. */
+        get: operations["me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/oauth2/authorize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What the consent screen shows. An invalid client, redirect URI or scope is a 400 with a
+         *     field error, never a redirect.
+         */
+        get: operations["authorize_info"];
+        put?: never;
+        /** Approve or deny an authorization request. Returns where to send the browser. */
+        post: operations["authorize"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/oauth2/introspect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Token introspection (RFC 7662) for the client the token was issued to. */
+        post: operations["introspect"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/oauth2/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Exchange a code or a refresh token for tokens. */
+        post: operations["token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/oauth2/token/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke an access or refresh token (RFC 7009). Always 200 for an authenticated client. */
+        post: operations["revoke"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/oauth2/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Applications the user authorized. */
+        get: operations["list_grants"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/oauth2/tokens/{grant_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke a grant and every token of it. */
+        delete: operations["revoke_grant"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5034,6 +6226,165 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tv/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Enabled channels by number, each with what is on now and next. */
+        get: operations["tv_channels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tv/channels/{channel_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One channel with what is on now and next. */
+        get: operations["tv_channel"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tv/channels/{channel_id}/live/audio.m3u8": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The live audio playlist (the default track of each programme). */
+        get: operations["tv_live_audio"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tv/channels/{channel_id}/live/master.m3u8": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The live master playlist: the rungs every upcoming programme has, one audio group. */
+        get: operations["tv_live_master"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tv/channels/{channel_id}/live/v/{file}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The live video playlist of a rung: a sliding window of the segments on air. `file` is `{height}.m3u8`.
+         *     Fetching it counts the member as a viewer of the channel.
+         */
+        get: operations["tv_live_video"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tv/channels/{channel_id}/now": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What is on a channel now, how far into it the wall clock is, and what comes next. */
+        get: operations["tv_channel_now"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tv/channels/{channel_id}/tune": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Open a channel: what is on and the API path of its live master playlist. A restricted programme on air
+         *     answers 403 with code 900011 until the account confirmed it is 18 or older (D-184).
+         */
+        get: operations["tv_channel_tune"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tv/guide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The programme guide for a window. */
+        get: operations["tv_guide"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tv/timezones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The time zones a channel can use. */
+        get: operations["tv_timezones"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/@me": {
         parameters: {
             query?: never;
@@ -5413,6 +6764,363 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/watch-parties": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start a party: bound to a channel or DM the caller may start one in (`START_WATCH_PARTY`), or private
+         *     (shareable link). The title must be published and playable; a restricted one needs the caller's age
+         *     confirmation (403, code 900011). The caller becomes the host and leaves any other party.
+         */
+        post: operations["watch_party_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The party the caller is in now. */
+        get: operations["watch_party_mine"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/time": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The server clock. Clients sample it (with their own round-trip time) to estimate their clock offset
+         *     before and while they are in a party.
+         */
+        get: operations["watch_party_time"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A party. Members, and people who can see the bound channel, may read it; restricted content is masked for
+         *     viewers without age confirmation.
+         */
+        get: operations["watch_party_get"];
+        put?: never;
+        post?: never;
+        /** End the party for everybody (host or channel manager). */
+        delete: operations["watch_party_end"];
+        options?: never;
+        head?: never;
+        /** Change the settings (host or channel manager). */
+        patch: operations["watch_party_update"];
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The audit trail of party-level actions, newest first (host or channel manager). */
+        get: operations["watch_party_audit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/controllers/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Name or unname a controller (host or channel manager). */
+        put: operations["watch_party_set_controller"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The participant's heartbeat (every 15 to 30 s): liveness, round-trip estimate, buffering and ready
+         *     flags. Answers with the server clock and the current playback. A participant silent for 90 s is dropped.
+         */
+        post: operations["watch_party_heartbeat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/host": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Hand the host role to another participant (host or channel manager). */
+        post: operations["watch_party_transfer_host"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Join. A private party needs `invite_code`; a bound party needs access to its channel; a restricted title
+         *     needs the caller's age confirmation (403, 900011). Joining leaves the caller's other party.
+         */
+        post: operations["watch_party_join"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/leave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Leave. The host role passes to the next person; an empty party ends after 5 minutes unless persistent. */
+        post: operations["watch_party_leave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change what is playing (controllers). The title must be published and playable. For a restricted title,
+         *     participants without age confirmation are removed from the party.
+         */
+        put: operations["watch_party_change_media"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/members/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a participant and bar them from rejoining (host or channel manager). */
+        delete: operations["watch_party_kick"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send an ephemeral message to the party's own chat (used by private parties; parties bound to a channel
+         *     use that channel's text chat). Not stored.
+         */
+        post: operations["watch_party_say"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/next": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Skip to the next queue entry (controllers). */
+        post: operations["watch_party_next"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/playback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A playback command: `play`, `pause`, `seek` (`position_ms`), `rate` (0.5 to 2) or `ended`. Allowed for
+         *     the host and, per the shared-control setting, controllers or everybody; otherwise 403. A stale
+         *     `expected_version` answers 409 with the current playback. The answer is the state after the command.
+         */
+        post: operations["watch_party_command"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add to the queue (per the queue policy). */
+        post: operations["watch_party_queue_add"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/queue/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a queue entry (per the queue policy; the person who added it may always). */
+        delete: operations["watch_party_queue_remove"];
+        options?: never;
+        head?: never;
+        /** Reorder the queue (controllers): move an entry to `position`. */
+        patch: operations["watch_party_queue_move"];
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/reactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a floating emoji reaction to the party (rate limited). */
+        post: operations["watch_party_react"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/webhooks/{application_id}/{token}/messages/{message_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a message of the interaction. */
+        get: operations["get_message"];
+        put?: never;
+        post?: never;
+        /** Delete a message of the interaction. */
+        delete: operations["delete_message"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit a message of the interaction. The first edit of `@original` after a deferral creates
+         *     the message.
+         */
+        patch: operations["edit_message"];
+        trace?: never;
+    };
     "/webhooks/{webhook_id}": {
         parameters: {
             query?: never;
@@ -5612,6 +7320,19 @@ export interface components {
             /** Format: int64 */
             balance: number;
         };
+        AdminInvoicePage: {
+            items: components["schemas"]["AdminInvoiceView"][];
+            next_before?: string | null;
+        };
+        AdminInvoiceView: components["schemas"]["InvoiceView"] & {
+            audit: components["schemas"]["AuditView"][];
+            /** Format: int32 */
+            derivation_index: number;
+            resolution_note?: string | null;
+            resolved_by?: string | null;
+            user_id: string;
+            user_name?: string | null;
+        };
         /** @description Everything about a title, unpublished parts included (staff). */
         AdminTitleDetail: {
             episodes: components["schemas"]["Episode"][];
@@ -5636,6 +7357,63 @@ export interface components {
             replied_user?: boolean;
             roles?: string[];
             users?: string[];
+        };
+        /** @description A version in the staff queue. */
+        AppVersionAdmin: components["schemas"]["AppVersionObject"] & {
+            application: components["schemas"]["VersionApplication"];
+        };
+        AppVersionObject: {
+            application_id: string;
+            created_at: string;
+            decided_at?: string | null;
+            /** @description `[{key, old, new}]` against the last approved manifest. */
+            diff: Record<string, never>[];
+            id: string;
+            manifest: Record<string, never>;
+            needs_review: boolean;
+            needs_review_reasons: string[];
+            note?: string | null;
+            reviewer_note?: string | null;
+            /** @description `pending`, `approved`, `rejected`, `changes_requested` or `withdrawn`. */
+            state: string;
+            /** Format: int32 */
+            version: number;
+        };
+        /** @description An application. The client secret is never part of it. */
+        ApplicationObject: {
+            bot: components["schemas"]["BotUserObject"];
+            bot_public: boolean;
+            bot_require_code_grant: boolean;
+            /** @description Last four characters of the client secret (owner view only). */
+            client_secret_hint?: string | null;
+            created_at: string;
+            description: string;
+            /**
+             * Format: int64
+             * @description Discord application flags (`GATEWAY_*` intent bits).
+             */
+            flags: number;
+            /** @description Icon hash, served at `/cdn/avatars/{bot.id}/{hash}.png`. */
+            icon?: string | null;
+            id: string;
+            install_params?: null | components["schemas"]["InstallParamsObject"];
+            name: string;
+            owner: components["schemas"]["OwnerObject"];
+            privacy_policy_url?: string | null;
+            privileged_intents: components["schemas"]["IntentsObject"];
+            /** @description Owner view only. */
+            redirect_uris?: string[] | null;
+            /** @description `development`, `in_review`, `released` or `suspended`. */
+            release_state: string;
+            /** @description Staff view of a suspension. */
+            suspended_reason?: string | null;
+            tags: string[];
+            terms_of_service_url?: string | null;
+        };
+        ApplyBody: {
+            accepted_terms: boolean;
+            pitch: string;
+            prior_work?: string | null;
         };
         AppointBody: {
             /** @description Account to appoint. */
@@ -5807,6 +7585,55 @@ export interface components {
             users: components["schemas"]["UserRef"][];
             webhooks: Record<string, never>[];
         };
+        AuditView: {
+            /** Format: int64 */
+            at_ms: number;
+            detail: Record<string, never>;
+            kind: string;
+        };
+        AuthorizeBody: {
+            authorize: boolean;
+            client_id: string;
+            code_challenge?: string | null;
+            code_challenge_method?: string | null;
+            guild_id?: string | null;
+            permissions?: string | null;
+            redirect_uri?: string | null;
+            response_type?: string | null;
+            scope?: string;
+            state?: string | null;
+        };
+        /** @description Consent screen data. */
+        AuthorizeInfo: {
+            already_authorized: boolean;
+            application: components["schemas"]["ApplicationObject"];
+            bot?: null | components["schemas"]["BotUserObject"];
+            guilds: components["schemas"]["GuildChoice"][];
+            /** @description Decimal permission bitfield the bot would ask for. */
+            permissions: string;
+            redirect_uri?: string | null;
+            scopes: components["schemas"]["ScopeObject"][];
+            state?: string | null;
+            user: components["schemas"]["OwnerObject"];
+        };
+        AuthorizeResult: {
+            /** @description The bot was already in the guild (only for bot installs). */
+            already_installed?: boolean | null;
+            /** @description Where to send the browser. */
+            location: string;
+        };
+        /** @description An application a user authorized. */
+        AuthorizedApp: {
+            application: components["schemas"]["AuthorizedAppInfo"];
+            created_at: string;
+            id: string;
+            scopes: string[];
+        };
+        AuthorizedAppInfo: {
+            icon?: string | null;
+            id: string;
+            name: string;
+        };
         /** @description Ban body: the reason is the ban note. */
         BanBody: {
             /** @description `serious` raises suspicion on the inviter (D-031); `standard` does not. */
@@ -5858,6 +7685,29 @@ export interface components {
              */
             options: unknown;
         };
+        BoardItem: {
+            anonymous: boolean;
+            avatar?: string | null;
+            /**
+             * Format: int64
+             * @description Omitted when the donor hides the amount.
+             */
+            cents?: number | null;
+            guild_id?: string | null;
+            /** @description "Anonymous patron" when the donor hides the name. */
+            name: string;
+            /** Format: int32 */
+            rank: number;
+            user_id?: string | null;
+        };
+        BoardView: {
+            board: string;
+            /** Format: int64 */
+            generated_at_ms: number;
+            items: components["schemas"]["BoardItem"][];
+            me?: null | components["schemas"]["MyRank"];
+            window: string;
+        };
         Bookmark: {
             chapter_id: string;
             /** Format: int64 */
@@ -5890,6 +7740,16 @@ export interface components {
             /** @description Pass back as `before` for the next page; absent at the end. */
             next_before?: string | null;
         };
+        /** @description The bot account of an application. */
+        BotUserObject: {
+            /** @description Avatar hash (`/cdn/avatars/{id}/{hash}.png`). */
+            avatar?: string | null;
+            /** @description Always true. */
+            bot: boolean;
+            global_name?: string | null;
+            id: string;
+            username?: string | null;
+        };
         /** @description A template shipped with the server. */
         BuiltinTemplateObject: {
             description: string;
@@ -5911,6 +7771,11 @@ export interface components {
         };
         BulkDeleteBody: {
             messages: string[];
+        };
+        CallbackBody: {
+            data?: Record<string, never> | null;
+            /** Format: int64 */
+            type: number;
         };
         /** @description Body for `POST /sr/auth/email/cancel`. */
         CancelEmailChangeBody: {
@@ -6617,10 +8482,25 @@ export interface components {
             /** Format: int32 */
             year?: number | null;
         };
+        ContributorView: {
+            anonymous: boolean;
+            avatar?: string | null;
+            /**
+             * Format: int64
+             * @description Omitted when the contributor hides the amount.
+             */
+            cents?: number | null;
+            name: string;
+            user_id?: string | null;
+        };
         /** @description A count after a vote. */
         CountBody: {
             /** Format: int32 */
             count: number;
+        };
+        CreateApplicationBody: {
+            description?: string | null;
+            name: string;
         };
         CreateChannelBody: components["schemas"]["ForumSettingsBody"] & {
             /** Format: int32 */
@@ -6672,6 +8552,19 @@ export interface components {
              */
             template?: string | null;
         };
+        CreateInteractionBody: {
+            application_id: string;
+            channel_id: string;
+            data: Record<string, never>;
+            guild_id?: string | null;
+            message_id?: string | null;
+            nonce?: string | null;
+            /**
+             * Format: int64
+             * @description 2 command, 3 component, 4 autocomplete, 5 modal submit.
+             */
+            type: number;
+        };
         /** @description Body of `POST /channels/{id}/invites`. Every field is optional. */
         CreateInviteBody: {
             /**
@@ -6692,6 +8585,29 @@ export interface components {
             temporary?: boolean | null;
             /** @description Accepted for Discord compatibility; every call creates a new invite. */
             unique?: boolean | null;
+        };
+        CreateInvoiceBody: {
+            /** @description Contribute without showing the name (server contributions). */
+            anonymous?: boolean | null;
+            /**
+             * Format: int32
+             * @description Platform invite credits (`invite_credit`).
+             */
+            credits?: number | null;
+            /** @description The server (`server_level`). */
+            guild_id?: string | null;
+            /**
+             * Format: int32
+             * @description Months of Patron (`patron`).
+             */
+            months?: number | null;
+            /** @description `donate`, `patron`, `server_level` or `invite_credit`. */
+            purpose: string;
+            /**
+             * Format: int64
+             * @description USD cents (`donate`, `server_level`).
+             */
+            usd_cents?: number | null;
         };
         CreateMessageBody: {
             allowed_mentions?: null | components["schemas"]["AllowedMentionsBody"];
@@ -6775,6 +8691,12 @@ export interface components {
             /** @description 1-80 characters, no `@everyone`/`@here`. */
             name: string;
         };
+        /** @description `POST /applications` response: the secrets are shown once. */
+        CreatedApplication: {
+            application: components["schemas"]["ApplicationObject"];
+            bot_token: string;
+            client_secret: string;
+        };
         CreatedToken: {
             /** @description The secret. It is shown once and only its SHA-256 is stored. */
             secret: string;
@@ -6840,6 +8762,17 @@ export interface components {
             expires_at?: string | null;
             text?: string | null;
         };
+        DecideRequestBody: {
+            approve: boolean;
+            note?: string | null;
+        };
+        DecideVersionBody: {
+            /** @description Privileged intents to approve (only those the application requested). */
+            approved_intents?: string[];
+            /** @description `approve`, `reject` or `request_changes`. */
+            decision: string;
+            note?: string | null;
+        };
         /** @description A decision with its reason (request changes, reject, approve). */
         DecisionInput: {
             /** @description Required for request changes and reject; optional for approve. */
@@ -6855,6 +8788,25 @@ export interface components {
             created_at_ms: number;
             id: string;
             state: string;
+        };
+        /** @description A request with its applicant, for staff. */
+        DeveloperRequestAdmin: components["schemas"]["DeveloperRequestObject"] & {
+            account: components["schemas"]["OwnerObject"];
+        };
+        DeveloperRequestObject: {
+            account_id: string;
+            created_at: string;
+            id: string;
+            pitch: string;
+            prior_work: string;
+            reviewed_at?: string | null;
+            reviewer_note?: string | null;
+            /** @description `pending`, `approved`, `rejected` or `suspended`. */
+            state: string;
+        };
+        DeveloperStatus: {
+            is_developer: boolean;
+            request?: null | components["schemas"]["DeveloperRequestObject"];
         };
         Discover: {
             /** @description Tonight's feature carousel (display `hero`). */
@@ -6876,6 +8828,30 @@ export interface components {
              * @description 1 DM, 3 group DM.
              */
             type: number;
+        };
+        DonationConfigView: {
+            /** Format: int32 */
+            confirmations: number;
+            /** @description Invoices can be created (a wallet is configured and donations are switched on). */
+            enabled: boolean;
+            free_perks: Record<string, never>;
+            hosting: components["schemas"]["HostingView"];
+            /** Format: int32 */
+            invite_credit_price_cents: number;
+            /** Format: int32 */
+            invoice_expiry_minutes: number;
+            levels: components["schemas"]["LevelOffer"][];
+            /** Format: int32 */
+            max_donation_cents: number;
+            /** Format: int32 */
+            max_invite_credits: number;
+            /** Format: int32 */
+            min_donation_cents: number;
+            network?: string | null;
+            patron: components["schemas"]["PatronOffer"];
+            rate?: null | components["schemas"]["RateView"];
+            /** Format: int32 */
+            rate_lock_minutes: number;
         };
         /** @description What the download modal polls. */
         DownloadJob: {
@@ -7165,6 +9141,71 @@ export interface components {
             /** @description A published submission of the request's section. */
             submission_id: string;
         };
+        GatewayBotInfo: {
+            session_start_limit: components["schemas"]["SessionStartLimit"];
+            /** Format: int32 */
+            shards: number;
+            url: string;
+        };
+        GatewayInfo: {
+            url: string;
+        };
+        GrantBody: {
+            /**
+             * Format: int64
+             * @description Patron: days of time.
+             */
+            days?: number | null;
+            guild_id?: string | null;
+            /** @description `patron` or `server_pool`. */
+            kind: string;
+            /** @description Patron: never ends. */
+            permanent?: boolean | null;
+            reason?: string | null;
+            /**
+             * Format: int64
+             * @description Server pool: USD cents.
+             */
+            usd_cents?: number | null;
+            user_id?: string | null;
+        };
+        GrantPage: {
+            items: components["schemas"]["GrantView"][];
+            next_before?: string | null;
+        };
+        GrantView: {
+            /** Format: int64 */
+            days?: number | null;
+            /** Format: int64 */
+            ends_at_ms?: number | null;
+            guild_id?: string | null;
+            id: string;
+            kind: string;
+            permanent: boolean;
+            reason?: string | null;
+            /** Format: int64 */
+            revoked_at_ms?: number | null;
+            /** @description `invoice`, `admin` or `migrated`. */
+            source: string;
+            source_id?: string | null;
+            /** Format: int64 */
+            starts_at_ms: number;
+            /** Format: int64 */
+            usd_cents?: number | null;
+            user_id?: string | null;
+        };
+        /** @description A guild on the consent screen. */
+        GuildChoice: {
+            can_install: boolean;
+            icon?: string | null;
+            id: string;
+            name: string;
+            owner: boolean;
+            /** @description Decimal permission bitfield of the user in the guild. */
+            permissions: string;
+            /** @description Why not: `missing_permission`, `app_not_released`, `bot_not_public`, `suspended`. */
+            reason?: string | null;
+        };
         /** @description Body of `POST /guilds/templates/{code}`. */
         GuildFromTemplateBody: {
             /** @description Accepted for compatibility; icon upload arrives with the media pipeline. */
@@ -7227,6 +9268,36 @@ export interface components {
             suppress_highlights?: boolean | null;
             suppress_roles?: boolean | null;
         };
+        GuildSupportPatch: {
+            hidden_from_leaderboard: boolean;
+        };
+        GuildSupportView: {
+            /**
+             * Format: int64
+             * @description While set, the pool is below the level and the level is held until then.
+             */
+            grace_until_ms?: number | null;
+            guild_id: string;
+            hidden_from_leaderboard: boolean;
+            is_owner: boolean;
+            /** Format: int32 */
+            level: number;
+            /** Format: int32 */
+            next_threshold_cents?: number | null;
+            /** @description What the server's current level gives every member (`PerkSet`). */
+            perks: Record<string, never>;
+            /** Format: int64 */
+            pool_cents: number;
+            /** Format: int32 */
+            pool_window_days: number;
+            top_contributors: components["schemas"]["ContributorView"][];
+        };
+        HideBody: {
+            guild_id?: string | null;
+            hidden: boolean;
+            reason?: string | null;
+            user_id?: string | null;
+        };
         /** @description One row of the reading history. */
         HistoryItem: {
             /** @description The chapter, with `progress` set. */
@@ -7238,12 +9309,50 @@ export interface components {
             /** @description Pass back as `before` for the next page; absent at the end. */
             next_before?: string | null;
         };
+        HostingView: {
+            /** Format: int32 */
+            cost_cents: number;
+            /** Format: int64 */
+            donated_this_month_cents: number;
+            /** Format: int64 */
+            month_start_ms: number;
+        };
+        InstallObject: {
+            created_at: string;
+            guild_id: string;
+            installed_by: string;
+            permissions: string;
+            scopes: string[];
+        };
+        /** @description Default install scopes and permissions. */
+        InstallParamsObject: {
+            /** @description Decimal permission bitfield. */
+            permissions: string;
+            scopes: string[];
+        };
         /** @description Instant-search result. */
         InstantSearch: {
             authors: string[];
             genres: string[];
             series: components["schemas"]["Series"][];
             tags: string[];
+        };
+        /** @description Requested and approved privileged intents, by name. */
+        IntentsObject: {
+            approved: string[];
+            requested: string[];
+        };
+        IntrospectionBody: {
+            active: boolean;
+            client_id?: string | null;
+            /** Format: int64 */
+            exp?: number | null;
+            /** Format: int64 */
+            iat?: number | null;
+            scope?: string | null;
+            sub?: string | null;
+            token_type?: string | null;
+            username?: string | null;
         };
         InviteChannel: {
             id: string;
@@ -7348,6 +9457,61 @@ export interface components {
             ancestors: components["schemas"]["InviteNode"][];
             stats: components["schemas"]["InviteStats"];
         };
+        InvoicePage: {
+            items: components["schemas"]["InvoiceView"][];
+            next_before?: string | null;
+        };
+        InvoiceView: {
+            address: string;
+            anonymous: boolean;
+            /** @description `bitcoin:ADDRESS?amount=BTC&label=...` */
+            bip21: string;
+            /** @description `sats` as a BTC decimal string. */
+            btc: string;
+            /** Format: int32 */
+            confirmations?: number | null;
+            /** Format: int32 */
+            confirmations_required: number;
+            /** Format: int64 */
+            confirmed_sats: number;
+            /** Format: int64 */
+            created_at_ms: number;
+            /** Format: int64 */
+            credited_at_ms?: number | null;
+            /** Format: int32 */
+            credits?: number | null;
+            /** Format: int64 */
+            excess_sats: number;
+            /** Format: int64 */
+            expires_at_ms: number;
+            explorer_url?: string | null;
+            guild_id?: string | null;
+            id: string;
+            late: boolean;
+            /** Format: int32 */
+            months?: number | null;
+            network: string;
+            purpose: string;
+            /** Format: int64 */
+            quote_expires_at_ms: number;
+            rate: components["schemas"]["RateView"];
+            /** Format: int64 */
+            received_sats: number;
+            /** @description How staff closed it, if they did (`mark_paid`, `refund_noted`, `dismiss`); notes stay staff-only. */
+            resolution?: string | null;
+            /** Format: int64 */
+            sats: number;
+            /** Format: int64 */
+            shortfall_sats: number;
+            /**
+             * @description `open`, `seen`, `confirming`, `confirmed`, `overpaid`, `late_paid`, `underpaid`, `expired`,
+             *     `cancelled` or `resolved`.
+             */
+            state: string;
+            txs: components["schemas"]["TxView"][];
+            /** Format: int64 */
+            usd_cents: number;
+        };
         /** @description A decision on one item. */
         ItemDecisionInput: {
             note?: string | null;
@@ -7425,6 +9589,13 @@ export interface components {
             reason: string;
             ref_id?: string | null;
         };
+        LevelOffer: {
+            /** Format: int32 */
+            level: number;
+            perks: Record<string, never>;
+            /** Format: int32 */
+            threshold_cents: number;
+        };
         LinkBody: {
             /** @description The episode the asset is the video of. With an episode, the episode is linked. */
             episode_id?: string | null;
@@ -7494,6 +9665,12 @@ export interface components {
             /** @description `PlatformPermissions` bits as a decimal string (`OWNER` is bit 63). */
             platform_permissions: string;
             user_id: string;
+        };
+        MeView: {
+            /** @description The caller's effective limits outside any server (`Limits`). */
+            limits: Record<string, never>;
+            patron: components["schemas"]["PatronView"];
+            preferences: components["schemas"]["PrefsView"];
         };
         MemberObject: {
             avatar?: string | null;
@@ -7738,6 +9915,12 @@ export interface components {
             /** @description The profile owner's nickname in that guild. */
             nick?: string | null;
         };
+        MyRank: {
+            /** Format: int64 */
+            cents: number;
+            /** Format: int32 */
+            rank: number;
+        };
         NicknameBody: {
             /** @description Empty or null clears the nickname (max 32 characters). */
             nickname?: string | null;
@@ -7758,6 +9941,17 @@ export interface components {
              * @description 0 all messages, 1 only @mentions, 2 nothing; `null` follows each server's default.
              */
             message_notifications?: number | null;
+        };
+        OAuthErrorBody: {
+            error: string;
+            error_description: string;
+        };
+        /** @description `GET /oauth2/@me`. */
+        OAuthMe: {
+            application: components["schemas"]["ApplicationObject"];
+            expires: string;
+            scopes: string[];
+            user?: Record<string, never> | null;
         };
         OnboardingDto: {
             default_channel_ids?: string[];
@@ -7802,6 +9996,13 @@ export interface components {
              * @description 0 = role, 1 = member.
              */
             type: number;
+        };
+        /** @description The owner of an application. */
+        OwnerObject: {
+            bot: boolean;
+            global_name?: string | null;
+            id: string;
+            username?: string | null;
         };
         PageEntry: {
             blurhash?: string | null;
@@ -7878,10 +10079,37 @@ export interface components {
             /** @description Label. */
             name: string;
         };
+        /** @description Re-confirmation of the signed-in user's password. */
+        PasswordBody: {
+            password: string;
+        };
         /** @description Documentation stand-in for [`PasswordBody`]. */
         PasswordBodyDoc: {
             /** @description The current password. */
             password: string;
+        };
+        /** @description Body of `PATCH /applications/{id}`; see the spec for the fields. */
+        PatchApplicationBody: {
+            bot_public?: boolean | null;
+            bot_require_code_grant?: boolean | null;
+            description?: string | null;
+            /** @description Image data URI, or `null` to remove. */
+            icon?: string | null;
+            install_params?: Record<string, never> | null;
+            name?: string | null;
+            privacy_policy_url?: string | null;
+            privileged_intents?: string[] | null;
+            redirect_uris?: string[] | null;
+            tags?: string[] | null;
+            terms_of_service_url?: string | null;
+        };
+        PatchBotBody: {
+            username: string;
+        };
+        PatchConfigBody: {
+            /** @description A JSON merge patch over the configuration (`DonationConfig` fields). */
+            changes: Record<string, never>;
+            reason?: string | null;
         };
         PatchFeatureBody: {
             /** @description Turn the feature on or off at the platform scope. */
@@ -7921,6 +10149,27 @@ export interface components {
              *     or 256 top-level keys.
              */
             settings: Record<string, never>;
+        };
+        PatronOffer: {
+            /** Format: int32 */
+            days_per_month: number;
+            /** Format: int32 */
+            grace_days: number;
+            /** Format: int32 */
+            max_months: number;
+            /** @description What Patron unlocks (the `PerkSet` of the configuration). */
+            perks: Record<string, never>;
+            /** Format: int32 */
+            price_cents: number;
+        };
+        PatronView: {
+            active: boolean;
+            in_grace: boolean;
+            permanent: boolean;
+            /** Format: int64 */
+            started_ms?: number | null;
+            /** Format: int64 */
+            until_ms?: number | null;
         };
         PersonBanBody: {
             category: components["schemas"]["BanCategory"];
@@ -7968,6 +10217,16 @@ export interface components {
         /** @description Users who picked one answer. */
         PollVoters: {
             users: components["schemas"]["UserRef"][];
+        };
+        PrefsBody: {
+            hide_amount?: boolean | null;
+            hide_badge?: boolean | null;
+            hide_name?: boolean | null;
+        };
+        PrefsView: {
+            hide_amount: boolean;
+            hide_badge: boolean;
+            hide_name: boolean;
         };
         PresenceBody: {
             custom_status?: null | components["schemas"]["CustomStatusBody"];
@@ -8143,6 +10402,30 @@ export interface components {
             /** Format: int32 */
             succeeded_last_day: number;
         };
+        RateSourceView: {
+            /** Format: int64 */
+            last_cents?: number | null;
+            last_error?: string | null;
+            /** Format: int64 */
+            last_ok_ms?: number | null;
+            name: string;
+        };
+        RateView: {
+            /** Format: int64 */
+            age_secs: number;
+            /**
+             * Format: int64
+             * @description USD cents for one BTC.
+             */
+            cents_per_btc: number;
+            source: string;
+            /** @description The sources are failing and this is the last good answer. */
+            stale: boolean;
+        };
+        RatesView: {
+            current?: null | components["schemas"]["RateView"];
+            sources: components["schemas"]["RateSourceView"][];
+        };
         ReactionObject: {
             /** Format: int32 */
             count: number;
@@ -8253,6 +10536,18 @@ export interface components {
             /** Format: int32 */
             position: number;
         };
+        ReportView: {
+            by_day: Record<string, never>[];
+            /** @description `[purpose, cents, count]`. */
+            by_purpose: Record<string, never>[];
+            by_state: Record<string, never>;
+            /** Format: int64 */
+            credited_cents: number;
+            /** Format: int64 */
+            from_ms: number;
+            /** Format: int64 */
+            to_ms: number;
+        };
         RequestPage: {
             items: components["schemas"]["ContentRequest"][];
             /** Format: int32 */
@@ -8276,6 +10571,19 @@ export interface components {
             totp: number;
             /** Format: int64 */
             trusted_devices: number;
+        };
+        ResetSecretResult: {
+            client_secret: string;
+        };
+        ResetTokenResult: {
+            token: string;
+        };
+        ResolveBody: {
+            /** @description What was done (a refund note says how and when it was sent from the operator's own wallet). */
+            note: string;
+            reason?: string | null;
+            /** @description `mark_paid`, `refund_noted` or `dismiss`. */
+            resolution: string;
         };
         RetranscodeBody: {
             /** @description The asset or title id; required unless the scope is `all`. */
@@ -8386,6 +10694,10 @@ export interface components {
             trigger_metadata: components["schemas"]["TriggerMetadata"];
             /** Format: int32 */
             trigger_type: number;
+        };
+        ScopeObject: {
+            description: string;
+            name: string;
         };
         /**
          * @description Discord search response: each result is a one-message group (no context
@@ -8515,6 +10827,25 @@ export interface components {
          * @enum {string}
          */
         SeriesStatus: "ongoing" | "completed" | "hiatus" | "cancelled";
+        SessionStartLimit: {
+            /** Format: int32 */
+            max_concurrency: number;
+            /** Format: int32 */
+            remaining: number;
+            /** Format: int64 */
+            reset_after: number;
+            /** Format: int32 */
+            total: number;
+        };
+        SetWalletBody: {
+            /** @description A watch-only descriptor such as `wpkh(xpub.../0/*)`. Private keys are refused. */
+            descriptor: string;
+            /** Format: int32 */
+            gap_limit?: number | null;
+            /** @description `mainnet`, `testnet`, `signet` or `regtest`. */
+            network: string;
+            reason?: string | null;
+        };
         /** @enum {string} */
         SettingKind: "integer" | "number" | "boolean" | "text";
         /** @description One platform setting with its current value, for Admin -> Limits. */
@@ -8617,6 +10948,17 @@ export interface components {
              * @description 10 announcement, 11 public (default) or 12 private thread.
              */
             type?: number | null;
+        };
+        StatusView: {
+            /** @description Counts by invoice state over the last 90 days. */
+            counts: Record<string, never>;
+            enabled: boolean;
+            /** Format: int64 */
+            needs_attention: number;
+            rate?: null | components["schemas"]["RateView"];
+            rate_sources: components["schemas"]["RateSourceView"][];
+            wallet?: null | components["schemas"]["WalletStatus"];
+            watcher: components["schemas"]["WatcherView"];
         };
         StickerObject: {
             available: boolean;
@@ -8722,6 +11064,9 @@ export interface components {
          * @enum {string}
          */
         SubmissionState: "Draft" | "Submitted" | "InReview" | "ChangesRequested" | "Approved" | "Rejected" | "Published" | "Withdrawn";
+        SubmitVersionBody: {
+            note?: string | null;
+        };
         /**
          * @description A page a collection can be placed on.
          * @enum {string}
@@ -8733,6 +11078,9 @@ export interface components {
             person_id: string;
             /** Format: int32 */
             suspicion_level: number;
+        };
+        SuspendBody: {
+            reason?: string | null;
         };
         SuspicionChange: {
             /** @description Level reached the escalation threshold. */
@@ -8815,6 +11163,14 @@ export interface components {
             updated_at: string;
             /** Format: int32 */
             usage_count: number;
+        };
+        TestWalletBody: {
+            descriptor: string;
+            network: string;
+        };
+        TestWalletResult: {
+            addresses: string[];
+            fingerprint: string;
         };
         /** @description Thread listings: the threads plus the caller's memberships among them. */
         ThreadList: {
@@ -8968,6 +11324,26 @@ export interface components {
              */
             total: number;
         };
+        TokenRequestBody: {
+            client_id?: string | null;
+            client_secret?: string | null;
+            code?: string | null;
+            code_verifier?: string | null;
+            grant_type?: string | null;
+            redirect_uri?: string | null;
+            refresh_token?: string | null;
+            token?: string | null;
+            token_type_hint?: string | null;
+        };
+        TokenResponseBody: {
+            access_token: string;
+            /** Format: int64 */
+            expires_in: number;
+            refresh_token: string;
+            /** @description Space-separated scopes. */
+            scope: string;
+            token_type: string;
+        };
         Trailer: {
             /**
              * @description The title is age-restricted and the account has not confirmed its age, so `asset_id`
@@ -9016,6 +11392,277 @@ export interface components {
             ttl: number;
             uris: string[];
             username: string;
+        };
+        TvAdminChannelList: {
+            items: components["schemas"]["TvChannel"][];
+        };
+        /** @description A block as the API shows it. */
+        TvBlock: {
+            age_restricted: boolean;
+            channel_id: string;
+            /** Format: int64 */
+            end_ms: number;
+            episode_id?: string | null;
+            /** Format: int32 */
+            episode_number?: number | null;
+            episode_title?: string | null;
+            id: string;
+            kind: components["schemas"]["TvBlockKind"];
+            media_kind?: null | components["schemas"]["TvMediaKind"];
+            playable: boolean;
+            /** Format: int32 */
+            season_number?: number | null;
+            source: components["schemas"]["TvBlockSource"];
+            /** Format: int64 */
+            start_ms: number;
+            title: string;
+            title_id?: string | null;
+            /** Format: int32 */
+            year?: number | null;
+        };
+        /** @enum {string} */
+        TvBlockKind: "program" | "filler" | "slate" | "off_air";
+        TvBlockList: {
+            items: components["schemas"]["TvBlock"][];
+        };
+        /** @enum {string} */
+        TvBlockSource: "generated" | "manual" | "override";
+        /** @description A channel as the API shows it. */
+        TvChannel: {
+            age_restricted: boolean;
+            call_sign?: string | null;
+            enabled: boolean;
+            era_label?: string | null;
+            filler_policy: components["schemas"]["TvFillerPolicy"];
+            id: string;
+            kind: components["schemas"]["TvChannelKind"];
+            /** @description Signed `/cdn/...` URL of the logo. */
+            logo_url?: string | null;
+            name: string;
+            next?: null | components["schemas"]["TvBlock"];
+            now?: null | components["schemas"]["TvBlock"];
+            /** Format: int32 */
+            number: number;
+            rules?: null | components["schemas"]["TvRules"];
+            /** @description Staff only: the shuffle seed. */
+            seed?: string | null;
+            theme?: string | null;
+            timezone: string;
+            /**
+             * Format: int32
+             * @description Distinct members who fetched a live playlist in the last 45 seconds.
+             */
+            viewers: number;
+        };
+        /** @description Staff input to create or replace a channel. */
+        TvChannelInput: {
+            age_restricted?: boolean;
+            call_sign?: string | null;
+            enabled?: boolean;
+            era_label?: string | null;
+            filler_policy?: components["schemas"]["TvFillerPolicy"];
+            kind: components["schemas"]["TvChannelKind"];
+            /** @description Storage key of the logo; must start with `tv/`. */
+            logo_key?: string | null;
+            name: string;
+            /** Format: int32 */
+            number: number;
+            rules?: components["schemas"]["TvRules"];
+            theme?: string | null;
+            timezone?: string;
+        };
+        /** @enum {string} */
+        TvChannelKind: "rule_based" | "manual";
+        TvChannelList: {
+            items: components["schemas"]["TvChannel"][];
+        };
+        TvDaypart: {
+            /** @description 0 = Monday. Empty: every day. */
+            days?: number[];
+            /** @description `HH:MM` channel time; not after `start` means past midnight. */
+            end: string;
+            fit?: components["schemas"]["TvFit"];
+            mode?: components["schemas"]["TvPickMode"];
+            name: string;
+            pool?: components["schemas"]["TvPool"];
+            /** @description `HH:MM` channel time. */
+            start: string;
+        };
+        /**
+         * @description What fills the time between programmes (spec section 4).
+         * @enum {string}
+         */
+        TvFillerPolicy: "bumpers" | "next_program_early" | "slate" | "off_air";
+        /** @enum {string} */
+        TvFit: "overrun" | "fit";
+        TvGuide: {
+            channels: components["schemas"]["TvGuideChannel"][];
+            /** Format: int64 */
+            from_ms: number;
+            /** Format: int64 */
+            now_ms: number;
+            /** Format: int64 */
+            to_ms: number;
+        };
+        TvGuideChannel: {
+            blocks: components["schemas"]["TvBlock"][];
+            channel: components["schemas"]["TvChannel"];
+        };
+        /**
+         * @description The catalog kind of a title as Live TV sees it.
+         * @enum {string}
+         */
+        TvMediaKind: "movie" | "series" | "anime";
+        TvNow: {
+            /** Format: int64 */
+            at_ms: number;
+            channel_id: string;
+            current?: null | components["schemas"]["TvBlock"];
+            next?: null | components["schemas"]["TvBlock"];
+            /**
+             * Format: int64
+             * @description How far into the current programme `at_ms` is.
+             */
+            offset_ms?: number | null;
+            /** Format: int32 */
+            viewers: number;
+        };
+        /** @enum {string} */
+        TvPickMode: "shuffle" | "sequential";
+        /** @description Staff placement of a programme. */
+        TvPlaceInput: {
+            /** Format: int64 */
+            end_ms?: number | null;
+            episode_id?: string | null;
+            /** Format: int64 */
+            start_ms: number;
+            title_id: string;
+        };
+        /** @description What may air in a daypart. Empty lists do not filter. */
+        TvPool: {
+            collection_id?: string | null;
+            /** @description A title must have every genre (lower case). */
+            genres?: string[];
+            kinds?: components["schemas"]["TvMediaKind"][];
+            /** Format: int32 */
+            max_runtime_min?: number | null;
+            /** Format: int32 */
+            min_runtime_min?: number | null;
+            restricted?: null | components["schemas"]["TvRestricted"];
+            /** @description A title must have every tag (lower case). */
+            tags?: string[];
+            title_ids?: string[];
+            /** Format: int32 */
+            year_from?: number | null;
+            /** Format: int32 */
+            year_to?: number | null;
+        };
+        TvPreview: {
+            blocks: components["schemas"]["TvBlock"][];
+            warnings: string[];
+        };
+        TvPreviewBody: {
+            /** Format: int64 */
+            from_ms?: number | null;
+            /** Format: int64 */
+            to_ms?: number | null;
+        };
+        TvPublishBody: {
+            /**
+             * Format: int32
+             * @description 1 to 336, default 168 (one week).
+             */
+            horizon_hours?: number | null;
+        };
+        TvPublished: {
+            /** Format: int64 */
+            from_ms: number;
+            /** Format: int32 */
+            removed: number;
+            /** Format: int64 */
+            to_ms: number;
+            warnings: string[];
+            /** Format: int32 */
+            written: number;
+        };
+        TvReport: {
+            channels: components["schemas"]["TvReportChannel"][];
+            /** Format: int64 */
+            from_ms: number;
+            items: components["schemas"]["TvReportItem"][];
+            /** Format: int64 */
+            to_ms: number;
+        };
+        TvReportChannel: {
+            /**
+             * Format: int64
+             * @description Time on air with media (programmes and bumpers) in the window.
+             */
+            aired_ms: number;
+            channel_id: string;
+            name: string;
+            /** Format: int32 */
+            number: number;
+            /** Format: int32 */
+            overrides: number;
+            /** Format: int32 */
+            programmes: number;
+        };
+        TvReportItem: {
+            /** Format: int64 */
+            aired_ms: number;
+            block: components["schemas"]["TvBlock"];
+        };
+        /**
+         * @description How a pool treats age-restricted titles.
+         * @enum {string}
+         */
+        TvRestricted: "exclude" | "include" | "only";
+        TvRules: {
+            dayparts?: components["schemas"]["TvDaypart"][];
+            /**
+             * Format: int32
+             * @description Programmes start on this grid in channel time (0: back to back).
+             */
+            grid_minutes?: number;
+            /**
+             * Format: int32
+             * @description Shuffle never repeats one of the last N picks (0 to 64).
+             */
+            no_repeat_window?: number;
+        };
+        /** @description "On now": start a programme at once. */
+        TvSetNowInput: {
+            episode_id?: string | null;
+            /** Format: int64 */
+            offset_ms?: number | null;
+            title_id: string;
+        };
+        TvTimezoneList: {
+            items: string[];
+        };
+        TvTune: {
+            channel_id: string;
+            current?: null | components["schemas"]["TvBlock"];
+            /** @description API path of the master playlist. */
+            master_url?: string | null;
+            next?: null | components["schemas"]["TvBlock"];
+            /** Format: int64 */
+            offset_ms?: number | null;
+            state: components["schemas"]["TvTuneState"];
+            /** Format: int32 */
+            viewers: number;
+        };
+        /** @enum {string} */
+        TvTuneState: "live" | "off_air";
+        TxView: {
+            /** Format: int64 */
+            amount_sats: number;
+            /** Format: int32 */
+            confirmations: number;
+            /** @description The chain source stopped showing it (replaced or reorged out). */
+            dropped: boolean;
+            txid: string;
         };
         UnbanOutcome: {
             /**
@@ -9152,6 +11799,8 @@ export interface components {
             avatar?: string | null;
             /** @description Profile banner hash (`/cdn/avatars/{id}/{hash}.png`), when one is set. */
             banner?: string | null;
+            /** @description Present (true) for bot accounts only. */
+            bot?: boolean;
             global_name?: string | null;
             id: string;
             username?: string | null;
@@ -9168,6 +11817,8 @@ export interface components {
          *     lookup (open question 157); without a row only the id is known.
          */
         UserRef: {
+            /** @description Present (true) for bot accounts only. */
+            bot?: boolean;
             global_name?: string | null;
             id: string;
             username?: string | null;
@@ -9204,6 +11855,18 @@ export interface components {
             /** Format: int32 */
             runtime_min?: number | null;
         };
+        VersionApplication: {
+            id: string;
+            name: string;
+            owner_id: string;
+        };
+        /** @description The 409 body of a stale `expected_version`: the usual error object plus the current playback. */
+        VersionConflictBody: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            playback: components["schemas"]["WatchPartyPlayback"];
+        };
         Volume: {
             edition_id: string;
             id: string;
@@ -9216,6 +11879,300 @@ export interface components {
             /** Format: double */
             number: number;
             title?: string | null;
+        };
+        WalletResult: {
+            /** @description The first addresses, to compare with the operator's own wallet. */
+            addresses: string[];
+            fingerprint: string;
+            network: string;
+        };
+        WalletStatus: {
+            /** @description First 8 hex characters of SHA-256 of the descriptor. The descriptor itself is never returned. */
+            fingerprint: string;
+            /** Format: int32 */
+            gap_limit: number;
+            /** Format: int32 */
+            gap_used: number;
+            network: string;
+            /** Format: int32 */
+            next_index: number;
+        };
+        /** @description A watch party, as returned by the API and carried by `WATCH_PARTY_UPDATE`. */
+        WatchParty: {
+            binding: components["schemas"]["WatchPartyBinding"];
+            channel_id?: string | null;
+            /** Format: int64 */
+            created_at_ms: number;
+            ended: boolean;
+            guild_id?: string | null;
+            host_id: string;
+            id: string;
+            /** @description The secret of the share link. Only members see it (and only on private parties). */
+            invite_code?: string | null;
+            media: components["schemas"]["WatchPartyMedia"];
+            participants: components["schemas"]["WatchPartyParticipant"][];
+            playback: components["schemas"]["WatchPartyPlayback"];
+            queue: components["schemas"]["WatchPartyQueueItem"][];
+            settings: components["schemas"]["WatchPartySettings"];
+            you?: null | components["schemas"]["WatchPartyYou"];
+        };
+        /** @enum {string} */
+        WatchPartyAction: "play" | "pause" | "seek" | "rate" | "ended";
+        /** @description An audit entry. */
+        WatchPartyAuditEntry: {
+            action: string;
+            actor_id?: string | null;
+            /** Format: int64 */
+            at_ms: number;
+            detail: Record<string, never>;
+            id: string;
+            target_id?: string | null;
+        };
+        /**
+         * @description Where the party lives.
+         * @enum {string}
+         */
+        WatchPartyBinding: "channel" | "dm" | "private";
+        /** @description Body of `PUT /watch-parties/{id}/media`. */
+        WatchPartyChangeMedia: {
+            episode_id?: string | null;
+            /** Format: int64 */
+            start_ms?: number | null;
+            title_id: string;
+            variant_id?: string | null;
+        };
+        /** @description Body of `POST /watch-parties/{id}/playback`. */
+        WatchPartyCommand: {
+            action: components["schemas"]["WatchPartyAction"];
+            /**
+             * Format: int64
+             * @description The `version` the client last applied. A different current version answers 409 with the
+             *     current state; omit it for last-writer-wins.
+             */
+            expected_version?: number | null;
+            /**
+             * Format: int64
+             * @description For `seek`.
+             */
+            position_ms?: number | null;
+            /**
+             * Format: double
+             * @description For `rate` (0.5 to 2.0).
+             */
+            rate?: number | null;
+        };
+        /**
+         * @description Who may do something: the host alone, the host and members with `CONTROL_WATCH_PARTY` or the
+         *     host's explicit controllers, or everybody.
+         * @enum {string}
+         */
+        WatchPartyControlMode: "host" | "controllers" | "everyone";
+        /** @description Body of `PUT /watch-parties/{id}/controllers/{user_id}`. */
+        WatchPartyControllerInput: {
+            controller: boolean;
+        };
+        /** @description Body of `POST /watch-parties`. */
+        WatchPartyCreate: {
+            /** @description A guild channel (text or voice) or DM to bind to. Without it the party is private (link only). */
+            channel_id?: string | null;
+            episode_id?: string | null;
+            settings?: null | components["schemas"]["WatchPartySettingsInput"];
+            /**
+             * Format: int64
+             * @description Where to start, in milliseconds (default 0).
+             */
+            start_ms?: number | null;
+            title_id: string;
+            variant_id?: string | null;
+        };
+        /** @description Body of `POST /watch-parties/{id}/heartbeat`: the member's liveness, clock estimate and player state. */
+        WatchPartyHeartbeat: {
+            /** @description `true` when the player has been stalled (report once it passes ~1.5 s), `false` when it recovered. */
+            buffering?: boolean | null;
+            ready?: boolean | null;
+            /**
+             * Format: int32
+             * @description The member's round-trip estimate to the server.
+             */
+            rtt_ms?: number | null;
+        };
+        /** @description Answer of the heartbeat: the clock sample and the current playback (a fallback for a lost event). */
+        WatchPartyHeartbeatResult: {
+            /** @description `false`: the caller is no longer in the party (removed or ended). */
+            member: boolean;
+            playback: components["schemas"]["WatchPartyPlayback"];
+            /** Format: int64 */
+            server_time_ms: number;
+        };
+        /** @description Body of `POST /watch-parties/{id}/join`. */
+        WatchPartyJoin: {
+            /** @description Required to join a private party. */
+            invite_code?: string | null;
+        };
+        /** @description What the party is playing. */
+        WatchPartyMedia: {
+            age_restricted: boolean;
+            /**
+             * @description The video asset; the viewer fetches HLS through `GET /cinema/assets/{asset_id}/playback`
+             *     (the normal play checks apply to each viewer).
+             */
+            asset_id: string;
+            /** Format: int64 */
+            duration_ms?: number | null;
+            /** @description `"0"` for a movie. */
+            episode_id: string;
+            episode_label?: string | null;
+            live: boolean;
+            title: string;
+            title_id: string;
+            variant_id?: string | null;
+        };
+        /** @description Body of `POST /watch-parties/{id}/messages` (private parties' own chat; ephemeral). */
+        WatchPartyMessageInput: {
+            content: string;
+        };
+        /** @description A person in the party. */
+        WatchPartyParticipant: {
+            /** @description Currently stalled (reported by the member's player). */
+            buffering: boolean;
+            display_name?: string | null;
+            /** @description Granted by the host: may control playback when shared control is `controllers`. */
+            is_controller: boolean;
+            is_host: boolean;
+            /** Format: int64 */
+            joined_at_ms: number;
+            ready: boolean;
+            /** Format: int32 */
+            rtt_ms?: number | null;
+            user_id: string;
+            username: string;
+        };
+        /**
+         * @description Playback state as sent to clients (`WATCH_PARTY_PLAYBACK`, and inside the party object).
+         *
+         *     The media should be at `position_ms + (server_clock - at_ms) * rate` while `playing`; `expected_position_ms`
+         *     is that value at `server_time_ms` (the moment the server built this object). Clients correct their clock
+         *     offset (`server_time_ms - (client_now - rtt/2)`) and apply drift correction against it.
+         */
+        WatchPartyPlayback: {
+            /**
+             * Format: int64
+             * @description Server clock at which `position_ms` was true.
+             */
+            at_ms: number;
+            /** @description Paused by the buffering rule ("Waiting for ..."), not by a controller. */
+            auto_paused: boolean;
+            /** Format: int64 */
+            duration_ms?: number | null;
+            /**
+             * Format: int64
+             * @description `position_ms` advanced to `server_time_ms`.
+             */
+            expected_position_ms: number;
+            live: boolean;
+            playing: boolean;
+            /** Format: int64 */
+            position_ms: number;
+            /**
+             * Format: double
+             * @description Playback speed (1.0 = normal).
+             */
+            rate: number;
+            /**
+             * Format: int64
+             * @description Server clock when this view was built (every state carries it, for the clock offset).
+             */
+            server_time_ms: number;
+            /**
+             * Format: int64
+             * @description Strictly increasing; a client ignores any state older than the newest it applied.
+             */
+            version: number;
+        };
+        /** @description Body of `POST /watch-parties/{id}/queue`. */
+        WatchPartyQueueAdd: {
+            episode_id?: string | null;
+            title_id: string;
+            variant_id?: string | null;
+        };
+        /** @description An entry of the queue. */
+        WatchPartyQueueItem: components["schemas"]["WatchPartyMedia"] & {
+            /** Format: int64 */
+            added_at_ms: number;
+            added_by?: string | null;
+            id: string;
+            /** Format: int32 */
+            position: number;
+        };
+        /** @description Body of `PATCH /watch-parties/{id}/queue/{item_id}`. */
+        WatchPartyQueueMove: {
+            /**
+             * Format: int32
+             * @description New zero-based index.
+             */
+            position: number;
+        };
+        /** @description Body of `POST /watch-parties/{id}/reactions`. */
+        WatchPartyReaction: {
+            /** @description A unicode emoji (or `name:id` of a custom one), up to 32 bytes. */
+            emoji: string;
+        };
+        WatchPartySettings: {
+            /** @description Pause everybody when a participant buffers for more than 1.5 s. */
+            auto_pause_buffering: boolean;
+            /** Format: int32 */
+            max_participants: number;
+            /**
+             * Format: int32
+             * @description Longest wait for a stalled participant before continuing without them.
+             */
+            max_wait_ms: number;
+            /** @description A bound party that outlives its members (the Watch Party channel behaviour). */
+            persistent: boolean;
+            queue_policy: components["schemas"]["WatchPartyControlMode"];
+            shared_control: components["schemas"]["WatchPartyControlMode"];
+        };
+        /** @description Optional settings (on create and `PATCH`). */
+        WatchPartySettingsInput: {
+            auto_pause_buffering?: boolean | null;
+            /** Format: int32 */
+            max_participants?: number | null;
+            /** Format: int32 */
+            max_wait_ms?: number | null;
+            persistent?: boolean | null;
+            queue_policy?: null | components["schemas"]["WatchPartyControlMode"];
+            shared_control?: null | components["schemas"]["WatchPartyControlMode"];
+        };
+        /** @description Answer of `GET /watch-parties/time`. */
+        WatchPartyTime: {
+            /** Format: int64 */
+            server_time_ms: number;
+        };
+        /** @description Body of `POST /watch-parties/{id}/host`. */
+        WatchPartyTransfer: {
+            user_id: string;
+        };
+        /** @description The viewing account's standing in the party. */
+        WatchPartyYou: {
+            /** @description May play, pause, seek and change the speed now. */
+            can_control: boolean;
+            /** @description May end the party, hand over the host role, kick. */
+            can_manage: boolean;
+            /** @description May add to the queue. */
+            can_queue: boolean;
+            host: boolean;
+            member: boolean;
+        };
+        WatcherView: {
+            last_error?: string | null;
+            /** Format: int64 */
+            last_ok_ms?: number | null;
+            /** Format: int64 */
+            last_run_ms?: number | null;
+            /** Format: int32 */
+            polled: number;
+            /** Format: int32 */
+            tip_height?: number | null;
         };
         WebhookObject: {
             avatar?: string | null;
@@ -12578,6 +15535,917 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_suspend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuspendBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationObject"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_unsuspend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuspendBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationObject"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_requests: {
+        parameters: {
+            query?: {
+                /** @description Default `pending`. */
+                state?: string;
+                /** @description 1 to 100, default 50. */
+                limit?: number;
+                /** @description Return rows older than this id. */
+                before?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeveloperRequestAdmin"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_decide_request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecideRequestBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeveloperRequestObject"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_versions: {
+        parameters: {
+            query?: {
+                /** @description Default `pending`. */
+                state?: string;
+                /** @description 1 to 100, default 50. */
+                limit?: number;
+                /** @description Return rows older than this id. */
+                before?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppVersionAdmin"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_decide_version: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Version snowflake */
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecideVersionBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppVersionObject"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_get_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_patch_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchConfigBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_entitlements: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description `patron` or `server_pool`. */
+                kind: string | null;
+                user_id: string | null;
+                guild_id: string | null;
+                active: boolean | null;
+                before: string | null;
+                limit: number | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantPage"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_grant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_revoke: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Grant snowflake */
+                grant_id: string;
+            };
+            cookie?: never;
+        };
+        /** @description The reason may also be sent as X-Audit-Log-Reason. */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_invoices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                state: string | null;
+                purpose: string | null;
+                user_id: string | null;
+                /** @description An invoice id, an address, or a transaction id prefix. */
+                q: string | null;
+                /** @description Only underpaid, overpaid and late-paid invoices. */
+                needs_attention: boolean | null;
+                before: string | null;
+                limit: number | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminInvoicePage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_invoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invoice snowflake */
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminInvoiceView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_resolve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invoice snowflake */
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminInvoiceView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_hide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HideBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_leaderboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description `donors` or `servers` */
+                board: string;
+                /** @description `30d` (default) or `lifetime`. */
+                window: string | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BoardView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_rates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RatesView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_report: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                from_ms: number | null;
+                to_ms: number | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_set_wallet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetWalletBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WalletResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_donations_test_wallet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TestWalletBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestWalletResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -16328,6 +20196,1660 @@ export interface operations {
             };
         };
     };
+    admin_tv_remove_block: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Block snowflake */
+                block_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_channels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvAdminChannelList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_create_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TvChannelInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvChannel"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvChannel"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_update_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TvChannelInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvChannel"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_delete_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_place_block: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TvPlaceInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvBlock"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_now: {
+        parameters: {
+            query?: {
+                /** @description Unix milliseconds; default now ("simulate now"). */
+                at_ms?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvNow"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_set_now: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TvSetNowInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvBlock"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TvPreviewBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvPreview"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_publish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TvPublishBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvPublished"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_schedule: {
+        parameters: {
+            query?: {
+                /** @description Unix milliseconds; default now. */
+                from?: number;
+                /** @description Unix milliseconds; default `from` plus 24 hours; at most 7 days. */
+                to?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvBlockList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_report: {
+        parameters: {
+            query?: {
+                /** @description Unix milliseconds; default 24 hours before `to`. */
+                from?: number;
+                /** @description Unix milliseconds; default now (never later). */
+                to?: number;
+                /** @description One channel id; default all. */
+                channel?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvReport"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_apps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationObject"][];
+                };
+            };
+        };
+    };
+    create_app: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateApplicationBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedApplication"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    current_application: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationObject"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_app: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationObject"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_app: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_app: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchApplicationBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    audit_log: {
+        parameters: {
+            query?: {
+                limit?: number;
+                before?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditEntryObject"][];
+                };
+            };
+        };
+    };
+    patch_bot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchBotBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    reset_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResetTokenResult"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_global: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    overwrite_global: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>[];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_global: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_global: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Command snowflake */
+                command_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_global: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Command snowflake */
+                command_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_global: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Command snowflake */
+                command_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    overwrite_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>[];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    guild_permissions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    get_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Command snowflake */
+                command_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Command snowflake */
+                command_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    patch_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Command snowflake */
+                command_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    command_permissions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Command snowflake */
+                command_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_command_permissions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Command snowflake */
+                command_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    installs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstallObject"][];
+                };
+            };
+        };
+    };
+    reset_secret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResetSecretResult"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_versions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppVersionObject"][];
+                };
+            };
+        };
+    };
+    submit_version: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubmitVersionBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppVersionObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    withdraw_version: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Version snowflake */
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppVersionObject"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_channel: {
         parameters: {
             query?: never;
@@ -18329,6 +23851,45 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_in_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description No party, or the channel is not visible. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -21534,6 +27095,462 @@ export interface operations {
             };
         };
     };
+    apply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplyBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeveloperRequestObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeveloperStatus"];
+                };
+            };
+        };
+    };
+    donations_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DonationConfigView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    donations_list_invoices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Return invoices older than this id. */
+                before: string | null;
+                /** @description At most 50 (default 25). */
+                limit: number | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoicePage"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    donations_create_invoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInvoiceBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    donations_get_invoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invoice snowflake */
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    donations_cancel_invoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invoice snowflake */
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    donations_check_invoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Invoice snowflake */
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    donations_leaderboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description `donors` or `servers` */
+                board: string;
+                /** @description `30d` (default) or `lifetime`. */
+                window: string | null;
+                /** @description At most 100 (default 50). */
+                limit: number | null;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BoardView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    donations_me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    donations_patch_preferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PrefsBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrefsView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    gateway: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GatewayInfo"];
+                };
+            };
+        };
+    };
+    gateway_bot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GatewayBotInfo"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     create_guild: {
         parameters: {
             query?: never;
@@ -23940,6 +29957,94 @@ export interface operations {
             };
         };
     };
+    donations_guild_support: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Server snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuildSupportView"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    donations_patch_guild_support: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Server snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuildSupportPatch"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuildSupportPatch"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_guild_templates: {
         parameters: {
             query?: never;
@@ -24354,6 +30459,101 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInteractionBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    callback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Interaction snowflake */
+                interaction_id: string;
+                /** @description Interaction token */
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CallbackBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -25287,6 +31487,255 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthMe"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    authorize_info: {
+        parameters: {
+            query: {
+                client_id: string;
+                scope?: string;
+                redirect_uri?: string;
+                response_type?: string;
+                state?: string;
+                code_challenge?: string;
+                code_challenge_method?: string;
+                permissions?: string;
+                guild_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthorizeInfo"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    authorize: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthorizeBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthorizeResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    introspect: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TokenRequestBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntrospectionBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthErrorBody"];
+                };
+            };
+        };
+    };
+    token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TokenRequestBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenResponseBody"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthErrorBody"];
+                };
+            };
+        };
+    };
+    revoke: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TokenRequestBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthErrorBody"];
+                };
+            };
+        };
+    };
+    list_grants: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthorizedApp"][];
+                };
+            };
+        };
+    };
+    revoke_grant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Grant snowflake */
+                grant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -27050,6 +33499,379 @@ export interface operations {
             };
         };
     };
+    tv_channels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvChannelList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tv_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvChannel"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tv_live_audio: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.apple.mpegurl": string;
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age confirmation required (code 900011) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unknown channel, or off air */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tv_live_master: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.apple.mpegurl": string;
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age confirmation required (code 900011) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unknown channel, or off air */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tv_live_video: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description `{height}.m3u8`, for example `720.m3u8` */
+                file: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.apple.mpegurl": string;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age confirmation required (code 900011) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unknown channel, or off air */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tv_channel_now: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvNow"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tv_channel_tune: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvTune"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age confirmation required (code 900011) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tv_guide: {
+        parameters: {
+            query?: {
+                /** @description Start of the window, Unix milliseconds. Default: now rounded down to the half hour. */
+                from?: number;
+                /** @description End of the window, Unix milliseconds. Default: `from` plus 4 hours; at most 48 hours. */
+                to?: number;
+                /** @description Comma-separated channel ids. Default: every enabled channel. */
+                channels?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvGuide"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tv_timezones: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvTimezoneList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     current_user: {
         parameters: {
             query?: never;
@@ -28100,6 +34922,1090 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProfileObject"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchPartyCreate"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description No START_WATCH_PARTY, or age confirmation required (900011). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unknown channel or title. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The channel already has a party, or the server is at its party limit. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_mine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not in a party. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_time: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchPartyTime"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_end: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchPartySettingsInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_audit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchPartyAuditEntry"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_set_controller: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+                /** @description User snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchPartyControllerInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_heartbeat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchPartyHeartbeat"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchPartyHeartbeatResult"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_transfer_host: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchPartyTransfer"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_join: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchPartyJoin"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The party is full. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_leave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_change_media: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchPartyChangeMedia"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not a controller, or age confirmation required (900011). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_kick: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+                /** @description User snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_say: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchPartyMessageInput"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_next: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The queue is empty. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_command: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchPartyCommand"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchPartyPlayback"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `expected_version` is stale. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionConflictBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_queue_add: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchPartyQueueAdd"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The queue is full. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_queue_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+                /** @description Queue entry snowflake */
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_queue_move: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+                /** @description Queue entry snowflake */
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchPartyQueueMove"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_react: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchPartyReaction"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_message: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Interaction token */
+                token: string;
+                /** @description Message snowflake or @original */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_message: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Interaction token */
+                token: string;
+                /** @description Message snowflake or @original */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    edit_message: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Interaction token */
+                token: string;
+                /** @description Message snowflake or @original */
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             404: {

@@ -1,0 +1,187 @@
+// Types for the developer platform HTTP API, following docs/specs/developer-platform.md section 3 ("HTTP API as
+// built", feat/p8-dev-be). Snowflakes and permission bitfields travel as strings.
+
+export type IntentName = 'GUILD_MEMBERS' | 'GUILD_PRESENCES' | 'MESSAGE_CONTENT';
+export type ReleaseState = 'development' | 'in_review' | 'released' | 'suspended';
+
+export interface BotUser {
+  id: string;
+  username: string;
+  global_name: string | null;
+  avatar: string | null;
+  bot: true;
+}
+
+export interface DevApp {
+  /** Also the OAuth2 client id. */
+  id: string;
+  name: string;
+  description: string;
+  /** CDN hash of the app icon. */
+  icon: string | null;
+  tags: string[];
+  bot_public: boolean;
+  bot_require_code_grant: boolean;
+  flags: number;
+  release_state: ReleaseState;
+  owner: { id: string; username: string; global_name: string | null };
+  /** Every application has a bot account (created together with it). */
+  bot: BotUser;
+  redirect_uris: string[];
+  install_params: { scopes: string[]; permissions: string };
+  terms_of_service_url: string | null;
+  privacy_policy_url: string | null;
+  privileged_intents: { requested: IntentName[]; approved: IntentName[] };
+  /** Last characters of the client secret, e.g. `...abcd`; the secret itself is never returned again. */
+  client_secret_hint: string | null;
+  created_at: string;
+}
+
+export interface AppPatch {
+  name?: string;
+  description?: string;
+  /** `data:` URI to set, null to clear. */
+  icon?: string | null;
+  bot_public?: boolean;
+  redirect_uris?: string[];
+  install_params?: { scopes: string[]; permissions: string };
+  privacy_policy_url?: string | null;
+  terms_of_service_url?: string | null;
+  /** The privileged intents the bot asks for (the full requested set). */
+  privileged_intents?: IntentName[];
+}
+
+/** Returned once by POST /applications. */
+export interface AppCreated {
+  application: DevApp;
+  client_secret: string;
+  bot_token: string;
+}
+
+export interface DeveloperRequest {
+  id: string;
+  account_id: string;
+  state: 'pending' | 'approved' | 'rejected' | 'suspended';
+  pitch: string;
+  prior_work: string;
+  created_at: string;
+  reviewed_at: string | null;
+  reviewer_note: string | null;
+}
+
+export interface DeveloperStatus {
+  is_developer: boolean;
+  request: DeveloperRequest | null;
+}
+
+export interface ApplyBody {
+  pitch: string;
+  prior_work?: string;
+  accepted_terms: true;
+}
+
+export type VersionState = 'pending' | 'approved' | 'rejected' | 'changes_requested' | 'withdrawn';
+
+export interface AppVersion {
+  id: string;
+  application_id: string;
+  version: number;
+  state: VersionState;
+  needs_review: boolean;
+  needs_review_reasons: ('scopes' | 'redirect_uris' | 'intents' | 'first_release')[];
+  diff: { changed: { key: string; old: unknown; new: unknown }[] };
+  note: string | null;
+  reviewer_note: string | null;
+  created_at: string;
+  decided_at: string | null;
+}
+
+export interface AppInstall {
+  guild_id: string;
+  installed_by: string;
+  scopes: string[];
+  permissions: string;
+  created_at: string;
+}
+
+/** Slash command fields the builder produces (see spec 3.5; commands are managed with the bot token). */
+export const OPTION_TYPES = [
+  { value: 3, label: 'String' },
+  { value: 4, label: 'Integer' },
+  { value: 5, label: 'Boolean' },
+  { value: 6, label: 'User' },
+  { value: 7, label: 'Channel' },
+  { value: 8, label: 'Role' },
+  { value: 9, label: 'Mentionable' },
+  { value: 10, label: 'Number' },
+  { value: 11, label: 'Attachment' },
+] as const;
+
+export interface CommandOption {
+  type: number;
+  name: string;
+  description: string;
+  required: boolean;
+  autocomplete?: boolean;
+}
+
+export type CommandType = 1 | 2 | 3; // chat input, user, message
+
+export interface CommandInput {
+  type: CommandType;
+  name: string;
+  description: string;
+  options: CommandOption[];
+}
+
+export interface ConsentScope {
+  name: string;
+  description: string;
+}
+
+export interface ConsentGuild {
+  id: string;
+  name: string;
+  icon: string | null;
+  owner: boolean;
+  permissions: string;
+  can_install: boolean;
+  reason?: 'missing_permission' | 'app_not_released' | 'bot_not_public';
+}
+
+/** GET /oauth2/authorize: everything the consent screen shows. */
+export interface AuthorizePreview {
+  application: {
+    id: string;
+    name: string;
+    description: string;
+    icon: string | null;
+    bot_public: boolean;
+    release_state: ReleaseState;
+    privacy_policy_url: string | null;
+    terms_of_service_url: string | null;
+  };
+  bot: BotUser | null;
+  scopes: ConsentScope[];
+  redirect_uri: string | null;
+  state: string | null;
+  user: { id: string; username: string; global_name: string | null };
+  /** Filled only when the request has the bot or applications.commands scope. */
+  guilds: ConsentGuild[];
+  /** Permission bitfield the bot asks for (decimal string). */
+  permissions: string;
+  already_authorized: boolean;
+}
+
+export interface AuthorizeResult {
+  /** Where to send the browser next: the redirect URI with `code`, or `/oauth2/authorized`. */
+  location: string;
+  already_installed?: boolean;
+}
+
+export interface OAuthGrant {
+  id: string;
+  application: { id: string; name: string; icon: string | null };
+  scopes: string[];
+  created_at: string;
+}
