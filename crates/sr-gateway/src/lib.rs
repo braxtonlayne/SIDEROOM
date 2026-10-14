@@ -18,6 +18,10 @@ mod session;
 pub mod test_support;
 pub mod traits;
 pub mod voice;
+mod voice_call;
+mod voice_sound;
+mod voice_stage;
+mod voice_stream;
 pub mod ws;
 
 pub use compress::Compression;
@@ -28,8 +32,12 @@ pub use session::SessionHandle;
 pub use traits::{AuthError, AuthedUser, Authenticator, GuildDirectory, OpHandler};
 pub use voice::{
     JoinDenied, ModAction, ModError, ModOutcome, ModPatch, VoiceChannelInfo, VoiceChannelKind,
-    VoiceConfig, VoiceState,
+    VoiceConfig, VoiceGuildInfo, VoiceLimits, VoiceState, allowance_ok, is_stage_moderator,
 };
+pub use voice_call::{CallError, CallHooks, CallSummary, RING_TIMEOUT};
+pub use voice_sound::{SoundPlay, SoundPlayError};
+pub use voice_stage::{SelfStagePatch, StageError, StageInstance};
+pub use voice_stream::{PreviewError, stream_key};
 pub use ws::{GatewayQuery, SESSION_COOKIE, gateway_handler, routes};
 
 #[cfg(test)]

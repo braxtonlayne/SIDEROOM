@@ -107,6 +107,7 @@ pub(crate) struct State {
     pub(crate) lists: HashMap<(GuildId, ChannelId), crate::lists::ListState>,
     /// Guilds whose lists wait for a debounced refresh; the flag asks for a member refetch.
     pub(crate) list_dirty: HashMap<GuildId, bool>,
+    pub(crate) vx: crate::voice::VoiceExtra,
     background: Vec<JoinHandle<()>>,
 }
 
@@ -137,7 +138,7 @@ struct Dispatch {
 }
 
 /// Unix milliseconds as an ISO 8601 UTC timestamp (`2026-01-02T03:04:05.678000+00:00`).
-fn iso_utc(ms: i64) -> String {
+pub(crate) fn iso_utc(ms: i64) -> String {
     let secs = ms.div_euclid(1000);
     let millis = ms.rem_euclid(1000);
     let days = secs.div_euclid(86_400);
@@ -445,6 +446,9 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
         }
         DomainEvent::StickersUpdated { payload, .. } => {
             passthrough("GUILD_STICKERS_UPDATE", payload, None)
+        }
+        DomainEvent::SoundboardUpdated { payload, .. } => {
+            passthrough("GUILD_SOUNDBOARD_SOUNDS_UPDATE", payload, None)
         }
         DomainEvent::WebhooksUpdated { guild, channel } => Dispatch {
             name: "WEBHOOKS_UPDATE",

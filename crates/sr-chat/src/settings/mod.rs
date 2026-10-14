@@ -20,6 +20,7 @@ pub mod invites;
 pub mod join;
 pub mod repo;
 pub mod service;
+pub mod soundboard;
 pub mod tags;
 pub mod templates;
 pub mod webhooks;

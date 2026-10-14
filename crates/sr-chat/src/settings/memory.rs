@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 
 use async_trait::async_trait;
-use sr_core::{ChannelId, EmojiId, GuildId, StickerId, UserId, WebhookId};
+use sr_core::{ChannelId, EmojiId, GuildId, SoundId, StickerId, UserId, WebhookId};
 
 use crate::repo::RepoResult;
 
@@ -19,6 +19,7 @@ use super::repo::{
     ExpressionRepository, GuideRepository, InsightsRepository, InviteRepository, TagRepository,
     TemplateRepository, WebhookRepository,
 };
+use super::soundboard::Sound;
 use super::tags::GuildTag;
 use super::templates::GuildTemplate;
 use super::webhooks::Webhook;
@@ -34,6 +35,7 @@ pub struct Store {
     pub audit: Vec<AuditEntry>,
     pub emoji: Vec<Emoji>,
     pub stickers: Vec<Sticker>,
+    pub sounds: Vec<Sound>,
     pub rules: Vec<AutoModRule>,
     pub webhooks: Vec<Webhook>,
     pub templates: Vec<GuildTemplate>,
@@ -247,6 +249,46 @@ impl ExpressionRepository for MemorySettingsRepo {
             let n = s.stickers.len();
             s.stickers.retain(|e| !(e.guild_id == guild && e.id == id));
             n != s.stickers.len()
+        }))
+    }
+    async fn list_sounds(&self, guild: GuildId) -> RepoResult<Vec<Sound>> {
+        Ok(self.with(|s| {
+            s.sounds
+                .iter()
+                .filter(|e| e.guild_id == guild)
+                .cloned()
+                .collect()
+        }))
+    }
+
+    async fn get_sound(&self, guild: GuildId, id: SoundId) -> RepoResult<Option<Sound>> {
+        Ok(self.with(|s| {
+            s.sounds
+                .iter()
+                .find(|e| e.guild_id == guild && e.id == id)
+                .cloned()
+        }))
+    }
+
+    async fn insert_sound(&self, sound: &Sound) -> RepoResult<()> {
+        self.with(|s| s.sounds.push(sound.clone()));
+        Ok(())
+    }
+
+    async fn update_sound(&self, sound: &Sound) -> RepoResult<()> {
+        self.with(|s| {
+            if let Some(e) = s.sounds.iter_mut().find(|e| e.id == sound.id) {
+                *e = sound.clone();
+            }
+        });
+        Ok(())
+    }
+
+    async fn delete_sound(&self, guild: GuildId, id: SoundId) -> RepoResult<bool> {
+        Ok(self.with(|s| {
+            let n = s.sounds.len();
+            s.sounds.retain(|e| !(e.guild_id == guild && e.id == id));
+            n != s.sounds.len()
         }))
     }
 }

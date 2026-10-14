@@ -53,6 +53,7 @@ pub mod social;
 pub mod threads;
 pub mod tv;
 pub mod voice;
+pub mod voice_live;
 pub mod watchparty;
 
 /// Extractor for a service registered on [`AppState`]. A missing service is a

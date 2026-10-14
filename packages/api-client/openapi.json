@@ -15208,6 +15208,181 @@
         ]
       }
     },
+    "/channels/{channel_id}/call": {
+      "get": {
+        "tags": [],
+        "summary": "The call running in a DM or group DM (`CALL_CREATE` shape: who is ringing, who is in it).",
+        "operationId": "get_call",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "DM channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`{channel_id, message_id, region, ringing, voice_states}`"
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/call/ring": {
+      "post": {
+        "tags": [],
+        "summary": "Ring members of a DM who are not in the call. The caller must be in the call. Announced\nas `CALL_UPDATE`.",
+        "operationId": "ring_call",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "DM channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Optional",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CallRecipientsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/call/stop-ringing": {
+      "post": {
+        "tags": [],
+        "summary": "Decline an incoming call (no body), or stop ringing others from inside the call.\nAnnounced as `CALL_UPDATE`.",
+        "operationId": "stop_ringing_call",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "DM channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Optional",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CallRecipientsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/channels/{channel_id}/followers": {
       "post": {
         "tags": [
@@ -17706,6 +17881,99 @@
           },
           "404": {
             "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/channels/{channel_id}/send-soundboard-sound": {
+      "post": {
+        "tags": [
+          "soundboard"
+        ],
+        "summary": "Play a sound in the voice channel you are in. Needs `USE_SOUNDBOARD` and `SPEAK` in the\nchannel, `USE_EXTERNAL_SOUNDS` for another server's sound, and not being muted or\ndeafened. One play every few seconds. Announced as `VOICE_CHANNEL_EFFECT_SEND`; the\nclient mixes the sound into its own audio.",
+        "operationId": "send_sound",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Voice or stage channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendSoundBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Not connected to the channel (40032), or not a voice channel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown sound or channel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Muted, deafened or in the audience",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Another sound was just played (900012)",
             "content": {
               "application/json": {
                 "schema": {
@@ -28345,6 +28613,406 @@
         ]
       }
     },
+    "/guilds/{guild_id}/soundboard-sounds": {
+      "get": {
+        "tags": [
+          "soundboard"
+        ],
+        "summary": "A server's sounds (any member), Discord's `{items: [...]}`.",
+        "operationId": "list_sounds",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`{items: [sound objects]}`"
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "soundboard"
+        ],
+        "summary": "Upload a sound (`CREATE_GUILD_EXPRESSIONS` or `MANAGE_GUILD_EXPRESSIONS`). 48 slots for\nevery server (D-044).",
+        "operationId": "create_sound",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSoundBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The sound object"
+          },
+          "400": {
+            "description": "Invalid file (type, size, longer than 5 s), or 30045 when the slots are full",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/soundboard-sounds/{sound_id}": {
+      "get": {
+        "tags": [
+          "soundboard"
+        ],
+        "summary": "One sound of a server (any member).",
+        "operationId": "get_sound",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sound_id",
+            "in": "path",
+            "description": "Sound snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A sound object"
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "soundboard"
+        ],
+        "summary": "Delete a sound (same permissions as editing).",
+        "operationId": "delete_sound",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sound_id",
+            "in": "path",
+            "description": "Sound snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "soundboard"
+        ],
+        "summary": "Rename a sound or change its volume or emoji (`MANAGE_GUILD_EXPRESSIONS`, or the\nuploader with `CREATE_GUILD_EXPRESSIONS`).",
+        "operationId": "modify_sound",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sound_id",
+            "in": "path",
+            "description": "Sound snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModifySoundBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The sound object"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/soundboard-sounds/{sound_id}/audio": {
+      "get": {
+        "tags": [
+          "soundboard"
+        ],
+        "summary": "The audio file of a server sound, as uploaded (members of the server).",
+        "operationId": "sound_audio",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sound_id",
+            "in": "path",
+            "description": "Sound snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "audio/mpeg": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/sr/applications": {
       "get": {
         "tags": [
@@ -29164,6 +29832,57 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/stage-instances": {
+      "get": {
+        "tags": [],
+        "summary": "The stages running in a server, for the channels the caller can see.",
+        "operationId": "list_stage_instances",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StageInstanceObject"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
             "description": "",
             "content": {
               "application/json": {
@@ -33339,6 +34058,91 @@
         ]
       }
     },
+    "/soundboard-default-sounds": {
+      "get": {
+        "tags": [
+          "soundboard"
+        ],
+        "summary": "The eight sounds every server and DM can play.",
+        "operationId": "list_default_sounds",
+        "responses": {
+          "200": {
+            "description": "Array of sound objects (`sound_id` 1 to 8, no `guild_id`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {}
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/soundboard-default-sounds/{sound_id}/audio": {
+      "get": {
+        "tags": [
+          "soundboard"
+        ],
+        "summary": "The audio of a default sound (a short WAV synthesized by the server).",
+        "operationId": "default_sound_audio",
+        "parameters": [
+          {
+            "name": "sound_id",
+            "in": "path",
+            "description": "1 to 8",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "audio/wav": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/sr/auth/email/cancel": {
       "post": {
         "tags": [],
@@ -34025,6 +34829,381 @@
           },
           "403": {
             "description": "TURN is not configured on this installation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/stage-instances": {
+      "post": {
+        "tags": [],
+        "summary": "Start a stage in a stage channel. Needs Manage Channels, Mute Members and Move Members.\nAnnounced as `STAGE_INSTANCE_CREATE`.",
+        "operationId": "create_stage_instance",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStageInstanceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StageInstanceObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad topic, not a stage channel, or a stage is already open (150006)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/stage-instances/{channel_id}": {
+      "get": {
+        "tags": [],
+        "summary": "The stage running in a channel (members who can see it).",
+        "operationId": "get_stage_instance",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Stage channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StageInstanceObject"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No stage is running (10067)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [],
+        "summary": "End a stage (moderators). Announced as `STAGE_INSTANCE_DELETE`; speakers go back to\nthe audience.",
+        "operationId": "delete_stage_instance",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Stage channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [],
+        "summary": "Change a stage's topic (moderators). Announced as `STAGE_INSTANCE_UPDATE`.",
+        "operationId": "modify_stage_instance",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Stage channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModifyStageInstanceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StageInstanceObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/streams/{stream_key}/preview": {
+      "get": {
+        "tags": [],
+        "summary": "The newest thumbnail of a stream (`image/jpeg`), for members who can see the channel.",
+        "operationId": "get_stream_preview",
+        "parameters": [
+          {
+            "name": "stream_key",
+            "in": "path",
+            "description": "`guild:{guild}:{channel}:{user}`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          },
+          "304": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [],
+        "summary": "The streamer sends a fresh thumbnail (every few minutes). At most one upload per\nfive seconds.",
+        "operationId": "upload_stream_preview",
+        "parameters": [
+          {
+            "name": "stream_key",
+            "in": "path",
+            "description": "`guild:{guild}:{channel}:{user}`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StreamPreviewBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Not a JPEG",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not your stream",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
             "content": {
               "application/json": {
                 "schema": {
@@ -41989,6 +43168,21 @@
           }
         }
       },
+      "CallRecipientsBody": {
+        "type": "object",
+        "properties": {
+          "recipients": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Users to ring or stop ringing; absent means everyone who is not connected (ring) or\neveryone still ringing / yourself (stop)."
+          }
+        }
+      },
       "CallbackBody": {
         "type": "object",
         "required": [
@@ -44935,6 +46129,78 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "CreateSoundBody": {
+        "type": "object",
+        "required": [
+          "name",
+          "sound"
+        ],
+        "properties": {
+          "emoji_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A custom emoji of this server."
+          },
+          "emoji_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A unicode emoji."
+          },
+          "name": {
+            "type": "string",
+            "description": "2 to 32 characters."
+          },
+          "sound": {
+            "type": "string",
+            "description": "`data:audio/ogg;base64,...` (MP3, Ogg or WAV; at most 5 seconds and 512 KiB)."
+          },
+          "volume": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "0 to 1, default 1."
+          }
+        }
+      },
+      "CreateStageInstanceBody": {
+        "type": "object",
+        "required": [
+          "channel_id",
+          "topic"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "description": "The stage channel."
+          },
+          "privacy_level": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "2 (`GUILD_ONLY`), the default and the only level in use.",
+            "minimum": 0
+          },
+          "send_start_notification": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Accepted for Discord compatibility; stages do not notify `@everyone` here."
+          },
+          "topic": {
+            "type": "string",
+            "description": "1 to 120 characters."
           }
         }
       },
@@ -48926,6 +50192,13 @@
           "author": {
             "$ref": "#/components/schemas/UserRef"
           },
+          "call": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "`CALL` messages: who was in the call and when it ended."
+          },
           "channel_id": {
             "type": "string"
           },
@@ -49581,6 +50854,55 @@
           }
         }
       },
+      "ModifySoundBody": {
+        "type": "object",
+        "properties": {
+          "emoji_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "emoji_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "volume": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "ModifyStageInstanceBody": {
+        "type": "object",
+        "properties": {
+          "privacy_level": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "topic": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "ModifyStickerBody": {
         "type": "object",
         "properties": {
@@ -49652,6 +50974,20 @@
               "null"
             ],
             "description": "Audit log reason (the `X-Audit-Log-Reason` header wins)."
+          },
+          "request_to_speak_timestamp": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Stage channels, `@me` only: an ISO 8601 time raises the member's hand (`REQUEST_TO_SPEAK`),\n`null` lowers it. The server stamps the time itself; the value only has to be present."
+          },
+          "suppress": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Stage channels: `false` invites the member to speak (`MUTE_MEMBERS`; for `@me`,\nthe member becomes a speaker, which needs `MUTE_MEMBERS` too), `true` sends them\nback to the audience (anyone may do that to themselves)."
           }
         }
       },
@@ -52717,6 +54053,25 @@
           }
         }
       },
+      "SendSoundBody": {
+        "type": "object",
+        "required": [
+          "sound_id"
+        ],
+        "properties": {
+          "sound_id": {
+            "type": "string",
+            "description": "A default sound (`1` to `8`) or a server sound."
+          },
+          "source_guild_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The server the sound belongs to when it is not the channel's own."
+          }
+        }
+      },
       "Series": {
         "type": "object",
         "description": "A series as the API shows it.",
@@ -53261,6 +54616,47 @@
           "upload"
         ]
       },
+      "StageInstanceObject": {
+        "type": "object",
+        "description": "A stage instance, in Discord's shape.",
+        "required": [
+          "id",
+          "guild_id",
+          "channel_id",
+          "topic",
+          "privacy_level",
+          "discoverable_disabled"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": "string"
+          },
+          "discoverable_disabled": {
+            "type": "boolean"
+          },
+          "guild_id": {
+            "type": "string"
+          },
+          "guild_scheduled_event_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "privacy_level": {
+            "type": "integer",
+            "format": "int32",
+            "description": "2 = `GUILD_ONLY`, the only level in use.",
+            "minimum": 0
+          },
+          "topic": {
+            "type": "string"
+          }
+        }
+      },
       "StartBody": {
         "type": "object",
         "required": [
@@ -53472,6 +54868,18 @@
           },
           "user": {
             "$ref": "#/components/schemas/UserRef"
+          }
+        }
+      },
+      "StreamPreviewBody": {
+        "type": "object",
+        "required": [
+          "thumbnail"
+        ],
+        "properties": {
+          "thumbnail": {
+            "type": "string",
+            "description": "`data:image/jpeg;base64,...`, at most 256 KiB once decoded."
           }
         }
       },

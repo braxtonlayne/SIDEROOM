@@ -304,6 +304,11 @@ pub enum DomainEvent {
         guild: GuildId,
         payload: Value,
     },
+    /// `GUILD_SOUNDBOARD_SOUNDS_UPDATE`; `payload` is `{guild_id, soundboard_sounds}`.
+    SoundboardUpdated {
+        guild: GuildId,
+        payload: Value,
+    },
     /// `SR_ENTITLEMENT_UPDATE` for the members of a guild (its support level or pool changed);
     /// `payload` is `{type:"guild", guild_id, level, pool_cents}`.
     GuildEntitlementUpdated {
@@ -459,6 +464,7 @@ impl DomainEvent {
             | Self::InviteDeleted { guild, .. }
             | Self::EmojisUpdated { guild, .. }
             | Self::StickersUpdated { guild, .. }
+            | Self::SoundboardUpdated { guild, .. }
             | Self::GuildEntitlementUpdated { guild, .. }
             | Self::WebhooksUpdated { guild, .. }
             | Self::AutoModRuleCreated { guild, .. }
@@ -665,6 +671,10 @@ mod tests {
                 payload: p.clone(),
             },
             DomainEvent::StickersUpdated {
+                guild: g,
+                payload: p.clone(),
+            },
+            DomainEvent::SoundboardUpdated {
                 guild: g,
                 payload: p.clone(),
             },

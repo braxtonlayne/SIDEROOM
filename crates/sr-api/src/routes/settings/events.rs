@@ -10,6 +10,7 @@
 //! | `InviteCreated` / `InviteDeleted` | `INVITE_CREATE` / `INVITE_DELETE` |
 //! | `EmojisUpdated` | `GUILD_EMOJIS_UPDATE` |
 //! | `StickersUpdated` | `GUILD_STICKERS_UPDATE` |
+//! | `SoundboardUpdated` | `GUILD_SOUNDBOARD_SOUNDS_UPDATE` |
 //! | `WebhooksUpdated` | `WEBHOOKS_UPDATE` |
 //! | `AutoModRuleCreated/Updated/Deleted` | `AUTO_MODERATION_RULE_CREATE/UPDATE/DELETE` |
 //! | `AutoModActionExecuted` | `AUTO_MODERATION_ACTION_EXECUTION` |
@@ -41,6 +42,11 @@ pub enum SettingsEvent {
     },
     /// `payload` is `{guild_id, stickers: [...]}`.
     StickersUpdated {
+        guild: GuildId,
+        payload: Value,
+    },
+    /// `payload` is `{guild_id, soundboard_sounds: [...]}`.
+    SoundboardUpdated {
         guild: GuildId,
         payload: Value,
     },
@@ -89,6 +95,7 @@ impl SettingsEvent {
             | Self::InviteDeleted { guild, .. }
             | Self::EmojisUpdated { guild, .. }
             | Self::StickersUpdated { guild, .. }
+            | Self::SoundboardUpdated { guild, .. }
             | Self::WebhooksUpdated { guild, .. }
             | Self::AutoModRuleCreated { guild, .. }
             | Self::AutoModRuleUpdated { guild, .. }
@@ -106,6 +113,7 @@ impl SettingsEvent {
             Self::InviteDeleted { .. } => "INVITE_DELETE",
             Self::EmojisUpdated { .. } => "GUILD_EMOJIS_UPDATE",
             Self::StickersUpdated { .. } => "GUILD_STICKERS_UPDATE",
+            Self::SoundboardUpdated { .. } => "GUILD_SOUNDBOARD_SOUNDS_UPDATE",
             Self::WebhooksUpdated { .. } => "WEBHOOKS_UPDATE",
             Self::AutoModRuleCreated { .. } => "AUTO_MODERATION_RULE_CREATE",
             Self::AutoModRuleUpdated { .. } => "AUTO_MODERATION_RULE_UPDATE",
@@ -162,6 +170,9 @@ impl SettingsEvent {
             Self::EmojisUpdated { guild, payload } => DomainEvent::EmojisUpdated { guild, payload },
             Self::StickersUpdated { guild, payload } => {
                 DomainEvent::StickersUpdated { guild, payload }
+            }
+            Self::SoundboardUpdated { guild, payload } => {
+                DomainEvent::SoundboardUpdated { guild, payload }
             }
             Self::WebhooksUpdated { guild, channel } => {
                 DomainEvent::WebhooksUpdated { guild, channel }

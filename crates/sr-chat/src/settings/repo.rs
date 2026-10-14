@@ -2,7 +2,7 @@
 //! `sr-db::settings_repo`; an in-memory one backs the tests.
 
 use async_trait::async_trait;
-use sr_core::{EmojiId, GuildId, StickerId, UserId, WebhookId};
+use sr_core::{EmojiId, GuildId, SoundId, StickerId, UserId, WebhookId};
 
 use crate::repo::RepoResult;
 
@@ -14,6 +14,7 @@ use super::expressions::{Emoji, Sticker};
 use super::guide::Guide;
 use super::insights::Insights;
 use super::invites::GuildInvite;
+use super::soundboard::Sound;
 use super::tags::GuildTag;
 use super::templates::GuildTemplate;
 use super::webhooks::Webhook;
@@ -61,6 +62,11 @@ pub trait ExpressionRepository: Send + Sync {
     async fn insert_sticker(&self, sticker: &Sticker) -> RepoResult<()>;
     async fn update_sticker(&self, sticker: &Sticker) -> RepoResult<()>;
     async fn delete_sticker(&self, guild: GuildId, id: StickerId) -> RepoResult<bool>;
+    async fn list_sounds(&self, guild: GuildId) -> RepoResult<Vec<Sound>>;
+    async fn get_sound(&self, guild: GuildId, id: SoundId) -> RepoResult<Option<Sound>>;
+    async fn insert_sound(&self, sound: &Sound) -> RepoResult<()>;
+    async fn update_sound(&self, sound: &Sound) -> RepoResult<()>;
+    async fn delete_sound(&self, guild: GuildId, id: SoundId) -> RepoResult<bool>;
 }
 
 #[async_trait]

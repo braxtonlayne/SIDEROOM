@@ -64,6 +64,7 @@ struct Opts {
     wired_joiner: bool,
     timeouter: Option<Arc<dyn super::MemberTimeouter>>,
     presence: Option<Arc<dyn super::PresenceCounter>>,
+    voice: Option<Arc<dyn crate::routes::voice::VoiceBackend>>,
 }
 
 async fn env() -> Env {
@@ -201,7 +202,7 @@ async fn env_with(opts: Opts) -> Env {
         1,
     )
     .unwrap();
-    let state = AppState::builder()
+    let mut builder = AppState::builder()
         .bots(bots)
         .sessions(sessions.clone())
         .clock(dyn_clock)
@@ -215,8 +216,11 @@ async fn env_with(opts: Opts) -> Env {
         .extension(Arc::new(crate::routes::cdn::CdnDeps::new(
             storage.clone(),
             sr_storage::cdn::CdnSigner::new(b"emoji-url-test-secret-0123456789".to_vec()),
-        )))
-        .build();
+        )));
+    if let Some(v) = opts.voice {
+        builder = builder.extension(Arc::new(crate::routes::voice::VoiceApi(v)));
+    }
+    let state = builder.build();
     let app = build_router(state, router().merge(messages::router()));
     Env {
         app,
@@ -2888,3 +2892,6 @@ async fn membership_applications_flow() {
     assert_eq!(ok["status"], "approved");
     assert_eq!(ok["reviewed_by"], MOD.to_string().as_str());
 }
+
+#[path = "soundboard_tests.rs"]
+mod soundboard_tests;

@@ -18,6 +18,7 @@ pub mod deps;
 pub mod error;
 pub mod list;
 
+pub mod call_record;
 pub mod model;
 pub mod pins;
 pub mod polls;

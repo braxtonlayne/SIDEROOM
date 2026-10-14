@@ -645,3 +645,82 @@ async fn applications_queue_and_approval_adds_the_member() {
     let latest = repo.latest_application(gid, other).await.unwrap().unwrap();
     assert_eq!(latest.status, ApplicationStatus::Pending);
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn soundboard_sounds_round_trip_and_follow_their_guild() {
+    use sr_chat::settings::soundboard::{Sound, SoundFormat};
+    use sr_core::SoundId;
+
+    let pool = pool().await;
+    let test_ids = ids(7);
+    let repo = PgSettingsRepo::new(pool.clone());
+    let (g, _, owner) = guild(&pool, &test_ids).await;
+    let (other, _, _) = guild(&pool, &test_ids).await;
+
+    let mk = |name: &str, emoji: Option<&str>| Sound {
+        id: SoundId::new(test_ids.generate().get()),
+        guild_id: g,
+        name: name.into(),
+        volume: 0.75,
+        emoji_id: None,
+        emoji_name: emoji.map(str::to_owned),
+        available: true,
+        creator_id: owner,
+        media_key: format!("sound/{g}/{name}.wav"),
+        format: SoundFormat::Wav,
+        duration_ms: 1_250,
+        created_at_ms: NOW,
+    };
+    let a = mk("ding", Some("\u{1F514}"));
+    let b = mk("dong", None);
+    repo.insert_sound(&a).await.unwrap();
+    repo.insert_sound(&b).await.unwrap();
+
+    let list = repo.list_sounds(g).await.unwrap();
+    assert_eq!(list.len(), 2);
+    let got = repo.get_sound(g, a.id).await.unwrap().unwrap();
+    assert_eq!(got.name, "ding");
+    assert_eq!(got.volume, 0.75);
+    assert_eq!(got.emoji_name.as_deref(), Some("\u{1F514}"));
+    assert_eq!(got.format, SoundFormat::Wav);
+    assert_eq!(got.duration_ms, 1_250);
+    assert_eq!(got.media_key, a.media_key);
+    assert_eq!(got.creator_id, owner);
+
+    // Another server cannot see or touch it.
+    assert!(repo.get_sound(other, a.id).await.unwrap().is_none());
+    assert!(repo.list_sounds(other).await.unwrap().is_empty());
+    assert!(!repo.delete_sound(other, a.id).await.unwrap());
+
+    // Update keeps the file and the author.
+    let mut changed = got.clone();
+    changed.name = "bong".into();
+    changed.volume = 0.2;
+    changed.emoji_name = None;
+    repo.update_sound(&changed).await.unwrap();
+    let after = repo.get_sound(g, a.id).await.unwrap().unwrap();
+    assert_eq!((after.name.as_str(), after.volume), ("bong", 0.2));
+    assert!(after.emoji_name.is_none());
+    assert_eq!(after.media_key, a.media_key);
+
+    // The database refuses what the domain would: a name that is too short, a sound longer
+    // than five seconds, an unknown format.
+    let mut bad = mk("ok", None);
+    bad.name = "x".into();
+    assert!(repo.insert_sound(&bad).await.is_err());
+    let mut long = mk("long", None);
+    long.duration_ms = 5_001;
+    assert!(repo.insert_sound(&long).await.is_err());
+
+    assert!(repo.delete_sound(g, a.id).await.unwrap());
+    assert!(!repo.delete_sound(g, a.id).await.unwrap());
+    assert_eq!(repo.list_sounds(g).await.unwrap().len(), 1);
+    // Deleting the guild takes its sounds along.
+    sqlx::query("DELETE FROM guilds WHERE id = $1")
+        .bind(g.get() as i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert!(repo.list_sounds(g).await.unwrap().is_empty());
+}

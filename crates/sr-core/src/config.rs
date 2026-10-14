@@ -184,6 +184,15 @@ pub struct VoiceConfig {
     pub token_secret: Secret,
     /// Seconds a voice state survives its gateway session losing the socket.
     pub session_grace_secs: u64,
+    /// Egress budget of this node in Mbit/s for the egress governor (doc 08 section 3):
+    /// above it, simulcast layers are capped for new and existing subscribers, Level 0
+    /// first and Patrons last. `0` turns the governor off. A good value is 70 % of the
+    /// measured uplink.
+    pub egress_budget_mbps: u32,
+    /// Per-subscriber TWCC bandwidth estimation for video layer selection. Off by default:
+    /// it makes the SFU pad every sending connection to 50 kbit/s, audio-only ones too. With
+    /// it off, layer selection falls back to loss reports.
+    pub video_bwe: bool,
     pub turn: TurnSection,
 }
 
@@ -223,6 +232,8 @@ impl Default for VoiceConfig {
             max_room_size: 99,
             token_secret: Secret::default(),
             session_grace_secs: 20,
+            egress_budget_mbps: 0,
+            video_bwe: false,
             turn: TurnSection::default(),
         }
     }

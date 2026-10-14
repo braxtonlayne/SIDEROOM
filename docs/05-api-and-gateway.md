@@ -80,7 +80,7 @@ Prefix `/api/v1/sr/...`. These are first-party-only unless an OAuth scope is gra
 | Cinema | `/sr/cinema/titles`, `/titles/{id}`, `/seasons`, `/episodes`, `/assets/{id}/playback`, `/progress`, `/lists`, `/ratings`, `/reviews`, `/search`, `/trending?scope=friends\|known\|global` |
 | Live TV | `/sr/tv/channels`, `/sr/tv/guide?from&to`, `/sr/tv/channels/{id}/now` |
 | Library | `/sr/library/series`, `/editions`, `/chapters/{id}/pages`, `/progress`, `/bookmarks`, … |
-| Voice | `GET /sr/voice/turn` (ephemeral TURN credentials), `PATCH /guilds/{id}/voice-states/{user_id}` (moderators; section 6.5) |
+| Voice | `GET /sr/voice/turn` (ephemeral TURN credentials), `PATCH /guilds/{id}/voice-states/{user_id}` (moderators; section 6.5), stage instances, stream previews, DM calls and the soundboard (section 6.6) |
 | Submissions | `/sr/submissions` (create draft, upload parts, submit, withdraw), `/sr/review/queue`, `/sr/review/{id}/decision` |
 | Watch parties | `/sr/parties` (create, join, control) + gateway events |
 | Admin | `/sr/admin/...` (staff-only, see the admin spec) |
@@ -214,6 +214,10 @@ Content type: images, video and audio from an allow-list (png, jpeg, gif, webp, 
 | 9 | INVALID_SESSION | ← |
 | 10 | HELLO | ← |
 | 11 | HEARTBEAT_ACK | ← |
+| 18 | STREAM_CREATE | → |
+| 19 | STREAM_DELETE | → |
+| 20 | STREAM_WATCH | → |
+| 22 | STREAM_SET_PAUSED | → |
 | 31 | REQUEST_SOUNDBOARD_SOUNDS | → |
 | 100+ | SIDE ROOM ops: `100 WATCH_PARTY_SYNC`, `101 E2EE_MLS` (MLS proposals/commits/welcome relay), `102 LAZY_REQUEST` (member-list ranges, like Discord's op 14 for user clients) | ↔ |
 
@@ -244,17 +248,18 @@ Rich presence for watching/reading uses standard `activities` on `PRESENCE_UPDAT
 ### 6.5 Voice (gateway ops, dispatches, REST)
 The media signalling (voice WebSocket) is in `docs/specs/lounge-voice-video.md` section 4. This section is the gateway and REST side.
 
-**Op 4 `VOICE_STATE_UPDATE` (client→gateway).** `{guild_id, channel_id, self_mute, self_deaf, self_video?, self_stream?}`; `channel_id: null` leaves voice. Sending the current channel again with different `self_mute`/`self_deaf` only updates those flags. A different `channel_id` in the same guild moves; a channel in another guild first leaves the old one (a user has one voice connection at a time, as on Discord). The gateway stores voice state **in memory on the node** that holds the session (lost on restart; see the spec, section 4.1).
+**Op 4 `VOICE_STATE_UPDATE` (client→gateway).** `{guild_id, channel_id, self_mute, self_deaf, self_video?, self_stream?}`; `channel_id: null` leaves voice. Sending the current channel again with different `self_mute`/`self_deaf` only updates those flags. A different `channel_id` in the same guild moves; a channel in another guild first leaves the old one (a user has one voice connection at a time, as on Discord). The gateway stores voice state **in memory on the node** that holds the session (lost on restart; see the spec, section 4.1). Without `guild_id` (or with `null`) `channel_id` names a DM or group DM and the join is a **call** (section 6.6). `self_stream` is ignored: only `STREAM_CREATE` sets it, after the checks. `self_video` goes through the sender allowance; a refusal keeps the join and answers `SR_VOICE_ERROR` (`video_limit_reached`, with `limit` and `count`; `missing_permission` when `STREAM` is missing).
 
 **Dispatch `VOICE_STATE_UPDATE`.** Discord's voice state object: `{guild_id, channel_id, user_id, member?, session_id, deaf, mute, self_deaf, self_mute, self_video, self_stream, suppress, request_to_speak_timestamp}`; `channel_id: null` means the user left. Sent to every session in the guild that holds `VIEW_CHANNEL` on the old or the new channel (intent `GUILD_VOICE_STATES`, bit 7; user clients get it always) and always to the affected user's own sessions. `GUILD_CREATE` carries `voice_states` (same objects without `guild_id`, only channels the recipient can see).
 
 **Dispatch `VOICE_SERVER_UPDATE`** (to the joining session only; also after a move): `{token, guild_id, channel_id, endpoint, ice_servers}`. See the spec, section 4.2.
 
-**Dispatch `SR_VOICE_ERROR`** (to the session that sent op 4, when the join or update was refused): `{guild_id, channel_id, code, message}`. Codes: `unknown_channel`, `not_voice_channel`, `not_member`, `missing_permission` (no `VIEW_CHANNEL`/`CONNECT`), `channel_full`, `stage_unsupported`, `voice_unavailable` (no SFU configured), `bad_request`. Discord stays silent here; the code lets the client show a reason.
+**Dispatch `SR_VOICE_ERROR`** (to the session that sent op 4, when the join or update was refused): `{guild_id, channel_id, code, message}`. Codes: `unknown_channel`, `not_voice_channel`, `not_member`, `missing_permission` (no `VIEW_CHANNEL`/`CONNECT`), `channel_full`, `age_confirmation_required` (age-restricted channel, `POST /sr/age-gate` then retry), `video_limit_reached`, `stream_quality_not_allowed`, `stream_full`, `unknown_stream`, `not_in_voice`, `already_streaming`, `voice_unavailable` (no SFU configured), `bad_request`. Extra fields (`limit`, `count`, `allowed`) are merged into the body where a toast needs them. Discord stays silent here; the code lets the client show a reason.
 
 **Permissions.** Join: `VIEW_CHANNEL` and `CONNECT` on the channel (timed-out members lose `CONNECT`); a channel with `user_limit` rejects further joiners with `channel_full` unless they hold `MOVE_MEMBERS`, `MANAGE_CHANNELS` or `ADMINISTRATOR`. Speak: `SPEAK`, no server mute. Voice activity: without `USE_VAD` the member must use push-to-talk and the SFU enforces it (D-046). `PRIORITY_SPEAKER` sets the priority speaking bit.
 
-**REST.** `PATCH /guilds/{guild_id}/voice-states/{user_id}` with `{channel_id?: string|null, mute?: bool, deaf?: bool, reason?: string}` (also `X-Audit-Log-Reason`):
+**REST.** `PATCH /guilds/{guild_id}/voice-states/{user_id}` with `{channel_id?: string|null, mute?: bool, deaf?: bool, suppress?: bool, request_to_speak_timestamp?: string|null, reason?: string}` (also `X-Audit-Log-Reason`):
+- `suppress` (stage channels only, `MUTE_MEMBERS`): `false` invites the member to speak, `true` sends a speaker back to the audience; on `` with a `channel_id` (the stage the caller is in) and `request_to_speak_timestamp` (any ISO time raises a hand, `null` lowers it; needs `REQUEST_TO_SPEAK`) it is the member's own stage state (section 6.6);
 - `mute` needs `MUTE_MEMBERS` on the user's current channel, `deaf` needs `DEAFEN_MEMBERS`;
 - `channel_id: "<id>"` moves the user and needs `MOVE_MEMBERS` on the current channel and on the target (plus `CONNECT` on the target for the actor), the target must be a voice channel in the same guild;
 - `channel_id: null` disconnects and needs `MOVE_MEMBERS`;
@@ -276,6 +281,16 @@ where `id` is `"everyone"` when every member of the server can see the channel a
 
 ### 6.7 Temporary membership
 A member who joined through a temporary invite and holds no role is removed once all their sockets have been closed for a minute (`GUILD_MEMBER_REMOVE`), judged from the same presence the gateway broadcasts (`GuildDirectory::user_offline`).
+### 6.8 Streams, stages, calls and the soundboard
+Specified in `docs/specs/lounge-voice-video.md` (sections 4.9 to 4.12, 7, 8a, 8b); this is the wire summary. All of it needs voice to be enabled, otherwise `SR_FEATURE_DISABLED` (900001) or `SR_VOICE_ERROR voice_unavailable`.
+
+**Go Live (client ops).** `18 STREAM_CREATE {channel_id, guild_id?, height?, fps?}`, `19 STREAM_DELETE {stream_key}`, `20 STREAM_WATCH {stream_key}`, `22 STREAM_SET_PAUSED {stream_key, paused}`. Stream key: `guild:{guild}:{channel}:{user}` or `call:{channel}:{user}`. Dispatches: `STREAM_CREATE {stream_key, rtc_server_id, region, viewer_ids, paused, max_viewers, quality}` (to the streamer on start, to a viewer on watch), `STREAM_UPDATE` (same body, to the streamer and viewers when viewers or pause change), `STREAM_DELETE {stream_key, reason, unavailable}`; the voice state shows `self_stream`. `SR_VOICE_LIMITS_UPDATE {guild_id, video_senders, stream_viewers, exempt}` after a server level change. `POST /streams/{stream_key}/preview {thumbnail: "data:image/jpeg;base64,..."}` (streamer; 204; 400 not a JPEG, 413 over 256 KiB, 429 within 5 s of the last) and `GET /streams/{stream_key}/preview` (`image/jpeg`, ETag).
+
+**Stage instances.** `POST /stage-instances {channel_id, topic, privacy_level?: 2}`, `GET|PATCH|DELETE /stage-instances/{channel_id}`, `GET /guilds/{guild_id}/stage-instances`; dispatches `STAGE_INSTANCE_CREATE`, `STAGE_INSTANCE_UPDATE`, `STAGE_INSTANCE_DELETE` (intent `GUILDS`). Errors: 10067 unknown stage instance, 150006 a stage is already open. Request to speak, invite to speak and stepping down are `PATCH .../voice-states/...` as above.
+
+**DM calls.** Join by op 4 without `guild_id`. Dispatches `CALL_CREATE {channel_id, message_id, region, ringing, voice_states}`, `CALL_UPDATE {channel_id, message_id, region, ringing}`, `CALL_DELETE {channel_id}` to every member of the DM. `GET /channels/{channel_id}/call`, `POST /channels/{channel_id}/call/ring {recipients?}`, `POST /channels/{channel_id}/call/stop-ringing {recipients?}`. The finished call is a message of type 3 with `call: {participants, ended_timestamp}`.
+
+**Soundboard.** `GET /soundboard-default-sounds`, `GET /soundboard-default-sounds/{id}/audio`; `GET|POST /guilds/{id}/soundboard-sounds`, `GET|PATCH|DELETE /guilds/{id}/soundboard-sounds/{sound_id}`, `GET .../{sound_id}/audio`; `POST /channels/{id}/send-soundboard-sound {sound_id, source_guild_id?}`. Dispatches `GUILD_SOUNDBOARD_SOUNDS_UPDATE {guild_id, soundboard_sounds}` (intent `GUILD_EXPRESSIONS`), `VOICE_CHANNEL_EFFECT_SEND {channel_id, guild_id, user_id, emoji, animation_type, animation_id, sound_id, sound_volume}` (intent `GUILD_VOICE_STATES`), and `SOUNDBOARD_SOUNDS {guild_id, soundboard_sounds}` in answer to op 31. Errors: 10097 unknown sound, 30045 sound slots full, 900012 cooldown (429).
 
 
 ## 7. Bot compatibility checklist (porting guide)

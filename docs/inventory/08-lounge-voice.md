@@ -3,29 +3,29 @@
 Phase 2. Spec: [lounge-voice-video](../specs/lounge-voice-video.md), ADRs 0003/0004, doc 08 §2–3.
 
 ## VOX-SIG — Signaling & state
-- [x] **VOX-SIG-001** [BE] Voice state model (guild/channel, session, self/server mute/deaf, video, stream, suppress (stage), request_to_speak) *(suppress and request_to_speak_timestamp are in the object but unused until stage channels, VOX-STG-001; state is in memory per node)*
+- [x] **VOX-SIG-001** [BE] Voice state model (guild/channel, session, self/server mute/deaf, video, stream, suppress (stage), request_to_speak) *(suppress and request_to_speak_timestamp are used by stage channels, VOX-STG-001; state is in memory per node)*
 - [x] **VOX-SIG-002** [GW] Op 4 VOICE_STATE_UPDATE handling, VOICE_STATE_UPDATE dispatch, VOICE_SERVER_UPDATE with endpoint/token/ICE servers *(SR_VOICE_ERROR explains refused joins; docs/05 section 6.5)*
-- [ ] **VOX-SIG-003** [BE] Join checks (CONNECT, user limit, MOVE bypass, age gate, AFK) *(partly done: CONNECT/VIEW, user limit with MOVE_MEMBERS/MANAGE_CHANNELS/ADMINISTRATOR bypass, timeouts and stage refusal; age gate and AFK move/timeout are not)*
+- [x] **VOX-SIG-003** [BE] Join checks (CONNECT, user limit, MOVE bypass, age gate, AFK) *(gateway/src/voice.rs check_join: CONNECT/VIEW, user limit with MOVE_MEMBERS/MANAGE_CHANNELS/ADMINISTRATOR bypass, age gate (SR_VOICE_ERROR age_confirmation_required from accounts.age_confirmed_at), AFK channel move after the guild timeout (the SFU reports speech; checked every 15 s; AFK members listen only); tests in voice_tests::ext)*
 - [x] **VOX-SIG-004** [BE] Voice token minting (HMAC, 60s TTL) + SFU node selection *(60 s HMAC token, rendezvous-hash node selection over voice.endpoints)*
 - [x] **VOX-SIG-005** [BE] `sr-voice-proto` message types (identify, select protocol, session description, speaking, video, client connect/disconnect, heartbeat, resume) *(SDP offer/answer replace SELECT_PROTOCOL/SESSION_DESCRIPTION; VIDEO and QUALITY ops are reserved)*
 - [x] **VOX-SIG-006** [BE] TURN credential endpoint (coturn REST secret) *(GET /sr/voice/turn and ice_servers, HMAC-SHA1, 1 h)*
 - [x] **VOX-SIG-007** [BE] Server mute/deafen/move/disconnect APIs + permission checks *(PATCH /guilds/{id}/voice-states/{user}, audit log entries)*
-- [ ] **VOX-SIG-008** [BE] DM/group call lifecycle (ring, ringing timeout, CALL_CREATE/UPDATE/DELETE, missed-call system message)
-- [ ] **VOX-SIG-009** [BE] Sender allowance counters per channel (excluding Patrons), viewers-per-stream counters, entitlement re-evaluation
-- [ ] **VOX-SIG-010** [BE] Stream (Go Live) keys: STREAM_CREATE/UPDATE/DELETE, watch/unwatch, preview thumbnail upload endpoint (periodic JPEG from streamer)
+- [x] **VOX-SIG-008** [BE] DM/group call lifecycle (ring, ringing timeout, CALL_CREATE/UPDATE/DELETE, missed-call system message) *(gateway/src/voice_call.rs: join a DM with op 4 without guild_id, rings everyone for 45 s, CALL_CREATE/UPDATE/DELETE, ring and stop-ringing REST, the CALL system message written by sr-api messages/call_record.rs; in memory on the node; tests in voice_tests::ext and messages tests)*
+- [x] **VOX-SIG-009** [BE] Sender allowance counters per channel (excluding Patrons), viewers-per-stream counters, entitlement re-evaluation *(gateway/src/voice_stream.rs and voice.rs allowance_ok: per-channel sender counters (camera and stream one each, Patrons exempt), viewer cap per stream, SR_ENTITLEMENT_UPDATE re-reads limits and never kicks, SR_VOICE_LIMITS_UPDATE; the SFU only accepts video the allowance let start)*
+- [x] **VOX-SIG-010** [BE] Stream (Go Live) keys: STREAM_CREATE/UPDATE/DELETE, watch/unwatch, preview thumbnail upload endpoint (periodic JPEG from streamer) *(gateway/src/voice_stream.rs: ops 18/19/20/22, STREAM_CREATE/UPDATE/DELETE, watch and unwatch with the viewer cap, preview upload and fetch (POST/GET /streams/{key}/preview, in memory, 5 s rate limit); the SFU forwards a screen only to the listed viewers)*
 
 ## VOX-SFU — `sr-voice`
 - [x] **VOX-SFU-001** [BE] str0m integration: UDP socket loop, ICE-lite, DTLS-SRTP, ICE-TCP fallback *(UDP port range, ICE-lite, DTLS-SRTP, passive ICE-TCP with RFC 4571 framing)*
 - [x] **VOX-SFU-002** [BE] Voice WS endpoint + token validation
 - [x] **VOX-SFU-003** [BE] Room manager (create on first join, destroy on last leave), participant tracks
 - [x] **VOX-SFU-004** [BE] Audio forwarding (Opus), audio-level header → speaking events *(audio-level header to SPEAKING events; push-to-talk enforced server side when USE_VAD is denied)*
-- [ ] **VOX-SFU-005** [BE] Video forwarding with simulcast layer selection per subscriber (viewport hints, BWE via TWCC)
-- [ ] **VOX-SFU-006** [BE] Screen share tracks (+ screen audio) as separate stream group
-- [ ] **VOX-SFU-007** [BE] PLI/FIR coalescing, NACK/RTX handling
-- [ ] **VOX-SFU-008** [BE] Egress governor (budget, per-tier priority downgrade, notices)
+- [x] **VOX-SFU-005** [BE] Video forwarding with simulcast layer selection per subscriber (viewport hints, BWE via TWCC) *(sr-voice layers.rs and core.rs: per-subscriber LayerSelector (client hint or viewport, bandwidth budget, governor cap), switches only on a keyframe, upgrade hold; TWCC when voice.video_bwe is on, else a loss-based fallback (loss.rs); loopback tests in tests/video.rs with real str0m clients)*
+- [x] **VOX-SFU-006** [BE] Screen share tracks (+ screen audio) as separate stream group *(core.rs: screen and screen audio tracks with a shared msid stream group (<user>-screen), VIDEO publish/subscribe (op 12), forwarded only to viewers the gateway lists)*
+- [x] **VOX-SFU-007** [BE] PLI/FIR coalescing, NACK/RTX handling *(sr-voice keyframe.rs: PLI/FIR from subscribers, new subscribers and layer switches coalesce into at most one request per 500 ms per track and layer; NACK and RTX are str0m's (1000 packet send buffer, RTX negotiated))*
+- [x] **VOX-SFU-008** [BE] Egress governor (budget, per-tier priority downgrade, notices) *(sr-voice governor.rs: budget voice.egress_budget_mbps (0 = off), severity steps up every 5 s over budget and down every 15 s under 80 %, Level 0 capped first and Patrons last, QUALITY notice (op 13), sr_voice_governor_severity gauge)*
 - [x] **VOX-SFU-009** [BE] Metrics (rooms, participants, egress/ingress Mbps, loss, CPU) *(rooms, participants, egress/ingress bps, loss ratio, forwarded packets; no CPU gauge yet)*
 - [x] **VOX-SFU-010** [BE] Graceful drain on shutdown (RECONNECT hint) *(drain() closes clients with 4015 and refuses joins)*
-- [ ] **VOX-SFU-011** [TEST] Load test harness (headless senders/receivers in Rust) → 300 Mbps target
+- [x] **VOX-SFU-011** [TEST] Load test harness (headless senders/receivers in Rust) → 300 Mbps target *(sr-voice loadtest.rs and examples/loadtest.rs: headless str0m senders and viewers against one SfuCore, times only the core. First run (dev machine, release): 311 Mbit/s egress needed 110 % of one core, so the single media actor tops out near 280 Mbit/s; the 300 Mbit/s at under 50 % CPU target is NOT met and needs rooms sharded over several actors, then a run on the AX42)*
 
 ## VOX-E2E — End-to-end encryption
 - [ ] **VOX-E2E-001** [BE][WASM] `sr-e2ee`: OpenMLS group per call, key packages, add/remove proposals, commits, welcome processing
@@ -68,10 +68,10 @@ Phase 2. Spec: [lounge-voice-video](../specs/lounge-voice-video.md), ADRs 0003/0
 - [ ] **VOX-UI-016** [FE] Mobile call UI (full-screen, swipe to minimize, controls sheet)
 
 ## VOX-STG — Stage channels
-- [ ] **VOX-STG-001** [BE] Stage instances (topic, privacy), speaker/audience states, request to speak, invite to speak, moderators
+- [x] **VOX-STG-001** [BE] Stage instances (topic, privacy), speaker/audience states, request to speak, invite to speak, moderators *(gateway/src/voice_stage.rs: stage instances (topic, privacy 2) with REST and STAGE_INSTANCE_* dispatches, the audience is suppressed at the SFU, request to speak, invite to speak, step down, auto-end, moderators = Manage Channels + Mute + Move; in memory on the node)*
 - [ ] **VOX-STG-002** [FE] Stage view (speakers grid, audience list, raise hand, moderator controls, start/end stage modal)
 
 ## VOX-SB — Soundboard
-- [ ] **VOX-SB-001** [BE] Default sounds (original/CC0), guild sounds API, send soundboard sound event + cooldown
+- [x] **VOX-SB-001** [BE] Default sounds (original/CC0), guild sounds API, send soundboard sound event + cooldown *(sr-chat settings/soundboard.rs, sr-db 0640_soundboard.sql, sr-api settings/soundboard.rs: 48 guild sounds (MP3/Ogg/WAV, 5 s, 512 KiB, kept as uploaded: no server-side Opus transcode), eight synthesized default sounds, send-soundboard-sound with a 4 s cooldown, VOICE_CHANNEL_EFFECT_SEND, op 31)*
 - [ ] **VOX-SB-002** [FE] Soundboard popover (search, favorites, server sections, preview, volume)
 - [ ] **VOX-SB-003** [FE] Sound playback mixed into outgoing audio (E2EE path) + local playback for receivers' volume setting

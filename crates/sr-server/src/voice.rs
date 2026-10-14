@@ -8,11 +8,17 @@ use anyhow::Context;
 use async_trait::async_trait;
 use serde_json::json;
 use sr_api::routes::guilds::backend::AuditSink;
-use sr_api::routes::voice::{TurnCredentialsObject, VoiceBackend, VoiceError, VoicePatch};
+use sr_api::routes::voice::{
+    SelfStageRequest, SoundEffect, StageInstanceObject, StreamPreview, TurnCredentialsObject,
+    VoiceBackend, VoiceError, VoicePatch,
+};
 use sr_chat::settings::audit::{AuditAction, AuditChange};
 use sr_core::config::Config;
-use sr_core::{GuildId, UserId};
-use sr_gateway::{Gateway, ModAction, ModError, ModPatch, VoiceConfig as GatewayVoice};
+use sr_core::{ChannelId, GuildId, UserId};
+use sr_gateway::{
+    CallError, Gateway, ModAction, ModError, ModPatch, PreviewError, SelfStagePatch, SoundPlay,
+    SoundPlayError, StageError, StageInstance, VoiceConfig as GatewayVoice,
+};
 use sr_voice_proto::{TokenSigner, TurnConfig, derive_secret};
 
 /// Everything the composition root needs once voice is switched on.
@@ -75,6 +81,8 @@ pub async fn start(cfg: &Config, master_key: &[u8; 32]) -> anyhow::Result<VoiceS
         resume_window: std::time::Duration::from_secs(20),
         heartbeat_interval: std::time::Duration::from_millis(13_750),
         token_secret: secret.clone(),
+        egress_budget_mbps: f64::from(v.egress_budget_mbps),
+        video_bwe: v.video_bwe,
     })
     .await
     .context("starting the voice SFU")?;
@@ -96,6 +104,7 @@ pub async fn start(cfg: &Config, master_key: &[u8; 32]) -> anyhow::Result<VoiceS
             turn: turn_config(cfg),
             relay: Some(Arc::new(sfu.clone())),
             session_grace: std::time::Duration::from_secs(v.session_grace_secs),
+            calls: None,
         },
         sfu,
     })
@@ -150,6 +159,14 @@ impl ServerVoice {
                         Some(json!(to.to_string())),
                     )],
                 ),
+                ModAction::Suppressed(on) => (
+                    AuditAction::MemberUpdate,
+                    vec![AuditChange::new(
+                        "suppress",
+                        Some(json!(!on)),
+                        Some(json!(on)),
+                    )],
+                ),
                 ModAction::Disconnected { from } => (
                     AuditAction::MemberDisconnect,
                     vec![AuditChange::new(
@@ -172,8 +189,53 @@ fn map_err(e: ModError) -> VoiceError {
         ModError::MissingPermissions => VoiceError::MissingPermissions,
         ModError::UnknownChannel => VoiceError::UnknownChannel,
         ModError::NotVoiceChannel => VoiceError::NotVoiceChannel,
-        ModError::StageUnsupported => VoiceError::StageUnsupported,
+        ModError::NotStageChannel => VoiceError::NotStageChannel,
         ModError::Unavailable => VoiceError::Unavailable,
+    }
+}
+
+fn stage_object(i: StageInstance) -> StageInstanceObject {
+    StageInstanceObject {
+        id: i.channel_id.to_string(),
+        guild_id: i.guild_id.to_string(),
+        channel_id: i.channel_id.to_string(),
+        topic: i.topic,
+        privacy_level: i.privacy_level,
+        discoverable_disabled: true,
+        guild_scheduled_event_id: None,
+    }
+}
+
+fn stage_err(e: StageError) -> VoiceError {
+    match e {
+        StageError::Unavailable => VoiceError::Unavailable,
+        StageError::UnknownChannel => VoiceError::UnknownChannel,
+        StageError::NotStageChannel => VoiceError::NotStageChannel,
+        StageError::MissingPermissions => VoiceError::MissingPermissions,
+        StageError::AlreadyExists => VoiceError::StageExists,
+        StageError::NoInstance => VoiceError::NoStageInstance,
+        StageError::NotInVoice => VoiceError::NotInVoice,
+        StageError::InvalidTopic => VoiceError::InvalidTopic,
+        StageError::InvalidPrivacy => VoiceError::InvalidPrivacy,
+    }
+}
+
+fn preview_err(e: PreviewError) -> VoiceError {
+    match e {
+        PreviewError::Unavailable => VoiceError::Unavailable,
+        PreviewError::NotFound | PreviewError::NotOwner => VoiceError::NotFound,
+        PreviewError::NotJpeg => VoiceError::NotJpeg,
+        PreviewError::TooLarge => VoiceError::TooLarge,
+        PreviewError::RateLimited => VoiceError::RateLimited,
+    }
+}
+
+fn call_err(e: CallError) -> VoiceError {
+    match e {
+        CallError::Unavailable => VoiceError::Unavailable,
+        CallError::NotFound => VoiceError::NotFound,
+        CallError::NotInCall => VoiceError::NotInCall,
+        CallError::NotAMember => VoiceError::NotAMember,
     }
 }
 
@@ -211,6 +273,7 @@ impl VoiceBackend for ServerVoice {
                     mute: patch.mute,
                     deaf: patch.deaf,
                     channel: patch.channel,
+                    suppress: patch.suppress,
                 },
             )
             .await
@@ -218,6 +281,213 @@ impl VoiceBackend for ServerVoice {
         self.record(guild, actor, target, &out.actions, reason.as_deref())
             .await;
         Ok(())
+    }
+
+    async fn stage_create(
+        &self,
+        actor: UserId,
+        channel: ChannelId,
+        topic: String,
+        privacy_level: Option<u8>,
+    ) -> Result<StageInstanceObject, VoiceError> {
+        self.gateway
+            .stage_create(actor, channel, &topic, privacy_level)
+            .await
+            .map(stage_object)
+            .map_err(stage_err)
+    }
+
+    async fn stage_get(
+        &self,
+        actor: UserId,
+        channel: ChannelId,
+    ) -> Result<StageInstanceObject, VoiceError> {
+        self.gateway
+            .stage_visible_to(actor, channel)
+            .await
+            .map(stage_object)
+            .ok_or(VoiceError::NoStageInstance)
+    }
+
+    async fn stage_list(
+        &self,
+        actor: UserId,
+        guild: GuildId,
+    ) -> Result<Vec<StageInstanceObject>, VoiceError> {
+        Ok(self
+            .gateway
+            .stage_instances_for(actor, guild)
+            .await
+            .into_iter()
+            .map(stage_object)
+            .collect())
+    }
+
+    async fn stage_update(
+        &self,
+        actor: UserId,
+        channel: ChannelId,
+        topic: Option<String>,
+        privacy_level: Option<u8>,
+    ) -> Result<StageInstanceObject, VoiceError> {
+        self.gateway
+            .stage_update(actor, channel, topic.as_deref(), privacy_level)
+            .await
+            .map(stage_object)
+            .map_err(stage_err)
+    }
+
+    async fn stage_end(&self, actor: UserId, channel: ChannelId) -> Result<(), VoiceError> {
+        self.gateway
+            .stage_end(actor, channel)
+            .await
+            .map_err(stage_err)
+    }
+
+    async fn stage_self(
+        &self,
+        actor: UserId,
+        guild: GuildId,
+        channel: ChannelId,
+        req: SelfStageRequest,
+    ) -> Result<(), VoiceError> {
+        self.gateway
+            .stage_self_update(
+                actor,
+                guild,
+                channel,
+                SelfStagePatch {
+                    suppress: req.suppress,
+                    request_to_speak: req.request_to_speak,
+                },
+            )
+            .await
+            .map(|_| ())
+            .map_err(stage_err)
+    }
+
+    async fn stream_preview_put(
+        &self,
+        actor: UserId,
+        stream_key: &str,
+        jpeg: Vec<u8>,
+    ) -> Result<(), VoiceError> {
+        self.gateway
+            .stream_preview_put(actor, stream_key, jpeg)
+            .map(|_| ())
+            .map_err(preview_err)
+    }
+
+    async fn stream_preview_get(
+        &self,
+        actor: UserId,
+        stream_key: &str,
+    ) -> Result<StreamPreview, VoiceError> {
+        let (jpeg, uploaded_ms) = self
+            .gateway
+            .stream_preview_get(actor, stream_key)
+            .await
+            .map_err(preview_err)?;
+        Ok(StreamPreview {
+            jpeg: jpeg.as_ref().clone(),
+            uploaded_ms,
+        })
+    }
+
+    async fn call_get(
+        &self,
+        actor: UserId,
+        channel: ChannelId,
+    ) -> Result<serde_json::Value, VoiceError> {
+        self.gateway
+            .call_state(actor, channel)
+            .ok_or(VoiceError::NotFound)
+    }
+
+    async fn call_ring(
+        &self,
+        actor: UserId,
+        channel: ChannelId,
+        recipients: Option<Vec<UserId>>,
+    ) -> Result<(), VoiceError> {
+        self.gateway
+            .call_ring(actor, channel, recipients)
+            .await
+            .map_err(call_err)
+    }
+
+    async fn call_stop_ringing(
+        &self,
+        actor: UserId,
+        channel: ChannelId,
+        recipients: Option<Vec<UserId>>,
+    ) -> Result<(), VoiceError> {
+        self.gateway
+            .call_stop_ringing(actor, channel, recipients)
+            .await
+            .map_err(call_err)
+    }
+
+    async fn soundboard_play(
+        &self,
+        actor: UserId,
+        guild: GuildId,
+        channel: ChannelId,
+        effect: SoundEffect,
+    ) -> Result<(), VoiceError> {
+        self.gateway
+            .voice_sound_effect(
+                actor,
+                guild,
+                channel,
+                &SoundPlay {
+                    sound_id: effect.sound_id,
+                    volume: effect.volume,
+                    emoji_id: effect.emoji_id,
+                    emoji_name: effect.emoji_name,
+                },
+            )
+            .await
+            .map_err(|e| match e {
+                SoundPlayError::Unavailable => VoiceError::Unavailable,
+                SoundPlayError::NotInVoice => VoiceError::NotInVoice,
+                SoundPlayError::Silenced => VoiceError::Silenced,
+                SoundPlayError::Cooldown(_) => VoiceError::Cooldown,
+            })
+    }
+}
+
+/// Writes the `CALL` system message into a DM when its call ends (VOX-SIG-008). The messages
+/// module is built after the gateway, so it is handed over later with [`CallRecorder::bind`].
+#[derive(Default)]
+pub struct CallRecorder {
+    messages: std::sync::OnceLock<Arc<sr_api::routes::messages::MessagesDeps>>,
+}
+
+impl CallRecorder {
+    pub fn bind(&self, messages: Arc<sr_api::routes::messages::MessagesDeps>) {
+        let _ = self.messages.set(messages);
+    }
+}
+
+#[async_trait]
+impl sr_gateway::CallHooks for CallRecorder {
+    async fn call_ended(&self, s: sr_gateway::CallSummary) {
+        let Some(messages) = self.messages.get() else {
+            return;
+        };
+        if let Err(e) = sr_api::routes::messages::call_record::post_call_record(
+            messages,
+            s.channel_id,
+            s.initiator,
+            &s.participants,
+            s.started_ms,
+            s.ended_ms,
+        )
+        .await
+        {
+            tracing::warn!(error = ?e, channel = %s.channel_id, "could not write the call record");
+        }
     }
 }
 

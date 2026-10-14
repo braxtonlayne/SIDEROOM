@@ -2879,6 +2879,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/channels/{channel_id}/call": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The call running in a DM or group DM (`CALL_CREATE` shape: who is ringing, who is in it). */
+        get: operations["get_call"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/call/ring": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ring members of a DM who are not in the call. The caller must be in the call. Announced
+         *     as `CALL_UPDATE`.
+         */
+        post: operations["ring_call"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/call/stop-ringing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decline an incoming call (no body), or stop ringing others from inside the call.
+         *     Announced as `CALL_UPDATE`.
+         */
+        post: operations["stop_ringing_call"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/channels/{channel_id}/followers": {
         parameters: {
             query?: never;
@@ -3286,6 +3343,28 @@ export interface paths {
         post?: never;
         /** Remove a member from a group DM (owner), or leave it (yourself). */
         delete: operations["remove_recipient"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/channels/{channel_id}/send-soundboard-sound": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Play a sound in the voice channel you are in. Needs `USE_SOUNDBOARD` and `SPEAK` in the
+         *     channel, `USE_EXTERNAL_SOUNDS` for another server's sound, and not being muted or
+         *     deafened. One play every few seconds. Announced as `VOICE_CHANNEL_EFFECT_SEND`; the
+         *     client mixes the sound into its own audio.
+         */
+        post: operations["send_sound"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -5266,6 +5345,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/soundboard-sounds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A server's sounds (any member), Discord's `{items: [...]}`. */
+        get: operations["list_sounds"];
+        put?: never;
+        /**
+         * Upload a sound (`CREATE_GUILD_EXPRESSIONS` or `MANAGE_GUILD_EXPRESSIONS`). 48 slots for
+         *     every server (D-044).
+         */
+        post: operations["create_sound"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/soundboard-sounds/{sound_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One sound of a server (any member). */
+        get: operations["get_sound"];
+        put?: never;
+        post?: never;
+        /** Delete a sound (same permissions as editing). */
+        delete: operations["delete_sound"];
+        options?: never;
+        head?: never;
+        /**
+         * Rename a sound or change its volume or emoji (`MANAGE_GUILD_EXPRESSIONS`, or the
+         *     uploader with `CREATE_GUILD_EXPRESSIONS`).
+         */
+        patch: operations["modify_sound"];
+        trace?: never;
+    };
+    "/guilds/{guild_id}/soundboard-sounds/{sound_id}/audio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The audio file of a server sound, as uploaded (members of the server). */
+        get: operations["sound_audio"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/sr/applications": {
         parameters: {
             query?: never;
@@ -5391,6 +5530,23 @@ export interface paths {
         };
         /** Basic Server Insights (`MANAGE_GUILD` or `VIEW_GUILD_INSIGHTS`). */
         get: operations["get_insights"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/stage-instances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The stages running in a server, for the channels the caller can see. */
+        get: operations["list_stage_instances"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6137,6 +6293,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/soundboard-default-sounds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The eight sounds every server and DM can play. */
+        get: operations["list_default_sounds"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/soundboard-default-sounds/{sound_id}/audio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The audio of a default sound (a short WAV synthesized by the server). */
+        get: operations["default_sound_audio"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sr/auth/email/cancel": {
         parameters: {
             query?: never;
@@ -6394,6 +6584,69 @@ export interface paths {
         get: operations["turn_credentials"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stage-instances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start a stage in a stage channel. Needs Manage Channels, Mute Members and Move Members.
+         *     Announced as `STAGE_INSTANCE_CREATE`.
+         */
+        post: operations["create_stage_instance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stage-instances/{channel_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The stage running in a channel (members who can see it). */
+        get: operations["get_stage_instance"];
+        put?: never;
+        post?: never;
+        /**
+         * End a stage (moderators). Announced as `STAGE_INSTANCE_DELETE`; speakers go back to
+         *     the audience.
+         */
+        delete: operations["delete_stage_instance"];
+        options?: never;
+        head?: never;
+        /** Change a stage's topic (moderators). Announced as `STAGE_INSTANCE_UPDATE`. */
+        patch: operations["modify_stage_instance"];
+        trace?: never;
+    };
+    "/streams/{stream_key}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The newest thumbnail of a stream (`image/jpeg`), for members who can see the channel. */
+        get: operations["get_stream_preview"];
+        put?: never;
+        /**
+         * The streamer sends a fresh thumbnail (every few minutes). At most one upload per
+         *     five seconds.
+         */
+        post: operations["upload_stream_preview"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8270,6 +8523,13 @@ export interface components {
         BulkDeleteBody: {
             messages: string[];
         };
+        CallRecipientsBody: {
+            /**
+             * @description Users to ring or stop ringing; absent means everyone who is not connected (ring) or
+             *     everyone still ringing / yourself (stop).
+             */
+            recipients?: string[] | null;
+        };
         CallbackBody: {
             data?: Record<string, never> | null;
             /** Format: int64 */
@@ -9155,6 +9415,34 @@ export interface components {
             /** @description Decimal permission bitfield. */
             permissions?: string | null;
             unicode_emoji?: string | null;
+        };
+        CreateSoundBody: {
+            /** @description A custom emoji of this server. */
+            emoji_id?: string | null;
+            /** @description A unicode emoji. */
+            emoji_name?: string | null;
+            /** @description 2 to 32 characters. */
+            name: string;
+            /** @description `data:audio/ogg;base64,...` (MP3, Ogg or WAV; at most 5 seconds and 512 KiB). */
+            sound: string;
+            /**
+             * Format: double
+             * @description 0 to 1, default 1.
+             */
+            volume?: number | null;
+        };
+        CreateStageInstanceBody: {
+            /** @description The stage channel. */
+            channel_id: string;
+            /**
+             * Format: int32
+             * @description 2 (`GUILD_ONLY`), the default and the only level in use.
+             */
+            privacy_level?: number | null;
+            /** @description Accepted for Discord compatibility; stages do not notify `@everyone` here. */
+            send_start_notification?: boolean | null;
+            /** @description 1 to 120 characters. */
+            topic: string;
         };
         CreateStickerBody: {
             description?: string | null;
@@ -10344,6 +10632,8 @@ export interface components {
         MessageObject: {
             attachments: components["schemas"]["AttachmentObject"][];
             author: components["schemas"]["UserRef"];
+            /** @description `CALL` messages: who was in the call and when it ended. */
+            call?: Record<string, never> | null;
             channel_id: string;
             content: string;
             edited_timestamp?: string | null;
@@ -10534,6 +10824,18 @@ export interface components {
             /** @description A single emoji shown beside the role; `null` clears it. Replaces an image icon. */
             unicode_emoji?: string | null;
         };
+        ModifySoundBody: {
+            emoji_id?: string | null;
+            emoji_name?: string | null;
+            name?: string | null;
+            /** Format: double */
+            volume?: number | null;
+        };
+        ModifyStageInstanceBody: {
+            /** Format: int32 */
+            privacy_level?: number | null;
+            topic?: string | null;
+        };
         ModifyStickerBody: {
             description?: string | null;
             name?: string | null;
@@ -10553,6 +10855,17 @@ export interface components {
             mute?: boolean | null;
             /** @description Audit log reason (the `X-Audit-Log-Reason` header wins). */
             reason?: string | null;
+            /**
+             * @description Stage channels, `@me` only: an ISO 8601 time raises the member's hand (`REQUEST_TO_SPEAK`),
+             *     `null` lowers it. The server stamps the time itself; the value only has to be present.
+             */
+            request_to_speak_timestamp?: string | null;
+            /**
+             * @description Stage channels: `false` invites the member to speak (`MUTE_MEMBERS`; for `@me`,
+             *     the member becomes a speaker, which needs `MUTE_MEMBERS` too), `true` sends them
+             *     back to the audience (anyone may do that to themselves).
+             */
+            suppress?: boolean | null;
         };
         ModifyWebhookBody: {
             /** @description Avatar image data URI; `null` removes it. */
@@ -11488,6 +11801,12 @@ export interface components {
             pronouns?: string | null;
             user: components["schemas"]["UserObject"];
         };
+        SendSoundBody: {
+            /** @description A default sound (`1` to `8`) or a server sound. */
+            sound_id: string;
+            /** @description The server the sound belongs to when it is not the channel's own. */
+            source_guild_id?: string | null;
+        };
         /** @description A series as the API shows it. */
         Series: {
             age_restricted: boolean;
@@ -11648,6 +11967,20 @@ export interface components {
         };
         /** @enum {string} */
         Stage: "download" | "video" | "audio" | "subtitles" | "sprites" | "upload";
+        /** @description A stage instance, in Discord's shape. */
+        StageInstanceObject: {
+            channel_id: string;
+            discoverable_disabled: boolean;
+            guild_id: string;
+            guild_scheduled_event_id?: string | null;
+            id: string;
+            /**
+             * Format: int32
+             * @description 2 = `GUILD_ONLY`, the only level in use.
+             */
+            privacy_level: number;
+            topic: string;
+        };
         StartBody: {
             episode_id?: string | null;
             /** @description A `rendition.id` from the picker (`1080p`, ..., `original`). */
@@ -11717,6 +12050,10 @@ export interface components {
              */
             type: number;
             user: components["schemas"]["UserRef"];
+        };
+        StreamPreviewBody: {
+            /** @description `data:image/jpeg;base64,...`, at most 256 KiB once decoded. */
+            thumbnail: string;
         };
         /** @description A submission as stored. */
         Submission: {
@@ -22954,6 +23291,125 @@ export interface operations {
             };
         };
     };
+    get_call: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description DM channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description `{channel_id, message_id, region, ringing, voice_states}` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    ring_call: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description DM channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        /** @description Optional */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CallRecipientsBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    stop_ringing_call: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description DM channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        /** @description Optional */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CallRecipientsBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     follow_channel: {
         parameters: {
             query?: never;
@@ -24412,6 +24868,74 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    send_sound: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Voice or stage channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendSoundBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not connected to the channel (40032), or not a voice channel */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unknown sound or channel */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Muted, deafened or in the audience */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Another sound was just played (900012) */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -31081,6 +31605,261 @@ export interface operations {
             };
         };
     };
+    list_sounds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description `{items: [sound objects]}` */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_sound: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSoundBody"];
+            };
+        };
+        responses: {
+            /** @description The sound object */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid file (type, size, longer than 5 s), or 30045 when the slots are full */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_sound: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Sound snowflake */
+                sound_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A sound object */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_sound: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Sound snowflake */
+                sound_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modify_sound: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Sound snowflake */
+                sound_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifySoundBody"];
+            };
+        };
+        responses: {
+            /** @description The sound object */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    sound_audio: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description Sound snowflake */
+                sound_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "audio/mpeg": number[];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_applications: {
         parameters: {
             query?: never;
@@ -31566,6 +32345,36 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_stage_instances: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StageInstanceObject"][];
+                };
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -34141,6 +34950,56 @@ export interface operations {
             };
         };
     };
+    list_default_sounds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Array of sound objects (`sound_id` 1 to 8, no `guild_id`) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown[];
+                };
+            };
+        };
+    };
+    default_sound_audio: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 1 to 8 */
+                sound_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "audio/wav": number[];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     cancel_change_email: {
         parameters: {
             query?: never;
@@ -34679,6 +35538,265 @@ export interface operations {
             };
             /** @description TURN is not configured on this installation */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_stage_instance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateStageInstanceBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StageInstanceObject"];
+                };
+            };
+            /** @description Bad topic, not a stage channel, or a stage is already open (150006) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_stage_instance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Stage channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StageInstanceObject"];
+                };
+            };
+            /** @description No stage is running (10067) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_stage_instance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Stage channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    modify_stage_instance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Stage channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifyStageInstanceBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StageInstanceObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_stream_preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description `guild:{guild}:{channel}:{user}` */
+                stream_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": number[];
+                };
+            };
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    upload_stream_preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description `guild:{guild}:{channel}:{user}` */
+                stream_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StreamPreviewBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a JPEG */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not your stream */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

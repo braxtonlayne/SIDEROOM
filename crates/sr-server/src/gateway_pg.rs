@@ -22,7 +22,7 @@ use sr_core::{ChannelId, Clock, GuildId, Permissions, UserId};
 use sr_db::{auth_repo::PgAuthRepo, chat_repo::PgChatRepo, social_repo::PgSocialRepo};
 use sr_gateway::{
     AuthError, AuthedUser, Authenticator, GuildDirectory, LARGE_THRESHOLD_DEFAULT,
-    VoiceChannelInfo, VoiceChannelKind,
+    VoiceChannelInfo, VoiceChannelKind, VoiceGuildInfo, VoiceLimits,
 };
 use std::sync::Arc;
 
@@ -154,6 +154,7 @@ pub struct PgGuildDirectory {
     clock: Arc<dyn Clock>,
     apps: Option<Arc<sr_apps::AppsService>>,
     offline: Option<Arc<TemporaryMembers>>,
+    entitlements: Option<Arc<dyn sr_payments::entitlements::Entitlements>>,
 }
 
 impl PgGuildDirectory {
@@ -165,12 +166,23 @@ impl PgGuildDirectory {
             clock,
             apps: None,
             offline: None,
+            entitlements: None,
         }
     }
 
     /// Drop temporary memberships when a user goes offline (LNG-INV-005).
     pub fn with_temporary_members(mut self, hook: Arc<TemporaryMembers>) -> Self {
         self.offline = Some(hook);
+        self
+    }
+
+    /// Server levels and Patron status for the voice allowance (D-050..D-052). Without it
+    /// everyone gets the free tier.
+    pub fn with_entitlements(
+        mut self,
+        entitlements: Arc<dyn sr_payments::entitlements::Entitlements>,
+    ) -> Self {
+        self.entitlements = Some(entitlements);
         self
     }
 
@@ -536,6 +548,91 @@ impl GuildDirectory for PgGuildDirectory {
         })
     }
 
+    async fn channel_guild(&self, channel: ChannelId) -> Option<GuildId> {
+        match self.chat.get_channel(channel).await {
+            Ok(c) => c.and_then(|c| c.guild_id),
+            Err(e) => {
+                tracing::error!(error = %e, "channel_guild failed");
+                None
+            }
+        }
+    }
+
+    async fn voice_guild(&self, guild: GuildId) -> VoiceGuildInfo {
+        match self.chat.get_guild(guild).await {
+            Ok(Some(g)) => VoiceGuildInfo {
+                afk_channel: g.afk_channel_id,
+                afk_timeout_secs: g.afk_timeout,
+            },
+            Ok(None) => VoiceGuildInfo::default(),
+            Err(e) => {
+                tracing::error!(error = %e, "voice_guild failed");
+                VoiceGuildInfo::default()
+            }
+        }
+    }
+
+    async fn age_confirmed(&self, user: UserId) -> bool {
+        match sqlx::query_scalar::<_, bool>(
+            "SELECT age_confirmed_at IS NOT NULL FROM accounts WHERE id = $1",
+        )
+        .bind(user.get() as i64)
+        .fetch_optional(&self.pool)
+        .await
+        {
+            Ok(v) => v.unwrap_or(false),
+            Err(e) => {
+                tracing::warn!(error = %e, "age lookup failed; treating the account as unconfirmed");
+                false
+            }
+        }
+    }
+
+    async fn voice_limits(&self, user: UserId, guild: Option<GuildId>) -> VoiceLimits {
+        let Some(ents) = &self.entitlements else {
+            return VoiceLimits::free();
+        };
+        match ents
+            .limits(user.get() as i64, guild.map(|g| g.get() as i64))
+            .await
+        {
+            Ok(l) => VoiceLimits {
+                video_senders: l.video_senders,
+                stream_viewers: l.stream_viewers,
+                exempt: l.exempt_from_sender_limit,
+                profiles: l.video_profiles.iter().map(|p| (p.height, p.fps)).collect(),
+                tier: sr_voice::governor::Tier::of(l.guild_level, l.patron).0,
+            },
+            Err(e) => {
+                tracing::error!(error = %e, "voice_limits failed; using the free tier");
+                VoiceLimits::free()
+            }
+        }
+    }
+
+    async fn dm_call_members(&self, channel: ChannelId, user: UserId) -> Option<Vec<UserId>> {
+        match self.social.get_dm(channel).await {
+            Ok(Some(dm)) if dm.has(user) => Some(dm.recipients),
+            Ok(_) => None,
+            Err(e) => {
+                tracing::error!(error = %e, "dm_call_members failed");
+                None
+            }
+        }
+    }
+
+    async fn soundboard_sounds(&self, guild: GuildId) -> Vec<Value> {
+        use sr_chat::settings::repo::ExpressionRepository;
+        let repo = sr_db::settings_repo::PgSettingsRepo::new(self.pool.clone());
+        match repo.list_sounds(guild).await {
+            Ok(list) => list.iter().map(|s| s.to_json(None)).collect(),
+            Err(e) => {
+                tracing::error!(error = %e, "soundboard_sounds failed");
+                Vec::new()
+            }
+        }
+    }
+
     async fn voice_channel(&self, guild: GuildId, channel: ChannelId) -> Option<VoiceChannelInfo> {
         match self.chat.get_channel(channel).await {
             Ok(Some(c)) if c.guild_id == Some(guild) => Some(VoiceChannelInfo {
@@ -546,6 +643,7 @@ impl GuildDirectory for PgGuildDirectory {
                 },
                 user_limit: c.user_limit.unwrap_or(0),
                 bitrate: c.bitrate,
+                age_restricted: c.nsfw,
             }),
             Ok(_) => None,
             Err(e) => {
