@@ -1866,8 +1866,7 @@ async fn lazy_member_list_follows_membership_and_role_events() {
     );
     assert_eq!(first["d"]["ops"][0]["range"], json!([0, 3]));
     assert_eq!(first["d"]["ops"][1]["range"], json!([4, 9]));
-    let mut head = Slice::default();
-    head.0 = first["d"]["ops"][0]["items"].as_array().unwrap().clone();
+    let head = Slice(first["d"]["ops"][0]["items"].as_array().unwrap().clone());
     assert_eq!(head.keys(), ["g:online", "m:1", "g:offline", "m:2"]);
 
     // A member leaves: the directory no longer lists them.

@@ -97,16 +97,18 @@ impl Op {
     }
 }
 
+/// Role groups sort by position (highest first), then role id.
+type RoleKey = (std::cmp::Reverse<i32>, String);
+/// A member and the presence they show.
+type Row<'a> = (&'a ListMember, PresenceUpdate);
+
 /// Build the list from the members and their live presence. `presence` answers with the
 /// status other users see (`offline` for anybody without a session).
 pub fn build(members: &[ListMember], presence: &dyn Fn(UserId) -> PresenceUpdate) -> Built {
     // Role groups are ordered by position, highest first; ties by role id for stability.
-    let mut role_groups: BTreeMap<
-        (std::cmp::Reverse<i32>, String),
-        Vec<(&ListMember, PresenceUpdate)>,
-    > = BTreeMap::new();
-    let mut online: Vec<(&ListMember, PresenceUpdate)> = Vec::new();
-    let mut offline: Vec<(&ListMember, PresenceUpdate)> = Vec::new();
+    let mut role_groups: BTreeMap<RoleKey, Vec<Row>> = BTreeMap::new();
+    let mut online: Vec<Row> = Vec::new();
+    let mut offline: Vec<Row> = Vec::new();
     for m in members {
         let p = presence(m.user);
         if p.visible_status() == "offline" {
@@ -120,7 +122,7 @@ pub fn build(members: &[ListMember], presence: &dyn Fn(UserId) -> PresenceUpdate
             online.push((m, p));
         }
     }
-    let order = |v: &mut Vec<(&ListMember, PresenceUpdate)>| {
+    let order = |v: &mut Vec<Row>| {
         v.sort_by(|a, b| {
             a.0.sort_key
                 .to_lowercase()
@@ -132,7 +134,7 @@ pub fn build(members: &[ListMember], presence: &dyn Fn(UserId) -> PresenceUpdate
         member_count: members.len(),
         ..Built::default()
     };
-    let push_group = |id: &str, mut rows: Vec<(&ListMember, PresenceUpdate)>, out: &mut Built| {
+    let push_group = |id: &str, mut rows: Vec<Row>, out: &mut Built| {
         if rows.is_empty() {
             return;
         }

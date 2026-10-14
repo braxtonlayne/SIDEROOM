@@ -328,7 +328,7 @@ pub async fn get_listed(
     card(&deps, &entry, user)
         .await?
         .map(Json)
-        .ok_or_else(|| unknown_listing().into())
+        .ok_or_else(unknown_listing)
 }
 
 /// Join a listed server straight from the directory, without an invite. Banned users,
@@ -357,7 +357,7 @@ pub async fn join(
         .map_err(re)?
         .ok_or_else(unknown_listing)?;
     if card(&deps, &entry, user).await?.is_none() {
-        return Err(unknown_listing().into());
+        return Err(unknown_listing());
     }
     let joined = deps
         .joiner()
@@ -485,7 +485,7 @@ pub async fn withdraw_listing(
         Permissions::MANAGE_GUILD,
     )?;
     if !dir.repo.delete_listing(gid).await.map_err(re)? {
-        return Err(unknown_listing().into());
+        return Err(unknown_listing());
     }
     Ok(StatusCode::NO_CONTENT)
 }
