@@ -5376,6 +5376,7 @@ dependencies = [
  "sr-review",
  "sr-search",
  "sr-storage",
+ "sr-tv",
  "sr-unfurl",
  "sr-voice",
  "sr-voice-proto",
