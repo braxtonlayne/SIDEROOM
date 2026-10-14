@@ -245,3 +245,32 @@
   outline: 2px dashed var(--ui-status-online);
   outline-offset: -2px;
 }
+
+/* incoming call overlay (VOX-UI-010) */
+.vc-incoming {
+  position: fixed;
+  inset-block-start: 16px;
+  inset-inline-end: 16px;
+  z-index: 60;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  inline-size: min(380px, calc(100vw - 32px));
+  padding: 16px;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background: var(--bg-base-lowest);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 40%);
+}
+.vc-incoming-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+.vc-incoming-actions {
+  display: flex;
+  flex-basis: 100%;
+  gap: 8px;
+}

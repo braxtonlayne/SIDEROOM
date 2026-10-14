@@ -8,6 +8,7 @@ import { PwaHost } from './pwa/PwaHost';
 import { registerServiceWorker } from './pwa/register';
 import { ReportUnavailableDialog } from './moderation/reports';
 import { MiniPlayerMount } from './cinema/player/MiniPlayerMount';
+import { IncomingCallOverlay } from './lounge/voice/IncomingCall';
 import { VoiceBridge } from './lounge/voice/VoiceBridge';
 import { createAppRouter } from './router';
 import './styles/fonts.css';
@@ -28,6 +29,7 @@ void initLocale().finally(() => {
         <ReportUnavailableDialog />
         {/* Outside the router so a voice call survives leaving the Lounge (VOX-CLI-010). */}
         <VoiceBridge />
+        <IncomingCallOverlay />
         {/* Same reason: the Cinema mini player keeps playing across routes (CIN-PLY-011). */}
         <MiniPlayerMount history={router.history} />
       </QueryClientProvider>

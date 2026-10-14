@@ -853,6 +853,11 @@ export class VoiceController {
     this.recompute();
   }
 
+  /** One repetition of the incoming-call ringtone (VOX-UI-010), at the cue volume. */
+  playRing(): void {
+    this.cue('ring');
+  }
+
   private cue(cue: Cue): void {
     const s = getVoiceSettings();
     if (!cueEnabled(cue, s)) return;
