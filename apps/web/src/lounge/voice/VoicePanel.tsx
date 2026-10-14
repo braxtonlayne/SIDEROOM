@@ -1,12 +1,18 @@
+import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { Button, Icon, Notice, Tooltip } from '@sideroom/ui';
 import { useT, type MessageKey } from '../../i18n';
 import { useOpenUserSettings } from '../../settings/user/nav';
 import { voiceController } from '../../voice/controller';
+import { useVideoLimits } from '../../voice/limits';
 import { isInVoice, useVoiceSession, type SessionStatus } from '../../voice/session';
 import { QUALITY_LABEL } from '../../voice/quality';
+import { useLocalVideo } from '../../voice/video';
 import { useGuild } from '../data';
+import { PingGraph } from './PingGraph';
 import { QualityBars } from './QualityBars';
+import { ScreenSharePicker } from './ScreenSharePicker';
+import './voice-p10.css';
 
 const STATUS_TEXT: Record<SessionStatus, MessageKey | ''> = {
   idle: '',
@@ -19,15 +25,18 @@ const STATUS_TEXT: Record<SessionStatus, MessageKey | ''> = {
 
 /**
  * The connection panel above the user panel (VOX-UI-001): state, channel and server link, connection quality
- * with a ping tooltip, settings and disconnect. It also shows why a join failed, with the fix for a blocked
- * or missing microphone.
+ * with a ping tooltip and graph, camera and screen share buttons, settings and disconnect. It also shows why a
+ * join failed, with the fix for a blocked or missing microphone.
  */
 export function VoicePanel() {
   const t = useT();
   const s = useVoiceSession();
   const guild = useGuild(s.guildId ?? undefined);
   const openSettings = useOpenUserSettings();
+  const limits = useVideoLimits(s.guildId);
+  const screen = useLocalVideo((st) => st.screen);
   const controller = voiceController();
+  const [picker, setPicker] = useState(false);
 
   if (s.status === 'error' && s.error) {
     const mic = s.error.code === 'mic';
@@ -74,7 +83,14 @@ export function VoicePanel() {
       data-testid="voice-panel"
     >
       <div className="vc-panel-row">
-        <Tooltip content={pingLabel}>
+        <Tooltip
+          content={
+            <span className="vc-ping-tip">
+              <span>{pingLabel}</span>
+              <PingGraph history={s.pingHistory} />
+            </span>
+          }
+        >
           <button type="button" className="vc-quality-btn" aria-label={pingLabel}>
             <QualityBars quality={connected ? s.quality : { ...s.quality, level: 'unknown' }} />
           </button>
@@ -113,7 +129,64 @@ export function VoicePanel() {
           </button>
         </Tooltip>
       </div>
+      <div className="vc-panel-actions">
+        <Tooltip
+          content={s.camera ? t('lounge.voicePanel.cameraOff') : t('lounge.voicePanel.cameraOn')}
+        >
+          <button
+            type="button"
+            className="lng-icon-btn"
+            aria-label={
+              s.camera ? t('lounge.voicePanel.cameraOff') : t('lounge.voicePanel.cameraOn')
+            }
+            aria-pressed={s.camera}
+            data-active={s.camera || undefined}
+            onClick={() =>
+              s.camera ? controller.stopCamera() : void controller.startCamera(limits.profiles)
+            }
+          >
+            <Icon name={s.camera ? 'video' : 'video-off'} size={20} />
+          </button>
+        </Tooltip>
+        <Tooltip
+          content={s.screen ? t('lounge.voicePanel.stopShare') : t('lounge.voicePanel.share')}
+        >
+          <button
+            type="button"
+            className="lng-icon-btn"
+            aria-label={s.screen ? t('lounge.voicePanel.stopShare') : t('lounge.voicePanel.share')}
+            aria-pressed={s.screen}
+            data-active={s.screen || undefined}
+            onClick={() => (s.screen ? controller.stopScreenShare() : setPicker(true))}
+          >
+            <Icon name="screen-share" size={20} />
+          </button>
+        </Tooltip>
+      </div>
+      {s.notice && (
+        <Notice variant="info" role="status" onDismiss={() => controller.dismissNotice()}>
+          {s.notice}
+        </Notice>
+      )}
       {s.pttForced && <p className="vc-note">{t('lounge.voicePanel.pttRequired')}</p>}
+      {picker && (
+        <ScreenSharePicker
+          open
+          onClose={() => setPicker(false)}
+          profiles={limits.profiles}
+          onStart={(opts) => void controller.startScreenShare(opts)}
+          initial={
+            screen
+              ? {
+                  source: screen.source,
+                  audio: screen.audio,
+                  hint: screen.hint,
+                  presetId: screen.preset.id,
+                }
+              : undefined
+          }
+        />
+      )}
     </div>
   );
 }

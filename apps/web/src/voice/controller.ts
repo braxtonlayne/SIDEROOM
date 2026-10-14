@@ -9,6 +9,7 @@
  * Every platform dependency is injected (`ControllerDeps`), so tests drive it with a mock engine.
  */
 import { Op } from '../gateway/protocol';
+import { t } from '../i18n';
 import { getGateway } from '../store/connect';
 import { onDispatch } from '../store/events';
 import { useStore } from '../store/store';
@@ -23,7 +24,7 @@ import {
   type VoiceError,
 } from './engine';
 import { PttController, ShortcutListener } from './ptt';
-import { patchSession, resetSession, useVoiceSession } from './session';
+import { PING_HISTORY, patchSession, resetSession, useVoiceSession } from './session';
 import {
   effectiveInputMode,
   getVoiceSettings,
@@ -33,6 +34,20 @@ import {
 } from './settings';
 import { CuePlayer, cueEnabled, type Cue } from './sounds';
 import { VadGate } from './vad';
+import { VIDEO_PUBLISH } from './protocol';
+import {
+  applyContentHint,
+  browserVideoDeps,
+  CaptureError,
+  openCamera,
+  openScreen,
+  resetLocalVideo,
+  stopCapture,
+  useLocalVideo,
+  type ShareOptions,
+  type VideoDeps,
+  type VideoProfile,
+} from './video';
 
 export interface JoinTarget {
   guildId: string;
@@ -51,11 +66,16 @@ export interface ControllerDeps {
   voiceStatesOf(guildId: string): Record<string, VoiceState>;
   audio: AudioDeps;
   now(): number;
+  /** Camera / screen capture (VOX-CLI-006/007); the browser by default. */
+  video?: VideoDeps;
+  /** Announce `self_video` / `self_stream` in the voice state (default: `VIDEO_PUBLISH`). */
+  publishVideo?: boolean;
 }
 
 export const DM_GUILD_ID = '@me';
 export const SERVER_WAIT_MS = 10_000;
 export const MAX_REJOINS = 3;
+export const MAX_MIC_RECOVERIES = 3;
 
 const defaultDeps = (): ControllerDeps => ({
   createEngine: (events) => new RtcVoiceEngine(events),
@@ -78,6 +98,7 @@ export class VoiceController {
   private started = false;
   private waitTimer: ReturnType<typeof setTimeout> | undefined;
   private rejoins = 0;
+  private micRecoveries = 0;
   private mutedBeforeDeaf = false;
   private vad: VadGate;
   private vadOpen = false;
@@ -143,6 +164,7 @@ export class VoiceController {
     this.server = null;
     this.started = false;
     this.rejoins = 0;
+    this.micRecoveries = 0;
     const prior = useVoiceSession.getState();
     const keepDeaf = prior.selfDeaf;
     resetSession({
@@ -199,6 +221,7 @@ export class VoiceController {
     this.roster.clear();
     this.vad.reset();
     this.vadOpen = false;
+    this.stopCaptures();
     resetSession({ selfMute, selfDeaf });
     this.applyPtt();
     this.applyKeys();
@@ -268,6 +291,103 @@ export class VoiceController {
     useVoiceSettings.getState().setLocalMuted(userId, muted);
   }
 
+  // ---- camera and screen share (VOX-CLI-006 / 007) ----
+
+  private get videoDeps(): VideoDeps {
+    return this.deps.video ?? browserVideoDeps;
+  }
+
+  /** Turn the camera on, capped to the best profile the viewer may send. Failures land in `useLocalVideo.error`. */
+  async startCamera(profiles: readonly VideoProfile[], deviceId = 'default'): Promise<void> {
+    if (!this.target) return;
+    this.stopCamera();
+    useLocalVideo.setState({ error: null });
+    try {
+      const cam = await openCamera(this.videoDeps, deviceId, profiles);
+      if (!this.target) {
+        stopCapture(cam.stream);
+        return;
+      }
+      cam.stream.getVideoTracks()[0]?.addEventListener('ended', () => {
+        if (useLocalVideo.getState().camera?.stream === cam.stream) {
+          this.stopCamera();
+          useLocalVideo.setState({ error: t('voice.capture.cameraLost') });
+        }
+      });
+      useLocalVideo.setState({ camera: cam });
+      patchSession({ camera: true });
+      this.announceVideo();
+    } catch (e) {
+      useLocalVideo.setState({ error: e instanceof CaptureError ? e.message : String(e) });
+    }
+  }
+
+  stopCamera(): void {
+    const cam = useLocalVideo.getState().camera;
+    if (!cam) return;
+    stopCapture(cam.stream);
+    useLocalVideo.setState({ camera: null });
+    patchSession({ camera: false });
+    this.announceVideo();
+  }
+
+  /** Start a screen / window / tab share with the picker's choices. Cancelling the browser picker is silent. */
+  async startScreenShare(opts: ShareOptions): Promise<void> {
+    if (!this.target) return;
+    this.stopScreenShare();
+    useLocalVideo.setState({ error: null });
+    try {
+      const screen = await openScreen(this.videoDeps, opts);
+      if (!this.target) {
+        stopCapture(screen.stream);
+        return;
+      }
+      // The browser's own "Stop sharing" button ends the track.
+      screen.stream.getVideoTracks()[0]?.addEventListener('ended', () => {
+        if (useLocalVideo.getState().screen?.stream === screen.stream) this.stopScreenShare();
+      });
+      useLocalVideo.setState({ screen });
+      patchSession({ screen: true });
+      this.announceVideo();
+    } catch (e) {
+      if (e instanceof CaptureError && e.code === 'cancelled') return;
+      useLocalVideo.setState({ error: e instanceof CaptureError ? e.message : String(e) });
+    }
+  }
+
+  /** Change the content hint of a running share (motion for video, detail for text). */
+  setShareHint(hint: ShareOptions['hint']): void {
+    const screen = useLocalVideo.getState().screen;
+    if (!screen) return;
+    applyContentHint(screen.stream, hint);
+    useLocalVideo.setState({ screen: { ...screen, hint } });
+  }
+
+  stopScreenShare(): void {
+    const screen = useLocalVideo.getState().screen;
+    if (!screen) return;
+    stopCapture(screen.stream);
+    useLocalVideo.setState({ screen: null });
+    patchSession({ screen: false });
+    this.announceVideo();
+  }
+
+  dismissVideoError(): void {
+    useLocalVideo.setState({ error: null });
+  }
+
+  /** Tell the room about the camera / share, once the SFU forwards video (VIDEO_PUBLISH). */
+  private announceVideo(): void {
+    if (this.deps.publishVideo ?? VIDEO_PUBLISH) this.sendState();
+  }
+
+  private stopCaptures(): void {
+    const { camera, screen } = useLocalVideo.getState();
+    stopCapture(camera?.stream);
+    stopCapture(screen?.stream);
+    resetLocalVideo();
+  }
+
   // ---- gateway ----
 
   private sendState(): boolean {
@@ -279,6 +399,9 @@ export class VoiceController {
       channel_id: t.channelId,
       self_mute: s.selfMute,
       self_deaf: s.selfDeaf,
+      ...((this.deps.publishVideo ?? VIDEO_PUBLISH)
+        ? { self_video: s.camera, self_stream: s.screen }
+        : {}),
     });
     if (!ok)
       this.fail({
@@ -473,19 +596,51 @@ export class VoiceController {
         if (userId === this.deps.currentUserId()) return; // our own ring follows `transmitting`
         patchSession({ speaking: { ...useVoiceSession.getState().speaking, [userId]: speaking } });
       },
-      quality: (quality) => patchSession({ quality }),
+      quality: (quality) =>
+        patchSession({
+          quality,
+          pingHistory:
+            quality.pingMs === null
+              ? useVoiceSession.getState().pingHistory
+              : [...useVoiceSession.getState().pingHistory, quality.pingMs].slice(-PING_HISTORY),
+        }),
       fatal: (e) => this.onEngineFatal(e),
       level: (db) => this.onLevelReading(db),
-      micLost: () =>
-        this.fail({
-          code: 'mic',
-          mic: 'no-device',
-          message: 'Your microphone was disconnected. Plug it back in and rejoin.',
-        }),
+      micLost: () => this.recoverMic(),
       peer: (userId, present) => {
         if (!present) patchSession({ speaking: omit(useVoiceSession.getState().speaking, userId) });
       },
     };
+  }
+
+  /**
+   * The capture device went away mid-call (VOX-CLI-001). Instead of ending the call, reopen the system default
+   * input and carry on; only when that fails too (or keeps failing) does the call end with the fix-it message.
+   */
+  private recoverMic(): void {
+    const engine = this.engine;
+    const giveUp = () =>
+      this.fail({
+        code: 'mic',
+        mic: 'no-device',
+        message: t('voice.controller.micDisconnected'),
+      });
+    if (!engine || this.micRecoveries >= MAX_MIC_RECOVERIES) return giveUp();
+    this.micRecoveries++;
+    void engine
+      .setInputDevice({ ...micOptions(getVoiceSettings()), deviceId: 'default' })
+      .then(() => {
+        if (this.engine !== engine) return;
+        patchSession({ notice: t('voice.controller.micRecovered') });
+      })
+      .catch(() => {
+        if (this.engine === engine) giveUp();
+      });
+  }
+
+  /** Dismiss the "recovered" note. */
+  dismissNotice(): void {
+    patchSession({ notice: null });
   }
 
   private onLevelReading(db: number): void {
@@ -560,6 +715,7 @@ export class VoiceController {
     this.joinedSeen = false;
     this.server = null;
     this.started = false;
+    this.stopCaptures();
     resetSession({ selfMute, selfDeaf, status: 'error', error });
     this.cue('error');
     this.applyPtt();

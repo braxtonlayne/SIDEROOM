@@ -1,141 +1,30 @@
-import { useState } from 'react';
-import { Avatar, Button, ContextMenu, EmptyState, Icon, Popover, Slider } from '@sideroom/ui';
-import { t, useT } from '../../i18n';
-import { voiceController } from '../../voice/controller';
+import { useRef, useState, type ReactNode } from 'react';
+import { Button, EmptyState } from '@sideroom/ui';
+import { useT } from '../../i18n';
 import { useVoiceSession } from '../../voice/session';
-import { useVoiceSettings, userVolumeOf } from '../../voice/settings';
+import { useLocalVideo, useRemoteVideo } from '../../voice/video';
 import { ChannelHeader } from '../ChannelHeader';
 import { CHANNEL_ICON } from '../ChannelSidebar';
-import { useCurrentUser, useUsers, useVoiceMembers, type Channel, type VoiceMember } from '../data';
+import { useCurrentUser, useUsers, useVoiceMembers, type Channel } from '../data';
 import { useJoinVoice } from './actions';
+import { CallControls, type ViewLayout } from './CallControls';
+import { JoinPreview } from './JoinPreview';
+import { ParticipantTile, StreamTile } from './Tiles';
 import { useVoicePerms } from './perms';
-import { StartPartyButton } from '../../watchparty/StartPartyButton';
+import { VoiceChat } from './VoiceChat';
 import { WatchPartyStrip } from '../../watchparty/WatchPartyStrip';
-import { useVoiceMenuEntries } from './useVoiceMenu';
+import './voice-p10.css';
 
-function stateLabel(p: VoiceMember, name: string, self: boolean): string {
-  const bits = [
-    p.serverMuted
-      ? t('lounge.voiceChannel.stateMutedByMod')
-      : p.muted
-        ? t('lounge.voiceChannel.stateMuted')
-        : '',
-    p.serverDeafened
-      ? t('lounge.voiceChannel.stateDeafenedByMod')
-      : p.deafened
-        ? t('lounge.voiceChannel.stateDeafened')
-        : '',
-    p.speaking ? t('lounge.voiceChannel.stateSpeaking') : '',
-  ].filter(Boolean);
-  return `${name}${self ? t('lounge.voiceChannel.you') : ''}${bits.length ? `, ${bits.join(', ')}` : ''}`;
-}
-
-function VolumeControl({ userId, name }: { userId: string; name: string }) {
-  const t = useT();
-  const volume = useVoiceSettings((s) => userVolumeOf(s.settings, userId));
-  const setVolume = useVoiceSettings((s) => s.setUserVolume);
-  return (
-    <Popover
-      label={t('lounge.voiceChannel.volumeOf', { name })}
-      placement="bottom"
-      trigger={
-        <button
-          type="button"
-          className="lng-icon-btn"
-          aria-label={t('lounge.voiceChannel.volumeFor', { name })}
-        >
-          <Icon name="volume" size={16} />
-        </button>
-      }
-    >
-      <div className="vc-volume">
-        <Slider
-          label={t('lounge.voiceChannel.volumeOf', { name })}
-          min={0}
-          max={200}
-          step={5}
-          value={volume}
-          showValue
-          formatValue={(v) => `${v}%`}
-          onValueChange={(v) => setVolume(userId, v)}
-          marks={[{ value: 100, label: '100%' }]}
-        />
-      </div>
-    </Popover>
-  );
-}
-
-function Tile({
-  guildId,
-  channelId,
-  participant: p,
-  onError,
-}: {
-  guildId: string;
-  channelId: string;
-  participant: VoiceMember;
-  onError: (m: string) => void;
-}) {
-  const t = useT();
-  const users = useUsers();
-  const me = useCurrentUser();
-  const u = users[p.userId];
-  const name = u?.displayName ?? t('lounge.voiceChannel.unknown');
-  const self = p.userId === me.id;
-  const menu = useVoiceMenuEntries(guildId, { id: p.userId, name }, onError, channelId);
-  return (
-    <li className="vc-tile-item">
-      <ContextMenu
-        items={menu}
-        label={t('lounge.voiceChannel.voiceActions', { name })}
-        disabled={self}
-      >
-        <div
-          className="vc-tile"
-          data-speaking={p.speaking || undefined}
-          role="group"
-          aria-label={stateLabel(p, name, self)}
-        >
-          <Avatar name={name} src={u?.avatarUrl ?? null} size={80} speaking={p.speaking} />
-          <div className="vc-tile-name">
-            <span>{name}</span>
-            {p.muted && (
-              <Icon
-                name="mic-off"
-                size={16}
-                label={
-                  p.serverMuted
-                    ? t('lounge.voiceChannel.mutedByMod')
-                    : t('lounge.voiceChannel.muted')
-                }
-              />
-            )}
-            {p.deafened && (
-              <Icon
-                name="volume-off"
-                size={16}
-                label={
-                  p.serverDeafened
-                    ? t('lounge.voiceChannel.deafenedByMod')
-                    : t('lounge.voiceChannel.deafened')
-                }
-              />
-            )}
-          </div>
-          {!self && (
-            <div className="vc-tile-actions">
-              <VolumeControl userId={p.userId} name={name} />
-            </div>
-          )}
-        </div>
-      </ContextMenu>
-    </li>
-  );
+interface TileItem {
+  key: string;
+  userId: string;
+  kind: 'person' | 'stream';
 }
 
 /**
- * The view of a server voice channel: join screen, participant tiles (avatars with speaking rings; video and
- * screen share come later) and the call controls (VOX-UI-002/003/005).
+ * The view of a server voice channel: join screen with a camera preview, the tile stage (grid, focus mode with
+ * a strip of the other tiles, hide non-video, full screen), the text-in-voice panel and the call controls
+ * (VOX-UI-002/003/004/005/007).
  */
 export function VoiceChannelView({
   channel,
@@ -147,15 +36,92 @@ export function VoiceChannelView({
   const t = useT();
   const join = useJoinVoice();
   const session = useVoiceSession();
+  const me = useCurrentUser();
+  const users = useUsers();
   const participants = useVoiceMembers(channel.id);
   const perms = useVoicePerms(channel.guildId, channel.id);
+  const localCamera = useLocalVideo((s) => s.camera);
+  const remoteCamera = useRemoteVideo((s) => s.camera);
   const here =
     session.channelId === channel.id && session.status !== 'idle' && session.status !== 'error';
   const full = !!channel.userLimit && participants.length >= channel.userLimit && !here;
-  const controller = voiceController();
-  const mutedNow = session.selfMute || session.serverMute;
-  const deafNow = session.selfDeaf || session.serverDeaf;
   const [error, setError] = useState<string | null>(null);
+  const [layout, setLayout] = useState<ViewLayout>({
+    mode: 'grid',
+    hideNonVideo: false,
+    chatOpen: false,
+  });
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+  const stage = useRef<HTMLDivElement | null>(null);
+
+  const patchLayout = (patch: Partial<ViewLayout>) => setLayout((l) => ({ ...l, ...patch }));
+  const fullscreen = () => {
+    const el = stage.current;
+    if (!el?.requestFullscreen) return setError(t('lounge.voiceStream.noFullscreen'));
+    void el.requestFullscreen().catch(() => setError(t('lounge.voiceStream.noFullscreen')));
+  };
+
+  const live = (userId: string, streaming?: boolean) =>
+    userId === me.id ? session.screen : !!streaming;
+  const hasVideo = (userId: string, video?: boolean, streaming?: boolean) =>
+    userId === me.id
+      ? !!(session.camera && localCamera) || session.screen
+      : !!(video || streaming || remoteCamera[userId]);
+
+  // Streams first, then people; hiding non-video keeps everyone who has a camera or a share.
+  const people = participants.filter(
+    (p) => !layout.hideNonVideo || !here || hasVideo(p.userId, p.video, p.streaming),
+  );
+  const items: TileItem[] = [
+    ...participants
+      .filter((p) => here && live(p.userId, p.streaming))
+      .map((p): TileItem => ({ key: `stream:${p.userId}`, userId: p.userId, kind: 'stream' })),
+    ...people.map((p): TileItem => ({ key: p.userId, userId: p.userId, kind: 'person' })),
+  ];
+  const spotlight =
+    layout.mode === 'focus' && items.length > 1
+      ? (items.find((i) => i.key === focusKey) ?? items[0])
+      : undefined;
+
+  const nameOf = (userId: string) => users[userId]?.displayName ?? t('lounge.voiceChannel.unknown');
+  const render = (item: TileItem): ReactNode => {
+    if (item.kind === 'stream')
+      return (
+        <StreamTile
+          key={item.key}
+          userId={item.userId}
+          name={nameOf(item.userId)}
+          onError={setError}
+        />
+      );
+    const p = participants.find((x) => x.userId === item.userId);
+    if (!p) return null;
+    const isFocus = spotlight?.key === item.key;
+    return (
+      <ParticipantTile
+        key={item.key}
+        guildId={channel.guildId}
+        channelId={channel.id}
+        participant={p}
+        onError={setError}
+        focused={isFocus}
+        onToggleFocus={
+          here
+            ? () => {
+                if (isFocus) patchLayout({ mode: 'grid' });
+                else {
+                  setFocusKey(item.key);
+                  patchLayout({ mode: 'focus' });
+                }
+              }
+            : undefined
+        }
+      />
+    );
+  };
+  const gridLabel = here
+    ? t('lounge.voiceChannel.inChannel', { name: channel.name })
+    : t('lounge.voiceChannel.inThisChannel');
 
   return (
     <section className="lng-channel-view vc-view" aria-label={channel.name}>
@@ -173,100 +139,73 @@ export function VoiceChannelView({
         channelId={channel.id}
       />
       <WatchPartyStrip channelId={channel.id} />
-      <div className="vc-stage">
-        {error && (
-          <p role="alert" className="vc-inline-error">
-            {error}
-          </p>
-        )}
-        {!here ? (
-          <div className="vc-join">
-            <EmptyState
-              title={channel.name}
-              description={
-                participants.length
-                  ? t('lounge.voiceChannel.peopleHere', { n: participants.length })
-                  : t('lounge.voiceChannel.nobodyHere')
-              }
-              action={
-                <Button onClick={() => join(channel)} disabled={full || perms.connect === false}>
-                  {full ? t('lounge.voiceChannel.full') : t('lounge.voiceChannel.join')}
-                </Button>
-              }
-            />
-            {!perms.useVad && <p className="vc-note">{t('lounge.voiceChannel.pttRequired')}</p>}
-            {participants.length > 0 && (
-              <ul className="vc-grid" aria-label={t('lounge.voiceChannel.inThisChannel')}>
-                {participants.map((p) => (
-                  <Tile
-                    key={p.userId}
-                    guildId={channel.guildId}
-                    channelId={channel.id}
-                    participant={p}
-                    onError={setError}
-                  />
-                ))}
+      <div className="vc-body" data-chat={layout.chatOpen && here ? 'open' : undefined}>
+        <div className="vc-main">
+          <div className="vc-stage" ref={stage}>
+            {error && (
+              <p role="alert" className="vc-inline-error">
+                {error}
+              </p>
+            )}
+            {!here ? (
+              <div className="vc-join">
+                <EmptyState
+                  title={channel.name}
+                  description={
+                    participants.length
+                      ? t('lounge.voiceChannel.peopleHere', { n: participants.length })
+                      : t('lounge.voiceChannel.nobodyHere')
+                  }
+                  action={
+                    <Button
+                      onClick={() => join(channel)}
+                      disabled={full || perms.connect === false}
+                    >
+                      {full ? t('lounge.voiceChannel.full') : t('lounge.voiceChannel.join')}
+                    </Button>
+                  }
+                />
+                <JoinPreview />
+                {!perms.useVad && <p className="vc-note">{t('lounge.voiceChannel.pttRequired')}</p>}
+                {participants.length > 0 && (
+                  <ul className="vc-grid" aria-label={gridLabel}>
+                    {items.map(render)}
+                  </ul>
+                )}
+              </div>
+            ) : spotlight ? (
+              <div className="vc-focus">
+                <ul className="vc-spotlight" aria-label={gridLabel}>
+                  {render(spotlight)}
+                </ul>
+                <ul className="vc-strip" aria-label={t('lounge.voiceChannel.otherTiles')}>
+                  {items.filter((i) => i.key !== spotlight.key).map(render)}
+                </ul>
+              </div>
+            ) : items.length ? (
+              <ul className="vc-grid" aria-label={gridLabel}>
+                {items.map(render)}
               </ul>
+            ) : (
+              <p className="vc-note" role="status">
+                {t('lounge.voiceChannel.noVideo')}
+              </p>
             )}
           </div>
-        ) : (
-          <ul
-            className="vc-grid"
-            aria-label={t('lounge.voiceChannel.inChannel', { name: channel.name })}
-          >
-            {participants.map((p) => (
-              <Tile
-                key={p.userId}
-                guildId={channel.guildId}
-                channelId={channel.id}
-                participant={p}
-                onError={setError}
-              />
-            ))}
-          </ul>
+          {here && (
+            <CallControls
+              channelId={channel.id}
+              guildId={channel.guildId}
+              layout={layout}
+              onLayout={patchLayout}
+              onFullscreen={fullscreen}
+            />
+          )}
+        </div>
+        {here && layout.chatOpen && (
+          <VoiceChat channel={channel} onClose={() => patchLayout({ chatOpen: false })} />
         )}
       </div>
-      {here && (
-        <div
-          className="vc-controls"
-          role="toolbar"
-          aria-label={t('lounge.voiceChannel.callControls')}
-        >
-          <button
-            type="button"
-            className="vc-ctl"
-            aria-label={mutedNow ? t('lounge.voiceChannel.unmute') : t('lounge.voiceChannel.mute')}
-            aria-pressed={mutedNow}
-            disabled={session.serverMute}
-            data-on={mutedNow || undefined}
-            onClick={() => controller.toggleMute()}
-          >
-            <Icon name={mutedNow ? 'mic-off' : 'mic'} size={24} />
-          </button>
-          <button
-            type="button"
-            className="vc-ctl"
-            aria-label={
-              deafNow ? t('lounge.voiceChannel.undeafen') : t('lounge.voiceChannel.deafen')
-            }
-            aria-pressed={deafNow}
-            disabled={session.serverDeaf}
-            data-on={deafNow || undefined}
-            onClick={() => controller.toggleDeafen()}
-          >
-            <Icon name={deafNow ? 'volume-off' : 'headphones'} size={24} />
-          </button>
-          <StartPartyButton channelId={channel.id} />
-          <button
-            type="button"
-            className="vc-ctl vc-ctl-danger"
-            aria-label={t('lounge.voiceChannel.disconnect')}
-            onClick={() => controller.leave()}
-          >
-            <Icon name="logout" size={24} />
-          </button>
-        </div>
-      )}
     </section>
   );
 }

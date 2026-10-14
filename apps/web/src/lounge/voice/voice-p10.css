@@ -1,0 +1,238 @@
+/* ---------- voice, phase 10 (VOX-UI-001..008, VOX-CLI-006/007) ---------- */
+.vc-ping-tip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+.vc-ping-graph {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.vc-ping-stats,
+.vc-ping-empty {
+  font-size: 11px;
+  opacity: 0.8;
+}
+.vc-panel-actions {
+  display: flex;
+  gap: 4px;
+  margin-block-start: 4px;
+}
+.vc-panel-actions [data-active] {
+  color: var(--ui-status-online);
+}
+
+/* body: stage + optional text chat */
+.vc-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.vc-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.vc-main > .vc-stage {
+  flex: 1;
+}
+.vc-stage:fullscreen {
+  background: var(--bg-base);
+}
+.vc-chat {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  inline-size: min(380px, 40%);
+  min-height: 0;
+  border-inline-start: 1px solid var(--ui-border);
+}
+.vc-chat-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-block-end: 1px solid var(--ui-border);
+}
+.vc-chat-title {
+  flex: 1;
+  margin: 0;
+  font-size: 16px;
+}
+
+/* video in tiles */
+.vc-video {
+  inline-size: 100%;
+  max-block-size: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 6px;
+  background: #000;
+  object-fit: contain;
+}
+.vc-video[data-mirror] {
+  transform: scaleX(-1);
+}
+.vc-tile[data-video] {
+  padding: 8px;
+}
+.vc-tile-quality {
+  position: absolute;
+  inset-block-start: 8px;
+  inset-inline-start: 8px;
+}
+.vc-tile-actions {
+  display: flex;
+  gap: 2px;
+}
+.vc-tile-item[data-focused] .vc-tile {
+  min-block-size: 320px;
+}
+
+/* focus mode */
+.vc-focus {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  inline-size: 100%;
+  min-height: 0;
+}
+.vc-spotlight,
+.vc-strip {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.vc-spotlight {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+.vc-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+}
+.vc-strip .vc-tile-item {
+  flex: 0 0 160px;
+}
+.vc-strip .vc-tile {
+  min-block-size: 110px;
+  padding: 8px;
+}
+
+/* stream tile */
+.vc-stream-item {
+  grid-column: span 2;
+}
+.vc-stream {
+  align-items: stretch;
+}
+.vc-live-badge {
+  position: absolute;
+  inset-block-start: 8px;
+  inset-inline-start: 8px;
+  z-index: 1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.vc-stream-idle {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+}
+.vc-stream-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.vc-stream-info {
+  flex: 1;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* join preview */
+.vc-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  inline-size: min(320px, 100%);
+}
+
+/* controls */
+.vc-controls {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.vc-controls-error {
+  margin: 0;
+  padding-inline: 12px;
+}
+.vc-split {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.vc-ctl-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 20px;
+  block-size: 28px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.vc-ctl-arrow:hover {
+  background: var(--ui-bg-hover);
+}
+.vc-ctl[data-active] {
+  background: var(--ui-status-online);
+  color: #000;
+}
+.vc-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* share picker */
+.vc-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (max-width: 720px) {
+  .vc-body[data-chat] {
+    flex-direction: column;
+  }
+  .vc-chat {
+    inline-size: auto;
+    block-size: 45%;
+    border-inline-start: 0;
+    border-block-start: 1px solid var(--ui-border);
+  }
+  .vc-stream-item {
+    grid-column: span 1;
+  }
+}

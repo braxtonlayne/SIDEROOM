@@ -194,3 +194,28 @@ export function useMicTest(opts: MicTestOptions, deps: AudioDeps = browserAudioD
 
   return { running, level, error, start, stop };
 }
+
+/** Cameras with hot-plug refresh (labels appear once camera permission has been granted). */
+export function useCameras(
+  deps: Pick<AudioDeps, 'enumerateDevices' | 'onDeviceChange'> = browserAudioDeps,
+): {
+  cameras: MediaDeviceInfo[];
+  refresh(): Promise<void>;
+} {
+  const [list, setList] = useState<MediaDeviceInfo[]>([]);
+  const alive = useRef(true);
+  const refresh = useCallback(async () => {
+    const all = await deps.enumerateDevices().catch(() => []);
+    if (alive.current) setList(all.filter((d) => d.kind === 'videoinput'));
+  }, [deps]);
+  useEffect(() => {
+    alive.current = true;
+    void refresh();
+    const off = deps.onDeviceChange(() => void refresh());
+    return () => {
+      alive.current = false;
+      off();
+    };
+  }, [deps, refresh]);
+  return { cameras: list, refresh };
+}

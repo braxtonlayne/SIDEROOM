@@ -53,6 +53,13 @@ export const REJOIN_VOICE_CLOSES: ReadonlySet<number> = new Set([
   VoiceClose.SESSION_INVALID,
 ]);
 
+/**
+ * Whether the SFU forwards video yet (VOX-SFU-005/006). While false, camera and screen captures stay a local
+ * preview: the client does not add video m-lines (the spec says they would be ignored) and does not announce
+ * `self_video` / `self_stream` in its voice state, so nobody is shown a "LIVE" tile with nothing in it.
+ */
+export const VIDEO_PUBLISH = false;
+
 /** SPEAKING bitmask. */
 export const SPEAKING_VOICE = 1;
 export const SPEAKING_PRIORITY = 4;
