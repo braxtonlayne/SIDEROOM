@@ -865,3 +865,54 @@ async fn the_managed_role_sits_just_above_everyone_and_shifts_the_others() {
     assert_eq!((bot_pos, mods_pos), (1, 2));
     f.db.cleanup().await.unwrap();
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn credentials_stop_working_when_their_account_is_not_active() {
+    let f = fx().await;
+    let (c, creds) = oauth_fixture(&f).await;
+    let pool = f.db.pool();
+    // a user's OAuth tokens die with the account
+    let code = code(&f, &c, f.other).await;
+    let t = f
+        .svc
+        .exchange_code(&creds, &code, "https://client.test/cb", None)
+        .await
+        .unwrap();
+    assert!(f.svc.bearer(&t.access_token).await.unwrap().is_some());
+    sqlx::query("UPDATE accounts SET state = 'platform_banned' WHERE id = $1")
+        .bind(f.other)
+        .execute(pool)
+        .await
+        .unwrap();
+    assert!(f.svc.bearer(&t.access_token).await.unwrap().is_none());
+    assert!(f.svc.refresh(&creds, &t.refresh_token).await.is_err());
+    sqlx::query("UPDATE accounts SET state = 'active' WHERE id = $1")
+        .bind(f.other)
+        .execute(pool)
+        .await
+        .unwrap();
+    assert!(f.svc.bearer(&t.access_token).await.unwrap().is_some());
+    // a bot stops with its owner
+    assert!(
+        f.svc
+            .authenticate_bot(&c.bot_token)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    sqlx::query("UPDATE accounts SET state = 'deactivated' WHERE id = $1")
+        .bind(f.owner)
+        .execute(pool)
+        .await
+        .unwrap();
+    assert!(
+        f.svc
+            .authenticate_bot(&c.bot_token)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(f.svc.gateway_bot(&c.bot_token).await.unwrap().is_none());
+    f.db.cleanup().await.unwrap();
+}

@@ -21,8 +21,9 @@ use http_body_util::BodyExt;
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use sr_api::{
-    ApiSettings, AppState, build_router,
+    ApiSettings, AppState,
     auth::csrf,
+    build_router,
     routes::{
         developer::{self, DevDeps, PasswordConfirm},
         messages::{
@@ -42,13 +43,9 @@ use sr_auth::{
 };
 use sr_chat::repo::GuildRepository;
 use sr_core::{ApiError, Clock, ErrorCode, Permissions, SnowflakeGenerator, SystemClock, UserId};
-use sr_db::{
-    apps_repo::PgAppsRepo, auth_repo::PgAuthRepo, chat_repo::PgChatRepo, testing::TestDb,
-};
+use sr_db::{apps_repo::PgAppsRepo, auth_repo::PgAuthRepo, chat_repo::PgChatRepo, testing::TestDb};
 use sr_events::{EventBus, InProcessBus};
-use sr_gateway::{
-    ConnectParams, Frame, Gateway, GatewayConfig, close, intents, run_connection,
-};
+use sr_gateway::{ConnectParams, Frame, Gateway, GatewayConfig, close, intents, run_connection};
 use sr_storage::ObjectStoreStorage;
 use tower::ServiceExt;
 
@@ -360,10 +357,17 @@ async fn a_bot_connects_listens_with_the_right_intents_and_answers_commands() {
     assert!(out.member_added);
 
     // REST identity: GET /users/@me with the bot token, GET /gateway/bot.
-    let (s, me) = rest.call(&bot_auth(&token), Method::GET, "/users/@me", None).await;
+    let (s, me) = rest
+        .call(&bot_auth(&token), Method::GET, "/users/@me", None)
+        .await;
     assert_eq!(s, StatusCode::OK, "{me}");
-    assert_eq!((me["id"].clone(), me["bot"].clone()), (json!(bot_user.to_string()), json!(true)));
-    let (s, gwi) = rest.call(&bot_auth(&token), Method::GET, "/gateway/bot", None).await;
+    assert_eq!(
+        (me["id"].clone(), me["bot"].clone()),
+        (json!(bot_user.to_string()), json!(true))
+    );
+    let (s, gwi) = rest
+        .call(&bot_auth(&token), Method::GET, "/gateway/bot", None)
+        .await;
     assert_eq!((s, gwi["shards"].clone()), (StatusCode::OK, json!(1)));
 
     // The wrong credentials never connect.
@@ -379,14 +383,22 @@ async fn a_bot_connects_listens_with_the_right_intents_and_answers_commands() {
         Opened::Ready(..) => panic!("sharded identify accepted"),
     }
     // A privileged intent needs to be enabled for the application first.
-    match Client::open(&gw, &token, intents::GUILDS | intents::MESSAGE_CONTENT, None).await {
+    match Client::open(
+        &gw,
+        &token,
+        intents::GUILDS | intents::MESSAGE_CONTENT,
+        None,
+    )
+    .await
+    {
         Opened::Closed(c) => assert_eq!(c, close::DISALLOWED_INTENTS),
         Opened::Ready(..) => panic!("MESSAGE_CONTENT without being enabled"),
     }
 
     // IDENTIFY without message content: READY has the bot, the application, the server.
     let base = intents::GUILDS | intents::GUILD_MESSAGES;
-    let Opened::Ready(mut plain, ready) = Client::open(&gw, &token, base, Some(json!([0, 1]))).await
+    let Opened::Ready(mut plain, ready) =
+        Client::open(&gw, &token, base, Some(json!([0, 1]))).await
     else {
         panic!("bot could not connect");
     };
@@ -394,12 +406,17 @@ async fn a_bot_connects_listens_with_the_right_intents_and_answers_commands() {
     assert_eq!(ready["user"]["bot"], true);
     assert_eq!(ready["application"]["id"], json!(app_id.to_string()));
     assert_eq!(ready["guilds"][0]["id"], json!(guild.to_string()));
-    assert!(ready.get("relationships").is_none(), "a bot's READY has none of a person's state");
+    assert!(
+        ready.get("relationships").is_none(),
+        "a bot's READY has none of a person's state"
+    );
     let created_guild = plain.event("GUILD_CREATE").await;
     assert_eq!(created_guild["id"], json!(guild.to_string()));
     let roles = created_guild["roles"].as_array().unwrap();
     assert!(
-        roles.iter().any(|r| r["managed"] == true && r["name"] == "Compat Bot"),
+        roles
+            .iter()
+            .any(|r| r["managed"] == true && r["name"] == "Compat Bot"),
         "the bot's managed role is in the server"
     );
     assert!(
@@ -478,15 +495,25 @@ async fn a_bot_connects_listens_with_the_right_intents_and_answers_commands() {
         .call(
             &bot_auth(&token),
             Method::DELETE,
-            &format!("/channels/{channel}/messages/{}", sent["id"].as_str().unwrap()),
+            &format!(
+                "/channels/{channel}/messages/{}",
+                sent["id"].as_str().unwrap()
+            ),
             None,
         )
         .await;
-    assert_eq!((s, v["code"].clone()), (StatusCode::FORBIDDEN, json!(50013)), "{v}");
+    assert_eq!(
+        (s, v["code"].clone()),
+        (StatusCode::FORBIDDEN, json!(50013)),
+        "{v}"
+    );
     let (s, v) = rest
         .call(&bot_auth(&token), Method::GET, "/applications", None)
         .await;
-    assert_eq!((s, v["code"].clone()), (StatusCode::FORBIDDEN, json!(20001)));
+    assert_eq!(
+        (s, v["code"].clone()),
+        (StatusCode::FORBIDDEN, json!(20001))
+    );
 
     // Slash commands: register, invoke as a person, answer through the interaction token.
     let (s, cmd) = rest
@@ -517,7 +544,11 @@ async fn a_bot_connects_listens_with_the_right_intents_and_answers_commands() {
         .call(
             &[],
             Method::POST,
-            &format!("/interactions/{}/{}/callback", ix["id"].as_str().unwrap(), ix["token"].as_str().unwrap()),
+            &format!(
+                "/interactions/{}/{}/callback",
+                ix["id"].as_str().unwrap(),
+                ix["token"].as_str().unwrap()
+            ),
             Some(json!({"type": 4, "data": {"content": "pong from a slash command"}})),
         )
         .await;
@@ -527,14 +558,22 @@ async fn a_bot_connects_listens_with_the_right_intents_and_answers_commands() {
     assert_eq!(answered["author"]["id"], json!(bot_user.to_string()));
 
     // Resetting the token locks the old one out of REST and of new gateway sessions.
-    let fresh = apps.reset_bot_token(owner.get() as i64, app_id).await.unwrap();
-    let (s, _) = rest.call(&bot_auth(&token), Method::GET, "/users/@me", None).await;
+    let fresh = apps
+        .reset_bot_token(owner.get() as i64, app_id)
+        .await
+        .unwrap();
+    let (s, _) = rest
+        .call(&bot_auth(&token), Method::GET, "/users/@me", None)
+        .await;
     assert_eq!(s, StatusCode::UNAUTHORIZED);
     match Client::open(&gw, &token, base, None).await {
         Opened::Closed(c) => assert_eq!(c, close::AUTHENTICATION_FAILED),
         Opened::Ready(..) => panic!("revoked token connected"),
     }
-    assert!(matches!(Client::open(&gw, &fresh, base, None).await, Opened::Ready(..)));
+    assert!(matches!(
+        Client::open(&gw, &fresh, base, None).await,
+        Opened::Ready(..)
+    ));
 
     // Quiet again: nothing else was delivered to the session without the intent.
     let _ = plain.drain(200).await;

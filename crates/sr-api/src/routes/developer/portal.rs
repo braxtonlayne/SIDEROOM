@@ -29,6 +29,10 @@ use sr_storage::media::MediaKind;
 
 const APP: ErrorCode = ErrorCode::UnknownApplication;
 
+/// Responses that carry a secret are never cached.
+type NoStore = [(axum::http::HeaderName, &'static str); 1];
+const NO_STORE: NoStore = [(axum::http::header::CACHE_CONTROL, "no-store")];
+
 /// Staff routes need `REVIEW_APPS` on top of a staff session.
 fn require_review(staff: &StaffCtx) -> MsgResult<()> {
     if staff
@@ -217,7 +221,7 @@ pub async fn create_app(
     SessionOnly(p): SessionOnly,
     Ext(deps): Ext<DevDeps>,
     ApiJson(body): ApiJson<CreateApplicationBody>,
-) -> MsgResult<(StatusCode, Json<CreatedApplication>)> {
+) -> MsgResult<(StatusCode, NoStore, Json<CreatedApplication>)> {
     let c = deps
         .apps
         .create_application(
@@ -232,6 +236,7 @@ pub async fn create_app(
         .remove(0);
     Ok((
         StatusCode::CREATED,
+        NO_STORE,
         Json(CreatedApplication {
             application,
             client_secret: c.client_secret,
@@ -443,7 +448,7 @@ pub async fn reset_secret(
     Ext(deps): Ext<DevDeps>,
     Path(id): Path<String>,
     ApiJson(body): ApiJson<PasswordBody>,
-) -> MsgResult<Json<ResetSecretResult>> {
+) -> MsgResult<(NoStore, Json<ResetSecretResult>)> {
     let id = parse_id(&id, APP)?;
     deps.apps.owned(p.user_id, id).await.map_err(app_err)?;
     deps.confirm_password(state.now_secs(), p.user_id, &body.password)
@@ -453,7 +458,7 @@ pub async fn reset_secret(
         .reset_secret(p.user_id, id)
         .await
         .map_err(app_err)?;
-    Ok(Json(ResetSecretResult { client_secret }))
+    Ok((NO_STORE, Json(ResetSecretResult { client_secret })))
 }
 
 /// Replace the bot token (shown once).
@@ -470,7 +475,7 @@ pub async fn reset_token(
     Ext(deps): Ext<DevDeps>,
     Path(id): Path<String>,
     ApiJson(body): ApiJson<PasswordBody>,
-) -> MsgResult<Json<ResetTokenResult>> {
+) -> MsgResult<(NoStore, Json<ResetTokenResult>)> {
     let id = parse_id(&id, APP)?;
     deps.apps.owned(p.user_id, id).await.map_err(app_err)?;
     deps.confirm_password(state.now_secs(), p.user_id, &body.password)
@@ -480,7 +485,7 @@ pub async fn reset_token(
         .reset_bot_token(p.user_id, id)
         .await
         .map_err(app_err)?;
-    Ok(Json(ResetTokenResult { token }))
+    Ok((NO_STORE, Json(ResetTokenResult { token })))
 }
 
 /// Paging of the audit trail.

@@ -3,22 +3,22 @@
 Phase 6. Spec: doc 11, doc 05.
 
 ## DEV-APP — Developer onboarding & apps
-- [ ] **DEV-APP-001** [DB] developer_applications, applications, application_versions, application_commands, application_installs, bot_tokens, oauth2_grants, app_testers
-- [ ] **DEV-APP-002** [BE] Developer application submit/review (REVIEW_APPS), `APP_DEVELOPER` flag
-- [ ] **DEV-APP-003** [BE] Application CRUD, bot user creation, token reset (hashed storage)
-- [ ] **DEV-APP-004** [BE] Test-server restriction (dev apps only in guilds ≤ 25 members where dev has MANAGE_GUILD) + error 900120
-- [ ] **DEV-APP-005** [BE] Release review (versions with manifest diff, scopes/intents changes force review), suspend app
-- [ ] **DEV-APP-006** [BE] Privileged intents approval flow
-- [ ] **DEV-APP-007** [BE] Install flows (guild install with permissions, user install), OAuth2 authorize/token/revoke, scopes
+- [ ] **DEV-APP-001** [DB] developer_applications, applications, application_versions, application_commands, application_installs, bot_tokens, oauth2_grants, app_testers (partly done: migrations 0500-0505 add developer_requests, applications, bot_tokens, application_audit, application_installs, application_versions, application_commands, application_command_permissions, oauth2_grants/codes/tokens, interactions; `app_testers` is not built; spec docs/specs/developer-platform.md)
+- [x] **DEV-APP-002** [BE] Developer application submit/review (REVIEW_APPS), `APP_DEVELOPER` flag (`POST /developers/apply`, `GET /developers/status`, staff `/admin/developers/requests*` with `REVIEW_APPS`; approval sets accounts.flags bit 1)
+- [x] **DEV-APP-003** [BE] Application CRUD, bot user creation, token reset (hashed storage) (applications CRUD under `/applications`, a bot account per application, client secret and bot token shown once and stored as SHA-256, resets need the password, audit trail)
+- [x] **DEV-APP-004** [BE] Test-server restriction (dev apps only in guilds ≤ 25 members where dev has MANAGE_GUILD) + error 900120 (development apps install only for their owner in guilds of at most 25 members, else `900120`)
+- [x] **DEV-APP-005** [BE] Release review (versions with manifest diff, scopes/intents changes force review), suspend app (versions with manifest snapshot and diff, `needs_review` reasons, staff decision, suspend/unsuspend)
+- [x] **DEV-APP-006** [BE] Privileged intents approval flow (developers request privileged intents, staff approve a subset with the version decision; the gateway enforces `requested AND approved` for released apps)
+- [ ] **DEV-APP-007** [BE] Install flows (guild install with permissions, user install), OAuth2 authorize/token/revoke, scopes (partly done: server installs (bot with a managed role capped to the installer's permissions, applications.commands), OAuth2 authorize/token/revoke/introspect with PKCE and refresh rotation, scopes identify/email/guilds/bot/applications.commands(.permissions.update); user installs are not built)
 - [ ] **DEV-APP-008** [FE] OAuth2 authorize screen (app, scopes list, server picker, permissions checkboxes, Authorize)
 
 ## DEV-BOT — Bot runtime API
-- [ ] **DEV-BOT-001** [BE] Bot auth on REST + gateway, intents filtering (incl. MESSAGE_CONTENT)
-- [ ] **DEV-BOT-002** [BE] Sharding support (shard id/count in IDENTIFY, `/gateway/bot`)
-- [ ] **DEV-BOT-003** [BE] Application commands (chat input, user, message; options; localization; guild & global; permissions v2)
-- [ ] **DEV-BOT-004** [BE] Interactions: create, respond (all callback types), defer, follow-ups, edit original, modals, autocomplete, components
+- [x] **DEV-BOT-001** [BE] Bot auth on REST + gateway, intents filtering (incl. MESSAGE_CONTENT) (`Authorization: Bot` and `Bearer` on REST (`AppsAuth` replaces NoBots/NoBearers), bot IDENTIFY and RESUME, privileged-intent gating (4014), MESSAGE_CONTENT redaction)
+- [ ] **DEV-BOT-002** [BE] Sharding support (shard id/count in IDENTIFY, `/gateway/bot`) (partly done: `GET /gateway/bot`, `GET /gateway` and the IDENTIFY `shard` field are there, but only shard [0, 1] is accepted (4010 otherwise); real sharding is not built)
+- [x] **DEV-BOT-003** [BE] Application commands (chat input, user, message; options; localization; guild & global; permissions v2) (global and guild commands, bulk overwrite, option schema validation, limits, localizations stored, permissions v2 (spec section 3.5))
+- [x] **DEV-BOT-004** [BE] Interactions: create, respond (all callback types), defer, follow-ups, edit original, modals, autocomplete, components (`POST /interactions`, `INTERACTION_CREATE` over the gateway, callbacks 4-9, deferral, follow-ups, original edits, ephemeral messages, 3 s and 15 min rules; posted messages can only change content (spec section 2))
 - [ ] **DEV-BOT-005** [BE] HTTP interactions endpoint delivery with Ed25519 signatures (`ed25519-dalek`) + endpoint verification ping
-- [ ] **DEV-BOT-006** [BE] Webhook execution parity (wait, thread_id, username/avatar override)
+- [ ] **DEV-BOT-006** [BE] Webhook execution parity (wait, thread_id, username/avatar override) (partly done: follow-ups honour `wait`; `thread_id` and the username/avatar override of the existing execute route are unchanged)
 - [ ] **DEV-BOT-007** [BE] Bots in voice via MLS (SDK support)
 - [ ] **DEV-BOT-008** [FE] Slash command picker UI (app sections, option inputs, autocomplete, attachments option)
 - [ ] **DEV-BOT-009** [FE] Apps menu on messages/users (context-menu commands)
@@ -35,8 +35,7 @@ Phase 6. Spec: doc 11, doc 05.
 ## DEV-SDK — SDKs & compatibility
 - [ ] **DEV-SDK-001** [BE] `sr-sdk` Rust (client, gateway shard manager, cache, command framework)
 - [ ] **DEV-SDK-002** [BE] `@sideroom/bot` TS SDK (discord.js-like)
-- [ ] **DEV-SDK-003** [TEST] `sr-compat-tests`: run discord.js, discord.py, serenity, twilight sample bots against a test server in CI
-
+- [ ] **DEV-SDK-003** [TEST] `sr-compat-tests`: run discord.js, discord.py, serenity, twilight sample bots against a test server in CI (partly done: the in-repo Rust harness (`crates/sr-server/src/bot_pg_tests.rs`) and the compatibility list docs/dev/sdk-compat.md exist; running discord.js, discord.py, serenity and twilight needs those libraries and is not wired into CI)
 ## DEV-ACT — Activities
 - [ ] **DEV-ACT-001** [BE] Activity proxy at `<app-id>.activities.<host>` serving reviewed bundle hash + URL mappings
 - [ ] **DEV-ACT-002** [BE] Activity instances (per channel), participants

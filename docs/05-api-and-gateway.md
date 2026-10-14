@@ -53,7 +53,8 @@ Implement these route families with Discord-compatible request and response shap
 - **Audit logs** [1]. **AutoMod** [1]. **Scheduled events** [1]. **Stage instances** [2]. **Guild templates** [1]. Create-from-template is one server-side transaction (D-180): `GET /guilds/templates/builtin` lists the eight built-in templates (`id`, `name`, `description`, `serialized_source_guild` with `settings`, `roles` and `channels` using local ids, the same shape as a template made from a server); `POST /guilds/templates/{code}` `{name, icon?}` and `POST /guilds` `{name, template}` take a built-in id or a user template code, create roles, channels, overwrites and settings in one transaction and emit a single `GUILD_CREATE`.
 - **Voice** [2]: regions, voice state modification.
 - **Applications / Interactions / Commands** [6]: global and guild commands, interaction responses, follow-ups, components (buttons, selects, modals), autocomplete. Interactions are delivered over the gateway **or** to an HTTP endpoint with Ed25519 signatures (same as Discord).
-- **OAuth2** [6]: authorize, token, scopes `identify email guilds guilds.join bot applications.commands`.
+  As built (what is and is not Discord-compatible, every route): [specs/developer-platform.md](specs/developer-platform.md). Interactions are delivered over the gateway only for now; the HTTP endpoint with Ed25519 signatures is not built.
+- **OAuth2** [6]: authorize, token, revoke, introspect, scopes `identify email guilds bot applications.commands applications.commands.permissions.update` (`guilds.join` and the rest are not issued yet), PKCE `S256`. Details in [specs/developer-platform.md](specs/developer-platform.md).
 
 Each route's spec is generated from Rust (`utoipa`) and published at `/api/v1/openapi.json`. Swagger-style docs are served at `/developers/docs/api`.
 

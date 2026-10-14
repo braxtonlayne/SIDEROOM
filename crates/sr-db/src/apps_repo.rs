@@ -768,9 +768,10 @@ impl AppsRepository for PgAppsRepo {
     async fn bot_by_token_hash(&self, hash: &TokenHash) -> AppsResult<Option<BotRecord>> {
         let sql = format!(
             "SELECT t.id AS tok_id, t.user_id AS tok_user, t.token_hash, \
-             (acc.state = 'active') AS acc_active, {} \
+             (acc.state = 'active' AND own.state = 'active') AS acc_active, {} \
              FROM bot_tokens t JOIN applications a ON a.id = t.application_id \
              JOIN accounts acc ON acc.id = t.user_id \
+             JOIN accounts own ON own.id = a.owner_id \
              WHERE t.token_hash = $1 AND t.revoked_at IS NULL",
             app_cols("a")
         );
@@ -1737,6 +1738,7 @@ impl AppsRepository for PgAppsRepo {
     async fn token_by_access(&self, hash: &TokenHash) -> AppsResult<Option<TokenRecord>> {
         let sql = format!(
             "SELECT {TOKEN_COLS} FROM oauth2_tokens t JOIN oauth2_grants g ON g.id = t.grant_id \
+             JOIN accounts u ON u.id = g.user_id AND u.state = 'active' \
              WHERE t.access_hash = $1 AND t.revoked_at IS NULL AND g.revoked_at IS NULL"
         );
         sqlx::query(sqlx::AssertSqlSafe(sql))
@@ -1752,6 +1754,7 @@ impl AppsRepository for PgAppsRepo {
     async fn token_by_refresh(&self, hash: &TokenHash) -> AppsResult<RefreshLookup> {
         let sql = format!(
             "SELECT {TOKEN_COLS} FROM oauth2_tokens t JOIN oauth2_grants g ON g.id = t.grant_id \
+             JOIN accounts u ON u.id = g.user_id AND u.state = 'active' \
              WHERE t.refresh_hash = $1"
         );
         let Some(r) = sqlx::query(sqlx::AssertSqlSafe(sql))

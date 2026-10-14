@@ -1447,3 +1447,41 @@ async fn modals_autocomplete_and_components() {
         .await;
     assert_eq!((s, code_of(&v)), (StatusCode::BAD_REQUEST, 50035), "{v}");
 }
+
+#[tokio::test]
+async fn responses_with_secrets_are_not_cacheable() {
+    let e = env().await;
+    let (s, h, _) = e
+        .raw(
+            Who::Session(OWNER),
+            Method::POST,
+            "/applications",
+            Some("application/json"),
+            json!({"name": "Cache Test"}).to_string().into_bytes(),
+            &[],
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED);
+    assert_eq!(h["cache-control"], "no-store");
+    let (id, ..) = e.new_app().await;
+    for path in [
+        format!("/applications/{id}/reset-secret"),
+        format!("/applications/{id}/bot/reset-token"),
+    ] {
+        let (s, h, _) = e
+            .raw(
+                Who::Session(OWNER),
+                Method::POST,
+                &path,
+                Some("application/json"),
+                json!({"password": "correct"}).to_string().into_bytes(),
+                &[],
+            )
+            .await;
+        assert_eq!(
+            (s, h["cache-control"].to_str().unwrap()),
+            (StatusCode::OK, "no-store"),
+            "{path}"
+        );
+    }
+}
