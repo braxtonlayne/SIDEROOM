@@ -29,7 +29,7 @@ pub const CORS_ALLOWED_HEADERS: [&str; 1] = ["Content-Type"];
 pub const CORS_EXPOSE_HEADERS: [&str; 1] = ["ETag"];
 const CORS_MAX_AGE_SECONDS: u32 = 3600;
 
-fn hex(bytes: &[u8]) -> String {
+pub(crate) fn hex(bytes: &[u8]) -> String {
     use std::fmt::Write;
     bytes.iter().fold(String::new(), |mut s, b| {
         let _ = write!(s, "{b:02x}");
@@ -37,11 +37,11 @@ fn hex(bytes: &[u8]) -> String {
     })
 }
 
-fn sha256_hex(data: &[u8]) -> String {
+pub(crate) fn sha256_hex(data: &[u8]) -> String {
     hex(&Sha256::digest(data))
 }
 
-fn hmac(key: &[u8], data: &[u8]) -> Vec<u8> {
+pub(crate) fn hmac(key: &[u8], data: &[u8]) -> Vec<u8> {
     match HmacSha256::new_from_slice(key) {
         Ok(mut m) => {
             m.update(data);
@@ -53,22 +53,22 @@ fn hmac(key: &[u8], data: &[u8]) -> Vec<u8> {
 }
 
 /// One request to sign. Header names must be lower case and sorted.
-struct SigningInput<'a> {
-    method: &'a str,
-    canonical_uri: &'a str,
-    canonical_query: &'a str,
-    headers: &'a [(String, String)],
-    payload_hash: &'a str,
-    access_key: &'a str,
-    secret_key: &'a str,
-    region: &'a str,
-    service: &'a str,
+pub(crate) struct SigningInput<'a> {
+    pub(crate) method: &'a str,
+    pub(crate) canonical_uri: &'a str,
+    pub(crate) canonical_query: &'a str,
+    pub(crate) headers: &'a [(String, String)],
+    pub(crate) payload_hash: &'a str,
+    pub(crate) access_key: &'a str,
+    pub(crate) secret_key: &'a str,
+    pub(crate) region: &'a str,
+    pub(crate) service: &'a str,
     /// `YYYYMMDDTHHMMSSZ`.
-    amz_date: &'a str,
+    pub(crate) amz_date: &'a str,
 }
 
 /// The `Authorization` header value for `input`.
-fn authorization(input: &SigningInput<'_>) -> String {
+pub(crate) fn authorization(input: &SigningInput<'_>) -> String {
     let date = &input.amz_date[..8];
     let canonical_headers: String = input
         .headers
@@ -111,7 +111,7 @@ fn authorization(input: &SigningInput<'_>) -> String {
 }
 
 /// `YYYYMMDDTHHMMSSZ` for a unix time in seconds.
-fn amz_date(unix_secs: u64) -> String {
+pub(crate) fn amz_date(unix_secs: u64) -> String {
     let days = i64::try_from(unix_secs / 86_400).unwrap_or(0);
     let rem = unix_secs % 86_400;
     // Civil date from days since 1970-01-01 (Howard Hinnant's algorithm).
@@ -132,7 +132,7 @@ fn amz_date(unix_secs: u64) -> String {
     )
 }
 
-fn xml_escape(s: &str) -> String {
+pub(crate) fn xml_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
