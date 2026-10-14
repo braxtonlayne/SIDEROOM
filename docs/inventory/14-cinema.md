@@ -24,36 +24,36 @@ Phase 5. Spec: [cinema-media](../specs/cinema-media.md). Mockups: `cinema-discov
 - [ ] **CIN-ING-011** [BE] Re-transcode action (single asset / whole title / all — admin)
 
 ## CIN-UI — Section chrome
-- [ ] **CIN-UI-001** [FE] Section top bar with "The cinema" active
-- [ ] **CIN-UI-002** [FE] Cinema header: logo `SIDE ROOM / C I N E M A`, nav Discover · Movies · Series · Anime ✦ · Live TV • · My list (active underline), search icon → overlay, avatar menu (Profile, My uploads, Upload, Requests, Settings, Back to Lounge)
-- [ ] **CIN-UI-003** [FE] Search overlay (instant results with posters, filters shortcut)
-- [ ] **CIN-UI-004** [FE] Footer ("Side Room *Cinema*", "A little further from the ordinary.", About this library)
-- [ ] **CIN-UI-005** [FE] Mobile layout (hamburger nav, stacked rows)
+- [x] **CIN-UI-001** [FE] Section top bar with "The cinema" active
+- [x] **CIN-UI-002** [FE] Cinema header: logo `SIDE ROOM / C I N E M A`, nav Discover · Movies · Series · Anime ✦ · Live TV • · My list (active underline), search icon → overlay, avatar menu (Profile, My uploads, Upload, Requests, Settings, Back to Lounge)
+- [x] **CIN-UI-003** [FE] Search overlay (instant results with posters, filters shortcut) (the Filters shortcut opens the Movies filters drawer)
+- [x] **CIN-UI-004** [FE] Footer ("Side Room *Cinema*", "A little further from the ordinary.", About this library)
+- [x] **CIN-UI-005** [FE] Mobile layout (hamburger nav, stacked rows)
 
 ## CIN-DISC — Discover
-- [ ] **CIN-DISC-001** [FE] Hero "TONIGHT'S FEATURE" (backdrop, display title w/ italic second line, meta row with rating badge, synopsis, Play/Resume, More info, Watch trailer, "01 / THE EVENING SELECTION" index, auto-advance with pause on hover)
-- [ ] **CIN-DISC-002** [FE] Row: Recently explored
-- [ ] **CIN-DISC-003** [FE] Row: A good place to start (+ "SELECTED FOR THE ROOM" label, Explore all ↗)
-- [ ] **CIN-DISC-004** [FE] Animation banner card ("A ROOM OF ITS OWN", "Animation. *Without limits.*", copy, "Step into the anime room ↗", fanned poster collage)
-- [ ] **CIN-DISC-005** [FE] Row: The anime room (ANIME corner tags)
-- [ ] **CIN-DISC-006** [FE] Row: One more episode
-- [ ] **CIN-DISC-007** [FE] Row: For the love of cinema
-- [ ] **CIN-DISC-008** [FE] Generated rows: Continue watching, Trending (scope switch), Because you watched, New this week, Friends are watching
-- [ ] **CIN-DISC-009** [FE] Poster card hover actions (▷ play, + My list, ✓ watched, rating) + progress bar
+- [x] **CIN-DISC-001** [FE] Hero "TONIGHT'S FEATURE" (backdrop, display title w/ italic second line, meta row with rating badge, synopsis, Play/Resume, More info, Watch trailer, "01 / THE EVENING SELECTION" index, auto-advance with pause on hover)
+- [x] **CIN-DISC-002** [FE] Row: Recently explored
+- [x] **CIN-DISC-003** [FE] Row: A good place to start (+ "SELECTED FOR THE ROOM" label, Explore all ↗)
+- [x] **CIN-DISC-004** [FE] Animation banner card ("A ROOM OF ITS OWN", "Animation. *Without limits.*", copy, "Step into the anime room ↗", fanned poster collage)
+- [x] **CIN-DISC-005** [FE] Row: The anime room (ANIME corner tags)
+- [x] **CIN-DISC-006** [FE] Row: One more episode
+- [x] **CIN-DISC-007** [FE] Row: For the love of cinema
+- [x] **CIN-DISC-008** [FE] Generated rows: Continue watching, Trending (scope switch), Because you watched, New this week, Friends are watching
+- [x] **CIN-DISC-009** [FE] Poster card hover actions (▷ play, + My list, ✓ watched, rating) + progress bar
 
 ## CIN-BRW — Movies / Series / Anime
-- [ ] **CIN-BRW-001** [FE] Page header (eyebrow "— THE SIDE ROOM LIBRARY", H1, subline) per kind
-- [ ] **CIN-BRW-002** [FE] Genre chips (single select, All) + More
-- [ ] **CIN-BRW-003** [FE] "Room selection ▾" collections dropdown
-- [ ] **CIN-BRW-004** [FE] Filters drawer (year range, rating, runtime, audio language, subtitles, age-restricted, sort)
-- [ ] **CIN-BRW-005** [FE] Title count + poster grid (6-col desktop, responsive), "+" add to list
-- [ ] **CIN-BRW-006** [FE] Anime page ✦ accent styling
+- [x] **CIN-BRW-001** [FE] Page header (eyebrow "— THE SIDE ROOM LIBRARY", H1, subline) per kind
+- [x] **CIN-BRW-002** [FE] Genre chips (single select, All) + More
+- [x] **CIN-BRW-003** [FE] "Room selection ▾" collections dropdown
+- [x] **CIN-BRW-004** [FE] Filters drawer (year range, rating, runtime, audio language, subtitles, age-restricted, sort)
+- [x] **CIN-BRW-005** [FE] Title count + poster grid (6-col desktop, responsive), "+" add to list
+- [x] **CIN-BRW-006** [FE] Anime page ✦ accent styling
 
 ## CIN-TTL — Title detail
-- [ ] **CIN-TTL-001** [FE] Header: backdrop, logo/title, meta row, synopsis, Play/Resume, + My list, Rate, Watch together, Share to Lounge, Download (Patron), Trailer
-- [ ] **CIN-TTL-002** [FE] Season selector + episode list (still, number, title, runtime, synopsis, progress, watched toggle, mark season watched)
-- [ ] **CIN-TTL-003** [FE] Tabs: Episodes, Details (cast/crew text, studios, languages, variants), Reviews, Comments, More like this, Contributors
-- [ ] **CIN-TTL-004** [FE] Variant picker (e.g. Director's Cut)
+- [x] **CIN-TTL-001** [FE] Header: backdrop, logo/title, meta row, synopsis, Play/Resume, + My list, Rate, Watch together, Share to Lounge, Download (Patron), Trailer (Watch together, Share to Lounge copy-link and Download are stubs: watch parties, Lounge share card and patron downloads are not built)
+- [x] **CIN-TTL-002** [FE] Season selector + episode list (still, number, title, runtime, synopsis, progress, watched toggle, mark season watched)
+- [x] **CIN-TTL-003** [FE] Tabs: Episodes, Details (cast/crew text, studios, languages, variants), Reviews, Comments, More like this, Contributors (Contributors tab stays disabled until contribution credits exist, CIN-SOC-003)
+- [x] **CIN-TTL-004** [FE] Variant picker (e.g. Director's Cut)
 
 ## CIN-PLY — Player
 - [ ] **CIN-PLY-001** [FE] hls.js / native HLS engine wrapper, ABR with manual override, data saver
