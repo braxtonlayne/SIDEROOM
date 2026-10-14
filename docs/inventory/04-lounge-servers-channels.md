@@ -48,40 +48,40 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §5, §7, §8.
 - [ ] **LNG-CHN-007** [GW] CHANNEL_CREATE/UPDATE/DELETE, CHANNEL_PINS_UPDATE
 - [x] **LNG-CHN-008** [FE] Channel list: categories (collapse/expand, persist), "+" create channel per category, drag-and-drop reorder & re-parent (managers)
 - [x] **LNG-CHN-009** [FE] Channel row: type icon (text #, announcement megaphone, forum, media, voice speaker, stage, rules book, locked variants, NSFW variant), name, unread white text + left pill, mention badge, muted dim, hover icons (create invite, edit channel gear) *(no NSFW icon variant yet)*
-- [ ] **LNG-CHN-010** [FE] Voice channel row: connected-user sub-rows (avatar, name, speaking ring, mute/deaf/server-mute icons, camera, LIVE badge), user limit "n/m", voice status text, stream preview on hover
+- [ ] **LNG-CHN-010** [FE] Voice channel row: connected-user sub-rows (avatar, name, speaking ring, mute/deaf/server-mute icons, camera, LIVE badge), user limit "n/m", voice status text, stream preview on hover *Partial: connected-user sub-rows with avatar, speaking ring, mute/deaf, server-mute/deaf, camera, LIVE and "n/m" are built. Still open: voice status text and stream preview on hover.*
 - [ ] **LNG-CHN-011** [FE] Events row at top (count, opens events modal)
-- [ ] **LNG-CHN-012** [FE] "Unread mentions" / "New unreads" floating jump pills (top/bottom)
+- [x] **LNG-CHN-012** [FE] "Unread mentions" / "New unreads" floating jump pills (top/bottom) *Top "N unread mentions" jump pill (to the first unread mention) and a clickable new-messages banner (to the first unread); the bottom pill is the existing "Jump to present". lounge/MessageList.tsx, test p10LoungeFe.test.tsx.*
 - [x] **LNG-CHN-013** [FE] Channel context menu: Mark As Read, Copy Link, Mute Channel ▸, Notification Settings ▸, Edit Channel, Duplicate Channel, Create Text/Voice Channel, Delete Channel, Copy Channel ID, Invite People
 - [x] **LNG-CHN-014** [FE] Category context menu: Mark As Read, Collapse, Collapse All, Mute Category, Notification Settings, Edit Category, Delete Category, Copy ID
 - [x] **LNG-CHN-015** [FE] Create Channel modal: type radio (Text, Voice, Forum, Announcement, Stage, Media, Watch Party) with descriptions, name input (auto-slug for text), Private Channel toggle → member/role picker step *(no Watch Party type yet)*
 - [x] **LNG-CHN-016** [FE] Create Category modal (name, private toggle)
 - [ ] **LNG-CHN-017** [FE] Edit Channel settings: Overview (name, topic, slowmode, age-restricted, announcement toggle, hide after inactivity, default thread archive, voice: bitrate, video quality, user limit, region), Permissions (simple private toggle + advanced roles/members overwrite matrix with ✓/✕/⧸ tri-state per permission, search, "sync with category"), Invites, Integrations (webhooks, followed), Features (feature modules channel scope), Delete Channel *Partial: Invites, Integrations (channel webhooks) and Features (thread defaults) tabs are built. Still open: the announcement toggle (the API cannot change a channel's type), voice settings, per-channel feature-module switches (only /admin/features exists) and followed channels.*
-- [ ] **LNG-CHN-018** [FE] Channel header: icon + name, topic (click → topic modal), thread list icon, notification bell menu, pins popout, member list toggle, search, inbox, help
-- [ ] **LNG-CHN-019** [FE] Channel welcome header ("Welcome to #channel! This is the start of the #channel channel." + Edit Channel)
-- [ ] **LNG-CHN-020** [FE] Pins popout (list, jump, unpin)
-- [ ] **LNG-CHN-021** [FE] Read-only/announcement composer state + "Follow" button
+- [ ] **LNG-CHN-018** [FE] Channel header: icon + name, topic (click → topic modal), thread list icon, notification bell menu, pins popout, member list toggle, search, inbox, help *Partial: name, topic modal, threads list, notification bell menu (mute durations + settings), pins popout, member toggle and search are built. Still open: inbox and help (placeholders).*
+- [x] **LNG-CHN-019** [FE] Channel welcome header ("Welcome to #channel! This is the start of the #channel channel." + Edit Channel) *MessageList welcome row has the Edit Channel button for people who manage channels.*
+- [x] **LNG-CHN-020** [FE] Pins popout (list, jump, unpin) *lounge/header/PinsButton.tsx: list, jump, unpin (GET /channels/{id}/pins).*
+- [ ] **LNG-CHN-021** [FE] Read-only/announcement composer state + "Follow" button *Partial: read-only composer states for rules and announcement channels. The Follow button needs a channel-follow backend that does not exist.*
 - [x] **LNG-CHN-022** [FE] Age-gate interstitial for restricted channels *The answer is saved with POST /sr/age-gate and remembered per device (no call reads it back); the server does not block restricted channels itself.*
 - [x] **LNG-CHN-023** [FE] Hide Muted Channels behavior
-- [ ] **LNG-CHN-024** [FE] Rules channel + Updates channel badges (Community)
+- [ ] **LNG-CHN-024** [FE] Rules channel + Updates channel badges (Community) *Partial: Rules and Announcements badges in the channel header. The Updates channel has no field on the guild yet.*
 
 ## LNG-THR — Threads
 - [x] **LNG-THR-001** [BE] Start thread from message / without message, private threads, join/leave, add/remove member, archive/lock/unarchive, auto-archive job
 - [x] **LNG-THR-002** [BE] Active/archived (public/private/joined) listings with pagination
 - [x] **LNG-THR-003** [GW] THREAD_CREATE/UPDATE/DELETE/LIST_SYNC/MEMBER_UPDATE/MEMBERS_UPDATE
-- [ ] **LNG-THR-004** [FE] Threads list popout (Joined / Active / Archived, search) *Partial: Active and Archived lists with Load more are built (header Threads button). Joined filter and search are not.*
-- [ ] **LNG-THR-005** [FE] Thread side pane (header, members, notification menu, close, open full view) *Partial: Side pane with name, Follow/Following, close, messages and composer is built. Members list, notification menu and open-full-view are not.*
+- [x] **LNG-THR-004** [FE] Threads list popout (Joined / Active / Archived, search) *Joined / Active / Archived tabs plus search in lounge/threads/ThreadsButton.tsx.*
+- [x] **LNG-THR-005** [FE] Thread side pane (header, members, notification menu, close, open full view) *lounge/threads/ThreadPane.tsx: members popover (ThreadMembers.tsx), options menu (follow, mute, settings), Open full view (expands the pane over the channel).*
 - [x] **LNG-THR-006** [FE] Thread starter row under message ("N Messages ›" + last message preview) *Shows the thread name and message count; no last-message preview yet.*
-- [ ] **LNG-THR-007** [FE] Threads nested in channel list (joined/active)
-- [ ] **LNG-THR-008** [FE] Create Thread composer (name, private toggle, archive duration) *Partial: Create Thread dialog (from a message, or standalone from the plus menu and /thread) takes a name and archive duration. The private-thread toggle is not built.*
-- [ ] **LNG-THR-009** [FE] Thread settings (name, slowmode, archive duration, lock, delete)
+- [x] **LNG-THR-007** [FE] Threads nested in channel list (joined/active) *lounge/threads/NestedThreads.tsx under each channel row (followed threads and the open one).*
+- [x] **LNG-THR-008** [FE] Create Thread composer (name, private toggle, archive duration) *Private thread switch in CreateThreadDialog (standalone threads send type 12).*
+- [x] **LNG-THR-009** [FE] Thread settings (name, slowmode, archive duration, lock, delete) *lounge/threads/ThreadSettingsDialog.tsx: name, slowmode, archive duration, lock, delete.*
 
 ## LNG-FRM — Forum & media channels
 - [x] **LNG-FRM-001** [BE] Forum posts (thread + starter message), tags (available_tags, moderated tags), required tag, default reaction, sort order, layout, guidelines
-- [ ] **LNG-FRM-002** [FE] Forum channel view: guidelines banner, "New Post" button, search posts, sort & view (list/gallery), tag filter chips
-- [ ] **LNG-FRM-003** [FE] Forum post card (title, tags, author, preview text, media thumbnail, reaction, message count, last activity)
-- [ ] **LNG-FRM-004** [FE] New Post composer (title, tags picker, content, attachments)
-- [ ] **LNG-FRM-005** [FE] Media channel gallery view (thumbnail grid, filters)
-- [ ] **LNG-FRM-006** [FE] Forum settings section (tags editor, default reaction, layout, sort, guidelines)
+- [x] **LNG-FRM-002** [FE] Forum channel view: guidelines banner, "New Post" button, search posts, sort & view (list/gallery), tag filter chips *lounge/forum/ForumView.tsx: guidelines banner (channel topic), New Post, search, sort, list/gallery, tag chips.*
+- [ ] **LNG-FRM-003** [FE] Forum post card (title, tags, author, preview text, media thumbnail, reaction, message count, last activity) *Partial: card has title, tags, author, preview, thumbnail, message count and last activity. Reaction count is not shown.*
+- [ ] **LNG-FRM-004** [FE] New Post composer (title, tags picker, content, attachments) *Partial: title, tag picker (required-tag aware) and message. Attachments are refused by the server for forum posts.*
+- [x] **LNG-FRM-005** [FE] Media channel gallery view (thumbnail grid, filters) *Media channels use ForumView with the gallery layout by default and tag filters.*
+- [x] **LNG-FRM-006** [FE] Forum settings section (tags editor, default reaction, layout, sort, guidelines) *ForumSettings in settings/server/sections/ChannelTabs.tsx (Features tab of a forum/media channel): tags, default reaction, sort, layout; guidelines are the channel topic on Overview.*
 
 ## LNG-INV — Server invites
 - [x] **LNG-INV-001** [DB] invites table
