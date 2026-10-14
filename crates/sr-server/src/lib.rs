@@ -48,8 +48,8 @@ mod voice_pg_tests;
 mod cinema_wiring_pg_tests;
 
 #[cfg(test)]
+mod bot_pg_tests;
+#[cfg(test)]
 mod tv_wiring_pg_tests;
 #[cfg(test)]
 mod watchparty_pg_tests;
-#[cfg(test)]
-mod bot_pg_tests;
