@@ -28,9 +28,15 @@ export interface GuildObject {
   id: string;
   name: string;
   icon: string | null;
+  banner?: string | null;
+  splash?: string | null;
   description: string | null;
   owner_id: string;
   system_channel_id: string | null;
+  /** Voice channel idle members move to (voice is not built yet, the setting is stored). */
+  afk_channel_id?: string | null;
+  /** Seconds: 60, 300, 900, 1800 or 3600. */
+  afk_timeout?: number;
   verification_level: number;
   default_message_notifications: number;
   explicit_content_filter: number;
@@ -41,11 +47,24 @@ export interface ModifyGuildBody {
   name?: string;
   description?: string | null;
   system_channel_id?: string | null;
+  afk_channel_id?: string | null;
+  afk_timeout?: number;
   verification_level?: number;
   default_message_notifications?: number;
   explicit_content_filter?: number;
   preferred_locale?: string;
+  /** Data URI to set, null to remove. */
+  icon?: string | null;
+  banner?: string | null;
+  splash?: string | null;
 }
+export const AFK_TIMEOUTS = [
+  { seconds: 60, label: '1 minute' },
+  { seconds: 300, label: '5 minutes' },
+  { seconds: 900, label: '15 minutes' },
+  { seconds: 1800, label: '30 minutes' },
+  { seconds: 3600, label: '1 hour' },
+];
 export const getGuild = (id: string) => apiFetch<GuildObject>(`/guilds/${id}`, { retries: 0 });
 export const modifyGuild = (id: string, body: ModifyGuildBody) =>
   send<GuildObject>(`/guilds/${id}`, 'PATCH', body);
@@ -66,6 +85,10 @@ export interface RoleObject {
   unicode_emoji?: string | null;
 }
 export interface RoleBody {
+  /** One emoji, or null to clear. Replaces an image icon. */
+  unicode_emoji?: string | null;
+  /** Image data URI, or null to remove. Replaces the emoji. */
+  icon?: string | null;
   name?: string;
   permissions?: string;
   color?: number;
@@ -154,11 +177,23 @@ export interface MemberObject {
   communication_disabled_until: string | null;
 }
 export const MEMBER_PAGE = 100;
-/** Cursor paging by user id (`after`). There is no server-side search (see report). */
-export const listMembers = (g: string, after?: string, limit = MEMBER_PAGE) =>
-  apiFetch<MemberObject[]>(`/guilds/${g}/members?limit=${limit}${after ? `&after=${after}` : ''}`, {
-    retries: 0,
-  });
+export interface MemberQuery {
+  /** Cursor: the last user id of the previous page. */
+  after?: string;
+  limit?: number;
+  /** Case-insensitive substring of nickname, username or display name (server side, 64 chars at most). */
+  query?: string;
+  /** Only members holding this role (the @everyone role id matches all). */
+  roleId?: string;
+}
+/** Cursor paging by user id (`after`), with the server-side `query` and `role_id` filters. */
+export const listMembers = (g: string, o: MemberQuery = {}) => {
+  const p = new URLSearchParams({ limit: String(o.limit ?? MEMBER_PAGE) });
+  if (o.after) p.set('after', o.after);
+  if (o.query) p.set('query', o.query.slice(0, 64));
+  if (o.roleId && o.roleId !== g) p.set('role_id', o.roleId);
+  return apiFetch<MemberObject[]>(`/guilds/${g}/members?${p}`, { retries: 0 });
+};
 export const getMember = (g: string, u: string) =>
   apiFetch<MemberObject>(`/guilds/${g}/members/${u}`, { retries: 0 });
 export const kickMember = (g: string, u: string, reason?: string) =>
@@ -348,8 +383,17 @@ export interface WebhookObject {
 }
 export const listWebhooks = (g: string) =>
   apiFetch<WebhookObject[]>(`/guilds/${g}/webhooks`, { retries: 0 });
-export const createWebhook = (channelId: string, name: string) =>
-  send<WebhookObject>(`/channels/${channelId}/webhooks`, 'POST', { name });
+/** `avatar` is an image data URI. */
+export const createWebhook = (channelId: string, name: string, avatar?: string) =>
+  send<WebhookObject>(`/channels/${channelId}/webhooks`, 'POST', {
+    name,
+    ...(avatar ? { avatar } : {}),
+  });
+/** `avatar`: data URI to set, null to remove. */
+export const modifyWebhook = (
+  id: string,
+  body: { name?: string; channel_id?: string; avatar?: string | null },
+) => send<WebhookObject>(`/webhooks/${id}`, 'PATCH', body);
 export const deleteWebhook = (id: string) => send<void>(`/webhooks/${id}`, 'DELETE');
 /** Issues a fresh token and URL (shown once) and invalidates the old one (D-164). */
 export const resetWebhookToken = (id: string) =>

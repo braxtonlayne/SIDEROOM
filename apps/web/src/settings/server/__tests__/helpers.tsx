@@ -107,13 +107,22 @@ export const memberObj = (id: string, name: string, roles: string[], extra: obje
 export function baseHandlers() {
   server.use(
     http.get('*/api/v1/sr/csrf', () => HttpResponse.json({ token: 't' })),
-    http.get('*/api/v1/guilds/:gid/members', () =>
-      HttpResponse.json([
-        memberObj('1', 'me', ['mine']),
-        memberObj('2', 'bob', ['low']),
-        memberObj('3', 'carol', ['mod']),
-      ]),
-    ),
+    // Honours the server-side `query` and `role_id` filters like the real endpoint.
+    http.get('*/api/v1/guilds/:gid/members', ({ request }) => {
+      const u = new URL(request.url);
+      const q = (u.searchParams.get('query') ?? '').toLowerCase();
+      const role = u.searchParams.get('role_id');
+      return HttpResponse.json(
+        [
+          memberObj('1', 'me', ['mine']),
+          memberObj('2', 'bob', ['low']),
+          memberObj('3', 'carol', ['mod']),
+        ].filter(
+          (m) =>
+            (!q || m.user.username.toLowerCase().includes(q)) && (!role || m.roles.includes(role)),
+        ),
+      );
+    }),
   );
 }
 

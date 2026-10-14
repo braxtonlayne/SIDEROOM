@@ -12,12 +12,13 @@
 
 use super::deps::{SettingsDeps, actor, id, invalid, re, se};
 use super::events::SettingsEvent;
-use crate::routes::Ext;
-use crate::routes::guilds::dto::UserRef;
+use crate::routes::guilds::dto::{UserRef, nullable};
+use crate::routes::media::MediaDeps;
 use crate::routes::messages::MessagesDeps;
 use crate::routes::messages::error::{ApiJson, ApiQuery, MsgError, MsgResult};
 use crate::routes::messages::model::MessageObject;
 use crate::routes::messages::render::{event_payload, render_one};
+use crate::routes::{Ext, MaybeExt};
 use crate::{HttpError, Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
 use axum::{
     Json, Router,
@@ -28,11 +29,13 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use sr_chat::SendMessage;
+use sr_chat::settings::SettingsError;
 use sr_chat::settings::service::WebhookPatch;
 use sr_chat::settings::webhooks::Webhook;
 use sr_core::permissions::Permissions;
 use sr_core::{ChannelId, ErrorCode, GuildId, WebhookId};
 use sr_events::DomainEvent;
+use sr_storage::media::MediaKind;
 use utoipa::ToSchema;
 
 pub fn routes() -> Router<AppState> {
@@ -117,6 +120,10 @@ async fn render(
 pub struct CreateWebhookBody {
     /// 1-80 characters, no `@everyone`/`@here`.
     pub name: String,
+    /// Avatar image data URI (PNG, JPEG, GIF or WebP, 8 MiB at most; cropped to a square).
+    /// Served at `/cdn/avatars/{webhook_id}/{hash}.png`.
+    #[serde(default)]
+    pub avatar: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize, ToSchema)]
@@ -124,6 +131,10 @@ pub struct ModifyWebhookBody {
     pub name: Option<String>,
     /// Move to another channel of the same server (management endpoint only).
     pub channel_id: Option<String>,
+    /// Avatar image data URI; `null` removes it.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub avatar: Option<Option<String>>,
 }
 
 fn webhook_id(raw: &str) -> ApiResult<WebhookId> {
@@ -144,6 +155,7 @@ fn webhook_id(raw: &str) -> ApiResult<WebhookId> {
 pub async fn create_webhook(
     p: Principal,
     Ext(deps): Ext<SettingsDeps>,
+    MaybeExt(media): MaybeExt<MediaDeps>,
     Path(channel_id): Path<String>,
     ApiJson(body): ApiJson<CreateWebhookBody>,
 ) -> ApiResult<Json<WebhookObject>> {
@@ -151,11 +163,48 @@ pub async fn create_webhook(
     let cid: ChannelId = id("channel_id", &channel_id)?;
     let acc = deps.channel_access(user, cid).await?;
     let gid = acc.guild.guild.id;
-    let (w, token) = deps
+    let wid = deps.service.new_webhook_id();
+    // The permission check and the name validation come first so a refused request
+    // never leaves an object in storage.
+    let avatar_key = match (body.avatar, &media) {
+        (None, _) => None,
+        (Some(_), None) => {
+            tracing::error!("webhook avatar needs MediaDeps registered on AppState");
+            return Err(ErrorCode::SrInternal.into());
+        }
+        (Some(uri), Some(m)) => {
+            if !acc.perms.has(Permissions::MANAGE_WEBHOOKS) {
+                return Err(se(SettingsError::MissingPermissions));
+            }
+            sr_chat::settings::webhooks::validate_name(&body.name).map_err(se)?;
+            Some(
+                m.store(MediaKind::WebhookAvatar, wid.get(), "avatar", uri)
+                    .await?,
+            )
+        }
+    };
+    let created = deps
         .service
-        .create_webhook(acc.perms, user, gid, cid, &body.name)
-        .await
-        .map_err(se)?;
+        .create_webhook(
+            acc.perms,
+            user,
+            gid,
+            cid,
+            &body.name,
+            wid,
+            avatar_key.clone(),
+        )
+        .await;
+    let (w, token) = match created {
+        Ok(v) => v,
+        Err(e) => {
+            // Nothing references the stored image; do not leave it behind.
+            if let (Some(m), Some(h)) = (&media, &avatar_key) {
+                m.remove(MediaKind::WebhookAvatar, wid.get(), h).await;
+            }
+            return Err(se(e));
+        }
+    };
     deps.publish(SettingsEvent::WebhooksUpdated {
         guild: gid,
         channel: cid,
@@ -290,6 +339,7 @@ pub async fn reset_webhook_token(
 
 async fn modify_inner(
     deps: &SettingsDeps,
+    media: Option<&MediaDeps>,
     actor_id: sr_core::UserId,
     perms: Permissions,
     w: &Webhook,
@@ -312,7 +362,23 @@ async fn modify_inner(
         }
         _ => None,
     };
-    let updated = deps
+    if !perms.has(Permissions::MANAGE_WEBHOOKS) {
+        return Err(se(SettingsError::MissingPermissions));
+    }
+    let new_avatar = match (body.avatar, media) {
+        (None, _) => None,
+        (Some(None), _) => Some(None),
+        (Some(Some(_)), None) => {
+            tracing::error!("webhook avatar needs MediaDeps registered on AppState");
+            return Err(ErrorCode::SrInternal.into());
+        }
+        (Some(Some(uri)), Some(m)) => Some(Some(
+            m.store(MediaKind::WebhookAvatar, w.id.get(), "avatar", uri)
+                .await?,
+        )),
+    };
+    let stored_new = new_avatar.clone().flatten();
+    let result = deps
         .service
         .modify_webhook(
             perms,
@@ -322,10 +388,25 @@ async fn modify_inner(
             WebhookPatch {
                 name: body.name,
                 channel_id,
+                avatar_key: new_avatar,
             },
         )
-        .await
-        .map_err(se)?;
+        .await;
+    let updated = match result {
+        Ok(u) => u,
+        Err(e) => {
+            if let (Some(m), Some(h)) = (media, &stored_new) {
+                m.remove(MediaKind::WebhookAvatar, w.id.get(), h).await;
+            }
+            return Err(se(e));
+        }
+    };
+    // Committed: drop the image this edit replaced or cleared.
+    if let (Some(m), Some(old)) = (media, &w.avatar_key)
+        && updated.avatar_key.as_ref() != Some(old)
+    {
+        m.remove(MediaKind::WebhookAvatar, w.id.get(), old).await;
+    }
     deps.publish(SettingsEvent::WebhooksUpdated {
         guild: updated.guild_id,
         channel: updated.channel_id,
@@ -346,13 +427,14 @@ async fn modify_inner(
 pub async fn modify_webhook(
     p: Principal,
     Ext(deps): Ext<SettingsDeps>,
+    MaybeExt(media): MaybeExt<MediaDeps>,
     Path(webhook_id): Path<String>,
     ApiJson(body): ApiJson<ModifyWebhookBody>,
 ) -> ApiResult<Json<WebhookObject>> {
     let user = actor(&p)?;
     let (w, perms) = managed(&deps, user, &webhook_id).await?;
     Ok(Json(
-        modify_inner(&deps, user, perms, &w, body, true).await?,
+        modify_inner(&deps, media.as_deref(), user, perms, &w, body, true).await?,
     ))
 }
 
@@ -367,6 +449,7 @@ pub async fn modify_webhook(
 pub async fn delete_webhook(
     p: Principal,
     Ext(deps): Ext<SettingsDeps>,
+    MaybeExt(media): MaybeExt<MediaDeps>,
     Path(webhook_id): Path<String>,
 ) -> ApiResult<StatusCode> {
     let user = actor(&p)?;
@@ -375,6 +458,9 @@ pub async fn delete_webhook(
         .delete_webhook(perms, user, w.guild_id, w.id)
         .await
         .map_err(se)?;
+    if let (Some(m), Some(h)) = (media.as_deref(), &w.avatar_key) {
+        m.remove(MediaKind::WebhookAvatar, w.id.get(), h).await;
+    }
     deps.publish(SettingsEvent::WebhooksUpdated {
         guild: w.guild_id,
         channel: w.channel_id,
@@ -424,6 +510,7 @@ pub async fn get_webhook_with_token(
 )]
 pub async fn modify_webhook_with_token(
     Ext(deps): Ext<SettingsDeps>,
+    MaybeExt(media): MaybeExt<MediaDeps>,
     Path((webhook_id, token)): Path<(String, String)>,
     ApiJson(body): ApiJson<ModifyWebhookBody>,
 ) -> ApiResult<Json<WebhookObject>> {
@@ -432,6 +519,7 @@ pub async fn modify_webhook_with_token(
     let actor_id = w.creator_id.unwrap_or_default();
     let mut obj = modify_inner(
         &deps,
+        media.as_deref(),
         actor_id,
         Permissions::MANAGE_WEBHOOKS,
         &w,
@@ -455,6 +543,7 @@ pub async fn modify_webhook_with_token(
 )]
 pub async fn delete_webhook_with_token(
     Ext(deps): Ext<SettingsDeps>,
+    MaybeExt(media): MaybeExt<MediaDeps>,
     Path((webhook_id, token)): Path<(String, String)>,
 ) -> ApiResult<StatusCode> {
     let w = authed(&deps, &webhook_id, &token).await?;
@@ -467,6 +556,9 @@ pub async fn delete_webhook_with_token(
         )
         .await
         .map_err(se)?;
+    if let (Some(m), Some(h)) = (media.as_deref(), &w.avatar_key) {
+        m.remove(MediaKind::WebhookAvatar, w.id.get(), h).await;
+    }
     deps.publish(SettingsEvent::WebhooksUpdated {
         guild: w.guild_id,
         channel: w.channel_id,

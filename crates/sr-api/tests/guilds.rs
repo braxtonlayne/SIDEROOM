@@ -1284,3 +1284,67 @@ async fn create_from_a_builtin_template_in_one_step() {
     let (_, mine) = get(&f, "/users/@me/guilds", "owner").await;
     assert_eq!(mine.as_array().unwrap().len(), 1);
 }
+
+#[tokio::test]
+async fn role_emoji_and_icon_replace_each_other_and_clean_up() {
+    let f = fixture();
+    let (gid, _) = guild(&f).await;
+    let roles_uri = format!("/guilds/{gid}/roles");
+    let (s, role) = post(&f, &roles_uri, "owner", json!({ "name": "vip" })).await;
+    assert_eq!(s, StatusCode::OK, "{role}");
+    let rid = role["id"].as_str().unwrap().to_owned();
+    let uri = format!("{roles_uri}/{rid}");
+
+    // An emoji is stored as given; plain text is not an emoji.
+    let (s, r) = patch(&f, &uri, "owner", json!({ "unicode_emoji": "🎉" })).await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    assert_eq!(r["unicode_emoji"], "🎉");
+    let (s, _) = patch(&f, &uri, "owner", json!({ "unicode_emoji": "vip" })).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+
+    // An image replaces the emoji, is cropped to a square and keyed by the guild.
+    let (s, r) = patch(&f, &uri, "owner", json!({ "icon": png_uri(120, 80, 1) })).await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    assert!(r["unicode_emoji"].is_null());
+    let icon = r["icon"].as_str().unwrap().to_owned();
+    let key = format!("icons/{gid}/{icon}");
+    assert!(
+        sr_storage::ObjectStorage::head(&*f.storage, &key)
+            .await
+            .is_ok()
+    );
+
+    // An edit that does not mention the icon keeps it.
+    let (_, r) = patch(&f, &uri, "owner", json!({ "name": "vip 2" })).await;
+    assert_eq!(r["icon"], icon.as_str());
+
+    // An emoji replaces the image and the stored object goes with it.
+    let (_, r) = patch(&f, &uri, "owner", json!({ "unicode_emoji": "⭐" })).await;
+    assert_eq!(r["unicode_emoji"], "⭐");
+    assert!(r["icon"].is_null());
+    assert!(
+        sr_storage::ObjectStorage::head(&*f.storage, &key)
+            .await
+            .is_err()
+    );
+    let (_, r) = patch(&f, &uri, "owner", json!({ "icon": png_uri(40, 40, 2) })).await;
+    let icon2 = r["icon"].as_str().unwrap().to_owned();
+    assert_ne!(icon2, icon);
+    assert!(
+        sr_storage::ObjectStorage::head(&*f.storage, &key)
+            .await
+            .is_err()
+    );
+    let (s, r) = patch(&f, &uri, "owner", json!({ "icon": null })).await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    assert!(r["icon"].is_null());
+    assert!(
+        sr_storage::ObjectStorage::head(&*f.storage, &format!("icons/{gid}/{icon2}"))
+            .await
+            .is_err()
+    );
+
+    // Without Manage Roles nothing is stored.
+    let (s, _) = patch(&f, &uri, "bob", json!({ "icon": png_uri(40, 40, 3) })).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+}

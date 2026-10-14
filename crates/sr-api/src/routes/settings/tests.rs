@@ -205,6 +205,9 @@ async fn env_with(opts: Opts) -> Env {
         .settings(settings)
         .extension(deps.clone())
         .extension(Arc::new(AutoModGateHandle(deps.clone())))
+        .extension(Arc::new(crate::routes::media::MediaDeps::new(
+            storage.clone(),
+        )))
         .extension(Arc::new(msgs))
         .extension(Arc::new(crate::routes::cdn::CdnDeps::new(
             storage.clone(),
@@ -1569,6 +1572,122 @@ async fn webhook_lifecycle_token_hash_and_execute() {
     );
     assert!(e.events.names().contains(&"WEBHOOKS_UPDATE"));
     assert_eq!(e.audit_actions().await[..3], [52, 51, 51]);
+}
+
+fn square_png(w: u32, h: u32) -> String {
+    let img = image::RgbaImage::from_fn(w, h, |x, y| {
+        image::Rgba([(x % 255) as u8, (y % 255) as u8, 9, 255])
+    });
+    let mut out = Vec::new();
+    image::DynamicImage::ImageRgba8(img)
+        .write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
+        .unwrap();
+    format!(
+        "data:image/png;base64,{}",
+        data_encoding::BASE64.encode(&out)
+    )
+}
+
+#[tokio::test]
+async fn webhook_avatar_is_stored_replaced_and_removed() {
+    let e = env().await;
+    let base = format!("/channels/{}/webhooks", e.ch);
+
+    // A refused request (no permission, bad name, bad image) leaves nothing behind.
+    assert_eq!(
+        code_of(
+            &e.post(
+                &base,
+                "bob",
+                json!({"name": "A", "avatar": square_png(40, 20)})
+            )
+            .await
+        ),
+        (StatusCode::FORBIDDEN, Some(50013))
+    );
+    let (s, _) = e
+        .post(&base, "mod", json!({"name": "A", "avatar": "not an image"}))
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, _) = e
+        .post(
+            &base,
+            "mod",
+            json!({"name": "", "avatar": square_png(40, 20)}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert!(e.storage.list("avatars").await.unwrap().is_empty());
+
+    // Create with an avatar: cropped to a square, keyed by the webhook id.
+    let (s, wh) = e
+        .post(
+            &base,
+            "mod",
+            json!({"name": "Deploys", "avatar": square_png(300, 200)}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{wh}");
+    let id = wh["id"].as_str().unwrap().to_owned();
+    let h1 = wh["avatar"].as_str().unwrap().to_owned();
+    assert!(sr_storage::media::is_valid_hash(&h1));
+    let key1 = format!("avatars/{id}/{h1}");
+    let stored = e.storage.get(&key1).await.unwrap();
+    let dims = image::ImageReader::new(std::io::Cursor::new(&stored))
+        .with_guessed_format()
+        .unwrap()
+        .into_dimensions()
+        .unwrap();
+    assert_eq!(dims, (200, 200));
+    let (_, list) = e.get(&e.g("/webhooks"), "mod").await;
+    assert_eq!(list[0]["avatar"], h1.as_str());
+
+    // A name-only edit keeps the avatar.
+    let (_, v) = e
+        .patch(
+            &format!("/webhooks/{id}"),
+            "mod",
+            json!({"name": "Deploys 2"}),
+        )
+        .await;
+    assert_eq!(v["avatar"], h1.as_str());
+
+    // Replace: the old object goes away.
+    let (s, v) = e
+        .patch(
+            &format!("/webhooks/{id}"),
+            "mod",
+            json!({"avatar": square_png(64, 64)}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let h2 = v["avatar"].as_str().unwrap().to_owned();
+    assert_ne!(h1, h2);
+    assert!(e.storage.head(&key1).await.is_err());
+    assert!(e.storage.head(&format!("avatars/{id}/{h2}")).await.is_ok());
+
+    // Remove: null clears it.
+    let (s, v) = e
+        .patch(&format!("/webhooks/{id}"), "mod", json!({"avatar": null}))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert!(v["avatar"].is_null());
+    assert!(e.storage.head(&format!("avatars/{id}/{h2}")).await.is_err());
+
+    // Deleting the webhook deletes its image too.
+    let (_, v) = e
+        .patch(
+            &format!("/webhooks/{id}"),
+            "mod",
+            json!({"avatar": square_png(32, 32)}),
+        )
+        .await;
+    let h3 = v["avatar"].as_str().unwrap().to_owned();
+    assert_eq!(
+        e.delete(&format!("/webhooks/{id}"), "mod").await.0,
+        StatusCode::NO_CONTENT
+    );
+    assert!(e.storage.head(&format!("avatars/{id}/{h3}")).await.is_err());
 }
 
 #[tokio::test]
