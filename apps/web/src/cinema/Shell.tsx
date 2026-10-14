@@ -56,7 +56,7 @@ export const NAV: NavItem[] = [
   { href: '/cinema/movies', label: 'Movies' },
   { href: '/cinema/series', label: 'Series' },
   { href: '/cinema/anime', label: 'Anime', mark: 'sparkle', anime: true },
-  { href: '/cinema/live-tv', label: 'Live TV', mark: 'dot' },
+  { href: '/cinema/tv', label: 'Live TV', mark: 'dot' },
   { href: '/cinema/my-list', label: 'My list' },
 ];
 

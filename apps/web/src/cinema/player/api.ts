@@ -20,7 +20,7 @@
 //   GET  /cinema/downloads/{jobId}                 -> DownloadJob
 import { ApiError, apiFetch } from '../../api/client';
 import { AGE_CONFIRMATION_REQUIRED } from '../../lib/ageGate';
-import { parseSpriteVtt } from './model';
+import { LIVE_MEDIA_PREFIX, parseSpriteVtt } from './model';
 import { progressApi } from './progress';
 import type {
   DownloadJob,
@@ -53,6 +53,11 @@ export const getAssetPlayback = (assetId: string) =>
   apiFetch<WireAssetPlayback>(`/cinema/assets/${enc(assetId)}/playback`, { retries: 0 });
 
 export async function refreshSource(assetId: string): Promise<RefreshedSource> {
+  // Live TV tunes by channel, not asset: its media id is `tv:<channelId>` (p8-livetv-web).
+  if (assetId.startsWith(LIVE_MEDIA_PREFIX)) {
+    const { refreshTune } = await import('../tv/api');
+    return refreshTune(assetId.slice(LIVE_MEDIA_PREFIX.length));
+  }
   const g = await apiFetch<WireGrant>(`/cinema/assets/${enc(assetId)}/refresh`, {
     method: 'POST',
     retries: 0,
