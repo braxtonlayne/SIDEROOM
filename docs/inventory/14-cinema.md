@@ -56,20 +56,20 @@ Phase 5. Spec: [cinema-media](../specs/cinema-media.md). Mockups: `cinema-discov
 - [ ] **CIN-TTL-004** [FE] Variant picker (e.g. Director's Cut)
 
 ## CIN-PLY — Player
-- [ ] **CIN-PLY-001** [FE] hls.js / native HLS engine wrapper, ABR with manual override, data saver
-- [ ] **CIN-PLY-002** [FE] Controls: play/pause, ±10s, scrubber with sprite thumbnails, volume, speed, audio track menu, subtitle menu + styling, full-screen, PiP, Remote Playback/AirPlay, optional Chromecast
-- [ ] **CIN-PLY-003** [FE] Keyboard shortcuts + on-screen feedback
-- [ ] **CIN-PLY-004** [FE] ASS subtitle renderer (JASSUB, worker) + WebVTT
-- [ ] **CIN-PLY-005** [FE] Skip intro / skip credits buttons (markers)
-- [ ] **CIN-PLY-006** [FE] Next episode card with countdown, autoplay toggle, "Are you still watching?"
-- [ ] **CIN-PLY-007** [BE] Watch progress API (10s heartbeat, ≥ 90% watched) + cross-device sync
-- [ ] **CIN-PLY-008** [FE] Resume prompt ("Resume from 42:10 / Start over")
+- [x] **CIN-PLY-001** [FE] hls.js / native HLS engine wrapper, ABR with manual override, data saver
+- [x] **CIN-PLY-002** [FE] Controls: play/pause, ±10s, scrubber with sprite thumbnails, volume, speed, audio track menu, subtitle menu + styling, full-screen, PiP, Remote Playback/AirPlay, optional Chromecast (Chromecast Web Sender SDK not included; Remote Playback and AirPlay are)
+- [x] **CIN-PLY-003** [FE] Keyboard shortcuts + on-screen feedback
+- [ ] **CIN-PLY-004** [FE] ASS subtitle renderer (JASSUB, worker) + WebVTT (WebVTT done; the ASS renderer seam is in `cinema/player/ass.ts`, JASSUB itself is not bundled until its LGPL licence is approved, so ASS falls back to the WebVTT conversion)
+- [x] **CIN-PLY-005** [FE] Skip intro / skip credits buttons (markers)
+- [x] **CIN-PLY-006** [FE] Next episode card with countdown, autoplay toggle, "Are you still watching?"
+- [ ] **CIN-PLY-007** [BE] Watch progress API (10s heartbeat, ≥ 90% watched) + cross-device sync (client side done in `cinema/player/progress.ts` and `session.ts`: 10 s heartbeat, saves on pause, hide, pagehide and leaving, local fallback)
+- [x] **CIN-PLY-008** [FE] Resume prompt ("Resume from 42:10 / Start over")
 - [ ] **CIN-PLY-009** [BE] "Watching" presence emission (privacy-aware)
-- [ ] **CIN-PLY-010** [FE] Signed URL refresh without playback interruption
-- [ ] **CIN-PLY-011** [FE] Mini player (continue while navigating, also used by watch parties)
+- [x] **CIN-PLY-010** [FE] Signed URL refresh without playback interruption (re-signs hls.js requests from the refreshed playlists; native HLS swaps the source)
+- [x] **CIN-PLY-011** [FE] Mini player (continue while navigating, also used by watch parties) (mounted at the app root; watch parties reuse `playerSession()` and `MiniPlayerView`)
 
 ## CIN-MY — My list & history
-- [ ] **CIN-MY-001** [FE] My list page (saved, continue watching, custom lists, history with pause/clear)
+- [x] **CIN-MY-001** [FE] My list page (saved, continue watching, custom lists, history with pause/clear)
 - [ ] **CIN-MY-002** [BE] Lists API (shared with Library lists implementation where possible)
 
 ## CIN-SOC — Social
@@ -79,7 +79,7 @@ Phase 5. Spec: [cinema-media](../specs/cinema-media.md). Mockups: `cinema-discov
 
 ## CIN-DL — Patron downloads
 - [ ] **CIN-DL-001** [BE] On-demand MP4 remux job of chosen rendition (cached 7 days), original download when allowed, signed single-user link, daily limit
-- [ ] **CIN-DL-002** [FE] Download modal (rendition picker with sizes, progress of prep job)
+- [x] **CIN-DL-002** [FE] Download modal (rendition picker with sizes, progress of prep job) (the modal is `cinema/player/DownloadModal.tsx`; the download routes it calls are not in the backend yet, and the title page still has to mount it)
 
 ## CIN-ADM — Admin
 - [ ] **CIN-ADM-001** [FE] Catalog editor (title form, seasons/episodes tables, assets & renditions view, subtitles manager, artwork, markers editor with video scrubber, publish toggle, merge)
