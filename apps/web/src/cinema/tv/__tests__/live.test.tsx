@@ -11,7 +11,7 @@ import { MiniPlayerMount } from '../../player/MiniPlayerMount';
 import { installMediaMocks, makeSession, media, resetSession } from '../../player/__tests__/fakes';
 import { STALL_MS } from '../LiveView';
 import { setLivePrefs } from '../livePrefs';
-import { NOW, grant, guide, useTvApi } from './fixtures';
+import { NOW, guide, useTvApi } from './fixtures';
 
 beforeAll(() => {
   installMediaMocks();
@@ -58,13 +58,14 @@ async function openAndPlay(path?: string) {
 
 describe('live player', () => {
   it('tunes the channel, shows LIVE and now/next with progress, and has no scrubber; passes axe', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: NOW });
     const calls = useTvApi();
     const ctx = renderLive();
     const region = await player();
     expect(calls.tunes).toEqual(['c101']);
     await waitFor(() =>
       expect(ctx.engine.load).toHaveBeenCalledWith(
-        'https://cdn.test/tv/c101/master.m3u8?sig=a',
+        '/api/v1/tv/channels/c101/live/master.m3u8',
         undefined,
       ),
     );
@@ -153,7 +154,7 @@ describe('live player', () => {
     // The picture changed channel without leaving the full player.
     expect(screen.queryByRole('region', { name: /Mini player/ })).not.toBeInTheDocument();
     await ctx.user.keyboard('{ArrowDown}{ArrowDown}');
-    await waitFor(() => expect(ctx.router.state.location.pathname).toBe('/cinema/tv/watch/c105'));
+    await waitFor(() => expect(ctx.router.state.location.pathname).toBe('/cinema/tv/watch/c106'));
   });
 
   it('shows the tuning static between channels and respects the toggle', async () => {
@@ -172,6 +173,7 @@ describe('live player', () => {
   });
 
   it('opens the channel list with G, moves with the arrows, tunes with Enter and closes with Escape', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: NOW });
     useTvApi();
     const ctx = await openAndPlay();
     await new Promise((r) => setTimeout(r, 50));
@@ -179,7 +181,7 @@ describe('live player', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Channel guide' });
     const list = within(dialog).getByRole('listbox', { name: 'Channels' });
     await waitFor(() => expect(list).toHaveFocus());
-    expect(within(list).getAllByRole('option')).toHaveLength(3);
+    expect(within(list).getAllByRole('option')).toHaveLength(4);
     expect(within(list).getByRole('option', { name: /101/ })).toHaveAttribute(
       'aria-selected',
       'true',
@@ -266,6 +268,16 @@ describe('live player', () => {
     expect(await screen.findByText('Live TV is not available yet')).toBeInTheDocument();
   });
 
+  it('says the channel is off the air when the server has nothing to tune', async () => {
+    useTvApi({
+      tune: () =>
+        HttpResponse.json({ channel_id: 'c101', state: 'off_air', current: null, viewers: 0 }),
+    });
+    const ctx = renderLive();
+    expect(await screen.findByText('This channel is off the air')).toBeInTheDocument();
+    expect(ctx.engine.load).not.toHaveBeenCalled();
+  });
+
   it('asks the session to refresh the signed URL by channel (tv:<id>) and applies it', async () => {
     useTvApi();
     const ctx = await openAndPlay();
@@ -276,7 +288,7 @@ describe('live player', () => {
     const fresh = await refreshSource('tv:c101');
     expect(calls.tunes).toEqual(['c101']);
     expect(fresh.master_url).toContain('master.m3u8');
-    expect(fresh.expires_at_ms).toBe(grant().expires_at_ms);
+    expect(fresh.expires_at_ms).toBeGreaterThan(Date.now());
   });
 
   it('reconnects after a stall by tuning again, then gives up with a retry button', async () => {
@@ -343,5 +355,5 @@ describe('live mini player', () => {
 
 it('fixtures are consistent', () => {
   expect(NOW).toBeGreaterThan(0);
-  expect(guide().channels).toHaveLength(3);
+  expect(guide().channels).toHaveLength(4);
 });

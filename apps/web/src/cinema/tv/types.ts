@@ -22,6 +22,8 @@ export interface TvChannel {
   /** IANA zone the channel schedule is written in (D-103). */
   timezone: string;
   age_restricted: boolean;
+  /** Distinct members who fetched a live playlist in the last 45 s. */
+  viewers?: number;
 }
 
 export interface TvBlock {
@@ -42,6 +44,9 @@ export interface TvBlock {
   synopsis?: string | null;
   poster_url?: string | null;
   backdrop_url?: string | null;
+  /** False for slates and off-air blocks (no stream exists for them). */
+  playable?: boolean;
+  source?: 'generated' | 'manual' | 'override';
 }
 
 export interface TvGuide {
@@ -54,12 +59,14 @@ export interface TvGuide {
 }
 
 export interface ChannelNow {
-  channel: TvChannel;
   now: TvBlock | null;
   next: TvBlock | null;
   /** The stream is healthy ("GOOD RECEPTION"). */
   healthy: boolean;
   server_time_ms: number;
+  /** How far into the current programme the wall clock is. */
+  offset_ms?: number | null;
+  viewers?: number;
 }
 
 /** Everything the live player needs to tune a channel. */

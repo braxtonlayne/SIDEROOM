@@ -145,8 +145,7 @@ export function LiveView({
     retry: false,
   });
   const channels = useMemo(() => guideQ.data?.channels ?? [], [guideQ.data]);
-  const channel =
-    nowQ.data?.channel ?? grant?.channel ?? channels.find((c) => c.id === channelId) ?? null;
+  const channel = grant?.channel ?? channels.find((c) => c.id === channelId) ?? null;
   const fromGuide = nowAndNext(guideQ.data?.blocks[channelId], nowMs);
   const now = nowQ.data?.now ?? grant?.now ?? fromGuide.now;
   const next = nowQ.data?.next ?? grant?.next ?? fromGuide.next;

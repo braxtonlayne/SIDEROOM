@@ -1,6 +1,7 @@
 // The now-playing panel (TV-UI-002): CRT preview frame, channel eyebrow, programme, actions, reception dot.
 import { Suspense, lazy, useState } from 'react';
 import { kindYear, watchChannelHref } from './model';
+import { useBlockInfo } from './api';
 import type { ChannelNow, TvBlock, TvChannel } from './types';
 
 const LivePreview = lazy(() => import('./LivePreview').then((m) => ({ default: m.LivePreview })));
@@ -15,7 +16,16 @@ export interface NowPanelProps {
   onDetails: (b: TvBlock) => void;
 }
 
-export function NowPanel({ channel, now, next, healthy, canManage, onDetails }: NowPanelProps) {
+export function NowPanel({
+  channel,
+  now: nowBlock,
+  next,
+  healthy,
+  canManage,
+  onDetails,
+}: NowPanelProps) {
+  // Synopsis and artwork come from the catalog (the schedule block carries neither).
+  const now = useBlockInfo(nowBlock);
   const [hover, setHover] = useState(false);
   const [preview, setPreview] = useState<'idle' | 'live' | 'error'>('idle');
   // A restricted channel needs the age gate before any picture: no preview, only Tune in.

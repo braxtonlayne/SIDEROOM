@@ -35,7 +35,7 @@ describe('Live TV guide', () => {
     const now = await cell(/^Cowboy Bebop, S1 · E4 · Gateway Shuffle.*on now/);
     expect(now).toHaveTextContent('NOW');
     expect(now).toHaveTextContent('Anime · 1998');
-    expect(now).toHaveTextContent('TV-14');
+    // Ratings are not in the schedule: they appear in the popover, from the catalog.
     // Age badge on the restricted film.
     expect(await cell(/^Alien,.*age-restricted/)).toBeInTheDocument();
     expect(screen.getByTestId('tv-nowline')).toBeInTheDocument();
@@ -56,18 +56,21 @@ describe('Live TV guide', () => {
     expect(container.querySelector('.cin-root')?.getAttribute('data-theme')).toBe('sideroom');
   });
 
-  it('fills the now panel with the first airing channel and an operator footer note', async () => {
-    useTvApi({ guide: { ...guide(), footer_note: 'House rules apply.' } });
+  it('fills the now panel with the first airing channel', async () => {
+    useTvApi();
     renderAt('/cinema/tv');
     const panel = await screen.findByRole('region', { name: /On now, channel 101/ });
     expect(within(panel).getByRole('heading', { name: 'Cowboy Bebop' })).toBeInTheDocument();
     expect(within(panel).getByText('CHANNEL PREVIEW')).toBeInTheDocument();
+    // The synopsis comes from the catalog, by title id.
+    expect(
+      await within(panel).findByText(/hunt bounties across the solar system/),
+    ).toBeInTheDocument();
     expect(await within(panel).findByText('GOOD RECEPTION')).toBeInTheDocument();
     expect(within(panel).getByRole('link', { name: /Tune in/ })).toHaveAttribute(
       'href',
       '/cinema/tv/watch/c101',
     );
-    expect(screen.getByText('House rules apply.')).toBeInTheDocument();
   });
 
   it('selecting another channel changes the preview', async () => {
@@ -85,11 +88,13 @@ describe('Live TV guide', () => {
     renderAt('/cinema/tv');
     const user = userEvent.setup();
     const grid = await screen.findByRole('grid');
-    expect(within(grid).getAllByRole('row')).toHaveLength(4);
+    expect(within(grid).getAllByRole('row')).toHaveLength(5);
     await user.click(screen.getByRole('button', { name: 'Anime & animation' }));
     expect(within(screen.getByRole('grid')).getAllByRole('row')).toHaveLength(2);
     await user.click(screen.getByRole('button', { name: 'Movies' }));
     expect(within(screen.getByRole('grid')).getByText('105')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Custom' }));
+    expect(within(screen.getByRole('grid')).getByText('106')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Favorites' }));
     await waitFor(() =>
       expect(within(screen.getByRole('grid')).getByText('102')).toBeInTheDocument(),
@@ -119,7 +124,10 @@ describe('Live TV guide', () => {
     const user = userEvent.setup();
     await user.click(await cell(/^Cowboy Bebop, S1 · E4/));
     const dialog = await screen.findByRole('dialog', { name: 'Cowboy Bebop' });
-    expect(within(dialog).getByText(/hunt bounties across the solar system/)).toBeInTheDocument();
+    expect(
+      await within(dialog).findByText(/hunt bounties across the solar system/),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText('TV-14')).toBeInTheDocument();
     expect(within(dialog).getByText('S1 · E4 · Gateway Shuffle')).toBeInTheDocument();
     const airings = within(dialog).getByRole('region', { name: 'Next airings' });
     expect(within(airings).getAllByRole('listitem')).toHaveLength(1);
@@ -154,7 +162,7 @@ describe('Live TV guide', () => {
   it('says reminders are not available yet when the server has no such route', async () => {
     useTvApi();
     const { server, http } = await import('../../../test/server');
-    server.use(http.put('*/api/v1/sr/tv/reminders/:id', () => new Response(null, { status: 404 })));
+    server.use(http.put('*/api/v1/tv/reminders/:id', () => new Response(null, { status: 404 })));
     renderAt('/cinema/tv');
     const user = userEvent.setup();
     await user.click(await cell(/^Samurai Champloo/));

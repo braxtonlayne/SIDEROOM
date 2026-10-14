@@ -32,12 +32,12 @@ const CHAN_COL = 306;
 
 /** Wall clock that follows the server's (`offset` = server now minus client now) and ticks every `every` ms. */
 function useClock(offset: number, every = 20_000) {
-  const [t, setT] = useState(() => Date.now());
+  const [, tick] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setT(Date.now()), every);
+    const id = setInterval(() => tick((n) => n + 1), every);
     return () => clearInterval(id);
   }, [every]);
-  return t + offset;
+  return Date.now() + offset;
 }
 
 function useCanManageTv() {
@@ -71,8 +71,6 @@ function GuideContent() {
   const mobile = useMediaQuery(MOBILE_QUERY);
   const canManage = useCanManageTv();
   const fav = useFavourites();
-  const [offset, setOffset] = useState(0);
-  const nowMs = useClock(offset);
   const [dayStart, setDayStart] = useState(() => startOfDay(Date.now()));
   const dayEnd = addDays(dayStart, 1);
   const [filter, setFilter] = useState<TvFilter>('all');
@@ -80,7 +78,7 @@ function GuideContent() {
   const [picked, setPicked] = useState<string | null>(null);
   const [open, setOpen] = useState<{ block: TvBlock; anchor: HTMLElement | null } | null>(null);
   const [viewStart, setViewStart] = useState<number | null>(null);
-  const [gridW, setGridW] = useState(0);
+  const [gridW, setGridW] = useState<number | null>(null);
 
   const guide = useQuery({
     queryKey: tvKeys.guide(dayStart, dayEnd),
@@ -89,9 +87,9 @@ function GuideContent() {
     refetchInterval: 5 * 60_000,
     retry: false,
   });
-  useEffect(() => {
-    if (guide.data) setOffset(guide.data.now_ms - Date.now());
-  }, [guide.data]);
+  // Follow the server clock (the guide carries its now) from the first render with data.
+  const offset = guide.data ? guide.data.now_ms - guide.dataUpdatedAt : 0;
+  const nowMs = useClock(offset);
 
   const channels = useMemo(
     () =>
@@ -122,7 +120,7 @@ function GuideContent() {
   const setScroller = useCallback((el: HTMLDivElement | null) => {
     scroller.current = el;
   }, []);
-  const slotPx = Math.min(340, Math.max(150, Math.floor((gridW - CHAN_COL) / 4)) || 150);
+  const slotPx = Math.min(340, Math.max(150, Math.floor(((gridW ?? 0) - CHAN_COL) / 4)) || 150);
   const reduced = useMediaQuery('(prefers-reduced-motion: reduce)');
   const scrollTo = useCallback(
     (left: number) => scroller.current?.scrollTo?.({ left, behavior: reduced ? 'auto' : 'smooth' }),
@@ -141,9 +139,15 @@ function GuideContent() {
   useLayoutEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
-    setGridW(el.clientWidth);
+    const measure = () => {
+      const cs = getComputedStyle(el);
+      setGridW(
+        el.clientWidth - parseFloat(cs.paddingLeft || '0') - parseFloat(cs.paddingRight || '0'),
+      );
+    };
+    measure();
     if (typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(() => setGridW(el.clientWidth));
+    const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
   }, [mobile]);
@@ -152,7 +156,7 @@ function GuideContent() {
   const placed = useRef<number | null>(null);
   useEffect(() => {
     const el = scroller.current;
-    if (!el || !guide.data || placed.current === dayStart) return;
+    if (!el || !guide.data || gridW === null || placed.current === dayStart) return;
     placed.current = dayStart;
     const target =
       startOfDay(nowMs) === dayStart
@@ -160,7 +164,16 @@ function GuideContent() {
         : ((18 * 60 * 60_000) / SLOT_MS) * slotPx;
     el.scrollLeft = Math.max(0, target);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guide.data, dayStart]);
+  }, [guide.data, dayStart, gridW]);
+
+  // A resize changes the column width: keep the same time at the left edge.
+  const lastSlot = useRef(slotPx);
+  useEffect(() => {
+    const el = scroller.current;
+    if (el && lastSlot.current !== slotPx)
+      el.scrollLeft = (el.scrollLeft / lastSlot.current) * slotPx;
+    lastSlot.current = slotPx;
+  }, [slotPx]);
 
   useEffect(() => {
     const el = scroller.current;

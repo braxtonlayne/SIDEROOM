@@ -5,7 +5,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AgeBadge } from '../ui';
-import { isNotAvailable, setReminder } from './api';
+import { isNotAvailable, setReminder, useBlockInfo } from './api';
 import {
   formatDuration,
   isNow,
@@ -48,7 +48,7 @@ export function nextAirings(
 }
 
 function Body({
-  block,
+  block: scheduled,
   channel,
   nowMs,
   tz,
@@ -56,6 +56,8 @@ function Body({
   channels,
   titleId,
 }: Omit<ProgramPopoverProps, 'anchor' | 'onClose'> & { titleId: string }): ReactNode {
+  // Synopsis and rating come from the catalog (the schedule block carries neither).
+  const block = useBlockInfo(scheduled) ?? scheduled;
   const live = isNow(block, nowMs);
   const future = block.start_ms > nowMs;
   const href = titleHrefOf(block);

@@ -10,7 +10,7 @@ import { isAgeGateError, useAgeGate, withAgeGate } from '../../lib/ageGate';
 import { LIVE_MEDIA_PREFIX } from '../player/model';
 import { playerSession, usePlayer } from '../player/session';
 import type { PlaybackInfo } from '../player/types';
-import { isNotAvailable, tuneChannel } from './api';
+import { OffAirError, isNotAvailable, tuneChannel } from './api';
 import { LiveView } from './LiveView';
 import { tvHref, watchChannelHref } from './model';
 import type { TuneGrant } from './types';
@@ -105,7 +105,13 @@ export function LiveWatchPage({ channelId }: { channelId: string }) {
   const err = query.error;
   let failure: { title: string; description: string } | null = null;
   if (query.isError && !declined) {
-    if (isNotAvailable(err) && err instanceof ApiError && err.status !== 404)
+    if (err instanceof OffAirError)
+      failure = {
+        title: 'This channel is off the air',
+        description:
+          'Nothing is scheduled on it right now. Try another channel or check the guide.',
+      };
+    else if (isNotAvailable(err) && err instanceof ApiError && err.status !== 404)
       failure = {
         title: 'Live TV is not available yet',
         description: 'This server has not switched on live channels.',

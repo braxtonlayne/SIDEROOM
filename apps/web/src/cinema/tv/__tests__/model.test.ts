@@ -18,7 +18,7 @@ import {
   stepChannel,
 } from '../model';
 import { favouritesFrom } from '../favourites';
-import { normaliseGuide } from '../api';
+import { episodeLabel, normaliseGuide, toChannel } from '../api';
 import { CHANNELS, SLOT0, block, guide } from './fixtures';
 
 describe('guide geometry and time', () => {
@@ -65,7 +65,7 @@ describe('guide geometry and time', () => {
 describe('filters', () => {
   it('uses the server category, else the dominant programme kind', () => {
     const g = guide();
-    expect(categoryOf(CHANNELS[0]!)).toBe('anime');
+    expect(categoryOf({ ...CHANNELS[0]!, category: 'anime' })).toBe('anime');
     const bare = { ...CHANNELS[0]!, category: null };
     expect(categoryOf(bare, g.blocks.c101)).toBe('anime');
     expect(categoryOf(bare, [])).toBe('custom');
@@ -77,7 +77,7 @@ describe('filters', () => {
     const fav = new Set(['c105']);
     expect(
       filterChannels([...g.channels].reverse(), g.blocks, 'all', fav).map((c) => c.number),
-    ).toEqual([101, 102, 105]);
+    ).toEqual([101, 102, 105, 106]);
     expect(filterChannels(g.channels, g.blocks, 'movies', fav).map((c) => c.id)).toEqual(['c105']);
     expect(filterChannels(g.channels, g.blocks, 'favorites', fav).map((c) => c.id)).toEqual([
       'c105',
@@ -131,8 +131,8 @@ describe('keyboard navigation', () => {
 describe('live helpers', () => {
   it('steps channels with wrap-around in number order', () => {
     expect(stepChannel(CHANNELS, 'c101', 1)?.id).toBe('c102');
-    expect(stepChannel(CHANNELS, 'c105', 1)?.id).toBe('c101');
-    expect(stepChannel(CHANNELS, 'c101', -1)?.id).toBe('c105');
+    expect(stepChannel(CHANNELS, 'c106', 1)?.id).toBe('c101');
+    expect(stepChannel(CHANNELS, 'c101', -1)?.id).toBe('c106');
     expect(stepChannel(CHANNELS, 'gone', 1)?.id).toBe('c101');
     expect(stepChannel([], 'x', 1)).toBeNull();
   });
@@ -161,14 +161,87 @@ describe('data layer', () => {
     expect(favouritesFrom({ cinema: 'nope' })).toEqual([]);
     expect(favouritesFrom(undefined)).toEqual([]);
   });
-  it('accepts blocks grouped per channel or flat and sorts them', () => {
-    const a = block('c1', 30, 30, { id: 'a' });
-    const b = block('c1', 0, 30, { id: 'b' });
-    const flat = normaliseGuide({ channels: [], blocks: [a, b] }, 5);
-    expect(flat.blocks.c1!.map((x) => x.id)).toEqual(['b', 'a']);
-    expect(flat.now_ms).toBe(5);
-    const grouped = normaliseGuide({ channels: [], blocks: { c1: [a, b] }, now_ms: 9 });
-    expect(grouped.blocks.c1!.map((x) => x.id)).toEqual(['b', 'a']);
-    expect(grouped.now_ms).toBe(9);
+  it('adapts the server guide: channels, sorted blocks, labels and filler', () => {
+    const wire = {
+      now_ms: 9,
+      channels: [
+        {
+          channel: {
+            id: 'c1',
+            number: 7,
+            name: 'Retro Room',
+            kind: 'manual' as const,
+            timezone: 'UTC',
+            age_restricted: false,
+          },
+          blocks: [
+            {
+              id: 'b2',
+              channel_id: 'c1',
+              start_ms: 30,
+              end_ms: 60,
+              kind: 'slate' as const,
+              title: "We'll be right back",
+              playable: false,
+            },
+            {
+              id: 'b1',
+              channel_id: 'c1',
+              start_ms: 0,
+              end_ms: 30,
+              kind: 'program' as const,
+              title: 'Bebop',
+              media_kind: 'anime' as const,
+              season_number: 1,
+              episode_number: 4,
+              episode_title: 'Gateway Shuffle',
+              title_id: '3',
+              age_restricted: true,
+              source: 'override' as const,
+            },
+          ],
+        },
+      ],
+    };
+    const g = normaliseGuide(wire);
+    expect(g.now_ms).toBe(9);
+    // No call sign: the name in caps. Manual channels are CUSTOM.
+    expect(g.channels[0]).toMatchObject({
+      call_sign: 'RETRO ROOM',
+      network: 'CUSTOM',
+      category: 'custom',
+    });
+    const [first, second] = g.blocks.c1!;
+    expect(first).toMatchObject({
+      id: 'b1',
+      kind: 'anime',
+      episode_label: 'S1 · E4 · Gateway Shuffle',
+      title_id: '3',
+      age_restricted: true,
+      source: 'override',
+      playable: true,
+    });
+    expect(second).toMatchObject({ kind: 'filler', playable: false, episode_label: null });
+    expect(normaliseGuide({}, 5)).toEqual({
+      now_ms: 5,
+      channels: [],
+      blocks: {},
+      footer_note: null,
+    });
+    expect(episodeLabel({ season_number: null, episode_number: 2, episode_title: null })).toBe(
+      'E2',
+    );
+    expect(
+      toChannel({
+        ...wire.channels[0]!.channel,
+        call_sign: '[as]',
+        era_label: 'Fall 2003',
+        kind: 'rule_based',
+      }),
+    ).toMatchObject({
+      call_sign: '[as]',
+      network: 'Fall 2003',
+      category: null,
+    });
   });
 });

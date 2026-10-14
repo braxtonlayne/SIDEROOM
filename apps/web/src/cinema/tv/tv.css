@@ -420,6 +420,9 @@
   border-color: var(--sr-gold);
 }
 .tv-cell[data-now] {
+  border-color: var(--sr-line);
+}
+.tv-row[data-selected] .tv-cell[data-now] {
   background: var(--sr-guide-cell-now);
   border-color: var(--sr-text-3);
 }
