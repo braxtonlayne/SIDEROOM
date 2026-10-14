@@ -13,6 +13,10 @@
 	handle /gateway* {
 		reverse_proxy host.docker.internal:8080
 	}
+	# The embedded SFU's signalling WebSocket (media uses UDP/TCP ports of its own).
+	handle /voice/* {
+		reverse_proxy host.docker.internal:8080
+	}
 	handle /cdn/* {
 		reverse_proxy host.docker.internal:8080
 	}

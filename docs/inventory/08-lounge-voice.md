@@ -3,28 +3,28 @@
 Phase 2. Spec: [lounge-voice-video](../specs/lounge-voice-video.md), ADRs 0003/0004, doc 08 §2–3.
 
 ## VOX-SIG — Signaling & state
-- [ ] **VOX-SIG-001** [BE] Voice state model (guild/channel, session, self/server mute/deaf, video, stream, suppress (stage), request_to_speak)
-- [ ] **VOX-SIG-002** [GW] Op 4 VOICE_STATE_UPDATE handling, VOICE_STATE_UPDATE dispatch, VOICE_SERVER_UPDATE with endpoint/token/ICE servers
-- [ ] **VOX-SIG-003** [BE] Join checks (CONNECT, user limit, MOVE bypass, age gate, AFK)
-- [ ] **VOX-SIG-004** [BE] Voice token minting (HMAC, 60s TTL) + SFU node selection
-- [ ] **VOX-SIG-005** [BE] `sr-voice-proto` message types (identify, select protocol, session description, speaking, video, client connect/disconnect, heartbeat, resume)
-- [ ] **VOX-SIG-006** [BE] TURN credential endpoint (coturn REST secret)
-- [ ] **VOX-SIG-007** [BE] Server mute/deafen/move/disconnect APIs + permission checks
+- [x] **VOX-SIG-001** [BE] Voice state model (guild/channel, session, self/server mute/deaf, video, stream, suppress (stage), request_to_speak) *(suppress and request_to_speak_timestamp are in the object but unused until stage channels, VOX-STG-001; state is in memory per node)*
+- [x] **VOX-SIG-002** [GW] Op 4 VOICE_STATE_UPDATE handling, VOICE_STATE_UPDATE dispatch, VOICE_SERVER_UPDATE with endpoint/token/ICE servers *(SR_VOICE_ERROR explains refused joins; docs/05 section 6.5)*
+- [ ] **VOX-SIG-003** [BE] Join checks (CONNECT, user limit, MOVE bypass, age gate, AFK) *(partly done: CONNECT/VIEW, user limit with MOVE_MEMBERS/MANAGE_CHANNELS/ADMINISTRATOR bypass, timeouts and stage refusal; age gate and AFK move/timeout are not)*
+- [x] **VOX-SIG-004** [BE] Voice token minting (HMAC, 60s TTL) + SFU node selection *(60 s HMAC token, rendezvous-hash node selection over voice.endpoints)*
+- [x] **VOX-SIG-005** [BE] `sr-voice-proto` message types (identify, select protocol, session description, speaking, video, client connect/disconnect, heartbeat, resume) *(SDP offer/answer replace SELECT_PROTOCOL/SESSION_DESCRIPTION; VIDEO and QUALITY ops are reserved)*
+- [x] **VOX-SIG-006** [BE] TURN credential endpoint (coturn REST secret) *(GET /sr/voice/turn and ice_servers, HMAC-SHA1, 1 h)*
+- [x] **VOX-SIG-007** [BE] Server mute/deafen/move/disconnect APIs + permission checks *(PATCH /guilds/{id}/voice-states/{user}, audit log entries)*
 - [ ] **VOX-SIG-008** [BE] DM/group call lifecycle (ring, ringing timeout, CALL_CREATE/UPDATE/DELETE, missed-call system message)
 - [ ] **VOX-SIG-009** [BE] Sender allowance counters per channel (excluding Patrons), viewers-per-stream counters, entitlement re-evaluation
 - [ ] **VOX-SIG-010** [BE] Stream (Go Live) keys: STREAM_CREATE/UPDATE/DELETE, watch/unwatch, preview thumbnail upload endpoint (periodic JPEG from streamer)
 
 ## VOX-SFU — `sr-voice`
-- [ ] **VOX-SFU-001** [BE] str0m integration: UDP socket loop, ICE-lite, DTLS-SRTP, ICE-TCP fallback
-- [ ] **VOX-SFU-002** [BE] Voice WS endpoint + token validation
-- [ ] **VOX-SFU-003** [BE] Room manager (create on first join, destroy on last leave), participant tracks
-- [ ] **VOX-SFU-004** [BE] Audio forwarding (Opus), audio-level header → speaking events
+- [x] **VOX-SFU-001** [BE] str0m integration: UDP socket loop, ICE-lite, DTLS-SRTP, ICE-TCP fallback *(UDP port range, ICE-lite, DTLS-SRTP, passive ICE-TCP with RFC 4571 framing)*
+- [x] **VOX-SFU-002** [BE] Voice WS endpoint + token validation
+- [x] **VOX-SFU-003** [BE] Room manager (create on first join, destroy on last leave), participant tracks
+- [x] **VOX-SFU-004** [BE] Audio forwarding (Opus), audio-level header → speaking events *(audio-level header to SPEAKING events; push-to-talk enforced server side when USE_VAD is denied)*
 - [ ] **VOX-SFU-005** [BE] Video forwarding with simulcast layer selection per subscriber (viewport hints, BWE via TWCC)
 - [ ] **VOX-SFU-006** [BE] Screen share tracks (+ screen audio) as separate stream group
 - [ ] **VOX-SFU-007** [BE] PLI/FIR coalescing, NACK/RTX handling
 - [ ] **VOX-SFU-008** [BE] Egress governor (budget, per-tier priority downgrade, notices)
-- [ ] **VOX-SFU-009** [BE] Metrics (rooms, participants, egress/ingress Mbps, loss, CPU)
-- [ ] **VOX-SFU-010** [BE] Graceful drain on shutdown (RECONNECT hint)
+- [x] **VOX-SFU-009** [BE] Metrics (rooms, participants, egress/ingress Mbps, loss, CPU) *(rooms, participants, egress/ingress bps, loss ratio, forwarded packets; no CPU gauge yet)*
+- [x] **VOX-SFU-010** [BE] Graceful drain on shutdown (RECONNECT hint) *(drain() closes clients with 4015 and refuses joins)*
 - [ ] **VOX-SFU-011** [TEST] Load test harness (headless senders/receivers in Rust) → 300 Mbps target
 
 ## VOX-E2E — End-to-end encryption

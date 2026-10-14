@@ -158,6 +158,13 @@ impl Session {
             .is_some_and(|t| Instant::now().duration_since(t) > self.window)
     }
 
+    /// How long the session has had no socket attached; `None` while one is.
+    pub fn detached_for(&self, now: Instant) -> Option<Duration> {
+        self.lock()
+            .detached_at
+            .map(|t| now.saturating_duration_since(t))
+    }
+
     /// Whether a live socket is currently attached (not just resumable).
     pub fn is_attached(&self) -> bool {
         self.lock().link.is_some()

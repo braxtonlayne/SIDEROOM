@@ -231,7 +231,13 @@ impl Conn {
                 }
                 Ok(())
             }
-            // Voice, member requests, SR ops: routed to registered handlers; unclaimed
+            op::VOICE_STATE_UPDATE => {
+                if let Some(s) = self.session.clone() {
+                    self.gw.voice_state_update(&s, p.d).await;
+                }
+                Ok(())
+            }
+            // Member requests, SR ops: routed to registered handlers; unclaimed
             // opcodes are ignored.
             _ => {
                 if let Some(s) = self.session.clone() {

@@ -2354,6 +2354,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/guilds/{guild_id}/voice-states/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Server mute or deafen a member in voice, move them to another voice channel, or
+         *     disconnect them (`channel_id: null`). `user_id` may be `@me`. Needs `MUTE_MEMBERS`,
+         *     `DEAFEN_MEMBERS` or `MOVE_MEMBERS` on the user's current voice channel (and
+         *     `MOVE_MEMBERS` plus `CONNECT` on the destination when moving). The change is announced
+         *     as `VOICE_STATE_UPDATE` and written to the audit log.
+         */
+        patch: operations["modify_voice_state"];
+        trace?: never;
+    };
     "/guilds/{guild_id}/webhooks": {
         parameters: {
             query?: never;
@@ -2980,6 +3003,26 @@ export interface paths {
         };
         /** The CSRF token for the current session. */
         get: operations["csrf_token"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/voice/turn": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Short-lived TURN credentials for the caller (HMAC-SHA1 over `<expiry>:<user id>`,
+         *     valid for `ttl` seconds). The same credentials are placed in `VOICE_SERVER_UPDATE`.
+         */
+        get: operations["turn_credentials"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5141,6 +5184,17 @@ export interface components {
             description?: string | null;
             name?: string | null;
         };
+        /** @description Body of `PATCH /guilds/{id}/voice-states/{user_id}`. */
+        ModifyVoiceStateBody: {
+            /** @description A voice channel to move the user to, or `null` to disconnect them. */
+            channel_id?: string | null;
+            /** @description Server deafen (`DEAFEN_MEMBERS`). */
+            deaf?: boolean | null;
+            /** @description Server mute (`MUTE_MEMBERS`). */
+            mute?: boolean | null;
+            /** @description Audit log reason (the `X-Audit-Log-Reason` header wins). */
+            reason?: string | null;
+        };
         ModifyWebhookBody: {
             /** @description Avatar image data URI; `null` removes it. */
             avatar?: string | null;
@@ -6112,6 +6166,17 @@ export interface components {
             /** @description 1 profanity, 2 sexual content, 3 slurs. */
             presets?: number[];
             regex_patterns?: string[];
+        };
+        /** @description TURN credentials, coturn REST style. */
+        TurnCredentialsObject: {
+            password: string;
+            /**
+             * Format: int64
+             * @description Seconds until the credentials expire.
+             */
+            ttl: number;
+            uris: string[];
+            username: string;
         };
         UnbanOutcome: {
             /**
@@ -15156,6 +15221,53 @@ export interface operations {
             };
         };
     };
+    modify_voice_state: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Stored as the audit log reason */
+                "X-Audit-Log-Reason"?: string | null;
+            };
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+                /** @description User snowflake or @me */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModifyVoiceStateBody"];
+            };
+        };
+        responses: {
+            /** @description Applied (or nothing to change) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad body, not a voice channel, or the target is not in voice (40032) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_guild_webhooks: {
         parameters: {
             query?: never;
@@ -17005,6 +17117,34 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    turn_credentials: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TurnCredentialsObject"];
+                };
+            };
+            /** @description TURN is not configured on this installation */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

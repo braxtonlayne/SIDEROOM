@@ -4,5 +4,16 @@ version = "0.0.0"
 edition.workspace = true
 publish.workspace = true
 
+[dependencies]
+sr-core = { path = "../sr-core", default-features = false }
+async-trait.workspace = true
+data-encoding = "2"
+hmac = "0.13.0"
+serde.workspace = true
+serde_json.workspace = true
+sha1 = "0.11"
+sha2 = "0.11"
+thiserror.workspace = true
+
 [lints]
 workspace = true

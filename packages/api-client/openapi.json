@@ -14185,6 +14185,88 @@
         ]
       }
     },
+    "/guilds/{guild_id}/voice-states/{user_id}": {
+      "patch": {
+        "tags": [],
+        "summary": "Server mute or deafen a member in voice, move them to another voice channel, or\ndisconnect them (`channel_id: null`). `user_id` may be `@me`. Needs `MUTE_MEMBERS`,\n`DEAFEN_MEMBERS` or `MOVE_MEMBERS` on the user's current voice channel (and\n`MOVE_MEMBERS` plus `CONNECT` on the destination when moving). The change is announced\nas `VOICE_STATE_UPDATE` and written to the audit log.",
+        "operationId": "modify_voice_state",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "User snowflake or @me",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Audit-Log-Reason",
+            "in": "header",
+            "description": "Stored as the audit log reason",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModifyVoiceStateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Applied (or nothing to change)"
+          },
+          "400": {
+            "description": "Bad body, not a voice channel, or the target is not in voice (40032)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/webhooks": {
       "get": {
         "tags": [
@@ -17029,6 +17111,43 @@
           }
         },
         "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/sr/voice/turn": {
+      "get": {
+        "tags": [],
+        "summary": "Short-lived TURN credentials for the caller (HMAC-SHA1 over `<expiry>:<user id>`,\nvalid for `ttl` seconds). The same credentials are placed in `VOICE_SERVER_UPDATE`.",
+        "operationId": "turn_credentials",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TurnCredentialsObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "TURN is not configured on this installation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
           {
             "session": []
           }
@@ -25351,6 +25470,40 @@
           }
         }
       },
+      "ModifyVoiceStateBody": {
+        "type": "object",
+        "description": "Body of `PATCH /guilds/{id}/voice-states/{user_id}`.",
+        "properties": {
+          "channel_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A voice channel to move the user to, or `null` to disconnect them."
+          },
+          "deaf": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Server deafen (`DEAFEN_MEMBERS`)."
+          },
+          "mute": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Server mute (`MUTE_MEMBERS`)."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Audit log reason (the `X-Audit-Log-Reason` header wins)."
+          }
+        }
+      },
       "ModifyWebhookBody": {
         "type": "object",
         "properties": {
@@ -28451,6 +28604,36 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "TurnCredentialsObject": {
+        "type": "object",
+        "description": "TURN credentials, coturn REST style.",
+        "required": [
+          "username",
+          "password",
+          "ttl",
+          "uris"
+        ],
+        "properties": {
+          "password": {
+            "type": "string"
+          },
+          "ttl": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Seconds until the credentials expire.",
+            "minimum": 0
+          },
+          "uris": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "username": {
+            "type": "string"
           }
         }
       },

@@ -26,6 +26,18 @@ Layering: defaults, TOML file, `SR_*` env (`__` separates nested keys).
 | `server.shutdown_grace_secs` | `25` | Drain budget for HTTP, then again for jobs. |
 | `database.url`, `database.max_connections` | see `sr-core` | |
 | `storage.*` | see `sr-core` | S3-compatible (Garage in dev). |
+| `voice.enabled` | `false` | Starts the embedded SFU (WebSocket at `/voice/ws` on the public listener, media on UDP). Everything below applies only when on. |
+| `voice.udp_port_min`, `voice.udp_port_max` | `50000`, `50099` | Media UDP range (at most 256 sockets bound). Open it in the firewall. |
+| `voice.tcp_port` | `0` (off) | ICE-TCP passive port for clients that cannot use UDP. |
+| `voice.announce_ips` | `["127.0.0.1"]` | Addresses advertised as ICE candidates: set the node's public IP(s) in production. |
+| `voice.bind_ip` | `0.0.0.0` | Interface for the media sockets. |
+| `voice.endpoints` | derived | Public `wss://` URL(s) of SFU nodes; default `ws(s)://<public_url host>/voice/ws`. |
+| `voice.token_secret` | derived | Join-token secret (16+ chars); empty derives one from `server.secret_key`. Must match across nodes. |
+| `voice.max_participants`, `voice.max_room_size` | `2000`, `99` | SFU capacity limits. |
+| `voice.session_grace_secs` | `20` | How long someone stays in a voice channel after their gateway socket drops. |
+| `voice.turn.urls`, `voice.turn.secret`, `voice.turn.ttl_secs` | empty, empty, `3600` | `stun:`/`turn:` URLs and the coturn `static-auth-secret` (dev stack: `dev-turn-shared-secret`). |
+
+Voice metrics on `/internal/metrics`: `sr_voice_rooms`, `sr_voice_participants`, `sr_voice_egress_bits_per_second`, `sr_voice_ingress_bits_per_second`, `sr_voice_packet_loss_ratio`, `sr_voice_forwarded_packets_total`. Voice state is held in memory on the node; see `docs/specs/lounge-voice-video.md` section 4.
 
 ## Graceful shutdown
 
