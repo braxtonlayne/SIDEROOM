@@ -6,6 +6,7 @@ import { LiveRegions } from './a11y/announcer';
 import { initLocale } from './i18n';
 import { PwaHost } from './pwa/PwaHost';
 import { registerServiceWorker } from './pwa/register';
+import { ReportUnavailableDialog } from './moderation/reports';
 import { MiniPlayerMount } from './cinema/player/MiniPlayerMount';
 import { VoiceBridge } from './lounge/voice/VoiceBridge';
 import { createAppRouter } from './router';
@@ -24,6 +25,7 @@ void initLocale().finally(() => {
         <RouterProvider router={router} />
         <PwaHost />
         <LiveRegions />
+        <ReportUnavailableDialog />
         {/* Outside the router so a voice call survives leaving the Lounge (VOX-CLI-010). */}
         <VoiceBridge />
         {/* Same reason: the Cinema mini player keeps playing across routes (CIN-PLY-011). */}

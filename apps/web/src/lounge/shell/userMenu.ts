@@ -7,6 +7,7 @@ import { useLoungeUi } from '../store';
 import { blockUser, createDm, ignoreUser, removeRelationship } from './api';
 import { rememberDm } from './dm';
 import { friendsOf, useSocial } from './social';
+import { entryList, useReportEntry } from '../../moderation/reports';
 
 /**
  * DM an invite to a channel's server to one person. The invite never leaves the platform, so it uses the
@@ -31,6 +32,7 @@ export function useUserMenuEntries(user: { id: string; name: string } | undefine
   const guilds = useGuilds();
   const channelsByGuild = useAllChannels();
   const relationships = useSocial((s) => s.relationships);
+  const reportEntry = useReportEntry();
   const openDialog = useLoungeUi((s) => s.openDialog);
   if (!user) return { note: null, invite: null, relationship: [] as MenuEntry[] };
   const isFriend = friendsOf(relationships).some((r) => r.id === user.id);
@@ -68,6 +70,7 @@ export function useUserMenuEntries(user: { id: string; name: string } | undefine
       : []),
     { label: 'Ignore', onSelect: () => after(ignoreUser(user.id)) },
     { label: 'Block', danger: true, onSelect: () => after(blockUser(user.id)) },
+    ...entryList(reportEntry({ kind: 'user', id: user.id })),
   ];
   return { note, invite, relationship };
 }

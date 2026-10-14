@@ -4,6 +4,7 @@ import { useLoungeActions, type Channel, type Guild } from '../data';
 import { useLoungeUi } from '../store';
 import { applyChannelMoves } from './channelActions';
 import { canStep, planStep } from './channelMoves';
+import { entryList, useReportEntry } from '../../moderation/reports';
 import { isMuted, MUTE_DURATIONS, useNotifSettings } from './notifSettings';
 
 const TYPE_NUM: Record<Channel['type'], number> = {
@@ -24,6 +25,7 @@ export function useChannelMenu(
   channels: Channel[],
   onError: (message: string) => void,
 ): MenuEntry[] {
+  const reportEntry = useReportEntry();
   const openDialog = useLoungeUi((s) => s.openDialog);
   const toggleCategory = useLoungeUi((s) => s.toggleCategory);
   const collapsed = useLoungeUi((s) => !!s.collapsedCategories[channel.id]);
@@ -180,6 +182,7 @@ export function useChannelMenu(
     moveUp,
     moveDown,
     remove,
+    ...entryList(reportEntry({ kind: 'channel', id: channel.id })),
     { type: 'separator' },
     { label: 'Copy Channel ID', onSelect: () => void navigator.clipboard?.writeText(channel.id) },
   ];

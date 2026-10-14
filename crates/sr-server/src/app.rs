@@ -288,6 +288,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     registry
         .register(crate::rich_jobs::UnfurlFeature)
         .context("registering the unfurl feature")?;
+    registry
+        .register(sr_features::ModerationReportsFeature)
+        .context("registering the moderation.reports feature")?;
     let registry = Arc::new(registry);
     let features = FeatureService::new(
         registry.clone(),
