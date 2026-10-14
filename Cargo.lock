@@ -4043,6 +4043,7 @@ checksum = "16a1cfa75cc186dd73d5818e510e042e40927bccc9c236b061cea97e1eb08029"
 dependencies = [
  "base64 0.23.1",
  "bytes",
+ "futures-channel",
  "futures-core",
  "futures-util",
  "h2",
@@ -4060,6 +4061,8 @@ dependencies = [
  "rustls",
  "rustls-pki-types",
  "rustls-platform-verifier",
+ "serde",
+ "serde_json",
  "sync_wrapper",
  "tokio",
  "tokio-rustls",
@@ -5272,6 +5275,18 @@ dependencies = [
 [[package]]
 name = "sr-media"
 version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "http-body-util",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "sr-storage",
+ "thiserror 2.0.21",
+ "tokio",
+ "tower",
+]
 
 [[package]]
 name = "sr-payments"
@@ -5401,6 +5416,16 @@ dependencies = [
 [[package]]
 name = "sr-transcoder"
 version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "reqwest 0.13.5",
+ "serde",
+ "serde_json",
+ "sr-media",
+ "thiserror 2.0.21",
+ "tokio",
+]
 
 [[package]]
 name = "sr-tv"
