@@ -35,7 +35,7 @@ import { InviteGraphSection } from './sections/InviteGraph';
 import { InvitesSection } from './sections/Invites';
 import { LimitsSection } from './sections/Limits';
 import { StaffSection } from './sections/Staff';
-import { ReviewSection } from './sections/Review';
+import { ReviewHubSection } from './sections/ReviewHub';
 import { JobsSection, SystemSection } from './sections/System';
 import { AdminViewerContext, Loading, errorText, makeViewer, type AdminViewer } from './ui';
 
@@ -99,11 +99,12 @@ export const ADMIN_SECTIONS: SectionDef[] = [
         v.perms,
         'REVIEW_MEDIA',
         'REVIEW_READING',
+        'DELETE_CONTENT',
         'REVIEW_APPS',
         'REVIEW_PACKAGES',
         'MANAGE_DIRECTORY',
       ),
-    component: ReviewSection,
+    component: ReviewHubSection,
   },
   {
     id: 'jobs',

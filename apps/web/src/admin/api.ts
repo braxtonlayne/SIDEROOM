@@ -372,3 +372,88 @@ export interface InviteDescendants {
 }
 export const getInviteDescendants = (accountId: string, depth: number) =>
   get<InviteDescendants>(`/admin/accounts/${accountId}/invite-descendants${qs({ depth })}`);
+
+// ---- developer app review (REVIEW_APPS) ----
+
+export interface DeveloperRequest {
+  id: string;
+  account_id: string;
+  state: string;
+  pitch: string;
+  prior_work: string;
+  created_at: string;
+  reviewed_at?: string | null;
+  reviewer_note?: string | null;
+  account: { id: string; username?: string | null; global_name?: string | null; bot?: boolean };
+}
+export const listDeveloperRequests = (p: { state?: string; before?: string | null } = {}) =>
+  get<DeveloperRequest[]>(`/admin/developers/requests${qs({ ...p, limit: 50 })}`);
+export const decideDeveloperRequest = (id: string, approve: boolean, note: string) =>
+  send<DeveloperRequest>(`/admin/developers/requests/${id}/decision`, 'POST', {
+    approve,
+    note: note || null,
+  });
+
+export interface AppVersion {
+  id: string;
+  application_id: string;
+  version: number;
+  state: string;
+  manifest: unknown;
+  needs_review: boolean;
+  needs_review_reasons: string[];
+  diff: { key: string; old?: unknown; new?: unknown }[];
+  note?: string | null;
+  reviewer_note?: string | null;
+  created_at: string;
+  decided_at?: string | null;
+  application: { id: string; name: string; owner_id: string };
+}
+export type VersionDecision = 'approve' | 'reject' | 'request_changes';
+export const listAppVersions = (p: { state?: string; before?: string | null } = {}) =>
+  get<AppVersion[]>(`/admin/developers/versions${qs({ ...p, limit: 50 })}`);
+export const decideAppVersion = (id: string, decision: VersionDecision, note: string) =>
+  send<AppVersion>(`/admin/developers/versions/${id}/decision`, 'POST', {
+    decision,
+    note: note || null,
+    approved_intents: [],
+  });
+
+// ---- cinema report queue (DELETE_CONTENT) ----
+
+export interface CinemaReport {
+  id: string;
+  reporter_id: string;
+  target_kind: 'review' | 'comment';
+  target_id: string;
+  reason: string;
+  status: 'open' | 'actioned' | 'dismissed';
+  created_at_ms: number;
+  content?: {
+    title_id: string;
+    episode_id?: string | null;
+    author_id: string;
+    excerpt: string;
+    hidden: boolean;
+    created_at_ms: number;
+  } | null;
+}
+export const listCinemaReports = (p: { status?: string; before?: string | null } = {}) =>
+  get<{ items: CinemaReport[]; next_before?: string | null }>(
+    `/admin/cinema/reports${qs({ ...p, limit: 24 })}`,
+  );
+export const resolveCinemaReport = (
+  id: string,
+  status: 'open' | 'actioned' | 'dismissed',
+  reason: string,
+) => send<void>(`/admin/cinema/reports/${id}/resolve`, 'POST', { status, reason: reason || null });
+export const hideCinemaContent = (
+  kind: 'review' | 'comment',
+  id: string,
+  hidden: boolean,
+  reason: string,
+) =>
+  send<void>(`/admin/cinema/${kind === 'review' ? 'reviews' : 'comments'}/${id}/hidden`, 'PUT', {
+    hidden,
+    reason: reason || null,
+  });

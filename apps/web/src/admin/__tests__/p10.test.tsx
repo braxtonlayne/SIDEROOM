@@ -385,3 +385,98 @@ describe('invite graph', () => {
     expect(await screen.findByText('This account has not invited anyone yet.')).toBeInTheDocument();
   });
 });
+
+describe('review queues hub', () => {
+  it('shows only the tabs the staff role may work', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'REVIEW_APPS', 'DELETE_CONTENT'] });
+    server.use(
+      http.get('*/api/v1/admin/developers/requests', () => HttpResponse.json([])),
+      http.get('*/api/v1/admin/developers/versions', () => HttpResponse.json([])),
+      http.get('*/api/v1/admin/cinema/reports', () =>
+        HttpResponse.json({ items: [], next_before: null }),
+      ),
+    );
+    openAdmin('review');
+    await screen.findByRole('tab', { name: 'Apps' });
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Cinema', 'Apps']);
+  });
+
+  it('approves a developer application with a note', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'REVIEW_APPS'] });
+    let sent: unknown;
+    server.use(
+      http.get('*/api/v1/admin/developers/requests', () =>
+        HttpResponse.json([
+          {
+            id: '5',
+            account_id: '100',
+            state: 'pending',
+            pitch: 'A music bot',
+            prior_work: '',
+            created_at: '2026-01-02T00:00:00Z',
+            account: { id: '100', username: 'botmaker' },
+          },
+        ]),
+      ),
+      http.get('*/api/v1/admin/developers/versions', () => HttpResponse.json([])),
+      http.post('*/api/v1/admin/developers/requests/5/decision', async ({ request }) => {
+        sent = await readJson(request);
+        return HttpResponse.json({});
+      }),
+    );
+    openAdmin('review');
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole('button', { name: 'Approve application from @botmaker' }),
+    );
+    const dialog = await screen.findByRole('dialog', {
+      name: /Approve this developer application/,
+    });
+    await user.type(within(dialog).getByLabelText(/Note to the developer/), 'welcome');
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+    await waitFor(() => expect(sent).toEqual({ approve: true, note: 'welcome' }));
+    expect(await screen.findByText('Decision recorded.')).toBeInTheDocument();
+  });
+
+  it('hides reported cinema content with the report closing as actioned by the server', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'DELETE_CONTENT'] });
+    let sent: unknown;
+    server.use(
+      http.get('*/api/v1/admin/cinema/reports', () =>
+        HttpResponse.json({
+          items: [
+            {
+              id: '8',
+              reporter_id: '2',
+              target_kind: 'review',
+              target_id: '77',
+              reason: 'spoilers',
+              status: 'open',
+              created_at_ms: 1_700_000_000_000,
+              content: {
+                title_id: '3',
+                author_id: '4',
+                excerpt: 'He was the killer all along',
+                hidden: false,
+                created_at_ms: 1,
+              },
+            },
+          ],
+          next_before: null,
+        }),
+      ),
+      http.put('*/api/v1/admin/cinema/reviews/77/hidden', async ({ request }) => {
+        sent = await readJson(request);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    openAdmin('review');
+    const user = userEvent.setup();
+    expect(await screen.findByText('He was the killer all along')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Hide the content of report 8' }));
+    const dialog = await screen.findByRole('dialog', { name: /Hide reported content/ });
+    await user.type(within(dialog).getByLabelText(/Reason/), 'spoiler');
+    await user.click(within(dialog).getByRole('button', { name: 'Hide' }));
+    await waitFor(() => expect(sent).toEqual({ hidden: true, reason: 'spoiler' }));
+  });
+});
