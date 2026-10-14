@@ -29,8 +29,8 @@ pub(super) async fn issue_recovery_codes(
 /// (invalidating the old ones). Requires two-factor to be enabled.
 pub async fn regenerate(
     State(state): State<AppState>,
-    Svc { svc, .. }: Svc,
     UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
     Json(body): Json<PasswordBody>,
 ) -> R<Json<Value>> {
     session_id(&p)?;

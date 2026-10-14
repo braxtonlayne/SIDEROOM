@@ -28,8 +28,8 @@ pub(super) fn session_id(p: &Principal) -> Result<i64, ErrorCode> {
 /// `POST /sr/auth/logout`: revoke the current session and clear the cookie.
 pub async fn logout(
     State(state): State<AppState>,
-    Svc { svc, .. }: Svc,
     UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
 ) -> R<impl IntoResponse> {
     let sid = session_id(&p)?;
     svc.store.revoke_session(p.user_id, sid).await?;
@@ -46,8 +46,8 @@ pub async fn logout(
 /// including this one.
 pub async fn logout_all(
     State(state): State<AppState>,
-    Svc { svc, .. }: Svc,
     UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
 ) -> R<impl IntoResponse> {
     session_id(&p)?;
     svc.store.revoke_sessions_except(p.user_id, None).await?;
@@ -63,8 +63,8 @@ pub async fn logout_all(
 /// `GET /sr/auth/sessions`: the account's live sessions, newest first.
 pub async fn list(
     State(state): State<AppState>,
-    Svc { svc, .. }: Svc,
     UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
 ) -> R<Json<Value>> {
     let current = session_id(&p)?;
     let mut rows = svc.store.list_sessions(p.user_id, state.now_secs()).await?;
@@ -87,8 +87,8 @@ pub async fn list(
 
 /// `DELETE /sr/auth/sessions/{id}`: revoke one of the caller's sessions.
 pub async fn revoke(
-    Svc { svc, .. }: Svc,
     UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
     Path(id): Path<String>,
 ) -> R<StatusCode> {
     session_id(&p)?;

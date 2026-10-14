@@ -82,8 +82,8 @@ fn yes() -> bool {
 )]
 pub async fn change_password(
     State(state): State<AppState>,
-    Svc { svc, .. }: Svc,
     UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
     Json(body): Json<ChangePasswordBody>,
 ) -> R<StatusCode> {
     let current_session = session_id(&p)?;
@@ -163,8 +163,8 @@ pub struct ChangeUsernameBody {
 )]
 pub async fn change_username(
     State(state): State<AppState>,
-    Svc { svc, .. }: Svc,
     UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
     crate::routes::MaybeExt(social): crate::routes::MaybeExt<crate::routes::social::SocialDeps>,
     Json(body): Json<ChangeUsernameBody>,
 ) -> R<Json<Value>> {
@@ -405,8 +405,8 @@ pub async fn cancel_change_email(
 )]
 pub async fn change_email(
     State(state): State<AppState>,
-    Svc { svc, .. }: Svc,
     UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
     Json(body): Json<ChangeEmailBody>,
 ) -> R<StatusCode> {
     let sid = session_id(&p)?;

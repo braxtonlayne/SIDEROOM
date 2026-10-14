@@ -18,8 +18,8 @@ use sr_core::ErrorCode;
 /// `GET /sr/auth/trusted-devices`: the account's live trusted devices.
 pub async fn list(
     State(state): State<AppState>,
-    Svc { svc, .. }: Svc,
     UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
 ) -> R<Json<Value>> {
     session_id(&p)?;
     let rows = svc
@@ -42,8 +42,8 @@ pub async fn list(
 
 /// `DELETE /sr/auth/trusted-devices/{id}`: stop trusting one device.
 pub async fn revoke(
-    Svc { svc, .. }: Svc,
     UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
     Path(id): Path<String>,
 ) -> R<StatusCode> {
     session_id(&p)?;

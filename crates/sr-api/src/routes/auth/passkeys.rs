@@ -448,8 +448,8 @@ pub struct BeginResponse {
 )]
 pub async fn register_begin(
     State(state): State<AppState>,
-    Svc { svc, .. }: Svc,
     UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
     Json(body): Json<PasswordBody>,
 ) -> R<Json<BeginResponse>> {
     let sid = session_id(&p)?;
@@ -547,8 +547,8 @@ pub struct RegisterFinishResponse {
 )]
 pub async fn register_finish(
     State(state): State<AppState>,
-    Svc { svc, .. }: Svc,
     UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
     Json(body): Json<RegisterFinishBody>,
 ) -> R<Json<RegisterFinishResponse>> {
     let sid = session_id(&p)?;
@@ -735,8 +735,8 @@ pub async fn login_begin(
 )]
 pub async fn verify_begin(
     State(state): State<AppState>,
-    Svc { svc, .. }: Svc,
     UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
 ) -> R<Json<BeginResponse>> {
     session_id(&p)?;
     let now = state.now_secs();
@@ -890,7 +890,7 @@ pub(super) async fn check_proof(
     responses((status = 200, body = Vec<PasskeyView>), (status = 403, body = ErrorBody)),
     security(("session" = []))
 )]
-pub async fn list(Svc { svc, .. }: Svc, UserOnly(p): UserOnly) -> R<Json<Vec<PasskeyView>>> {
+pub async fn list(UserOnly(p): UserOnly, Svc { svc, .. }: Svc) -> R<Json<Vec<PasskeyView>>> {
     session_id(&p)?;
     let rows = svc.store.passkey_list(p.user_id).await?;
     Ok(Json(rows.iter().map(view).collect()))
@@ -922,8 +922,8 @@ fn parse_id(id: &str) -> Result<i64, AuthRouteError> {
     security(("session" = []))
 )]
 pub async fn rename(
-    Svc { svc, .. }: Svc,
     UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
     Path(id): Path<String>,
     Json(body): Json<RenameBody>,
 ) -> R<Json<PasskeyView>> {
@@ -960,8 +960,8 @@ pub async fn rename(
 )]
 pub async fn remove(
     State(state): State<AppState>,
-    Svc { svc, .. }: Svc,
     UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
     Path(id): Path<String>,
     Json(body): Json<PasswordBody>,
 ) -> R<StatusCode> {
