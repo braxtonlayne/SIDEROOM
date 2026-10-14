@@ -10,6 +10,7 @@ use super::audit::{AuditEntry, AuditQuery};
 use super::automod::AutoModRule;
 use super::community::{CommunitySettings, Onboarding, WelcomeScreen};
 use super::expressions::{Emoji, Sticker};
+use super::guide::Guide;
 use super::insights::Insights;
 use super::invites::GuildInvite;
 use super::tags::GuildTag;
@@ -112,6 +113,13 @@ pub trait TagRepository: Send + Sync {
 }
 
 #[async_trait]
+pub trait GuideRepository: Send + Sync {
+    /// An empty guide when nothing was saved yet.
+    async fn get_guide(&self, guild: GuildId) -> RepoResult<Guide>;
+    async fn put_guide(&self, guide: &Guide) -> RepoResult<()>;
+}
+
+#[async_trait]
 pub trait InsightsRepository: Send + Sync {
     /// The last `days` completed UTC days before `now_ms` and the busiest channels in
     /// them.
@@ -129,6 +137,7 @@ pub trait SettingsRepository:
     + CommunityRepository
     + TagRepository
     + InsightsRepository
+    + GuideRepository
 {
 }
 impl<
@@ -140,7 +149,8 @@ impl<
         + TemplateRepository
         + CommunityRepository
         + TagRepository
-        + InsightsRepository,
+        + InsightsRepository
+        + GuideRepository,
 > SettingsRepository for T
 {
 }

@@ -162,3 +162,57 @@ impl<R: SettingsRepository> SettingsService<R> {
         Ok(self.repo.insights(guild, days, self.now()).await?)
     }
 }
+
+impl<R: SettingsRepository> SettingsService<R> {
+    /// The Server Guide content (empty until saved).
+    pub async fn guide(&self, guild: GuildId) -> SettingsResult<super::super::guide::Guide> {
+        Ok(self.repo.get_guide(guild).await?)
+    }
+
+    /// Replace the Server Guide content (`MANAGE_GUILD`).
+    pub async fn save_guide(
+        &self,
+        perms: Permissions,
+        actor: UserId,
+        guide: super::super::guide::Guide,
+    ) -> SettingsResult<super::super::guide::Guide> {
+        require_manage(perms)?;
+        let guide = super::super::guide::validate_guide(guide)?;
+        let old = self.repo.get_guide(guide.guild_id).await?;
+        self.repo.put_guide(&guide).await?;
+        if old != guide {
+            let mut changes = Vec::new();
+            if old.welcome_message != guide.welcome_message {
+                changes.push(AuditChange::new(
+                    "guide_welcome_message",
+                    old.welcome_message.map(Into::into),
+                    guide.welcome_message.clone().map(Into::into),
+                ));
+            }
+            if old.todos != guide.todos {
+                changes.push(AuditChange::new(
+                    "guide_todos",
+                    Some(old.todos.len().into()),
+                    Some(guide.todos.len().into()),
+                ));
+            }
+            if old.resources != guide.resources {
+                changes.push(AuditChange::new(
+                    "guide_resources",
+                    Some(old.resources.len().into()),
+                    Some(guide.resources.len().into()),
+                ));
+            }
+            self.record_audit(
+                guide.guild_id,
+                actor,
+                AuditAction::GuildUpdate,
+                Some(guide.guild_id.get()),
+                changes,
+                None,
+            )
+            .await?;
+        }
+        Ok(guide)
+    }
+}

@@ -2445,3 +2445,44 @@ async fn insights_need_a_manager_or_the_insights_permission() {
     assert_eq!(body["days"], json!([]));
     assert_eq!(body["top_channels"], json!([]));
 }
+
+#[tokio::test]
+async fn server_guide_is_edited_by_managers_and_read_by_members_while_enabled() {
+    let e = env().await;
+    let url = e.g("/sr/guide");
+    let body = json!({
+        "welcome_message": "Welcome aboard",
+        "todos": [{"title": "Say hi", "channel_id": e.ch.to_string()}],
+        "resources": [{"title": "Rules", "content": "Be kind."}],
+    });
+    assert_eq!(
+        e.put(&url, "bob", body.clone()).await.0,
+        StatusCode::FORBIDDEN
+    );
+    let (s, g) = e
+        .put(
+            &url,
+            "mod",
+            json!({"todos": [{"title": "x", "channel_id": "123"}]}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{g}");
+    let (s, g) = e.put(&url, "mod", body).await;
+    assert_eq!(s, StatusCode::OK, "{g}");
+    assert!(g["todos"][0]["id"].is_string());
+    assert_eq!(g["resources"][0]["content"], "Be kind.");
+    assert_eq!(g["enabled"], false);
+
+    // Hidden from members until the guide is switched on.
+    assert_eq!(e.get(&url, "bob").await.0, StatusCode::FORBIDDEN);
+    assert_eq!(e.get(&url, "mod").await.0, StatusCode::OK);
+    let (s, _) = e
+        .patch(&e.g("/sr/community"), "mod", json!({"guide_enabled": true}))
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    let (s, g) = e.get(&url, "bob").await;
+    assert_eq!(s, StatusCode::OK, "{g}");
+    assert_eq!(g["welcome_message"], "Welcome aboard");
+    assert_eq!(g["enabled"], true);
+    assert_eq!(e.get(&url, "carol").await.0, StatusCode::FORBIDDEN);
+}

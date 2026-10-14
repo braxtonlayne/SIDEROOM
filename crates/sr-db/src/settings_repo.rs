@@ -16,10 +16,11 @@ use sr_chat::settings::community::{
     CommunitySettings, Onboarding, OnboardingPrompt, WelcomeChannel, WelcomeScreen,
 };
 use sr_chat::settings::expressions::{Emoji, Sticker, StickerFormat};
+use sr_chat::settings::guide::{Guide, GuideResource, GuideTodo};
 use sr_chat::settings::insights::{Insights, InsightsDay, TOP_CHANNELS, TopChannel};
 use sr_chat::settings::invites::GuildInvite;
 use sr_chat::settings::repo::{
-    AuditRepository, AutoModRepository, CommunityRepository, ExpressionRepository,
+    AuditRepository, AutoModRepository, CommunityRepository, ExpressionRepository, GuideRepository,
     InsightsRepository, InviteRepository, TagRepository, TemplateRepository, WebhookRepository,
 };
 use sr_chat::settings::tags::GuildTag;
@@ -1275,4 +1276,48 @@ pub async fn compute_insights_day(pool: &PgPool, day_start_ms: i64) -> RepoResul
     }
     tx.commit().await.map_err(db)?;
     Ok(n)
+}
+
+#[async_trait]
+impl GuideRepository for PgSettingsRepo {
+    async fn get_guide(&self, guild: GuildId) -> RepoResult<Guide> {
+        let row = sqlx::query(
+            "SELECT welcome_message, todos, resources FROM guild_guides WHERE guild_id = $1",
+        )
+        .bind(i(guild.get()))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        let Some(r) = row else {
+            return Ok(Guide {
+                guild_id: guild,
+                ..Guide::default()
+            });
+        };
+        let todos: Json<Vec<GuideTodo>> = get(&r, "todos")?;
+        let resources: Json<Vec<GuideResource>> = get(&r, "resources")?;
+        Ok(Guide {
+            guild_id: guild,
+            welcome_message: get(&r, "welcome_message")?,
+            todos: todos.0,
+            resources: resources.0,
+        })
+    }
+
+    async fn put_guide(&self, g: &Guide) -> RepoResult<()> {
+        sqlx::query(
+            "INSERT INTO guild_guides (guild_id, welcome_message, todos, resources) \
+             VALUES ($1, $2, $3, $4) \
+             ON CONFLICT (guild_id) DO UPDATE SET welcome_message = EXCLUDED.welcome_message, \
+               todos = EXCLUDED.todos, resources = EXCLUDED.resources, updated_at = now()",
+        )
+        .bind(i(g.guild_id.get()))
+        .bind(g.welcome_message.as_deref())
+        .bind(Json(&g.todos))
+        .bind(Json(&g.resources))
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
 }

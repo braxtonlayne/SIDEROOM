@@ -489,3 +489,45 @@ async fn insights_are_computed_per_day_and_read_back() {
     let earlier = repo.insights(gid, 7, day_start_ms).await.unwrap();
     assert!(earlier.days.is_empty());
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn guide_round_trips() {
+    use sr_chat::settings::guide::{Guide, GuideResource, GuideTodo};
+    use sr_chat::settings::repo::GuideRepository;
+
+    let pool = pool().await;
+    let test_ids = ids(9);
+    let repo = PgSettingsRepo::new(pool.clone());
+    let (gid, general, _) = guild(&pool, &test_ids).await;
+    assert_eq!(
+        repo.get_guide(gid).await.unwrap(),
+        Guide {
+            guild_id: gid,
+            ..Guide::default()
+        }
+    );
+    let g = Guide {
+        guild_id: gid,
+        welcome_message: Some("hello".into()),
+        todos: vec![GuideTodo {
+            id: 7,
+            title: "Say hi".into(),
+            description: Some("in general".into()),
+            channel_id: Some(general),
+        }],
+        resources: vec![GuideResource {
+            id: 8,
+            title: "Rules".into(),
+            content: "# Rules".into(),
+        }],
+    };
+    repo.put_guide(&g).await.unwrap();
+    assert_eq!(repo.get_guide(gid).await.unwrap(), g);
+    let cleared = Guide {
+        guild_id: gid,
+        ..Guide::default()
+    };
+    repo.put_guide(&cleared).await.unwrap();
+    assert_eq!(repo.get_guide(gid).await.unwrap(), cleared);
+}

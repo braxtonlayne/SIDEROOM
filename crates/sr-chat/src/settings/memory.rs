@@ -14,7 +14,7 @@ use super::community::{CommunitySettings, Onboarding, WelcomeScreen};
 use super::expressions::{Emoji, Sticker};
 use super::invites::{GuildInvite, InviteStatus};
 use super::repo::{
-    AuditRepository, AutoModRepository, CommunityRepository, ExpressionRepository,
+    AuditRepository, AutoModRepository, CommunityRepository, ExpressionRepository, GuideRepository,
     InsightsRepository, InviteRepository, TagRepository, TemplateRepository, WebhookRepository,
 };
 use super::tags::GuildTag;
@@ -37,6 +37,7 @@ pub struct Store {
     pub tags: HashMap<GuildId, GuildTag>,
     pub primary_guilds: HashMap<UserId, GuildId>,
     pub insights: HashMap<GuildId, super::insights::Insights>,
+    pub guides: HashMap<GuildId, super::guide::Guide>,
 }
 
 #[derive(Default)]
@@ -401,6 +402,26 @@ impl CommunityRepository for MemorySettingsRepo {
 
     async fn put_welcome_screen(&self, screen: &WelcomeScreen) -> RepoResult<()> {
         self.with(|s| s.welcome.insert(screen.guild_id, screen.clone()));
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl GuideRepository for MemorySettingsRepo {
+    async fn get_guide(&self, guild: GuildId) -> RepoResult<super::guide::Guide> {
+        Ok(self.with(|s| {
+            s.guides
+                .get(&guild)
+                .cloned()
+                .unwrap_or(super::guide::Guide {
+                    guild_id: guild,
+                    ..Default::default()
+                })
+        }))
+    }
+
+    async fn put_guide(&self, guide: &super::guide::Guide) -> RepoResult<()> {
+        self.with(|s| s.guides.insert(guide.guild_id, guide.clone()));
         Ok(())
     }
 }
