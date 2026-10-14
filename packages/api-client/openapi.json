@@ -50306,6 +50306,10 @@
           "id": {
             "type": "string"
           },
+          "is_staff_guild": {
+            "type": "boolean",
+            "description": "Present (true) on the platform's Staff Server only (ADM-STF-010); clients frame it\nin the rail and show the staff badge."
+          },
           "name": {
             "type": "string"
           },
@@ -50376,6 +50380,10 @@
           },
           "id": {
             "type": "string"
+          },
+          "is_staff_guild": {
+            "type": "boolean",
+            "description": "Present (true) on the platform's Staff Server only (ADM-STF-010); clients frame it\nin the rail and show the staff badge."
           },
           "name": {
             "type": "string"

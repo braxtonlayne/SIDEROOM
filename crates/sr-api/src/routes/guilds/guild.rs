@@ -310,6 +310,7 @@ pub async fn list_my_guilds(
                 owner: g.owner_id == user,
                 permissions: perms.bits().to_string(),
                 features: Vec::new(),
+                is_staff_guild: g.is_staff_guild,
             })
             .collect(),
     ))

@@ -1002,6 +1002,37 @@ async fn overwrite_audit_tells_create_update_and_clear_apart() {
     );
 }
 
+/// The Staff Server says so in its payloads (ADM-STF-010); GUILD_CREATE uses the same
+/// `GuildObject`. Ordinary servers omit the field.
+#[tokio::test]
+async fn staff_server_is_flagged_in_guild_payloads() {
+    let f = fixture();
+    let (gid, created) = guild(&f).await;
+    assert!(created.get("is_staff_guild").is_none(), "{created}");
+    let (_, list) = get(&f, "/users/@me/guilds", "owner").await;
+    assert!(list[0].get("is_staff_guild").is_none(), "{list}");
+
+    f.repo
+        .store
+        .lock()
+        .unwrap()
+        .guilds
+        .get_mut(&GuildId::new(gid.parse().unwrap()))
+        .unwrap()
+        .is_staff_guild = true;
+    let (s, g) = get(&f, &format!("/guilds/{gid}"), "owner").await;
+    assert_eq!(s, StatusCode::OK, "{g}");
+    assert_eq!(g["is_staff_guild"], true);
+    let (_, list) = get(&f, "/users/@me/guilds", "bob").await;
+    let entry = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["id"] == gid.as_str())
+        .unwrap();
+    assert_eq!(entry["is_staff_guild"], true);
+}
+
 fn png_uri(w: u32, h: u32, seed: u8) -> String {
     let img = image::RgbaImage::from_fn(w, h, |x, y| {
         image::Rgba([(x % 255) as u8, (y % 255) as u8, seed, 255])

@@ -398,6 +398,10 @@ pub struct GuildObject {
     pub explicit_content_filter: u8,
     pub preferred_locale: String,
     pub features: Vec<String>,
+    /// Present (true) on the platform's Staff Server only (ADM-STF-010); clients frame it
+    /// in the rail and show the staff badge.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub is_staff_guild: bool,
     /// Vanity invite code (LNG-INV-004).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vanity_url_code: Option<String>,
@@ -425,6 +429,7 @@ impl GuildObject {
             explicit_content_filter: g.explicit_content_filter,
             preferred_locale: g.preferred_locale.clone(),
             features: Vec::new(),
+            is_staff_guild: g.is_staff_guild,
             vanity_url_code: g.vanity_code.clone(),
             roles: roles.map(|r| r.iter().map(RoleObject::from).collect()),
             channels: channels.map(<[ChannelObject]>::to_vec),
@@ -441,6 +446,10 @@ pub struct GuildPreviewObject {
     pub owner: bool,
     pub permissions: String,
     pub features: Vec<String>,
+    /// Present (true) on the platform's Staff Server only (ADM-STF-010); clients frame it
+    /// in the rail and show the staff badge.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub is_staff_guild: bool,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]

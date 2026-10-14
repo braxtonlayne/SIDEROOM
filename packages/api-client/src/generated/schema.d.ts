@@ -10531,6 +10531,11 @@ export interface components {
             /** @description Icon hash: `/cdn/icons/{id}/{hash}.png` (`a_` prefix = animated). */
             icon?: string | null;
             id: string;
+            /**
+             * @description Present (true) on the platform's Staff Server only (ADM-STF-010); clients frame it
+             *     in the rail and show the staff badge.
+             */
+            is_staff_guild?: boolean;
             name: string;
             owner_id: string;
             preferred_locale: string;
@@ -10548,6 +10553,11 @@ export interface components {
             features: string[];
             icon?: string | null;
             id: string;
+            /**
+             * @description Present (true) on the platform's Staff Server only (ADM-STF-010); clients frame it
+             *     in the rail and show the staff badge.
+             */
+            is_staff_guild?: boolean;
             name: string;
             owner: boolean;
             permissions: string;
