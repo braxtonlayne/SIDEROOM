@@ -127,6 +127,8 @@ pub trait AppsRepository: Send + Sync {
     async fn create_application(&self, new: NewApplication) -> AppsResult<Application>;
     /// One application.
     async fn application(&self, id: i64) -> AppsResult<Option<Application>>;
+    /// The application whose bot account is `bot_user`.
+    async fn application_by_bot(&self, bot_user: i64) -> AppsResult<Option<Application>>;
     /// The owner's applications, oldest first.
     async fn applications_of(&self, owner: i64) -> AppsResult<Vec<Application>>;
     /// Apply a validated patch (renaming also renames the bot's display name).

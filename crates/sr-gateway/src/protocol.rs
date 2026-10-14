@@ -48,6 +48,8 @@ pub mod close {
     pub const NOT_AUTHENTICATED: u16 = 4003;
     pub const AUTHENTICATION_FAILED: u16 = 4004;
     pub const ALREADY_AUTHENTICATED: u16 = 4005;
+    /// IDENTIFY named a shard other than `[0, 1]` (this server does not shard).
+    pub const INVALID_SHARD: u16 = 4010;
     pub const SESSION_TIMED_OUT: u16 = 4009;
     /// More than 120 client ops within 60 s on one connection.
     pub const RATE_LIMITED: u16 = 4008;
@@ -155,6 +157,9 @@ pub struct Identify {
     pub properties: Value,
     #[serde(default)]
     pub presence: Option<PresenceUpdate>,
+    /// `[shard_id, shard_count]`; only `[0, 1]` is accepted (no sharding).
+    #[serde(default)]
+    pub shard: Option<Vec<u32>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -317,6 +317,15 @@ impl AppsRepository for MemoryAppsRepo {
         Ok(self.st().apps.get(&id).cloned())
     }
 
+    async fn application_by_bot(&self, bot_user: i64) -> AppsResult<Option<Application>> {
+        Ok(self
+            .st()
+            .apps
+            .values()
+            .find(|a| a.bot_user_id == bot_user)
+            .cloned())
+    }
+
     async fn applications_of(&self, owner: i64) -> AppsResult<Vec<Application>> {
         Ok(self
             .st()

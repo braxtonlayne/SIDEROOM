@@ -28,17 +28,61 @@ use std::sync::Arc;
 
 type BuildResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-/// Resolves a gateway token or `sr_session` cookie to a user. Bot tokens wait for
-/// the application tables (see `backends`).
+/// Resolves a gateway token or `sr_session` cookie to a user. A token with dots in it is a bot
+/// token (`base64url(id).base64url(issued).base64url(secret)`, open question 56): it is checked
+/// against the application store, which also decides the privileged intents it may use.
 pub struct PgAuthenticator {
     auth: PgAuthRepo,
     pool: PgPool,
     clock: Arc<dyn Clock>,
+    apps: Option<Arc<sr_apps::AppsService>>,
 }
 
 impl PgAuthenticator {
     pub fn new(auth: PgAuthRepo, pool: PgPool, clock: Arc<dyn Clock>) -> Self {
-        Self { auth, pool, clock }
+        Self {
+            auth,
+            pool,
+            clock,
+            apps: None,
+        }
+    }
+
+    /// Accept bot tokens (without it every bot IDENTIFY is refused).
+    pub fn with_apps(mut self, apps: Arc<sr_apps::AppsService>) -> Self {
+        self.apps = Some(apps);
+        self
+    }
+
+    async fn resolve_bot(&self, token: &str) -> Result<AuthedUser, AuthError> {
+        let apps = self.apps.as_ref().ok_or(AuthError::Invalid)?;
+        let bot = apps
+            .gateway_bot(token)
+            .await
+            .map_err(unavailable)?
+            .ok_or(AuthError::Invalid)?;
+        let row = sqlx::query(
+            "SELECT username::text AS username, display_name, avatar_key FROM accounts \n             WHERE id = $1 AND state = 'active' AND is_bot",
+        )
+        .bind(bot.user_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(unavailable)?
+        .ok_or(AuthError::Invalid)?;
+        let user_id = UserId::new(bot.user_id as u64);
+        Ok(AuthedUser {
+            user_id,
+            bot: true,
+            allowed_privileged_intents: bot.allowed_intents,
+            user: json!({
+                "id": user_id.to_string(),
+                "username": row.try_get::<String, _>("username").map_err(unavailable)?,
+                "global_name": row.try_get::<Option<String>, _>("display_name").map_err(unavailable)?,
+                "avatar": row.try_get::<Option<String>, _>("avatar_key").map_err(unavailable)?,
+                "discriminator": "0",
+                "bot": true,
+            }),
+        })
     }
 
     async fn resolve(&self, token: &SessionToken) -> Result<AuthedUser, AuthError> {
@@ -85,8 +129,10 @@ fn unavailable(e: impl std::fmt::Display) -> AuthError {
 #[async_trait]
 impl Authenticator for PgAuthenticator {
     async fn authenticate(&self, token: &str) -> Result<AuthedUser, AuthError> {
-        if token.starts_with("Bot ") {
-            return Err(AuthError::Invalid);
+        // Libraries send the bare token; tolerate the REST header form too.
+        let token = token.strip_prefix("Bot ").unwrap_or(token);
+        if token.contains('.') {
+            return self.resolve_bot(token).await;
         }
         let token = SessionToken::parse(token).ok_or(AuthError::Invalid)?;
         self.resolve(&token).await
@@ -106,6 +152,7 @@ pub struct PgGuildDirectory {
     chat: PgChatRepo,
     social: PgSocialRepo,
     clock: Arc<dyn Clock>,
+    apps: Option<Arc<sr_apps::AppsService>>,
 }
 
 impl PgGuildDirectory {
@@ -115,7 +162,14 @@ impl PgGuildDirectory {
             social: PgSocialRepo::new(pool.clone()),
             pool,
             clock,
+            apps: None,
         }
+    }
+
+    /// Lets READY describe a bot's application (`application: {id, flags}`).
+    pub fn with_apps(mut self, apps: Arc<sr_apps::AppsService>) -> Self {
+        self.apps = Some(apps);
+        self
     }
 
     /// GUILD_CREATE body: guild object, `channels`, `roles`, `threads`, and `members`
@@ -222,6 +276,14 @@ impl PgGuildDirectory {
     /// READY extras from the social repositories: DM `private_channels`,
     /// `relationships` (friends, blocks, pending requests) and `read_state`.
     async fn build_ready_extras(&self, user: UserId) -> BuildResult<Value> {
+        // A bot's READY carries its application and none of a person's private state.
+        if let Some(apps) = &self.apps
+            && let Some(app) = apps.application_of_bot(user.get() as i64).await?
+        {
+            return Ok(json!({
+                "application": { "id": app.id.to_string(), "flags": app.flags() },
+            }));
+        }
         // Full `recipients` user objects (everyone but the viewer), the same shape as
         // `GET /users/@me/channels` and the DM `CHANNEL_CREATE` (D-181).
         let dms = self.social.list_dms(user, false).await?;

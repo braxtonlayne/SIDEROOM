@@ -354,6 +354,11 @@ impl AppsService {
             .ok_or(AppsError::NotFound("application"))
     }
 
+    /// The application a bot account belongs to.
+    pub async fn application_of_bot(&self, bot_user: i64) -> AppsResult<Option<Application>> {
+        self.repo.application_by_bot(bot_user).await
+    }
+
     /// The owner's applications.
     pub async fn applications_of(&self, owner: i64) -> AppsResult<Vec<Application>> {
         self.repo.applications_of(owner).await

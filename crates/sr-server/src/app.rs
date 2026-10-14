@@ -48,7 +48,6 @@ use std::{future::Future, net::SocketAddr, sync::Arc, time::Duration};
 use tokio::{net::TcpListener, sync::watch, task::JoinHandle};
 
 use crate::{
-    backends::{NoBearers, NoBots},
     features_store::PgSettingsStore,
     gateway_pg::{PgAuthenticator, PgGuildDirectory},
     ready::{DbReady, StorageReady},
@@ -251,6 +250,25 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             .map_err(|e| anyhow::anyhow!("configuring [discord]: {e}"))?
     };
     let auth_service = Arc::new(auth_service);
+
+    // The developer platform: applications, bot tokens, OAuth2, commands, interactions. Bot
+    // and bearer credentials authenticate against its stores (open question 56).
+    let apps_service = Arc::new(sr_apps::AppsService::new(
+        Arc::new(sr_db::apps_repo::PgAppsRepo::new(pool.clone())),
+        clock.clone(),
+        id_src.clone(),
+    ));
+    let apps_auth = Arc::new(sr_apps::auth::AppsAuth::new(apps_service.clone()));
+    let dev_deps = Arc::new(routes::developer::DevDeps::new(
+        (*apps_service).clone(),
+        Arc::new(PgChatRepo::new(pool.clone())),
+        bus.clone(),
+        Arc::new(routes::developer::AuthPasswordConfirm::new(
+            auth_service.clone(),
+        )),
+        clock.clone(),
+        &cfg.server.public_url,
+    ));
 
     let s = &cfg.storage;
     let storage: Arc<dyn ObjectStorage> = Arc::new(
@@ -697,12 +715,13 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             voice: voice_setup.as_ref().map(|v| v.gateway.clone()),
             ..GatewayConfig::default()
         },
-        Arc::new(PgAuthenticator::new(
-            auth_repo.clone(),
-            pool.clone(),
-            clock.clone(),
-        )),
-        Arc::new(PgGuildDirectory::new(pool.clone(), clock.clone())),
+        Arc::new(
+            PgAuthenticator::new(auth_repo.clone(), pool.clone(), clock.clone())
+                .with_apps(apps_service.clone()),
+        ),
+        Arc::new(
+            PgGuildDirectory::new(pool.clone(), clock.clone()).with_apps(apps_service.clone()),
+        ),
         bus.clone(),
     );
     gateway.start();
@@ -753,8 +772,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(auth_service)
         .extension(Arc::new(admin))
         .sessions(Arc::new(auth_repo))
-        .bots(Arc::new(NoBots))
-        .bearers(Arc::new(NoBearers))
+        .bots(apps_auth.clone())
+        .bearers(apps_auth)
+        .extension(dev_deps)
         .openapi(routes::openapi())
         .extension(Arc::new(routes::voice::VoiceApi(Arc::new(
             crate::voice::ServerVoice::new(
@@ -832,6 +852,18 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                 .collect();
             if let Err(e) = sr_db::accounts::touch_last_seen(&seen_pool, &ids).await {
                 tracing::warn!(error = %e, "could not record last-seen times");
+            }
+        }
+    });
+
+    // Interactions and their message mappings outlive their token by a day, then go.
+    let gc_apps = apps_service.clone();
+    let apps_gc_task = tokio::spawn(async move {
+        let mut tick = tokio::time::interval(Duration::from_secs(3600));
+        loop {
+            tick.tick().await;
+            if let Err(e) = gc_apps.purge_interactions().await {
+                tracing::warn!(error = %e, "could not purge expired interactions");
             }
         }
     });
@@ -945,6 +977,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     }
     gauge_task.abort();
     seen_task.abort();
+    apps_gc_task.abort();
     metrics_task.abort();
     search_consumer.abort();
     if let Some(h) = features_listener {

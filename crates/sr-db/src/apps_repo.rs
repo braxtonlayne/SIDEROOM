@@ -545,6 +545,21 @@ impl AppsRepository for PgAppsRepo {
             .transpose()
     }
 
+    async fn application_by_bot(&self, bot_user: i64) -> AppsResult<Option<Application>> {
+        let sql = format!(
+            "SELECT {} FROM applications a WHERE a.bot_user_id = $1",
+            app_cols("a")
+        );
+        sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(bot_user)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db)?
+            .as_ref()
+            .map(app_from)
+            .transpose()
+    }
+
     async fn applications_of(&self, owner: i64) -> AppsResult<Vec<Application>> {
         let sql = format!(
             "SELECT {} FROM applications a WHERE a.owner_id = $1 ORDER BY a.id",

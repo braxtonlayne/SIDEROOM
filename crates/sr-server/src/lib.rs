@@ -43,3 +43,6 @@ mod voice_pg_tests;
 
 #[cfg(test)]
 mod cinema_wiring_pg_tests;
+
+#[cfg(test)]
+mod bot_pg_tests;
