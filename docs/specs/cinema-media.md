@@ -435,6 +435,8 @@ renditions, so a non-owner never learns whether an asset exists. The restricted 
 
 ### 10.1 The trait (what the Postgres implementation must provide)
 
+The port lives in `sr_media::playback` (so `sr-db` or `sr-server` can implement it without depending on `sr-api`), with `MemoryPlaybackSource` and `sample_asset` for tests:
+
 ```rust
 #[async_trait]
 pub trait PlaybackSource: Send + Sync {
@@ -443,13 +445,13 @@ pub trait PlaybackSource: Send + Sync {
 }
 pub struct PlaybackAsset {
     pub id: i64,
-    pub duration_ms: Option<i64>,
-    /// URL path prefix of the asset's files, the CDN kind `hls`: `/cdn/hls/<asset_id>`.
-    pub media: sr_media::playlist::MediaSet,          // video + audio + subtitle variants, segments included
-    pub sprite: Option<sr_media::plan::SpritePlan>,   // None: no scrub thumbnails
+    pub duration_ms: Option<i64>,                      // video_assets.duration_ms
+    pub media: sr_media::playlist::MediaSet,           // video + audio + subtitle variants, segments included
+    pub subtitle_extras: Vec<SubtitleExtra>,           // per subtitle: vtt_path (key), id, ass_path
+    pub sprite: Option<sr_media::plan::SpritePlan>,    // None: no scrub thumbnails
 }
 ```
-`sr_api::routes::cinema::playback::MemoryPlaybackSource` is the in-memory implementation used by the route tests.
+The HTTP side (routes, the `/cdn/hls` playlist renderer) is in `crates/sr-api/src/routes/cinema/playback.rs`; the route tests use `MemoryPlaybackSource`.
 
 ### 10.2 Table shape needed (columns of section 4.5, with the additions marked NEW)
 
@@ -461,7 +463,7 @@ slashes, exactly the layout of section 4.3):
 |---|---|---|
 | `video` | `VideoVariant` | `name` (`1080p`), `width`, `height`, `bandwidth_bps` (peak), `codecs` (`avc1.640028`), `playlist_key` (`v/1080p/index.m3u8`), `segment_index` = JSON array `[{"path":"v/1080p/seg_00000.m4s","duration_secs":6.0}, ...]`; NEW `frame_rate double precision`; NEW `average_bandwidth_bps bigint NULL`; `init_path` = `v/<name>/init.mp4` (the directory of `playlist_key` plus `init.mp4`) |
 | `audio` | `AudioVariant` | `name`, `language` (BCP 47 or null), NEW `channels int`, `is_default`, `playlist_key` (`a/00-eng-stereo/index.m3u8`), `segment_index` as above, `init_path` as for video |
-| `subtitle` | `SubtitleVariant` | `name`/`label`, `language`, `forced`, `is_default`, `playlist_key` = the virtual wrapper `subs/00-eng.m3u8` (rendered on demand, never stored), NEW `meta jsonb` = `{"vtt_path":"subs/00-eng.vtt","ass_path":"subs/00-eng.ass"|null,"duration_secs":5400.0}` |
+| `subtitle` | `SubtitleVariant` | `name`/`label`, `language`, `forced`, `is_default`, `playlist_key` = the virtual wrapper `subs/00-eng.m3u8` (rendered on demand, never stored), NEW `meta jsonb` = `{"vtt_path":"subs/00-eng.vtt","ass_path":"subs/00-eng.ass"|null,"duration_secs":5400.0}` (the `SubtitleExtra` is `{vtt_path, id = rendition id, ass_path}`) |
 | `sprite` | `SpritePlan` | NEW `meta jsonb` = the serialized `sr_media::plan::SpritePlan` (it is `Serialize`/`Deserialize`) |
 | `poster`, `proxy` | not played | |
 
