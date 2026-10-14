@@ -465,3 +465,34 @@ async fn global_rate_limit_sets_global_header() {
     }
     assert!(saw_global);
 }
+
+#[tokio::test]
+async fn security_headers_on_every_response() {
+    let f = fixture();
+    for p in ["/healthz", "/api/v1/openapi.json", "/nope"] {
+        let (_, h, _) = send(&app(&f), get_req(p)).await;
+        assert_eq!(h["x-content-type-options"], "nosniff", "{p}");
+        assert_eq!(h["referrer-policy"], "no-referrer", "{p}");
+        assert!(
+            h["content-security-policy"]
+                .to_str()
+                .unwrap()
+                .contains("frame-ancestors 'none'")
+        );
+        assert!(h.contains_key("permissions-policy"), "{p}");
+        // Plain-http public URL: HSTS would be wrong.
+        assert!(!h.contains_key("strict-transport-security"), "{p}");
+    }
+}
+
+#[tokio::test]
+async fn hsts_only_when_public_url_is_https() {
+    let f = fixture_with(ApiSettings::for_public_url("https://side.example"), |_| {});
+    let (_, h, _) = send(&app(&f), get_req("/healthz")).await;
+    assert!(
+        h["strict-transport-security"]
+            .to_str()
+            .unwrap()
+            .starts_with("max-age=")
+    );
+}

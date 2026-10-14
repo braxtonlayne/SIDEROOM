@@ -1,0 +1,15 @@
+[Unit]
+Description=SIDE ROOM restore drill (restore the newest backup into a throwaway database)
+After=network-online.target postgresql.service sideroom-backup.service
+
+[Service]
+Type=oneshot
+User=sideroom
+Group=sideroom
+# SR_DATABASE_URL must belong to a role that may CREATE DATABASE.
+EnvironmentFile=/etc/sideroom/backup.env
+ExecStart=/opt/sideroom/deploy/scripts/restore-drill.sh
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/backups/sideroom
+NoNewPrivileges=true

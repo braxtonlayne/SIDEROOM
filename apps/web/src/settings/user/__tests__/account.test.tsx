@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, server } from '../../../test/server';
 import { axeViolations } from '../../../../../../packages/ui/src/test-axe';
-import { fieldError, openSettings, PROFILE, resetPrefs, signedIn } from './helpers';
+import { fieldError, ME, openSettings, PROFILE, resetPrefs, signedIn } from './helpers';
 
 const session = (id: string, current = false) => ({
   id,
@@ -40,8 +40,8 @@ describe('My Account', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Reveal' }));
     expect(screen.getByText('alice@example.com')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Resend verification/ })).toBeNull();
-    // No endpoint exists to edit these, and the page says so.
-    expect(screen.getByText(/Changing your username or display name/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Edit\s+username/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Edit\s+display name/ })).toBeInTheDocument();
   });
 
   it('resends the verification email and reports a cooldown', async () => {
@@ -76,24 +76,157 @@ describe('My Account', () => {
     expect(await screen.findByText(/sent a moment ago/)).toBeInTheDocument();
   });
 
-  it('keeps change-password disabled (no endpoint) and offers the emailed reset link', async () => {
+  it('changes the password after checking the current one, and offers the emailed reset link', async () => {
     signedIn();
     accountEndpoints();
+    let changed: unknown;
     let body: unknown;
     server.use(
+      http.post('*/api/v1/sr/auth/password', async ({ request }) => {
+        changed = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
       http.post('*/api/v1/sr/auth/forgot', async ({ request }) => {
         body = await request.json();
         return new HttpResponse(null, { status: 204 });
       }),
     );
+    const user = userEvent.setup();
     openSettings('account');
-    expect(await screen.findByText(/no change-password endpoint/)).toBeInTheDocument();
-    expect(screen.getByLabelText('Current password')).toBeDisabled();
-    expect(screen.getByLabelText('New password')).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Change password' })).toBeDisabled();
-    await userEvent.click(screen.getByRole('button', { name: 'Email me a reset link' }));
+    await user.type(await screen.findByLabelText('Current password'), 'old-secret-123');
+    await user.type(screen.getByLabelText('New password'), 'a-much-longer-passphrase-9');
+    await user.click(screen.getByRole('switch', { name: /Sign out my other devices/ }));
+    await user.click(screen.getByRole('button', { name: 'Change password' }));
+    expect(await screen.findByText('Password changed')).toBeInTheDocument();
+    expect(changed).toEqual({
+      current_password: 'old-secret-123',
+      new_password: 'a-much-longer-passphrase-9',
+      revoke_other_sessions: false,
+    });
+    expect(screen.getByLabelText('Current password')).toHaveValue('');
+    await user.click(screen.getByRole('button', { name: 'Email me a reset link' }));
     expect(await screen.findByText('Reset link sent')).toBeInTheDocument();
     expect(body).toEqual({ email: 'alice@example.com' });
+  });
+
+  it('shows a wrong current password on its field and a weak new password on the other', async () => {
+    signedIn();
+    accountEndpoints();
+    let n = 0;
+    server.use(
+      http.post('*/api/v1/sr/auth/password', () =>
+        n++ === 0
+          ? HttpResponse.json(fieldError('current_password', 'That is not your password.'), {
+              status: 400,
+            })
+          : HttpResponse.json(fieldError('new_password', 'That password is too easy to guess.'), {
+              status: 400,
+            }),
+      ),
+    );
+    const user = userEvent.setup();
+    openSettings('account');
+    await user.type(await screen.findByLabelText('Current password'), 'nope');
+    await user.type(screen.getByLabelText('New password'), 'password1234');
+    await user.click(screen.getByRole('button', { name: 'Change password' }));
+    expect(await screen.findByText('That is not your password.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Change password' }));
+    expect(await screen.findByText('That password is too easy to guess.')).toBeInTheDocument();
+  });
+
+  it('asks for both passwords before sending anything', async () => {
+    signedIn();
+    accountEndpoints();
+    const user = userEvent.setup();
+    openSettings('account');
+    await user.click(await screen.findByRole('button', { name: 'Change password' }));
+    expect(await screen.findByText('Enter your current password.')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Current password'), 'abc');
+    await user.click(screen.getByRole('button', { name: 'Change password' }));
+    expect(await screen.findByText('Enter a new password.')).toBeInTheDocument();
+  });
+
+  it('changes the username with the password and refreshes the account', async () => {
+    let name = 'alice';
+    accountEndpoints();
+    server.use(
+      http.get('*/api/v1/sr/csrf', () => HttpResponse.json({ token: 'c' })),
+      http.get('*/api/v1/users/@me', () => HttpResponse.json({ ...ME, username: name })),
+    );
+    let sent: unknown;
+    server.use(
+      http.put('*/api/v1/sr/auth/username', async ({ request }) => {
+        sent = await request.json();
+        name = 'alice_2';
+        return HttpResponse.json({ username: 'alice_2' });
+      }),
+    );
+    const user = userEvent.setup();
+    openSettings('account');
+    await user.click(await screen.findByRole('button', { name: /Edit\s+username/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Change your username' });
+    expect(await axeViolations(dialog)).toEqual([]);
+    const field = within(dialog).getByLabelText('Username');
+    await user.clear(field);
+    await user.type(field, 'Alice_2');
+    await user.type(within(dialog).getByLabelText('Current password'), 'hunter2hunter2');
+    await user.click(within(dialog).getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(sent).toEqual({ username: 'alice_2', password: 'hunter2hunter2' }));
+    expect(await screen.findByText('alice_2')).toBeInTheDocument();
+  });
+
+  it('refuses a bad username before asking the server, and shows the server refusal', async () => {
+    signedIn();
+    accountEndpoints();
+    server.use(
+      http.put('*/api/v1/sr/auth/username', () =>
+        HttpResponse.json(fieldError('username', 'You can change your username twice a day.'), {
+          status: 429,
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    openSettings('account');
+    await user.click(await screen.findByRole('button', { name: /Edit\s+username/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Change your username' });
+    const field = within(dialog).getByLabelText('Username');
+    await user.clear(field);
+    await user.type(field, 'x');
+    await user.click(within(dialog).getByRole('button', { name: 'Done' }));
+    expect(await within(dialog).findByText(/2 to 32/)).toBeInTheDocument();
+    await user.clear(field);
+    await user.type(field, 'fresh_name');
+    await user.type(within(dialog).getByLabelText('Current password'), 'hunter2hunter2');
+    await user.click(within(dialog).getByRole('button', { name: 'Done' }));
+    expect(
+      await within(dialog).findByText('You can change your username twice a day.'),
+    ).toBeInTheDocument();
+  });
+
+  it('changes the display name, and an empty name goes back to the username', async () => {
+    signedIn();
+    accountEndpoints();
+    const sent: unknown[] = [];
+    server.use(
+      http.patch('*/api/v1/users/@me', async ({ request }) => {
+        sent.push(await request.json());
+        return HttpResponse.json({});
+      }),
+    );
+    const user = userEvent.setup();
+    openSettings('account');
+    await user.click(await screen.findByRole('button', { name: /Edit\s+display name/ }));
+    let dialog = await screen.findByRole('dialog', { name: 'Change your display name' });
+    const field = within(dialog).getByLabelText('Display name');
+    await user.clear(field);
+    await user.type(field, 'Ali');
+    await user.click(within(dialog).getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(sent).toEqual([{ global_name: 'Ali' }]));
+    await user.click(await screen.findByRole('button', { name: /Edit\s+display name/ }));
+    dialog = await screen.findByRole('dialog', { name: 'Change your display name' });
+    await user.clear(within(dialog).getByLabelText('Display name'));
+    await user.click(within(dialog).getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(sent).toEqual([{ global_name: 'Ali' }, { global_name: null }]));
   });
 
   it('reports a failure to send the reset link', async () => {
@@ -247,14 +380,14 @@ describe('My Account', () => {
     accountEndpoints({
       connections: [{ type: 'discord', id: '9', name: 'alice#0', verified: true }],
     });
-    openSettings('account');
+    openSettings('connections');
     expect(await screen.findByText('alice#0')).toBeInTheDocument();
   });
 
   it('shows "no Discord linked" when there is none', async () => {
     signedIn();
     accountEndpoints();
-    openSettings('account');
+    openSettings('connections');
     expect(await screen.findByText('No Discord account is linked.')).toBeInTheDocument();
   });
 
@@ -286,7 +419,7 @@ describe('My Account', () => {
       ),
     );
     const user = userEvent.setup();
-    openSettings('account');
+    openSettings('devices');
     expect((await screen.findAllByText('Laptop')).length).toBeGreaterThan(0);
     await user.click(screen.getByRole('button', { name: /Revoke\s+Laptop/ }));
     await waitFor(() => expect(screen.queryAllByText('Laptop')).toHaveLength(0));
@@ -301,7 +434,7 @@ describe('My Account', () => {
     server.use(
       http.delete('*/api/v1/sr/auth/sessions/11', () => new HttpResponse(null, { status: 204 })),
     );
-    openSettings('account');
+    openSettings('devices');
     expect((await screen.findAllByText('Device 10')).length).toBeGreaterThan(0);
     expect(screen.getByText('This device')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Log out\s+Device 10/ })).toBeNull();
@@ -321,7 +454,7 @@ describe('My Account', () => {
       }),
     );
     const user = userEvent.setup();
-    const router = openSettings('account');
+    const router = openSettings('devices');
     await user.click(await screen.findByRole('button', { name: 'Log out everywhere' }));
     const dialog = await screen.findByRole('dialog', { name: 'Log out everywhere?' });
     expect(called).toBe(false);

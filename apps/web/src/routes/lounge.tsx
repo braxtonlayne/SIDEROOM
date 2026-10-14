@@ -1,8 +1,9 @@
 import { createRoute, redirect, type AnyRoute } from '@tanstack/react-router';
 import { HOME } from '../lounge/channels';
-import { LoungeShell } from '../lounge/LoungeShell';
-import { MockDataProvider } from '../lounge/mockData';
+import { lazyNamed } from '../lib/lazyRoute';
 import { useLoungeUi } from '../lounge/store';
+
+const LoungeRoot = lazyNamed(() => import('./LoungeRoot'), 'LoungeRoot');
 
 /**
  * Lounge routes (LNG-SHL-004):
@@ -18,14 +19,6 @@ import { useLoungeUi } from '../lounge/store';
  * Data: <MockDataProvider> opens the gateway and the hooks in lounge/data.ts read the real store; set
  * VITE_SR_MOCK=1 to use the deterministic seed data instead.
  */
-function LoungeRoot() {
-  return (
-    <MockDataProvider>
-      <LoungeShell />
-    </MockDataProvider>
-  );
-}
-
 const nothing = () => null;
 
 export function createLoungeRoutes(root: AnyRoute) {

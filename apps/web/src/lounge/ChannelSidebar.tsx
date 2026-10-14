@@ -12,8 +12,19 @@ import {
   type MenuEntry,
 } from '@sideroom/ui';
 import { useId, useState } from 'react';
+import { useVoiceSession } from '../voice/session';
+import { useJoinVoice } from './voice/actions';
+import { useVoiceMenuEntries } from './voice/useVoiceMenu';
 import { groupChannels, isVoiceLike } from './channels';
-import { useChannels, useGuild, useUsers, useVoiceMembers, type Channel, type Guild } from './data';
+import {
+  useChannels,
+  useGuild,
+  useUsers,
+  useVoiceMembers,
+  type Channel,
+  type Guild,
+  type VoiceMember,
+} from './data';
 import { useLoungeRoute } from './nav';
 import { useGuildMenuCore } from './shell/useGuildMenu';
 import { useChannelDnd, type ChannelDropMark } from './shell/useChannelDnd';
@@ -31,26 +42,48 @@ export const CHANNEL_ICON: Record<Channel['type'], IconName> = {
   rules: 'book',
 };
 
-function VoiceMembers({ channel }: { channel: Channel }) {
-  const members = useVoiceMembers(channel.id);
+function VoiceMemberRow({
+  channel,
+  member: m,
+  onError,
+}: {
+  channel: Channel;
+  member: VoiceMember;
+  onError: (message: string) => void;
+}) {
   const users = useUsers();
+  const u = users[m.userId];
+  const menu = useVoiceMenuEntries(
+    channel.guildId,
+    { id: m.userId, name: u?.displayName ?? 'Unknown' },
+    onError,
+    channel.id,
+  );
+  if (!u) return null;
+  return (
+    <li>
+      <ContextMenu items={menu} label={`${u.displayName} voice actions`}>
+        <div className="lng-voice-member" data-speaking={m.speaking || undefined}>
+          <Avatar name={u.displayName} src={u.avatarUrl ?? null} size={24} speaking={m.speaking} />
+          <span className="lng-voice-name">{u.displayName}</span>
+          {m.streaming && <span className="lng-live">LIVE</span>}
+          {m.video && <Icon name="video" size={16} label="Camera on" />}
+          {m.muted && <Icon name="mic-off" size={16} label="Muted" />}
+          {m.deafened && <Icon name="volume-off" size={16} label="Deafened" />}
+        </div>
+      </ContextMenu>
+    </li>
+  );
+}
+
+function VoiceMembers({ channel, onError }: { channel: Channel; onError: (m: string) => void }) {
+  const members = useVoiceMembers(channel.id);
   if (!members.length) return null;
   return (
     <ul className="lng-voice-members" aria-label={`Connected to ${channel.name}`}>
-      {members.map((m) => {
-        const u = users[m.userId];
-        if (!u) return null;
-        return (
-          <li key={m.userId} className="lng-voice-member">
-            <Avatar name={u.displayName} size={24} speaking={m.speaking} />
-            <span className="lng-voice-name">{u.displayName}</span>
-            {m.streaming && <span className="lng-live">LIVE</span>}
-            {m.video && <Icon name="video" size={16} label="Camera on" />}
-            {m.muted && <Icon name="mic-off" size={16} label="Muted" />}
-            {m.deafened && <Icon name="volume-off" size={16} label="Deafened" />}
-          </li>
-        );
-      })}
+      {members.map((m) => (
+        <VoiceMemberRow key={m.userId} channel={channel} member={m} onError={onError} />
+      ))}
     </ul>
   );
 }
@@ -76,9 +109,9 @@ function ChannelRow({
   dnd: Dnd;
   onError: (m: string) => void;
 }) {
-  const joinVoice = useLoungeUi((s) => s.joinVoice);
+  const joinVoice = useJoinVoice();
   const openDialog = useLoungeUi((s) => s.openDialog);
-  const connected = useLoungeUi((s) => s.voice?.channelId === channel.id);
+  const connected = useVoiceSession((s) => s.channelId === channel.id && s.status !== 'idle');
   const members = useVoiceMembers(channel.id);
   const menu = useChannelMenu(channel, guild, channels, onError);
   const nameId = useId();
@@ -107,9 +140,7 @@ function ChannelRow({
               {...attrs}
               data-connected={connected || undefined}
               aria-label={`${channel.name}, ${channel.type} channel${connected ? ', connected' : ''}`}
-              onClick={() =>
-                joinVoice({ guildId: guild.id, channelId: channel.id, name: channel.name })
-              }
+              onClick={() => joinVoice(channel)}
             >
               <Icon name={icon} size={20} />
               <span className="lng-channel-name" id={nameId}>
@@ -121,7 +152,7 @@ function ChannelRow({
                 </span>
               ) : null}
             </button>
-            <VoiceMembers channel={channel} />
+            <VoiceMembers channel={channel} onError={onError} />
           </>
         ) : (
           <>

@@ -1,0 +1,52 @@
+name: Repo checks
+# XC-CI-002 (PR title), XC-CI-003 (docs links), XC-CI-006 (inventory progress), plus structural checks for
+# the operations files and the automation scripts themselves. No toolchain beyond Node; runs in seconds.
+on:
+  push: { branches: [main] }
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+concurrency:
+  group: repo-checks-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: "PR title names an inventory ID or uses a docs/chore/ci/test prefix"
+        if: github.event_name == 'pull_request'
+        run: node scripts/check-pr-title.mjs
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+      - name: Docs links
+        run: node scripts/check-doc-links.mjs
+      - name: Operations files (dashboards, alerts, backup scripts, Caddyfile)
+        run: node scripts/check-ops-files.mjs
+      - name: Dependabot directories exist
+        run: node scripts/check-dependabot.mjs
+      - name: Automation scripts
+        run: node --test "scripts/*.test.mjs"
+      - name: Shell scripts (shellcheck)
+        run: shellcheck -x -S warning deploy/scripts/*.sh
+      - name: Inventory progress
+        run: |
+          {
+            echo "### Inventory progress"
+            node scripts/inventory-progress.mjs
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Inventory ticks in this PR
+        if: github.event_name == 'pull_request'
+        run: |
+          git checkout -q "${{ github.event.pull_request.base.sha }}" -- docs/inventory
+          node scripts/inventory-progress.mjs --write-json "$RUNNER_TEMP/base.json" > /dev/null
+          git checkout -q "${{ github.event.pull_request.head.sha }}" -- docs/inventory
+          {
+            echo "### Items ticked by this PR"
+            node scripts/inventory-progress.mjs --base "$RUNNER_TEMP/base.json" | tail -n 3
+          } >> "$GITHUB_STEP_SUMMARY"

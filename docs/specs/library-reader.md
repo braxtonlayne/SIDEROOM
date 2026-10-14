@@ -148,7 +148,8 @@ page, cover or source references it, and expires abandoned upload slots (and the
 
 ### 6.6 Gaps
 
-* `SubmissionKind` (`reading_series`, `reading_items`) and the review queue are not implemented: `sr-review` is an empty
-  crate and no `submissions` table exists yet. Staff publish through the routes above (LIB-ING-008 stays open).
+* Member submissions (LIB-ING-008) are in place: the kinds `library.series` and `library.items` (submissions-and-review spec
+  section 9) let a member build a draft and upload through the same presigned-PUT and `library.ingest` path under
+  `/submissions/{id}/library/*`; a curator publishes by approving. Staff can still publish directly through the routes above.
 * Volume bundles (one archive holding several chapters) are not split automatically; upload one archive per chapter.
 * PDF pages are not rasterized (owner decision pending, open-questions).

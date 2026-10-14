@@ -12,6 +12,8 @@ import type {
   TypingEntry,
   User,
   UserSettingsBlob,
+  VoiceServerInfo,
+  VoiceState,
 } from './types';
 
 /** Key used in `channelIdsByGuild` for DM / group DM channels. */
@@ -44,6 +46,10 @@ export interface StoreData {
    * accepted; the social store seeds the Message Requests page from here.
    */
   messageRequestDms: Channel[];
+  /** Who is connected to voice: guild id (`@me` for DM calls) -> user id -> state. */
+  voiceStates: Record<string, Record<string, VoiceState>>;
+  /** The latest `VOICE_SERVER_UPDATE` for the viewer's pending / live connection. */
+  voiceServer: VoiceServerInfo | null;
 }
 
 export const emptyData = (): StoreData => ({
@@ -64,6 +70,8 @@ export const emptyData = (): StoreData => ({
   typing: {},
   userSettings: null,
   messageRequestDms: [],
+  voiceStates: {},
+  voiceServer: null,
 });
 
 export const emptyWindow = (): MessageWindow => ({
@@ -293,6 +301,8 @@ export function reduceDispatch(
         channels: next.channels,
         channelIdsByGuild: next.channelIdsByGuild,
         messageRequestDms: requests,
+        // GUILD_CREATE re-delivers every guild's voice states.
+        voiceStates: {},
         readStates,
         presences: putPresences(next, (d.presences as Obj[] | undefined) ?? []),
         windows,
@@ -344,6 +354,12 @@ export function reduceDispatch(
       };
       if (members) next = { ...next, ...putMembers(next, id, members) };
       if (presences) next = { ...next, presences: putPresences(next, presences) };
+      const voice = d.voice_states as VoiceState[] | undefined;
+      if (voice) {
+        const map: Record<string, VoiceState> = {};
+        for (const v of voice) if (v.channel_id) map[v.user_id] = { ...v, guild_id: id };
+        next = { ...next, voiceStates: { ...next.voiceStates, [id]: map } };
+      }
       return next;
     }
     case 'GUILD_UPDATE': {
@@ -383,8 +399,39 @@ export function reduceDispatch(
         channelIdsByGuild: without(s.channelIdsByGuild),
         roleIdsByGuild: without(s.roleIdsByGuild),
         memberIdsByGuild: without(s.memberIdsByGuild),
+        voiceStates: without(s.voiceStates),
       };
     }
+    case 'VOICE_STATE_UPDATE': {
+      const userId = str(d.user_id);
+      if (!userId) return {};
+      const guildId = typeof d.guild_id === 'string' && d.guild_id ? d.guild_id : DM_GUILD;
+      const next = { ...s.voiceStates[guildId] };
+      if (d.channel_id == null) delete next[userId];
+      else next[userId] = { ...(d as unknown as VoiceState), guild_id: guildId };
+      const states = { ...s.voiceStates, [guildId]: next };
+      // A user is in one voice channel at a time: drop a stale entry held under another guild.
+      if (d.channel_id != null) {
+        for (const [g, m] of Object.entries(states)) {
+          if (g !== guildId && m[userId]) {
+            const copy = { ...m };
+            delete copy[userId];
+            states[g] = copy;
+          }
+        }
+      }
+      return { voiceStates: states };
+    }
+    case 'VOICE_SERVER_UPDATE':
+      return {
+        voiceServer: {
+          guild_id: typeof d.guild_id === 'string' ? d.guild_id : null,
+          ...(typeof d.channel_id === 'string' ? { channel_id: d.channel_id } : {}),
+          endpoint: str(d.endpoint),
+          token: str(d.token),
+          ...(Array.isArray(d.ice_servers) ? { ice_servers: d.ice_servers } : {}),
+        } as VoiceServerInfo,
+      };
     case 'CHANNEL_CREATE':
     case 'CHANNEL_UPDATE': {
       const c = d as unknown as Channel;

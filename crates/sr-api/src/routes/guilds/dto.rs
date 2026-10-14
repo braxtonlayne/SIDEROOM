@@ -655,6 +655,15 @@ pub struct ModifyRoleBody {
     pub color: Option<u32>,
     pub hoist: Option<bool>,
     pub mentionable: Option<bool>,
+    /// A single emoji shown beside the role; `null` clears it. Replaces an image icon.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub unicode_emoji: Option<Option<String>>,
+    /// Image data URI for the role icon (PNG, JPEG, GIF or WebP, cropped to a square);
+    /// `null` removes it. Replaces the emoji. Served at `/cdn/icons/{guild_id}/{hash}.png`.
+    #[serde(default, deserialize_with = "nullable")]
+    #[schema(value_type = Option<String>)]
+    pub icon: Option<Option<String>>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

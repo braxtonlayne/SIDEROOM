@@ -90,7 +90,7 @@ export function AuditLogSection({ guildId }: SectionProps) {
     <>
       <SectionHeader
         title="Audit Log"
-        description="Who changed what in this server. Entries are kept for the audit retention period."
+        description="Who changed what in this server. Entries are kept for 45 days unless the operator set another audit retention period."
       />
       <div className="ss-toolbar">
         <div>

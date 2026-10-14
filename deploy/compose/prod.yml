@@ -1,0 +1,124 @@
+# SIDE ROOM production stack (XC-OPS-001). One host, one operator. See deploy/INSTALL.md and docs/12.
+#
+#   cp deploy/compose/.env.prod.example deploy/compose/.env.prod   # then edit every CHANGE_ME
+#   docker compose -f deploy/compose/prod.yml --env-file deploy/compose/.env.prod up -d
+#   docker compose -f deploy/compose/prod.yml --env-file deploy/compose/.env.prod --profile monitoring up -d
+#
+# Status: written from the same pieces as dev.yml and Caddyfile.prod, but not yet run end to end on a clean
+# host (no Docker on the build machines). Treat the first install as the test and report what breaks.
+name: sideroom
+
+x-restart: &restart
+  restart: unless-stopped
+
+services:
+  postgres:
+    <<: *restart
+    image: postgres:17
+    environment:
+      POSTGRES_USER: sideroom
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.prod}
+      POSTGRES_DB: sideroom
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sideroom -d sideroom"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    # No published port: only the compose network (and docker exec for backups) reaches Postgres.
+
+  garage:
+    <<: *restart
+    image: dxflrs/garage:v1.0.1
+    volumes:
+      - ./garage/garage.prod.toml:/etc/garage.toml:ro
+      - garage-meta:/var/lib/garage/meta
+      - garage-data:/var/lib/garage/data
+    # Layout, key and bucket: run deploy/compose/garage/bootstrap.sh once (see INSTALL.md section 5).
+
+  sr-server:
+    <<: *restart
+    image: ${SR_IMAGE:?set SR_IMAGE in .env.prod}
+    depends_on:
+      postgres: { condition: service_healthy }
+      garage: { condition: service_started }
+    environment:
+      SR_SERVER__BIND: 0.0.0.0:8080
+      SR_SERVER__PUBLIC_URL: https://${SR_DOMAIN:?set SR_DOMAIN in .env.prod}
+      SR_SERVER__SECRET_KEY: ${SR_SECRET_KEY:?set SR_SECRET_KEY (64 hex chars)}
+      SR_SERVER__TRUST_FORWARDED_FOR: "true" # Caddy is the only thing that can reach this port
+      # Reachable by Prometheus on the compose network only; it is not published and Caddy 404s /internal/*.
+      SR_SERVER__METRICS_BIND: 0.0.0.0:9100
+      SR_DATABASE__URL: postgres://sideroom:${POSTGRES_PASSWORD}@postgres:5432/sideroom?sslmode=disable
+      SR_STORAGE__ENDPOINT: http://garage:3900
+      SR_STORAGE__REGION: garage
+      SR_STORAGE__BUCKET: ${GARAGE_BUCKET:-sideroom}
+      SR_STORAGE__ACCESS_KEY: ${GARAGE_ACCESS_KEY:?set GARAGE_ACCESS_KEY}
+      SR_STORAGE__SECRET_KEY: ${GARAGE_SECRET_KEY:?set GARAGE_SECRET_KEY}
+      SR_SMTP__HOST: ${SMTP_HOST:?set SMTP_HOST}
+      SR_SMTP__PORT: ${SMTP_PORT:-587}
+      SR_SMTP__TLS: ${SMTP_TLS:-starttls}
+      SR_SMTP__FROM: ${SMTP_FROM:?set SMTP_FROM}
+      SR_SMTP__USERNAME: ${SMTP_USERNAME:-}
+      SR_SMTP__PASSWORD: ${SMTP_PASSWORD:-}
+    stop_grace_period: 60s # server drains for 2 x shutdown_grace_secs (docs/dev/server.md)
+    healthcheck:
+      # The distroless image has no shell or curl; the server binary has no health subcommand yet, so
+      # readiness is checked by Caddy upstream health and by `curl /readyz` from the host.
+      disable: true
+
+  caddy:
+    <<: *restart
+    image: caddy:2
+    depends_on: [sr-server]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    environment:
+      SR_DOMAIN: ${SR_DOMAIN}
+      SR_UPSTREAM: sr-server:8080
+      SR_WEB_ROOT: /srv/web
+    volumes:
+      - ./caddy/Caddyfile.prod:/etc/caddy/Caddyfile:ro
+      - ${SR_WEB_DIR:?set SR_WEB_DIR to the built apps/web/dist}:/srv/web:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+  # --- profile: monitoring (FND-OBS-003, XC-OPS-007) -------------------------------------------------
+  prometheus:
+    <<: *restart
+    profiles: [monitoring]
+    image: prom/prometheus:v2.55.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=30d
+    volumes:
+      - ../monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prom-data:/prometheus
+
+  grafana:
+    <<: *restart
+    profiles: [monitoring]
+    image: grafana/grafana:11.3.1
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?set GRAFANA_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: https://${SR_DOMAIN}/grafana/
+    ports:
+      - "127.0.0.1:3000:3000" # reach it over an SSH tunnel; it is not behind Caddy
+    volumes:
+      - ../monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+
+volumes:
+  pgdata:
+  garage-meta:
+  garage-data:
+  caddy-data:
+  caddy-config:
+  prom-data:
+  grafana-data:

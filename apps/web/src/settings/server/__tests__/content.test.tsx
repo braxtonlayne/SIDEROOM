@@ -223,6 +223,62 @@ describe('Integrations', () => {
     expect(screen.getByRole('button', { name: 'Copy webhook URL' })).toBeInTheDocument();
   });
 
+  it('creates a webhook with an avatar, then edits and removes it', async () => {
+    seed({ perms: [MANAGE.webhooks] });
+    const created = capture();
+    const edited = capture();
+    const hash = 'a'.repeat(32);
+    const hook = {
+      id: 'w1',
+      type: 1,
+      guild_id: 'g1',
+      channel_id: 'c1',
+      name: 'Deploys',
+      avatar: hash,
+    };
+    server.use(
+      http.get('*/api/v1/guilds/g1/webhooks', () => HttpResponse.json([hook])),
+      http.post('*/api/v1/channels/c1/webhooks', async ({ request }) => {
+        await created.record(request);
+        return HttpResponse.json({ ...hook, token: 'tok', url: '/api/v1/webhooks/w1/tok' });
+      }),
+      http.patch('*/api/v1/webhooks/w1', async ({ request }) => {
+        await edited.record(request);
+        return HttpResponse.json({ ...hook, name: 'Deploys 2', avatar: null });
+      }),
+    );
+    await openSettings('integrations');
+    await screen.findByRole('list', { name: 'Webhooks' });
+    expect(screen.getByRole('img', { name: 'Deploys' })).toHaveAttribute(
+      'src',
+      expect.stringContaining('/cdn/avatars/w1/' + hash),
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Create webhook' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Create webhook' });
+    await userEvent.type(within(dialog).getByLabelText('Webhook name'), 'Deploys');
+    await userEvent.upload(
+      within(dialog).getByTestId('file-webhook-avatar'),
+      new File([new Uint8Array([137, 80, 78, 71])], 'bot.png', { type: 'image/png' }),
+    );
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Create' }));
+    await screen.findByText('/api/v1/webhooks/w1/tok', { exact: false });
+    expect(created.calls[0]!.body).toMatchObject({ name: 'Deploys' });
+    expect(
+      (created.calls[0]!.body as { avatar: string }).avatar.startsWith('data:image/png;base64,'),
+    ).toBe(true);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit webhook Deploys' }));
+    const edit = await screen.findByRole('dialog', { name: 'Edit Deploys' });
+    const name = within(edit).getByLabelText('Webhook name');
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Deploys 2');
+    await userEvent.click(within(edit).getByRole('button', { name: 'Remove webhook avatar' }));
+    await userEvent.click(within(edit).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(edited.calls).toHaveLength(1));
+    expect(edited.calls[0]!.body).toEqual({ name: 'Deploys 2', avatar: null });
+  });
+
   it('existing webhooks have no Copy URL; Reset URL shows the new URL once (D-164)', async () => {
     seed({ perms: [MANAGE.webhooks] });
     const cap = capture();

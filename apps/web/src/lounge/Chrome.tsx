@@ -2,12 +2,13 @@ import { Link } from '@tanstack/react-router';
 import { Icon, Tooltip } from '@sideroom/ui';
 import { useState } from 'react';
 import { ComingSoon } from '@sideroom/ui';
+import { useVoiceSession } from '../voice/session';
 import { useLoungeUi } from './store';
 
 /** Thin global section bar above everything (spec 1). Collapsible via the store setting. */
 export function SectionBar() {
   const show = useLoungeUi((s) => s.showSectionBar);
-  const voice = useLoungeUi((s) => s.voice);
+  const voiceName = useVoiceSession((s) => (s.status === 'connected' ? s.channelName : null));
   if (!show) return null;
   return (
     <header className="lng-sectionbar" aria-label="Sections">
@@ -24,9 +25,9 @@ export function SectionBar() {
           The library
         </Link>
       </nav>
-      {voice && (
+      {voiceName && (
         <span className="lng-sectionbar-voice" role="status">
-          <Icon name="volume" size={16} /> Voice connected: {voice.name}
+          <Icon name="volume" size={16} /> Voice connected: {voiceName}
         </span>
       )}
     </header>

@@ -1,0 +1,47 @@
+# Runbook
+
+Short, ordered checks for the alerts in `deploy/monitoring/alerts.yml`. Logs are JSON lines on stdout (`docker compose logs sr-server` or `journalctl -u sr-server`); every request line carries `request_id`, `method` and `path`, and the same id comes back to clients in `X-Request-Id`, so a user report with that header leads straight to the line.
+
+Useful everywhere: `GET /healthz` (process is up), `GET /readyz` (Postgres and object storage reachable; failing checks are named in the body), `GET :9100/internal/metrics` (loopback or compose network only).
+
+## Server down
+
+1. `/healthz` from the host. Down: `systemctl status sr-server` or `docker compose ps`; read the last 100 log lines.
+2. Crash loop with `secret_key` or config errors: the message names the key. Fix the environment, restart.
+3. Starts but `/readyz` is 503: the body says which check failed. Postgres: is it up and accepting connections, is `database.url` right, does `sslmode` match. Object storage: is Garage up, are the key and bucket right.
+4. Out of disk is the usual cause of both Postgres and Garage failing together: `df -h`, then see Disk pressure.
+
+## High error rate
+
+1. Grafana "Requests per second" split by status: which status, and the "Slowest routes" panel for which route.
+2. Search the logs for the failing route and read the lines around the `request_id` of a 5xx response.
+3. A deploy in the last hour? Roll back (UPGRADE.md).
+4. Sudden 429s are the rate limiter, not an outage: see the "Rate limited" panel and `scope`.
+
+## Slow requests
+
+1. "REST latency" p95 and "Database pool": a pool at zero idle means queries are waiting for connections.
+2. In Postgres: `select pid, now()-query_start as age, state, left(query,120) from pg_stat_activity where state <> 'idle' order by age desc;`
+3. A single slow route points at a missing index: run `EXPLAIN (ANALYZE, BUFFERS)` on its main query (XC-PERF-004 tracks the review).
+
+## Database pool exhausted
+
+Long transactions or a leak. Same `pg_stat_activity` query; terminate the oldest idle-in-transaction session (`select pg_terminate_backend(pid)`), then raise `database.max_connections` only if Postgres has headroom (`show max_connections`).
+
+## Jobs failing
+
+The `jobs_processed_total{outcome="failed|dead"}` series names the `kind`. Failed attempts retry with backoff until `max_attempts`; then the job is `dead`. Read the rows (`select id, kind, attempts, last_error from jobs where state = 'dead' order by finished_at desc limit 20;`), fix the cause (SMTP down, object storage full), and set the row back to `queued` with `attempts = 0` once it is fixed.
+
+## Disk pressure
+
+1. `du -xh /var/lib | sort -h | tail`. Postgres WAL, Garage data, search index (`search.dir`) and the backup directory are the usual four.
+2. Backups: lower `SR_BACKUP_KEEP` or move them to the Storage Box.
+3. Never delete files inside the Postgres or Garage data directories by hand.
+
+## Lost or suspect secret key
+
+See BACKUP.md "Secrets rotation". If the key leaked, rotate it and ask members to re-enroll TOTP only if the dump also leaked.
+
+## Locked-out owner
+
+`sr-cli user reset-2fa <user>` removes TOTP, recovery codes and passkeys and revokes every session. `sr-cli invite` creates a platform invite without credits (it writes a platform audit row), and `sr-cli staff` manages appointments.

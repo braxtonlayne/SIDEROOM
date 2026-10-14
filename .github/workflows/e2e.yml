@@ -12,6 +12,8 @@ env:
   # default (a different password than the compose database).
   SR_DATABASE__URL: postgres://sideroom:sideroom_dev@127.0.0.1:5432/sideroom
   CARGO_TERM_COLOR: always
+permissions:
+  contents: read
 jobs:
   playwright:
     runs-on: ubuntu-latest

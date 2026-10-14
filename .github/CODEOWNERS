@@ -1,2 +1,14 @@
 # The repository owner reviews everything (AGENTS.md section 4).
 * @braxtonlayne
+
+# XC-CI-004: files whose changes need the owner explicitly. These lines are redundant with the catch-all
+# above on purpose: if the catch-all is ever loosened, these stay. Turning on "Require review from Code
+# Owners" in the branch protection settings is what makes them binding (an owner action).
+/docs/01-decisions-log.md @braxtonlayne
+/docs/open-questions.md @braxtonlayne
+/docs/15-threat-model.md @braxtonlayne
+/AGENTS.md @braxtonlayne
+/deny.toml @braxtonlayne
+/.github/ @braxtonlayne
+/deploy/ @braxtonlayne
+/crates/sr-db/migrations/ @braxtonlayne

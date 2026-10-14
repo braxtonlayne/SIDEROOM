@@ -1,0 +1,27 @@
+# Garage for production (XC-OPS-005). Copy to garage.prod.toml and replace the CHANGE_ME values.
+# The dev file (garage.toml) carries well-known secrets and must never be used outside a laptop.
+#
+#   openssl rand -hex 32     # rpc_secret
+#   openssl rand -base64 32  # admin_token, metrics_token
+#
+# Single node: replication_factor = 1 (what this file sets). For three or more nodes see deploy/GARAGE.md.
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "lmdb"
+replication_factor = 1
+
+# Compression of stored blocks; images and video are already compressed so this mostly helps text/JSON.
+compression_level = 1
+
+rpc_bind_addr = "0.0.0.0:3901"
+rpc_public_addr = "garage:3901"
+rpc_secret = "CHANGE_ME"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "0.0.0.0:3900"
+
+[admin]
+api_bind_addr = "0.0.0.0:3903"
+admin_token = "CHANGE_ME"
+metrics_token = "CHANGE_ME"

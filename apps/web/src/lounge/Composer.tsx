@@ -12,6 +12,8 @@ import {
 import type { ChangeEvent, ClipboardEvent, KeyboardEvent } from 'react';
 import { ApiError, apiFetch } from '../api/client';
 import { useStore } from '../store';
+import { usePrefsStore, useSavedPrefs } from '../settings/user/prefs';
+import { convertEmoticons } from './emoticons';
 import { EmojiPicker } from './components/EmojiPicker';
 import { ExpressionPicker, type GuildSticker } from './components/ExpressionPicker';
 import { EMOJI_CATEGORIES } from './components/emoji';
@@ -66,6 +68,7 @@ import './msg/msg.css';
 /** Shortcodes become emoji at send time (Q89): the parser leaves `:name:` literal. */
 function expandForSend(text: string, then: (content: string) => void) {
   const engine: MarkdownEngine | null = currentMarkdownEngine();
+  if (usePrefsStore.getState().prefs.convertEmoticons) text = convertEmoticons(text);
   if (engine) {
     then(engine.expandShortcodes(text));
     return;
@@ -342,6 +345,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       });
   };
 
+  const showSendButton = useSavedPrefs().showSendButton;
   const send = () => {
     if (sending || cooldownLeft > 0) return;
     let content = resolveTokens(text.trim(), tokens.current);
@@ -866,17 +870,19 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             }}
           />
         </Popover>
-        <Tooltip content="Send message">
-          <button
-            type="button"
-            className="lng-icon-btn lng-send"
-            aria-label="Send message"
-            disabled={!hasContent || remaining < 0 || sending || cooldownLeft > 0}
-            onClick={send}
-          >
-            <Icon name="arrow-right" size={20} />
-          </button>
-        </Tooltip>
+        {showSendButton && (
+          <Tooltip content="Send message">
+            <button
+              type="button"
+              className="lng-icon-btn lng-send"
+              aria-label="Send message"
+              disabled={!hasContent || remaining < 0 || sending || cooldownLeft > 0}
+              onClick={send}
+            >
+              <Icon name="arrow-right" size={20} />
+            </button>
+          </Tooltip>
+        )}
       </div>
       {remaining < 0 && (
         <p className="lng-over" role="alert">

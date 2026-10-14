@@ -113,7 +113,11 @@ function MessageBody({
 }) {
   // Re-renders this body once the WASM parser is ready (plain text until then).
   useMarkdownReady();
+  const { linkPreviews, showEmbeds, spoilers } = useSavedPrefs();
   const nodes = parseMarkdown(m.content);
+  // Link previews (everything built from a pasted link) and embeds posted by apps are separate switches.
+  const embeds = (m.embeds ?? []).filter((e) => (e.type === 'rich' ? showEmbeds : linkPreviews));
+  const showCards = linkPreviews && !m.suppressEmbeds;
   const inviteCode = useMemo(() => findInviteCode(m.content, location.origin), [m.content]);
   const messageLinks = useMemo(() => findMessageLinks(m.content, location.origin), [m.content]);
   return (
@@ -122,6 +126,7 @@ function MessageBody({
         <Markdown
           nodes={nodes}
           jumbo={isJumbo(m.content)}
+          revealSpoilers={spoilers === 'always'}
           resolvers={resolvers}
           {...(onMentionClick ? { onMentionClick } : {})}
         />
@@ -136,11 +141,11 @@ function MessageBody({
       {m.attachments && m.attachments.length > 0 && (
         <AttachmentList attachments={m.attachments} voice={!!m.voice} />
       )}
-      {m.embeds && m.embeds.length > 0 && !m.suppressEmbeds && (
-        <EmbedList embeds={m.embeds} resolvers={resolvers} />
+      {embeds.length > 0 && !m.suppressEmbeds && (
+        <EmbedList embeds={embeds} resolvers={resolvers} />
       )}
-      {!m.suppressEmbeds && inviteCode && <InviteCard code={inviteCode} />}
-      {!m.suppressEmbeds && messageLinks.map((l) => <MessageLinkCard key={l.messageId} link={l} />)}
+      {showCards && inviteCode && <InviteCard code={inviteCode} />}
+      {showCards && messageLinks.map((l) => <MessageLinkCard key={l.messageId} link={l} />)}
       {m.components && m.components.length > 0 && (
         <ComponentRows rows={m.components} guildId={guildId} />
       )}
@@ -207,7 +212,10 @@ function MessageItemImpl(props: MessageItemProps) {
     onJumpToChannelMessage,
     onOpenProfile,
   } = props;
-  const compact = useSavedPrefs().messageDisplay === 'compact';
+  const prefs = useSavedPrefs();
+  const compact = prefs.messageDisplay === 'compact';
+  // Role colours: on the name (default), as a dot before it, or off (User Settings > Accessibility).
+  const roleColorOn = prefs.roleColors === 'name';
   // Compact mode puts the name and time on every line (no avatar), so nothing is grouped.
   const grouped = groupedProp && !compact;
 
@@ -490,9 +498,16 @@ function MessageItemImpl(props: MessageItemProps) {
               <header className="lng-msg-head">
                 <span
                   className="lng-msg-author"
-                  data-gradient={nameDecor?.secondary ? '' : undefined}
-                  style={authorStyle(nameColor, nameDecor)}
+                  data-gradient={roleColorOn && nameDecor?.secondary ? '' : undefined}
+                  style={roleColorOn ? authorStyle(nameColor, nameDecor) : undefined}
                 >
+                  {prefs.roleColors === 'dot' && nameColor && (
+                    <span
+                      className="lng-role-dot"
+                      aria-hidden="true"
+                      style={{ background: nameColor }}
+                    />
+                  )}
                   {onOpenProfile ? (
                     <button
                       type="button"
@@ -581,7 +596,9 @@ function MessageItemImpl(props: MessageItemProps) {
                 </span>
               </button>
             )}
-            <ReactionRow message={m} onReact={onReact} onViewReactions={onViewReactions} />
+            {prefs.showReactions && (
+              <ReactionRow message={m} onReact={onReact} onViewReactions={onViewReactions} />
+            )}
           </div>
         </div>
         {toolbar}

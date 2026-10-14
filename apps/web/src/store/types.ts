@@ -35,6 +35,10 @@ export interface Channel {
   recipients?: User[];
   /** DM from a non-friend awaiting acceptance; such channels stay out of the DM list. */
   is_message_request?: boolean | null;
+  /** Voice channels: maximum simultaneous participants (0 or absent = unlimited). */
+  user_limit?: number;
+  /** Voice channels: audio bitrate in bits per second. */
+  bitrate?: number;
   /** Age-restricted channel (the Lounge asks the viewer to confirm they are 18 or older). */
   nsfw?: boolean;
   /** Per-channel role/member overwrites (type 0 role, 1 member; allow/deny are decimal strings). */
@@ -226,4 +230,42 @@ export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'reconnecti
 export interface UserSettingsBlob {
   version: number;
   settings: Record<string, unknown>;
+}
+
+/**
+ * A user's voice connection (Discord `VoiceState`). `channel_id: null` means "not connected" and the
+ * reducer drops the entry. Keyed by guild id (`@me` for DM calls) then user id in the store.
+ */
+export interface VoiceState {
+  guild_id?: string | null;
+  channel_id: string | null;
+  user_id: string;
+  session_id?: string;
+  /** Server deafen / mute (moderators). */
+  deaf?: boolean;
+  mute?: boolean;
+  self_deaf?: boolean;
+  self_mute?: boolean;
+  self_video?: boolean;
+  self_stream?: boolean;
+  /** Stage channels: suppressed = audience. */
+  suppress?: boolean;
+}
+
+/** An ICE server as delivered in `VOICE_SERVER_UPDATE` (RTCIceServer shape). */
+export interface VoiceIceServer {
+  urls: string | string[];
+  username?: string;
+  credential?: string;
+}
+
+/** `VOICE_SERVER_UPDATE`: where and how to open the voice WebSocket (docs/specs/lounge-voice-video.md section 4). */
+export interface VoiceServerInfo {
+  guild_id: string | null;
+  channel_id?: string | null;
+  /** Host (and optional port) of the `sr-voice` WebSocket. */
+  endpoint: string;
+  /** Short-lived token for the voice IDENTIFY. */
+  token: string;
+  ice_servers?: VoiceIceServer[];
 }

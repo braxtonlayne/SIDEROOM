@@ -11,6 +11,9 @@ export interface Me {
   username?: string;
   global_name?: string | null;
   display_name?: string | null;
+  /** CDN hashes (`/cdn/avatars/{id}/{hash}.png`). */
+  avatar?: string | null;
+  banner?: string | null;
   email?: string;
   verified?: boolean;
   mfa_enabled?: boolean;
@@ -54,8 +57,25 @@ export const revokeTrustedDevice = (id: string) =>
   });
 
 export const resendVerification = () => apiPost<void>('/sr/auth/verify-email/resend');
-/** The only password route that exists is the emailed reset link (there is no "change password" route). */
+/** The emailed reset link (for people who forgot the current password). */
 export const sendPasswordReset = (email: string) => apiPost<void>('/sr/auth/forgot', { email });
+
+export interface ChangePasswordBody {
+  current_password: string;
+  new_password: string;
+  /** Default true: every other session and trusted device is signed out. */
+  revoke_other_sessions?: boolean;
+}
+/** `POST /sr/auth/password` (204). The current password is checked first and counts toward the lockout. */
+export const changePassword = (body: ChangePasswordBody) =>
+  apiPost<void>('/sr/auth/password', body);
+/** `PUT /sr/auth/username`: password re-auth, 2 to 32 of a-z 0-9 _ . and two changes a day. */
+export const changeUsername = (username: string, password: string) =>
+  apiFetch<{ username: string }>('/sr/auth/username', {
+    method: 'PUT',
+    json: { username, password },
+    retries: 0,
+  });
 
 export interface ChangeEmailBody {
   new_email: string;
@@ -94,7 +114,13 @@ export interface CustomStatus {
   expires_at: string | null;
 }
 export interface OwnProfile {
-  user: { id: string; username?: string; global_name?: string | null; avatar?: string | null };
+  user: {
+    id: string;
+    username?: string;
+    global_name?: string | null;
+    avatar?: string | null;
+    banner?: string | null;
+  };
   user_profile: {
     bio: string | null;
     pronouns: string | null;
@@ -110,13 +136,22 @@ export const getPresence = () =>
   });
 
 export interface ProfilePatch {
+  /** Display name (32 characters at most); null shows the username. */
+  global_name?: string | null;
+  /** An image data URI (png, jpeg, gif or webp; 8 MiB at most); null removes it. */
+  avatar?: string | null;
+  banner?: string | null;
   bio?: string | null;
   pronouns?: string | null;
   accent_color?: number | null;
   custom_status?: { text: string | null } | null;
 }
 export const patchSelf = (body: ProfilePatch) =>
-  apiFetch<unknown>('/users/@me', { method: 'PATCH', json: body, retries: 0 });
+  apiFetch<{ user?: OwnProfile['user'] }>('/users/@me', {
+    method: 'PATCH',
+    json: body,
+    retries: 0,
+  });
 
 // ---- notifications ----
 
@@ -184,6 +219,48 @@ export const unblockUser = (id: string) =>
 export const listIgnores = () => apiFetch<UserLite[]>('/users/@me/ignores', { retries: 0 });
 export const unignoreUser = (id: string) =>
   apiFetch<void>(`/users/@me/ignores/${encodeURIComponent(id)}`, { method: 'DELETE', retries: 0 });
+
+/** `GET/PATCH /users/@me/privacy`: who may send friend requests and DMs. */
+export interface PrivacySettings {
+  friend_requests_everyone: boolean;
+  friend_requests_friends_of_friends: boolean;
+  friend_requests_server_members: boolean;
+  /** DMs from members of shared servers. */
+  allow_server_member_dms: boolean;
+  /** DMs from non-friends land in Message Requests. */
+  message_requests: boolean;
+}
+export const getPrivacy = () => apiFetch<PrivacySettings>('/users/@me/privacy', { retries: 0 });
+export const patchPrivacy = (body: Partial<PrivacySettings>) =>
+  apiFetch<PrivacySettings>('/users/@me/privacy', { method: 'PATCH', json: body, retries: 0 });
+
+/** `GET/PATCH /users/@me/notification-defaults`: 0 all messages, 1 only mentions, 2 nothing, null per server. */
+export interface NotificationDefaults {
+  message_notifications: number | null;
+}
+export const getNotificationDefaults = () =>
+  apiFetch<NotificationDefaults>('/users/@me/notification-defaults', { retries: 0 });
+export const patchNotificationDefaults = (message_notifications: number | null) =>
+  apiFetch<NotificationDefaults>('/users/@me/notification-defaults', {
+    method: 'PATCH',
+    json: { message_notifications },
+    retries: 0,
+  });
+
+// ---- per-server profile ----
+
+export interface MemberLite {
+  nick: string | null;
+}
+export const getMyMember = (guildId: string, userId: string) =>
+  apiFetch<MemberLite>(`/guilds/${guildId}/members/${encodeURIComponent(userId)}`, { retries: 0 });
+/** The server nickname (needs Change Nickname there); null clears it. */
+export const patchMyNick = (guildId: string, userId: string, nick: string | null) =>
+  apiFetch<MemberLite>(`/guilds/${guildId}/members/${encodeURIComponent(userId)}`, {
+    method: 'PATCH',
+    json: { nick },
+    retries: 0,
+  });
 
 // ---- helpers ----
 

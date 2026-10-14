@@ -193,4 +193,26 @@ describe("SettingsLayout nav", () => {
     expect(onSelect).toHaveBeenCalledWith("a");
     expect(screen.getByRole("button", { name: "Log Out" })).toBeInTheDocument();
   });
+
+  it('renders a header above the section list and keeps arrow keys in it for the field', async () => {
+    render(
+      <SettingsLayout
+        inline
+        title="User settings"
+        sections={sections}
+        activeId="b"
+        onSelect={() => {}}
+        onClose={() => {}}
+        sidebarHeader={<input aria-label="Search settings" />}
+      >
+        body
+      </SettingsLayout>,
+    );
+    const nav = screen.getByRole("navigation", { name: "User settings" });
+    const box = screen.getByRole("textbox", { name: "Search settings" });
+    expect(nav.firstElementChild).toContainElement(box);
+    box.focus();
+    await userEvent.keyboard("{ArrowDown}");
+    expect(box).toHaveFocus();
+  });
 });

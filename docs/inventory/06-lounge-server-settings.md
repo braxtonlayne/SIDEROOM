@@ -7,23 +7,23 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 - [x] **LNG-SSET-002** [FE] ESC close button, unsaved-changes bar ("Careful — you have unsaved changes!" Reset / Save Changes), shake on navigation attempt
 
 ## Server Profile
-- [ ] **LNG-SSET-003** [FE] Header text "Customize how your server appears in invite links and, if enabled, in Server Discovery and Announcement Channel messages"
+- [x] **LNG-SSET-003** [FE] Header text "Customize how your server appears in invite links and, if enabled, in Server Discovery and Announcement Channel messages"
 - [x] **LNG-SSET-004** [FE] Name input
-- [ ] **LNG-SSET-005** [FE] Icon: "We recommend an image of at least 512x512." + Change Server Icon (crop modal, GIF allowed free), Remove
-- [ ] **LNG-SSET-006** [FE] Banner: 10 preset gradient swatches (dark, pink, red, orange, yellow, purple, blue, teal, green, black) + custom image upload (free)
+- [ ] **LNG-SSET-005** [FE] Icon: "We recommend an image of at least 512x512." + Change Server Icon (crop modal, GIF allowed free), Remove *(p5: upload, remove and live preview are built; the server crops to a square, so there is no crop modal)*
+- [ ] **LNG-SSET-006** [FE] Banner: 10 preset gradient swatches (dark, pink, red, orange, yellow, purple, blue, teal, green, black) + custom image upload (free) *(p5: custom banner upload and remove are built; the 10 preset gradient swatches are not)*
 - [ ] **LNG-SSET-007** [FE] Traits: 5 slots (emoji + short text)
 - [x] **LNG-SSET-008** [FE] Description textarea ("How did your server get started? Why should people join?")
-- [ ] **LNG-SSET-009** [FE] Live preview card (banner, icon, name, "● N Online ● N Members", "Est. <Mon YYYY>")
-- [ ] **LNG-SSET-010** [FE] Invite splash background (free)
+- [ ] **LNG-SSET-009** [FE] Live preview card (banner, icon, name, "● N Online ● N Members", "Est. <Mon YYYY>") *(p5: preview card with banner, icon, name and Est. date; no Online/Members counts)*
+- [x] **LNG-SSET-010** [FE] Invite splash background (free) *(p5)*
 
 ## Server Tag
-- [ ] **LNG-SSET-011** [FE] Tag text (≤ 4 chars), badge picker (icon set + color), preview next to a member name, "Members can choose to display" toggle
+- [ ] **LNG-SSET-011** [FE] Tag text (≤ 4 chars), badge picker (icon set + color), preview next to a member name, "Members can choose to display" toggle *(p5: not backed, the server stores no tag; the Overview says so)*
 - [ ] **LNG-SSET-012** [BE] Tag adoption by members (User Settings → Profiles) + global display
 
 ## Engagement
-- [ ] **LNG-SSET-013** [FE] System Messages channel + toggles (random welcome message, sticker reply button, support contribution messages, setup tips)
+- [ ] **LNG-SSET-013** [FE] System Messages channel + toggles (random welcome message, sticker reply button, support contribution messages, setup tips) *(p5: system messages channel select is built; the four toggles need server support (no system_channel_flags))*
 - [x] **LNG-SSET-014** [FE] Default Notification Settings (All / Only @mentions)
-- [ ] **LNG-SSET-015** [FE] Inactive channel (AFK) + timeout
+- [x] **LNG-SSET-015** [FE] Inactive channel (AFK) + timeout *(p5: stored on the guild; voice is not built, so nothing moves members yet)*
 - [ ] **LNG-SSET-016** [FE] Activity feed / widget settings (server widget JSON toggle)
 
 ## Server Support (replaces Boost Perks)
@@ -37,26 +37,26 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 - [x] **LNG-SSET-022** [FE] Emoji table (image, editable name, uploader avatar, role restriction, delete)
 
 ## Stickers
-- [ ] **LNG-SSET-023** [FE] Sticker slots grid, Upload modal (preview, name, related emoji, description, file)
-- [ ] **LNG-SSET-024** [FE] Edit/delete sticker
+- [x] **LNG-SSET-023** [FE] Sticker slots grid, Upload modal (preview, name, related emoji, description, file) *(p5 verified: grid with slot counters, upload dialog with preview, name, related emoji (tags), description)*
+- [x] **LNG-SSET-024** [FE] Edit/delete sticker *(p5 verified: edit and delete)*
 
 ## Soundboard
 - [ ] **LNG-SSET-025** [FE] Sound list (play, name, emoji, volume, uploader), Upload modal (file, trim to 5s with waveform, name, emoji, volume)
 - [ ] **LNG-SSET-026** [BE] Sound trimming/transcode to Opus (`symphonia` decode + `opus` encode)
 
 ## Members
-- [ ] **LNG-SSET-027** [FE] Member table (avatar/name, member since, joined platform, join method/invite code, roles chips, signals), search, sort, filters (roles, join date, unusual activity), pagination
+- [ ] **LNG-SSET-027** [FE] Member table (avatar/name, member since, joined platform, join method/invite code, roles chips, signals), search, sort, filters (roles, join date, unusual activity), pagination *(p5: search and role filter use the server endpoints, with paging; sort, join method and signals are not built)*
 - [ ] **LNG-SSET-028** [FE] Bulk select → add/remove role, kick, ban
 - [x] **LNG-SSET-029** [FE] Prune members modal (inactivity days, include roles, count preview) *(Members, needs Kick Members; wording is "have not sent a message in N days" until last-seen tracking lands (F-02), then Discord's, D-166)*
-- [ ] **LNG-SSET-030** [FE] Member detail side drawer (roles, timeout, audit history for this member)
+- [ ] **LNG-SSET-030** [FE] Member detail side drawer (roles, timeout, audit history for this member) *(p5: details dialog (username, id, joined, nickname, timeout, roles); no audit history because the audit log cannot filter by target)*
 
 ## Roles
 - [x] **LNG-SSET-031** [FE] Roles list (drag reorder, member counts, search, Create Role, "Default permissions" @everyone row)
-- [ ] **LNG-SSET-032** [FE] Role editor tab Display: name, color (swatches + custom + gradient two-color free), role icon (image or unicode emoji, free), hoist toggle, mentionable toggle
+- [ ] **LNG-SSET-032** [FE] Role editor tab Display: name, color (swatches + custom + gradient two-color free), role icon (image or unicode emoji, free), hoist toggle, mentionable toggle *(p5: name, colour, role icon (image or emoji), hoist, mentionable are built; the two-colour gradient is not backed)*
 - [x] **LNG-SSET-033** [FE] Role editor tab Permissions: grouped permission list with descriptions (General, Membership, Text, Voice, Apps, Events, Stage, Advanced, **SIDE ROOM**), search, Clear permissions, Administrator warning
-- [ ] **LNG-SSET-034** [FE] Role editor tab Links (linked roles: placeholder for app role connections, Phase 6)
+- [x] **LNG-SSET-034** [FE] Role editor tab Links (linked roles: placeholder for app role connections, Phase 6) *(p5: placeholder tab)*
 - [x] **LNG-SSET-035** [FE] Role editor tab Manage Members (search, add members modal, remove)
-- [ ] **LNG-SSET-036** [FE] "View Server As Role" preview mode with exit banner
+- [ ] **LNG-SSET-036** [FE] "View Server As Role" preview mode with exit banner *(p5: not built, it needs the channel visibility computation in the Lounge (View Server As Role))*
 - [x] **LNG-SSET-037** [FE] Delete role confirm; hierarchy lock icons
 
 ## Invites
@@ -64,14 +64,14 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 
 ## Access
 - [ ] **LNG-SSET-039** [FE] Access mode (invite-only / apply to join / Directory-listed if approved)
-- [ ] **LNG-SSET-040** [FE] Verification level radio (None, Low (verified email), Medium (account 5+ min), High (member 10+ min), Highest (2FA))
+- [x] **LNG-SSET-040** [FE] Verification level radio (None, Low (verified email), Medium (account 5+ min), High (member 10+ min), Highest (2FA)) *(p5: Moderation, Safety Setup tab)*
 - [ ] **LNG-SSET-041** [FE] Rules screening editor (rules list, "agree" required)
 - [ ] **LNG-SSET-042** [FE] Membership applications (questions form; review queue of applicants with approve/deny)
-- [ ] **LNG-SSET-043** [FE] Age-restricted server toggle
+- [x] **LNG-SSET-043** [FE] Age-restricted server toggle *(p5: Community, Age-restricted server)*
 
 ## Integrations
 - [ ] **LNG-SSET-044** [FE] Overview: Webhooks count, Channels Followed count, Bots and Apps list
-- [ ] **LNG-SSET-045** [FE] Webhooks manager (create, avatar, name, channel, URL shown once + Reset URL, delete) *(done except avatar: the webhook create and modify bodies take no avatar and there is no webhook media kind in `sr-storage`, so it needs a backend change first; existing webhooks have no Copy URL because tokens are stored hashed, D-164)*
+- [x] **LNG-SSET-045** [FE] Webhooks manager (create, avatar, name, channel, URL shown once + Reset URL, delete) *(done except avatar: the webhook create and modify bodies take no avatar and there is no webhook media kind in `sr-storage`, so it needs a backend change first; existing webhooks have no Copy URL because tokens are stored hashed, D-164)* *(p5: webhook avatar added (WebhookAvatar media kind, create and modify take an avatar); Copy URL stays out by design (D-164))*
 - [ ] **LNG-SSET-046** [FE] Followed channels list (unfollow)
 - [ ] **LNG-SSET-047** [FE] App detail: permissions, command permissions overrides (per role/channel), remove app
 - [ ] **LNG-SSET-048** [FE] App Directory ↗ link (opens Developer App Directory, Phase 6)
@@ -102,16 +102,16 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 
 ## Community
 - [ ] **LNG-SSET-063** [FE] Enable Community wizard (Safety checks → Set up basics (rules channel, updates channel) → Finishing touches (default notifications, remove @everyone moderation perms, agree to guidelines))
-- [ ] **LNG-SSET-064** [FE] Community Overview (rules/updates channels, safety notifications channel, description, locale, disable community)
-- [ ] **LNG-SSET-065** [FE] Onboarding editor (default channels, questions with options mapping to channels/roles, preview, enable)
+- [x] **LNG-SSET-064** [FE] Community Overview (rules/updates channels, safety notifications channel, description, locale, disable community) *(p5)*
+- [ ] **LNG-SSET-065** [FE] Onboarding editor (default channels, questions with options mapping to channels/roles, preview, enable) *(p5: editor with default channels, questions and options exists; no preview and no 2-step wizard (LNG-SSET-063))*
 - [ ] **LNG-SSET-066** [FE] Server Guide editor (welcome message, new member to-dos, resource pages)
-- [ ] **LNG-SSET-067** [FE] Welcome Screen editor (description, up to 5 channel cards with emoji + description)
+- [x] **LNG-SSET-067** [FE] Welcome Screen editor (description, up to 5 channel cards with emoji + description) *(p5)*
 - [ ] **LNG-SSET-068** [FE] Server Insights (basic: members over time, messages per day, voice minutes, top channels), computed by a daily job
 - [ ] **LNG-SSET-069** [FE] Directory listing request (category, tags, description, status: pending/approved/denied + staff note)
 
 ## Server Template
 - [x] **LNG-SSET-070** [BE] Template snapshot (roles, channels, overwrites, settings), sync, delete, code + link
-- [ ] **LNG-SSET-071** [FE] Template page (title, description, Generate, Sync, Preview, Copy link, Delete)
+- [x] **LNG-SSET-071** [FE] Template page (title, description, Generate, Sync, Preview, Copy link, Delete) *(p5: create, sync, copy code and link, preview, delete; public page at /template/:code)*
 
 ## Delete Server
 - [ ] **LNG-SSET-072** [FE] Delete modal (type server name, 2FA code if enabled), owner only

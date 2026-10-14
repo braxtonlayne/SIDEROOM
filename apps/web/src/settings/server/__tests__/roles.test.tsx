@@ -77,6 +77,33 @@ describe('Roles', () => {
     expect(cap.calls[0]!.body).toEqual({ name: 'Members', permissions: bits(2) });
   });
 
+  it('sets a role emoji, then swaps it for an uploaded icon; the picks replace each other', async () => {
+    seed({ perms: [MANAGE.roles, MANAGE.ban], position: 7 });
+    rolesHandler();
+    const cap = capture();
+    server.use(
+      http.patch('*/api/v1/guilds/g1/roles/low', async ({ request }) => {
+        await cap.record(request);
+        return HttpResponse.json(restRole('low', 'Member', 1));
+      }),
+    );
+    await openSettings('roles');
+    await userEvent.click(await screen.findByRole('button', { name: 'Member' }));
+    await userEvent.type(await screen.findByLabelText('Role emoji'), '🎉');
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(cap.calls).toHaveLength(1));
+    expect(cap.calls[0]!.body).toEqual({ unicode_emoji: '🎉' });
+
+    await userEvent.upload(
+      screen.getByTestId('file-role-icon'),
+      new File([new Uint8Array([137, 80, 78, 71])], 'vip.png', { type: 'image/png' }),
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(cap.calls).toHaveLength(2));
+    const body = cap.calls[1]!.body as { icon: string };
+    expect(body.icon.startsWith('data:image/png;base64,')).toBe(true);
+  });
+
   it('shows the Administrator warning', async () => {
     seed({ perms: [MANAGE.admin], position: 20 });
     rolesHandler();

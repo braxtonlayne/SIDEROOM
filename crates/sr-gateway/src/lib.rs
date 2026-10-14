@@ -13,6 +13,7 @@ pub mod hub;
 pub mod protocol;
 mod session;
 pub mod traits;
+pub mod voice;
 pub mod ws;
 
 pub use compress::Compression;
@@ -21,7 +22,13 @@ pub use hub::{Gateway, GatewayConfig, LARGE_THRESHOLD_DEFAULT, LARGE_THRESHOLD_M
 pub use protocol::{Identify, Payload, PresenceUpdate, Resume, close, intents, op};
 pub use session::SessionHandle;
 pub use traits::{AuthError, AuthedUser, Authenticator, GuildDirectory, OpHandler};
+pub use voice::{
+    JoinDenied, ModAction, ModError, ModOutcome, ModPatch, VoiceChannelInfo, VoiceChannelKind,
+    VoiceConfig, VoiceState,
+};
 pub use ws::{GatewayQuery, SESSION_COOKIE, gateway_handler, routes};
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod voice_tests;

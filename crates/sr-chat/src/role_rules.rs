@@ -29,6 +29,27 @@ pub struct RolePatch {
     pub color: Option<u32>,
     pub hoist: Option<bool>,
     pub mentionable: Option<bool>,
+    /// `Some(None)` clears the emoji. Setting one clears the image icon.
+    pub unicode_emoji: Option<Option<String>>,
+    /// Hash of an icon the caller already stored; `Some(None)` clears it.
+    /// Setting one clears the emoji.
+    pub icon_key: Option<Option<String>>,
+}
+
+/// Longest role emoji, in characters (a ZWJ sequence is several).
+pub const ROLE_EMOJI_MAX: usize = 16;
+
+fn validate_emoji(raw: &str) -> ChatResult<String> {
+    let e = raw.trim();
+    let n = e.chars().count();
+    if n == 0 || n > ROLE_EMOJI_MAX || e.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return Err(ChatError::invalid(
+            "unicode_emoji",
+            "INVALID_EMOJI",
+            "Must be a single emoji.",
+        ));
+    }
+    Ok(e.to_owned())
 }
 
 fn validate_name(name: &str) -> ChatResult<String> {
@@ -111,7 +132,9 @@ pub fn plan_edit_role(actor: &GuildActor, role: &Role, patch: RolePatch) -> Chat
         && (patch.name.is_some()
             || patch.color.is_some()
             || patch.hoist.is_some()
-            || patch.mentionable.is_some())
+            || patch.mentionable.is_some()
+            || patch.unicode_emoji.is_some()
+            || patch.icon_key.is_some())
     {
         return Err(ChatError::invalid(
             "role",
@@ -130,6 +153,18 @@ pub fn plan_edit_role(actor: &GuildActor, role: &Role, patch: RolePatch) -> Chat
     }
     if let Some(m) = patch.mentionable {
         out.mentionable = m;
+    }
+    if let Some(e) = patch.unicode_emoji {
+        out.unicode_emoji = e.as_deref().map(validate_emoji).transpose()?;
+        if out.unicode_emoji.is_some() {
+            out.icon_key = None;
+        }
+    }
+    if let Some(k) = patch.icon_key {
+        out.icon_key = k;
+        if out.icon_key.is_some() {
+            out.unicode_emoji = None;
+        }
     }
     if let Some(p) = patch.permissions {
         if role.managed {
@@ -365,6 +400,51 @@ mod tests {
         assert!(plan_edit_role(&a, &m, p).is_err());
         assert!(check_delete_role(&a, &m).is_err());
         assert!(check_assign_role(&a, &m).is_err());
+    }
+
+    #[test]
+    fn emoji_and_icon_replace_each_other_and_text_is_refused() {
+        let a = actor(Permissions::MANAGE_ROLES, 5);
+        let low = role(300, 2, Permissions::empty());
+        let with_icon = plan_edit_role(
+            &a,
+            &low,
+            RolePatch {
+                icon_key: Some(Some("h".into())),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(with_icon.icon_key.as_deref(), Some("h"));
+        let with_emoji = plan_edit_role(
+            &a,
+            &with_icon,
+            RolePatch {
+                unicode_emoji: Some(Some("🎉".into())),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(with_emoji.unicode_emoji.as_deref(), Some("🎉"));
+        assert!(with_emoji.icon_key.is_none());
+        for bad in ["", "vip", "123", "🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉"]
+        {
+            let p = RolePatch {
+                unicode_emoji: Some(Some(bad.into())),
+                ..Default::default()
+            };
+            assert!(plan_edit_role(&a, &low, p).is_err(), "{bad:?}");
+        }
+        let cleared = plan_edit_role(
+            &a,
+            &with_emoji,
+            RolePatch {
+                unicode_emoji: Some(None),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(cleared.unicode_emoji.is_none());
     }
 
     #[test]

@@ -97,6 +97,33 @@ pub trait GuildDirectory: Send + Sync {
         Vec::new()
     }
 
+    /// What `channel` is for voice purposes. `None` when it does not exist in `guild`.
+    /// Default: unknown (voice joins are refused).
+    async fn voice_channel(
+        &self,
+        _guild: GuildId,
+        _channel: ChannelId,
+    ) -> Option<crate::voice::VoiceChannelInfo> {
+        None
+    }
+
+    /// `user`'s effective permissions in `channel` (overwrites applied, owner and
+    /// administrator bypass, timeouts restricted). `None` when they are not a member of
+    /// `guild`. Default: not a member (fail closed).
+    async fn channel_permissions(
+        &self,
+        _user: UserId,
+        _guild: GuildId,
+        _channel: ChannelId,
+    ) -> Option<Permissions> {
+        None
+    }
+
+    /// Guild member object for voice state payloads. Default: none.
+    async fn member_payload(&self, _guild: GuildId, _user: UserId) -> Option<Value> {
+        None
+    }
+
     /// Extra READY fields (`private_channels`, `relationships`, ...).
     async fn ready_extras(&self, _user: UserId) -> Value {
         json!({})

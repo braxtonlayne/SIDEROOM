@@ -6,6 +6,7 @@ use sqlx::{PgPool, Row};
 use sr_api::routes::guilds::dto::{ChannelObject, GuildObject, MemberObject, iso8601};
 use sr_api::routes::social::model::DmChannelObject;
 use sr_auth::{repo::SessionRepository, session::SessionPolicy, session::SessionToken};
+use sr_chat::domain::ChannelType;
 use sr_chat::repo::UserLookup;
 use sr_chat::{
     repo::{ChannelRepository, GuildRepository},
@@ -19,7 +20,10 @@ use sr_chat::{
 };
 use sr_core::{ChannelId, Clock, GuildId, Permissions, UserId};
 use sr_db::{auth_repo::PgAuthRepo, chat_repo::PgChatRepo, social_repo::PgSocialRepo};
-use sr_gateway::{AuthError, AuthedUser, Authenticator, GuildDirectory, LARGE_THRESHOLD_DEFAULT};
+use sr_gateway::{
+    AuthError, AuthedUser, Authenticator, GuildDirectory, LARGE_THRESHOLD_DEFAULT,
+    VoiceChannelInfo, VoiceChannelKind,
+};
 use std::sync::Arc;
 
 type BuildResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -370,6 +374,85 @@ impl GuildDirectory for PgGuildDirectory {
         res.unwrap_or_else(|e| {
             tracing::error!(error = %e, "has_guild_permission failed");
             false
+        })
+    }
+
+    async fn voice_channel(&self, guild: GuildId, channel: ChannelId) -> Option<VoiceChannelInfo> {
+        match self.chat.get_channel(channel).await {
+            Ok(Some(c)) if c.guild_id == Some(guild) => Some(VoiceChannelInfo {
+                kind: match c.kind {
+                    ChannelType::Voice => VoiceChannelKind::Voice,
+                    ChannelType::Stage => VoiceChannelKind::Stage,
+                    _ => VoiceChannelKind::Other,
+                },
+                user_limit: c.user_limit.unwrap_or(0),
+                bitrate: c.bitrate,
+            }),
+            Ok(_) => None,
+            Err(e) => {
+                tracing::error!(error = %e, "voice_channel failed");
+                None
+            }
+        }
+    }
+
+    async fn channel_permissions(
+        &self,
+        user: UserId,
+        guild: GuildId,
+        channel: ChannelId,
+    ) -> Option<Permissions> {
+        let res: Result<Option<Permissions>, sr_chat::error::RepoError> = async {
+            let Some(ch) = self.chat.get_channel(channel).await? else {
+                return Ok(None);
+            };
+            if ch.guild_id != Some(guild) {
+                return Ok(None);
+            }
+            let (Some(g), Some(member)) = (
+                self.chat.get_guild(guild).await?,
+                self.chat.get_member(guild, user).await?,
+            ) else {
+                return Ok(None);
+            };
+            let roles = self.chat.list_roles(guild).await?;
+            Ok(Some(
+                guild_channel_permissions(
+                    &self.chat,
+                    &g,
+                    &member,
+                    &roles,
+                    &ch,
+                    self.clock.now_unix_ms(),
+                )
+                .await?,
+            ))
+        }
+        .await;
+        res.unwrap_or_else(|e| {
+            tracing::error!(error = %e, "channel_permissions failed");
+            None
+        })
+    }
+
+    async fn member_payload(&self, guild: GuildId, user: UserId) -> Option<Value> {
+        let res: Result<Option<Value>, sr_chat::error::RepoError> = async {
+            let Some(m) = self.chat.get_member(guild, user).await? else {
+                return Ok(None);
+            };
+            let users: std::collections::HashMap<UserId, sr_chat::repo::UserSummary> = self
+                .chat
+                .users(&[user])
+                .await?
+                .into_iter()
+                .map(|u| (u.id, u))
+                .collect();
+            Ok(Some(json!(MemberObject::new(&m, false, &users))))
+        }
+        .await;
+        res.unwrap_or_else(|e| {
+            tracing::error!(error = %e, "member_payload failed");
+            None
         })
     }
 

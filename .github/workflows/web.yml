@@ -5,6 +5,8 @@ on:
 concurrency:
   group: web-${{ github.ref }}
   cancel-in-progress: true
+permissions:
+  contents: read
 jobs:
   web:
     runs-on: ubuntu-latest
@@ -28,3 +30,55 @@ jobs:
       - run: pnpm -r --if-present typecheck
       - run: pnpm -r --if-present test
       - run: pnpm --filter @sideroom/web build
+      # XC-PERF-002: first-load JavaScript per section stays inside the gzip budgets in scripts/bundle-budget.json.
+      - name: Bundle budget
+        run: node scripts/check-bundle-budget.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: apps/web/dist
+          retention-days: 7
+
+  # XC-A11Y-004, XC-PWA, XC-SEC: axe on the public routes, the service worker's boundaries and the enforced
+  # CSP, against the production build. No API or database needed.
+  static-browser-checks:
+    needs: web
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: apps/web/dist
+      - run: pnpm --filter @sideroom/e2e exec playwright install --with-deps chromium
+      - run: pnpm --filter @sideroom/e2e test:static
+        env:
+          CI: "true"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: static-checks-traces
+          path: e2e/test-results
+          retention-days: 7
+
+  # XC-SEC-006: dependency advisories. An advisory signal, not a gate: a new CVE in a transitive dependency
+  # must not block unrelated pull requests. Needs the network, so it cannot run on the agent machines.
+  npm-audit:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm audit --prod --audit-level high

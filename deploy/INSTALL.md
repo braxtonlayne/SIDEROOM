@@ -99,13 +99,13 @@ Limits that are product settings (upload size, invite caps) are stored in the da
 
 5. **Start the server.** `sr-server` (or `sr-server serve`) reads `SR_CONFIG`. Check `GET /healthz` (liveness) and `GET /readyz` (checks Postgres and object storage).
 
-6. **Put the reverse proxy in front.** Forward `/api/*`, `/gateway` and `/cdn/*` to `server.bind`. Do not forward `/internal/*`, and keep `metrics_bind` on loopback.
+6. **Put the reverse proxy in front.** Forward `/api/*`, `/gateway` and `/cdn/*` to `server.bind`. Do not forward `/internal/*`, and keep `metrics_bind` on loopback. `deploy/compose/caddy/Caddyfile.prod` does this and also serves the web app with the security headers and the Content-Security-Policy; `deploy/compose/prod.yml` is the whole stack as Docker Compose, and `deploy/systemd/` has the units for the plain-binary route. For everything around the install see [BACKUP.md](BACKUP.md), [UPGRADE.md](UPGRADE.md), [RUNBOOK.md](RUNBOOK.md), [GARAGE.md](GARAGE.md) and the [FAQ](FAQ.md).
 
 7. **Set the stop timeout.** The server drains for `shutdown_grace_secs` after SIGTERM, then for jobs again. Set the container or service stop timeout above `2 * shutdown_grace_secs` (50 s by default, so use 60 s). Docker's default of 10 s cuts the drain short.
 
 Do not run `sr-cli seed` on an installation you care about. It refuses unless `server.public_url` is local, and `--force` overrides that check.
 
-Backups: there is no `sr-cli backup` command yet. Back up Postgres and the object-storage bucket with your usual tools, and keep the `server.secret_key` value with the backups, because the TOTP secrets in the database cannot be read without it.
+Backups: there is no `sr-cli backup` command yet; the scripts in `deploy/scripts` do the work (nightly dumps, object snapshots, retention, a restore drill). See [BACKUP.md](BACKUP.md). Keep the `server.secret_key` value with the backups, because the TOTP secrets in the database cannot be read without it.
 
 ## 6. Reverse proxy and client IP
 

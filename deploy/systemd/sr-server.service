@@ -1,0 +1,39 @@
+[Unit]
+Description=SIDE ROOM server (API, gateway, jobs)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=sideroom
+Group=sideroom
+# Config path and secrets: SR_CONFIG=/etc/sideroom/config.toml, SR_SERVER__SECRET_KEY, SR_DATABASE__URL,
+# SR_STORAGE__ACCESS_KEY, SR_STORAGE__SECRET_KEY, SR_SMTP__PASSWORD. Mode 0600, owned by root.
+EnvironmentFile=/etc/sideroom/server.env
+ExecStart=/opt/sideroom/bin/sr-server serve
+Restart=on-failure
+RestartSec=3
+# The server drains for shutdown_grace_secs twice (HTTP, then jobs); stay above 2x (default 25 s).
+TimeoutStopSec=60
+KillSignal=SIGTERM
+
+# Sandbox: the server needs the network and nothing else on disk (search index dir is the exception).
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+ReadWritePaths=/var/lib/sideroom
+StateDirectory=sideroom
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

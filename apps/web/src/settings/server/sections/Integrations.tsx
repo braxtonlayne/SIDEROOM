@@ -1,4 +1,5 @@
 import {
+  Avatar,
   Badge,
   Button,
   ConfirmDialog,
@@ -9,11 +10,12 @@ import {
   TextInput,
 } from '@sideroom/ui';
 import { useState } from 'react';
-import { useChannels } from '../../../store';
+import { cdnUrl, useChannels } from '../../../store';
 import * as api from '../api';
 import { useResource, type Viewer } from '../hooks';
 import type { SectionProps } from '../ServerSettings';
 import { ActionStatus, Async, NotAvailable, SectionHeader, formatDate, useAction } from '../ui';
+import { ImageField } from './ImageField';
 
 const origin = () => globalThis.location?.origin ?? '';
 
@@ -67,6 +69,7 @@ function Webhooks({ guildId }: { guildId: string }) {
   const [creating, setCreating] = useState(false);
   // The one place a webhook URL is ever shown: right after creating or resetting it (D-164).
   const [reveal, setReveal] = useState<{ hook: api.WebhookObject; reset: boolean } | null>(null);
+  const [editing, setEditing] = useState<api.WebhookObject | null>(null);
   const [toReset, setToReset] = useState<api.WebhookObject | null>(null);
   const [toDelete, setToDelete] = useState<api.WebhookObject | null>(null);
   const [copied, setCopied] = useState(false);
@@ -142,6 +145,11 @@ function Webhooks({ guildId }: { guildId: string }) {
             <ul className="ss-list" aria-label="Webhooks">
               {list.map((w) => (
                 <li key={w.id} className="ss-row">
+                  <Avatar
+                    name={w.name}
+                    size={32}
+                    src={cdnUrl('avatars', w.id, w.avatar, { size: 64 })}
+                  />
                   <div className="ss-grow">
                     <div className="ss-name">{w.name}</div>
                     <div className="ss-meta">
@@ -149,6 +157,14 @@ function Webhooks({ guildId }: { guildId: string }) {
                       {w.user ? ` - created by ${api.userName(w.user)}` : ''}
                     </div>
                   </div>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    aria-label={`Edit webhook ${w.name}`}
+                    onClick={() => setEditing(w)}
+                  >
+                    Edit
+                  </Button>
                   <Button
                     size="sm"
                     variant="secondary"
@@ -173,13 +189,24 @@ function Webhooks({ guildId }: { guildId: string }) {
         }
       </Async>
       {creating && (
-        <CreateWebhook
+        <WebhookDialog
           channels={channels.map((c) => ({ id: c.id, name: c.name ?? c.id }))}
           onClose={() => setCreating(false)}
-          onCreated={async (w) => {
+          onSaved={async (w) => {
             setCreating(false);
             setReveal({ hook: w, reset: false });
             setCopied(false);
+            await res.reload();
+          }}
+        />
+      )}
+      {editing && (
+        <WebhookDialog
+          channels={channels.map((c) => ({ id: c.id, name: c.name ?? c.id }))}
+          webhook={editing}
+          onClose={() => setEditing(null)}
+          onSaved={async () => {
+            setEditing(null);
             await res.reload();
           }}
         />
@@ -208,30 +235,50 @@ function Webhooks({ guildId }: { guildId: string }) {
   );
 }
 
-function CreateWebhook({
+function WebhookDialog({
   channels,
+  webhook,
   onClose,
-  onCreated,
+  onSaved,
 }: {
   channels: { id: string; name: string }[];
+  /** Present when editing. */
+  webhook?: api.WebhookObject;
   onClose: () => void;
-  onCreated: (w: api.WebhookObject) => Promise<void>;
+  onSaved: (w: api.WebhookObject, created: boolean) => Promise<void>;
 }) {
-  const [name, setName] = useState('');
-  const [channel, setChannel] = useState(channels[0]?.id ?? '');
+  const [name, setName] = useState(webhook?.name ?? '');
+  const [channel, setChannel] = useState(webhook?.channel_id ?? channels[0]?.id ?? '');
+  // The stored hash, a data URI picked now, or null.
+  const [avatar, setAvatar] = useState<string | null>(webhook?.avatar ?? null);
   const action = useAction();
   const nameOk = name.trim().length >= 1 && name.trim().length <= 80;
   const submit = async () => {
     if (!nameOk || !channel) return;
-    const w = await action.run(() => api.createWebhook(channel, name.trim()));
-    if (w) await onCreated(w);
+    if (!webhook) {
+      const w = await action.run(() =>
+        api.createWebhook(channel, name.trim(), avatar ?? undefined),
+      );
+      if (w) await onSaved(w, true);
+      return;
+    }
+    const body: Parameters<typeof api.modifyWebhook>[1] = {};
+    if (name.trim() !== webhook.name) body.name = name.trim();
+    if (channel !== webhook.channel_id) body.channel_id = channel;
+    if (avatar !== (webhook.avatar ?? null)) body.avatar = avatar;
+    if (Object.keys(body).length === 0) {
+      onClose();
+      return;
+    }
+    const w = await action.run(() => api.modifyWebhook(webhook.id, body));
+    if (w) await onSaved(w, false);
   };
   return (
     <Modal
       open
       onClose={onClose}
       size="sm"
-      title="Create webhook"
+      title={webhook ? `Edit ${webhook.name}` : 'Create webhook'}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
@@ -242,13 +289,22 @@ function CreateWebhook({
             disabled={!nameOk || !channel}
             onClick={() => void submit()}
           >
-            Create
+            {webhook ? 'Save' : 'Create'}
           </Button>
         </>
       }
     >
       <div className="ss-form">
         <ActionStatus error={action.error} />
+        <ImageField
+          label="Webhook avatar"
+          hint="Shown next to messages posted by this webhook."
+          ownerId={webhook?.id ?? ''}
+          kind="avatars"
+          shape="square"
+          value={avatar}
+          onChange={setAvatar}
+        />
         <TextInput
           label="Webhook name"
           value={name}
@@ -318,12 +374,12 @@ function Templates({ guildId }: { guildId: string; viewer: Viewer }) {
       await res.reload();
     }
   };
-  const copy = async (code: string) => {
-    if (await copyText(code)) {
-      setCopied(code);
-      setTimeout(() => setCopied((c) => (c === code ? null : c)), 2000);
+  const copy = async (code: string, text: string = code) => {
+    if (await copyText(text)) {
+      setCopied(text);
+      setTimeout(() => setCopied((c) => (c === text ? null : c)), 2000);
     } else
-      action.setError('Copying is blocked by the browser. Select the code and copy it by hand.');
+      action.setError('Copying is blocked by the browser. Select the text and copy it by hand.');
   };
 
   return (
@@ -351,6 +407,23 @@ function Templates({ guildId }: { guildId: string; viewer: Viewer }) {
                   <Button size="sm" onClick={() => void copy(t.code)}>
                     {copied === t.code ? 'Copied!' : 'Copy code'}
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    aria-label={`Copy link for ${t.name}`}
+                    onClick={() => void copy(t.code, `${origin()}/template/${t.code}`)}
+                  >
+                    {copied === `${origin()}/template/${t.code}` ? 'Copied!' : 'Copy link'}
+                  </Button>
+                  <a
+                    className="ss-link"
+                    href={`/template/${t.code}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`Preview template ${t.name}`}
+                  >
+                    Preview
+                  </a>
                   <Button
                     size="sm"
                     variant="secondary"

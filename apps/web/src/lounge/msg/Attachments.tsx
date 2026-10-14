@@ -1,6 +1,7 @@
 import { Icon, Modal, Tooltip, type IconName } from '@sideroom/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Attachment } from '../data';
+import { useSavedPrefs } from '../../settings/user/prefs';
 import { decodeBlurhash } from './blurhash';
 import { formatBytes, formatDuration, isHttpUrl } from './format';
 
@@ -29,7 +30,9 @@ export interface AttachmentListProps {
 /** All attachments of a message: media mosaic first, then players and file cards. */
 export function AttachmentList({ attachments, voice }: AttachmentListProps) {
   const [lightbox, setLightbox] = useState<number | null>(null);
-  const media = attachments.filter((a) => !a.expired && (isImage(a) || isVideo(a)));
+  // "Display attachments directly in chat" off: pictures and videos become file cards (voice messages stay).
+  const inline = useSavedPrefs().inlineAttachments;
+  const media = attachments.filter((a) => inline && !a.expired && (isImage(a) || isVideo(a)));
   const mosaic = media.filter(isImage);
   const rest = attachments.filter((a) => !mosaic.includes(a));
   return (
@@ -43,7 +46,7 @@ export function AttachmentList({ attachments, voice }: AttachmentListProps) {
       )}
       {rest.map((a) => {
         if (a.expired) return <ExpiredChip key={a.id} a={a} />;
-        if (isVideo(a)) return <VideoPlayer key={a.id} a={a} />;
+        if (isVideo(a) && inline) return <VideoPlayer key={a.id} a={a} />;
         if (isAudio(a) && (voice || a.waveform)) return <VoiceMessage key={a.id} a={a} />;
         if (isAudio(a)) return <AudioPlayer key={a.id} a={a} />;
         return <FileCard key={a.id} a={a} />;

@@ -1,6 +1,7 @@
 import { render } from '@testing-library/react';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import { createAppRouter } from '../../../router';
+import { resetStore } from '../../../store';
 import { http, HttpResponse, server } from '../../../test/server';
 import { DEFAULT_PREFS, usePrefsStore } from '../prefs';
 
@@ -47,6 +48,8 @@ export function signedIn(me: Partial<typeof ME> = {}) {
 }
 
 export function resetPrefs() {
+  // The account copy of the preferences lives in the store: a previous test must not leak into this one.
+  resetStore();
   localStorage.clear();
   usePrefsStore.setState({ prefs: DEFAULT_PREFS });
 }

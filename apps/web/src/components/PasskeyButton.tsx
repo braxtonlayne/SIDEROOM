@@ -2,6 +2,7 @@ import { OutlineButton } from '@sideroom/ui';
 import { useState } from 'react';
 import { ApiError } from '../api/client';
 import { submitTwoFactor } from '../api/entrance';
+import { useT } from '../i18n/react';
 import { passkeyLoginBegin, passkeyLoginFinish } from '../api/passkeys';
 import { getPasskey, isCancelled, passkeysSupported } from '../lib/webauthn';
 
@@ -17,7 +18,7 @@ export { passkeysSupported };
 export function PasskeyButton({
   onDone,
   onError,
-  label = 'Use a passkey',
+  label,
   secondFactor,
 }: {
   onDone: () => void;
@@ -25,6 +26,7 @@ export function PasskeyButton({
   label?: string;
   secondFactor?: { trustDevice: boolean };
 }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   if (!passkeysSupported()) return null;
 
@@ -45,11 +47,11 @@ export function PasskeyButton({
       onDone();
     } catch (e) {
       if (e instanceof ApiError && e.status === 429) {
-        onError('Too many attempts. Wait a moment and try again.');
+        onError(t('entrance.passkey.tooMany'));
       } else if (isCancelled(e)) {
-        onError('Passkey sign-in was cancelled.');
+        onError(t('entrance.passkey.cancelled'));
       } else {
-        onError("That passkey didn't work. Try another way in.");
+        onError(t('entrance.passkey.failed'));
       }
       setBusy(false);
     }
@@ -57,7 +59,7 @@ export function PasskeyButton({
 
   return (
     <OutlineButton type="button" onClick={() => void run()} disabled={busy} aria-busy={busy}>
-      {label}
+      {label ?? t('entrance.passkey.use')}
     </OutlineButton>
   );
 }

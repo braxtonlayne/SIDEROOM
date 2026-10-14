@@ -4,6 +4,7 @@ use crate::{
     auth::{SESSION_COOKIE, csrf, parse_cookie},
     health, observability, openapi,
     rate_limit::rate_limit,
+    security_headers::{SecurityHeaderConfig, security_headers},
     state::AppState,
 };
 use axum::{
@@ -166,6 +167,12 @@ fn with_common_layers(app: Router<AppState>, state: &AppState) -> Router<AppStat
                     .on_response(DefaultOnResponse::new().level(Level::INFO)),
             )
             .layer(from_fn(observability::http_metrics))
+            .layer(from_fn_with_state(
+                SecurityHeaderConfig {
+                    hsts: state.settings().secure_cookies,
+                },
+                security_headers,
+            ))
             .layer(PropagateHeaderLayer::new(id))
             .layer(CompressionLayer::new())
             .layer(cors(state))

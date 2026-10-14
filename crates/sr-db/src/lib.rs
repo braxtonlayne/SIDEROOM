@@ -20,10 +20,12 @@ pub mod lock;
 pub mod partitions;
 mod pool;
 pub mod registration;
+pub mod review_repo;
 pub mod rich_repo;
 pub mod runner;
 pub mod settings_repo;
 pub mod social_repo;
+pub mod testing;
 pub mod thread_repo;
 mod tx;
 

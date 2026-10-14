@@ -31,7 +31,7 @@ describe('User Settings shell', () => {
     const nav = await screen.findByRole('navigation', { name: 'User Settings' });
     expect(within(nav).getByText('App Settings')).toBeInTheDocument();
     const buttons = within(nav).getAllByRole('button');
-    expect(buttons.filter((b) => b.tabIndex === 0)).toHaveLength(2); // active section + Log Out
+    expect(buttons.filter((b) => b.tabIndex === 0)).toHaveLength(3); // active section + What's New + Log Out
     expect(within(nav).getByRole('button', { name: 'My Account' })).toHaveAttribute(
       'aria-current',
       'page',
@@ -55,21 +55,23 @@ describe('User Settings shell', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/settings/user/account'));
   });
 
-  it('shows the read-only keybind table including the settings shortcut', async () => {
+  it('shows the keybind table with Change buttons and the voice keybind recorders', async () => {
     signedIn();
     openSettings('keybinds');
-    expect(await screen.findByText('Open user settings')).toBeInTheDocument();
+    expect((await screen.findAllByText('Open user settings')).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('img', { name: /plus ,|Ctrl plus K/ }).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('button', { name: /edit|record/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /Change Open user settings/ })).toBeInTheDocument();
+    // Voice keybinds are recorded on this page too.
+    expect(screen.getByRole('button', { name: 'Record Push to Talk keybind' })).toBeInTheDocument();
   });
 
-  it('shows English only with a disabled selector and a note', async () => {
+  it('lists the language and region choices', async () => {
     signedIn();
     openSettings('language');
-    const select = await screen.findByRole('combobox', { name: 'Interface language' });
-    expect(select).toBeDisabled();
-    expect(select).toHaveTextContent('English');
-    expect(screen.getByText(/only language for now/)).toBeInTheDocument();
+    const select = await screen.findByRole('combobox', { name: 'Region and date format' });
+    expect(select).not.toBeDisabled();
+    expect(select).toHaveValue('Same as my browser');
+    expect(screen.getByText(/English only for now/)).toBeInTheDocument();
   });
 
   it('holds ESC while there are unsaved changes, Reset clears them, Save persists and ESC then leaves', async () => {

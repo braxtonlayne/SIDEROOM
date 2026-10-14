@@ -42,15 +42,52 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('Notifications', () => {
-  it('changes the default level through the unsaved bar and saves it locally', async () => {
+  it('shows the account default level and saves a change straight to the server', async () => {
     guildEndpoints();
+    let sent: unknown;
+    server.use(
+      http.get('*/api/v1/users/@me/notification-defaults', () =>
+        HttpResponse.json({ message_notifications: 1 }),
+      ),
+      http.patch('*/api/v1/users/@me/notification-defaults', async ({ request }) => {
+        sent = await request.json();
+        return HttpResponse.json({ message_notifications: 0 });
+      }),
+    );
     const user = userEvent.setup();
     openSettings('notifications');
     expect(await screen.findByRole('radio', { name: 'Only @mentions' })).toBeChecked();
     await user.click(screen.getByRole('radio', { name: 'All messages' }));
-    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    await waitFor(() => expect(sent).toEqual({ message_notifications: 0 }));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('radio', { name: 'All messages' })).toBeChecked();
+  });
+
+  it('puts the radio back and says why when the default level cannot be saved', async () => {
+    guildEndpoints();
+    server.use(
+      http.get('*/api/v1/users/@me/notification-defaults', () =>
+        HttpResponse.json({ message_notifications: 1 }),
+      ),
+      http.patch('*/api/v1/users/@me/notification-defaults', () =>
+        HttpResponse.json({ message: 'Nope' }, { status: 400 }),
+      ),
+    );
+    const user = userEvent.setup();
+    openSettings('notifications');
+    await user.click(await screen.findByRole('radio', { name: 'Nothing' }));
+    expect(await screen.findByText('Nope')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Only @mentions' })).toBeChecked();
+  });
+
+  it('keeps the unread, push and reaction choices in the saved preferences', async () => {
+    guildEndpoints();
+    const user = userEvent.setup();
+    openSettings('notifications');
+    await user.click(await screen.findByRole('switch', { name: /Flash the page title/ }));
+    await user.click(screen.getByRole('switch', { name: /Show the unread badge/ }));
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
-    expect(usePrefsStore.getState().prefs.defaultNotify).toBe('all');
+    expect(usePrefsStore.getState().prefs).toMatchObject({ titleBlink: true, unreadBadge: false });
   });
 
   it('toggles sound preferences', async () => {

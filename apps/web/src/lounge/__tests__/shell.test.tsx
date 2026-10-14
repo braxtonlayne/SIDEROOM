@@ -6,6 +6,8 @@ import { createAppRouter } from '../../router';
 import { resetComposerDrafts } from '../Composer';
 import { setMarkdownEngine, testFallbackEngine } from '../markdown';
 import { useLoungeUi } from '../store';
+import { setVoiceController, VoiceController } from '../../voice/controller';
+import { resetSession } from '../../voice/session';
 
 // These tests drive the Lounge against the deterministic mock seed (opt-in via VITE_SR_MOCK=1).
 beforeAll(() => vi.stubEnv('VITE_SR_MOCK', '1'));
@@ -21,7 +23,42 @@ beforeEach(() => {
   resetComposerDrafts();
   localStorage.clear();
   useLoungeUi.setState(useLoungeUi.getInitialState(), true);
+  resetSession();
+  // No gateway or media in these tests: the controller sends nowhere and its engine never connects.
+  const sent: unknown[] = [];
+  setVoiceController(
+    new VoiceController({
+      createEngine: () => ({
+        status: 'idle',
+        connect: () => new Promise<void>(() => undefined),
+        disconnect: () => undefined,
+        setTransmitting: () => undefined,
+        setDeafened: () => undefined,
+        setUserVolume: () => undefined,
+        setUserMuted: () => undefined,
+        setMasterVolume: () => undefined,
+        setInputVolume: () => undefined,
+        setInputDevice: async () => undefined,
+        setOutputDevice: async () => undefined,
+        restartIce: () => undefined,
+      }),
+      sendGateway: (_op, d) => (sent.push(d), true),
+      subscribe: () => () => undefined,
+      currentUserId: () => 'me',
+      voiceStatesOf: () => ({}),
+      audio: {
+        getUserMedia: () => Promise.reject(new Error('no media in tests')),
+        createAudioContext: () => null,
+        createAudioElement: () => document.createElement('audio'),
+        enumerateDevices: async () => [],
+        onDeviceChange: () => () => undefined,
+        queryMicPermission: async () => 'prompt',
+      },
+      now: () => Date.now(),
+    }),
+  );
 });
+afterEach(() => setVoiceController(null));
 
 describe('Lounge shell', () => {
   it('renders rail, channel sidebar, header, messages and composer for a channel', async () => {
@@ -81,9 +118,12 @@ describe('Lounge shell', () => {
     expect(within(sidebar).getByText('Mara')).toBeInTheDocument();
     expect(within(sidebar).getByText('3/10')).toBeInTheDocument();
     await userEvent.click(within(sidebar).getByRole('button', { name: /Movie night/ }));
-    expect(screen.getByRole('status', { name: 'Voice connection' })).toHaveTextContent(
-      'Movie night',
-    );
+    const panel = screen.getByRole('region', { name: 'Voice connection' });
+    expect(panel).toHaveTextContent('Movie night');
+    expect(panel).toHaveTextContent('RTC Connecting');
+    // Clicking a voice channel also opens its view.
+    expect(await screen.findByRole('button', { name: 'Join Voice' }).catch(() => null)).toBeNull();
+    expect(screen.getByRole('toolbar', { name: 'Call controls' })).toBeInTheDocument();
   });
 
   it('sends a message from the composer with Enter and renders markdown', async () => {

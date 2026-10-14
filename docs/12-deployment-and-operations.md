@@ -50,13 +50,15 @@ Everything ships as **Docker Compose** (`deploy/compose/`) **and** as systemd un
 
 `sr-cli restore --from <snapshot>` with a documented, tested restore drill (CI runs a restore test on a sample dataset weekly).
 
+Shipped so far: `deploy/scripts/backup.sh`, `restore.sh` and `restore-drill.sh` (see [deploy/BACKUP.md](../deploy/BACKUP.md)), systemd timers for both, and `.github/workflows/backup-drill.yml`. `sr-cli backup` and `restore` are not written; the scripts are the interface. WAL archiving is not scripted.
+
 ## 6. Upgrades
 
 Semantic-versioned releases. `sr-cli upgrade` takes a pre-upgrade DB snapshot, runs migrations, and restarts. Migrations are forward-only and must be backward-compatible with the previous release's binaries for one version (expand/contract), so rollbacks are safe.
 
 ## 7. Monitoring
 
-- `/internal/metrics` (Prometheus format). An optional Compose profile adds Prometheus + Grafana with shipped dashboards: gateway sessions, REST latency, voice rooms/egress, job queue, storage usage, invoice states.
+- `/internal/metrics` (Prometheus format; `http_request_duration_seconds` is a real histogram with buckets around the 100 ms budget). Dashboards and alert rules live in `deploy/monitoring`, the on-call steps in [deploy/RUNBOOK.md](../deploy/RUNBOOK.md). An optional Compose profile adds Prometheus + Grafana with shipped dashboards: gateway sessions, REST latency, voice rooms/egress, job queue, storage usage, invoice states.
 - Admin → System shows: disk usage, egress, active voice rooms, account count vs cap, job backlog, worker status, and the last backup and its verification.
 - Alerts post to the Staff Server `#alerts` channel (and optional email).
 

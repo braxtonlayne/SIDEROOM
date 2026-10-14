@@ -3,14 +3,16 @@ import { useEffect, useState } from 'react';
 import {
   errorText,
   getGuildSettings,
+  getNotificationDefaults,
   listGuilds,
   patchGuildSettings,
+  patchNotificationDefaults,
   useResource,
   type GuildLite,
   type GuildSettings,
 } from '../api';
-import { Card, Loaded, SectionTitle } from '../parts';
-import type { DefaultNotify } from '../prefs';
+import { Card, Loaded, SectionTitle, Unavailable } from '../parts';
+import { PUSH_INACTIVE_CHOICES } from '../prefs';
 import type { PrefsFormProps } from './Appearance';
 
 type Perm = NotificationPermission | 'unsupported';
@@ -95,6 +97,58 @@ function ServerRow({ guild }: { guild: GuildLite }) {
   );
 }
 
+const DEFAULT_LEVELS = [
+  { value: '0', label: 'All messages' },
+  { value: '1', label: 'Only @mentions' },
+  { value: '2', label: 'Nothing' },
+];
+
+/** The account's default level (`/users/@me/notification-defaults`), used where a server doesn't override it. */
+function DefaultLevelCard() {
+  const toast = useToast();
+  const res = useResource(getNotificationDefaults);
+  const [error, setError] = useState<string | null>(null);
+  const choose = async (value: string) => {
+    setError(null);
+    const before = res.data;
+    const level = Number(value);
+    res.setData({ message_notifications: level });
+    try {
+      res.setData(await patchNotificationDefaults(level));
+      toast.show({ title: 'Default level updated', duration: 1500 });
+    } catch (e) {
+      if (before) res.setData(before);
+      setError(errorText(e));
+    }
+  };
+  return (
+    <Card
+      id="us-notify-default"
+      title="Default notification level"
+      description="Used in every server that doesn't set its own. Saves as soon as you pick."
+    >
+      <Loaded res={res} what="your default level">
+        {(d) => (
+          <RadioGroup
+            legend="Default notification level"
+            value={String(d.message_notifications ?? 1)}
+            onValueChange={(v) => void choose(v)}
+          >
+            {DEFAULT_LEVELS.map((l) => (
+              <Radio key={l.value} value={l.value} label={l.label} />
+            ))}
+          </RadioGroup>
+        )}
+      </Loaded>
+      {error && (
+        <Notice variant="danger" title="Couldn't save that">
+          {error}
+        </Notice>
+      )}
+    </Card>
+  );
+}
+
 export function NotificationsSection({ prefs, setPrefs }: PrefsFormProps) {
   const guilds = useResource(listGuilds);
   const [perm, setPerm] = useState<Perm>(permission);
@@ -108,21 +162,7 @@ export function NotificationsSection({ prefs, setPrefs }: PrefsFormProps) {
   return (
     <>
       <SectionTitle>Notifications</SectionTitle>
-      <Card
-        id="us-notify-default"
-        title="Default notification level"
-        description="Used where a server doesn't override it. Stored in this browser; the server has no global default yet."
-      >
-        <RadioGroup
-          legend="Default notification level"
-          value={prefs.defaultNotify}
-          onValueChange={(v) => setPrefs({ defaultNotify: v as DefaultNotify })}
-        >
-          <Radio value="all" label="All messages" />
-          <Radio value="mentions" label="Only @mentions" />
-          <Radio value="nothing" label="Nothing" />
-        </RadioGroup>
-      </Card>
+      <DefaultLevelCard />
       <Card id="us-desktop" title="Desktop notifications">
         {perm === 'unsupported' ? (
           <Notice variant="info">This browser doesn&apos;t support desktop notifications.</Notice>
@@ -160,6 +200,56 @@ export function NotificationsSection({ prefs, setPrefs }: PrefsFormProps) {
             onChange={(e) => setPrefs({ soundCall: e.target.checked })}
           />
         </div>
+      </Card>
+      <Card id="us-badges" title="Unread indicators">
+        <div className="us-stack">
+          <Switch
+            label="Show the unread badge"
+            description="A count on the browser tab and the installed app icon."
+            checked={prefs.unreadBadge}
+            onChange={(e) => setPrefs({ unreadBadge: e.target.checked })}
+          />
+          <Switch
+            label="Flash the page title for new messages"
+            description="The tab title blinks while the window is in the background."
+            checked={prefs.titleBlink}
+            onChange={(e) => setPrefs({ titleBlink: e.target.checked })}
+          />
+          <Switch
+            label="Notify me about reactions to my messages"
+            checked={prefs.reactionNotifications}
+            onChange={(e) => setPrefs({ reactionNotifications: e.target.checked })}
+          />
+        </div>
+      </Card>
+      <Card
+        id="us-push"
+        title="Push and email"
+        description="When you step away, notifications can go to your phone, or arrive as a summary."
+      >
+        <div className="us-stack">
+          <label className="us-muted" id="us-push-label">
+            Send push notifications after being inactive for
+          </label>
+          <Select
+            aria-labelledby="us-push-label"
+            options={PUSH_INACTIVE_CHOICES.map((m) => ({
+              value: String(m),
+              label: m === 0 ? 'Never' : m === 60 ? '1 hour' : `${m} minute${m === 1 ? '' : 's'}`,
+            }))}
+            value={String(prefs.pushInactiveMinutes)}
+            onValueChange={(v) => setPrefs({ pushInactiveMinutes: Number(v) })}
+          />
+          <Switch
+            label="Email me a digest of what I missed"
+            checked={prefs.emailDigest}
+            onChange={(e) => setPrefs({ emailDigest: e.target.checked })}
+          />
+        </div>
+        <Unavailable>
+          These choices are kept on your account, but the server doesn&apos;t deliver Web Push or
+          email digests yet, so they don&apos;t change anything today.
+        </Unavailable>
       </Card>
       <Card
         id="us-servers"

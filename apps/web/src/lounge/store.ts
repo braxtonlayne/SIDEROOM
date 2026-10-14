@@ -1,6 +1,6 @@
 /**
  * Lounge UI state that is not server data: remembered locations, collapsed categories, panel sizes,
- * recent quick-switcher picks, the (placeholder) voice connection. Persisted to localStorage where available.
+ * recent quick-switcher picks. (The voice connection lives in src/voice/session.ts.) Persisted to localStorage where available.
  */
 import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
@@ -32,12 +32,6 @@ const safeStorage: StateStorage = {
 
 export const RIGHT_PANEL_MIN = 240;
 export const RIGHT_PANEL_MAX = 340;
-
-export interface VoiceConnection {
-  guildId: string;
-  channelId: string;
-  name: string;
-}
 
 /** Modal dialogs opened from menus anywhere in the shell; rendered once by LoungeDialogs. */
 export type LoungeDialog =
@@ -77,9 +71,6 @@ export interface LoungeUiState {
   // Not persisted:
   /** What Home shows when no conversation is open. */
   homeView: 'friends' | 'requests';
-  voice: VoiceConnection | null;
-  micMuted: boolean;
-  deafened: boolean;
   dialog: LoungeDialog | null;
 
   dismissBanner(id: string): void;
@@ -96,9 +87,6 @@ export interface LoungeUiState {
   toggleHideMuted(guildId: string): void;
   setRightPanelWidth(w: number): void;
   pushRecent(key: string): void;
-  joinVoice(v: VoiceConnection | null): void;
-  toggleMic(): void;
-  toggleDeafen(): void;
 }
 
 export const clampPanel = (w: number) =>
@@ -120,9 +108,6 @@ export const useLoungeUi = create<LoungeUiState>()(
       dismissedBanners: {},
       welcomeDone: {},
       homeView: 'friends',
-      voice: null,
-      micMuted: false,
-      deafened: false,
       dialog: null,
 
       dismissBanner: (id) =>
@@ -156,10 +141,6 @@ export const useLoungeUi = create<LoungeUiState>()(
         set((s) => ({
           recentSwitcher: [key, ...s.recentSwitcher.filter((k) => k !== key)].slice(0, 8),
         })),
-      joinVoice: (voice) => set({ voice }),
-      toggleMic: () => set((s) => ({ micMuted: !s.micMuted })),
-      toggleDeafen: () =>
-        set((s) => ({ deafened: !s.deafened, micMuted: s.deafened ? s.micMuted : true })),
     }),
     {
       name: 'sr.lounge.ui',

@@ -11,6 +11,8 @@ env:
 concurrency:
   group: rust-${{ github.ref }}
   cancel-in-progress: true
+permissions:
+  contents: read
 jobs:
   fmt-clippy-test:
     runs-on: ubuntu-latest

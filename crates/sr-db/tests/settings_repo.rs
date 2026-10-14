@@ -321,3 +321,39 @@ async fn webhook_update_replaces_the_token_hash() {
     assert!(stored.token_matches(&hash_token("second")));
     assert!(!stored.token_matches(&hash_token("first")));
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn webhook_avatar_key_round_trips_and_clears() {
+    use sr_chat::settings::repo::WebhookRepository;
+    use sr_chat::settings::webhooks::{Webhook, hash_token};
+    use sr_core::WebhookId;
+    let pool = pool().await;
+    let test_ids = ids(7);
+    let repo = PgSettingsRepo::new(pool.clone());
+    let (g, ch, owner) = guild(&pool, &test_ids).await;
+    let mut w = Webhook::new_incoming(
+        WebhookId::new(test_ids.generate().get()),
+        g,
+        ch,
+        owner,
+        "Deploys",
+        hash_token("t"),
+        NOW,
+    )
+    .unwrap();
+    w.avatar_key = Some("0123456789abcdef0123456789abcdef".into());
+    repo.insert_webhook(&w).await.unwrap();
+    let stored = repo.get_webhook(w.id).await.unwrap().unwrap();
+    assert_eq!(stored.avatar_key, w.avatar_key);
+    w.avatar_key = None;
+    repo.update_webhook(&w).await.unwrap();
+    assert!(
+        repo.get_webhook(w.id)
+            .await
+            .unwrap()
+            .unwrap()
+            .avatar_key
+            .is_none()
+    );
+}

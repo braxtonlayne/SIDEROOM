@@ -3,10 +3,17 @@ import { useCallback } from 'react';
 
 export const USER_SETTINGS_SECTIONS = [
   { id: 'account', label: 'My Account', group: 'User Settings' },
-  { id: 'profile', label: 'Profile', group: 'User Settings' },
+  { id: 'profile', label: 'Profiles', group: 'User Settings' },
   { id: 'privacy', label: 'Privacy & Safety', group: 'User Settings' },
+  { id: 'activity', label: 'Activity Privacy', group: 'User Settings' },
+  { id: 'apps', label: 'Authorized Apps', group: 'User Settings' },
+  { id: 'devices', label: 'Devices', group: 'User Settings' },
+  { id: 'connections', label: 'Connections', group: 'User Settings' },
   { id: 'appearance', label: 'Appearance', group: 'App Settings' },
+  { id: 'accessibility', label: 'Accessibility', group: 'App Settings' },
+  { id: 'text', label: 'Text & Images', group: 'App Settings' },
   { id: 'notifications', label: 'Notifications', group: 'App Settings' },
+  { id: 'voice', label: 'Voice & Video', group: 'App Settings' },
   { id: 'keybinds', label: 'Keybinds', group: 'App Settings' },
   { id: 'language', label: 'Language', group: 'App Settings' },
   { id: 'advanced', label: 'Advanced', group: 'App Settings' },

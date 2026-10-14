@@ -1,0 +1,36 @@
+.sr-pwa {
+  position: fixed;
+  left: max(16px, env(safe-area-inset-left));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 9000;
+  display: grid;
+  gap: 8px;
+  max-width: min(420px, calc(100vw - 32px));
+  pointer-events: none;
+}
+.sr-pwa-card {
+  pointer-events: auto;
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--sr-bg-1, #161613);
+  color: var(--sr-text, #ece6d6);
+  border: 1px solid var(--sr-line, #2a2b24);
+  border-radius: var(--sr-radius, 2px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+.sr-pwa-card p,
+.sr-pwa-card ol {
+  margin: 4px 0 0;
+  color: var(--sr-text-2, #a9a493);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.sr-pwa-card ol {
+  padding-left: 1.25rem;
+}
+.sr-pwa-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
