@@ -11,6 +11,8 @@ import { CallControls, type ViewLayout } from './CallControls';
 import { JoinPreview } from './JoinPreview';
 import { ParticipantTile, StreamTile } from './Tiles';
 import { useVoicePerms } from './perms';
+import { usePopOut } from './PopOut';
+import { useSwipeDown } from './swipe';
 import { VoiceChat } from './VoiceChat';
 import { WatchPartyStrip } from '../../watchparty/WatchPartyStrip';
 import './voice-p10.css';
@@ -53,6 +55,9 @@ export function VoiceChannelView({
   });
   const [focusKey, setFocusKey] = useState<string | null>(null);
   const stage = useRef<HTMLDivElement | null>(null);
+  const popOut = usePopOut(channel.id);
+  // Mobile: swipe down on the call to minimise it (the call keeps running in the voice panel).
+  useSwipeDown(stage, here ? onBack : undefined);
 
   const patchLayout = (patch: Partial<ViewLayout>) => setLayout((l) => ({ ...l, ...patch }));
   const fullscreen = () => {
@@ -199,6 +204,11 @@ export function VoiceChannelView({
               layout={layout}
               onLayout={patchLayout}
               onFullscreen={fullscreen}
+              onPopOut={
+                popOut.supported && !popOut.isOpen
+                  ? () => void popOut.open().catch(() => setError(t('lounge.popOut.failed')))
+                  : undefined
+              }
             />
           )}
         </div>
@@ -206,6 +216,7 @@ export function VoiceChannelView({
           <VoiceChat channel={channel} onClose={() => patchLayout({ chatOpen: false })} />
         )}
       </div>
+      {popOut.portal}
     </section>
   );
 }

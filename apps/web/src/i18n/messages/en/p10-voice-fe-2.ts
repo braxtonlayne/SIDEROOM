@@ -81,9 +81,13 @@ export default {
   'lounge.incomingCall.calling': 'Incoming call',
   'lounge.incomingCall.videoCalling': 'Incoming video call',
   'lounge.incomingCall.groupCalling': '{name} is calling the group',
-  'lounge.incomingCall.more': '{n, plural, one {# more call is ringing} other {# more calls are ringing}}',
+  'lounge.incomingCall.more':
+    '{n, plural, one {# more call is ringing} other {# more calls are ringing}}',
   'lounge.incomingCall.switchNote': 'Accepting leaves your current call.',
   'lounge.incomingCall.accept': 'Accept',
   'lounge.incomingCall.acceptVideo': 'Accept with video',
   'lounge.incomingCall.decline': 'Decline',
+  'lounge.popOut.failed': 'Could not open the pop-out window.',
+  'lounge.popOut.preview': 'Your video',
+  'lounge.popOut.people': 'People in this call',
 } satisfies Record<string, string>;

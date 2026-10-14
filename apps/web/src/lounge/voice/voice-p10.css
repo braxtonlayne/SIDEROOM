@@ -274,3 +274,64 @@
   flex-basis: 100%;
   gap: 8px;
 }
+
+/* pop-out window (VOX-UI-012) */
+.vc-popout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-block-size: 100vh;
+  padding: 12px;
+  background: var(--bg-base);
+  color: var(--text-normal, inherit);
+}
+.vc-popout-title {
+  margin: 0;
+  font-size: 16px;
+}
+.vc-popout-people {
+  display: flex;
+  flex-wrap: wrap;
+  flex: 1;
+  align-content: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.vc-popout-controls {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+/* mobile call UI (VOX-UI-016): the call fills the screen, controls scroll as one sheet */
+@media (max-width: 768px) {
+  .vc-view .vc-stage {
+    padding: 8px;
+  }
+  .vc-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+  .vc-controls {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-block-end: max(12px, env(safe-area-inset-bottom));
+    border-start-start-radius: 16px;
+    border-start-end-radius: 16px;
+    background: var(--bg-base-lowest);
+  }
+  .vc-ctl {
+    flex: none;
+    inline-size: 44px;
+    block-size: 44px;
+  }
+  .vc-ctl-arrow {
+    inline-size: 28px;
+    block-size: 44px;
+  }
+  .vc-stream-item {
+    grid-column: span 1;
+  }
+}
