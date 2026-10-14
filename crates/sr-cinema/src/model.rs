@@ -889,3 +889,52 @@ pub struct MergeOutcome {
     /// Episodes of the source that were dropped as duplicates of target episodes.
     pub episode_map: EpisodeMap,
 }
+
+// ---- artwork uploads -------------------------------------------------------------
+
+str_enum!(
+    /// What an artwork upload is for; only names the object.
+    ArtworkSlot {
+        Poster => "poster",
+        Backdrop => "backdrop",
+        Logo => "logo",
+        Still => "still",
+        SeasonPoster => "season-poster",
+    }
+);
+
+str_enum!(
+    /// Image formats accepted for artwork.
+    ArtworkType {
+        Webp => "image/webp",
+        Jpeg => "image/jpeg",
+        Png => "image/png",
+    }
+);
+
+impl ArtworkType {
+    pub const fn extension(self) -> &'static str {
+        match self {
+            Self::Webp => "webp",
+            Self::Jpeg => "jpg",
+            Self::Png => "png",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, ToSchema)]
+pub struct ArtworkRequest {
+    pub slot: ArtworkSlot,
+    /// `image/webp`, `image/jpeg` or `image/png`.
+    pub content_type: String,
+}
+
+/// A reserved artwork object: `PUT` the image to `upload_url` with the same `Content-Type`,
+/// then save `key` as `poster_key` / `backdrop_key` / `logo_key` / `still_key` / season `poster_key`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+pub struct ArtworkUpload {
+    pub key: String,
+    pub upload_url: String,
+    pub content_type: String,
+    pub expires_in_secs: u64,
+}

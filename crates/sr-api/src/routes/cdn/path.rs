@@ -13,6 +13,7 @@
 //! | `avatars`     | `avatars/`        | user avatars/banners (`avatars/{user}/{hash}`) |
 //! | `icons`       | `icons/`          | guild icon/banner/splash (`icons/{guild}/{hash}`) |
 //! | `library`     | `library/`        | Library covers and reader pages (`library/{series}/{chapter}/{page}.webp`), signed |
+//! | `cinema`      | `cinema/`         | Cinema artwork (`cinema/{title}/poster.webp`, stills), signed |
 //!
 //! `avatars` and `icons` are *public kinds*: the URL is `/cdn/avatars/{user}/{hash}.{ext}`
 //! where `ext` (png, jpg, webp, gif) selects the output format and is not part of the
@@ -28,6 +29,7 @@ pub const KINDS: &[(&str, &str)] = &[
     ("avatars", "avatars"),
     ("icons", "icons"),
     ("library", "library"),
+    ("cinema", "cinema"),
 ];
 
 const MAX_PATH: usize = 1024;

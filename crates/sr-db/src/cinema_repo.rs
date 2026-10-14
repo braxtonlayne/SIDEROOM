@@ -559,7 +559,6 @@ impl CinemaRepository for PgCinemaRepo {
         );
         let kind = kind.map(|k| k.as_str());
         let counts = |sql: String| {
-            let kind = kind;
             let pool = self.pool.clone();
             async move {
                 let rows = dynq(sql).bind(kind).fetch_all(&pool).await.map_err(db)?;

@@ -18,6 +18,7 @@ use std::sync::Arc;
 
 use sr_core::{Clock, PlatformPermissions as P};
 use sr_storage::cdn::CdnSigner;
+use sr_storage::{ObjectStorage, PresignMethod};
 
 use crate::error::{CinemaError, CinemaResult};
 use crate::model::*;
@@ -44,6 +45,8 @@ const DISCOVER_ROW: u32 = 20;
 const BANNER_ROW: u32 = 5;
 /// Titles in the hero carousel.
 const HERO_ROW: u32 = 8;
+/// How long a presigned artwork upload URL works.
+const ARTWORK_URL_TTL: std::time::Duration = std::time::Duration::from_secs(3600);
 /// Longest unpaged episode list.
 const ALL_EPISODES: u32 = 5000;
 
@@ -134,6 +137,7 @@ pub struct CinemaService {
     ids: IdSource,
     providers: Vec<Arc<dyn RowProvider>>,
     observers: Vec<Arc<dyn CatalogObserver>>,
+    storage: Option<Arc<dyn ObjectStorage>>,
 }
 
 impl CinemaService {
@@ -151,6 +155,7 @@ impl CinemaService {
             ids,
             providers: Vec::new(),
             observers: Vec::new(),
+            storage: None,
         }
     }
 
@@ -170,6 +175,12 @@ impl CinemaService {
     /// Be told about merges and deletions that other tables must follow.
     pub fn with_observer(mut self, observer: Arc<dyn CatalogObserver>) -> Self {
         self.observers.push(observer);
+        self
+    }
+
+    /// Object storage for artwork uploads (presigned `PUT`).
+    pub fn with_storage(mut self, storage: Arc<dyn ObjectStorage>) -> Self {
+        self.storage = Some(storage);
         self
     }
 
@@ -1069,8 +1080,8 @@ impl CinemaService {
         Ok(self.staff_title(&rec))
     }
 
-    /// Unpublish `title` when nothing playable is left in it.
-    async fn settle(&self, title: i64) -> CinemaResult<()> {
+    /// Unpublish `title` when nothing playable is left in it; returns the unpublished title.
+    async fn settle(&self, title: i64) -> CinemaResult<Option<TitleRecord>> {
         if let Some(t) = self.repo.get_title(title, Scope::Staff).await?
             && t.published
             && t.asset_id.is_none()
@@ -1079,9 +1090,10 @@ impl CinemaService {
             tracing::info!(title, "cinema title unpublished: nothing playable is left");
             if let Some(rec) = self.repo.set_title_published(title, false).await? {
                 self.sync_index(&rec);
+                return Ok(Some(rec));
             }
         }
-        Ok(())
+        Ok(None)
     }
 
     /// Link (or unlink, with `None`) the playable asset of a film. Unlinking the last playable
@@ -1103,8 +1115,7 @@ impl CinemaService {
             .set_title_asset(id, asset)
             .await?
             .ok_or(CinemaError::NotFound("title"))?;
-        self.settle(id).await?;
-        let rec = self.repo.get_title(id, Scope::Staff).await?.unwrap_or(rec);
+        let rec = self.settle(id).await?.unwrap_or(rec);
         Ok(self.staff_title(&rec))
     }
 
@@ -1140,6 +1151,42 @@ impl CinemaService {
             o.title_merged(source, target, &out.episode_map).await;
         }
         Ok(self.staff_title(&out.target))
+    }
+
+    /// Reserve an artwork object of `title` and hand out a presigned `PUT` URL. The client
+    /// uploads the image, then saves the returned key in the title, season or episode.
+    pub async fn artwork_upload(
+        &self,
+        a: Actor,
+        title: i64,
+        req: ArtworkRequest,
+    ) -> CinemaResult<ArtworkUpload> {
+        a.publish()?;
+        let ty = ArtworkType::parse(req.content_type.trim()).ok_or_else(|| {
+            CinemaError::Invalid("content_type must be image/webp, image/jpeg or image/png".into())
+        })?;
+        let storage = self
+            .storage
+            .as_ref()
+            .ok_or_else(|| CinemaError::Storage("artwork uploads are not configured".into()))?;
+        self.staff_get(title).await?;
+        let key = format!(
+            "{}{title}/{}-{}.{}",
+            rules::KEY_PREFIX,
+            req.slot.as_str(),
+            (self.ids)(),
+            ty.extension()
+        );
+        let url = storage
+            .presign(PresignMethod::Put, &key, ARTWORK_URL_TTL)
+            .await
+            .map_err(|e| CinemaError::Storage(e.to_string()))?;
+        Ok(ArtworkUpload {
+            key,
+            upload_url: url,
+            content_type: ty.as_str().to_owned(),
+            expires_in_secs: ARTWORK_URL_TTL.as_secs(),
+        })
     }
 
     // ---- publishers: seasons and episodes ---------------------------------

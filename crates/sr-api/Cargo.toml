@@ -24,6 +24,7 @@ sr-admin = { path = "../sr-admin" }
 sr-auth = { path = "../sr-auth", features = ["webauthn"] }
 sr-features = { path = "../sr-features" }
 sr-library = { path = "../sr-library" }
+sr-cinema = { path = "../sr-cinema" }
 sr-review = { path = "../sr-review" }
 sr-chat = { path = "../sr-chat" }
 sr-core = { path = "../sr-core" }
