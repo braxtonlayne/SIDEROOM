@@ -5235,6 +5235,18 @@ dependencies = [
 [[package]]
 name = "sr-media"
 version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "http-body-util",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "sr-storage",
+ "thiserror 2.0.21",
+ "tokio",
+ "tower",
+]
 
 [[package]]
 name = "sr-payments"

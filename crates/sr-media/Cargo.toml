@@ -6,3 +6,25 @@ publish.workspace = true
 
 [lints]
 workspace = true
+
+[features]
+default = []
+# Native FFmpeg libraries through `ffmpeg-next` (ADR-0005). OFF by default: the default
+# build spawns the `ffprobe`/`ffmpeg` command-line tools through `CommandRunner`, so it
+# builds on machines without the FFmpeg development libraries. Nothing in the default
+# build depends on this feature; it is reserved for the in-process probe/encode path.
+native-ffmpeg = []
+
+[dependencies]
+async-trait.workspace = true
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio"] }
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "0.11"
+sr-storage = { path = "../sr-storage" }
+thiserror.workspace = true
+
+[dev-dependencies]
+http-body-util = "0.1"
+tokio = { workspace = true, features = ["rt", "macros"] }
+tower = { version = "0.5", features = ["util"] }
