@@ -3,6 +3,8 @@ import { useNavigate } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TouchEvent } from 'react';
 import { useT } from '../i18n';
+import { useAppBadge } from '../pwa/useAppBadge';
+import { useVisualViewport } from './useVisualViewport';
 import { ChannelSidebar } from './ChannelSidebar';
 import { ChannelView } from './ChannelView';
 import { SectionBar, TitleStrip } from './Chrome';
@@ -212,6 +214,8 @@ function Shell() {
   const [coming, setComing] = useState(false);
 
   useShellBoot();
+  useAppBadge();
+  useVisualViewport();
   const openSettings = useOpenUserSettings();
   const theme = useAppliedTheme();
   useLoungeShortcuts({
