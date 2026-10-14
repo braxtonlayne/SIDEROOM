@@ -287,7 +287,7 @@ alone; its `episode_id` is `"0"` everywhere** (progress, ratings, comments, hist
 
 Shared shapes:
 - Every schema of this section is `Cinema`-prefixed in the OpenAPI document (`CinemaProgress`, `CinemaReview`, `CinemaTitleRef`, ...) so it cannot clash with the Library's `Progress`, `HistoryPage` and friends.
-- `TitleRef` `{id, kind: movie|series|anime, title, year?, age_restricted, poster_key?}` and `EpisodeRef`
+- `TitleRef` `{id, kind: movie|series|anime, title, year?, age_restricted, poster_url?}` (`poster_url` is a signed `/cdn/cinema/...` link, hour-rounded like the catalog's artwork URLs; the storage key is not exposed) and `EpisodeRef`
   `{id, title_id, season, number, title?, runtime_secs?}` come from the catalog at read time (a title that is unpublished or
   gone is left out of lists).
 - `Progress` `{title_id, episode_id, position_secs, duration_secs, percent, completed, updated_at_ms}`.
@@ -382,7 +382,7 @@ edited_at_ms?}`. Authors the caller blocked or ignored are left out. Deleting a 
 
 **Moderation hooks.** `POST /cinema/reviews/{id}/report` and `POST /cinema/comments/{id}/report` (`{reason}`) store a report (once per
 reporter and target) and call `ModerationHook::on_report`; `ModerationHook::screen` runs before a review or comment is stored and
-may reject it. Staff hiding is `CinemaService::set_hidden`; hidden content is not listed. No staff HTTP surface yet (gap).
+may reject it. Staff hiding is `CinemaService::set_hidden`; hidden content is not listed. The staff HTTP surface is section 9.10.
 
 ### 9.7 Trending and recommendations (CIN-SOC-002)
 
@@ -399,8 +399,8 @@ caller already started. People with `cinema.share_watching = off` are not counte
 ### 9.8 Gaps
 
 CIN-SOC-003 contribution credits are not built: they need the cinema submissions pipeline (D-074 counts approved movies and episodes).
-No staff HTTP surface for moderation or featured lists. No expiry sweeper job for presence rows (expired rows are ignored by every read
-and replaced by the next heartbeat; `CinemaService::sweep_presence` is available for a job).
+No featured lists. "Requests fulfilled" has no provider (the cinema requests pipeline does not exist). The presence sweep runs as the
+job `cinema.presence_sweep` (every minute, singleton id 160).
 
 ### 9.9 `CatalogLookup` (implemented by `sr-cinema`)
 
@@ -415,5 +415,80 @@ pub trait CatalogLookup: Send + Sync {
     async fn titles_with_tags(&self, tags: &[String], exclude: &[i64], limit: u32) -> CatalogResult<Vec<CatalogTitle>>;
 }
 ```
-`CatalogTitle {id, kind, title, year, age_restricted, runtime_secs, poster_key, tags}` (tags include genres, lower-case);
+`CatalogTitle {id, kind, title, year, age_restricted, runtime_secs, poster_url, tags}` (tags include genres, lower-case);
 `CatalogEpisode {id, title_id, season, number, title, runtime_secs}`. `sr-cinema-social` ships `MemoryCatalog` for tests.
+
+## 10. Playback source contract (phase 7, `sr-api` playback routes)
+
+The player calls two routes with an `asset_id` (the id the catalog's `/play` answer carries). Both live in
+`crates/sr-api/src/routes/cinema/playback.rs` and need a signed-in session:
+
+| Route | Meaning |
+|---|---|
+| `GET /cinema/assets/{asset_id}/playback` | `{master_url, expires_at, refresh_at, duration_secs?, subtitles[], audio_tracks[], sprites_url?, sprite?, markers[]}`; times are Unix **seconds**. |
+| `POST /cinema/assets/{asset_id}/refresh` | `{master_url, expires_at, refresh_at}`: a fresh `sr_media::playlist::grant`; nothing stored per viewer. |
+
+Both run the **catalog play check** first. The catalog finds which published title, episode, variant or trailer uses the asset
+(`asset_id` columns of `video_titles`, `video_episodes`, `video_title_variants`, `video_trailers`); an unknown or unpublished owner
+is `404`; a restricted title needs age confirmation (`403`, code `900011`, D-184). Only then is the `PlaybackSource` asked for
+renditions, so a non-owner never learns whether an asset exists. The restricted rule for trailers is the catalog's (withheld until confirmed).
+
+### 10.1 The trait (what the Postgres implementation must provide)
+
+The port lives in `sr_media::playback` (so `sr-db` or `sr-server` can implement it without depending on `sr-api`), with `MemoryPlaybackSource` and `sample_asset` for tests:
+
+```rust
+#[async_trait]
+pub trait PlaybackSource: Send + Sync {
+    /// `None`: no such asset, or it is not playable (state other than published, or no video rendition yet).
+    async fn asset(&self, asset_id: i64) -> Result<Option<PlaybackAsset>, PlaybackError>;
+}
+pub struct PlaybackAsset {
+    pub id: i64,
+    pub duration_ms: Option<i64>,                      // video_assets.duration_ms
+    pub media: sr_media::playlist::MediaSet,           // video + audio + subtitle variants, segments included
+    pub subtitle_extras: Vec<SubtitleExtra>,           // per subtitle: vtt_path (key), id, ass_path
+    pub sprite: Option<sr_media::plan::SpritePlan>,    // None: no scrub thumbnails
+}
+```
+The HTTP side (routes, the `/cdn/hls` playlist renderer) is in `crates/sr-api/src/routes/cinema/playback.rs`; the route tests use `MemoryPlaybackSource`.
+
+### 10.2 Table shape needed (columns of section 4.5, with the additions marked NEW)
+
+An asset is playable when `video_assets.state = 'published'` and it has at least one `kind = 'video'` rendition with a non-empty
+`segment_index`. The implementation maps rows to a `MediaSet` like this (the `path` values are relative to the asset root, forward
+slashes, exactly the layout of section 4.3):
+
+| Rendition `kind` | Maps to | Columns used |
+|---|---|---|
+| `video` | `VideoVariant` | `name` (`1080p`), `width`, `height`, `bandwidth_bps` (peak), `codecs` (`avc1.640028`), `playlist_key` (`v/1080p/index.m3u8`), `segment_index` = JSON array `[{"path":"v/1080p/seg_00000.m4s","duration_secs":6.0}, ...]`; NEW `frame_rate double precision`; NEW `average_bandwidth_bps bigint NULL`; `init_path` = `v/<name>/init.mp4` (the directory of `playlist_key` plus `init.mp4`) |
+| `audio` | `AudioVariant` | `name`, `language` (BCP 47 or null), NEW `channels int`, `is_default`, `playlist_key` (`a/00-eng-stereo/index.m3u8`), `segment_index` as above, `init_path` as for video |
+| `subtitle` | `SubtitleVariant` | `name`/`label`, `language`, `forced`, `is_default`, `playlist_key` = the virtual wrapper `subs/00-eng.m3u8` (rendered on demand, never stored), NEW `meta jsonb` = `{"vtt_path":"subs/00-eng.vtt","ass_path":"subs/00-eng.ass"|null,"duration_secs":5400.0}` (the `SubtitleExtra` is `{vtt_path, id = rendition id, ass_path}`) |
+| `sprite` | `SpritePlan` | NEW `meta jsonb` = the serialized `sr_media::plan::SpritePlan` (it is `Serialize`/`Deserialize`) |
+| `poster`, `proxy` | not played | |
+
+`video_assets.duration_ms` supplies `duration_ms`. Rendition `id` (decimal string on the wire) is the subtitle track id.
+Everything is read-only for the playback routes; one query per table by `asset_id` is enough (renditions per asset are < 30).
+
+### 10.3 Files and playlists under `/cdn/hls`
+
+The master URL is `/cdn/hls/<asset_id>/master.m3u8?ex=&sig=` (CDN signer, 6 h). The CDN gets a new kind `hls` whose object key prefix is
+`video` (the asset root is `video/<asset_id>/`; ingest promotes `transcode/<job>/<attempt>/...` there on `complete`). Segments, init files,
+WebVTT, ASS, fonts and sprite sheets are plain objects; every `.m3u8` and the sprite `.vtt` map are **rendered on request** from the
+`PlaybackSource` with `sr_media::playlist` (`render_master`, `render_video_playlist`, `render_audio_playlist`, `render_subtitle_playlist`,
+`render_sprite_vtt`), so the URLs inside carry fresh signatures. (Delivery of rendered playlists: see the handoff of `feat/p7-cinema-wiring` for what is built.)
+
+### 9.10 Wiring in `sr-server` (phase 7)
+
+- `sr-server::cinema_catalog::RepoCatalog` implements `CatalogLookup` over the catalog repository (published, non-merged titles; published episodes; restricted titles returned, play gated by 900011; an anime without episodes is reported as a movie; `poster_url` signed; tags = genres + tags; next episode = the repository's playable neighbour).
+- `sr_cinema_social::row_providers(&social)` registers `continue-watching` (reasons `resume` / `up_next`, progress percent), `recently-explored` (history, one entry per title), `trending` (`?scope=friends|known|global`, default `known`), `because-you-watched` (title "Because you watched X") and `friends-watching` on the catalog service. `requests-fulfilled` has no provider yet.
+- `sr_cinema_social::SocialObserver` is registered with `with_observer`: a merge moves progress (newest row wins per user and episode, `completed` stays sticky), ratings (newest wins), list items (the target's place wins), comments, reviews (newest wins; the loser's votes go) and presence from the merged title to the survivor, remapping dropped duplicate episodes; deleting a title removes all its rows, deleting episodes removes theirs.
+- The job `cinema.presence_sweep` removes lapsed presence rows and sends the "stopped" event.
+
+Staff moderation (`DELETE_CONTENT`, staff session; every change goes to the access log):
+
+| Route | Meaning |
+|---|---|
+| `GET /admin/cinema/reports?status=open|actioned|dismissed|all&before=&limit=` | The report queue, newest first: `{items: [{id, reporter_id, target_kind: review|comment, target_id, reason, status, created_at_ms, content?: {title_id, episode_id?, author_id, excerpt, hidden, created_at_ms}}], next_before}`; `content` is absent when the text was deleted. |
+| `POST /admin/cinema/reports/{id}/resolve` | `{status: open|actioned|dismissed, reason?}`. Log: `cinema.report.resolve`. |
+| `PUT /admin/cinema/reviews/{id}/hidden`, `PUT /admin/cinema/comments/{id}/hidden` | `{hidden, reason?}`. Hiding also marks the open reports about it `actioned`. Log: `cinema.review.hide` / `unhide`, `cinema.comment.hide` / `unhide`. |

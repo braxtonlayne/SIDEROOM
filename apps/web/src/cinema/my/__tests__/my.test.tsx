@@ -12,7 +12,7 @@ const ref = (id: string, o: Partial<TitleRef> = {}): TitleRef => ({
   kind: 'movie',
   year: 1998,
   age_restricted: false,
-  poster_key: null,
+  poster_url: null,
   ...o,
 });
 const progress = (title: string, episode: string, o = {}) => ({

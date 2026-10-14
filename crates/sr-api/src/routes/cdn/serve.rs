@@ -141,6 +141,36 @@ pub(super) async fn serve(State(state): State<AppState>, req: Request) -> Respon
         format!("private, max-age={max_age}")
     };
 
+    // Playlists of an HLS asset are rendered on request, so their inner URLs carry fresh signatures.
+    if parsed.kind == "hls"
+        && let Some(renderer) = deps.playlists.as_ref()
+        && let Some((asset, rel)) = parsed
+            .canonical
+            .strip_prefix("/cdn/hls/")
+            .and_then(|r| r.split_once('/'))
+        && let Ok(asset) = asset.parse::<i64>()
+        && let Some(out) = renderer.render(asset, rel, now).await
+    {
+        let mut headers = HeaderMap::new();
+        put(&mut headers, header::CONTENT_TYPE, out.content_type);
+        put(
+            &mut headers,
+            header::CACHE_CONTROL,
+            &format!("private, max-age={}", max_age.min(60)),
+        );
+        put(&mut headers, header::X_CONTENT_TYPE_OPTIONS, "nosniff");
+        put(&mut headers, header::VARY, "Origin");
+        put(
+            &mut headers,
+            header::CONTENT_LENGTH,
+            &out.body.len().to_string(),
+        );
+        if head_only {
+            return (StatusCode::OK, headers).into_response();
+        }
+        return (StatusCode::OK, headers, out.body).into_response();
+    }
+
     if !params.is_empty() || parsed.format_hint.is_some() {
         match variant::serve(
             deps.as_ref(),
@@ -179,7 +209,12 @@ pub(super) async fn serve(State(state): State<AppState>, req: Request) -> Respon
     }
 
     // Type: extension allow-list, else a sniff of the first bytes, else download.
-    let presentation = match content::from_extension(&parsed.filename) {
+    let by_extension = if parsed.kind == "hls" {
+        content::from_hls_extension(&parsed.filename)
+    } else {
+        content::from_extension(&parsed.filename)
+    };
+    let presentation = match by_extension {
         Some(p) => p,
         None if info.size == 0 => content::from_mime(""),
         None => match deps

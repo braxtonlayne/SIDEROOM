@@ -25,6 +25,7 @@ sr-auth = { path = "../sr-auth", features = ["webauthn"] }
 sr-features = { path = "../sr-features" }
 sr-library = { path = "../sr-library" }
 sr-cinema = { path = "../sr-cinema" }
+sr-media = { path = "../sr-media" }
 sr-cinema-social = { path = "../sr-cinema-social" }
 sr-review = { path = "../sr-review" }
 sr-chat = { path = "../sr-chat" }
@@ -53,5 +54,6 @@ http-body-util = "0.1"
 image = { version = "0.25", default-features = false, features = ["png", "gif"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "sync"] }
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "postgres"] }
+sr-db = { path = "../sr-db" }
 ciborium = "0.2.2"
 p256 = { version = "0.14.0", features = ["ecdsa"] }

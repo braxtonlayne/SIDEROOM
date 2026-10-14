@@ -13,9 +13,11 @@
 pub mod catalog;
 pub mod discover;
 pub mod error;
+pub mod hooks;
 pub mod ids;
 pub mod lists;
 pub mod model;
+pub mod moderation;
 pub mod ports;
 pub mod presence;
 pub mod progress;
@@ -28,6 +30,7 @@ pub use catalog::{
     MemoryCatalog, NoCatalog, TitleKind, TitleRef,
 };
 pub use error::{SocialError, SocialResult};
+pub use hooks::{SocialObserver, row_providers};
 pub use model::Viewer;
 pub use ports::{
     BusEvents, CinemaEvents, ContentKind, ModerationHook, NewReport, NoEvents, NoModeration,

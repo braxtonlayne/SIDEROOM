@@ -88,6 +88,21 @@ pub trait CinemaRepository: Send + Sync {
     /// Published, non-merged titles with `id > after`, ascending, for (re)indexing.
     async fn index_batch(&self, after: i64, limit: u32) -> CinemaResult<Vec<TitleRecord>>;
 
+    /// Published, non-merged titles sharing at least one tag or genre with `tags` (lower-case),
+    /// minus `exclude`, best matches first. Used by the social recommendations.
+    async fn titles_sharing_tags(
+        &self,
+        _tags: &[String],
+        _exclude: &[i64],
+        _limit: u32,
+    ) -> CinemaResult<Vec<TitleRecord>> {
+        Ok(Vec::new())
+    }
+    /// Which catalog row uses `asset_id` (feature, cut or trailer). Visibility is NOT applied:
+    /// the service decides. `None`: no row links the asset.
+    async fn asset_owner(&self, _asset_id: i64) -> CinemaResult<Option<AssetOwner>> {
+        Ok(None)
+    }
     // ---- title writes --------------------------------------------------
     async fn create_title(&self, t: &NewTitle) -> CinemaResult<TitleRecord>;
     async fn update_title(
@@ -207,4 +222,23 @@ pub trait CinemaRepository: Send + Sync {
         id: i64,
         titles: &[i64],
     ) -> CinemaResult<Option<CollectionRecord>>;
+}
+
+/// How a catalog row uses an asset.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssetUse {
+    /// The title's own asset (a film) or an episode's asset.
+    Feature,
+    /// A cut (variant) of the title; carries the variant id.
+    Variant(i64),
+    /// A trailer of the title; carries the trailer id.
+    Trailer(i64),
+}
+
+/// The catalog row that links an asset (see [`CinemaRepository::asset_owner`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AssetOwner {
+    pub title_id: i64,
+    pub episode_id: Option<i64>,
+    pub usage: AssetUse,
 }

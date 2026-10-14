@@ -25,7 +25,14 @@
 
 mod admin;
 mod member;
+mod playback;
 
+pub use playback::{
+    AssetPlayback, AudioTrack, PlaybackDeps, PlaybackGrant, SpriteInfo, SubtitleTrack,
+};
+
+#[cfg(test)]
+mod playback_tests;
 #[cfg(test)]
 mod tests;
 
@@ -72,6 +79,7 @@ impl CinemaPrefs for NoCinemaPrefs {
 /// Collaborators of the Cinema endpoints.
 pub struct CinemaDeps {
     pub service: CinemaService,
+    playback: Option<Arc<playback::PlaybackDeps>>,
     age: Arc<dyn AgeGate>,
     prefs: Arc<dyn CinemaPrefs>,
 }
@@ -80,9 +88,17 @@ impl CinemaDeps {
     pub fn new(service: CinemaService) -> Self {
         Self {
             service,
+            playback: None,
             age: Arc::new(NoAgeConfirmed),
             prefs: Arc::new(NoCinemaPrefs),
         }
+    }
+
+    /// Renditions and the signer for `/cinema/assets/{id}/playback` and `refresh`. Register the same value on
+    /// the CDN (`CdnDeps::with_playlists`) so the playlists it names can be fetched.
+    pub fn with_playback(mut self, playback: Arc<playback::PlaybackDeps>) -> Self {
+        self.playback = Some(playback);
+        self
     }
 
     /// Source of the per-user preferences (`cinema.hide_age_restricted`).
@@ -238,6 +254,14 @@ pub fn router() -> Router<AppState> {
             get(member::play_episode),
         )
         .route("/cinema/search", get(member::search))
+        .route(
+            "/cinema/assets/{asset_id}/playback",
+            get(playback::asset_playback),
+        )
+        .route(
+            "/cinema/assets/{asset_id}/refresh",
+            post(playback::asset_refresh),
+        )
         // Publishers: titles.
         .route(
             "/admin/cinema/titles",
@@ -356,6 +380,8 @@ pub fn router() -> Router<AppState> {
         member::episode_markers,
         member::play_episode,
         member::search,
+        playback::asset_playback,
+        playback::asset_refresh,
         admin::list,
         admin::create_title,
         admin::title,
@@ -393,6 +419,11 @@ pub fn router() -> Router<AppState> {
     ),
     components(schemas(
         ErrorBody,
+        playback::AssetPlayback,
+        playback::PlaybackGrant,
+        playback::SubtitleTrack,
+        playback::AudioTrack,
+        playback::SpriteInfo,
         admin::MergeBody,
         admin::AssetBody,
         sr_cinema::model::TitleKind,

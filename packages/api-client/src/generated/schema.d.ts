@@ -297,6 +297,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/cinema/comments/{comment_id}/hidden": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Hide a comment from every listing, or restore it. Hiding closes its open reports as `actioned`. */
+        put: operations["admin_cinema_hide_comment"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/cinema/episodes/{episode_id}": {
         parameters: {
             query?: never;
@@ -378,6 +395,57 @@ export interface paths {
         put?: never;
         /** Unpublish an episode (`PUBLISH_MEDIA` or `DELETE_CONTENT`). */
         post: operations["admin_cinema_unpublish_episode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The report queue for reviews and comments, newest first, with an excerpt of the reported text. */
+        get: operations["admin_cinema_reports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/reports/{report_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Close a report as `actioned` or `dismissed` (or reopen it with `open`). */
+        post: operations["admin_cinema_resolve_report"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/reviews/{review_id}/hidden": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Hide a review from every listing, or restore it. Hiding closes its open reports as `actioned`. */
+        put: operations["admin_cinema_hide_review"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2146,6 +2214,47 @@ export interface paths {
          *     carries the token once.
          */
         post: operations["create_webhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/assets/{asset_id}/playback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Start playing an asset: master playlist URL, tracks, thumbnails and skip markers. The asset must belong to
+         *     a published title, episode, cut or trailer; a restricted title answers 403 with code 900011 until the
+         *     account confirmed it is 18 or older (D-184).
+         */
+        get: operations["cinema_asset_playback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cinema/assets/{asset_id}/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A new manifest grant for an asset being played, before the old one expires. Runs the same checks as
+         *     `playback`; nothing is stored per viewer.
+         */
+        post: operations["cinema_asset_refresh"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5507,6 +5616,39 @@ export interface components {
              */
             updated_at_ms: number;
         };
+        /** @description Everything the player needs to start an asset. */
+        CinemaAssetPlayback: {
+            audio_tracks: components["schemas"]["CinemaAudioTrack"][];
+            /** Format: double */
+            duration_secs?: number | null;
+            /**
+             * Format: int64
+             * @description Unix seconds when every URL below stops working.
+             */
+            expires_at: number;
+            /** @description Skip windows (intro, recap, credits) of the title or episode the asset belongs to. */
+            markers: components["schemas"]["Marker"][];
+            /** @description Signed URL of the master playlist. */
+            master_url: string;
+            /**
+             * Format: int64
+             * @description Unix seconds when the player should ask `refresh` for a new grant.
+             */
+            refresh_at: number;
+            sprite?: null | components["schemas"]["CinemaSpriteInfo"];
+            /** @description Signed WebVTT map of the scrub thumbnails (`#xywh=` cues), when the asset has sprites. */
+            sprites_url?: string | null;
+            subtitles: components["schemas"]["CinemaSubtitleTrack"][];
+        };
+        /** @description One audio rendition (the master playlist offers them to the player's own track menu). */
+        CinemaAudioTrack: {
+            /** Format: int32 */
+            channels: number;
+            id: string;
+            is_default: boolean;
+            label: string;
+            language?: string | null;
+        };
         CinemaComment: {
             author_id: string;
             body: string;
@@ -5577,6 +5719,12 @@ export interface components {
         CinemaFriendsWatching: {
             items: components["schemas"]["CinemaFriendWatching"][];
         };
+        /** @description Body of a hide or restore. */
+        CinemaHideContent: {
+            hidden: boolean;
+            /** @description A note for the access log. */
+            reason?: string | null;
+        };
         CinemaHistoryItem: {
             episode?: null | components["schemas"]["CinemaEpisodeRef"];
             progress: components["schemas"]["CinemaProgress"];
@@ -5639,6 +5787,14 @@ export interface components {
         };
         CinemaListsResponse: {
             lists: components["schemas"]["CinemaList"][];
+        };
+        /** @description A fresh manifest grant. */
+        CinemaPlaybackGrant: {
+            /** Format: int64 */
+            expires_at: number;
+            master_url: string;
+            /** Format: int64 */
+            refresh_at: number;
         };
         /** @description A member's progress in one movie or episode. */
         CinemaProgress: {
@@ -5731,8 +5887,48 @@ export interface components {
         CinemaRecommendations: {
             rows: components["schemas"]["CinemaRecommendationRow"][];
         };
+        CinemaReport: {
+            content?: null | components["schemas"]["CinemaReportedContent"];
+            /** Format: int64 */
+            created_at_ms: number;
+            id: string;
+            reason: string;
+            reporter_id: string;
+            status: components["schemas"]["CinemaReportStatus"];
+            target_id: string;
+            /** @description `review` or `comment`. */
+            target_kind: string;
+        };
         CinemaReportInput: {
             reason: string;
+        };
+        CinemaReportPage: {
+            items: components["schemas"]["CinemaReport"][];
+            /** @description Pass back as `before` for the next page; absent at the end. */
+            next_before?: string | null;
+        };
+        /**
+         * @description Where a report stands.
+         * @enum {string}
+         */
+        CinemaReportStatus: "open" | "actioned" | "dismissed";
+        /** @description The review or comment a report is about, as staff see it (hidden content included). */
+        CinemaReportedContent: {
+            author_id: string;
+            /** Format: int64 */
+            created_at_ms: number;
+            /** @description Comments only: the episode (`"0"` for the title or a movie). */
+            episode_id?: string | null;
+            /** @description The first 400 characters of the text. */
+            excerpt: string;
+            hidden: boolean;
+            title_id: string;
+        };
+        /** @description Body of a report resolution. */
+        CinemaResolveReport: {
+            /** @description A note for the access log. */
+            reason?: string | null;
+            status: components["schemas"]["CinemaReportStatus"];
         };
         CinemaReview: {
             author_id: string;
@@ -5767,6 +5963,33 @@ export interface components {
         };
         /** @enum {string} */
         CinemaReviewSort: "helpful" | "recent";
+        /** @description Scrub-thumbnail geometry (the sprite map itself is `sprites_url`). */
+        CinemaSpriteInfo: {
+            /** Format: int32 */
+            columns: number;
+            /** Format: int32 */
+            interval_secs: number;
+            /** Format: int32 */
+            rows: number;
+            /** Format: int32 */
+            thumb_height: number;
+            /** Format: int32 */
+            thumb_width: number;
+            /** Format: int32 */
+            thumbs_total: number;
+        };
+        /** @description One subtitle track the player can load. */
+        CinemaSubtitleTrack: {
+            /** @description Signed ASS URL when the source was styled (the player may render it instead). */
+            ass_url?: string | null;
+            forced: boolean;
+            id: string;
+            is_default: boolean;
+            label: string;
+            language?: string | null;
+            /** @description Signed WebVTT URL. */
+            vtt_url: string;
+        };
         /**
          * @description What a title is. Movies are played directly (`episode_id` 0); series and anime by episode.
          * @enum {string}
@@ -5777,7 +6000,8 @@ export interface components {
             age_restricted: boolean;
             id: string;
             kind: components["schemas"]["CinemaTitleKind"];
-            poster_key?: string | null;
+            /** @description Signed poster URL (`/cdn/cinema/...?ex=&sig=`), when the title has a poster. */
+            poster_url?: string | null;
             title: string;
             /** Format: int32 */
             year?: number | null;
@@ -9497,6 +9721,54 @@ export interface operations {
             };
         };
     };
+    admin_cinema_hide_comment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Comment snowflake */
+                comment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CinemaHideContent"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     admin_cinema_update_episode: {
         parameters: {
             query?: never;
@@ -9834,6 +10106,152 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Episode"];
                 };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_reports: {
+        parameters: {
+            query?: {
+                /** @description `open` (default), `actioned`, `dismissed` or `all`. */
+                status?: string;
+                /** @description `next_before` of the previous page. */
+                before?: string;
+                /** @description 1 to 100, default 24. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaReportPage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_resolve_report: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Report snowflake */
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CinemaResolveReport"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_hide_review: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Review snowflake */
+                review_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CinemaHideContent"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             401: {
                 headers: {
@@ -16334,6 +16752,100 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_asset_playback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Asset id from the play target */
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaAssetPlayback"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age confirmation required (code 900011) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cinema_asset_refresh: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Asset id from the play target */
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaPlaybackGrant"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age confirmation required (code 900011) */
             403: {
                 headers: {
                     [name: string]: unknown;

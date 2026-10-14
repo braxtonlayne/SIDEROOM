@@ -58,7 +58,8 @@ pub struct CatalogTitle {
     pub age_restricted: bool,
     /// Length of a movie, when known.
     pub runtime_secs: Option<i32>,
-    pub poster_key: Option<String>,
+    /// A signed, time-limited URL of the poster (the catalog signs it with the CDN signer).
+    pub poster_url: Option<String>,
     /// Genres and tags, lower-case.
     pub tags: Vec<String>,
 }
@@ -118,7 +119,8 @@ pub struct TitleRef {
     pub title: String,
     pub year: Option<i32>,
     pub age_restricted: bool,
-    pub poster_key: Option<String>,
+    /// Signed poster URL (`/cdn/cinema/...?ex=&sig=`), when the title has a poster.
+    pub poster_url: Option<String>,
 }
 
 impl From<&CatalogTitle> for TitleRef {
@@ -129,7 +131,7 @@ impl From<&CatalogTitle> for TitleRef {
             title: t.title.clone(),
             year: t.year,
             age_restricted: t.age_restricted,
-            poster_key: t.poster_key.clone(),
+            poster_url: t.poster_url.clone(),
         }
     }
 }
@@ -210,7 +212,7 @@ impl MemoryCatalog {
             year: Some(2020),
             age_restricted: false,
             runtime_secs: (kind == TitleKind::Movie).then_some(7200),
-            poster_key: None,
+            poster_url: None,
             tags: tags.iter().map(|t| (*t).to_owned()).collect(),
         }
     }

@@ -23,4 +23,4 @@ pub use error::{CinemaError, CinemaResult};
 pub use repo::CinemaRepository;
 pub use rows::{CatalogObserver, ProvidedRow, RowContext, RowEntry, RowProvider};
 pub use search::TitleIndex;
-pub use service::{Actor, CinemaService, IdSource, PlayRef, Viewer};
+pub use service::{Actor, AssetAccess, CinemaService, IdSource, PlayRef, Viewer};

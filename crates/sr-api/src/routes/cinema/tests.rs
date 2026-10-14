@@ -27,9 +27,12 @@ use sr_auth::{
 };
 use sr_cinema::error::{CinemaError, CinemaResult};
 use sr_cinema::model::*;
-use sr_cinema::repo::{CinemaRepository, EpisodeQuery, NewTitle, Rows};
+use sr_cinema::repo::{AssetOwner, AssetUse, CinemaRepository, EpisodeQuery, NewTitle, Rows};
 use sr_cinema::rows::{ProvidedRow, RowContext, RowEntry, RowProvider};
 use sr_cinema::{CinemaService, TitleIndex};
+use sr_media::playback::{MemoryPlaybackSource, sample_asset};
+
+use super::PlaybackDeps;
 use sr_core::{PlatformPermissions as P, SystemClock, UserId};
 use sr_storage::cdn::CdnSigner;
 use std::{
@@ -41,8 +44,8 @@ use tower::ServiceExt;
 const OWNER: i64 = 10;
 const CURATOR: i64 = 11;
 const BASIC: i64 = 12;
-const MEMBER: i64 = 20;
-const ADULT: i64 = 21;
+pub(super) const MEMBER: i64 = 20;
+pub(super) const ADULT: i64 = 21;
 /// Confirmed adult who set `cinema.hide_age_restricted`.
 const HIDER: i64 = 22;
 const R_OWNER: i64 = 1;
@@ -193,8 +196,35 @@ impl CinemaRepository for Stub {
     async fn list_trailers(&self, _: i64) -> CinemaResult<Vec<TrailerRecord>> {
         Ok(vec![])
     }
-    async fn list_markers(&self, _: i64, _: Option<i64>) -> CinemaResult<Vec<MarkerRecord>> {
-        Ok(vec![])
+    async fn list_markers(&self, title: i64, _: Option<i64>) -> CinemaResult<Vec<MarkerRecord>> {
+        Ok(if title == 7 {
+            vec![MarkerRecord {
+                id: 1,
+                episode_id: None,
+                kind: MarkerKind::Intro,
+                start_ms: 1000,
+                end_ms: 9000,
+                source: "manual".into(),
+            }]
+        } else {
+            vec![]
+        })
+    }
+    /// Asset 507 is title 7's film, 509 the restricted title 9's, 777 a trailer of title 7 and 888 belongs to
+    /// the unknown (unpublished) title 8.
+    async fn asset_owner(&self, asset: i64) -> CinemaResult<Option<AssetOwner>> {
+        let (title_id, usage) = match asset {
+            507 => (7, AssetUse::Feature),
+            509 => (9, AssetUse::Feature),
+            777 => (7, AssetUse::Trailer(1)),
+            888 => (8, AssetUse::Feature),
+            _ => return Ok(None),
+        };
+        Ok(Some(AssetOwner {
+            title_id,
+            episode_id: None,
+            usage,
+        }))
     }
     async fn list_collections(
         &self,
@@ -410,14 +440,18 @@ impl RowProvider for Seen {
     }
 }
 
-struct Env {
-    app: Router,
+pub(super) struct Env {
+    pub(super) app: Router,
+    pub(super) source: MemoryPlaybackSource,
+    pub(super) playback: Arc<PlaybackDeps>,
     stub: Arc<Stub>,
     admin: Arc<MemoryAdminRepo>,
     age: Arc<Confirmed>,
-    tokens: HashMap<i64, String>,
+    pub(super) tokens: HashMap<i64, String>,
     asked: Asked,
 }
+
+pub(super) const SIGNER_KEY: [u8; 32] = [3u8; 32];
 
 async fn env_with(cinema: bool) -> Env {
     let admin = Arc::new(MemoryAdminRepo::default());
@@ -490,7 +524,7 @@ async fn env_with(cinema: bool) -> Env {
     let asked: Asked = Arc::new(Mutex::new(Vec::new()));
     let service = CinemaService::new(
         stub.clone(),
-        CdnSigner::new(vec![3u8; 32]),
+        CdnSigner::new(SIGNER_KEY.to_vec()),
         Arc::new(SystemClock),
         Arc::new(|| 4242),
     )
@@ -503,7 +537,18 @@ async fn env_with(cinema: bool) -> Env {
         UserId::new(ADULT as u64),
         UserId::new(HIDER as u64),
     ]))));
+    let source = MemoryPlaybackSource::new();
+    source.insert(sample_asset(507));
+    source.insert(sample_asset(509));
+    source.insert(sample_asset(777));
+    source.insert(sample_asset(888));
+    let playback = Arc::new(PlaybackDeps::new(
+        Arc::new(source.clone()),
+        Arc::new(CdnSigner::new(SIGNER_KEY.to_vec())),
+        Arc::new(SystemClock),
+    ));
     let deps = CinemaDeps::new(service)
+        .with_playback(playback.clone())
         .with_age_gate(age.clone())
         .with_prefs(Arc::new(Hiders(HashSet::from([UserId::new(HIDER as u64)]))));
 
@@ -519,6 +564,8 @@ async fn env_with(cinema: bool) -> Env {
     }
     Env {
         app: build_router(b.build(), router()),
+        source,
+        playback,
         stub,
         admin,
         age,
@@ -527,12 +574,12 @@ async fn env_with(cinema: bool) -> Env {
     }
 }
 
-async fn env() -> Env {
+pub(super) async fn env() -> Env {
     env_with(true).await
 }
 
 impl Env {
-    async fn call(
+    pub(super) async fn call(
         &self,
         who: Option<i64>,
         method: Method,
@@ -600,6 +647,8 @@ fn member_routes() -> Vec<Route> {
         (Method::GET, "/cinema/episodes/5/markers", None),
         (Method::GET, "/cinema/episodes/5/play", None),
         (Method::GET, "/cinema/search?q=a", None),
+        (Method::GET, "/cinema/assets/507/playback", None),
+        (Method::POST, "/cinema/assets/507/refresh", None),
     ]
 }
 
@@ -1218,6 +1267,8 @@ fn openapi_lists_every_cinema_path() {
         "/cinema/episodes/{episode_id}/markers",
         "/cinema/episodes/{episode_id}/play",
         "/cinema/search",
+        "/cinema/assets/{asset_id}/playback",
+        "/cinema/assets/{asset_id}/refresh",
         "/admin/cinema/titles",
         "/admin/cinema/titles/{title_id}/merge",
         "/admin/cinema/titles/{title_id}/asset",
