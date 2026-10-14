@@ -1,11 +1,13 @@
 /**
  * Incoming call state (VOX-UI-010; the outgoing ringing state waits for DM calls, VOX-SIG-008). DM and group calls ring: the server tells the person with
- * `CALL_CREATE` / `CALL_UPDATE` / `CALL_DELETE` (VOX-SIG-008). The backend does not send these yet, so this
- * is the client half of that contract:
+ * `CALL_CREATE` / `CALL_UPDATE` / `CALL_DELETE` (VOX-SIG-008, sr-gateway `voice_call.rs`):
  *
- *   CALL_CREATE  { channel_id, initiator_id?, ringing: string[], video?: boolean, group?: boolean }
- *   CALL_UPDATE  { channel_id, ringing: string[] }       (anyone no longer listed stops ringing)
+ *   CALL_CREATE  { channel_id, message_id, region, ringing: string[], initiator_id, group, voice_states }
+ *   CALL_UPDATE  { channel_id, message_id, region, ringing: string[], initiator_id, group }
+ *                (anyone no longer listed stops ringing)
  *   CALL_DELETE  { channel_id }                          (the call ended or nobody answered)
+ *
+ * The gateway does not say whether the caller started with video, so `video` stays false unless sent.
  *
  * A ring also stops by itself after `RING_TIMEOUT_MS`.
  */

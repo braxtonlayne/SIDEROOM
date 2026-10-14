@@ -699,6 +699,33 @@ describe('server-driven changes', () => {
     expect(sess().status).toBe('connected');
   });
 
+  it('understands the codes the gateway sends for refused video and streams', async () => {
+    const h = harness();
+    await connected(h);
+    h.emit('SR_VOICE_ERROR', {
+      guild_id: 'g1',
+      channel_id: 'c1',
+      code: 'video_limit_reached',
+      limit: 4,
+      count: 4,
+    });
+    expect(sess().refusal).toMatchObject({ code: 'videoLimit' });
+    h.c.dismissRefusal();
+    // Stream ops are answered without a channel.
+    h.emit('SR_VOICE_ERROR', {
+      guild_id: null,
+      channel_id: null,
+      code: 'stream_full',
+      limit: 2,
+      count: 2,
+    });
+    expect(sess().refusal).toMatchObject({ code: 'viewerCap' });
+    h.c.dismissRefusal();
+    h.emit('SR_VOICE_ERROR', { guild_id: null, channel_id: null, code: 'unknown_stream' });
+    expect(sess().status).toBe('connected');
+    expect(sess().refusal).toBeNull();
+  });
+
   it('gives up after repeated device losses', async () => {
     const h = harness();
     await connected(h);

@@ -441,9 +441,11 @@ export class VoiceController {
       if (userId === me) this.onOwnState(d as unknown as VoiceState);
       else this.onOtherState(userId, channelId);
     } else if (event === 'SR_VOICE_ERROR') {
-      if (d.channel_id !== undefined && d.channel_id !== t.channelId) return;
+      if (d.channel_id != null && d.channel_id !== t.channelId) return;
       // A refused camera or share (sender allowance, viewer cap) leaves the call running (VOX-UI-013).
       if (this.started && this.onVideoRefusal(String(d.code ?? ''), d.limit)) return;
+      // Stream ops (18 to 22) are answered with `channel_id: null`; a refused stream op never ends the call.
+      if (d.channel_id === null) return;
       this.fail({
         code: 'refused',
         message: refusalText(String(d.code ?? ''), String(d.message ?? '')),
@@ -642,12 +644,19 @@ export class VoiceController {
   }
 
   /**
-   * SR_VOICE_ERROR codes for a refused camera or share. Contract proposed for VOX-SIG-009 (not sent yet):
-   * `video_limit` (sender allowance of the channel) and `viewer_cap` (audience of a stream), each with an
-   * optional numeric `limit`. Returns true when the code was one of them.
+   * SR_VOICE_ERROR codes for a refused camera or share (VOX-SIG-009, sr-gateway `JoinDenied`):
+   * `video_limit_reached` (sender allowance of the channel) and `stream_full` (audience of a stream), each
+   * with a numeric `limit` and `count`. The earlier proposed names `video_limit` / `viewer_cap` are still
+   * accepted. Returns true when the code was one of them.
    */
-  private onVideoRefusal(code: string, limit: unknown): boolean {
-    if (code !== 'video_limit' && code !== 'viewer_cap') return false;
+  private onVideoRefusal(raw: string, limit: unknown): boolean {
+    const code =
+      raw === 'video_limit_reached' || raw === 'video_limit'
+        ? 'video_limit'
+        : raw === 'stream_full' || raw === 'viewer_cap'
+          ? 'viewer_cap'
+          : null;
+    if (!code) return false;
     const n = typeof limit === 'number' ? limit : null;
     if (code === 'video_limit') {
       this.stopCamera();

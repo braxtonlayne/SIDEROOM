@@ -800,6 +800,8 @@ async fn a_call_rings_updates_and_ends_with_a_record() {
     let create = friend.event("CALL_CREATE").await;
     assert_eq!(create["channel_id"], "300");
     assert_eq!(create["ringing"], json!(["2", "4"]));
+    assert_eq!(create["initiator_id"], MEMBER.to_string());
+    assert_eq!(create["group"], true);
     assert_eq!(create["voice_states"].as_array().unwrap().len(), 1);
     assert_eq!(
         third.event("CALL_CREATE").await["ringing"],

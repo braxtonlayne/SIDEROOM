@@ -100,11 +100,15 @@ impl CallState {
     }
 
     fn update_body(&self) -> Value {
+        // `initiator_id` and `group` are SIDE ROOM additions the web client uses to label
+        // the incoming call (who rings, DM or group DM).
         json!({
             "channel_id": self.channel_id,
             "message_id": null,
             "region": "auto",
             "ringing": self.ringing_ids(),
+            "initiator_id": self.initiator.map(|u| u.to_string()),
+            "group": self.members.len() > 2,
         })
     }
 }
