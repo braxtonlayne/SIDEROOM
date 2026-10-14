@@ -74,6 +74,10 @@ test.describe('Lounge shell flows', () => {
     await sidebar.getByRole('link', { name: 'clips-and-highlights' }).click({ button: 'right' });
     await page.getByRole('menuitem', { name: 'Move Up' }).click();
     await page.reload();
+    // The section loads lazily after a reload: wait for the list before reading its order.
+    await expect(
+      page.getByTestId('channel-sidebar').getByRole('link', { name: 'game-chat' }),
+    ).toBeVisible();
     const names = await page
       .getByTestId('channel-sidebar')
       .getByRole('link')

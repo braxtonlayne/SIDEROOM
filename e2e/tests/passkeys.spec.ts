@@ -143,7 +143,9 @@ test.describe('Passkeys (virtual authenticator)', () => {
     await logout(page);
     await page.goto('/login');
     await page.getByRole('button', { name: 'Use a passkey' }).click();
-    await expect(page.getByRole('alert')).toContainText("That passkey didn't work");
+    await expect(
+      page.getByRole('alert').filter({ hasText: "That passkey didn't work" }),
+    ).toBeVisible();
     await setCounter(10_000);
     await page.getByRole('button', { name: 'Use a passkey' }).click();
     await expect(page).toHaveURL(/\/channels/);
@@ -160,7 +162,9 @@ test.describe('Passkeys (virtual authenticator)', () => {
     await logout(page);
     await page.goto('/login');
     await page.getByRole('button', { name: 'Use a passkey' }).click();
-    await expect(page.getByRole('alert')).toContainText("That passkey didn't work");
+    await expect(
+      page.getByRole('alert').filter({ hasText: "That passkey didn't work" }),
+    ).toBeVisible();
     await expect(page).toHaveURL(/\/login/);
   });
 });
