@@ -304,13 +304,12 @@ impl PlaylistRenderer for PlaybackDeps {
                 PLAYLIST,
                 playlist::render_audio_playlist(a, &cfg, signer, now),
             )
-        } else if let Some(s) = media.subtitles.iter().find(|s| s.playlist_path == rel) {
+        } else {
+            let s = media.subtitles.iter().find(|s| s.playlist_path == rel)?;
             (
                 PLAYLIST,
                 playlist::render_subtitle_playlist(s, &cfg, signer, now),
             )
-        } else {
-            return None;
         };
         Some(Rendered { content_type, body })
     }

@@ -1742,6 +1742,76 @@
         ]
       }
     },
+    "/admin/cinema/comments/{comment_id}/hidden": {
+      "put": {
+        "tags": [
+          "moderation"
+        ],
+        "summary": "Hide a comment from every listing, or restore it. Hiding closes its open reports as `actioned`.",
+        "operationId": "admin_cinema_hide_comment",
+        "parameters": [
+          {
+            "name": "comment_id",
+            "in": "path",
+            "description": "Comment snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CinemaHideContent"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/cinema/episodes/{episode_id}": {
       "put": {
         "tags": [
@@ -2231,6 +2301,233 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/reports": {
+      "get": {
+        "tags": [
+          "moderation"
+        ],
+        "summary": "The report queue for reviews and comments, newest first, with an excerpt of the reported text.",
+        "operationId": "admin_cinema_reports",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "description": "`open` (default), `actioned`, `dismissed` or `all`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "`next_before` of the previous page.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 24.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CinemaReportPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/reports/{report_id}/resolve": {
+      "post": {
+        "tags": [
+          "moderation"
+        ],
+        "summary": "Close a report as `actioned` or `dismissed` (or reopen it with `open`).",
+        "operationId": "admin_cinema_resolve_report",
+        "parameters": [
+          {
+            "name": "report_id",
+            "in": "path",
+            "description": "Report snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CinemaResolveReport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/reviews/{review_id}/hidden": {
+      "put": {
+        "tags": [
+          "moderation"
+        ],
+        "summary": "Hide a review from every listing, or restore it. Hiding closes its open reports as `actioned`.",
+        "operationId": "admin_cinema_hide_review",
+        "parameters": [
+          {
+            "name": "review_id",
+            "in": "path",
+            "description": "Review snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CinemaHideContent"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
           },
           "401": {
             "description": "",
@@ -12373,6 +12670,140 @@
           {
             "authorization": []
           },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/cinema/assets/{asset_id}/playback": {
+      "get": {
+        "tags": [
+          "playback"
+        ],
+        "summary": "Start playing an asset: master playlist URL, tracks, thumbnails and skip markers. The asset must belong to\na published title, episode, cut or trailer; a restricted title answers 403 with code 900011 until the\naccount confirmed it is 18 or older (D-184).",
+        "operationId": "cinema_asset_playback",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Asset id from the play target",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CinemaAssetPlayback"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Age confirmation required (code 900011)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/cinema/assets/{asset_id}/refresh": {
+      "post": {
+        "tags": [
+          "playback"
+        ],
+        "summary": "A new manifest grant for an asset being played, before the old one expires. Runs the same checks as\n`playback`; nothing is stored per viewer.",
+        "operationId": "cinema_asset_refresh",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Asset id from the play target",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CinemaPlaybackGrant"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Age confirmation required (code 900011)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
           {
             "session": []
           }
@@ -29471,6 +29902,111 @@
           }
         }
       },
+      "CinemaAssetPlayback": {
+        "type": "object",
+        "description": "Everything the player needs to start an asset.",
+        "required": [
+          "master_url",
+          "expires_at",
+          "refresh_at",
+          "subtitles",
+          "audio_tracks",
+          "markers"
+        ],
+        "properties": {
+          "audio_tracks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CinemaAudioTrack"
+            }
+          },
+          "duration_secs": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "expires_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix seconds when every URL below stops working.",
+            "minimum": 0
+          },
+          "markers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Marker"
+            },
+            "description": "Skip windows (intro, recap, credits) of the title or episode the asset belongs to."
+          },
+          "master_url": {
+            "type": "string",
+            "description": "Signed URL of the master playlist."
+          },
+          "refresh_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix seconds when the player should ask `refresh` for a new grant.",
+            "minimum": 0
+          },
+          "sprite": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CinemaSpriteInfo"
+              }
+            ]
+          },
+          "sprites_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Signed WebVTT map of the scrub thumbnails (`#xywh=` cues), when the asset has sprites."
+          },
+          "subtitles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CinemaSubtitleTrack"
+            }
+          }
+        }
+      },
+      "CinemaAudioTrack": {
+        "type": "object",
+        "description": "One audio rendition (the master playlist offers them to the player's own track menu).",
+        "required": [
+          "id",
+          "label",
+          "channels",
+          "is_default"
+        ],
+        "properties": {
+          "channels": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "id": {
+            "type": "string"
+          },
+          "is_default": {
+            "type": "boolean"
+          },
+          "label": {
+            "type": "string"
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "CinemaComment": {
         "type": "object",
         "required": [
@@ -29745,6 +30281,25 @@
           }
         }
       },
+      "CinemaHideContent": {
+        "type": "object",
+        "description": "Body of a hide or restore.",
+        "required": [
+          "hidden"
+        ],
+        "properties": {
+          "hidden": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A note for the access log."
+          }
+        }
+      },
       "CinemaHistoryItem": {
         "type": "object",
         "required": [
@@ -30012,6 +30567,30 @@
           }
         }
       },
+      "CinemaPlaybackGrant": {
+        "type": "object",
+        "description": "A fresh manifest grant.",
+        "required": [
+          "master_url",
+          "expires_at",
+          "refresh_at"
+        ],
+        "properties": {
+          "expires_at": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "master_url": {
+            "type": "string"
+          },
+          "refresh_at": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "CinemaProgress": {
         "type": "object",
         "description": "A member's progress in one movie or episode.",
@@ -30242,6 +30821,54 @@
           }
         }
       },
+      "CinemaReport": {
+        "type": "object",
+        "required": [
+          "id",
+          "reporter_id",
+          "target_kind",
+          "target_id",
+          "reason",
+          "status",
+          "created_at_ms"
+        ],
+        "properties": {
+          "content": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CinemaReportedContent",
+                "description": "`None` when the content no longer exists (deleted by its author or with its title)."
+              }
+            ]
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "reporter_id": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CinemaReportStatus"
+          },
+          "target_id": {
+            "type": "string"
+          },
+          "target_kind": {
+            "type": "string",
+            "description": "`review` or `comment`."
+          }
+        }
+      },
       "CinemaReportInput": {
         "type": "object",
         "required": [
@@ -30250,6 +30877,92 @@
         "properties": {
           "reason": {
             "type": "string"
+          }
+        }
+      },
+      "CinemaReportPage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CinemaReport"
+            }
+          },
+          "next_before": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pass back as `before` for the next page; absent at the end."
+          }
+        }
+      },
+      "CinemaReportStatus": {
+        "type": "string",
+        "description": "Where a report stands.",
+        "enum": [
+          "open",
+          "actioned",
+          "dismissed"
+        ]
+      },
+      "CinemaReportedContent": {
+        "type": "object",
+        "description": "The review or comment a report is about, as staff see it (hidden content included).",
+        "required": [
+          "title_id",
+          "author_id",
+          "excerpt",
+          "hidden",
+          "created_at_ms"
+        ],
+        "properties": {
+          "author_id": {
+            "type": "string"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "episode_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Comments only: the episode (`\"0\"` for the title or a movie)."
+          },
+          "excerpt": {
+            "type": "string",
+            "description": "The first 400 characters of the text."
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "title_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CinemaResolveReport": {
+        "type": "object",
+        "description": "Body of a report resolution.",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A note for the access log."
+          },
+          "status": {
+            "$ref": "#/components/schemas/CinemaReportStatus"
           }
         }
       },
@@ -30363,6 +31076,92 @@
           "recent"
         ]
       },
+      "CinemaSpriteInfo": {
+        "type": "object",
+        "description": "Scrub-thumbnail geometry (the sprite map itself is `sprites_url`).",
+        "required": [
+          "interval_secs",
+          "thumb_width",
+          "thumb_height",
+          "columns",
+          "rows",
+          "thumbs_total"
+        ],
+        "properties": {
+          "columns": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "interval_secs": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "rows": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "thumb_height": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "thumb_width": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "thumbs_total": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "CinemaSubtitleTrack": {
+        "type": "object",
+        "description": "One subtitle track the player can load.",
+        "required": [
+          "id",
+          "label",
+          "forced",
+          "is_default",
+          "vtt_url"
+        ],
+        "properties": {
+          "ass_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Signed ASS URL when the source was styled (the player may render it instead)."
+          },
+          "forced": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "is_default": {
+            "type": "boolean"
+          },
+          "label": {
+            "type": "string"
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "vtt_url": {
+            "type": "string",
+            "description": "Signed WebVTT URL."
+          }
+        }
+      },
       "CinemaTitleKind": {
         "type": "string",
         "description": "What a title is. Movies are played directly (`episode_id` 0); series and anime by episode.",
@@ -30391,11 +31190,12 @@
           "kind": {
             "$ref": "#/components/schemas/CinemaTitleKind"
           },
-          "poster_key": {
+          "poster_url": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Signed poster URL (`/cdn/cinema/...?ex=&sig=`), when the title has a poster."
           },
           "title": {
             "type": "string"
