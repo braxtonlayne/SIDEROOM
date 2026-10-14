@@ -96,7 +96,7 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 
 ## AutoMod
 - [x] **LNG-SSET-059** [BE] AutoMod engine (keyword lists w/ wildcards, regex (Rust `regex`), allow list, preset lists, mention spam, spam heuristic, member profile names) with actions block/custom message/alert channel/timeout
-- [ ] **LNG-SSET-060** [GW] AUTO_MODERATION_RULE_*, AUTO_MODERATION_ACTION_EXECUTION
+- [x] **LNG-SSET-060** [GW] AUTO_MODERATION_RULE_*, AUTO_MODERATION_ACTION_EXECUTION *(p10 verified: SettingsEvent maps to DomainEvent in routes/settings/events.rs, gateway passthrough with intents in sr-gateway hub.rs/protocol.rs; tests in routes/settings/tests.rs)*
 - [x] **LNG-SSET-061** [FE] AutoMod page: rule cards (Block Custom Words ×N, Block Mention Spam, Block Spam Content, Flag words in profiles), rule editor (keywords, regex tester, exemptions roles/channels, actions)
 - [ ] **LNG-SSET-062** [FE] AutoMod alert message renderer in alert channel (actions: delete, timeout, kick, ban)
 

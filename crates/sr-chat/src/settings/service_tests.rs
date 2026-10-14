@@ -431,3 +431,59 @@ async fn onboarding_saves_log_each_question_and_the_settings_separately() {
     // Only the second save flipped `enabled`.
     assert_eq!(count(AuditAction::OnboardingUpdate), 1);
 }
+
+#[tokio::test]
+async fn guild_tags_are_adopted_only_while_members_may_display_them() {
+    use super::tags::GuildTag;
+    let (svc, _) = setup();
+    let member = UserId::new(50);
+    let tag = |text: &str, display: bool| GuildTag {
+        guild_id: G,
+        tag: text.into(),
+        badge: 2,
+        color: 0xAA00FF,
+        members_can_display: display,
+    };
+    // Managers only.
+    assert!(matches!(
+        svc.save_guild_tag(Permissions::empty(), ADMIN, tag("SIDE", true))
+            .await,
+        Err(SettingsError::MissingPermissions)
+    ));
+    // No tag yet, and a non-member, cannot adopt.
+    assert!(svc.adopt_tag(member, Some(G), true).await.is_err());
+    svc.save_guild_tag(Permissions::MANAGE_GUILD, ADMIN, tag("SIDE", true))
+        .await
+        .unwrap();
+    assert!(svc.adopt_tag(member, Some(G), false).await.is_err());
+    let adopted = svc.adopt_tag(member, Some(G), true).await.unwrap().unwrap();
+    assert_eq!((adopted.tag.as_str(), adopted.badge), ("SIDE", 2));
+    assert_eq!(svc.primary_guild(member).await.unwrap(), Some(adopted));
+
+    // Switching the toggle off hides it everywhere, and nobody can newly adopt.
+    svc.save_guild_tag(Permissions::MANAGE_GUILD, ADMIN, tag("SIDE", false))
+        .await
+        .unwrap();
+    assert_eq!(svc.primary_guild(member).await.unwrap(), None);
+    assert!(svc.adopt_tag(UserId::new(51), Some(G), true).await.is_err());
+
+    // Removing the tag drops adoptions; clearing is always allowed.
+    svc.save_guild_tag(Permissions::MANAGE_GUILD, ADMIN, tag("SIDE", true))
+        .await
+        .unwrap();
+    assert!(svc.primary_guild(member).await.unwrap().is_some());
+    svc.clear_guild_tag(Permissions::MANAGE_GUILD, ADMIN, G)
+        .await
+        .unwrap();
+    assert_eq!(svc.primary_guild(member).await.unwrap(), None);
+    assert_eq!(svc.adopt_tag(member, None, false).await.unwrap(), None);
+    // Tag changes were audited as GuildUpdate with key diffs.
+    let log = svc
+        .list_audit(Permissions::VIEW_AUDIT_LOG, &AuditQuery::new(G))
+        .await
+        .unwrap();
+    assert!(
+        log.iter()
+            .any(|e| e.changes.iter().any(|c| c.key == "tag_members_can_display"))
+    );
+}

@@ -11,6 +11,7 @@ use super::automod::AutoModRule;
 use super::community::{CommunitySettings, Onboarding, WelcomeScreen};
 use super::expressions::{Emoji, Sticker};
 use super::invites::GuildInvite;
+use super::tags::GuildTag;
 use super::templates::GuildTemplate;
 use super::webhooks::Webhook;
 
@@ -97,6 +98,18 @@ pub trait CommunityRepository: Send + Sync {
     async fn put_welcome_screen(&self, screen: &WelcomeScreen) -> RepoResult<()>;
 }
 
+#[async_trait]
+pub trait TagRepository: Send + Sync {
+    async fn get_guild_tag(&self, guild: GuildId) -> RepoResult<Option<GuildTag>>;
+    /// Insert or replace (one tag per guild).
+    async fn put_guild_tag(&self, tag: &GuildTag) -> RepoResult<()>;
+    /// Remove the guild's tag and every member's adoption of it.
+    async fn delete_guild_tag(&self, guild: GuildId) -> RepoResult<bool>;
+    /// The guild whose tag `user` displays, if they adopted one.
+    async fn get_primary_guild(&self, user: UserId) -> RepoResult<Option<GuildId>>;
+    async fn set_primary_guild(&self, user: UserId, guild: Option<GuildId>) -> RepoResult<()>;
+}
+
 /// Everything the settings service needs.
 pub trait SettingsRepository:
     InviteRepository
@@ -106,6 +119,7 @@ pub trait SettingsRepository:
     + WebhookRepository
     + TemplateRepository
     + CommunityRepository
+    + TagRepository
 {
 }
 impl<
@@ -115,7 +129,8 @@ impl<
         + AutoModRepository
         + WebhookRepository
         + TemplateRepository
-        + CommunityRepository,
+        + CommunityRepository
+        + TagRepository,
 > SettingsRepository for T
 {
 }

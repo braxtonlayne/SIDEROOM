@@ -11,8 +11,9 @@ use sr_chat::settings::expressions::{Emoji, Sticker};
 use sr_chat::settings::invites::GuildInvite;
 use sr_chat::settings::repo::{
     AuditRepository, AutoModRepository, CommunityRepository, ExpressionRepository,
-    InviteRepository, SettingsRepository, TemplateRepository, WebhookRepository,
+    InviteRepository, SettingsRepository, TagRepository, TemplateRepository, WebhookRepository,
 };
+use sr_chat::settings::tags::GuildTag;
 use sr_chat::settings::templates::GuildTemplate;
 use sr_chat::settings::webhooks::Webhook;
 use sr_core::{ChannelId, EmojiId, GuildId, StickerId, UserId, WebhookId};
@@ -179,5 +180,24 @@ impl CommunityRepository for DynRepo {
     }
     async fn put_welcome_screen(&self, screen: &WelcomeScreen) -> RepoResult<()> {
         self.0.put_welcome_screen(screen).await
+    }
+}
+
+#[async_trait]
+impl TagRepository for DynRepo {
+    async fn get_guild_tag(&self, guild: GuildId) -> RepoResult<Option<GuildTag>> {
+        self.0.get_guild_tag(guild).await
+    }
+    async fn put_guild_tag(&self, tag: &GuildTag) -> RepoResult<()> {
+        self.0.put_guild_tag(tag).await
+    }
+    async fn delete_guild_tag(&self, guild: GuildId) -> RepoResult<bool> {
+        self.0.delete_guild_tag(guild).await
+    }
+    async fn get_primary_guild(&self, user: UserId) -> RepoResult<Option<GuildId>> {
+        self.0.get_primary_guild(user).await
+    }
+    async fn set_primary_guild(&self, user: UserId, guild: Option<GuildId>) -> RepoResult<()> {
+        self.0.set_primary_guild(user, guild).await
     }
 }

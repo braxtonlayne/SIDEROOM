@@ -19,8 +19,9 @@ use sr_chat::settings::expressions::{Emoji, Sticker, StickerFormat};
 use sr_chat::settings::invites::GuildInvite;
 use sr_chat::settings::repo::{
     AuditRepository, AutoModRepository, CommunityRepository, ExpressionRepository,
-    InviteRepository, TemplateRepository, WebhookRepository,
+    InviteRepository, TagRepository, TemplateRepository, WebhookRepository,
 };
+use sr_chat::settings::tags::GuildTag;
 use sr_chat::settings::templates::{GuildTemplate, TemplateSnapshot};
 use sr_chat::settings::webhooks::{Webhook, WebhookKind};
 use sr_core::{ApplicationId, ChannelId, EmojiId, GuildId, RoleId, StickerId, UserId, WebhookId};
@@ -1068,6 +1069,99 @@ impl CommunityRepository for PgSettingsRepo {
         .execute(&self.pool)
         .await
         .map_err(db)?;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl TagRepository for PgSettingsRepo {
+    async fn get_guild_tag(&self, guild: GuildId) -> RepoResult<Option<GuildTag>> {
+        let row = sqlx::query(
+            "SELECT tag, badge, color, members_can_display FROM guild_tags WHERE guild_id = $1",
+        )
+        .bind(i(guild.get()))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        let Some(r) = row else { return Ok(None) };
+        let badge: i16 = get(&r, "badge")?;
+        let color: i32 = get(&r, "color")?;
+        Ok(Some(GuildTag {
+            guild_id: guild,
+            tag: get(&r, "tag")?,
+            badge: u8::try_from(badge).unwrap_or(0),
+            color: u32::try_from(color).unwrap_or(0),
+            members_can_display: get(&r, "members_can_display")?,
+        }))
+    }
+
+    async fn put_guild_tag(&self, t: &GuildTag) -> RepoResult<()> {
+        sqlx::query(
+            "INSERT INTO guild_tags (guild_id, tag, badge, color, members_can_display) \
+             VALUES ($1, $2, $3, $4, $5) \
+             ON CONFLICT (guild_id) DO UPDATE SET tag = EXCLUDED.tag, badge = EXCLUDED.badge, \
+               color = EXCLUDED.color, members_can_display = EXCLUDED.members_can_display, \
+               updated_at = now()",
+        )
+        .bind(i(t.guild_id.get()))
+        .bind(&t.tag)
+        .bind(i16::from(t.badge))
+        .bind(i32::try_from(t.color).unwrap_or(0))
+        .bind(t.members_can_display)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
+
+    async fn delete_guild_tag(&self, guild: GuildId) -> RepoResult<bool> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        sqlx::query("DELETE FROM user_primary_guilds WHERE guild_id = $1")
+            .bind(i(guild.get()))
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        let n = sqlx::query("DELETE FROM guild_tags WHERE guild_id = $1")
+            .bind(i(guild.get()))
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?
+            .rows_affected();
+        tx.commit().await.map_err(db)?;
+        Ok(n > 0)
+    }
+
+    async fn get_primary_guild(&self, user: UserId) -> RepoResult<Option<GuildId>> {
+        let g: Option<i64> =
+            sqlx::query_scalar("SELECT guild_id FROM user_primary_guilds WHERE user_id = $1")
+                .bind(i(user.get()))
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(db)?;
+        Ok(g.map(|g| GuildId::new(u(g))))
+    }
+
+    async fn set_primary_guild(&self, user: UserId, guild: Option<GuildId>) -> RepoResult<()> {
+        match guild {
+            Some(g) => {
+                sqlx::query(
+                    "INSERT INTO user_primary_guilds (user_id, guild_id) VALUES ($1, $2) \
+                     ON CONFLICT (user_id) DO UPDATE SET guild_id = EXCLUDED.guild_id, set_at = now()",
+                )
+                .bind(i(user.get()))
+                .bind(i(g.get()))
+                .execute(&self.pool)
+                .await
+                .map_err(db)?;
+            }
+            None => {
+                sqlx::query("DELETE FROM user_primary_guilds WHERE user_id = $1")
+                    .bind(i(user.get()))
+                    .execute(&self.pool)
+                    .await
+                    .map_err(db)?;
+            }
+        }
         Ok(())
     }
 }

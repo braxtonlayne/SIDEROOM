@@ -1,6 +1,6 @@
 //! Server-settings REST API (docs/specs/lounge-chat.md section 11, inventory
 //! `06-lounge-server-settings.md`): invites, audit log, emoji and stickers,
-//! AutoMod rules, webhooks, templates and community/onboarding settings.
+//! AutoMod rules, webhooks, templates, community/onboarding settings and server tags.
 //!
 //! Wiring, in the composition root:
 //!
@@ -32,6 +32,7 @@ pub mod invites;
 pub mod join;
 pub mod presence;
 pub mod repo;
+pub mod tags;
 pub mod templates;
 pub mod timeout;
 pub mod webhooks;
@@ -65,6 +66,7 @@ pub fn router() -> Router<AppState> {
         .merge(webhooks::routes())
         .merge(templates::routes())
         .merge(community::routes())
+        .merge(tags::routes())
 }
 
 /// OpenAPI fragment for these routes; merge into [`crate::openapi::base`].
@@ -120,6 +122,11 @@ pub fn router() -> Router<AppState> {
         community::put_onboarding,
         community::get_welcome_screen,
         community::modify_welcome_screen,
+        tags::get_tag,
+        tags::put_tag,
+        tags::delete_tag,
+        tags::get_primary_guild,
+        tags::put_primary_guild,
     ),
     components(schemas(
         ErrorBody,
@@ -160,6 +167,11 @@ pub fn router() -> Router<AppState> {
         community::WelcomeScreenObject,
         community::WelcomeChannelDto,
         community::ModifyWelcomeScreenBody,
+        tags::GuildTagObject,
+        tags::PutGuildTagBody,
+        tags::PrimaryGuildResponse,
+        tags::PutPrimaryGuildBody,
+        crate::routes::social::model::PrimaryGuildObject,
     ))
 )]
 pub struct SettingsApiDoc;

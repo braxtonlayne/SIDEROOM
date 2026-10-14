@@ -120,6 +120,7 @@ pub(super) fn summary(id: i64, name: &str, bot: bool) -> UserSummary {
         avatar_key: None,
         banner_key: None,
         bot,
+        primary_guild: None,
     }
 }
 

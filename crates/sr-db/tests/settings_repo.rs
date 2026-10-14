@@ -357,3 +357,60 @@ async fn webhook_avatar_key_round_trips_and_clears() {
             .is_none()
     );
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn server_tag_adoption_shows_only_for_members_while_allowed() {
+    use sr_chat::repo::UserLookup;
+    use sr_chat::settings::repo::TagRepository;
+    use sr_chat::settings::tags::GuildTag;
+
+    let pool = pool().await;
+    let test_ids = ids(7);
+    let repo = PgSettingsRepo::new(pool.clone());
+    let (gid, _, owner) = guild(&pool, &test_ids).await;
+    let lookup = PgChatRepo::new(pool.clone());
+    let shown = |u: UserId| {
+        let lookup = lookup.clone();
+        async move { lookup.users(&[u]).await.unwrap().remove(0).primary_guild }
+    };
+
+    let mut tag = GuildTag {
+        guild_id: gid,
+        tag: "SIDE".into(),
+        badge: 4,
+        color: 0x00FF_00FF,
+        members_can_display: true,
+    };
+    repo.put_guild_tag(&tag).await.unwrap();
+    assert_eq!(repo.get_guild_tag(gid).await.unwrap(), Some(tag.clone()));
+    assert_eq!(shown(owner).await, None, "nobody adopted yet");
+
+    repo.set_primary_guild(owner, Some(gid)).await.unwrap();
+    assert_eq!(repo.get_primary_guild(owner).await.unwrap(), Some(gid));
+    let pg = shown(owner).await.expect("adopted tag is shown");
+    assert_eq!((pg.guild_id, pg.tag.as_str(), pg.badge), (gid, "SIDE", 4));
+    assert_eq!(pg.color, 0x00FF_00FF);
+
+    // The toggle hides it everywhere without forgetting the adoption.
+    tag.members_can_display = false;
+    repo.put_guild_tag(&tag).await.unwrap();
+    assert_eq!(shown(owner).await, None);
+    tag.members_can_display = true;
+    repo.put_guild_tag(&tag).await.unwrap();
+    assert!(shown(owner).await.is_some());
+
+    // Leaving the guild hides it.
+    sqlx::query("DELETE FROM guild_members WHERE guild_id = $1 AND user_id = $2")
+        .bind(gid.get() as i64)
+        .bind(owner.get() as i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert_eq!(shown(owner).await, None);
+
+    // Deleting the tag clears every adoption of it.
+    assert!(repo.delete_guild_tag(gid).await.unwrap());
+    assert_eq!(repo.get_primary_guild(owner).await.unwrap(), None);
+    assert!(!repo.delete_guild_tag(gid).await.unwrap());
+}

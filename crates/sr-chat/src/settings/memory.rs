@@ -15,8 +15,9 @@ use super::expressions::{Emoji, Sticker};
 use super::invites::{GuildInvite, InviteStatus};
 use super::repo::{
     AuditRepository, AutoModRepository, CommunityRepository, ExpressionRepository,
-    InviteRepository, TemplateRepository, WebhookRepository,
+    InviteRepository, TagRepository, TemplateRepository, WebhookRepository,
 };
+use super::tags::GuildTag;
 use super::templates::GuildTemplate;
 use super::webhooks::Webhook;
 
@@ -33,6 +34,8 @@ pub struct Store {
     pub community: HashMap<GuildId, CommunitySettings>,
     pub onboarding: HashMap<GuildId, Onboarding>,
     pub welcome: HashMap<GuildId, WelcomeScreen>,
+    pub tags: HashMap<GuildId, GuildTag>,
+    pub primary_guilds: HashMap<UserId, GuildId>,
 }
 
 #[derive(Default)]
@@ -397,6 +400,37 @@ impl CommunityRepository for MemorySettingsRepo {
 
     async fn put_welcome_screen(&self, screen: &WelcomeScreen) -> RepoResult<()> {
         self.with(|s| s.welcome.insert(screen.guild_id, screen.clone()));
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl TagRepository for MemorySettingsRepo {
+    async fn get_guild_tag(&self, guild: GuildId) -> RepoResult<Option<GuildTag>> {
+        Ok(self.with(|s| s.tags.get(&guild).cloned()))
+    }
+
+    async fn put_guild_tag(&self, tag: &GuildTag) -> RepoResult<()> {
+        self.with(|s| s.tags.insert(tag.guild_id, tag.clone()));
+        Ok(())
+    }
+
+    async fn delete_guild_tag(&self, guild: GuildId) -> RepoResult<bool> {
+        Ok(self.with(|s| {
+            s.primary_guilds.retain(|_, g| *g != guild);
+            s.tags.remove(&guild).is_some()
+        }))
+    }
+
+    async fn get_primary_guild(&self, user: UserId) -> RepoResult<Option<GuildId>> {
+        Ok(self.with(|s| s.primary_guilds.get(&user).copied()))
+    }
+
+    async fn set_primary_guild(&self, user: UserId, guild: Option<GuildId>) -> RepoResult<()> {
+        self.with(|s| match guild {
+            Some(g) => s.primary_guilds.insert(user, g).map(|_| ()),
+            None => s.primary_guilds.remove(&user).map(|_| ()),
+        });
         Ok(())
     }
 }

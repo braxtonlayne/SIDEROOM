@@ -2363,3 +2363,72 @@ async fn webhook_token_can_be_reset_but_never_read_back() {
     assert!(!text.contains(&old) && !text.contains(&new));
     assert!(e.audit_actions().await.contains(&51));
 }
+
+#[tokio::test]
+async fn server_tags_are_managed_by_managers_and_adopted_by_members() {
+    let e = env().await;
+    let url = e.g("/tag");
+    let me = "/users/@me/primary-guild";
+
+    // No tag yet.
+    assert_eq!(e.get(&url, "bob").await.0, StatusCode::NOT_FOUND);
+    assert_eq!(
+        e.put(me, "bob", json!({"guild_id": e.guild.to_string()}))
+            .await
+            .0,
+        StatusCode::BAD_REQUEST
+    );
+    // Only managers set it, and the text is validated.
+    let body = json!({"tag": "SIDE", "badge": 3, "color": 0xAA00FF});
+    assert_eq!(
+        e.put(&url, "bob", body.clone()).await.0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        e.put(&url, "mod", json!({"tag": "toolong"})).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    let (s, t) = e.put(&url, "mod", body).await;
+    assert_eq!(s, StatusCode::OK, "{t}");
+    assert_eq!(t["tag"], "SIDE");
+    assert_eq!(t["members_can_display"], true);
+    assert_eq!(e.get(&url, "bob").await.1["badge"], 3);
+    // Non-members cannot read the tag or adopt it.
+    assert_eq!(e.get(&url, "carol").await.0, StatusCode::FORBIDDEN);
+    assert_eq!(
+        e.put(me, "carol", json!({"guild_id": e.guild.to_string()}))
+            .await
+            .0,
+        StatusCode::BAD_REQUEST
+    );
+
+    // A member adopts it.
+    let (s, p) = e
+        .put(me, "bob", json!({"guild_id": e.guild.to_string()}))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{p}");
+    assert_eq!(p["primary_guild"]["tag"], "SIDE");
+    assert_eq!(p["primary_guild"]["identity_enabled"], true);
+    assert_eq!(
+        p["primary_guild"]["identity_guild_id"],
+        e.guild.to_string().as_str()
+    );
+    assert_eq!(e.get(me, "bob").await.1["primary_guild"]["tag"], "SIDE");
+
+    // Turning "members can display" off hides it and blocks new adoption.
+    e.put(
+        &url,
+        "mod",
+        json!({"tag": "SIDE", "members_can_display": false}),
+    )
+    .await;
+    assert!(e.get(me, "bob").await.1["primary_guild"].is_null());
+
+    // Removing the tag is audited; adoption is cleared with null.
+    assert_eq!(e.delete(&url, "mod").await.0, StatusCode::NO_CONTENT);
+    assert_eq!(e.get(&url, "bob").await.0, StatusCode::NOT_FOUND);
+    let (s, p) = e.put(me, "bob", json!({"guild_id": null})).await;
+    assert_eq!(s, StatusCode::OK);
+    assert!(p["primary_guild"].is_null());
+    assert!(e.audit_actions().await.contains(&1));
+}

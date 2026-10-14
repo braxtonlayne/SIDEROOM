@@ -28,6 +28,7 @@ pub type Entropy = Arc<dyn Fn() -> u64 + Send + Sync>;
 
 mod community_ops;
 mod expression_ops;
+mod tag_ops;
 mod template_ops;
 mod webhook_ops;
 

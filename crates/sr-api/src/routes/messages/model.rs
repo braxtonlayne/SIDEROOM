@@ -44,6 +44,9 @@ pub struct UserRef {
     /// Present (true) for bot accounts only.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub bot: bool,
+    /// The server tag the author displays (LNG-SSET-012).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub primary_guild: Option<crate::routes::social::model::PrimaryGuildObject>,
 }
 
 impl UserRef {
@@ -58,6 +61,10 @@ impl UserRef {
             username,
             global_name,
             bot: users.get(&id).is_some_and(|u| u.bot),
+            primary_guild: users
+                .get(&id)
+                .and_then(|u| u.primary_guild.as_ref())
+                .map(crate::routes::social::model::PrimaryGuildObject::of),
         }
     }
 }

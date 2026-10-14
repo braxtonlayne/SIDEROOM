@@ -1039,6 +1039,7 @@ fn name_user(f: &Fx, id: u64, username: &str, display: Option<&str>) {
             avatar_key: None,
             banner_key: None,
             bot: false,
+            primary_guild: None,
         },
     );
 }

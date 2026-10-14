@@ -417,6 +417,7 @@ fn name(f: &Fx, user: UserId, username: &str, display: Option<&str>) {
             avatar_key: None,
             banner_key: None,
             bot: false,
+            primary_guild: None,
         },
     );
 }
