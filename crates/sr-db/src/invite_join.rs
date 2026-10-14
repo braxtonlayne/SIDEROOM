@@ -53,7 +53,7 @@ async fn read_vanity(
 ) -> RepoResult<Option<GuildInvite>> {
     let Some(g) = sqlx::query(
         "SELECT id, owner_id, system_channel_id, vanity_code::text AS vanity_code, vanity_uses \
-         FROM guilds WHERE vanity_code = $1",
+         FROM guilds WHERE vanity_code = $1::citext",
     )
     .bind(code)
     .fetch_optional(&mut **tx)

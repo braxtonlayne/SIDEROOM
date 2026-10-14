@@ -458,11 +458,12 @@ impl GuildRepository for PgChatRepo {
     }
 
     async fn guild_by_vanity(&self, code: &str) -> RepoResult<Option<GuildId>> {
-        let row: Option<i64> = sqlx::query_scalar("SELECT id FROM guilds WHERE vanity_code = $1")
-            .bind(code)
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(db)?;
+        let row: Option<i64> =
+            sqlx::query_scalar("SELECT id FROM guilds WHERE vanity_code = $1::citext")
+                .bind(code)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(db)?;
         Ok(row.map(|v| GuildId::new(u(v))))
     }
 
