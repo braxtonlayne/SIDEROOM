@@ -10,7 +10,7 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 - [x] **LNG-SSET-003** [FE] Header text "Customize how your server appears in invite links and, if enabled, in Server Discovery and Announcement Channel messages"
 - [x] **LNG-SSET-004** [FE] Name input
 - [ ] **LNG-SSET-005** [FE] Icon: "We recommend an image of at least 512x512." + Change Server Icon (crop modal, GIF allowed free), Remove *(p5: upload, remove and live preview are built; the server crops to a square, so there is no crop modal)*
-- [ ] **LNG-SSET-006** [FE] Banner: 10 preset gradient swatches (dark, pink, red, orange, yellow, purple, blue, teal, green, black) + custom image upload (free) *(p5: custom banner upload and remove are built; the 10 preset gradient swatches are not)*
+- [x] **LNG-SSET-006** [FE] Banner: 10 preset gradient swatches (dark, pink, red, orange, yellow, purple, blue, teal, green, black) + custom image upload (free) *(p10: ten preset gradients drawn on a canvas and uploaded as a PNG, `BannerPresets.tsx`, overview test)*
 - [ ] **LNG-SSET-007** [FE] Traits: 5 slots (emoji + short text)
 - [x] **LNG-SSET-008** [FE] Description textarea ("How did your server get started? Why should people join?")
 - [ ] **LNG-SSET-009** [FE] Live preview card (banner, icon, name, "● N Online ● N Members", "Est. <Mon YYYY>") *(p5: preview card with banner, icon, name and Est. date; no Online/Members counts)*
@@ -27,10 +27,10 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 - [ ] **LNG-SSET-016** [FE] Activity feed / widget settings (server widget JSON toggle)
 
 ## Server Support (replaces Boost Perks)
-- [ ] **LNG-SSET-017** [FE] Current level card, pool this month vs next threshold progress bar, grace-period notice
-- [ ] **LNG-SSET-018** [FE] Perks comparison table (L0–L3 per doc 08)
-- [ ] **LNG-SSET-019** [FE] Contribute button → amount picker → BTC invoice modal
-- [ ] **LNG-SSET-020** [FE] Contributors list (respecting anonymity), "Your contributions" history
+- [x] **LNG-SSET-017** [FE] Current level card, pool this month vs next threshold progress bar, grace-period notice *(built with Server Support (DON-UI-004): level card, pool progress bar, grace notice, `ServerSupport.tsx`)*
+- [x] **LNG-SSET-018** [FE] Perks comparison table (L0–L3 per doc 08) *(p10: `PerksTable` in `ServerSupport.tsx`, support test)*
+- [x] **LNG-SSET-019** [FE] Contribute button → amount picker → BTC invoice modal *(built with Server Support: contribute switch, amount picker, invoice modal)*
+- [x] **LNG-SSET-020** [FE] Contributors list (respecting anonymity), "Your contributions" history *(p10: top contributors (anonymity as the server sends it) plus "Your contributions" from the invoice list, support test)*
 
 ## Emoji
 - [x] **LNG-SSET-021** [FE] Upload requirements copy, Upload Emoji button (multi-file), slots counters (static/animated)
@@ -45,8 +45,8 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 - [ ] **LNG-SSET-026** [BE] Sound trimming/transcode to Opus (`symphonia` decode + `opus` encode)
 
 ## Members
-- [ ] **LNG-SSET-027** [FE] Member table (avatar/name, member since, joined platform, join method/invite code, roles chips, signals), search, sort, filters (roles, join date, unusual activity), pagination *(p5: search and role filter use the server endpoints, with paging; sort, join method and signals are not built)*
-- [ ] **LNG-SSET-028** [FE] Bulk select → add/remove role, kick, ban
+- [ ] **LNG-SSET-027** [FE] Member table (avatar/name, member since, joined platform, join method/invite code, roles chips, signals), search, sort, filters (roles, join date, unusual activity), pagination *(p5: search and role filter use the server endpoints, with paging. p10: sort by name or join date over the loaded members. Still open: join method and signals (not in the member object), join-date filter)*
+- [x] **LNG-SSET-028** [FE] Bulk select → add/remove role, kick, ban *(p10: row and page checkboxes, bulk Add/Remove role, Kick, Ban run per member with a partial-failure report, `MemberBulk.tsx`, people test)*
 - [x] **LNG-SSET-029** [FE] Prune members modal (inactivity days, include roles, count preview) *(Members, needs Kick Members; wording is "have not sent a message in N days" until last-seen tracking lands (F-02), then Discord's, D-166)*
 - [ ] **LNG-SSET-030** [FE] Member detail side drawer (roles, timeout, audit history for this member) *(p5: details dialog (username, id, joined, nickname, timeout, roles); no audit history because the audit log cannot filter by target)*
 
@@ -101,9 +101,9 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 - [ ] **LNG-SSET-062** [FE] AutoMod alert message renderer in alert channel (actions: delete, timeout, kick, ban)
 
 ## Community
-- [ ] **LNG-SSET-063** [FE] Enable Community wizard (Safety checks → Set up basics (rules channel, updates channel) → Finishing touches (default notifications, remove @everyone moderation perms, agree to guidelines))
+- [x] **LNG-SSET-063** [FE] Enable Community wizard (Safety checks → Set up basics (rules channel, updates channel) → Finishing touches (default notifications, remove @everyone moderation perms, agree to guidelines)) *(p10: three-step wizard `CommunityWizard.tsx`, content test)*
 - [x] **LNG-SSET-064** [FE] Community Overview (rules/updates channels, safety notifications channel, description, locale, disable community) *(p5)*
-- [ ] **LNG-SSET-065** [FE] Onboarding editor (default channels, questions with options mapping to channels/roles, preview, enable) *(p5: editor with default channels, questions and options exists; no preview and no 2-step wizard (LNG-SSET-063))*
+- [x] **LNG-SSET-065** [FE] Onboarding editor (default channels, questions with options mapping to channels/roles, preview, enable) *(p10: interactive preview `OnboardingPreview.tsx` plus the wizard)*
 - [ ] **LNG-SSET-066** [FE] Server Guide editor (welcome message, new member to-dos, resource pages)
 - [x] **LNG-SSET-067** [FE] Welcome Screen editor (description, up to 5 channel cards with emoji + description) *(p5)*
 - [ ] **LNG-SSET-068** [FE] Server Insights (basic: members over time, messages per day, voice minutes, top channels), computed by a daily job
