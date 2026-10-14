@@ -2003,6 +2003,163 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/tv/blocks/{block_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove one block from a schedule. */
+        delete: operations["admin_tv_remove_block"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tv/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** All channels with their rules, disabled ones too. */
+        get: operations["admin_tv_channels"];
+        put?: never;
+        /** Create a channel (`MANAGE_TV`). A taken number is 409. */
+        post: operations["admin_tv_create_channel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tv/channels/{channel_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A channel with its rules. */
+        get: operations["admin_tv_channel"];
+        /** Replace the editable fields of a channel. */
+        put: operations["admin_tv_update_channel"];
+        post?: never;
+        /** Delete a channel with its schedule. */
+        delete: operations["admin_tv_delete_channel"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tv/channels/{channel_id}/blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Place a programme at a time; what it overlaps is trimmed, split or removed. */
+        post: operations["admin_tv_place_block"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tv/channels/{channel_id}/now": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What is on at any moment, from the stored blocks. */
+        get: operations["admin_tv_now"];
+        /** Put a programme on the air now, cutting the block on air. */
+        put: operations["admin_tv_set_now"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tv/channels/{channel_id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate a schedule from the current rules without storing anything. */
+        post: operations["admin_tv_preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tv/channels/{channel_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Regenerate the part of the schedule that has not started from the current rules and store it. */
+        post: operations["admin_tv_publish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tv/channels/{channel_id}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stored blocks of a channel overlapping a window (no lazy extension). */
+        get: operations["admin_tv_schedule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tv/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What aired in a window (at most 31 days). */
+        get: operations["admin_tv_report"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/channels/{channel_id}": {
         parameters: {
             query?: never;
@@ -5028,6 +5185,165 @@ export interface paths {
         put?: never;
         /** Withdraw a submission that is not yet approved. */
         post: operations["submissions_withdraw"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tv/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Enabled channels by number, each with what is on now and next. */
+        get: operations["tv_channels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tv/channels/{channel_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One channel with what is on now and next. */
+        get: operations["tv_channel"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tv/channels/{channel_id}/live/audio.m3u8": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The live audio playlist (the default track of each programme). */
+        get: operations["tv_live_audio"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tv/channels/{channel_id}/live/master.m3u8": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The live master playlist: the rungs every upcoming programme has, one audio group. */
+        get: operations["tv_live_master"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tv/channels/{channel_id}/live/v/{file}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The live video playlist of a rung: a sliding window of the segments on air. `file` is `{height}.m3u8`.
+         *     Fetching it counts the member as a viewer of the channel.
+         */
+        get: operations["tv_live_video"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tv/channels/{channel_id}/now": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What is on a channel now, how far into it the wall clock is, and what comes next. */
+        get: operations["tv_channel_now"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tv/channels/{channel_id}/tune": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Open a channel: what is on and the API path of its live master playlist. A restricted programme on air
+         *     answers 403 with code 900011 until the account confirmed it is 18 or older (D-184).
+         */
+        get: operations["tv_channel_tune"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tv/guide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The programme guide for a window. */
+        get: operations["tv_guide"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tv/timezones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The time zones a channel can use. */
+        get: operations["tv_timezones"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -9017,6 +9333,268 @@ export interface components {
             uris: string[];
             username: string;
         };
+        TvAdminChannelList: {
+            items: components["schemas"]["TvChannel"][];
+        };
+        /** @description A block as the API shows it. */
+        TvBlock: {
+            age_restricted: boolean;
+            channel_id: string;
+            /** Format: int64 */
+            end_ms: number;
+            episode_id?: string | null;
+            /** Format: int32 */
+            episode_number?: number | null;
+            episode_title?: string | null;
+            id: string;
+            kind: components["schemas"]["TvBlockKind"];
+            media_kind?: null | components["schemas"]["TvMediaKind"];
+            playable: boolean;
+            /** Format: int32 */
+            season_number?: number | null;
+            source: components["schemas"]["TvBlockSource"];
+            /** Format: int64 */
+            start_ms: number;
+            title: string;
+            title_id?: string | null;
+            /** Format: int32 */
+            year?: number | null;
+        };
+        /** @enum {string} */
+        TvBlockKind: "program" | "filler" | "slate" | "off_air";
+        TvBlockList: {
+            items: components["schemas"]["TvBlock"][];
+        };
+        /** @enum {string} */
+        TvBlockSource: "generated" | "manual" | "override";
+        /** @description A channel as the API shows it. */
+        TvChannel: {
+            age_restricted: boolean;
+            call_sign?: string | null;
+            enabled: boolean;
+            era_label?: string | null;
+            filler_policy: components["schemas"]["TvFillerPolicy"];
+            id: string;
+            kind: components["schemas"]["TvChannelKind"];
+            /** @description Signed `/cdn/...` URL of the logo. */
+            logo_url?: string | null;
+            name: string;
+            next?: null | components["schemas"]["TvBlock"];
+            now?: null | components["schemas"]["TvBlock"];
+            /** Format: int32 */
+            number: number;
+            rules?: null | components["schemas"]["TvRules"];
+            /** @description Staff only: the shuffle seed. */
+            seed?: string | null;
+            theme?: string | null;
+            timezone: string;
+            /**
+             * Format: int32
+             * @description Distinct members who fetched a live playlist in the last 45 seconds.
+             */
+            viewers: number;
+        };
+        /** @description Staff input to create or replace a channel. */
+        TvChannelInput: {
+            age_restricted?: boolean;
+            call_sign?: string | null;
+            enabled?: boolean;
+            era_label?: string | null;
+            filler_policy?: components["schemas"]["TvFillerPolicy"];
+            kind: components["schemas"]["TvChannelKind"];
+            /** @description Storage key of the logo; must start with `tv/`. */
+            logo_key?: string | null;
+            name: string;
+            /** Format: int32 */
+            number: number;
+            rules?: components["schemas"]["TvRules"];
+            theme?: string | null;
+            timezone?: string;
+        };
+        /** @enum {string} */
+        TvChannelKind: "rule_based" | "manual";
+        TvChannelList: {
+            items: components["schemas"]["TvChannel"][];
+        };
+        TvDaypart: {
+            /** @description 0 = Monday. Empty: every day. */
+            days?: number[];
+            /** @description `HH:MM` channel time; not after `start` means past midnight. */
+            end: string;
+            fit?: components["schemas"]["TvFit"];
+            mode?: components["schemas"]["TvPickMode"];
+            name: string;
+            pool?: components["schemas"]["TvPool"];
+            /** @description `HH:MM` channel time. */
+            start: string;
+        };
+        /**
+         * @description What fills the time between programmes (spec section 4).
+         * @enum {string}
+         */
+        TvFillerPolicy: "bumpers" | "next_program_early" | "slate" | "off_air";
+        /** @enum {string} */
+        TvFit: "overrun" | "fit";
+        TvGuide: {
+            channels: components["schemas"]["TvGuideChannel"][];
+            /** Format: int64 */
+            from_ms: number;
+            /** Format: int64 */
+            now_ms: number;
+            /** Format: int64 */
+            to_ms: number;
+        };
+        TvGuideChannel: {
+            blocks: components["schemas"]["TvBlock"][];
+            channel: components["schemas"]["TvChannel"];
+        };
+        /**
+         * @description The catalog kind of a title as Live TV sees it.
+         * @enum {string}
+         */
+        TvMediaKind: "movie" | "series" | "anime";
+        TvNow: {
+            /** Format: int64 */
+            at_ms: number;
+            channel_id: string;
+            current?: null | components["schemas"]["TvBlock"];
+            next?: null | components["schemas"]["TvBlock"];
+            /**
+             * Format: int64
+             * @description How far into the current programme `at_ms` is.
+             */
+            offset_ms?: number | null;
+            /** Format: int32 */
+            viewers: number;
+        };
+        /** @enum {string} */
+        TvPickMode: "shuffle" | "sequential";
+        /** @description Staff placement of a programme. */
+        TvPlaceInput: {
+            /** Format: int64 */
+            end_ms?: number | null;
+            episode_id?: string | null;
+            /** Format: int64 */
+            start_ms: number;
+            title_id: string;
+        };
+        /** @description What may air in a daypart. Empty lists do not filter. */
+        TvPool: {
+            collection_id?: string | null;
+            /** @description A title must have every genre (lower case). */
+            genres?: string[];
+            kinds?: components["schemas"]["TvMediaKind"][];
+            /** Format: int32 */
+            max_runtime_min?: number | null;
+            /** Format: int32 */
+            min_runtime_min?: number | null;
+            restricted?: null | components["schemas"]["TvRestricted"];
+            /** @description A title must have every tag (lower case). */
+            tags?: string[];
+            title_ids?: string[];
+            /** Format: int32 */
+            year_from?: number | null;
+            /** Format: int32 */
+            year_to?: number | null;
+        };
+        TvPreview: {
+            blocks: components["schemas"]["TvBlock"][];
+            warnings: string[];
+        };
+        TvPreviewBody: {
+            /** Format: int64 */
+            from_ms?: number | null;
+            /** Format: int64 */
+            to_ms?: number | null;
+        };
+        TvPublishBody: {
+            /**
+             * Format: int32
+             * @description 1 to 336, default 168 (one week).
+             */
+            horizon_hours?: number | null;
+        };
+        TvPublished: {
+            /** Format: int64 */
+            from_ms: number;
+            /** Format: int32 */
+            removed: number;
+            /** Format: int64 */
+            to_ms: number;
+            warnings: string[];
+            /** Format: int32 */
+            written: number;
+        };
+        TvReport: {
+            channels: components["schemas"]["TvReportChannel"][];
+            /** Format: int64 */
+            from_ms: number;
+            items: components["schemas"]["TvReportItem"][];
+            /** Format: int64 */
+            to_ms: number;
+        };
+        TvReportChannel: {
+            /**
+             * Format: int64
+             * @description Time on air with media (programmes and bumpers) in the window.
+             */
+            aired_ms: number;
+            channel_id: string;
+            name: string;
+            /** Format: int32 */
+            number: number;
+            /** Format: int32 */
+            overrides: number;
+            /** Format: int32 */
+            programmes: number;
+        };
+        TvReportItem: {
+            /** Format: int64 */
+            aired_ms: number;
+            block: components["schemas"]["TvBlock"];
+        };
+        /**
+         * @description How a pool treats age-restricted titles.
+         * @enum {string}
+         */
+        TvRestricted: "exclude" | "include" | "only";
+        TvRules: {
+            dayparts?: components["schemas"]["TvDaypart"][];
+            /**
+             * Format: int32
+             * @description Programmes start on this grid in channel time (0: back to back).
+             */
+            grid_minutes?: number;
+            /**
+             * Format: int32
+             * @description Shuffle never repeats one of the last N picks (0 to 64).
+             */
+            no_repeat_window?: number;
+        };
+        /** @description "On now": start a programme at once. */
+        TvSetNowInput: {
+            episode_id?: string | null;
+            /** Format: int64 */
+            offset_ms?: number | null;
+            title_id: string;
+        };
+        TvTimezoneList: {
+            items: string[];
+        };
+        TvTune: {
+            channel_id: string;
+            current?: null | components["schemas"]["TvBlock"];
+            /** @description API path of the master playlist. */
+            master_url?: string | null;
+            next?: null | components["schemas"]["TvBlock"];
+            /** Format: int64 */
+            offset_ms?: number | null;
+            state: components["schemas"]["TvTuneState"];
+            /** Format: int32 */
+            viewers: number;
+        };
+        /** @enum {string} */
+        TvTuneState: "live" | "off_air";
         UnbanOutcome: {
             /**
              * Format: int64
@@ -16301,6 +16879,694 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_remove_block: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Block snowflake */
+                block_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_channels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvAdminChannelList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_create_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TvChannelInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvChannel"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvChannel"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_update_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TvChannelInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvChannel"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_delete_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_place_block: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TvPlaceInput"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvBlock"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_now: {
+        parameters: {
+            query?: {
+                /** @description Unix milliseconds; default now ("simulate now"). */
+                at_ms?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvNow"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_set_now: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TvSetNowInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvBlock"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TvPreviewBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvPreview"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_publish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TvPublishBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvPublished"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_schedule: {
+        parameters: {
+            query?: {
+                /** @description Unix milliseconds; default now. */
+                from?: number;
+                /** @description Unix milliseconds; default `from` plus 24 hours; at most 7 days. */
+                to?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvBlockList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_report: {
+        parameters: {
+            query?: {
+                /** @description Unix milliseconds; default 24 hours before `to`. */
+                from?: number;
+                /** @description Unix milliseconds; default now (never later). */
+                to?: number;
+                /** @description One channel id; default all. */
+                channel?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvReport"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
             };
             401: {
                 headers: {
@@ -27041,6 +28307,379 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tv_channels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvChannelList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tv_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvChannel"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tv_live_audio: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.apple.mpegurl": string;
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age confirmation required (code 900011) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unknown channel, or off air */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tv_live_master: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.apple.mpegurl": string;
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age confirmation required (code 900011) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unknown channel, or off air */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tv_live_video: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+                /** @description `{height}.m3u8`, for example `720.m3u8` */
+                file: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.apple.mpegurl": string;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age confirmation required (code 900011) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unknown channel, or off air */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tv_channel_now: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvNow"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tv_channel_tune: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvTune"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Age confirmation required (code 900011) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tv_guide: {
+        parameters: {
+            query?: {
+                /** @description Start of the window, Unix milliseconds. Default: now rounded down to the half hour. */
+                from?: number;
+                /** @description End of the window, Unix milliseconds. Default: `from` plus 4 hours; at most 48 hours. */
+                to?: number;
+                /** @description Comma-separated channel ids. Default: every enabled channel. */
+                channels?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvGuide"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    tv_timezones: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvTimezoneList"];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
