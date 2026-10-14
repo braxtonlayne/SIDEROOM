@@ -1,5 +1,5 @@
 # XC-SEC-005 route matrix. See crates/sr-api/tests/route_matrix.rs.
-# METHOD	PATH	ACCESS	AUTHZ	BOT	BEARER
+# METHOD	PATH	ACCESS	AUTHZ	BOT	BEARER (a trailing ? on AUTHZ means unreviewed)
 DELETE	/admin/cinema/collections/{collection_id}	authenticated	staff	deny	-
 DELETE	/admin/cinema/episodes/{episode_id}	authenticated	staff	deny	-
 DELETE	/admin/cinema/seasons/{season_id}	authenticated	staff	deny	-
@@ -52,6 +52,7 @@ DELETE	/guilds/{guild_id}/members/{user_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/members/{user_id}/roles/{role_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/roles/{role_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-
+DELETE	/guilds/{guild_id}/tag	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-
 DELETE	/invites/{code}	authenticated	membership	allow	-
 DELETE	/library/bookmarks/{bookmark_id}	authenticated	other	allow	-
@@ -226,6 +227,7 @@ GET	/guilds/{guild_id}/stickers	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/stickers/{sticker_id}/url	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/support	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/tag	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/templates	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/threads/active	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/webhooks	authenticated	membership	allow	-
@@ -274,6 +276,7 @@ GET	/users/@me/ignores	authenticated	self	deny	-
 GET	/users/@me/notes/{user_id}	authenticated	self	deny	-
 GET	/users/@me/notification-defaults	authenticated	self	deny	-
 GET	/users/@me/presence	authenticated	self	allow	-
+GET	/users/@me/primary-guild	authenticated	self	deny	-
 GET	/users/@me/privacy	authenticated	self	deny	-
 GET	/users/@me/profile	authenticated	self	allow	-
 GET	/users/@me/read-states	authenticated	self	allow	-
@@ -523,6 +526,7 @@ PUT	/cinema/titles/{title_id}/review	authenticated	other	allow	-
 PUT	/guilds/{guild_id}/bans/{user_id}	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/members/{user_id}/roles/{role_id}	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/onboarding	authenticated	membership	allow	-
+PUT	/guilds/{guild_id}/tag	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-
 PUT	/library/chapters/{chapter_id}/bookmarks	authenticated	other	allow	-
 PUT	/library/chapters/{chapter_id}/progress	authenticated	other	allow	-
@@ -534,6 +538,7 @@ PUT	/submissions/{submission_id}/library/series	authenticated	other	allow	-
 PUT	/users/@me/channels/{channel_id}/request	authenticated	membership	allow	-
 PUT	/users/@me/ignores/{user_id}	authenticated	self	deny	-
 PUT	/users/@me/notes/{user_id}	authenticated	self	deny	-
+PUT	/users/@me/primary-guild	authenticated	self	deny	-
 PUT	/users/@me/relationships/{user_id}	authenticated	self	deny	-
 PUT	/watch-parties/{party_id}/controllers/{user_id}	authenticated	other	allow	-
 PUT	/watch-parties/{party_id}/media	authenticated	other	allow	-

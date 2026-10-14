@@ -27940,6 +27940,219 @@
         ]
       }
     },
+    "/guilds/{guild_id}/tag": {
+      "get": {
+        "tags": [
+          "tags"
+        ],
+        "summary": "The guild's tag. Members read it; 404 while the guild has none.",
+        "operationId": "get_tag",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuildTagObject"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "tags"
+        ],
+        "summary": "Set or replace the guild's tag (`MANAGE_GUILD`).",
+        "operationId": "put_tag",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Audit-Log-Reason",
+            "in": "header",
+            "description": "Stored in the audit log",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutGuildTagBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuildTagObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "tags"
+        ],
+        "summary": "Remove the guild's tag (`MANAGE_GUILD`); members stop displaying it.",
+        "operationId": "delete_tag",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Guild snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-Audit-Log-Reason",
+            "in": "header",
+            "description": "Stored in the audit log",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds/{guild_id}/templates": {
       "get": {
         "tags": [
@@ -34866,6 +35079,102 @@
             }
           },
           "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/@me/primary-guild": {
+      "get": {
+        "tags": [
+          "tags"
+        ],
+        "summary": "The tag the caller displays.",
+        "operationId": "get_primary_guild",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrimaryGuildResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "authorization": []
+          },
+          {
+            "session": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "tags"
+        ],
+        "summary": "Adopt a server's tag (the caller must be a member and the server must allow it) or\nclear it with `null`.",
+        "operationId": "put_primary_guild",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutPrimaryGuildBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrimaryGuildResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
             "description": "",
             "content": {
               "application/json": {
@@ -44661,6 +44970,37 @@
           }
         }
       },
+      "GuildTagObject": {
+        "type": "object",
+        "description": "A guild's tag.",
+        "required": [
+          "tag",
+          "badge",
+          "color",
+          "members_can_display"
+        ],
+        "properties": {
+          "badge": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Badge icon id (0 to 15).",
+            "minimum": 0
+          },
+          "color": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Badge colour, 24-bit RGB.",
+            "minimum": 0
+          },
+          "members_can_display": {
+            "type": "boolean",
+            "description": "\"Members can choose to display\"."
+          },
+          "tag": {
+            "type": "string"
+          }
+        }
+      },
       "HideBody": {
         "type": "object",
         "required": [
@@ -47978,6 +48318,56 @@
           }
         }
       },
+      "PrimaryGuildObject": {
+        "type": "object",
+        "description": "A displayed server tag: `{identity_guild_id, identity_enabled, tag, badge, color}`.",
+        "required": [
+          "identity_guild_id",
+          "identity_enabled",
+          "tag",
+          "badge",
+          "color"
+        ],
+        "properties": {
+          "badge": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Badge icon id (0 to 15).",
+            "minimum": 0
+          },
+          "color": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Badge colour, 24-bit RGB.",
+            "minimum": 0
+          },
+          "identity_enabled": {
+            "type": "boolean"
+          },
+          "identity_guild_id": {
+            "type": "string"
+          },
+          "tag": {
+            "type": "string"
+          }
+        }
+      },
+      "PrimaryGuildResponse": {
+        "type": "object",
+        "description": "The caller's adopted tag (`null` when none).",
+        "properties": {
+          "primary_guild": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PrimaryGuildObject"
+              }
+            ]
+          }
+        }
+      },
       "PrivacyObject": {
         "type": "object",
         "description": "Who may send the caller friend requests and DMs.",
@@ -48374,6 +48764,43 @@
             "type": "integer",
             "description": "Members that would be (preview) or were (execute) removed.",
             "minimum": 0
+          }
+        }
+      },
+      "PutGuildTagBody": {
+        "type": "object",
+        "required": [
+          "tag"
+        ],
+        "properties": {
+          "badge": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "color": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "members_can_display": {
+            "type": "boolean"
+          },
+          "tag": {
+            "type": "string",
+            "description": "2 to 4 letters or digits."
+          }
+        }
+      },
+      "PutPrimaryGuildBody": {
+        "type": "object",
+        "properties": {
+          "guild_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The server whose tag to display, or `null` to display none."
           }
         }
       },
@@ -53131,6 +53558,17 @@
           "id": {
             "type": "string"
           },
+          "primary_guild": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PrimaryGuildObject",
+                "description": "The server tag this user displays (LNG-SSET-012); Discord's `primary_guild`."
+              }
+            ]
+          },
           "username": {
             "type": [
               "string",
@@ -53189,6 +53627,17 @@
           },
           "id": {
             "type": "string"
+          },
+          "primary_guild": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PrimaryGuildObject",
+                "description": "The server tag the author displays (LNG-SSET-012)."
+              }
+            ]
           },
           "username": {
             "type": [

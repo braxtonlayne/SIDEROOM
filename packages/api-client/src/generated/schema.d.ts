@@ -5074,6 +5074,25 @@ export interface paths {
         patch: operations["donations_patch_guild_support"];
         trace?: never;
     };
+    "/guilds/{guild_id}/tag": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The guild's tag. Members read it; 404 while the guild has none. */
+        get: operations["get_tag"];
+        /** Set or replace the guild's tag (`MANAGE_GUILD`). */
+        put: operations["put_tag"];
+        post?: never;
+        /** Remove the guild's tag (`MANAGE_GUILD`); members stop displaying it. */
+        delete: operations["delete_tag"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/guilds/{guild_id}/templates": {
         parameters: {
             query?: never;
@@ -6620,6 +6639,27 @@ export interface paths {
          *     `duration_seconds`) and set or clear the custom status.
          */
         patch: operations["patch_presence"];
+        trace?: never;
+    };
+    "/users/@me/primary-guild": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The tag the caller displays. */
+        get: operations["get_primary_guild"];
+        /**
+         * Adopt a server's tag (the caller must be a member and the server must allow it) or
+         *     clear it with `null`.
+         */
+        put: operations["put_primary_guild"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/users/@me/privacy": {
@@ -9292,6 +9332,22 @@ export interface components {
             pool_window_days: number;
             top_contributors: components["schemas"]["ContributorView"][];
         };
+        /** @description A guild's tag. */
+        GuildTagObject: {
+            /**
+             * Format: int32
+             * @description Badge icon id (0 to 15).
+             */
+            badge: number;
+            /**
+             * Format: int32
+             * @description Badge colour, 24-bit RGB.
+             */
+            color: number;
+            /** @description "Members can choose to display". */
+            members_can_display: boolean;
+            tag: string;
+        };
         HideBody: {
             guild_id?: string | null;
             hidden: boolean;
@@ -10248,6 +10304,26 @@ export interface components {
         PreviewBody: {
             preview: Record<string, never>;
         };
+        /** @description A displayed server tag: `{identity_guild_id, identity_enabled, tag, badge, color}`. */
+        PrimaryGuildObject: {
+            /**
+             * Format: int32
+             * @description Badge icon id (0 to 15).
+             */
+            badge: number;
+            /**
+             * Format: int32
+             * @description Badge colour, 24-bit RGB.
+             */
+            color: number;
+            identity_enabled: boolean;
+            identity_guild_id: string;
+            tag: string;
+        };
+        /** @description The caller's adopted tag (`null` when none). */
+        PrimaryGuildResponse: {
+            primary_guild?: null | components["schemas"]["PrimaryGuildObject"];
+        };
         /** @description Who may send the caller friend requests and DMs. */
         PrivacyObject: {
             /** @description DMs from members of shared servers (default on). */
@@ -10384,6 +10460,19 @@ export interface components {
         PruneResult: {
             /** @description Members that would be (preview) or were (execute) removed. */
             pruned: number;
+        };
+        PutGuildTagBody: {
+            /** Format: int32 */
+            badge?: number;
+            /** Format: int32 */
+            color?: number;
+            members_can_display?: boolean;
+            /** @description 2 to 4 letters or digits. */
+            tag: string;
+        };
+        PutPrimaryGuildBody: {
+            /** @description The server whose tag to display, or `null` to display none. */
+            guild_id?: string | null;
         };
         PutRelationshipBody: {
             /**
@@ -11803,6 +11892,7 @@ export interface components {
             bot?: boolean;
             global_name?: string | null;
             id: string;
+            primary_guild?: null | components["schemas"]["PrimaryGuildObject"];
             username?: string | null;
         };
         UserProfileFields: {
@@ -11821,6 +11911,7 @@ export interface components {
             bot?: boolean;
             global_name?: string | null;
             id: string;
+            primary_guild?: null | components["schemas"]["PrimaryGuildObject"];
             username?: string | null;
         };
         /** @description The synced settings blob. */
@@ -30045,6 +30136,136 @@ export interface operations {
             };
         };
     };
+    get_tag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuildTagObject"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put_tag: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Stored in the audit log */
+                "X-Audit-Log-Reason"?: string | null;
+            };
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PutGuildTagBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuildTagObject"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_tag: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Stored in the audit log */
+                "X-Audit-Log-Reason"?: string | null;
+            };
+            path: {
+                /** @description Guild snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_guild_templates: {
         parameters: {
             query?: never;
@@ -34547,6 +34768,72 @@ export interface operations {
                 };
             };
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_primary_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrimaryGuildResponse"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put_primary_guild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PutPrimaryGuildBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrimaryGuildResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
