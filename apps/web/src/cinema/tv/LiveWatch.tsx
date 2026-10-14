@@ -4,7 +4,7 @@
 // running session instead of tuning again.
 import { useQuery } from '@tanstack/react-query';
 import { useParams, useRouter } from '@tanstack/react-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { isAgeGateError, useAgeGate, withAgeGate } from '../../lib/ageGate';
 import { LIVE_MEDIA_PREFIX } from '../player/model';
@@ -62,6 +62,10 @@ export function LiveWatchPage({ channelId }: { channelId: string }) {
   const reuse = reuseId === channelId;
   const [attempt, setAttempt] = useState(0);
   const status = usePlayer((x) => x.status);
+  const playing = usePlayer((x) => x.playing);
+  // Once the viewer has played, later tunings (channel change, reconnect) continue by themselves.
+  const played = useRef(false);
+  if (playing) played.current = true;
 
   const query = useQuery({
     queryKey: ['cinema', 'tv', 'tune', channelId, attempt],
@@ -78,7 +82,7 @@ export function LiveWatchPage({ channelId }: { channelId: string }) {
 
   useEffect(() => {
     if (!grant || reuse) return;
-    void s.start(liveInfo(grant), { autoplay: hasActivation() });
+    void s.start(liveInfo(grant), { autoplay: hasActivation() || played.current });
     // A new grant object means a new start (channel change, reconnect).
   }, [grant, reuse, s]);
 

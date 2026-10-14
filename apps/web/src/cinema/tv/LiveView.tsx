@@ -31,6 +31,7 @@ const STATIC_MS = 600;
 /** Waiting longer than this is a stall: tune again. */
 export const STALL_MS = 10_000;
 export const MAX_RECONNECTS = 3;
+const STABLE_MS = 5000;
 
 const isEditable = (t: EventTarget | null) =>
   t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
@@ -235,8 +236,11 @@ export function LiveView({
     );
     return () => clearTimeout(t);
   }, [stalled, gaveUp, ended, reconnects]);
+  // The count starts over once the picture has held for a few seconds, not at the first frame.
   useEffect(() => {
-    if (playing && !waiting) setReconnects(0);
+    if (!playing || waiting) return;
+    const t = setTimeout(() => setReconnects(0), STABLE_MS);
+    return () => clearTimeout(t);
   }, [playing, waiting]);
   const reconnecting = stalled && !gaveUp;
 
