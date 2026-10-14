@@ -5077,6 +5077,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "sr-cinema-social"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "sr-core",
+ "sr-db",
+ "sr-events",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "utoipa",
+]
+
+[[package]]
 name = "sr-cli"
 version = "0.0.0"
 dependencies = [
