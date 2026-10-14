@@ -7,6 +7,7 @@ use super::render::{actor, event_payload, render_many};
 use crate::routes::Ext;
 use crate::{Principal, openapi::ErrorBody};
 use axum::{Json, extract::Path, http::StatusCode};
+use sr_chat::settings::audit::AuditAction;
 use sr_chat::{Message, MessageReference, MessageType, Visibility};
 use sr_core::permissions::Permissions;
 use sr_core::{ChannelId, ErrorCode, MessageId};
@@ -99,6 +100,11 @@ pub async fn pin(
     let user = actor(&p);
     let channel_id: ChannelId = parse_id(&channel, ErrorCode::UnknownChannel)?;
     let message_id: MessageId = parse_id(&message, ErrorCode::UnknownMessage)?;
+    let author = deps
+        .repo
+        .get_message(channel_id, message_id)
+        .await?
+        .map(|m| m.author_id);
     deps.pin(user, channel_id, message_id).await?;
     let now = deps.now_ms();
     let ch = deps.access(user, channel_id).await?.channel;
@@ -149,6 +155,14 @@ pub async fn pin(
         last_pin_ms: Some(now),
     })
     .await;
+    deps.audit(
+        ch.guild_id,
+        user,
+        AuditAction::MessagePin,
+        author.map(|a| a.get()),
+        serde_json::json!({ "channel_id": channel_id.to_string(), "message_id": message_id.to_string() }),
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -171,6 +185,11 @@ pub async fn unpin(
     let user = actor(&p);
     let channel_id: ChannelId = parse_id(&channel, ErrorCode::UnknownChannel)?;
     let message_id: MessageId = parse_id(&message, ErrorCode::UnknownMessage)?;
+    let author = deps
+        .repo
+        .get_message(channel_id, message_id)
+        .await?
+        .map(|m| m.author_id);
     deps.unpin(user, channel_id, message_id).await?;
     let ch = deps.access(user, channel_id).await?.channel;
     let last = deps
@@ -184,6 +203,14 @@ pub async fn unpin(
         channel: channel_id,
         last_pin_ms: last,
     })
+    .await;
+    deps.audit(
+        ch.guild_id,
+        user,
+        AuditAction::MessageUnpin,
+        author.map(|a| a.get()),
+        serde_json::json!({ "channel_id": channel_id.to_string(), "message_id": message_id.to_string() }),
+    )
     .await;
     Ok(StatusCode::NO_CONTENT)
 }

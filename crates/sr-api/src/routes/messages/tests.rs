@@ -48,6 +48,35 @@ impl UploadEntitlements for Perks {
     }
 }
 
+/// Captures audit writes (LNG-SSET-056).
+#[derive(Default)]
+struct AuditLog(std::sync::Mutex<Vec<(sr_chat::settings::audit::AuditAction, Option<u64>, Value)>>);
+
+#[async_trait]
+impl crate::routes::guilds::backend::AuditSink for AuditLog {
+    async fn record(
+        &self,
+        _guild: GuildId,
+        _actor: UserId,
+        _action: sr_chat::settings::audit::AuditAction,
+        _target_id: Option<u64>,
+        _changes: Vec<sr_chat::settings::audit::AuditChange>,
+        _reason: Option<&str>,
+    ) {
+    }
+
+    async fn record_with_options(
+        &self,
+        _guild: GuildId,
+        _actor: UserId,
+        action: sr_chat::settings::audit::AuditAction,
+        target_id: Option<u64>,
+        options: Value,
+    ) {
+        self.0.lock().unwrap().push((action, target_id, options));
+    }
+}
+
 struct Env {
     app: Router,
     backend: MemoryBackend,
@@ -59,6 +88,7 @@ struct Env {
     deps: Arc<MessagesDeps>,
     jobs: Arc<rich_tests::RecordingScheduler>,
     web: Arc<rich_tests::FakeWeb>,
+    audit: Arc<AuditLog>,
 }
 
 async fn env_with(entitlements: Arc<dyn UploadEntitlements>) -> Env {
@@ -102,6 +132,7 @@ async fn env_full(
     // Rate limiting has its own tests; here it would only throttle the test client.
     let mut settings = ApiSettings::default();
     settings.rate_limit.enabled = false;
+    let audit = Arc::new(AuditLog::default());
     let deps = MessagesDeps::new(
         backend.clone(),
         Arc::new(backend.clone()),
@@ -117,7 +148,8 @@ async fn env_full(
     .unwrap()
     .with_cdn_signer(sr_storage::cdn::CdnSigner::new(
         b"messages-test-secret-0123456789ab".to_vec(),
-    ));
+    ))
+    .with_audit(audit.clone());
     let jobs = Arc::new(rich_tests::RecordingScheduler::default());
     let web = Arc::new(rich_tests::FakeWeb::default());
     let deps = Arc::new(deps.with_rich(super::RichDeps {
@@ -147,6 +179,7 @@ async fn env_full(
         deps,
         jobs,
         web,
+        audit,
     }
 }
 
@@ -1514,3 +1547,61 @@ async fn messages_work_without_a_registered_gate() {
 }
 
 mod rich_tests;
+
+#[tokio::test]
+async fn moderator_message_actions_are_audited() {
+    use sr_chat::settings::audit::AuditAction;
+    let e = env().await;
+    let bobs = id_of(&e.say("bob", "mine").await);
+    let owners = id_of(&e.say("owner", "mod's").await);
+    let bobs2 = id_of(&e.say("bob", "again").await);
+    let bobs3 = id_of(&e.say("bob", "and again").await);
+    let bobs4 = id_of(&e.say("bob", "last").await);
+    let pin = format!("/pins/{bobs}");
+
+    e.status(Method::PUT, &pin, "owner").await;
+    e.status(Method::DELETE, &pin, "owner").await;
+    // The author deleting their own message is not an audit event; a moderator is.
+    e.status(Method::DELETE, &format!("/messages/{owners}"), "owner")
+        .await;
+    e.status(Method::DELETE, &format!("/messages/{bobs2}"), "bob")
+        .await;
+    e.status(Method::DELETE, &format!("/messages/{bobs3}"), "owner")
+        .await;
+    let (s, _) = e
+        .post(
+            "/messages/bulk-delete",
+            "owner",
+            json!({ "messages": [bobs, bobs4] }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+
+    let log = e.audit.0.lock().unwrap().clone();
+    let ch = e.ch.to_string();
+    assert_eq!(
+        log,
+        vec![
+            (
+                AuditAction::MessagePin,
+                Some(BOB),
+                json!({ "channel_id": ch, "message_id": bobs })
+            ),
+            (
+                AuditAction::MessageUnpin,
+                Some(BOB),
+                json!({ "channel_id": ch, "message_id": bobs })
+            ),
+            (
+                AuditAction::MessageDelete,
+                Some(BOB),
+                json!({ "channel_id": ch, "count": 1 })
+            ),
+            (
+                AuditAction::MessageBulkDelete,
+                Some(e.ch.get()),
+                json!({ "count": 2 })
+            ),
+        ]
+    );
+}

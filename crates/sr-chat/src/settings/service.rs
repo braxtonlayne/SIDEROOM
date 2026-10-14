@@ -184,6 +184,30 @@ impl<R: SettingsRepository> SettingsService<R> {
         Ok(entry)
     }
 
+    /// Append an audit entry that carries Discord's per-action `options`
+    /// (`channel_id`, `count`, `message_id`, ...).
+    pub async fn record_audit_with_options(
+        &self,
+        guild: GuildId,
+        actor: UserId,
+        action: AuditAction,
+        target_id: Option<u64>,
+        options: serde_json::Value,
+    ) -> SettingsResult<AuditEntry> {
+        let entry = AuditEntry::new(
+            self.ids.generate().get(),
+            guild,
+            actor,
+            action,
+            target_id,
+            None,
+            self.now(),
+        )?
+        .with_options(options);
+        self.store_audit(&entry).await?;
+        Ok(entry)
+    }
+
     /// Store an already built entry (one carrying `options`, say) and notify the
     /// audit observer.
     pub async fn store_audit(&self, entry: &AuditEntry) -> SettingsResult<()> {

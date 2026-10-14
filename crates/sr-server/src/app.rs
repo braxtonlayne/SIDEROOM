@@ -394,7 +394,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         cfg.server.process_id,
     )
     .context("message snowflake generator")?
-    .with_cdn_signer(cdn_signer.clone());
+    .with_cdn_signer(cdn_signer.clone())
+    .with_audit(audit_sink.clone());
     // Rich messages: polls, stickers and link previews (LNG-MSG-010, LNG-MSG-014).
     if cfg.unfurl.allow_private_for_tests {
         tracing::warn!(

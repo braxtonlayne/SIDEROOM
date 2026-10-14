@@ -192,6 +192,21 @@ pub trait AuditSink: Send + Sync {
         changes: Vec<AuditChange>,
         reason: Option<&str>,
     );
+
+    /// Like [`Self::record`], with Discord's per-action `options` (`channel_id`,
+    /// `count`, ...). Sinks that cannot store options drop them.
+    async fn record_with_options(
+        &self,
+        guild: GuildId,
+        actor: UserId,
+        action: AuditAction,
+        target_id: Option<u64>,
+        options: serde_json::Value,
+    ) {
+        let _ = options;
+        self.record(guild, actor, action, target_id, Vec::new(), None)
+            .await;
+    }
 }
 
 #[async_trait]
@@ -208,6 +223,22 @@ impl<R: SettingsRepository + 'static> AuditSink for SettingsService<R> {
         // The change is already committed; a failed audit write is logged, not surfaced.
         if let Err(e) = self
             .record_audit(guild, actor, action, target_id, changes, reason)
+            .await
+        {
+            tracing::warn!(error = %e, ?action, "failed to record audit entry");
+        }
+    }
+
+    async fn record_with_options(
+        &self,
+        guild: GuildId,
+        actor: UserId,
+        action: AuditAction,
+        target_id: Option<u64>,
+        options: serde_json::Value,
+    ) {
+        if let Err(e) = self
+            .record_audit_with_options(guild, actor, action, target_id, options)
             .await
         {
             tracing::warn!(error = %e, ?action, "failed to record audit entry");
