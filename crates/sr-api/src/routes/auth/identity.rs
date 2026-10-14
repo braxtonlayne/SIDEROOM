@@ -128,9 +128,9 @@ pub async fn change_password(
         )
         .await?;
     let svc2 = svc.clone();
-    let to = account.email;
+    let (to, locale) = (account.email, account.locale);
     tokio::spawn(async move {
-        if let Err(e) = svc2.mailer.send(mail::password_changed(&to)).await {
+        if let Err(e) = svc2.mailer.send(mail::password_changed(&to, &locale)).await {
             tracing::warn!("password change notice not sent: {e}");
         }
     });
@@ -444,7 +444,7 @@ pub async fn change_email(
         .await?;
     let link = svc.link("verify-email", token.expose());
     svc.mailer
-        .send(mail::change_email(&new, &link))
+        .send(mail::change_email(&new, &link, &account.locale))
         .await
         .map_err(|e| {
             tracing::warn!("email change mail not sent: {e}");
@@ -464,6 +464,7 @@ pub async fn change_email(
         &account.email,
         &new,
         &svc.cancel_email_link(cancel.expose()),
+        &account.locale,
     );
     if let Err(e) = svc.mailer.send(notice).await {
         tracing::warn!("email change notice not sent: {e}");
@@ -503,7 +504,11 @@ pub(super) async fn apply_email_change(
             cancel.expires_at(now),
         )
         .await?;
-    let notice = mail::email_changed(&account.email, &svc.cancel_email_link(cancel.expose()));
+    let notice = mail::email_changed(
+        &account.email,
+        &svc.cancel_email_link(cancel.expose()),
+        &account.locale,
+    );
     let svc2 = svc.clone();
     tokio::spawn(async move {
         if let Err(e) = svc2.mailer.send(notice).await {

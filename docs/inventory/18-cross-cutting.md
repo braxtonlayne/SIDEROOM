@@ -19,8 +19,8 @@ All phases.
 
 ## XC-I18N — Internationalization
 - [x] **XC-I18N-001** [FE] i18n framework (ICU messages), string extraction, English source catalog _(apps/web/src/i18n; entrance extracted. Settings nav keys are defined but the settings screens still use literals.)_
-- [ ] **XC-I18N-002** [FE] Locale-aware dates/numbers, 12/24h, RTL layout readiness _(Intl formatters and a 12/24h switch exist in the i18n runtime; existing screens are not migrated and RTL CSS is not audited.)_
-- [ ] **XC-I18N-003** [BE] Localized emails and system messages
+- [x] **XC-I18N-002** [FE] Locale-aware dates/numbers, 12/24h, RTL layout readiness _(Screens format dates, numbers, currency and clock times through formatDate/formatDateTime/formatTime/formatNumber in apps/web/src/i18n, which follow the UI language, the Language region and the 12/24 hour preference (settings/user/prefs.ts keeps them in step). Hand-built plurals in the extracted modules are ICU plurals. Physical CSS margin/padding/border/text-align/float/offset properties in apps/web, packages/ui and packages/markdown-react are logical properties; 15 left/right offsets stay physical where a transform centres the box or a keyframe slides it. Pseudo-RTL (ar-XB, dir=rtl) smoke and a CSS regression guard are in i18n/format.test.tsx. Not done: shorthand 4-value margins/paddings, icon mirroring, entrance screens still hold some literals.)_
+- [x] **XC-I18N-003** [BE] Localized emails and system messages _(Email text is a locale-keyed catalog in crates/sr-api/src/routes/auth/mail_text.rs; mail.rs builds layout and escaping from it, and every sender passes the account locale (BCP 47, primary-language match, English fallback per message). English only today; adding a language is one Catalog entry. Chat system messages (pins, joins) are structured events rendered by the client from its catalog, so the server has no system text to translate.)_
 
 ## XC-SEC — Security
 - [x] **XC-SEC-001** [BE] CSP, HSTS, Permissions-Policy, COOP/COEP where needed (WASM threads), X-Content-Type-Options _(sr-api layer, Caddyfile.prod, Vite dev and preview. COEP is not needed yet: no SharedArrayBuffer.)_
