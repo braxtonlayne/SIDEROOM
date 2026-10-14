@@ -117,9 +117,41 @@ impl AdminService {
             user_id,
             permissions: s.permissions,
             is_owner: s.is_owner,
-            grant_ceiling: s.grant_ceiling,
             ip,
         })
+    }
+
+    /// Tell the removed member's sessions at once (`SR_STAFF_ALERT {revoked}`, doc 07 section 4)
+    /// so open admin pages close. They are no longer in the Staff Server, so the gateway's
+    /// staff fan-out does not reach them: this goes to their own user topic.
+    pub async fn push_revoked(&self, account_id: i64) {
+        let (Some(bus), Ok(uid)) = (&self.bus, u64::try_from(account_id)) else {
+            return;
+        };
+        let user = sr_core::UserId::new(uid);
+        let _ = bus
+            .publish(
+                Topic::User(user),
+                DomainEvent::UserScoped {
+                    users: vec![user],
+                    name: "SR_STAFF_ALERT".to_owned(),
+                    payload: json!({ "kind": "staff_revoked", "revoked": true }),
+                },
+            )
+            .await;
+    }
+
+    /// The most a delegate of the Owner may hand out; `None` for the Owner and for staff
+    /// whose appointment right comes from their own roles.
+    pub(crate) async fn ceiling_of(&self, c: &Caller) -> AdminResult<Option<P>> {
+        if c.is_owner {
+            return Ok(None);
+        }
+        Ok(self
+            .repo
+            .standing(c.user_id)
+            .await?
+            .and_then(|s| s.grant_ceiling))
     }
 
     pub(crate) async fn alert(&self, kind: StaffAlertKind, detail: String) {
@@ -241,7 +273,7 @@ impl AdminService {
             ));
         }
         let roles = self.roles_by_id(role_ids).await?;
-        rules::check_assignable(c, &roles)?;
+        rules::check_assignable_within(c, &roles, self.ceiling_of(c).await?)?;
         let account = self
             .repo
             .account_detail(account_id)
@@ -291,7 +323,7 @@ impl AdminService {
             ));
         }
         let roles = self.roles_by_id(role_ids).await?;
-        rules::check_assignable(c, &roles)?;
+        rules::check_assignable_within(c, &roles, self.ceiling_of(c).await?)?;
         let names: Vec<_> = roles.iter().map(|r| r.name.clone()).collect();
         let audit = self.entry(
             c,
@@ -338,6 +370,7 @@ impl AdminService {
             format!("{} was removed from staff", target.username),
         )
         .await;
+        self.push_revoked(account_id).await;
         Ok(())
     }
 

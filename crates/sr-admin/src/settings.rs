@@ -94,6 +94,13 @@ pub const ACCOUNT_CAP: &str = "accounts.cap";
 pub const SUSPICION_FREEZE: &str = "invites.suspicion_freeze_threshold";
 pub const SUSPICION_ESCALATE: &str = "invites.suspicion_escalate_threshold";
 
+/// Staff alert settings (ADM-ALR-001, ADM-ALR-003).
+pub const ALERTS_EMAIL_OWNER: &str = "alerts.email_to_owner";
+pub const ALERTS_DISK_PERCENT: &str = "alerts.disk_percent";
+pub const ALERTS_BACKUP_MAX_AGE_HOURS: &str = "alerts.backup_max_age_hours";
+pub const OPS_DISK_PATH: &str = "ops.disk_path";
+pub const OPS_BACKUP_DIR: &str = "ops.backup_dir";
+
 pub const CATALOG: &[SettingDef] = &[
     int(
         ACCOUNT_CAP,
@@ -209,6 +216,49 @@ pub const CATALOG: &[SettingDef] = &[
         7,
         "Days large attachments are kept.",
     ),
+    SettingDef {
+        key: ALERTS_EMAIL_OWNER,
+        group: "alerts",
+        kind: SettingKind::Boolean,
+        min: 0.0,
+        max: 1.0,
+        default_int: 0,
+        description: "Also email every staff alert to the Owner (at most one mail per kind every 30 minutes).",
+    },
+    int(
+        ALERTS_DISK_PERCENT,
+        "alerts",
+        50,
+        99,
+        80,
+        "Raise a staff alert when the disk holding the data is this percent full.",
+    ),
+    int(
+        ALERTS_BACKUP_MAX_AGE_HOURS,
+        "alerts",
+        1,
+        720,
+        36,
+        "Raise a staff alert when the newest backup is older than this many hours.",
+    ),
+    SettingDef {
+        key: OPS_DISK_PATH,
+        group: "alerts",
+        kind: SettingKind::Text,
+        min: 0.0,
+        max: 500.0,
+        default_int: 0,
+        description: "Directory whose disk is watched for the disk alert (empty: the server's working directory).",
+    },
+    SettingDef {
+        key: OPS_BACKUP_DIR,
+        group: "alerts",
+        kind: SettingKind::Text,
+        min: 0.0,
+        max: 500.0,
+        default_int: 0,
+        description: "Backup directory (SR_BACKUP_DIR of deploy/scripts/backup.sh); empty turns the backup alert off.",
+    },
 ];
 
 /// Definition of `key`, if it is an editable setting.

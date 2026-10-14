@@ -591,7 +591,6 @@ async fn stats_are_cached_for_thirty_seconds() {
         user_id: OTHER,
         permissions: P::empty(),
         is_owner: false,
-        grant_ceiling: None,
         ip: None,
     };
     assert!(e.svc.stats(&nobody).await.is_err());

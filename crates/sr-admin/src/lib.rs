@@ -29,4 +29,7 @@ pub use ext::*;
 pub use model::*;
 pub use repo::AdminRepository;
 pub use service::{AdminService, SYSTEM_USER_ID, SettingView};
+pub use service_ext::{
+    AlertSettings, BADGES, CardActionResult, STATS_TTL_MS, valid_email, valid_username,
+};
 pub use settings::SettingKind;

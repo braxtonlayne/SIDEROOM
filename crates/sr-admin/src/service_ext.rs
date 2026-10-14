@@ -37,6 +37,21 @@ pub const BADGES: &[(&str, i64)] = &[
     ("honorary", 1 << 11),
 ];
 
+/// Thresholds and paths of the staff alerts (ADM-ALR-001, ADM-ALR-003).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AlertSettings {
+    /// Email every alert to the Owner as well.
+    pub email_to_owner: bool,
+    /// Disk-full threshold in percent.
+    pub disk_percent: i64,
+    /// A backup older than this many hours is an alert.
+    pub backup_max_age_hours: i64,
+    /// Directory whose disk is watched; empty means the working directory.
+    pub disk_path: String,
+    /// Backup directory; empty switches the backup alert off.
+    pub backup_dir: String,
+}
+
 /// Outcome of pressing a button on a staff card.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct CardActionResult {
@@ -128,7 +143,7 @@ impl AdminService {
             return Err(AdminError::Forbidden("You cannot appoint yourself".into()));
         }
         let roles = self.roles_by_id(role_ids).await?;
-        rules::check_assignable(c, &roles)?;
+        rules::check_assignable_within(c, &roles, self.ceiling_of(c).await?)?;
         let account = self
             .repo()
             .account_detail(account_id)
@@ -233,7 +248,6 @@ impl AdminService {
             user_id,
             permissions: P::empty(),
             is_owner: false,
-            grant_ceiling: None,
             ip,
         };
         let target = Some(("account", user_id));
@@ -294,14 +308,14 @@ impl AdminService {
                     "The person who invited you can no longer appoint staff".into(),
                 )
             })?;
+        let ceiling = offerer.grant_ceiling;
         let offerer = Caller {
             user_id: offer.offered_by,
             permissions: offerer.permissions,
             is_owner: offerer.is_owner,
-            grant_ceiling: offerer.grant_ceiling,
             ip: None,
         };
-        rules::check_assignable(&offerer, &roles)
+        rules::check_assignable_within(&offerer, &roles, ceiling)
             .map_err(|e| AdminError::Conflict(e.to_string()))?;
         let account = self
             .repo()
@@ -582,6 +596,26 @@ impl AdminService {
 
     // ===== private content ================================================
 
+    /// Log an attempt that was stopped before it reached the service (a stale second
+    /// factor on a private read): the access log shows who tried what, and why it failed.
+    pub async fn record_denied(
+        &self,
+        c: &Caller,
+        action: &str,
+        target: Option<(&str, i64)>,
+        why: &str,
+    ) -> AdminResult<()> {
+        let e = self.entry(
+            c,
+            AccessKind::Denied,
+            action,
+            target,
+            "",
+            json!({ "why": why }),
+        );
+        self.repo().append_log(&e).await.map(|_| ())
+    }
+
     /// Read a conversation, including deleted messages younger than the retention
     /// window and edit histories (`READ_PRIVATE_CONTENT`). The reason is mandatory and
     /// the request is written to the hash chain before anything is returned, even when
@@ -765,6 +799,31 @@ impl AdminService {
     }
 
     // ===== alerts ==========================================================
+
+    /// The alert thresholds and paths the health job and the alert mailer read.
+    pub async fn alert_settings(&self) -> AdminResult<AlertSettings> {
+        let stored = self.repo().settings().await?;
+        let text = |key: &str| {
+            stored
+                .get(key)
+                .and_then(|s| s.value.as_str())
+                .unwrap_or("")
+                .to_owned()
+        };
+        let flag = stored
+            .get(settings::ALERTS_EMAIL_OWNER)
+            .and_then(|s| s.value.as_bool())
+            .unwrap_or(false);
+        Ok(AlertSettings {
+            email_to_owner: flag,
+            disk_percent: self.setting_i64(settings::ALERTS_DISK_PERCENT).await?,
+            backup_max_age_hours: self
+                .setting_i64(settings::ALERTS_BACKUP_MAX_AGE_HOURS)
+                .await?,
+            disk_path: text(settings::OPS_DISK_PATH),
+            backup_dir: text(settings::OPS_BACKUP_DIR),
+        })
+    }
 
     /// Store an alert for the dashboard (the staff feed calls this for every alert it posts).
     pub async fn record_alert(&self, kind: &str, detail: &str) -> AdminResult<StaffAlertRow> {

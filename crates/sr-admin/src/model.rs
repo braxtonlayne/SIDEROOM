@@ -267,8 +267,6 @@ pub struct Caller {
     pub user_id: i64,
     pub permissions: sr_core::PlatformPermissions,
     pub is_owner: bool,
-    /// Set for a delegate of the Owner: appointments may grant at most these bits.
-    pub grant_ceiling: Option<sr_core::PlatformPermissions>,
     pub ip: Option<String>,
 }
 
@@ -279,7 +277,6 @@ impl Caller {
             user_id: system_user,
             permissions: sr_core::PlatformPermissions::OWNER,
             is_owner: true,
-            grant_ceiling: None,
             ip: Some("cli".to_owned()),
         }
     }

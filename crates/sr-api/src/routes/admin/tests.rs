@@ -2,6 +2,10 @@
 //! route plus the main flows, driven through the real router with tower `oneshot`.
 
 use super::{AdminDeps, router};
+use crate::routes::auth::{
+    AccountRecord, AccountState as AuthState, AuthConfig, AuthService, AuthStore,
+    mail::MemoryMailer, memory::MemoryAuthStore,
+};
 use crate::{
     ApiSettings, AppState,
     auth::{
@@ -10,6 +14,7 @@ use crate::{
     },
     build_router,
 };
+use async_trait::async_trait;
 use axum::{
     Router,
     body::Body,
@@ -17,16 +22,25 @@ use axum::{
 };
 use http_body_util::BodyExt;
 use serde_json::{Value, json};
-use sr_admin::{AccountState, AdminService, Caller, SYSTEM_USER_ID, memory::MemoryAdminRepo};
+use sr_admin::{
+    AccountState, AdminService, Announcement, Caller, SYSTEM_USER_ID, StaffNotifier, StaffOffer,
+    memory::MemoryAdminRepo,
+};
+use sr_auth::{
+    password::{PasswordHasher, PasswordParams},
+    totp::{self, TotpSecret},
+};
 use sr_auth::{
     repo::{SessionRecord, SessionRepository},
     session::SessionToken,
 };
 use sr_core::PlatformPermissions as P;
+use sr_core::{Clock, ManualClock};
 use sr_features::{
     Feature, FeatureMeta, FeatureRegistry, FeatureService, Field, FieldKind, InMemorySettingsStore,
     Scope, SettingsSchema,
 };
+use std::sync::Mutex;
 use std::{collections::HashMap, sync::Arc};
 use tower::ServiceExt;
 
@@ -39,6 +53,8 @@ const OUTSIDER: i64 = 30;
 const R_OWNER: i64 = 1;
 const R_MOD: i64 = 2;
 const R_BASIC: i64 = 3;
+/// The moderator's authenticator secret (20 bytes).
+const TOTP_SECRET: [u8; 20] = *b"0123456789abcdefghij";
 
 struct Demo;
 
@@ -73,15 +89,48 @@ impl Feature for Demo {
     }
 }
 
+/// Records what the system user would have said.
+#[derive(Default)]
+struct Notes {
+    offers: Mutex<Vec<StaffOffer>>,
+    notices: Mutex<Vec<String>>,
+    broadcasts: Mutex<Vec<Announcement>>,
+}
+
+#[async_trait]
+impl StaffNotifier for Notes {
+    async fn appointment_offer(&self, offer: &StaffOffer) -> Option<(i64, i64)> {
+        self.offers.lock().unwrap().push(offer.clone());
+        Some((7_000 + offer.id, 8_000 + offer.id))
+    }
+    async fn staff_notice(&self, text: &str) {
+        self.notices.lock().unwrap().push(text.to_owned());
+    }
+    fn broadcast_announcement(&self, a: &Announcement) {
+        self.broadcasts.lock().unwrap().push(a.clone());
+    }
+}
+
+const T0: i64 = 1_800_000_000_000;
+
 struct Env {
     app: Router,
     repo: Arc<MemoryAdminRepo>,
     tokens: HashMap<i64, String>,
     bot: &'static str,
+    notes: Arc<Notes>,
+    clock: Arc<ManualClock>,
+    auth: Arc<MemoryAuthStore>,
 }
 
 async fn env() -> Env {
-    let repo = Arc::new(MemoryAdminRepo::default());
+    env_with(false).await
+}
+
+/// `reauth`: demand the 15-minute second-factor window, with a real `AuthService` behind it.
+async fn env_with(reauth: bool) -> Env {
+    let clock = Arc::new(ManualClock::new(T0));
+    let repo = Arc::new(MemoryAdminRepo::new(clock.clone()));
     repo.add_account(
         SYSTEM_USER_ID,
         "sideroom",
@@ -108,7 +157,11 @@ async fn env() -> Env {
     );
     repo.add_role(R_BASIC, "Basic", 1, P::STAFF_BASIC);
     repo.set_owner(OWNER);
-    let svc = AdminService::new(repo.clone());
+    let notes = Arc::new(Notes::default());
+    let svc = AdminService::new(repo.clone())
+        .with_extras(repo.clone())
+        .with_notifier(notes.clone())
+        .with_clock(clock.clone());
     let op = Caller::operator(SYSTEM_USER_ID);
     svc.appoint(&op, MODER, &[R_MOD], Some("test"))
         .await
@@ -156,7 +209,44 @@ async fn env() -> Env {
     );
     let deps = AdminDeps::new(svc)
         .with_features(features)
-        .with_gateway_sessions(Arc::new(|| 7));
+        .with_gateway_sessions(Arc::new(|| 7))
+        .with_reauth(reauth);
+    // The account service behind the second-factor window: every test user exists there, and
+    // the moderator has a confirmed authenticator.
+    let auth = Arc::new(MemoryAuthStore::new(sessions.clone()));
+    let hasher = PasswordHasher::new(PasswordParams {
+        m_cost_kib: 64,
+        t_cost: 1,
+        p_cost: 1,
+    })
+    .unwrap();
+    for uid in [OWNER, MODER, BASIC, ALICE, BOB, OUTSIDER] {
+        auth.add_account(AccountRecord {
+            id: uid,
+            person_id: uid,
+            username: format!("u{uid}"),
+            display_name: None,
+            email: format!("u{uid}@x.test"),
+            email_verified: true,
+            password_hash: hasher.hash("pw").unwrap(),
+            state: AuthState::Active,
+            age_confirmed: None,
+            locale: "en-US".into(),
+            flags: 0,
+        });
+    }
+    auth.totp_put_pending(MODER, &TOTP_SECRET).await.unwrap();
+    auth.totp_confirm(MODER, 1).await.unwrap();
+    let next = Arc::new(std::sync::atomic::AtomicI64::new(50_000));
+    let auth_svc = Arc::new(
+        AuthService::new(
+            auth.clone(),
+            Arc::new(MemoryMailer::new()),
+            Arc::new(move || next.fetch_add(1, std::sync::atomic::Ordering::SeqCst)),
+        )
+        .with_hasher(hasher)
+        .with_config(AuthConfig::default()),
+    );
 
     let mut settings = ApiSettings::default();
     settings.rate_limit.enabled = false;
@@ -164,13 +254,18 @@ async fn env() -> Env {
         .settings(settings)
         .sessions(sessions)
         .bots(bots)
+        .clock(clock.clone())
         .extension(Arc::new(deps))
+        .extension(auth_svc)
         .build();
     Env {
         app: build_router(state, router()),
         repo,
         tokens,
         bot: "bot-owner",
+        notes,
+        clock,
+        auth,
     }
 }
 
@@ -443,6 +538,108 @@ fn endpoints() -> Vec<(Method, String, Option<&'static str>, Option<Value>)> {
             Some("VIEW_ACCESS_LOG"),
             None,
         ),
+        // ---- phase 10
+        (
+            Method::GET,
+            "/admin/staff/offers".into(),
+            Some("APPOINT_STAFF"),
+            None,
+        ),
+        (
+            Method::POST,
+            "/admin/staff/offers".into(),
+            Some("APPOINT_STAFF"),
+            Some(
+                json!({ "account_id": ALICE.to_string(), "role_ids": [R_BASIC.to_string()], "reason": "r" }),
+            ),
+        ),
+        (
+            Method::DELETE,
+            "/admin/staff/offers/999".into(),
+            Some("APPOINT_STAFF"),
+            reason(),
+        ),
+        (
+            Method::GET,
+            "/admin/staff/delegations".into(),
+            Some("APPOINT_STAFF"),
+            None,
+        ),
+        (
+            Method::PUT,
+            format!("/admin/staff/{MODER}/delegation"),
+            Some("OWNER"),
+            Some(json!({ "max_permissions": "1", "reason": "r" })),
+        ),
+        (
+            Method::DELETE,
+            format!("/admin/staff/{MODER}/delegation"),
+            Some("OWNER"),
+            reason(),
+        ),
+        (
+            Method::POST,
+            format!("/admin/accounts/{ALICE}/rename"),
+            Some("MANAGE_ACCOUNTS"),
+            Some(json!({ "username": "alice2", "reason": "r" })),
+        ),
+        (
+            Method::POST,
+            format!("/admin/accounts/{ALICE}/change-email"),
+            Some("MANAGE_ACCOUNTS"),
+            Some(json!({ "email": "new@example.test", "reason": "r" })),
+        ),
+        (
+            Method::POST,
+            format!("/admin/accounts/{ALICE}/badges"),
+            Some("MANAGE_ACCOUNTS"),
+            Some(json!({ "grant": ["contributor"], "reason": "r" })),
+        ),
+        (
+            Method::POST,
+            format!("/admin/accounts/{ALICE}/force-password-reset"),
+            Some("MANAGE_ACCOUNTS"),
+            reason(),
+        ),
+        (Method::GET, "/admin/reauth".into(), None, None),
+        (
+            Method::GET,
+            "/admin/private/channels/999/messages?reason=r".into(),
+            Some("READ_PRIVATE_CONTENT"),
+            None,
+        ),
+        (
+            Method::GET,
+            format!("/admin/private/accounts/{ALICE}/dms?reason=r"),
+            Some("READ_PRIVATE_CONTENT"),
+            None,
+        ),
+        (
+            Method::GET,
+            "/admin/private/guilds/999/channels?reason=r".into(),
+            Some("READ_PRIVATE_CONTENT"),
+            None,
+        ),
+        (
+            Method::GET,
+            "/admin/announcements".into(),
+            Some("MANAGE_FEATURES"),
+            None,
+        ),
+        (
+            Method::POST,
+            "/admin/announcements".into(),
+            Some("MANAGE_FEATURES"),
+            Some(json!({ "title": "t", "body": "b" })),
+        ),
+        (
+            Method::DELETE,
+            "/admin/announcements/999".into(),
+            Some("MANAGE_FEATURES"),
+            reason(),
+        ),
+        (Method::GET, "/admin/alerts".into(), None, None),
+        (Method::POST, "/admin/alerts/999/ack".into(), None, None),
     ]
 }
 
@@ -1026,4 +1223,729 @@ fn openapi_lists_every_admin_path() {
         assert!(found, "{p} missing from the OpenAPI document");
     }
     assert!(paths.contains_key("/admin/access-log/verify"));
+}
+
+// ---- phase 10 -------------------------------------------------------------------------
+
+#[tokio::test]
+async fn an_appointment_offer_is_answered_from_the_system_dm() {
+    let e = env().await;
+    // Only someone with APPOINT_STAFF may offer; the Owner offers Alice a basic role.
+    let (s, offer) = e
+        .call(
+            Some(OWNER),
+            Method::POST,
+            "/admin/staff/offers",
+            Some(json!({ "account_id": ALICE.to_string(), "role_ids": [R_BASIC.to_string()], "reason": "she is great" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{offer}");
+    assert_eq!(offer["state"], "pending");
+    assert_eq!(offer["username"], "alice");
+    let oid = offer["id"].as_str().unwrap().to_owned();
+    // The system user DMed her: the offer remembers the DM.
+    assert_eq!(e.notes.offers.lock().unwrap().len(), 1);
+    assert!(offer["dm_channel_id"].is_string());
+    // Nobody is staff yet.
+    let (s, _) = e.call(Some(ALICE), Method::GET, "/admin/me", None).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    // Bob cannot answer the offer made to Alice, and gets the same 404 as for an unknown one.
+    let (s, b) = e
+        .call(
+            Some(BOB),
+            Method::POST,
+            &format!("/staff/offers/{oid}/respond"),
+            Some(json!({ "accept": true })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND, "{b}");
+    // Alice accepts and is staff from her next request.
+    let (s, b) = e
+        .call(
+            Some(ALICE),
+            Method::POST,
+            &format!("/staff/offers/{oid}/respond"),
+            Some(json!({ "accept": true })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert_eq!(b["state"], "accepted");
+    let (s, me) = e.call(Some(ALICE), Method::GET, "/admin/me", None).await;
+    assert_eq!(s, StatusCode::OK, "{me}");
+    assert!(e.notes.notices.lock().unwrap()[0].contains("alice joined the staff as Basic"));
+    // Answering again conflicts; the Owner sees it in the list as accepted.
+    let (s, _) = e
+        .call(
+            Some(ALICE),
+            Method::POST,
+            &format!("/staff/offers/{oid}/respond"),
+            Some(json!({ "accept": false })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CONFLICT);
+    let (_, list) = e
+        .call(Some(OWNER), Method::GET, "/admin/staff/offers", None)
+        .await;
+    assert_eq!(list[0]["state"], "accepted");
+    // Anonymous callers cannot respond.
+    let (s, _) = e
+        .call(
+            None,
+            Method::POST,
+            &format!("/staff/offers/{oid}/respond"),
+            Some(json!({ "accept": true })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn declined_and_cancelled_offers_grant_nothing() {
+    let e = env().await;
+    let offer = |who: i64| json!({ "account_id": who.to_string(), "role_ids": [R_BASIC.to_string()], "reason": "r" });
+    let (_, a) = e
+        .call(
+            Some(OWNER),
+            Method::POST,
+            "/admin/staff/offers",
+            Some(offer(ALICE)),
+        )
+        .await;
+    let (s, b) = e
+        .call(
+            Some(ALICE),
+            Method::POST,
+            &format!("/staff/offers/{}/respond", a["id"].as_str().unwrap()),
+            Some(json!({ "accept": false })),
+        )
+        .await;
+    assert_eq!((s, b["state"].as_str()), (StatusCode::OK, Some("declined")));
+    let (s, _) = e.call(Some(ALICE), Method::GET, "/admin/me", None).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    // A fresh offer to Bob, withdrawn before he answers.
+    let (_, c) = e
+        .call(
+            Some(OWNER),
+            Method::POST,
+            "/admin/staff/offers",
+            Some(offer(BOB)),
+        )
+        .await;
+    let cid = c["id"].as_str().unwrap();
+    let (s, b) = e
+        .call(
+            Some(OWNER),
+            Method::DELETE,
+            &format!("/admin/staff/offers/{cid}"),
+            Some(json!({ "reason": "changed my mind" })),
+        )
+        .await;
+    assert_eq!(
+        (s, b["state"].as_str()),
+        (StatusCode::OK, Some("cancelled"))
+    );
+    let (s, _) = e
+        .call(
+            Some(BOB),
+            Method::POST,
+            &format!("/staff/offers/{cid}/respond"),
+            Some(json!({ "accept": true })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CONFLICT);
+    // Offers need a reason.
+    let (s, b) = e
+        .call(
+            Some(OWNER),
+            Method::POST,
+            "/admin/staff/offers",
+            Some(json!({ "account_id": BOB.to_string(), "role_ids": [R_BASIC.to_string()] })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{b}");
+}
+
+#[tokio::test]
+async fn delegating_lets_a_moderator_appoint_inside_the_ceiling() {
+    let e = env().await;
+    let ceiling = (P::STAFF_BASIC | P::MANAGE_ACCOUNTS).bits().to_string();
+    let (s, d) = e
+        .call(
+            Some(OWNER),
+            Method::PUT,
+            &format!("/admin/staff/{MODER}/delegation"),
+            Some(json!({ "max_permissions": ceiling, "reason": "trusted" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{d}");
+    assert_eq!(d["max_permissions"], ceiling);
+    let (_, list) = e
+        .call(Some(OWNER), Method::GET, "/admin/staff/delegations", None)
+        .await;
+    assert_eq!(list.as_array().unwrap().len(), 1);
+    // The moderator can now offer the Basic role, but not one beyond the ceiling.
+    let (s, b) = e
+        .call(
+            Some(MODER),
+            Method::POST,
+            "/admin/staff/offers",
+            Some(json!({ "account_id": ALICE.to_string(), "role_ids": [R_BASIC.to_string()], "reason": "r" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    let (s, b) = e
+        .call(
+            Some(MODER),
+            Method::POST,
+            "/admin/staff/offers",
+            Some(json!({ "account_id": BOB.to_string(), "role_ids": [R_MOD.to_string()], "reason": "r" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "{b}");
+    assert!(b["message"].as_str().unwrap().contains("delegated"));
+    // Garbage and owner-only bits are refused; the moderator cannot delegate.
+    for bad in ["x", "0", &P::READ_PRIVATE_CONTENT.bits().to_string()] {
+        let (s, _) = e
+            .call(
+                Some(OWNER),
+                Method::PUT,
+                &format!("/admin/staff/{BASIC}/delegation"),
+                Some(json!({ "max_permissions": bad, "reason": "r" })),
+            )
+            .await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{bad}");
+    }
+    let (s, _) = e
+        .call(
+            Some(MODER),
+            Method::PUT,
+            &format!("/admin/staff/{BASIC}/delegation"),
+            Some(json!({ "max_permissions": "1", "reason": "r" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    // Ending it removes the right at once.
+    let (s, _) = e
+        .call(
+            Some(OWNER),
+            Method::DELETE,
+            &format!("/admin/staff/{MODER}/delegation"),
+            Some(json!({ "reason": "done" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    let (s, _) = e
+        .call(Some(MODER), Method::GET, "/admin/staff/offers", None)
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn account_edits_over_http() {
+    let e = env().await;
+    let a = |act: &str| format!("/admin/accounts/{ALICE}/{act}");
+    let (s, b) = e
+        .call(
+            Some(MODER),
+            Method::POST,
+            &a("rename"),
+            Some(json!({ "username": "Alicia", "display_name": "Ali", "reason": "asked" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert_eq!(
+        (b["username"].as_str(), b["display_name"].as_str()),
+        (Some("alicia"), Some("Ali"))
+    );
+    // null clears the display name; a missing key leaves it.
+    let (_, b) = e
+        .call(
+            Some(MODER),
+            Method::POST,
+            &a("rename"),
+            Some(json!({ "username": "alice3", "reason": "asked" })),
+        )
+        .await;
+    assert_eq!(b["display_name"], "Ali");
+    let (_, b) = e
+        .call(
+            Some(MODER),
+            Method::POST,
+            &a("rename"),
+            Some(json!({ "display_name": null, "reason": "asked" })),
+        )
+        .await;
+    assert!(b["display_name"].is_null());
+    let (s, _) = e
+        .call(
+            Some(MODER),
+            Method::POST,
+            &a("rename"),
+            Some(json!({ "username": "bob", "reason": "r" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CONFLICT);
+    let (s, _) = e
+        .call(
+            Some(MODER),
+            Method::POST,
+            &a("rename"),
+            Some(json!({ "username": "x y", "reason": "r" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+
+    let (s, b) = e
+        .call(
+            Some(MODER),
+            Method::POST,
+            &a("change-email"),
+            Some(json!({ "email": "new@example.test", "reason": "lost" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert_eq!(
+        (b["email"].as_str(), b["email_verified"].as_bool()),
+        (Some("new@example.test"), Some(false))
+    );
+
+    let (s, b) = e
+        .call(
+            Some(MODER),
+            Method::POST,
+            &a("badges"),
+            Some(json!({ "grant": ["early_member"], "reason": "founder" })),
+        )
+        .await;
+    assert_eq!(
+        (s, b["flags"].as_i64()),
+        (StatusCode::OK, Some(1 << 8)),
+        "{b}"
+    );
+    let (s, _) = e
+        .call(
+            Some(MODER),
+            Method::POST,
+            &a("badges"),
+            Some(json!({ "grant": ["moderator"], "reason": "r" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+
+    let (s, b) = e
+        .call(
+            Some(MODER),
+            Method::POST,
+            &a("force-password-reset"),
+            Some(json!({ "reason": "phished" })),
+        )
+        .await;
+    assert_eq!(
+        (s, b["sessions_revoked"].as_u64()),
+        (StatusCode::OK, Some(2)),
+        "{b}"
+    );
+    assert!(e.repo.password_reset_forced(ALICE));
+    // The audit trail has one row per edit with the moderator as actor.
+    let rows = e.repo.log_rows();
+    for act in [
+        "account.rename",
+        "account.change_email",
+        "account.badges",
+        "account.force_password_reset",
+    ] {
+        assert!(
+            rows.iter().any(|r| r.action == act && r.actor_id == MODER),
+            "{act}"
+        );
+    }
+    // The email address is not in the log in the clear.
+    assert!(rows.iter().all(|r| !r.detail.contains("new@example")));
+}
+
+#[tokio::test]
+async fn announcements_reach_every_signed_in_user_and_can_be_ended() {
+    let e = env().await;
+    let (s, _) = e
+        .call(None, Method::GET, "/announcements/active", None)
+        .await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED);
+    let (_, none) = e
+        .call(Some(OUTSIDER), Method::GET, "/announcements/active", None)
+        .await;
+    assert_eq!(none.as_array().unwrap().len(), 0);
+    // A moderator cannot publish.
+    let (s, _) = e
+        .call(
+            Some(MODER),
+            Method::POST,
+            "/admin/announcements",
+            Some(json!({ "title": "x", "body": "y" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (s, a) = e
+        .call(
+            Some(OWNER),
+            Method::POST,
+            "/admin/announcements",
+            Some(json!({
+                "title": "Downtime tonight",
+                "body": "We restart at 22:00 UTC.",
+                "severity": "warning",
+                "send_dm": true,
+                "ends_at_ms": T0 + 3_600_000,
+            })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{a}");
+    assert_eq!(a["severity"], "warning");
+    assert_eq!(
+        e.notes.broadcasts.lock().unwrap().len(),
+        1,
+        "send_dm asks for the DM"
+    );
+    let (_, seen) = e
+        .call(Some(OUTSIDER), Method::GET, "/announcements/active", None)
+        .await;
+    assert_eq!(seen[0]["title"], "Downtime tonight");
+    // It lapses by itself...
+    e.clock.advance_ms(2 * 3_600_000);
+    let (_, seen) = e
+        .call(Some(OUTSIDER), Method::GET, "/announcements/active", None)
+        .await;
+    assert!(seen.as_array().unwrap().is_empty());
+    // ...and can be ended early.
+    let (_, b) = e
+        .call(
+            Some(OWNER),
+            Method::POST,
+            "/admin/announcements",
+            Some(json!({ "title": "Second", "body": "again" })),
+        )
+        .await;
+    let id = b["id"].as_str().unwrap();
+    let (s, ended) = e
+        .call(
+            Some(OWNER),
+            Method::DELETE,
+            &format!("/admin/announcements/{id}"),
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{ended}");
+    assert!(ended["ended_at_ms"].is_i64());
+    let (_, seen) = e
+        .call(Some(OUTSIDER), Method::GET, "/announcements/active", None)
+        .await;
+    assert!(seen.as_array().unwrap().is_empty());
+    // Bad input.
+    let (s, _) = e
+        .call(
+            Some(OWNER),
+            Method::POST,
+            "/admin/announcements",
+            Some(json!({ "title": "", "body": "x" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+}
+
+fn private_dm(e: &Env) {
+    use sr_admin::{AccountRef, PrivateChannel, PrivateMessage};
+    e.repo.add_private_channel(PrivateChannel {
+        id: 700,
+        kind: 1,
+        guild_id: None,
+        name: None,
+        recipients: vec![
+            AccountRef {
+                id: ALICE,
+                username: "alice".into(),
+            },
+            AccountRef {
+                id: BOB,
+                username: "bob".into(),
+            },
+        ],
+        private: true,
+    });
+    for (id, text, vis, deleted) in [
+        (1, "hi", "visible", None),
+        (2, "oops", "user_deleted", Some(T0 - 3_600_000)),
+    ] {
+        e.repo.add_private_message(
+            700,
+            PrivateMessage {
+                id,
+                author_id: ALICE,
+                author_name: "alice".into(),
+                content: text.into(),
+                created_at_ms: T0 - 7_200_000,
+                edited_at_ms: None,
+                visibility: vis.into(),
+                deleted_at_ms: deleted,
+                attachment_count: 0,
+                edits: vec![],
+            },
+        );
+    }
+}
+
+#[tokio::test]
+async fn private_reads_need_a_reason_and_leave_a_chained_row() {
+    let e = env().await;
+    private_dm(&e);
+    // A moderator holds no READ_PRIVATE_CONTENT.
+    let (s, _) = e
+        .call(
+            Some(MODER),
+            Method::GET,
+            "/admin/private/channels/700/messages?reason=r",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    // No reason: refused, nothing logged as a read.
+    let before = e.repo.log_rows().len();
+    let (s, b) = e
+        .call(
+            Some(OWNER),
+            Method::GET,
+            "/admin/private/channels/700/messages",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{b}");
+    assert_eq!(
+        e.repo
+            .log_rows()
+            .iter()
+            .skip(before)
+            .filter(|r| r.action == "private.read")
+            .count(),
+        0
+    );
+    // Query reason and header reason both work.
+    let (s, page) = e
+        .call(
+            Some(OWNER),
+            Method::GET,
+            "/admin/private/channels/700/messages?reason=report%20%2342",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{page}");
+    assert_eq!(page["items"].as_array().unwrap().len(), 2);
+    assert_eq!(page["items"][0]["visibility"], "user_deleted");
+    assert_eq!(page["channel"]["recipients"].as_array().unwrap().len(), 2);
+    let (s, _) = e
+        .call_with(
+            Some(OWNER),
+            Method::GET,
+            "/admin/private/channels/700/messages",
+            None,
+            true,
+            &[("x-audit-log-reason", "second look")],
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    let reads: Vec<_> = e
+        .repo
+        .log_rows()
+        .into_iter()
+        .filter(|r| r.action == "private.read" && r.kind == sr_admin::AccessKind::PrivateRead)
+        .collect();
+    assert!(reads.len() >= 2);
+    assert_eq!(reads[0].reason, "report #42");
+    assert_eq!(reads[0].target_id, Some(700));
+    assert!(
+        e.repo.log_rows().iter().all(|r| !r.detail.contains("oops")),
+        "content never enters the log"
+    );
+    // Listing someone's DMs is logged too.
+    let (s, list) = e
+        .call(
+            Some(OWNER),
+            Method::GET,
+            &format!("/admin/private/accounts/{ALICE}/dms?reason=r"),
+            None,
+        )
+        .await;
+    assert_eq!(
+        (s, list.as_array().map(Vec::len)),
+        (StatusCode::OK, Some(1))
+    );
+    assert!(
+        e.repo
+            .log_rows()
+            .iter()
+            .any(|r| r.action == "private.list_dms")
+    );
+    // Unknown channel: 404, still logged.
+    let n = e.repo.log_rows().len();
+    let (s, _) = e
+        .call(
+            Some(OWNER),
+            Method::GET,
+            "/admin/private/channels/12345/messages?reason=r",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    assert_eq!(e.repo.log_rows().len(), n + 1);
+}
+
+fn totp_now(e: &Env) -> String {
+    let secret = TotpSecret::from_bytes(&TOTP_SECRET).unwrap();
+    totp::current_code(
+        &secret,
+        "SIDE ROOM",
+        "u11",
+        (e.clock.now_unix_ms() / 1000) as u64,
+    )
+    .unwrap()
+}
+
+#[tokio::test]
+async fn sensitive_routes_wait_for_a_fresh_second_factor() {
+    let e = env_with(true).await;
+    private_dm(&e);
+    // Give the moderator the private-content bit through a role the Owner may grant.
+    e.repo.add_role(
+        4,
+        "Reader",
+        2,
+        P::STAFF_BASIC | P::READ_PRIVATE_CONTENT | P::MANAGE_ACCOUNTS,
+    );
+    let op = Caller::operator(SYSTEM_USER_ID);
+    let svc = AdminService::new(e.repo.clone()).with_extras(e.repo.clone());
+    svc.set_staff_roles(&op, MODER, &[4], Some("test"))
+        .await
+        .unwrap();
+
+    let read = "/admin/private/channels/700/messages?reason=case%209";
+    let (s, b) = e.call(Some(MODER), Method::GET, read, None).await;
+    assert_eq!(
+        (s, b["code"].as_u64()),
+        (StatusCode::FORBIDDEN, Some(900_004)),
+        "{b}"
+    );
+    // The refusal is in the access log.
+    assert!(
+        e.repo
+            .log_rows()
+            .iter()
+            .any(|r| r.action == "private.read" && r.kind == sr_admin::AccessKind::Denied)
+    );
+    // Status says: enrolled, not fresh.
+    let (_, st) = e
+        .call(Some(MODER), Method::GET, "/admin/reauth", None)
+        .await;
+    assert_eq!(
+        (
+            st["enrolled"].as_bool(),
+            st["fresh"].as_bool(),
+            st["required"].as_bool()
+        ),
+        (Some(true), Some(false), Some(true))
+    );
+    // A wrong code does not open the window.
+    let (s, _) = e
+        .call(
+            Some(MODER),
+            Method::POST,
+            "/admin/reauth",
+            Some(json!({ "method": "totp", "code": "000000" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let (s, _) = e.call(Some(MODER), Method::GET, read, None).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    // The right one does.
+    let (s, st) = e
+        .call(
+            Some(MODER),
+            Method::POST,
+            "/admin/reauth",
+            Some(json!({ "method": "totp", "code": totp_now(&e) })),
+        )
+        .await;
+    assert_eq!(
+        (s, st["fresh"].as_bool()),
+        (StatusCode::OK, Some(true)),
+        "{st}"
+    );
+    let (s, page) = e.call(Some(MODER), Method::GET, read, None).await;
+    assert_eq!(s, StatusCode::OK, "{page}");
+    // Other sensitive routes share the window.
+    let (s, _) = e
+        .call(
+            Some(MODER),
+            Method::POST,
+            &format!("/admin/accounts/{ALICE}/force-password-reset"),
+            Some(json!({ "reason": "r" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    // Fourteen minutes later it still holds; at sixteen it is closed again.
+    e.clock.advance_ms(14 * 60_000);
+    let (s, _) = e.call(Some(MODER), Method::GET, read, None).await;
+    assert_eq!(s, StatusCode::OK);
+    e.clock.advance_ms(2 * 60_000);
+    let (s, b) = e.call(Some(MODER), Method::GET, read, None).await;
+    assert_eq!(
+        (s, b["code"].as_u64()),
+        (StatusCode::FORBIDDEN, Some(900_004))
+    );
+    // The Owner has no authenticator: the sensitive actions stay closed until they enrol.
+    let (s, b) = e.call(Some(OWNER), Method::GET, read, None).await;
+    assert_eq!(
+        (s, b["code"].as_u64()),
+        (StatusCode::FORBIDDEN, Some(900_004))
+    );
+    assert!(b["message"].as_str().unwrap().contains("two-factor"));
+    let (s, st) = e
+        .call(Some(OWNER), Method::GET, "/admin/reauth", None)
+        .await;
+    assert_eq!((s, st["enrolled"].as_bool()), (StatusCode::OK, Some(false)));
+    // Reads that are not sensitive are unaffected.
+    let (s, _) = e
+        .call(Some(MODER), Method::GET, "/admin/accounts", None)
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    let _ = &e.auth;
+}
+
+#[tokio::test]
+async fn alerts_list_and_acknowledge() {
+    let e = env().await;
+    let svc = AdminService::new(e.repo.clone()).with_extras(e.repo.clone());
+    let alert = svc.record_alert("disk_low", "Disk 91% full").await.unwrap();
+    let (s, list) = e
+        .call(Some(BASIC), Method::GET, "/admin/alerts", None)
+        .await;
+    assert_eq!(s, StatusCode::OK, "{list}");
+    assert_eq!(list[0]["kind"], "disk_low");
+    let (_, stats) = e.call(Some(BASIC), Method::GET, "/admin/stats", None).await;
+    assert_eq!(stats["alerts_unacked"], 1);
+    assert_eq!(stats["accounts_cap"], 20_000);
+    let (s, a) = e
+        .call(
+            Some(BASIC),
+            Method::POST,
+            &format!("/admin/alerts/{}/ack", alert.id),
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{a}");
+    assert_eq!(a["acked_by"], BASIC.to_string());
+    let (s, _) = e
+        .call(Some(BASIC), Method::POST, "/admin/alerts/1/ack", None)
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    let (s, _) = e
+        .call(Some(OUTSIDER), Method::GET, "/admin/alerts", None)
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
 }

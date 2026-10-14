@@ -107,6 +107,15 @@ pub fn default_staff_roles() -> Vec<RoleTemplate> {
 /// May `caller` hand out `roles`? Never the Owner role; owner-only bits only by the
 /// Owner; everyone else may grant only bits they hold themselves.
 pub fn check_assignable(caller: &Caller, roles: &[StaffRole]) -> AdminResult<()> {
+    check_assignable_within(caller, roles, None)
+}
+
+/// [`check_assignable`] for a delegate of the Owner: nothing beyond `ceiling` either (D-132).
+pub fn check_assignable_within(
+    caller: &Caller,
+    roles: &[StaffRole],
+    ceiling: Option<P>,
+) -> AdminResult<()> {
     for r in roles {
         let p = r.permissions();
         if p.contains(P::OWNER) {
@@ -117,7 +126,7 @@ pub fn check_assignable(caller: &Caller, roles: &[StaffRole]) -> AdminResult<()>
         if caller.is_owner {
             continue;
         }
-        if let Some(ceiling) = caller.grant_ceiling
+        if let Some(ceiling) = ceiling
             && !ceiling.contains(p)
         {
             return Err(AdminError::Forbidden(format!(
@@ -180,7 +189,6 @@ mod tests {
             user_id: 9,
             permissions: p,
             is_owner: owner,
-            grant_ceiling: None,
             ip: None,
         }
     }
@@ -243,21 +251,27 @@ mod tests {
 
     #[test]
     fn a_delegate_stays_inside_the_ceiling() {
-        let mut delegate = caller(
+        let delegate = caller(
             P::STAFF_BASIC | P::MANAGE_ACCOUNTS | P::PLATFORM_BAN | P::APPOINT_STAFF,
             false,
         );
-        delegate.grant_ceiling = Some(P::STAFF_BASIC | P::MANAGE_ACCOUNTS);
+        let ceiling = Some(P::STAFF_BASIC | P::MANAGE_ACCOUNTS);
         assert!(
-            check_assignable(
+            check_assignable_within(
                 &delegate,
-                &[role("Support", P::STAFF_BASIC | P::MANAGE_ACCOUNTS)]
+                &[role("Support", P::STAFF_BASIC | P::MANAGE_ACCOUNTS)],
+                ceiling
             )
             .is_ok()
         );
         // Held by the delegate but outside the ceiling.
         assert!(
-            check_assignable(&delegate, &[role("Mod", P::STAFF_BASIC | P::PLATFORM_BAN)]).is_err()
+            check_assignable_within(
+                &delegate,
+                &[role("Mod", P::STAFF_BASIC | P::PLATFORM_BAN)],
+                ceiling
+            )
+            .is_err()
         );
     }
 

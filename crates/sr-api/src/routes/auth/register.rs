@@ -175,12 +175,43 @@ pub async fn register(
         cookies.push((header::SET_COOKIE, clear_oauth_cookie(LINK_COOKIE, secure)));
     }
     spawn_verification(svc.clone(), state.now_secs(), registered.account_id, email);
+    announce_new_member(&svc, registered.account_id, registered.issuer_id).await;
 
     Ok((
         StatusCode::CREATED,
         AppendHeaders(cookies),
         Json(json!({ "id": registered.account_id.to_string() })),
     ))
+}
+
+/// Tell the Staff Server's `#new-members` feed who joined and who invited them (ADM-ALR-002).
+/// Usernames only: no email, no IP.
+async fn announce_new_member(svc: &AuthService, account_id: i64, issuer_id: i64) {
+    let name = |id: i64| {
+        let store = svc.store.clone();
+        async move {
+            store
+                .find_by_id(id)
+                .await
+                .ok()
+                .flatten()
+                .map(|a| a.username)
+        }
+    };
+    let (Some(new), issuer) = (name(account_id).await, name(issuer_id).await) else {
+        return;
+    };
+    let detail = match issuer {
+        Some(i) => format!("@{new} joined, invited by @{i}."),
+        None => format!("@{new} joined."),
+    };
+    svc.staff_feed(
+        sr_events::StaffFeedKind::NewMember,
+        "New member",
+        &detail,
+        Some(format!("/admin/invite-graph?account={account_id}")),
+    )
+    .await;
 }
 
 /// Mint and email a verification token in the background; failures are

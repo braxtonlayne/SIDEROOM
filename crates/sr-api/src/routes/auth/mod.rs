@@ -48,6 +48,30 @@ pub async fn confirm_password(
     let account = mfa::current_account(svc, user_id).await?;
     mfa::reauthenticate(svc, now_secs, &account, password).await
 }
+/// Second-factor window of a staff session (ADM-STF-009).
+pub use identity::{STAFF_MFA_WINDOW_SECS, StaffMfa};
+
+/// Is the session's second factor fresh? (admin re-auth gate)
+pub async fn staff_mfa_state(
+    svc: &AuthService,
+    now_secs: i64,
+    user_id: i64,
+    session_id: i64,
+) -> Result<StaffMfa, AuthRouteError> {
+    identity::staff_mfa_state(svc, now_secs, user_id, session_id).await
+}
+
+/// Open the 15-minute window with a second-factor proof.
+pub async fn staff_mfa_prove(
+    svc: &AuthService,
+    now_secs: i64,
+    user_id: i64,
+    session_id: i64,
+    method: &str,
+    code: &str,
+) -> Result<(), AuthRouteError> {
+    identity::staff_mfa_prove(svc, now_secs, user_id, session_id, method, code).await
+}
 pub use discord::DiscordSettings;
 pub use store::{
     AccountRecord, AccountState, AuthStore, InviteState, RegisterRejection, RegisterTx, Registered,
