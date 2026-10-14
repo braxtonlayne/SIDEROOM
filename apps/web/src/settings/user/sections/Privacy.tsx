@@ -1,12 +1,15 @@
-import { Avatar, Button, Notice, Select, Switch } from '@sideroom/ui';
+import { Avatar, Button, Notice, Switch, useToast } from '@sideroom/ui';
 import { useState } from 'react';
 import {
   errorText,
+  getPrivacy,
   listIgnores,
+  patchPrivacy,
   listRelationships,
   unblockUser,
   unignoreUser,
   useResource,
+  type PrivacySettings,
   type UserLite,
 } from '../api';
 import {
@@ -107,7 +110,7 @@ function IgnoredCard() {
   );
 }
 
-function RemoteImagesCard() {
+export function RemoteImagesCard() {
   useEnsureUserSettings();
   const on = useLoadRemoteImages();
   const [error, setError] = useState<string | null>(null);
@@ -135,35 +138,116 @@ function RemoteImagesCard() {
   );
 }
 
-const WHO = [
-  { value: 'everyone', label: 'Everyone' },
-  { value: 'friends', label: 'Friends only' },
-  { value: 'none', label: 'No one' },
+const FRIEND_SOURCES: { key: keyof PrivacySettings; label: string; hint: string }[] = [
+  { key: 'friend_requests_everyone', label: 'Everyone', hint: 'Anyone who finds your username.' },
+  {
+    key: 'friend_requests_friends_of_friends',
+    label: 'Friends of friends',
+    hint: 'People you have a friend in common with.',
+  },
+  {
+    key: 'friend_requests_server_members',
+    label: 'Server members',
+    hint: 'People who share a server with you.',
+  },
 ];
+
+/** Friend-request sources, server-member DMs and Message Requests (`/users/@me/privacy`), saved on toggle. */
+function ReachCard() {
+  const toast = useToast();
+  const res = useResource(getPrivacy);
+  const [error, setError] = useState<string | null>(null);
+  const set = async (patch: Partial<PrivacySettings>) => {
+    setError(null);
+    const before = res.data;
+    res.setData((d) => (d ? { ...d, ...patch } : d));
+    try {
+      res.setData(await patchPrivacy(patch));
+      toast.show({ title: 'Privacy updated', duration: 1500 });
+    } catch (e) {
+      if (before) res.setData(before);
+      setError(errorText(e));
+    }
+  };
+  return (
+    <Card
+      id="us-who"
+      title="Who can reach you"
+      description="These save as soon as you change them."
+    >
+      <Loaded res={res} what="your privacy settings">
+        {(p) => (
+          <div className="us-stack">
+            <div role="group" aria-labelledby="us-fr-h" className="us-stack">
+              <h3 id="us-fr-h" className="us-subhead">
+                Who can send you friend requests
+              </h3>
+              {FRIEND_SOURCES.map((s) => (
+                <Switch
+                  key={s.key}
+                  label={s.label}
+                  description={s.hint}
+                  checked={p[s.key]}
+                  onChange={(e) => void set({ [s.key]: e.target.checked })}
+                />
+              ))}
+            </div>
+            <Switch
+              label="Allow direct messages from server members"
+              description="People who share a server with you can message you. Turn it off and only friends can."
+              checked={p.allow_server_member_dms}
+              onChange={(e) => void set({ allow_server_member_dms: e.target.checked })}
+            />
+            <Switch
+              label="Message requests"
+              description="Messages from people who aren't your friends wait in Message Requests until you accept."
+              checked={p.message_requests}
+              onChange={(e) => void set({ message_requests: e.target.checked })}
+            />
+          </div>
+        )}
+      </Loaded>
+      {error && (
+        <Notice variant="danger" title="Couldn't save that">
+          {error}
+        </Notice>
+      )}
+    </Card>
+  );
+}
 
 export function PrivacySection() {
   return (
     <>
       <SectionTitle>Privacy &amp; Safety</SectionTitle>
-      <Card id="us-who" title="Who can reach you">
-        <div className="us-stack">
-          <label className="us-muted" id="us-dm-label">
-            Who can send you direct messages
-          </label>
-          <Select aria-labelledby="us-dm-label" options={WHO} value="everyone" disabled />
-          <label className="us-muted" id="us-fr-label">
-            Who can send you friend requests
-          </label>
-          <Select aria-labelledby="us-fr-label" options={WHO} value="everyone" disabled />
-        </div>
+      <ReachCard />
+      <Card
+        id="us-filters"
+        title="Sensitive media and age-restricted content"
+        description="Blur or block sensitive images from friends, others and servers, and re-confirm your age."
+      >
         <Unavailable>
-          The server has no endpoint for DM and friend-request privacy yet, so these can&apos;t be
-          changed.
+          The server has no media-scanning or per-source filter settings yet, and no way to read or
+          reset your age confirmation. Age-restricted channels and library titles still ask you to
+          confirm when you open them.
         </Unavailable>
       </Card>
       <RemoteImagesCard />
       <BlockedCard />
       <IgnoredCard />
+      <Card
+        id="us-data"
+        title="Request my data"
+        description="Get a copy of your messages, profile and uploads."
+      >
+        <Button variant="secondary" disabled>
+          Request my data
+        </Button>
+        <Unavailable>
+          The data export package (JSON plus an attachment index, with a 7-day download link)
+          isn&apos;t built on the server yet, so there is nothing to request.
+        </Unavailable>
+      </Card>
     </>
   );
 }

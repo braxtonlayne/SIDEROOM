@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Outlet, useRouter, useRouterState } from '@tanstack/react-router';
 import { useState, type MouseEvent } from 'react';
 import { AgeGateProvider } from '../lib/ageGate';
-import { useAppliedTheme } from '../settings/user/prefs';
+import { useAppliedTheme } from '../settings/user/useAppliedTheme';
 import { LibraryShell, useRequireSession } from './Shell';
 import './library.css';
 
@@ -53,8 +53,10 @@ export function LibraryRoot() {
     <QueryClientProvider client={client}>
       <ThemeProvider
         section="library"
+        perSection={theme.perSection}
         appearance={theme.appearance}
         style={theme.style}
+        {...theme.data}
         className="lib-root"
         onClick={onClick}
       >

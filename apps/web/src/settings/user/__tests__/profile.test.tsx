@@ -1,7 +1,22 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { vi } from 'vitest';
+import { axeViolations } from '../../../../../../packages/ui/src/test-axe';
 import { http, HttpResponse, server } from '../../../test/server';
 import { fieldError, openSettings, PROFILE, resetPrefs, signedIn } from './helpers';
+
+const CROPPED = 'data:image/png;base64,AAAA';
+// jsdom cannot decode or draw images: stand in for the browser's decoder and canvas.
+vi.mock('../imageCrop', async (orig) => ({
+  ...(await orig<typeof import('../imageCrop')>()),
+  loadImage: async () => ({
+    width: 1000,
+    height: 600,
+    url: 'blob:test',
+    release: () => undefined,
+    render: () => CROPPED,
+  }),
+}));
 
 function profileEndpoints(patch?: (body: unknown) => Response | undefined) {
   server.use(
@@ -37,15 +52,188 @@ describe('Profile', () => {
     expect(screen.getByText('7/190')).toBeInTheDocument();
   });
 
-  it('disables avatar, banner and display name edits with an explanation', async () => {
+  it('edits the display name and saves it as global_name', async () => {
+    signedIn();
+    let sent: unknown;
+    profileEndpoints((b) => {
+      sent = b;
+      return undefined;
+    });
+    const user = userEvent.setup();
+    openSettings('profile');
+    const name = await screen.findByLabelText('Display name');
+    expect(name).toHaveValue('Alice');
+    await user.clear(name);
+    await user.type(name, 'Ali C');
+    const preview = screen.getByRole('complementary', { name: 'Profile preview' });
+    expect(within(preview).getByText('Ali C')).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(sent).toEqual({ global_name: 'Ali C' }));
+  });
+
+  it('rejects a display name over 32 characters', async () => {
     signedIn();
     profileEndpoints();
     openSettings('profile');
+    fireEvent.change(await screen.findByLabelText('Display name'), {
+      target: { value: 'x'.repeat(33) },
+    });
+    expect((await screen.findAllByText(/at most 32 characters/)).length).toBeGreaterThan(0);
+  });
+
+  it('crops a new avatar, previews it and sends it as a data URI on save', async () => {
+    signedIn();
+    let sent: unknown;
+    profileEndpoints((b) => {
+      sent = b;
+      return undefined;
+    });
+    const user = userEvent.setup();
+    openSettings('profile');
     await screen.findByLabelText('About me');
-    expect(screen.getByRole('button', { name: 'Change avatar' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Change banner' })).toBeDisabled();
-    expect(screen.getByLabelText('Display name')).toBeDisabled();
-    expect(screen.getByText(/uploads are coming soon/)).toBeInTheDocument();
+    expect(await axeViolations(document.body)).toEqual([]);
+    await user.upload(
+      screen.getByLabelText('Avatar file'),
+      new File(['x'], 'me.png', { type: 'image/png' }),
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Crop your avatar' });
+    await within(dialog).findByRole('group', { name: 'Crop area' });
+    expect(await axeViolations(dialog)).toEqual([]);
+    fireEvent.change(within(dialog).getByRole('slider', { name: 'Zoom' }), {
+      target: { value: '2' },
+    });
+    await user.click(within(dialog).getByRole('button', { name: 'Apply' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('unsaved changes');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(sent).toEqual({ avatar: CROPPED }));
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+  });
+
+  it('moves the crop with the arrow keys and cancelling changes nothing', async () => {
+    signedIn();
+    profileEndpoints();
+    const user = userEvent.setup();
+    openSettings('profile');
+    await screen.findByLabelText('About me');
+    await user.upload(
+      screen.getByLabelText('Banner file'),
+      new File(['x'], 'wide.jpg', { type: 'image/jpeg' }),
+    );
+    const dialog = await screen.findByRole('dialog', { name: 'Crop your banner' });
+    const area = await within(dialog).findByRole('group', { name: 'Crop area' });
+    const img = area.querySelector('img')!;
+    const before = img.style.top;
+    area.focus();
+    await user.keyboard('{ArrowDown}{ArrowDown}');
+    expect(img.style.top).not.toBe(before);
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('sends a GIF as it is (no flattening) and refuses files that are not images', async () => {
+    signedIn();
+    let sent: unknown;
+    profileEndpoints((b) => {
+      sent = b;
+      return undefined;
+    });
+    const user = userEvent.setup({ applyAccept: false });
+    openSettings('profile');
+    await screen.findByLabelText('About me');
+    await user.upload(
+      screen.getByLabelText('Avatar file'),
+      new File(['notes'], 'notes.txt', { type: 'text/plain' }),
+    );
+    expect(await screen.findByText('Choose a PNG, JPEG, GIF or WebP image.')).toBeInTheDocument();
+    await user.upload(
+      screen.getByLabelText('Avatar file'),
+      new File(['GIF89a'], 'spin.gif', { type: 'image/gif' }),
+    );
+    await user.click(await screen.findByRole('button', { name: 'Save changes' }));
+    await waitFor(() =>
+      expect((sent as { avatar: string }).avatar).toMatch(/^data:image\/gif;base64,/),
+    );
+  });
+
+  it('removes the avatar and banner when they exist', async () => {
+    signedIn();
+    server.use(
+      http.get('*/api/v1/users/@me/profile', () =>
+        HttpResponse.json({
+          ...PROFILE,
+          user: { ...PROFILE.user, avatar: 'abc123', banner: 'def456' },
+        }),
+      ),
+    );
+    let sent: unknown;
+    profileEndpoints((b) => {
+      sent = b;
+      return undefined;
+    });
+    server.use(
+      http.get('*/api/v1/users/@me/profile', () =>
+        HttpResponse.json({
+          ...PROFILE,
+          user: { ...PROFILE.user, avatar: 'abc123', banner: 'def456' },
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    openSettings('profile');
+    await user.click(await screen.findByRole('button', { name: 'Remove avatar' }));
+    await user.click(screen.getByRole('button', { name: 'Remove banner' }));
+    await user.click(await screen.findByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(sent).toEqual({ avatar: null, banner: null }));
+  });
+
+  it('sets a nickname for one server on its own button', async () => {
+    signedIn();
+    profileEndpoints();
+    const sent: unknown[] = [];
+    server.use(
+      http.get('*/api/v1/users/@me/guilds', () =>
+        HttpResponse.json([
+          { id: '5', name: 'Book Club' },
+          { id: '6', name: 'Chess' },
+        ]),
+      ),
+      http.get('*/api/v1/guilds/5/members/1', () => HttpResponse.json({ nick: 'Ally' })),
+      http.patch('*/api/v1/guilds/5/members/1', async ({ request }) => {
+        const body = (await request.json()) as { nick: string | null };
+        sent.push(body);
+        return HttpResponse.json({ nick: body.nick });
+      }),
+    );
+    const user = userEvent.setup();
+    openSettings('profile');
+    await user.click(await screen.findByRole('radio', { name: 'Per-server profiles' }));
+    const nick = await screen.findByLabelText('Server nickname');
+    await waitFor(() => expect(nick).toHaveValue('Ally'));
+    expect(screen.getByRole('button', { name: 'Save nickname' })).toBeDisabled();
+    await user.clear(nick);
+    await user.click(screen.getByRole('button', { name: 'Save nickname' }));
+    await waitFor(() => expect(sent).toEqual([{ nick: null }]));
+    expect(screen.getByText(/Only the nickname is stored per server/)).toBeInTheDocument();
+  });
+
+  it('shows why a nickname was refused', async () => {
+    signedIn();
+    profileEndpoints();
+    server.use(
+      http.get('*/api/v1/users/@me/guilds', () =>
+        HttpResponse.json([{ id: '5', name: 'Book Club' }]),
+      ),
+      http.get('*/api/v1/guilds/5/members/1', () => HttpResponse.json({ nick: null })),
+      http.patch('*/api/v1/guilds/5/members/1', () =>
+        HttpResponse.json({ message: 'Missing Permissions' }, { status: 403 }),
+      ),
+    );
+    const user = userEvent.setup();
+    openSettings('profile');
+    await user.click(await screen.findByRole('radio', { name: 'Per-server profiles' }));
+    await user.type(await screen.findByLabelText('Server nickname'), 'Al');
+    await user.click(screen.getByRole('button', { name: 'Save nickname' }));
+    expect(await screen.findByText('Missing Permissions')).toBeInTheDocument();
   });
 
   it('saves only the changed fields through the unsaved-changes bar', async () => {

@@ -1,34 +1,32 @@
 import {
+  Avatar,
   Button,
-  ConfirmDialog,
   Modal,
   Notice,
   PasswordInput,
   QRCode,
+  Switch,
   TextInput,
   useToast,
 } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
+import { ApiError } from '../../../api/client';
+import { cdnUrl } from '../../../store';
 import {
+  changePassword,
   errorText,
-  getOwnProfile,
-  listSessions,
-  listTrustedDevices,
-  logoutAll,
   regenerateRecoveryCodes,
   resendVerification,
-  revokeSession,
-  revokeTrustedDevice,
   sendPasswordReset,
   totpDisable,
   totpEnroll,
   totpVerify,
-  useResource,
   type Me,
   type Resource,
   type TotpEnrollment,
 } from '../api';
-import { Card, Field, fmtDate, Loaded, SectionTitle, Unavailable } from '../parts';
+import { Card, Field, Loaded, SectionTitle, Unavailable } from '../parts';
+import { ChangeUsernameDialog, DisplayNameDialog } from './AccountEdit';
 import { ChangeEmailDialog } from './ChangeEmail';
 import { PasskeysCard } from './Passkeys';
 
@@ -347,17 +345,46 @@ function PasswordCard({ me }: { me: Me }) {
   const toast = useToast();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
+  const [others, setOthers] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [errors, setErrors] = useState<{ current?: string; next?: string; link?: string }>({});
   const sendLink = async () => {
     if (!me.email) return;
-    setBusy(true);
-    setErr(null);
+    setSending(true);
+    setErrors({});
     try {
       await sendPasswordReset(me.email);
       toast.show({ title: 'Reset link sent', description: `Check ${me.email}.`, duration: 4000 });
     } catch (e) {
-      setErr(errorText(e));
+      setErrors({ link: errorText(e) });
+    } finally {
+      setSending(false);
+    }
+  };
+  const submit = async () => {
+    if (!current) return setErrors({ current: 'Enter your current password.' });
+    if (!next) return setErrors({ next: 'Enter a new password.' });
+    setBusy(true);
+    setErrors({});
+    try {
+      await changePassword({
+        current_password: current,
+        new_password: next,
+        revoke_other_sessions: others,
+      });
+      setCurrent('');
+      setNext('');
+      toast.show({
+        title: 'Password changed',
+        description: others ? 'Your other devices were signed out.' : undefined,
+        duration: 4000,
+      });
+    } catch (e) {
+      const field = e instanceof ApiError ? Object.keys(e.body?.errors ?? {})[0] : undefined;
+      const text = errorText(e);
+      if (field === 'new_password') setErrors({ next: text });
+      else setErrors({ current: text });
     } finally {
       setBusy(false);
     }
@@ -368,43 +395,52 @@ function PasswordCard({ me }: { me: Me }) {
       title="Password"
       description="Choose a strong password you don't use anywhere else."
     >
-      <Unavailable>
-        This server has no change-password endpoint yet, so the form below is disabled. You can
-        still set a new password with an emailed reset link.
-      </Unavailable>
-      <form className="us-stack" aria-label="Change password" onSubmit={(e) => e.preventDefault()}>
+      <form
+        className="us-stack"
+        aria-label="Change password"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void submit();
+        }}
+      >
         <PasswordInput
           label="Current password"
           value={current}
           onChange={(e) => setCurrent(e.target.value)}
-          disabled
+          error={errors.current}
           autoComplete="current-password"
         />
         <PasswordInput
           label="New password"
           value={next}
           onChange={(e) => setNext(e.target.value)}
-          disabled
+          error={errors.next}
           showStrength
           autoComplete="new-password"
         />
+        <Switch
+          label="Sign out my other devices"
+          description="Ends every other session and trusted device. This device stays signed in."
+          checked={others}
+          onChange={(e) => setOthers(e.target.checked)}
+        />
         <div className="us-actions">
-          <Button type="submit" disabled>
+          <Button type="submit" loading={busy}>
             Change password
           </Button>
           <Button
             variant="secondary"
             type="button"
-            loading={busy}
+            loading={sending}
             disabled={!me.email}
             onClick={() => void sendLink()}
           >
             Email me a reset link
           </Button>
         </div>
-        {err && (
+        {errors.link && (
           <Notice variant="danger" title="Couldn't send the link">
-            {err}
+            {errors.link}
           </Notice>
         )}
       </form>
@@ -412,8 +448,10 @@ function PasswordCard({ me }: { me: Me }) {
   );
 }
 
-function IdentityCard({ me }: { me: Me }) {
+function IdentityCard({ me, reload }: { me: Me; reload: () => void }) {
   const [reveal, setReveal] = useState(false);
+  const [editName, setEditName] = useState(false);
+  const [editUser, setEditUser] = useState(false);
   const [changing, setChanging] = useState(false);
   const [sent, setSent] = useState<'idle' | 'sending' | 'sent' | 'wait' | 'error'>('idle');
   const resend = async () => {
@@ -426,15 +464,42 @@ function IdentityCard({ me }: { me: Me }) {
     }
   };
   const email = me.email ?? '';
+  const avatar = cdnUrl('avatars', me.id, me.avatar, { size: 128 });
+  const banner = cdnUrl('avatars', me.id, me.banner, { size: 512 });
   const masked = email.replace(
     /^(.).*(@.*)$/,
     (_m, a: string, b: string) => `${a}${'*'.repeat(6)}${b}`,
   );
   return (
     <Card id="us-identity" title="Account">
+      <div className="us-account-head">
+        <div
+          className="us-account-banner"
+          data-testid="account-banner"
+          style={
+            banner ? { backgroundImage: `url(${banner})`, backgroundSize: 'cover' } : undefined
+          }
+        />
+        <Avatar
+          name={me.global_name || me.username || 'You'}
+          src={avatar}
+          size={80}
+          className="us-account-avatar"
+        />
+      </div>
       <dl>
-        <Field label="Username">{me.username ?? ''}</Field>
-        <Field label="Display name">{me.global_name || me.display_name || 'Not set'}</Field>
+        <Field label="Username">
+          <span>{me.username ?? ''}</span>{' '}
+          <Button variant="link" size="sm" onClick={() => setEditUser(true)}>
+            Edit<span className="us-sr"> username</span>
+          </Button>
+        </Field>
+        <Field label="Display name">
+          <span>{me.global_name || me.display_name || 'Not set'}</span>{' '}
+          <Button variant="link" size="sm" onClick={() => setEditName(true)}>
+            Edit<span className="us-sr"> display name</span>
+          </Button>
+        </Field>
         <Field label="Email">
           <span>{reveal ? email : masked}</span>{' '}
           <Button
@@ -470,9 +535,18 @@ function IdentityCard({ me }: { me: Me }) {
           </span>
         </div>
       )}
-      <Unavailable>
-        Changing your username or display name isn&apos;t supported by the server yet.
-      </Unavailable>
+      <ChangeUsernameDialog
+        open={editUser}
+        current={me.username ?? ''}
+        onClose={() => setEditUser(false)}
+        onChanged={reload}
+      />
+      <DisplayNameDialog
+        open={editName}
+        current={me.global_name ?? ''}
+        onClose={() => setEditName(false)}
+        onChanged={reload}
+      />
       <ChangeEmailDialog
         open={changing}
         mfaEnabled={!!me.mfa_enabled}
@@ -483,177 +557,27 @@ function IdentityCard({ me }: { me: Me }) {
   );
 }
 
-function DiscordCard() {
-  const profile = useResource(getOwnProfile);
-  const link = profile.data?.connected_accounts.find((c) => c.type === 'discord');
-  return (
-    <Card id="us-discord" title="Linked Discord account">
-      <Loaded res={profile} what="connections">
-        {() =>
-          link ? (
-            <p>
-              Linked as <strong>{link.name}</strong>
-              <span className="us-badge" data-tone={link.verified ? 'good' : undefined}>
-                {link.verified ? 'Verified' : 'Unverified'}
-              </span>
-            </p>
-          ) : (
-            <p className="us-muted">No Discord account is linked.</p>
-          )
-        }
-      </Loaded>
-      <p className="us-muted">
-        Linking or unlinking from settings isn&apos;t available yet; Discord is linked while signing
-        in.
-      </p>
-    </Card>
-  );
-}
-
-function TrustedDevicesCard() {
-  const toast = useToast();
-  const res = useResource(listTrustedDevices);
-  const [error, setError] = useState<string | null>(null);
-  const revoke = async (id: string) => {
-    setError(null);
-    try {
-      await revokeTrustedDevice(id);
-      res.setData((d) => d?.filter((x) => x.id !== id));
-      toast.show({ title: 'Device removed', duration: 2000 });
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
-  return (
-    <Card
-      id="us-trusted"
-      title="Trusted devices"
-      description="Devices that skip the two-factor prompt."
-    >
-      <Loaded res={res} what="trusted devices">
-        {(rows) =>
-          rows.length === 0 ? (
-            <p className="us-muted">No trusted devices.</p>
-          ) : (
-            <ul className="us-list">
-              {rows.map((d) => (
-                <li key={d.id}>
-                  <div className="us-row-main">
-                    <strong>{d.device_name || 'Unknown device'}</strong>
-                    <p className="us-muted">
-                      Added {fmtDate(d.created_at)}, expires {fmtDate(d.expires_at)}
-                    </p>
-                  </div>
-                  <Button variant="secondary" size="sm" onClick={() => void revoke(d.id)}>
-                    Revoke<span className="us-sr"> {d.device_name || 'device'}</span>
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )
-        }
-      </Loaded>
-      {error && (
-        <Notice variant="danger" title="Couldn't remove the device">
-          {error}
-        </Notice>
-      )}
-    </Card>
-  );
-}
-
-function SessionsCard({ onSignedOut }: { onSignedOut: () => void }) {
-  const toast = useToast();
-  const res = useResource(listSessions);
-  const [error, setError] = useState<string | null>(null);
-  const [confirm, setConfirm] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const revoke = async (id: string) => {
-    setError(null);
-    try {
-      await revokeSession(id);
-      res.setData((d) => d?.filter((x) => x.id !== id));
-      toast.show({ title: 'Session ended', duration: 2000 });
-    } catch (e) {
-      setError(errorText(e));
-    }
-  };
-  const everywhere = async () => {
-    setBusy(true);
-    try {
-      await logoutAll();
-      onSignedOut();
-    } catch (e) {
-      setError(errorText(e));
-      setConfirm(false);
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <Card
-      id="us-sessions"
-      title="Devices and sessions"
-      description="Where you're signed in."
-      actions={
-        <Button variant="danger" onClick={() => setConfirm(true)}>
-          Log out everywhere
-        </Button>
-      }
-    >
-      <Loaded res={res} what="sessions">
-        {(rows) => (
-          <ul className="us-list">
-            {rows.map((s) => (
-              <li key={s.id}>
-                <div className="us-row-main">
-                  <strong>{s.device_name || 'Unknown device'}</strong>
-                  {s.current && <span className="us-badge">This device</span>}
-                  <p className="us-muted">Last active {fmtDate(s.last_seen_at)}</p>
-                </div>
-                {!s.current && (
-                  <Button variant="secondary" size="sm" onClick={() => void revoke(s.id)}>
-                    Log out<span className="us-sr"> {s.device_name || 'session'}</span>
-                  </Button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </Loaded>
-      {error && (
-        <Notice variant="danger" title="Something went wrong">
-          {error}
-        </Notice>
-      )}
-      <ConfirmDialog
-        open={confirm}
-        danger
-        loading={busy}
-        title="Log out everywhere?"
-        description="This ends every session, including this one. You will need to sign in again."
-        confirmLabel="Log out everywhere"
-        onConfirm={() => void everywhere()}
-        onCancel={() => setConfirm(false)}
-      />
-    </Card>
-  );
-}
-
-export function AccountSection({ me, onSignedOut }: { me: Resource<Me>; onSignedOut: () => void }) {
+export function AccountSection({ me }: { me: Resource<Me>; onSignedOut: () => void }) {
   return (
     <>
       <SectionTitle>My Account</SectionTitle>
       <Loaded res={me} what="your account">
         {(m) => (
           <>
-            <IdentityCard me={m} />
+            <IdentityCard me={m} reload={me.reload} />
             <PasswordCard me={m} />
             <TwoFactorCard me={m} reload={me.reload} />
             <PasskeysCard />
-            <DiscordCard />
-            <TrustedDevicesCard />
-            <SessionsCard onSignedOut={onSignedOut} />
+            <Card
+              id="us-removal"
+              title="Account removal"
+              description="Deleting your account is permanent: your messages stay in the servers they were posted in, and you need a new invite to return."
+            >
+              <Unavailable>
+                The server cannot delete accounts yet (it needs the deletion process and a data
+                scrub). Ask a server owner or the staff to remove your account in the meantime.
+              </Unavailable>
+            </Card>
           </>
         )}
       </Loaded>

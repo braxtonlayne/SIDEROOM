@@ -1,7 +1,9 @@
 import { KbdCombo, Modal } from '@sideroom/ui';
-import { displayKey, SHORTCUTS } from './shortcuts';
+import { useSavedPrefs } from '../settings/user/prefs';
+import { comboKeys, displayKey, effectiveCombo, isRebindable, SHORTCUTS } from './shortcuts';
 
 export function ShortcutSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { keybinds } = useSavedPrefs();
   const groups = Array.from(new Set(SHORTCUTS.map((s) => s.group)));
   return (
     <Modal open={open} onClose={onClose} title="Keyboard shortcuts" size="md">
@@ -13,7 +15,13 @@ export function ShortcutSheet({ open, onClose }: { open: boolean; onClose: () =>
               <div key={s.id} className="lng-sheet-row">
                 <dt>{s.description}</dt>
                 <dd>
-                  <KbdCombo keys={s.keys.map(displayKey)} />
+                  <KbdCombo
+                    keys={
+                      isRebindable(s.id)
+                        ? comboKeys(effectiveCombo(s, keybinds))
+                        : s.keys.map(displayKey)
+                    }
+                  />
                 </dd>
               </div>
             ))}

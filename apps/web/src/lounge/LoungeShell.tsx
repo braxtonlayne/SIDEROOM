@@ -10,7 +10,7 @@ import { ResizeHandle } from '@sideroom/ui';
 import { ComingSoon } from '@sideroom/ui';
 import { firstTextChannel, HOME, navigableChannels, step } from './channels';
 import { useOpenUserSettings } from '../settings/user/nav';
-import { useAppliedTheme } from '../settings/user/prefs';
+import { useAppliedTheme } from '../settings/user/useAppliedTheme';
 import { loadMarkdownEngine } from './markdown';
 import { loadPermEngine } from './permEngine';
 import {
@@ -36,7 +36,8 @@ import { ReminderTicker } from './shell/ReminderTicker';
 import { ThreadPane } from './threads/ThreadPane';
 import { useShellBoot } from './shell/useShellBoot';
 import { ShortcutSheet } from './ShortcutSheet';
-import { matchShortcut } from './shortcuts';
+import { matchCustomShortcut } from './shortcuts';
+import { usePrefsStore } from '../settings/user/prefs';
 import { RIGHT_PANEL_MAX, RIGHT_PANEL_MIN, useLoungeUi } from './store';
 import { UserPanel } from './UserPanel';
 import './lounge.css';
@@ -65,7 +66,7 @@ function useLoungeShortcuts(h: {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const id = matchShortcut(e);
+      const id = matchCustomShortcut(e, usePrefsStore.getState().prefs.keybinds);
       if (!id) return;
       const c = latest.current;
       if (id === 'markRead' || id === 'focusComposer') {
@@ -256,10 +257,12 @@ function Shell() {
     <ThemeProvider
       section="lounge"
       serverAccent={guild?.accent ?? null}
+      allowServerTheming={theme.allowServerTheming}
       userGlobal={theme.userGlobal}
+      perSection={theme.perSection}
       appearance={theme.appearance}
       style={theme.style}
-      data-message-display={theme.messageDisplay}
+      {...theme.data}
       className="lng-root"
       data-mobile={isMobile || undefined}
       data-pane={isMobile ? pane : undefined}

@@ -1,0 +1,23 @@
+/* Effects of the saved user preferences, keyed on data-* attributes of the ThemeProvider root (prefs.ts). */
+[data-underline-links='true'] a:not([role='button']),
+[data-underline-links='true'] .sr-md a {
+  text-decoration: underline;
+}
+
+/* Dyslexia-friendly text: a widely available humanist face, looser spacing (no font download). */
+[data-dyslexia='true'] {
+  font-family: Verdana, 'Trebuchet MS', 'Segoe UI', sans-serif !important;
+  letter-spacing: 0.03em;
+  word-spacing: 0.1em;
+  line-height: 1.6;
+}
+
+/* Role colour shown as a dot before the name instead of colouring the name. */
+.lng-role-dot {
+  display: inline-block;
+  width: 0.6em;
+  height: 0.6em;
+  margin-right: 0.35em;
+  border-radius: 50%;
+  vertical-align: baseline;
+}

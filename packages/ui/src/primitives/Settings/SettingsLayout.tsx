@@ -38,6 +38,8 @@ export interface SettingsLayoutProps {
   /** Label of the button that expands the section list on narrow screens. */
   navToggleLabel?: string;
   className?: string;
+  /** Pinned above the section list (a settings search box). */
+  sidebarHeader?: ReactNode;
   /** Pinned under the section list (log out, version). */
   sidebarFooter?: ReactNode;
   children: ReactNode;
@@ -63,6 +65,7 @@ export function SettingsLayout({
   wide,
   navToggleLabel = "Sections",
   className,
+  sidebarHeader,
   sidebarFooter,
   children,
 }: SettingsLayoutProps) {
@@ -150,6 +153,7 @@ export function SettingsLayout({
         </button>
         {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- arrow keys bubble from the section buttons (roving tabindex) */}
         <nav id={`${navId}-nav`} className={styles.nav} aria-label={title} onKeyDown={onNavKey}>
+          {sidebarHeader && <div className={styles.header}>{sidebarHeader}</div>}
           {groups.map((g, gi) => (
             <div key={`${g.name ?? "g"}-${gi}`} className={styles.group}>
               {g.name && <p className={styles.groupName}>{g.name}</p>}

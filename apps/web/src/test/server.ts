@@ -21,6 +21,19 @@ export const server = setupServer(
     const body = (await request.json()) as { settings: unknown };
     return HttpResponse.json({ version: 1, settings: body.settings });
   }),
+  // Settings screens: privacy rules and the global default notification level start at the server defaults.
+  http.get('*/api/v1/users/@me/privacy', () =>
+    HttpResponse.json({
+      friend_requests_everyone: true,
+      friend_requests_friends_of_friends: true,
+      friend_requests_server_members: true,
+      allow_server_member_dms: true,
+      message_requests: true,
+    }),
+  ),
+  http.get('*/api/v1/users/@me/notification-defaults', () =>
+    HttpResponse.json({ message_notifications: null }),
+  ),
   http.get('*/api/v1/sr/csrf', () => HttpResponse.json({ token: 'test' })),
   // The Lounge loads notification settings for every server; default to "nothing muted".
   http.get('*/api/v1/users/@me/guilds/:id/settings', () =>
