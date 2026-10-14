@@ -1,0 +1,337 @@
+/* ---------- voice, phase 10 (VOX-UI-001..008, VOX-CLI-006/007) ---------- */
+.vc-ping-tip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+.vc-ping-graph {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.vc-ping-stats,
+.vc-ping-empty {
+  font-size: 11px;
+  opacity: 0.8;
+}
+.vc-panel-actions {
+  display: flex;
+  gap: 4px;
+  margin-block-start: 4px;
+}
+.vc-panel-actions [data-active] {
+  color: var(--ui-status-online);
+}
+
+/* body: stage + optional text chat */
+.vc-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.vc-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.vc-main > .vc-stage {
+  flex: 1;
+}
+.vc-stage:fullscreen {
+  background: var(--bg-base);
+}
+.vc-chat {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  inline-size: min(380px, 40%);
+  min-height: 0;
+  border-inline-start: 1px solid var(--ui-border);
+}
+.vc-chat-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-block-end: 1px solid var(--ui-border);
+}
+.vc-chat-title {
+  flex: 1;
+  margin: 0;
+  font-size: 16px;
+}
+
+/* video in tiles */
+.vc-video {
+  inline-size: 100%;
+  max-block-size: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 6px;
+  background: #000;
+  object-fit: contain;
+}
+.vc-video[data-mirror] {
+  transform: scaleX(-1);
+}
+.vc-tile[data-video] {
+  padding: 8px;
+}
+.vc-tile-quality {
+  position: absolute;
+  inset-block-start: 8px;
+  inset-inline-start: 8px;
+}
+.vc-tile-actions {
+  display: flex;
+  gap: 2px;
+}
+.vc-tile-item[data-focused] .vc-tile {
+  min-block-size: 320px;
+}
+
+/* focus mode */
+.vc-focus {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  inline-size: 100%;
+  min-height: 0;
+}
+.vc-spotlight,
+.vc-strip {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.vc-spotlight {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+.vc-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+}
+.vc-strip .vc-tile-item {
+  flex: 0 0 160px;
+}
+.vc-strip .vc-tile {
+  min-block-size: 110px;
+  padding: 8px;
+}
+
+/* stream tile */
+.vc-stream-item {
+  grid-column: span 2;
+}
+.vc-stream {
+  align-items: stretch;
+}
+.vc-live-badge {
+  position: absolute;
+  inset-block-start: 8px;
+  inset-inline-start: 8px;
+  z-index: 1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.vc-stream-idle {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+}
+.vc-stream-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.vc-stream-info {
+  flex: 1;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* join preview */
+.vc-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  inline-size: min(320px, 100%);
+}
+
+/* controls */
+.vc-controls {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.vc-controls-error {
+  margin: 0;
+  padding-inline: 12px;
+}
+.vc-split {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.vc-ctl-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 20px;
+  block-size: 28px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.vc-ctl-arrow:hover {
+  background: var(--ui-bg-hover);
+}
+.vc-ctl[data-active] {
+  background: var(--ui-status-online);
+  color: #000;
+}
+.vc-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* share picker */
+.vc-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (max-width: 720px) {
+  .vc-body[data-chat] {
+    flex-direction: column;
+  }
+  .vc-chat {
+    inline-size: auto;
+    block-size: 45%;
+    border-inline-start: 0;
+    border-block-start: 1px solid var(--ui-border);
+  }
+  .vc-stream-item {
+    grid-column: span 1;
+  }
+}
+
+/* dragging people between voice channels (VOX-UI-009) */
+.lng-voice-members li[data-draggable] {
+  cursor: grab;
+}
+.lng-channel[data-voice-drop] {
+  outline: 2px dashed var(--ui-status-online);
+  outline-offset: -2px;
+}
+
+/* incoming call overlay (VOX-UI-010) */
+.vc-incoming {
+  position: fixed;
+  inset-block-start: 16px;
+  inset-inline-end: 16px;
+  z-index: 60;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  inline-size: min(380px, calc(100vw - 32px));
+  padding: 16px;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background: var(--bg-base-lowest);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 40%);
+}
+.vc-incoming-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+.vc-incoming-actions {
+  display: flex;
+  flex-basis: 100%;
+  gap: 8px;
+}
+
+/* pop-out window (VOX-UI-012) */
+.vc-popout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-block-size: 100vh;
+  padding: 12px;
+  background: var(--bg-base);
+  color: var(--text-normal, inherit);
+}
+.vc-popout-title {
+  margin: 0;
+  font-size: 16px;
+}
+.vc-popout-people {
+  display: flex;
+  flex-wrap: wrap;
+  flex: 1;
+  align-content: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.vc-popout-controls {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+/* mobile call UI (VOX-UI-016): the call fills the screen, controls scroll as one sheet */
+@media (max-width: 768px) {
+  .vc-view .vc-stage {
+    padding: 8px;
+  }
+  .vc-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+  .vc-controls {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-block-end: max(12px, env(safe-area-inset-bottom));
+    border-start-start-radius: 16px;
+    border-start-end-radius: 16px;
+    background: var(--bg-base-lowest);
+  }
+  .vc-ctl {
+    flex: none;
+    inline-size: 44px;
+    block-size: 44px;
+  }
+  .vc-ctl-arrow {
+    inline-size: 28px;
+    block-size: 44px;
+  }
+  .vc-stream-item {
+    grid-column: span 1;
+  }
+}

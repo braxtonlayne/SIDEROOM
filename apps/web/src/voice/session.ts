@@ -31,9 +31,23 @@ export interface VoiceSession {
   /** The microphone is open and sending right now. */
   transmitting: boolean;
   speaking: Record<string, boolean>;
+  /** The viewer's camera / screen share is capturing (the streams live in `useLocalVideo`). */
+  camera: boolean;
+  screen: boolean;
   quality: ConnectionQuality;
+  /** Recent round-trip times in ms (oldest first), for the ping graph. */
+  pingHistory: number[];
+  /** The SFU's egress governor lowered the quality of this room. */
+  reducedQuality: boolean;
+  /** Why the camera or a share was refused (sender limit, viewer cap), with the upgrade hint; null otherwise. */
+  refusal: { code: 'videoLimit' | 'viewerCap'; message: string } | null;
+  /** A one-line note about something the call recovered from on its own (shown once, dismissible). */
+  notice: string | null;
   error: SessionError | null;
 }
+
+/** How many ping readings the graph keeps (one every few seconds). */
+export const PING_HISTORY = 30;
 
 export const IDLE_SESSION: VoiceSession = {
   status: 'idle',
@@ -48,7 +62,13 @@ export const IDLE_SESSION: VoiceSession = {
   pttActive: false,
   transmitting: false,
   speaking: {},
+  camera: false,
+  screen: false,
   quality: UNKNOWN_QUALITY,
+  pingHistory: [],
+  reducedQuality: false,
+  refusal: null,
+  notice: null,
   error: null,
 };
 

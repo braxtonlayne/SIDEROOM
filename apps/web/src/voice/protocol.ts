@@ -22,7 +22,7 @@ export const VoiceOp = {
   CLIENT_DISCONNECT: 11,
   /** Reserved: video, screen share. */
   VIDEO: 12,
-  /** Reserved: egress governor notices. */
+  /** Egress governor notices (client contract below; the SFU does not send them yet, VOX-SFU-008). */
   QUALITY: 13,
 } as const;
 
@@ -53,6 +53,13 @@ export const REJOIN_VOICE_CLOSES: ReadonlySet<number> = new Set([
   VoiceClose.SESSION_INVALID,
 ]);
 
+/**
+ * Whether the SFU forwards video yet (VOX-SFU-005/006). While false, camera and screen captures stay a local
+ * preview: the client does not add video m-lines (the spec says they would be ignored) and does not announce
+ * `self_video` / `self_stream` in its voice state, so nobody is shown a "LIVE" tile with nothing in it.
+ */
+export const VIDEO_PUBLISH = false;
+
 /** SPEAKING bitmask. */
 export const SPEAKING_VOICE = 1;
 export const SPEAKING_PRIORITY = 4;
@@ -82,6 +89,14 @@ export interface ReadyData {
   channel_id?: string;
   guild_id?: string;
   participants?: ParticipantInfo[];
+}
+
+/**
+ * QUALITY (op 13), server -> client: the egress governor stepped this room down (`reduced: true`) or back up.
+ * Contract proposed by the client for VOX-SFU-008; ignored by older servers.
+ */
+export interface QualityData {
+  reduced: boolean;
 }
 
 export interface SdpData {

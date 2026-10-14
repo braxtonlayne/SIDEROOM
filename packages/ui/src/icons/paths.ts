@@ -67,6 +67,14 @@ export const ICON_PATHS = {
   shield: "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z",
   logout: "M10 4H5v16h5M15 8l4 4-4 4M19 12H9",
   filter: "M4 5h16l-6 8v6l-4-2v-4z",
+  "video-off": "M3 7h12v10H3zM15 11l6-3v8l-6-3M4 4l16 16",
+  "screen-share": "M3 5h18v11H3zM8 20h8M12 16v4M12 13V8M9.5 10.5L12 8l2.5 2.5",
+  maximize: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5",
+  minimize: "M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5",
+  message: "M4 5h16v11H9l-5 4z",
+  phone: "M6 4l3 1 1 4-2 1.5a11 11 0 0 0 5.5 5.5L15 14l4 1 1 3-2 2C10 20 4 14 4 6z",
+  "pop-out": "M14 4h6v6M20 4l-8 8M18 14v6H4V6h6",
+  soundboard: "M5 20V10M9 20V5M13 20V8M17 20V13M21 20v-4",
 } as const;
 
 export type IconName = keyof typeof ICON_PATHS;
