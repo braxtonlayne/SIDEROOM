@@ -51,6 +51,7 @@ DELETE	/guilds/{guild_id}/emojis/{emoji_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/members/{user_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/members/{user_id}/roles/{role_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/roles/{role_id}	authenticated	membership	allow	-
+DELETE	/guilds/{guild_id}/soundboard-sounds/{sound_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-
 DELETE	/invites/{code}	authenticated	membership	allow	-
@@ -60,6 +61,7 @@ DELETE	/library/series/{series_id}/follow	authenticated	other	allow	-
 DELETE	/oauth2/tokens/{grant_id}	authenticated	other	deny	-
 DELETE	/requests/{request_id}/vote	authenticated	other	allow	-
 DELETE	/sr/auth/passkeys/{id}	authenticated	self	deny	-
+DELETE	/stage-instances/{channel_id}	authenticated	membership	allow	-
 DELETE	/submissions/{submission_id}/library/chapters/{chapter_id}	authenticated	other	allow	-
 DELETE	/users/@me/channels/{channel_id}	authenticated	membership	allow	-
 DELETE	/users/@me/guilds/{guild_id}	authenticated	membership	allow	-
@@ -141,6 +143,7 @@ GET	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}/permi
 GET	/applications/{application_id}/installs	authenticated	owner	deny	-
 GET	/applications/{application_id}/versions	authenticated	owner	deny	-
 GET	/channels/{channel_id}	authenticated	membership	allow	-
+GET	/channels/{channel_id}/call	authenticated	membership	allow	-
 GET	/channels/{channel_id}/invites	authenticated	membership	allow	-
 GET	/channels/{channel_id}/messages	authenticated	membership	allow	-
 GET	/channels/{channel_id}/messages/pins	authenticated	membership	allow	-
@@ -221,7 +224,11 @@ GET	/guilds/{guild_id}/onboarding	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/prune	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/roles	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/roles/{role_id}/members	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/soundboard-sounds	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/soundboard-sounds/{sound_id}	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/soundboard-sounds/{sound_id}/audio	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/sr/community	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/stage-instances	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/stickers	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/stickers/{sticker_id}/url	authenticated	membership	allow	-
@@ -246,9 +253,13 @@ GET	/oauth2/@me	authenticated	other	allow	any
 GET	/oauth2/authorize	authenticated	other	deny	-
 GET	/oauth2/tokens	authenticated	other	deny	-
 GET	/requests	authenticated	other	allow	-
+GET	/soundboard-default-sounds	authenticated	other	allow	-
+GET	/soundboard-default-sounds/{sound_id}/audio	authenticated	other	allow	-
 GET	/sr/auth/passkeys	authenticated	self	deny	-
 GET	/sr/csrf	authenticated	other	allow	-
 GET	/sr/voice/turn	authenticated	other	allow	-
+GET	/stage-instances/{channel_id}	authenticated	membership	allow	-
+GET	/streams/{stream_key}/preview	authenticated	membership	allow	-
 GET	/submissions	authenticated	other	allow	-
 GET	/submissions/kinds	authenticated	other	allow	-
 GET	/submissions/{submission_id}	authenticated	other	allow	-
@@ -307,6 +318,7 @@ PATCH	/guilds/{guild_id}/emojis/{emoji_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/members/{user_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/roles	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/roles/{role_id}	authenticated	membership	allow	-
+PATCH	/guilds/{guild_id}/soundboard-sounds/{sound_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/sr/community	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/support	authenticated	membership	allow	-
@@ -314,6 +326,7 @@ PATCH	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/voice-states/{user_id}	authenticated	membership	allow	-
 PATCH	/guilds/{guild_id}/welcome-screen	authenticated	membership	allow	-
 PATCH	/sr/auth/passkeys/{id}	authenticated	self	deny	-
+PATCH	/stage-instances/{channel_id}	authenticated	membership	allow	-
 PATCH	/submissions/{submission_id}	authenticated	other	allow	-
 PATCH	/users/@me	authenticated	self	allow	-
 PATCH	/users/@me/channels/{channel_id}	authenticated	membership	allow	-
@@ -403,6 +416,8 @@ POST	/applications/{application_id}/versions	authenticated	owner	deny	-
 POST	/applications/{application_id}/versions/{version_id}/withdraw	authenticated	owner	deny	-
 POST	/channels/{channel_id}/attachments	authenticated	membership	allow	-
 POST	/channels/{channel_id}/attachments/{upload_id}/complete	authenticated	membership	allow	-
+POST	/channels/{channel_id}/call/ring	authenticated	membership	allow	-
+POST	/channels/{channel_id}/call/stop-ringing	authenticated	membership	allow	-
 POST	/channels/{channel_id}/invites	authenticated	membership	allow	-
 POST	/channels/{channel_id}/messages	authenticated	membership	allow	-
 POST	/channels/{channel_id}/messages/bulk-delete	authenticated	membership	allow	-
@@ -410,6 +425,7 @@ POST	/channels/{channel_id}/messages/{message_id}/ack	authenticated	membership	a
 POST	/channels/{channel_id}/messages/{message_id}/threads	authenticated	membership	allow	-
 POST	/channels/{channel_id}/pins/ack	authenticated	membership	allow	-
 POST	/channels/{channel_id}/polls/{message_id}/expire	authenticated	membership	allow	-
+POST	/channels/{channel_id}/send-soundboard-sound	authenticated	membership	allow	-
 POST	/channels/{channel_id}/threads	authenticated	membership	allow	-
 POST	/channels/{channel_id}/typing	authenticated	membership	allow	-
 POST	/channels/{channel_id}/webhooks	authenticated	membership	allow	-
@@ -433,6 +449,7 @@ POST	/guilds/{guild_id}/channels	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/emojis	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/prune	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/roles	authenticated	membership	allow	-
+POST	/guilds/{guild_id}/soundboard-sounds	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/stickers	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/templates	authenticated	membership	allow	-
 POST	/interactions	authenticated	other	deny	-
@@ -454,6 +471,8 @@ POST	/sr/auth/passkeys/register/begin	authenticated	self	deny	-
 POST	/sr/auth/passkeys/register/finish	authenticated	self	deny	-
 POST	/sr/auth/passkeys/verify/begin	authenticated	self	deny	-
 POST	/sr/auth/password	authenticated	self	deny	-
+POST	/stage-instances	authenticated	membership	allow	-
+POST	/streams/{stream_key}/preview	authenticated	membership	allow	-
 POST	/submissions	authenticated	other	allow	-
 POST	/submissions/{submission_id}/comments	authenticated	other	allow	-
 POST	/submissions/{submission_id}/library/chapters	authenticated	other	allow	-

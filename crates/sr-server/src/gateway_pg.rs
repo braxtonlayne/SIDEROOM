@@ -504,6 +504,7 @@ impl GuildDirectory for PgGuildDirectory {
                 stream_viewers: l.stream_viewers,
                 exempt: l.exempt_from_sender_limit,
                 profiles: l.video_profiles.iter().map(|p| (p.height, p.fps)).collect(),
+                tier: sr_voice::governor::Tier::of(l.guild_level, l.patron).0,
             },
             Err(e) => {
                 tracing::error!(error = %e, "voice_limits failed; using the free tier");
