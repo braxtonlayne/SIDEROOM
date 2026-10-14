@@ -94,6 +94,7 @@ test('forced colours keep focus visible', async ({ browser }) => {
   const ctx = await browser.newContext({ forcedColors: 'active', bypassCSP: true });
   const page = await ctx.newPage();
   await page.goto('/login');
+  await page.locator('h1').first().waitFor();
   await page.keyboard.press('Tab');
   const outline = await page.evaluate(() => getComputedStyle(document.activeElement!).outlineStyle);
   expect(outline).not.toBe('none');
