@@ -22,7 +22,7 @@ export const VoiceOp = {
   CLIENT_DISCONNECT: 11,
   /** Reserved: video, screen share. */
   VIDEO: 12,
-  /** Reserved: egress governor notices. */
+  /** Egress governor notices (client contract below; the SFU does not send them yet, VOX-SFU-008). */
   QUALITY: 13,
 } as const;
 
@@ -89,6 +89,14 @@ export interface ReadyData {
   channel_id?: string;
   guild_id?: string;
   participants?: ParticipantInfo[];
+}
+
+/**
+ * QUALITY (op 13), server -> client: the egress governor stepped this room down (`reduced: true`) or back up.
+ * Contract proposed by the client for VOX-SFU-008; ignored by older servers.
+ */
+export interface QualityData {
+  reduced: boolean;
 }
 
 export interface SdpData {

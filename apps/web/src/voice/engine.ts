@@ -22,6 +22,7 @@ import {
   voiceUrl,
   type ReadyData,
   type SdpData,
+  type QualityData,
   type SpeakingData,
 } from './protocol';
 import { qualityFromStats, type ConnectionQuality } from './quality';
@@ -68,6 +69,8 @@ export interface EngineEvents {
   micLost(): void;
   /** Someone's media stream arrived or left. */
   peer(userId: string, present: boolean): void;
+  /** The SFU's egress governor reduced (or restored) the quality of this room (VOX-UI-014). */
+  governor?(reduced: boolean): void;
 }
 
 /** What the rest of the app depends on. */
@@ -340,6 +343,11 @@ export class RtcVoiceEngine implements VoiceEngine {
           this.playback.setPriority(d.user_id, priority && d.speaking !== 0);
           this.events.speaking(d.user_id, (d.speaking & SPEAKING_VOICE) !== 0, priority);
         }
+        break;
+      }
+      case VoiceOp.QUALITY: {
+        const d = f.d as QualityData | undefined;
+        if (typeof d?.reduced === 'boolean') this.events.governor?.(d.reduced);
         break;
       }
       case VoiceOp.CLIENT_DISCONNECT: {

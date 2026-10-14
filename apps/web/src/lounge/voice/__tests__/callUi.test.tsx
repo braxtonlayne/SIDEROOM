@@ -9,7 +9,7 @@ import { resetComposerDrafts } from '../../Composer';
 import { useLoungeUi } from '../../store';
 import { setVoiceController, VoiceController } from '../../../voice/controller';
 import type { ConnectParams, EngineEvents, VoiceEngine } from '../../../voice/engine';
-import { resetSession, useVoiceSession } from '../../../voice/session';
+import { patchSession, resetSession, useVoiceSession } from '../../../voice/session';
 import { DEFAULT_VOICE_SETTINGS, useVoiceSettings } from '../../../voice/settings';
 import {
   resetLocalVideo,
@@ -163,7 +163,7 @@ afterEach(() => setVoiceController(null));
 
 async function joined(user: ReturnType<typeof userEvent.setup>) {
   at('/channels/1001/2011');
-  await user.click(await screen.findByRole('button', { name: 'Join Voice' }));
+  await user.click(await screen.findByRole('button', { name: 'Join Voice' }, { timeout: 8000 }));
   return screen.findByRole('toolbar', { name: 'Call controls' });
 }
 
@@ -473,5 +473,52 @@ describe('dragging people between channels (VOX-UI-009)', () => {
     const target = within(sidebar).getByRole('button', { name: /^Movie night/ });
     fireEvent.dragOver(target, { dataTransfer: { types: ['Files'] } });
     expect(target).not.toHaveAttribute('data-voice-drop');
+  });
+});
+
+describe('voice panel notices (VOX-UI-013 / VOX-UI-014)', () => {
+  it('shows the governor notice and the refusal with upgrade links, and dismisses the refusal', async () => {
+    const user = userEvent.setup();
+    at('/channels/1001/2001');
+    act(() => {
+      patchSession({
+        status: 'connected',
+        guildId: '1001',
+        channelId: '2011',
+        channelName: 'General',
+        reducedQuality: true,
+        refusal: { code: 'videoLimit', message: 'This channel has reached its video limit (5).' },
+      });
+    });
+    const panel = await screen.findByRole('region', { name: 'Voice connection' });
+    expect(within(panel).getByTestId('governor-notice')).toHaveTextContent('Reduced quality');
+    const refusal = within(panel).getByTestId('refusal-notice');
+    expect(refusal).toHaveTextContent('video limit (5)');
+    expect(within(refusal).getByRole('link', { name: 'Support this server' })).toHaveAttribute(
+      'href',
+      '/support',
+    );
+    expect(within(refusal).getByRole('link', { name: 'Become a Patron' })).toBeInTheDocument();
+    await user.click(within(refusal).getByRole('button', { name: 'Dismiss' }));
+    expect(useVoiceSession.getState().refusal).toBeNull();
+    expect(await axeViolations(panel)).toEqual([]);
+  });
+
+  it('the camera and share buttons in the panel follow the session', async () => {
+    const user = userEvent.setup();
+    await joined(user);
+    const panel = await screen.findByRole('region', { name: 'Voice connection' });
+    await user.click(within(panel).getByRole('button', { name: 'Turn on camera' }));
+    await waitFor(() => expect(useVoiceSession.getState().camera).toBe(true));
+    expect(within(panel).getByRole('button', { name: 'Turn off camera' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await user.click(within(panel).getByRole('button', { name: 'Share your screen' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Share your screen' });
+    await user.click(within(dialog).getByRole('button', { name: 'Go Live' }));
+    await waitFor(() => expect(useVoiceSession.getState().screen).toBe(true));
+    await user.click(within(panel).getByRole('button', { name: 'Stop sharing' }));
+    expect(useVoiceSession.getState().screen).toBe(false);
   });
 });

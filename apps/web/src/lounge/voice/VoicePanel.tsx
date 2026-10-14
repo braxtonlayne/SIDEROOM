@@ -168,6 +168,31 @@ export function VoicePanel() {
           {s.notice}
         </Notice>
       )}
+      {s.reducedQuality && (
+        <Notice variant="warning" role="status" data-testid="governor-notice">
+          {t('lounge.voiceNotices.reduced')}
+        </Notice>
+      )}
+      {s.refusal && (
+        <Notice
+          variant="warning"
+          role="alert"
+          data-testid="refusal-notice"
+          onDismiss={() => controller.dismissRefusal()}
+        >
+          {s.refusal.message}
+          <div className="vc-error-actions">
+            <Link to="/support" className="vc-link">
+              {t('lounge.voiceNotices.support')}
+            </Link>
+            {s.refusal.code === 'videoLimit' && (
+              <Link to="/support" className="vc-link">
+                {t('lounge.voiceNotices.patron')}
+              </Link>
+            )}
+          </div>
+        </Notice>
+      )}
       {s.pttForced && <p className="vc-note">{t('lounge.voicePanel.pttRequired')}</p>}
       {picker && (
         <ScreenSharePicker

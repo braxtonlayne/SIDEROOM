@@ -39,6 +39,7 @@ function setup() {
     level: vi.fn(),
     micLost: vi.fn(),
     peer: vi.fn(),
+    governor: vi.fn(),
   } satisfies EngineEvents;
   const engine = new RtcVoiceEngine(events, world.deps);
   return { world, events, engine };
@@ -178,6 +179,18 @@ describe('RtcVoiceEngine media', () => {
     expect(events.speaking).toHaveBeenLastCalledWith('u9', false, false);
     ws.serve(VoiceOp.CLIENT_DISCONNECT, { user_id: 'u9' });
     expect(events.peer).toHaveBeenLastCalledWith('u9', false);
+  });
+
+  it('reports egress governor notices from QUALITY frames and ignores malformed ones', async () => {
+    const { world, events, engine } = setup();
+    const { ws } = await handshake(world, engine);
+    ws.serve(VoiceOp.QUALITY, { reduced: true });
+    expect(events.governor).toHaveBeenLastCalledWith(true);
+    ws.serve(VoiceOp.QUALITY, { reduced: false });
+    expect(events.governor).toHaveBeenLastCalledWith(false);
+    ws.serve(VoiceOp.QUALITY, { reduced: 'yes' });
+    ws.serve(VoiceOp.QUALITY, undefined);
+    expect(events.governor).toHaveBeenCalledTimes(2);
   });
 
   it('ducks everyone else while a priority speaker talks', async () => {

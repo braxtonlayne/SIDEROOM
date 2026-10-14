@@ -442,6 +442,8 @@ export class VoiceController {
       else this.onOtherState(userId, channelId);
     } else if (event === 'SR_VOICE_ERROR') {
       if (d.channel_id !== undefined && d.channel_id !== t.channelId) return;
+      // A refused camera or share (sender allowance, viewer cap) leaves the call running (VOX-UI-013).
+      if (this.started && this.onVideoRefusal(String(d.code ?? ''), d.limit)) return;
       this.fail({
         code: 'refused',
         message: refusalText(String(d.code ?? ''), String(d.message ?? '')),
@@ -607,6 +609,7 @@ export class VoiceController {
       fatal: (e) => this.onEngineFatal(e),
       level: (db) => this.onLevelReading(db),
       micLost: () => this.recoverMic(),
+      governor: (reduced) => patchSession({ reducedQuality: reduced }),
       peer: (userId, present) => {
         if (!present) patchSession({ speaking: omit(useVoiceSession.getState().speaking, userId) });
       },
@@ -636,6 +639,43 @@ export class VoiceController {
       .catch(() => {
         if (this.engine === engine) giveUp();
       });
+  }
+
+  /**
+   * SR_VOICE_ERROR codes for a refused camera or share. Contract proposed for VOX-SIG-009 (not sent yet):
+   * `video_limit` (sender allowance of the channel) and `viewer_cap` (audience of a stream), each with an
+   * optional numeric `limit`. Returns true when the code was one of them.
+   */
+  private onVideoRefusal(code: string, limit: unknown): boolean {
+    if (code !== 'video_limit' && code !== 'viewer_cap') return false;
+    const n = typeof limit === 'number' ? limit : null;
+    if (code === 'video_limit') {
+      this.stopCamera();
+      this.stopScreenShare();
+    }
+    patchSession({
+      refusal:
+        code === 'video_limit'
+          ? {
+              code: 'videoLimit',
+              message:
+                n === null
+                  ? t('voice.refusal.videoLimitNoCount')
+                  : t('voice.refusal.videoLimit', { limit: n }),
+            }
+          : {
+              code: 'viewerCap',
+              message:
+                n === null
+                  ? t('voice.refusal.viewerCapNoCount')
+                  : t('voice.refusal.viewerCap', { limit: n }),
+            },
+    });
+    return true;
+  }
+
+  dismissRefusal(): void {
+    patchSession({ refusal: null });
   }
 
   /** Dismiss the "recovered" note. */

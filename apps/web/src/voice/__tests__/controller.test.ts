@@ -676,6 +676,29 @@ describe('server-driven changes', () => {
     expect(sess().error).toMatchObject({ code: 'mic', mic: 'no-device' });
   });
 
+  it('shows and clears the egress governor notice (VOX-UI-014)', async () => {
+    const h = harness();
+    await connected(h);
+    h.last().events.governor!(true);
+    expect(sess().reducedQuality).toBe(true);
+    h.last().events.governor!(false);
+    expect(sess().reducedQuality).toBe(false);
+  });
+
+  it('a refused camera keeps the call and shows the limit with an upgrade hint (VOX-UI-013)', async () => {
+    const h = harness();
+    await connected(h);
+    h.emit('SR_VOICE_ERROR', { guild_id: 'g1', channel_id: 'c1', code: 'video_limit', limit: 5 });
+    expect(sess().status).toBe('connected');
+    expect(sess().refusal).toMatchObject({ code: 'videoLimit' });
+    expect(sess().refusal!.message).toContain('video limit (5)');
+    h.c.dismissRefusal();
+    expect(sess().refusal).toBeNull();
+    h.emit('SR_VOICE_ERROR', { guild_id: 'g1', channel_id: 'c1', code: 'viewer_cap' });
+    expect(sess().refusal).toMatchObject({ code: 'viewerCap' });
+    expect(sess().status).toBe('connected');
+  });
+
   it('gives up after repeated device losses', async () => {
     const h = harness();
     await connected(h);
