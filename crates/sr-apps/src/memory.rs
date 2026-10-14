@@ -698,6 +698,24 @@ impl AppsRepository for MemoryAppsRepo {
         }))
     }
 
+    async fn user_guilds(&self, user: i64) -> AppsResult<Vec<GuildBrief>> {
+        let s = self.st();
+        let mut v: Vec<GuildBrief> = s
+            .guilds
+            .iter()
+            .filter(|(_, g)| g.members.contains(&user))
+            .map(|(id, g)| GuildBrief {
+                id: *id,
+                name: format!("guild {id}"),
+                icon_key: None,
+                owner_id: g.owner,
+                member_count: g.members.len() as i64,
+            })
+            .collect();
+        v.sort_by_key(|g| g.id);
+        Ok(v)
+    }
+
     async fn install(&self, req: InstallWrite) -> AppsResult<InstallOutcome> {
         let mut s = self.st();
         let g = s

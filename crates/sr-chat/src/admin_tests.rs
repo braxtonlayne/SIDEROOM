@@ -416,6 +416,7 @@ fn name(f: &Fx, user: UserId, username: &str, display: Option<&str>) {
             display_name: display.map(str::to_owned),
             avatar_key: None,
             banner_key: None,
+            bot: false,
         },
     );
 }

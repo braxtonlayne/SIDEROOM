@@ -605,6 +605,15 @@ impl AppsRepository for PgAppsRepo {
                 .await
                 .map_err(db)?;
         }
+        if let Some(icon) = &p.icon_key {
+            // The bot account wears the application icon (served from `avatars/<bot id>/`).
+            sqlx::query("UPDATE accounts SET avatar_key = $2, updated_at = now() WHERE id = $1")
+                .bind(current.bot_user_id)
+                .bind(icon)
+                .execute(&mut *tx)
+                .await
+                .map_err(db)?;
+        }
         audit_in(&mut tx, &audit).await?;
         let app = fetch_app(&mut tx, id).await?;
         tx.commit().await.map_err(db)?;
@@ -1063,6 +1072,27 @@ impl AppsRepository for PgAppsRepo {
             })
         })
         .transpose()
+    }
+
+    async fn user_guilds(&self, user: i64) -> AppsResult<Vec<GuildBrief>> {
+        let rows = sqlx::query(
+            "SELECT g.id, g.name, g.icon_key, g.owner_id, \n             (SELECT count(*) FROM guild_members c WHERE c.guild_id = g.id) AS members \n             FROM guild_members m JOIN guilds g ON g.id = m.guild_id WHERE m.user_id = $1 \n             ORDER BY g.id LIMIT 200",
+        )
+        .bind(user)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter()
+            .map(|r| {
+                Ok(GuildBrief {
+                    id: r.try_get("id").map_err(db)?,
+                    name: r.try_get("name").map_err(db)?,
+                    icon_key: r.try_get("icon_key").map_err(db)?,
+                    owner_id: r.try_get("owner_id").map_err(db)?,
+                    member_count: r.try_get("members").map_err(db)?,
+                })
+            })
+            .collect()
     }
 
     async fn install(&self, req: InstallWrite) -> AppsResult<InstallOutcome> {

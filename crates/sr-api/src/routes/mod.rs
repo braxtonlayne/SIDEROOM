@@ -19,6 +19,10 @@
 //! * `library`: `/library/*` catalog for members, `/admin/library/*` for publishers.
 //! * `cinema`: `/cinema/*` catalog for members, `/admin/cinema/*` for publishers.
 //! * `voice`: `GET /sr/voice/turn` and `PATCH /guilds/{id}/voice-states/{user_id}`.
+//! * `developer`: `/developers/*`, `/applications*`, `/oauth2/*`, `/interactions*`, `/gateway*`,
+//!   `/applications/{id}/commands*`, `/webhooks/{app}/{token}/messages/*` and `/admin/developers/*`.
+//!   The follow-up `POST /webhooks/{app}/{interaction token}` stays with `settings`, which asks
+//!   `developer` first.
 //! * `social`: relationships, ignores, notes, DMs (`/users/@me/channels*`, `/channels/{id}/recipients/*`),
 //!   acks and read states, notification settings, profiles (`PATCH /users/@me`, `/users/{id}/profile`)
 //!   and `/users/@me/presence`. Only `GET /users/@me` stays with the base router.
@@ -34,6 +38,7 @@ pub mod cdn;
 pub mod cinema;
 pub mod cinema_media;
 pub mod cinema_social;
+pub mod developer;
 pub mod guilds;
 pub mod library;
 pub mod media;
@@ -103,6 +108,7 @@ pub fn all() -> Router<AppState> {
         .merge(review::router())
         .merge(voice::router())
         .merge(cinema_social::router())
+        .merge(developer::router())
 }
 
 /// Feature-owned routers (`Feature::routes()`), nested under
@@ -133,6 +139,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(review::openapi());
     doc.merge(voice::openapi());
     doc.merge(cinema_social::openapi());
+    doc.merge(developer::openapi());
     doc
 }
 

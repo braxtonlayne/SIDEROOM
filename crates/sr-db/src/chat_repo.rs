@@ -1511,7 +1511,7 @@ impl UserLookup for PgChatRepo {
         let ids: Vec<i64> = ids.iter().map(|u| i(u.get())).collect();
         let rows = sqlx::query(
             "SELECT id, username::text AS username, display_name, avatar_key, \
-             banner_key FROM accounts WHERE id = ANY($1)",
+             banner_key, is_bot FROM accounts WHERE id = ANY($1)",
         )
         .bind(ids)
         .fetch_all(&self.pool)
@@ -1525,6 +1525,7 @@ impl UserLookup for PgChatRepo {
                 display_name: r.try_get("display_name").map_err(db)?,
                 avatar_key: r.try_get("avatar_key").map_err(db)?,
                 banner_key: r.try_get("banner_key").map_err(db)?,
+                bot: r.try_get("is_bot").map_err(db)?,
             });
         }
         Ok(out)

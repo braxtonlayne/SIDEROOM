@@ -611,10 +611,25 @@ pub struct ExecuteWebhookBody {
 pub async fn execute_webhook(
     Ext(deps): Ext<SettingsDeps>,
     Ext(messages): Ext<MessagesDeps>,
+    MaybeExt(dev): MaybeExt<crate::routes::developer::DevDeps>,
     Path((webhook_id, token)): Path<(String, String)>,
     ApiQuery(q): ApiQuery<ExecuteQuery>,
     ApiJson(body): ApiJson<ExecuteWebhookBody>,
 ) -> MsgResult<axum::response::Response> {
+    // `POST /webhooks/{application_id}/{interaction token}` is an interaction follow-up.
+    if let Some(dev) = &dev
+        && let Some(resp) = crate::routes::developer::try_followup(
+            dev,
+            &messages,
+            &webhook_id,
+            &token,
+            q.wait == Some(true),
+            &body,
+        )
+        .await?
+    {
+        return Ok(resp);
+    }
     let w = authed(&deps, &webhook_id, &token).await?;
     if q.thread_id.is_some() {
         return Err(MsgError::from(HttpError(

@@ -133,7 +133,7 @@ async fn bot_accounts_are_marked_cannot_log_in_and_do_not_count() {
         sr_auth::password::PasswordHasher::new(sr_auth::password::PasswordParams::default())
             .unwrap();
     for guess in ["", "!bot", "password", &"A".repeat(43)] {
-        assert_eq!(hasher.verify(guess, &row.1).unwrap(), false, "{guess:?}");
+        assert!(!hasher.verify(guess, &row.1).unwrap(), "{guess:?}");
     }
     let humans: i64 =
         sqlx::query_scalar("SELECT count(*) FROM accounts WHERE state = 'active' AND NOT is_bot")
@@ -363,7 +363,7 @@ async fn test_server_limit_and_release_flow() {
     let staff = f.other;
     let pending = f.svc.pending_versions("pending", 10, None).await.unwrap();
     assert_eq!(pending.len(), 1);
-    assert_eq!(pending[0].2.len() > 0, true);
+    assert!(!pending[0].2.is_empty());
     let (_, app) = f
         .svc
         .decide_version(

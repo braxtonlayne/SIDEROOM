@@ -223,6 +223,8 @@ pub trait AppsRepository: Send + Sync {
     // ----- installs
     /// Owner and member count of a guild.
     async fn guild_stats(&self, guild: i64) -> AppsResult<Option<GuildStats>>;
+    /// Guilds the user is a member of (at most 200), for the consent screen.
+    async fn user_guilds(&self, user: i64) -> AppsResult<Vec<GuildBrief>>;
     /// Record an install and, with `bot`, add the member and its managed role.
     async fn install(&self, req: InstallWrite) -> AppsResult<InstallOutcome>;
     /// Installs of an application.

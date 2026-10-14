@@ -161,6 +161,23 @@ pub async fn current_user(
     {
         me.avatar = u.avatar;
         me.banner = u.banner;
+        // Bots and OAuth2 callers have no account overview below; the public user fields are
+        // enough (a bearer token reaches this route only with `identify`).
+        if !matches!(p.kind, crate::AuthKind::Session { .. }) {
+            me.username = u.username;
+            me.global_name.clone_from(&u.global_name);
+            me.display_name = u.global_name;
+            me.bot = me.bot || u.bot;
+        }
+    }
+    // The `email` scope also reveals the address the user signed up with.
+    if let crate::AuthKind::Bearer { scopes, .. } = &p.kind
+        && scopes.iter().any(|s| s == "email")
+        && let Some(auth) = &auth
+        && let Ok(Some((account, _))) = auth.account_overview(p.user_id).await
+    {
+        me.verified = Some(account.email_verified);
+        me.email = Some(account.email);
     }
     // Only a session is backed by an account row; the email is the caller's own.
     if matches!(p.kind, crate::AuthKind::Session { .. })

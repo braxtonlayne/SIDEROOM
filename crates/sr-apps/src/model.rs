@@ -517,3 +517,18 @@ pub struct InteractionMessage {
     /// Stored object of an ephemeral message.
     pub payload: Option<Value>,
 }
+
+/// A guild a user belongs to, as the consent screen lists it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GuildBrief {
+    /// Guild id.
+    pub id: i64,
+    /// Name.
+    pub name: String,
+    /// Icon hash.
+    pub icon_key: Option<String>,
+    /// Owner.
+    pub owner_id: i64,
+    /// Members including bots.
+    pub member_count: i64,
+}

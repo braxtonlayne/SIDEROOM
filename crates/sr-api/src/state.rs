@@ -41,10 +41,9 @@ pub struct ApiSettings {
 
 impl Default for ApiSettings {
     fn default() -> Self {
-        Self {
-            enforce_credential_policy: false,
-            ..Self::for_public_url("http://localhost:8080")
-        }
+        let mut s = Self::for_public_url("http://localhost:8080");
+        s.enforce_credential_policy = false;
+        s
     }
 }
 

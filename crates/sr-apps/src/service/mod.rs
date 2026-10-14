@@ -879,6 +879,11 @@ impl AppsService {
     }
 
     /// Facts about a guild for the consent screen.
+    pub async fn user_guilds(&self, user: i64) -> AppsResult<Vec<GuildBrief>> {
+        self.repo.user_guilds(user).await
+    }
+
+    /// Facts about a guild for the consent screen.
     pub async fn guild_stats(&self, guild: i64) -> AppsResult<Option<GuildStats>> {
         self.repo.guild_stats(guild).await
     }
