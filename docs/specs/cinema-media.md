@@ -287,7 +287,7 @@ alone; its `episode_id` is `"0"` everywhere** (progress, ratings, comments, hist
 
 Shared shapes:
 - Every schema of this section is `Cinema`-prefixed in the OpenAPI document (`CinemaProgress`, `CinemaReview`, `CinemaTitleRef`, ...) so it cannot clash with the Library's `Progress`, `HistoryPage` and friends.
-- `TitleRef` `{id, kind: movie|series|anime, title, year?, age_restricted, poster_key?}` and `EpisodeRef`
+- `TitleRef` `{id, kind: movie|series|anime, title, year?, age_restricted, poster_url?}` (`poster_url` is a signed `/cdn/cinema/...` link, hour-rounded like the catalog's artwork URLs; the storage key is not exposed) and `EpisodeRef`
   `{id, title_id, season, number, title?, runtime_secs?}` come from the catalog at read time (a title that is unpublished or
   gone is left out of lists).
 - `Progress` `{title_id, episode_id, position_secs, duration_secs, percent, completed, updated_at_ms}`.
@@ -382,7 +382,7 @@ edited_at_ms?}`. Authors the caller blocked or ignored are left out. Deleting a 
 
 **Moderation hooks.** `POST /cinema/reviews/{id}/report` and `POST /cinema/comments/{id}/report` (`{reason}`) store a report (once per
 reporter and target) and call `ModerationHook::on_report`; `ModerationHook::screen` runs before a review or comment is stored and
-may reject it. Staff hiding is `CinemaService::set_hidden`; hidden content is not listed. No staff HTTP surface yet (gap).
+may reject it. Staff hiding is `CinemaService::set_hidden`; hidden content is not listed. The staff HTTP surface is section 9.10.
 
 ### 9.7 Trending and recommendations (CIN-SOC-002)
 
@@ -399,8 +399,8 @@ caller already started. People with `cinema.share_watching = off` are not counte
 ### 9.8 Gaps
 
 CIN-SOC-003 contribution credits are not built: they need the cinema submissions pipeline (D-074 counts approved movies and episodes).
-No staff HTTP surface for moderation or featured lists. No expiry sweeper job for presence rows (expired rows are ignored by every read
-and replaced by the next heartbeat; `CinemaService::sweep_presence` is available for a job).
+No featured lists. "Requests fulfilled" has no provider (the cinema requests pipeline does not exist). The presence sweep runs as the
+job `cinema.presence_sweep` (every minute, singleton id 160).
 
 ### 9.9 `CatalogLookup` (implemented by `sr-cinema`)
 
@@ -415,7 +415,7 @@ pub trait CatalogLookup: Send + Sync {
     async fn titles_with_tags(&self, tags: &[String], exclude: &[i64], limit: u32) -> CatalogResult<Vec<CatalogTitle>>;
 }
 ```
-`CatalogTitle {id, kind, title, year, age_restricted, runtime_secs, poster_key, tags}` (tags include genres, lower-case);
+`CatalogTitle {id, kind, title, year, age_restricted, runtime_secs, poster_url, tags}` (tags include genres, lower-case);
 `CatalogEpisode {id, title_id, season, number, title, runtime_secs}`. `sr-cinema-social` ships `MemoryCatalog` for tests.
 
 ## 10. Playback source contract (phase 7, `sr-api` playback routes)
@@ -477,3 +477,18 @@ The master URL is `/cdn/hls/<asset_id>/master.m3u8?ex=&sig=` (CDN signer, 6 h). 
 WebVTT, ASS, fonts and sprite sheets are plain objects; every `.m3u8` and the sprite `.vtt` map are **rendered on request** from the
 `PlaybackSource` with `sr_media::playlist` (`render_master`, `render_video_playlist`, `render_audio_playlist`, `render_subtitle_playlist`,
 `render_sprite_vtt`), so the URLs inside carry fresh signatures. (Delivery of rendered playlists: see the handoff of `feat/p7-cinema-wiring` for what is built.)
+
+### 9.10 Wiring in `sr-server` (phase 7)
+
+- `sr-server::cinema_catalog::RepoCatalog` implements `CatalogLookup` over the catalog repository (published, non-merged titles; published episodes; restricted titles returned, play gated by 900011; an anime without episodes is reported as a movie; `poster_url` signed; tags = genres + tags; next episode = the repository's playable neighbour).
+- `sr_cinema_social::row_providers(&social)` registers `continue-watching` (reasons `resume` / `up_next`, progress percent), `recently-explored` (history, one entry per title), `trending` (`?scope=friends|known|global`, default `known`), `because-you-watched` (title "Because you watched X") and `friends-watching` on the catalog service. `requests-fulfilled` has no provider yet.
+- `sr_cinema_social::SocialObserver` is registered with `with_observer`: a merge moves progress (newest row wins per user and episode, `completed` stays sticky), ratings (newest wins), list items (the target's place wins), comments, reviews (newest wins; the loser's votes go) and presence from the merged title to the survivor, remapping dropped duplicate episodes; deleting a title removes all its rows, deleting episodes removes theirs.
+- The job `cinema.presence_sweep` removes lapsed presence rows and sends the "stopped" event.
+
+Staff moderation (`DELETE_CONTENT`, staff session; every change goes to the access log):
+
+| Route | Meaning |
+|---|---|
+| `GET /admin/cinema/reports?status=open|actioned|dismissed|all&before=&limit=` | The report queue, newest first: `{items: [{id, reporter_id, target_kind: review|comment, target_id, reason, status, created_at_ms, content?: {title_id, episode_id?, author_id, excerpt, hidden, created_at_ms}}], next_before}`; `content` is absent when the text was deleted. |
+| `POST /admin/cinema/reports/{id}/resolve` | `{status: open|actioned|dismissed, reason?}`. Log: `cinema.report.resolve`. |
+| `PUT /admin/cinema/reviews/{id}/hidden`, `PUT /admin/cinema/comments/{id}/hidden` | `{hidden, reason?}`. Hiding also marks the open reports about it `actioned`. Log: `cinema.review.hide` / `unhide`, `cinema.comment.hide` / `unhide`. |

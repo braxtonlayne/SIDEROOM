@@ -502,7 +502,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // user-data rows of the catalog (continue watching, trending, ...) and follows merges and deletions.
     let cinema_social_service = sr_cinema_social::CinemaService::new(
         pool.clone(),
-        Arc::new(crate::cinema_catalog::RepoCatalog::new(cinema_repo.clone())),
+        Arc::new(crate::cinema_catalog::RepoCatalog::new(
+            cinema_repo.clone(),
+            cdn_signer.clone(),
+            clock.clone(),
+        )),
         id_src.clone(),
     )
     .with_events(Arc::new(sr_cinema_social::BusEvents::new(bus.clone())));

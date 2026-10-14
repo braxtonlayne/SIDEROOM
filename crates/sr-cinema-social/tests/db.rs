@@ -1763,3 +1763,150 @@ async fn catalog_merges_and_deletions_are_followed() {
         .unwrap();
     assert_eq!(rest, 0);
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn staff_see_the_report_queue_and_hide_content() {
+    use sr_cinema_social::moderation::ReportStatus;
+    let e = Env::new().await;
+    let (author, a, b) = (e.user().await, e.user().await, e.user().await);
+    let comment = e
+        .svc
+        .post_comment(
+            author,
+            1,
+            0,
+            CommentInput {
+                body: "a rude comment".into(),
+                spoiler: None,
+                parent_id: None,
+            },
+        )
+        .await
+        .unwrap();
+    let review = e
+        .svc
+        .put_review(
+            author,
+            2,
+            ReviewInput {
+                body: "a spammy review".into(),
+                spoiler: None,
+                rating: None,
+            },
+        )
+        .await
+        .unwrap();
+    let report = |reason: &str| ReportInput {
+        reason: reason.into(),
+    };
+    assert!(
+        e.svc
+            .report(a, ContentKind::Comment, comment.id, report("rude"))
+            .await
+            .unwrap()
+    );
+    assert!(
+        e.svc
+            .report(b, ContentKind::Comment, comment.id, report("abuse"))
+            .await
+            .unwrap()
+    );
+    assert!(
+        e.svc
+            .report(a, ContentKind::Review, review.id, report("spam"))
+            .await
+            .unwrap()
+    );
+
+    // The queue: newest first, with the reported text and where it sits.
+    let page = e
+        .svc
+        .reports(Some(ReportStatus::Open), None, Some(2))
+        .await
+        .unwrap();
+    assert_eq!(page.items.len(), 2);
+    let first = &page.items[0];
+    assert_eq!(first.target_kind, "review");
+    let c = first.content.as_ref().unwrap();
+    assert_eq!(
+        (c.title_id, c.author_id, c.hidden),
+        (2, author.user_id, false)
+    );
+    assert_eq!(c.excerpt, "a spammy review");
+    let next = page.next_before.clone().expect("a second page");
+    let rest = e
+        .svc
+        .reports(Some(ReportStatus::Open), Some(&next), Some(2))
+        .await
+        .unwrap();
+    assert_eq!(rest.items.len(), 1);
+    assert_eq!(rest.items[0].target_kind, "comment");
+    assert_eq!(rest.items[0].content.as_ref().unwrap().episode_id, Some(0));
+    assert!(rest.next_before.is_none());
+    assert!(e.svc.reports(None, Some("zero"), None).await.is_err());
+
+    // Hiding removes it from member listings; its reports are closed as actioned.
+    assert!(
+        e.svc
+            .set_hidden(ContentKind::Comment, comment.id, true)
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        e.svc
+            .close_reports_for(ContentKind::Comment, comment.id, ReportStatus::Actioned)
+            .await
+            .unwrap(),
+        2
+    );
+    let listed = e.svc.comments(a, 1, 0, None, None).await.unwrap();
+    assert!(listed.items.iter().all(|c| c.id != comment.id));
+    let open = e
+        .svc
+        .reports(Some(ReportStatus::Open), None, None)
+        .await
+        .unwrap();
+    assert_eq!(open.items.len(), 1);
+    let done = e
+        .svc
+        .reports(Some(ReportStatus::Actioned), None, None)
+        .await
+        .unwrap();
+    assert_eq!(done.items.len(), 2);
+    // Staff still read hidden content in the queue.
+    assert!(done.items[0].content.as_ref().unwrap().hidden);
+
+    // Dismiss the review report; reopening works; unknown ids answer false.
+    let id = open.items[0].id;
+    assert!(
+        e.svc
+            .resolve_report(id, ReportStatus::Dismissed)
+            .await
+            .unwrap()
+    );
+    assert!(
+        e.svc
+            .reports(Some(ReportStatus::Open), None, None)
+            .await
+            .unwrap()
+            .items
+            .is_empty()
+    );
+    assert!(e.svc.resolve_report(id, ReportStatus::Open).await.unwrap());
+    assert!(
+        !e.svc
+            .resolve_report(12345, ReportStatus::Open)
+            .await
+            .unwrap()
+    );
+
+    // Content deleted by its author leaves the report with no content.
+    assert!(e.svc.delete_comment(author, comment.id).await.unwrap());
+    let all = e.svc.reports(None, None, None).await.unwrap();
+    assert!(
+        all.items
+            .iter()
+            .any(|r| r.target_kind == "comment" && r.content.is_none())
+    );
+}

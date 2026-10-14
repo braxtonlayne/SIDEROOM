@@ -7,6 +7,8 @@
 //!   calls with the viewer's age confirmation (`900011`), it never needs the catalog to hide them.
 //! * An anime title without episodes is a film in the catalog's own words, so it is reported as a movie
 //!   (`episode_id` 0); an episodic title is `series` or `anime`.
+//! * The poster is a signed `/cdn/<key>` URL (the same signer and hour-rounded expiry as the catalog's own
+//!   artwork URLs, so a page fetched twice yields identical, cacheable URLs).
 //! * Runtimes are minutes in the catalog and seconds here.
 //! * `tags` are the title's genres plus its tags, lower-case (the catalog lower-cases both on write).
 
@@ -18,15 +20,38 @@ use sr_cinema::repo::{CinemaRepository, EpisodeQuery};
 use sr_cinema_social::{
     CatalogEpisode, CatalogError, CatalogLookup, CatalogResult, CatalogTitle, TitleKind,
 };
+use sr_core::Clock;
+use sr_storage::cdn::CdnSigner;
 
 /// [`CatalogLookup`] over the catalog repository.
 pub struct RepoCatalog {
     repo: Arc<dyn CinemaRepository>,
+    signer: CdnSigner,
+    clock: Arc<dyn Clock>,
 }
 
+/// Hours a signed poster URL stays valid, at least (rounded up to the hour).
+const URL_HOURS: u64 = 6;
+
 impl RepoCatalog {
-    pub fn new(repo: Arc<dyn CinemaRepository>) -> Self {
-        Self { repo }
+    pub fn new(repo: Arc<dyn CinemaRepository>, signer: CdnSigner, clock: Arc<dyn Clock>) -> Self {
+        Self {
+            repo,
+            signer,
+            clock,
+        }
+    }
+
+    fn poster_url(&self, key: &str) -> String {
+        let now = u64::try_from(self.clock.now_unix_ms() / 1000).unwrap_or(0);
+        let expires_at = (now / 3600 + URL_HOURS + 1) * 3600;
+        self.signer.signed_url(&format!("/cdn/{key}"), expires_at)
+    }
+
+    fn title_of(&self, r: &TitleRecord) -> CatalogTitle {
+        let mut t = title_of(r);
+        t.poster_url = r.poster_key.as_deref().map(|k| self.poster_url(k));
+        t
     }
 }
 
@@ -52,7 +77,7 @@ fn title_of(r: &TitleRecord) -> CatalogTitle {
         year: r.year.map(i32::from),
         age_restricted: r.age_restricted,
         runtime_secs: r.runtime_min.map(|m| m.saturating_mul(60)),
-        poster_key: r.poster_key.clone(),
+        poster_url: None,
         tags,
     }
 }
@@ -82,7 +107,7 @@ impl CatalogLookup for RepoCatalog {
             .await
             .map_err(failed)?
             .as_ref()
-            .map(title_of))
+            .map(|r| self.title_of(r)))
     }
 
     async fn titles(&self, ids: &[i64]) -> CatalogResult<Vec<CatalogTitle>> {
@@ -92,7 +117,7 @@ impl CatalogLookup for RepoCatalog {
             .await
             .map_err(failed)?
             .iter()
-            .map(title_of)
+            .map(|r| self.title_of(r))
             .collect())
     }
 
@@ -157,7 +182,7 @@ impl CatalogLookup for RepoCatalog {
             .await
             .map_err(failed)?
             .iter()
-            .map(title_of)
+            .map(|r| self.title_of(r))
             .collect())
     }
 }

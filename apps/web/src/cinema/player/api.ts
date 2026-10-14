@@ -7,12 +7,12 @@
 //   GET /cinema/titles/{id}                     -> TitleDetail (trailers, for `?trailer=1`)
 //   progress: see progress.ts
 //
-// ASSUMED (p6-cinema-ingest has the playlist code, `ManifestGrant`, but no route in its branch yet; this is the
-// only shape the player guesses, and it is all in `getAssetPlayback` / `refreshSource` below):
-//   GET  /cinema/assets/{asset_id}/playback -> {master_url, expires_at, refresh_at?, duration_secs?,
-//                                               subtitles?: [{id, language, label, forced, is_default, vtt_url,
-//                                               ass_url?}], sprites_url?}        (times in unix SECONDS)
-//   POST /cinema/assets/{asset_id}/refresh  -> {master_url, expires_at, refresh_at?}
+// Implemented in phase 7 (spec section 10, `sr-api` routes/cinema/playback.rs; times in unix SECONDS, 403 code 900011
+// for a restricted title):
+//   GET  /cinema/assets/{asset_id}/playback -> {master_url, expires_at, refresh_at, duration_secs?, subtitles[{id,
+//                                               language, label, forced, is_default, vtt_url, ass_url?}],
+//                                               audio_tracks[], sprites_url?, sprite?, markers[]}
+//   POST /cinema/assets/{asset_id}/refresh  -> {master_url, expires_at, refresh_at}
 //
 // ASSUMED (p6-cinema-ingest CIN-DL, no code yet):
 //   GET  /cinema/titles/{id}/downloads[?episode=]  -> DownloadOptions   (403: not a Patron)

@@ -17,6 +17,7 @@ pub mod hooks;
 pub mod ids;
 pub mod lists;
 pub mod model;
+pub mod moderation;
 pub mod ports;
 pub mod presence;
 pub mod progress;

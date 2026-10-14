@@ -9,9 +9,7 @@ export interface TitleRef {
   title: string;
   year?: number | null;
   age_restricted?: boolean;
-  /** Storage key of the poster. Not displayable on its own: the catalog signs `poster_url`s. */
-  poster_key?: string | null;
-  /** Present when the server signs it; the cards fall back to a lettered tile without it. */
+  /** Signed poster link (`/cdn/cinema/...`); the cards fall back to a lettered tile without it. */
   poster_url?: string | null;
 }
 

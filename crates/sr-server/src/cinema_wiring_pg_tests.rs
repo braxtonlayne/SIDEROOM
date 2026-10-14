@@ -69,7 +69,11 @@ async fn world() -> World {
     let repo = Arc::new(PgCinemaRepo::new(pool.clone()));
     let social = Social::new(
         pool.clone(),
-        Arc::new(RepoCatalog::new(repo.clone())),
+        Arc::new(RepoCatalog::new(
+            repo.clone(),
+            CdnSigner::new(vec![7u8; 32]),
+            Arc::new(SystemClock),
+        )),
         Arc::new(uid),
     );
     let mut catalog = CinemaService::new(
@@ -309,10 +313,19 @@ async fn the_catalog_adapter_resolves_titles_and_episodes() {
     let saved = w.social.saved_items(user, None, None).await.unwrap();
     assert_eq!(saved.items.len(), 1);
     assert_eq!(saved.items[0].title.title, "Quiet Film");
-    assert_eq!(
-        saved.items[0].title.poster_key.as_deref(),
-        Some("cinema/1/poster.webp")
+    let poster = saved.items[0].title.poster_url.as_deref().unwrap();
+    assert!(
+        poster.starts_with("/cdn/cinema/1/poster.webp?ex="),
+        "{poster}"
     );
+    let (path, query) = poster.split_once('?').unwrap();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    CdnSigner::new(vec![7u8; 32])
+        .verify_query(path, query, now)
+        .unwrap();
 
     // Tag recommendations: someone who watched the film is offered titles sharing its genre.
     w.social

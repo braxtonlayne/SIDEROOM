@@ -13,6 +13,9 @@
 
 mod discover;
 mod lists;
+mod moderation;
+#[cfg(test)]
+mod moderation_tests;
 mod progress;
 mod social;
 
@@ -243,6 +246,20 @@ pub fn router() -> Router<AppState> {
         // Discovery.
         .route("/cinema/trending", get(discover::trending))
         .route("/cinema/me/recommendations", get(discover::recommendations))
+        // Staff moderation (DELETE_CONTENT).
+        .route("/admin/cinema/reports", get(moderation::reports))
+        .route(
+            "/admin/cinema/reports/{report_id}/resolve",
+            post(moderation::resolve_report),
+        )
+        .route(
+            "/admin/cinema/reviews/{review_id}/hidden",
+            put(moderation::hide_review),
+        )
+        .route(
+            "/admin/cinema/comments/{comment_id}/hidden",
+            put(moderation::hide_comment),
+        )
 }
 
 /// OpenAPI fragment for the Cinema social endpoints.
@@ -300,6 +317,10 @@ pub fn router() -> Router<AppState> {
         social::report_comment,
         discover::trending,
         discover::recommendations,
+        moderation::reports,
+        moderation::resolve_report,
+        moderation::hide_review,
+        moderation::hide_comment,
     ),
     components(schemas(
         ErrorBody,
@@ -350,6 +371,12 @@ pub fn router() -> Router<AppState> {
         sr_cinema_social::model::Recommendation,
         sr_cinema_social::model::RecommendationRow,
         sr_cinema_social::model::Recommendations,
+        sr_cinema_social::moderation::ReportStatus,
+        sr_cinema_social::moderation::ReportedContent,
+        sr_cinema_social::moderation::Report,
+        sr_cinema_social::moderation::ReportPage,
+        moderation::ResolveBody,
+        moderation::HiddenBody,
     ))
 )]
 pub struct CinemaSocialApiDoc;
