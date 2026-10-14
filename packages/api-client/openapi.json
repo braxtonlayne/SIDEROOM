@@ -4949,6 +4949,1142 @@
         ]
       }
     },
+    "/admin/donations/config": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "The donation settings (prices, thresholds, perks, depths, expiry).",
+        "operationId": "admin_donations_get_config",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Change settings with a JSON merge patch. The result is validated as a whole; nothing applies\non a failure. Takes effect immediately (no restart).",
+        "operationId": "admin_donations_patch_config",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchConfigBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/donations/entitlements": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Entitlement grants (from invoices, staff, or the legacy download table), newest first.",
+        "operationId": "admin_donations_entitlements",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "description": "`patron` or `server_pool`.",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "guild_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "active",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "before",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Grant Patron time or a server pool contribution by hand.",
+        "operationId": "admin_donations_grant",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/donations/entitlements/{grant_id}": {
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Revoke a grant.",
+        "operationId": "admin_donations_revoke",
+        "parameters": [
+          {
+            "name": "grant_id",
+            "in": "path",
+            "description": "Grant snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "The reason may also be sent as X-Audit-Log-Reason.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/donations/invoices": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Search invoices (newest first).",
+        "operationId": "admin_donations_invoices",
+        "parameters": [
+          {
+            "name": "state",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "purpose",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "path",
+            "description": "An invoice id, an address, or a transaction id prefix.",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "needs_attention",
+            "in": "path",
+            "description": "Only underpaid, overpaid and late-paid invoices.",
+            "required": true,
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "before",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminInvoicePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/donations/invoices/{invoice_id}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "One invoice with its payer, transactions and full audit trail. The read is access-logged.",
+        "operationId": "admin_donations_invoice",
+        "parameters": [
+          {
+            "name": "invoice_id",
+            "in": "path",
+            "description": "Invoice snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminInvoiceView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/donations/invoices/{invoice_id}/resolve": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Close an invoice by hand: `mark_paid` (credits the purpose once), `refund_noted` (the operator\nrefunded outside this system; a credit already given is reversed) or `dismiss`. The server\nnever moves funds.",
+        "operationId": "admin_donations_resolve",
+        "parameters": [
+          {
+            "name": "invoice_id",
+            "in": "path",
+            "description": "Invoice snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminInvoiceView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/donations/leaderboard/hide": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Keep a donor or a server off the public leaderboards (or put them back).",
+        "operationId": "admin_donations_hide",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HideBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/donations/leaderboard/{board}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "The ranking with real names and amounts (staff view; the read is access-logged). Entries staff\nhid are not listed.",
+        "operationId": "admin_donations_leaderboard",
+        "parameters": [
+          {
+            "name": "board",
+            "in": "path",
+            "description": "`donors` or `servers`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "window",
+            "in": "path",
+            "description": "`30d` (default) or `lifetime`.",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoardView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/donations/rates": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "The price sources and the current median.",
+        "operationId": "admin_donations_rates",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RatesView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/donations/report": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Credited totals by purpose and by day, and invoice counts by state (default: this month).",
+        "operationId": "admin_donations_report",
+        "parameters": [
+          {
+            "name": "from_ms",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "to_ms",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/donations/status": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Wallet health, watcher status, rate sources and invoice counts. Reveals no descriptor or key.",
+        "operationId": "admin_donations_status",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/donations/wallet": {
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Set the active wallet from a watch-only descriptor. Descriptors with private keys are\nrefused. Older wallets stay watched for their open invoices. Returns the first addresses to\ncompare with the operator's own wallet.",
+        "operationId": "admin_donations_set_wallet",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetWalletBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/donations/wallet/test": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Derive the first receive addresses of a descriptor without saving anything.",
+        "operationId": "admin_donations_test_wallet",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestWalletBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestWalletResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/features": {
       "get": {
         "tags": [
@@ -18831,6 +19967,546 @@
         ]
       }
     },
+    "/donations/config": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "Public donation settings: prices, tiers, perks, the current BTC price, and this month's\ndonations against the hosting cost.",
+        "operationId": "donations_config",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DonationConfigView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/donations/invoices": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "The caller's invoices, newest first (transactions are only in the single-invoice read).",
+        "operationId": "donations_list_invoices",
+        "parameters": [
+          {
+            "name": "before",
+            "in": "path",
+            "description": "Return invoices older than this id.",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "path",
+            "description": "At most 50 (default 25).",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoicePage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "member"
+        ],
+        "summary": "Create an invoice: a fresh address derived from the operator's watch-only wallet, the amount\nin satoshis locked at the current rate. 503 when the address gap limit is reached or no fresh\nprice exists; 403 `SR_FEATURE_DISABLED` when donations are off; 429 over 10 open invoices.",
+        "operationId": "donations_create_invoice",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInvoiceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/donations/invoices/{invoice_id}": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "One of the caller's invoices with its transactions.",
+        "operationId": "donations_get_invoice",
+        "parameters": [
+          {
+            "name": "invoice_id",
+            "in": "path",
+            "description": "Invoice snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/donations/invoices/{invoice_id}/cancel": {
+      "post": {
+        "tags": [
+          "member"
+        ],
+        "summary": "Cancel an open invoice that has received nothing (409 otherwise).",
+        "operationId": "donations_cancel_invoice",
+        "parameters": [
+          {
+            "name": "invoice_id",
+            "in": "path",
+            "description": "Invoice snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/donations/invoices/{invoice_id}/check": {
+      "post": {
+        "tags": [
+          "member"
+        ],
+        "summary": "The \"I've paid\" button: reads the chain for this invoice now (at most once per 10 seconds).",
+        "operationId": "donations_check_invoice",
+        "parameters": [
+          {
+            "name": "invoice_id",
+            "in": "path",
+            "description": "Invoice snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/donations/leaderboards/{board}": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "A public leaderboard: `donors` (individuals) or `servers`. Donors who hide their name show as\n\"Anonymous patron\"; hidden amounts are omitted (rank only). Cached for an hour.",
+        "operationId": "donations_leaderboard",
+        "parameters": [
+          {
+            "name": "board",
+            "in": "path",
+            "description": "`donors` or `servers`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "window",
+            "in": "path",
+            "description": "`30d` (default) or `lifetime`.",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "path",
+            "description": "At most 100 (default 50).",
+            "required": true,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoardView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/donations/me": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "The caller's Patron status, effective limits and leaderboard preferences.",
+        "operationId": "donations_me",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/donations/me/preferences": {
+      "patch": {
+        "tags": [
+          "member"
+        ],
+        "summary": "Change leaderboard privacy and the Patron badge.",
+        "operationId": "donations_patch_preferences",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrefsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrefsView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/guilds": {
       "post": {
         "tags": [
@@ -22892,6 +24568,138 @@
           {
             "authorization": []
           },
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/support": {
+      "get": {
+        "tags": [
+          "member"
+        ],
+        "summary": "A server's support level, pool and top contributors (members only).",
+        "operationId": "donations_guild_support",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Server snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuildSupportView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "member"
+        ],
+        "summary": "Hide the server from the public leaderboard (owner only).",
+        "operationId": "donations_patch_guild_support",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Server snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuildSupportPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuildSupportPatch"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
           {
             "session": []
           }
@@ -30231,6 +32039,75 @@
           }
         }
       },
+      "AdminInvoicePage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminInvoiceView"
+            }
+          },
+          "next_before": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "AdminInvoiceView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/InvoiceView"
+          },
+          {
+            "type": "object",
+            "required": [
+              "user_id",
+              "derivation_index",
+              "audit"
+            ],
+            "properties": {
+              "audit": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AuditView"
+                }
+              },
+              "derivation_index": {
+                "type": "integer",
+                "format": "int32",
+                "minimum": 0
+              },
+              "resolution_note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "resolved_by": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "user_id": {
+                "type": "string"
+              },
+              "user_name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        ]
+      },
       "AdminTitleDetail": {
         "type": "object",
         "description": "Everything about a title, unpublished parts included (staff).",
@@ -30865,6 +32742,26 @@
           }
         }
       },
+      "AuditView": {
+        "type": "object",
+        "required": [
+          "at_ms",
+          "kind",
+          "detail"
+        ],
+        "properties": {
+          "at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "detail": {
+            "type": "object"
+          },
+          "kind": {
+            "type": "string"
+          }
+        }
+      },
       "BanBody": {
         "type": "object",
         "description": "Ban body: the reason is the ban note.",
@@ -31017,6 +32914,91 @@
           },
           "options": {
             "description": "`PublicKeyCredentialCreationOptions` / `RequestOptions` JSON with base64url\nbinary fields; pass to `navigator.credentials.create/get({ publicKey })`\nafter decoding those fields."
+          }
+        }
+      },
+      "BoardItem": {
+        "type": "object",
+        "required": [
+          "rank",
+          "name",
+          "anonymous"
+        ],
+        "properties": {
+          "anonymous": {
+            "type": "boolean"
+          },
+          "avatar": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cents": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Omitted when the donor hides the amount."
+          },
+          "guild_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "description": "\"Anonymous patron\" when the donor hides the name."
+          },
+          "rank": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "user_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "BoardView": {
+        "type": "object",
+        "required": [
+          "board",
+          "window",
+          "items",
+          "generated_at_ms"
+        ],
+        "properties": {
+          "board": {
+            "type": "string"
+          },
+          "generated_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BoardItem"
+            }
+          },
+          "me": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MyRank"
+              }
+            ]
+          },
+          "window": {
+            "type": "string"
           }
         }
       },
@@ -33558,6 +35540,41 @@
           }
         }
       },
+      "ContributorView": {
+        "type": "object",
+        "required": [
+          "name",
+          "anonymous"
+        ],
+        "properties": {
+          "anonymous": {
+            "type": "boolean"
+          },
+          "avatar": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cents": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Omitted when the contributor hides the amount."
+          },
+          "name": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "CountBody": {
         "type": "object",
         "description": "A count after a vote.",
@@ -33779,6 +35796,59 @@
               "null"
             ],
             "description": "Accepted for Discord compatibility; every call creates a new invite."
+          }
+        }
+      },
+      "CreateInvoiceBody": {
+        "type": "object",
+        "required": [
+          "purpose"
+        ],
+        "properties": {
+          "anonymous": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Contribute without showing the name (server contributions)."
+          },
+          "credits": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Platform invite credits (`invite_credit`).",
+            "minimum": 0
+          },
+          "guild_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The server (`server_level`)."
+          },
+          "months": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Months of Patron (`patron`).",
+            "minimum": 0
+          },
+          "purpose": {
+            "type": "string",
+            "description": "`donate`, `patron`, `server_level` or `invite_credit`."
+          },
+          "usd_cents": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "USD cents (`donate`, `server_level`).",
+            "minimum": 0
           }
         }
       },
@@ -34402,6 +36472,95 @@
             "type": "integer",
             "format": "int32",
             "description": "1 DM, 3 group DM.",
+            "minimum": 0
+          }
+        }
+      },
+      "DonationConfigView": {
+        "type": "object",
+        "required": [
+          "enabled",
+          "confirmations",
+          "invoice_expiry_minutes",
+          "rate_lock_minutes",
+          "patron",
+          "levels",
+          "free_perks",
+          "invite_credit_price_cents",
+          "max_invite_credits",
+          "min_donation_cents",
+          "max_donation_cents",
+          "hosting"
+        ],
+        "properties": {
+          "confirmations": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Invoices can be created (a wallet is configured and donations are switched on)."
+          },
+          "free_perks": {
+            "type": "object"
+          },
+          "hosting": {
+            "$ref": "#/components/schemas/HostingView"
+          },
+          "invite_credit_price_cents": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "invoice_expiry_minutes": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "levels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LevelOffer"
+            }
+          },
+          "max_donation_cents": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "max_invite_credits": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "min_donation_cents": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "network": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "patron": {
+            "$ref": "#/components/schemas/PatronOffer"
+          },
+          "rate": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RateView"
+              }
+            ]
+          },
+          "rate_lock_minutes": {
+            "type": "integer",
+            "format": "int32",
             "minimum": 0
           }
         }
@@ -35345,6 +37504,160 @@
           }
         }
       },
+      "GrantBody": {
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Patron: days of time."
+          },
+          "guild_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "description": "`patron` or `server_pool`."
+          },
+          "permanent": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Patron: never ends."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "usd_cents": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Server pool: USD cents."
+          },
+          "user_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "GrantPage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GrantView"
+            }
+          },
+          "next_before": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "GrantView": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "source",
+          "permanent",
+          "starts_at_ms"
+        ],
+        "properties": {
+          "days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "ends_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "guild_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "permanent": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revoked_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "source": {
+            "type": "string",
+            "description": "`invoice`, `admin` or `migrated`."
+          },
+          "source_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "starts_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "usd_cents": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "user_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "GuildFromTemplateBody": {
         "type": "object",
         "description": "Body of `POST /guilds/templates/{code}`.",
@@ -35581,6 +37894,110 @@
           }
         }
       },
+      "GuildSupportPatch": {
+        "type": "object",
+        "required": [
+          "hidden_from_leaderboard"
+        ],
+        "properties": {
+          "hidden_from_leaderboard": {
+            "type": "boolean"
+          }
+        }
+      },
+      "GuildSupportView": {
+        "type": "object",
+        "required": [
+          "guild_id",
+          "level",
+          "pool_cents",
+          "pool_window_days",
+          "perks",
+          "top_contributors",
+          "hidden_from_leaderboard",
+          "is_owner"
+        ],
+        "properties": {
+          "grace_until_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "While set, the pool is below the level and the level is held until then."
+          },
+          "guild_id": {
+            "type": "string"
+          },
+          "hidden_from_leaderboard": {
+            "type": "boolean"
+          },
+          "is_owner": {
+            "type": "boolean"
+          },
+          "level": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "next_threshold_cents": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "perks": {
+            "type": "object",
+            "description": "What the server's current level gives every member (`PerkSet`)."
+          },
+          "pool_cents": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pool_window_days": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "top_contributors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContributorView"
+            }
+          }
+        }
+      },
+      "HideBody": {
+        "type": "object",
+        "required": [
+          "hidden"
+        ],
+        "properties": {
+          "guild_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "user_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "HistoryItem": {
         "type": "object",
         "description": "One row of the reading history.",
@@ -35616,6 +38033,29 @@
               "null"
             ],
             "description": "Pass back as `before` for the next page; absent at the end."
+          }
+        }
+      },
+      "HostingView": {
+        "type": "object",
+        "required": [
+          "cost_cents",
+          "donated_this_month_cents",
+          "month_start_ms"
+        ],
+        "properties": {
+          "cost_cents": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "donated_this_month_cents": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "month_start_ms": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -35964,6 +38404,184 @@
           }
         }
       },
+      "InvoicePage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvoiceView"
+            }
+          },
+          "next_before": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "InvoiceView": {
+        "type": "object",
+        "required": [
+          "id",
+          "purpose",
+          "state",
+          "usd_cents",
+          "sats",
+          "btc",
+          "address",
+          "bip21",
+          "network",
+          "anonymous",
+          "rate",
+          "confirmations_required",
+          "received_sats",
+          "confirmed_sats",
+          "shortfall_sats",
+          "excess_sats",
+          "late",
+          "created_at_ms",
+          "expires_at_ms",
+          "quote_expires_at_ms",
+          "txs"
+        ],
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "anonymous": {
+            "type": "boolean"
+          },
+          "bip21": {
+            "type": "string",
+            "description": "`bitcoin:ADDRESS?amount=BTC&label=...`"
+          },
+          "btc": {
+            "type": "string",
+            "description": "`sats` as a BTC decimal string."
+          },
+          "confirmations": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "confirmations_required": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "confirmed_sats": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "credited_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "credits": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "excess_sats": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "expires_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "explorer_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "guild_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "late": {
+            "type": "boolean"
+          },
+          "months": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "network": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "quote_expires_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "rate": {
+            "$ref": "#/components/schemas/RateView"
+          },
+          "received_sats": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "resolution": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "How staff closed it, if they did (`mark_paid`, `refund_noted`, `dismiss`); notes stay staff-only."
+          },
+          "sats": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "shortfall_sats": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "state": {
+            "type": "string",
+            "description": "`open`, `seen`, `confirming`, `confirmed`, `overpaid`, `late_paid`, `underpaid`, `expired`,\n`cancelled` or `resolved`."
+          },
+          "txs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TxView"
+            }
+          },
+          "usd_cents": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "ItemDecisionInput": {
         "type": "object",
         "description": "A decision on one item.",
@@ -36252,6 +38870,29 @@
           }
         }
       },
+      "LevelOffer": {
+        "type": "object",
+        "required": [
+          "level",
+          "threshold_cents",
+          "perks"
+        ],
+        "properties": {
+          "level": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "perks": {
+            "type": "object"
+          },
+          "threshold_cents": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
       "LinkBody": {
         "type": "object",
         "properties": {
@@ -36440,6 +39081,26 @@
           },
           "user_id": {
             "type": "string"
+          }
+        }
+      },
+      "MeView": {
+        "type": "object",
+        "required": [
+          "patron",
+          "limits",
+          "preferences"
+        ],
+        "properties": {
+          "limits": {
+            "type": "object",
+            "description": "The caller's effective limits outside any server (`Limits`)."
+          },
+          "patron": {
+            "$ref": "#/components/schemas/PatronView"
+          },
+          "preferences": {
+            "$ref": "#/components/schemas/PrefsView"
           }
         }
       },
@@ -37328,6 +39989,24 @@
           }
         }
       },
+      "MyRank": {
+        "type": "object",
+        "required": [
+          "rank",
+          "cents"
+        ],
+        "properties": {
+          "cents": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "rank": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
       "NicknameBody": {
         "type": "object",
         "properties": {
@@ -37800,6 +40479,24 @@
           }
         }
       },
+      "PatchConfigBody": {
+        "type": "object",
+        "required": [
+          "changes"
+        ],
+        "properties": {
+          "changes": {
+            "type": "object",
+            "description": "A JSON merge patch over the configuration (`DonationConfig` fields)."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "PatchFeatureBody": {
         "type": "object",
         "properties": {
@@ -37908,6 +40605,75 @@
           "settings": {
             "type": "object",
             "description": "A JSON Merge Patch (RFC 7386): objects merge key by key, `null` deletes a key,\nother values replace. The merged blob may not exceed 64 KiB, 8 levels of nesting\nor 256 top-level keys."
+          }
+        }
+      },
+      "PatronOffer": {
+        "type": "object",
+        "required": [
+          "price_cents",
+          "max_months",
+          "days_per_month",
+          "grace_days",
+          "perks"
+        ],
+        "properties": {
+          "days_per_month": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "grace_days": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "max_months": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "perks": {
+            "type": "object",
+            "description": "What Patron unlocks (the `PerkSet` of the configuration)."
+          },
+          "price_cents": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "PatronView": {
+        "type": "object",
+        "required": [
+          "active",
+          "in_grace",
+          "permanent"
+        ],
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "in_grace": {
+            "type": "boolean"
+          },
+          "permanent": {
+            "type": "boolean"
+          },
+          "started_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "until_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
           }
         }
       },
@@ -38101,6 +40867,48 @@
             "items": {
               "$ref": "#/components/schemas/UserRef"
             }
+          }
+        }
+      },
+      "PrefsBody": {
+        "type": "object",
+        "properties": {
+          "hide_amount": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "hide_badge": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "hide_name": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
+      "PrefsView": {
+        "type": "object",
+        "required": [
+          "hide_name",
+          "hide_amount",
+          "hide_badge"
+        ],
+        "properties": {
+          "hide_amount": {
+            "type": "boolean"
+          },
+          "hide_badge": {
+            "type": "boolean"
+          },
+          "hide_name": {
+            "type": "boolean"
           }
         }
       },
@@ -38617,6 +41425,91 @@
           }
         }
       },
+      "RateSourceView": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "last_cents": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "last_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_ok_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "RateView": {
+        "type": "object",
+        "required": [
+          "cents_per_btc",
+          "source",
+          "age_secs",
+          "stale"
+        ],
+        "properties": {
+          "age_secs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "cents_per_btc": {
+            "type": "integer",
+            "format": "int64",
+            "description": "USD cents for one BTC.",
+            "minimum": 0
+          },
+          "source": {
+            "type": "string"
+          },
+          "stale": {
+            "type": "boolean",
+            "description": "The sources are failing and this is the last good answer."
+          }
+        }
+      },
+      "RatesView": {
+        "type": "object",
+        "required": [
+          "sources"
+        ],
+        "properties": {
+          "current": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RateView"
+              }
+            ]
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RateSourceView"
+            }
+          }
+        }
+      },
       "ReactionObject": {
         "type": "object",
         "required": [
@@ -38910,6 +41803,47 @@
           }
         }
       },
+      "ReportView": {
+        "type": "object",
+        "required": [
+          "from_ms",
+          "to_ms",
+          "credited_cents",
+          "by_purpose",
+          "by_day",
+          "by_state"
+        ],
+        "properties": {
+          "by_day": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "by_purpose": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "`[purpose, cents, count]`."
+          },
+          "by_state": {
+            "type": "object"
+          },
+          "credited_cents": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "from_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "to_ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "RequestPage": {
         "type": "object",
         "required": [
@@ -38984,6 +41918,29 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          }
+        }
+      },
+      "ResolveBody": {
+        "type": "object",
+        "required": [
+          "resolution",
+          "note"
+        ],
+        "properties": {
+          "note": {
+            "type": "string",
+            "description": "What was done (a refund note says how and when it was sent from the operator's own wallet)."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resolution": {
+            "type": "string",
+            "description": "`mark_paid`, `refund_noted` or `dismiss`."
           }
         }
       },
@@ -39869,6 +42826,37 @@
           "cancelled"
         ]
       },
+      "SetWalletBody": {
+        "type": "object",
+        "required": [
+          "descriptor",
+          "network"
+        ],
+        "properties": {
+          "descriptor": {
+            "type": "string",
+            "description": "A watch-only descriptor such as `wpkh(xpub.../0/*)`. Private keys are refused."
+          },
+          "gap_limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "network": {
+            "type": "string",
+            "description": "`mainnet`, `testnet`, `signet` or `regtest`."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "SettingKind": {
         "type": "string",
         "enum": [
@@ -40167,6 +43155,58 @@
             ],
             "format": "int32",
             "description": "10 announcement, 11 public (default) or 12 private thread."
+          }
+        }
+      },
+      "StatusView": {
+        "type": "object",
+        "required": [
+          "enabled",
+          "watcher",
+          "counts",
+          "needs_attention",
+          "rate_sources"
+        ],
+        "properties": {
+          "counts": {
+            "type": "object",
+            "description": "Counts by invoice state over the last 90 days."
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "needs_attention": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "rate": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RateView"
+              }
+            ]
+          },
+          "rate_sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RateSourceView"
+            }
+          },
+          "wallet": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WalletStatus"
+              }
+            ]
+          },
+          "watcher": {
+            "$ref": "#/components/schemas/WatcherView"
           }
         }
       },
@@ -40780,6 +43820,39 @@
             "type": "integer",
             "format": "int32",
             "minimum": 0
+          }
+        }
+      },
+      "TestWalletBody": {
+        "type": "object",
+        "required": [
+          "descriptor",
+          "network"
+        ],
+        "properties": {
+          "descriptor": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string"
+          }
+        }
+      },
+      "TestWalletResult": {
+        "type": "object",
+        "required": [
+          "fingerprint",
+          "addresses"
+        ],
+        "properties": {
+          "addresses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "fingerprint": {
+            "type": "string"
           }
         }
       },
@@ -41503,6 +44576,33 @@
           }
         }
       },
+      "TxView": {
+        "type": "object",
+        "required": [
+          "txid",
+          "amount_sats",
+          "confirmations",
+          "dropped"
+        ],
+        "properties": {
+          "amount_sats": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "confirmations": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "dropped": {
+            "type": "boolean",
+            "description": "The chain source stopped showing it (replaced or reorged out)."
+          },
+          "txid": {
+            "type": "string"
+          }
+        }
+      },
       "UnbanOutcome": {
         "type": "object",
         "required": [
@@ -42150,6 +45250,104 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "WalletResult": {
+        "type": "object",
+        "required": [
+          "network",
+          "fingerprint",
+          "addresses"
+        ],
+        "properties": {
+          "addresses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The first addresses, to compare with the operator's own wallet."
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string"
+          }
+        }
+      },
+      "WalletStatus": {
+        "type": "object",
+        "required": [
+          "network",
+          "fingerprint",
+          "next_index",
+          "gap_limit",
+          "gap_used"
+        ],
+        "properties": {
+          "fingerprint": {
+            "type": "string",
+            "description": "First 8 hex characters of SHA-256 of the descriptor. The descriptor itself is never returned."
+          },
+          "gap_limit": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "gap_used": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "network": {
+            "type": "string"
+          },
+          "next_index": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "WatcherView": {
+        "type": "object",
+        "required": [
+          "polled"
+        ],
+        "properties": {
+          "last_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_ok_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "last_run_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "polled": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "tip_height": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
           }
         }
       },
