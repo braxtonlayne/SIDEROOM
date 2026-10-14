@@ -52,6 +52,7 @@ seed:
 gen-api:
     cargo run -q -p sr-server -- openapi > packages/api-client/openapi.json
     pnpm --filter @sideroom/api-client generate
+    pnpm --filter @sideroom/api-client mocks:generate
 
 # Build WASM packages into packages/wasm
 wasm:

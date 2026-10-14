@@ -24,3 +24,5 @@ jobs:
       - run: just gen-api
       - name: Fail if generated client differs from committed
         run: git diff --exit-code -- packages/api-client
+      - name: Fail if generated MSW handlers differ from openapi.json (XC-TEST-003)
+        run: pnpm --filter @sideroom/api-client mocks:check
