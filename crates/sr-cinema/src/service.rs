@@ -128,6 +128,15 @@ pub enum PlayRef {
     Episode(i64),
 }
 
+/// What [`CinemaService::authorize_asset`] answers: the catalog owner of an asset the viewer
+/// may open, and the skip windows that go with it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssetAccess {
+    pub title_id: i64,
+    pub episode_id: Option<i64>,
+    pub markers: Vec<Marker>,
+}
+
 #[derive(Clone)]
 pub struct CinemaService {
     pub(crate) repo: Arc<dyn CinemaRepository>,
@@ -576,6 +585,50 @@ impl CinemaService {
                 })
             }
         }
+    }
+
+    /// The catalog play check for a raw asset id (the playback and refresh routes): which
+    /// published title, episode, cut or trailer uses it, and whether this viewer may open it.
+    /// Unknown, unpublished or merged-away owners answer `NotFound`; a restricted title answers
+    /// [`CinemaError::AgeConfirmationRequired`] until the account confirmed its age (D-184).
+    pub async fn authorize_asset(&self, v: Viewer, asset_id: i64) -> CinemaResult<AssetAccess> {
+        let owner = self
+            .repo
+            .asset_owner(asset_id)
+            .await?
+            .ok_or(CinemaError::NotFound("asset"))?;
+        let (title_id, restricted) = match owner.episode_id {
+            Some(ep) => {
+                let e = self.visible_episode(ep).await?;
+                (e.title_id, e.title_age_restricted)
+            }
+            None => {
+                let t = self
+                    .repo
+                    .get_title(owner.title_id, Scope::Public)
+                    .await?
+                    .ok_or(CinemaError::NotFound("asset"))?;
+                (t.id, t.age_restricted)
+            }
+        };
+        if restricted && !v.adult {
+            return Err(CinemaError::AgeConfirmationRequired);
+        }
+        let markers = match owner.usage {
+            crate::repo::AssetUse::Feature => self
+                .repo
+                .list_markers(title_id, owner.episode_id)
+                .await?
+                .iter()
+                .map(|m| Self::marker_wire(m, false))
+                .collect(),
+            _ => Vec::new(),
+        };
+        Ok(AssetAccess {
+            title_id,
+            episode_id: owner.episode_id,
+            markers,
+        })
     }
 
     /// Facets for the genre chips and the filters drawer.

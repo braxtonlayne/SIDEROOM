@@ -5106,6 +5106,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "sr-cinema",
  "sr-core",
  "sr-db",
  "sr-events",

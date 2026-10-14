@@ -1701,3 +1701,65 @@ async fn recommendations_combine_cowatching_and_tags() {
     assert!(e.svc.recommendations(fresh).await.unwrap().rows.is_empty());
     e.db.cleanup().await.unwrap();
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn catalog_merges_and_deletions_are_followed() {
+    use sr_cinema_social::SocialObserver;
+    let e = Env::new().await;
+    let obs = SocialObserver::new(e.pool().clone());
+    let u = e.adult().await;
+    let input = |p: i32| ProgressInput {
+        position_secs: p,
+        duration_secs: 1000,
+        completed: None,
+        playing: Some(false),
+        base_updated_at_ms: None,
+        force: None,
+    };
+    // Anime 4 (episodes 41, 42) is merged into series 2; its episode 41 duplicated episode 21.
+    e.svc.save_progress(u, 4, 41, input(300)).await.unwrap();
+    e.svc.save_progress(u, 4, 42, input(500)).await.unwrap();
+    e.svc.rate(u, 4, 41, 8).await.unwrap();
+    e.svc.save_title(u, 4).await.unwrap();
+    obs.merge(4, 2, &vec![(41, 21)]).await.unwrap();
+    e.cat.remove_title(4);
+
+    let moved = e.svc.progress(u, 2, 21).await.unwrap();
+    assert_eq!(moved.position_secs, 300);
+    // Episode 42 keeps its id under the surviving title.
+    let kept: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM cinema_progress WHERE user_id = $1 AND title_id = 2 AND episode_id = 42",
+    )
+    .bind(u.user_id)
+    .fetch_one(e.pool())
+    .await
+    .unwrap();
+    assert_eq!(kept, 1);
+    let left: i64 = sqlx::query_scalar(
+        "SELECT (SELECT count(*) FROM cinema_progress WHERE title_id = 4) \
+              + (SELECT count(*) FROM cinema_ratings WHERE title_id = 4) \
+              + (SELECT count(*) FROM cinema_list_items WHERE title_id = 4)",
+    )
+    .fetch_one(e.pool())
+    .await
+    .unwrap();
+    assert_eq!(left, 0);
+    let rated: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM cinema_ratings WHERE title_id = 2 AND episode_id = 21",
+    )
+    .fetch_one(e.pool())
+    .await
+    .unwrap();
+    assert_eq!(rated, 1);
+
+    // Deleting an episode, then the title.
+    obs.remove_episodes(2, &[21]).await.unwrap();
+    assert!(e.svc.progress(u, 2, 21).await.is_err());
+    obs.remove_title(2).await.unwrap();
+    let rest: i64 = sqlx::query_scalar("SELECT count(*) FROM cinema_progress WHERE title_id = 2")
+        .fetch_one(e.pool())
+        .await
+        .unwrap();
+    assert_eq!(rest, 0);
+}

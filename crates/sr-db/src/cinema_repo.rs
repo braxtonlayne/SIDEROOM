@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use sqlx::{PgConnection, PgPool, Postgres, QueryBuilder, Row, postgres::PgRow};
 use sr_cinema::error::{CinemaError, CinemaResult};
 use sr_cinema::model::*;
-use sr_cinema::repo::{CinemaRepository, EpisodeQuery, NewTitle, Rows};
+use sr_cinema::repo::{AssetOwner, AssetUse, CinemaRepository, EpisodeQuery, NewTitle, Rows};
 
 pub struct PgCinemaRepo {
     pool: PgPool,
@@ -801,6 +801,67 @@ impl CinemaRepository for PgCinemaRepo {
         .await
         .map_err(db)?;
         rows.iter().map(title_from).collect()
+    }
+
+    async fn titles_sharing_tags(
+        &self,
+        tags: &[String],
+        exclude: &[i64],
+        limit: u32,
+    ) -> CinemaResult<Vec<TitleRecord>> {
+        if tags.is_empty() || limit == 0 {
+            return Ok(Vec::new());
+        }
+        // Rank by the number of shared tags or genres, then by newest content.
+        let rows = dynq(format!(
+            "SELECT {} FROM video_titles t \
+             WHERE t.published AND t.merged_into IS NULL AND NOT (t.id = ANY($2)) \
+               AND (t.tags && $1 OR t.genres && $1) \
+             ORDER BY (SELECT count(DISTINCT x) FROM unnest(t.tags || t.genres) x WHERE x = ANY($1)) DESC, \
+                      t.last_content_at DESC NULLS LAST, t.id DESC \
+             LIMIT $3",
+            title_cols("t")
+        ))
+        .bind(tags.to_vec())
+        .bind(exclude.to_vec())
+        .bind(i64::from(limit))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter().map(title_from).collect()
+    }
+
+    async fn asset_owner(&self, asset_id: i64) -> CinemaResult<Option<AssetOwner>> {
+        let row = sqlx::query(
+            "SELECT title_id, episode_id, usage, ref_id FROM ( \
+               SELECT id AS title_id, NULL::bigint AS episode_id, 'feature' AS usage, NULL::bigint AS ref_id, 0 AS pri \
+                 FROM video_titles WHERE asset_id = $1 \
+               UNION ALL \
+               SELECT title_id, id, 'feature', NULL::bigint, 1 FROM video_episodes WHERE asset_id = $1 \
+               UNION ALL \
+               SELECT title_id, NULL::bigint, 'variant', id, 2 FROM video_title_variants WHERE asset_id = $1 \
+               UNION ALL \
+               SELECT title_id, NULL::bigint, 'trailer', id, 3 FROM video_trailers WHERE asset_id = $1 \
+             ) u ORDER BY pri LIMIT 1",
+        )
+        .bind(asset_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        let Some(row) = row else { return Ok(None) };
+        let usage: String = row.try_get("usage").map_err(db)?;
+        let ref_id: Option<i64> = row.try_get("ref_id").map_err(db)?;
+        let usage = match (usage.as_str(), ref_id) {
+            ("feature", _) => AssetUse::Feature,
+            ("variant", Some(id)) => AssetUse::Variant(id),
+            ("trailer", Some(id)) => AssetUse::Trailer(id),
+            _ => return bad("asset usage", &usage),
+        };
+        Ok(Some(AssetOwner {
+            title_id: row.try_get("title_id").map_err(db)?,
+            episode_id: row.try_get("episode_id").map_err(db)?,
+            usage,
+        }))
     }
 
     // ---- title writes --------------------------------------------------

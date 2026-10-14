@@ -1928,3 +1928,77 @@ async fn artwork_is_signed_and_external_ids_round_trip() {
     ));
     w.db.cleanup().await.unwrap();
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn assets_are_authorized_through_their_catalog_owner() {
+    let w = world().await;
+    let film = w.film("Asset Film", |_| {}).await;
+    let hot = w
+        .film("Asset Restricted", |i| i.age_restricted = true)
+        .await;
+    let (series, _s, eps) = w.series("Asset Series", 2).await;
+    let w_series = w.publish(series.id).await;
+    assert!(w_series.published);
+
+    let film_asset = w
+        .svc
+        .admin_title(w.publisher, film.id)
+        .await
+        .unwrap()
+        .title
+        .asset_id
+        .unwrap();
+    let ok = w.svc.authorize_asset(w.member, film_asset).await.unwrap();
+    assert_eq!((ok.title_id, ok.episode_id), (film.id, None));
+
+    // An episode asset resolves to its episode.
+    let staff = w.svc.admin_title(w.publisher, series.id).await.unwrap();
+    let ep = staff.episodes.iter().find(|e| e.id == eps[0].id).unwrap();
+    let ok = w
+        .svc
+        .authorize_asset(w.member, ep.asset_id.unwrap())
+        .await
+        .unwrap();
+    assert_eq!((ok.title_id, ok.episode_id), (series.id, Some(eps[0].id)));
+
+    // Unknown asset: not found.
+    assert_eq!(
+        w.svc
+            .authorize_asset(w.member, 987_654_321)
+            .await
+            .unwrap_err(),
+        CinemaError::NotFound("asset")
+    );
+
+    // Restricted: visible title, gated asset (D-184).
+    let hot_asset = w
+        .svc
+        .admin_title(w.publisher, hot.id)
+        .await
+        .unwrap()
+        .title
+        .asset_id
+        .unwrap();
+    assert_eq!(
+        w.svc
+            .authorize_asset(w.member, hot_asset)
+            .await
+            .unwrap_err(),
+        CinemaError::AgeConfirmationRequired
+    );
+    assert!(w.svc.authorize_asset(w.adult, hot_asset).await.is_ok());
+
+    // Unpublished owner: not found, whatever the viewer.
+    w.svc
+        .set_title_published(w.publisher, film.id, false)
+        .await
+        .unwrap();
+    assert_eq!(
+        w.svc
+            .authorize_asset(w.adult, film_asset)
+            .await
+            .unwrap_err(),
+        CinemaError::NotFound("asset")
+    );
+}
