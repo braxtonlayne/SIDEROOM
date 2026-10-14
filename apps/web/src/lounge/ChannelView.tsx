@@ -18,6 +18,7 @@ import {
 import { AgeConfirmPrompt, useAgeGate } from './AgeGate';
 import { MessageList } from './MessageList';
 import { VoiceChannelView } from './voice/VoiceChannelView';
+import { WatchPartyStrip } from '../watchparty/WatchPartyStrip';
 import { useLoungeGoto } from './nav';
 import { useMyTimeout } from './timeout';
 import { useLoungeUi } from './store';
@@ -116,6 +117,7 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
         guildId={guildId}
         channelId={channelId}
       />
+      <WatchPartyStrip channelId={channelId} />
       {gate.state !== 'open' ? (
         <div className="lng-agegate-wrap">
           {gate.state === 'wait' ? (

@@ -653,6 +653,23 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone()))),
     );
 
+    // Watch Parties (WP-BE-*): the catalog play gate, channel permissions from the chat repository,
+    // gateway events on the bus. The timer worker settles buffering waits; the sweep job covers the rest.
+    let watchparty_service =
+        sr_watchparty::PartyService::new(pool.clone(), clock.clone(), id_src.clone())
+            .with_play_gate(Arc::new(crate::watchparty::CinemaPlayGate::new(
+                cinema_service.clone(),
+            )))
+            .with_channels(Arc::new(crate::watchparty::ChatChannelAccess::new(
+                PgChatRepo::new(pool.clone()),
+                clock.clone(),
+            )))
+            .with_events(Arc::new(sr_watchparty::BusEvents::new(bus.clone())));
+    watchparty_service.spawn_timers();
+    let watchparty_deps = Arc::new(routes::watchparty::WatchPartyDeps::new(
+        watchparty_service.clone(),
+    ));
+
     // The review pipeline (REV-*): submissions of the Library kinds, reviewed by staff with
     // REVIEW_READING and published through the same Library service. The submitter hears
     // about every step as SR_SUBMISSION_UPDATE.
@@ -794,6 +811,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(tv_deps)
         .extension(media_deps)
         .extension(cinema_social_deps)
+        .extension(watchparty_deps)
         .extension(review_deps)
         .extension(Arc::new(routes::media::MediaDeps::new(storage.clone())))
         .extension(Arc::new(
@@ -869,6 +887,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::external_jobs::register(runner, &pool, storage.clone());
     let runner = crate::library_jobs::register(runner, &pool, library_service.clone());
     let runner = crate::cinema_jobs::register(runner, &pool, cinema_social_service.clone());
+    let runner = crate::watchparty::register(runner, &pool, watchparty_service.clone());
     let runner = crate::media_jobs::register(
         runner,
         &pool,
@@ -885,6 +904,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::external_jobs::schedule(&pool).await?;
     crate::library_jobs::schedule_gc(&pool).await?;
     crate::cinema_jobs::schedule(&pool).await?;
+    crate::watchparty::schedule(&pool).await?;
     crate::media_jobs::schedule(&pool).await?;
     let jobs_task = tokio::spawn(runner.run(job_rx));
 

@@ -8,7 +8,8 @@
     "settings": { "maxGzipKB": 600, "routeChunk": "UserSettings" },
     "cinema-player": { "maxGzipKB": 600, "routeChunk": "WatchRoute" },
     "cinema-tv": { "maxGzipKB": 600, "routeChunk": "Guide" },
-    "cinema-tv-live": { "maxGzipKB": 600, "routeChunk": "LiveWatch" }
+    "cinema-tv-live": { "maxGzipKB": 600, "routeChunk": "LiveWatch" },
+    "watch-party": { "maxGzipKB": 600, "routeChunk": "PartyRoute" }
   },
   "singleChunkMaxGzipKB": 250
 }

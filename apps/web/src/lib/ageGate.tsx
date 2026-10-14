@@ -55,6 +55,11 @@ export function useAgeGate(): AgeGateApi {
   return ctx;
 }
 
+/** Like [`useAgeGate`], for places that may be rendered outside an <AgeGateProvider> (the Lounge): null there. */
+export function useOptionalAgeGate(): AgeGateApi | null {
+  return useContext(AgeGateContext);
+}
+
 export function AgeGateProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);

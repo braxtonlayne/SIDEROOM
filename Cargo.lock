@@ -5035,6 +5035,7 @@ dependencies = [
  "sr-storage",
  "sr-tv",
  "sr-unfurl",
+ "sr-watchparty",
  "subtle",
  "thiserror 2.0.21",
  "tokio",
@@ -5380,6 +5381,7 @@ dependencies = [
  "sr-unfurl",
  "sr-voice",
  "sr-voice-proto",
+ "sr-watchparty",
  "thiserror 2.0.21",
  "tokio",
  "tokio-stream",
@@ -5510,6 +5512,24 @@ dependencies = [
  "sha2 0.11.0",
  "sr-core",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "sr-watchparty"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "getrandom 0.4.3",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "sr-core",
+ "sr-db",
+ "sr-events",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "utoipa",
 ]
 
 [[package]]

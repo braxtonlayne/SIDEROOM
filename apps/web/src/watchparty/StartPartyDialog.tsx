@@ -1,0 +1,183 @@
+// "Watch together" (WP-FE-008, 009): pick where the party lives (a server channel you can post in, a DM, or a
+// private party with a share link) and, when no title was given (the voice call bar), which title to start.
+import { Button, Modal, Notice } from '@sideroom/ui';
+import { useRouter } from '@tanstack/react-router';
+import { useEffect, useMemo, useState } from 'react';
+import { ApiError } from '../api/client';
+import { useOptionalAgeGate, isAgeGateError } from '../lib/ageGate';
+import { useAllChannels, useDms, useGuilds, useUsers } from '../lounge/data';
+import { holdGateway } from '../store/connect';
+import { httpPartyApi } from './api';
+import { TitlePicker, type PickedTitle } from './TitlePicker';
+
+export interface StartPartyDialogProps {
+  open: boolean;
+  onClose: () => void;
+  /** The title to watch; without it the dialog asks. */
+  title?: { titleId: string; episodeId?: string | null; variantId?: string | null; label: string };
+  /** Preselect a channel or DM (the voice call bar passes its voice channel). */
+  channelId?: string | null;
+}
+
+const PRIVATE = '__private';
+
+export function StartPartyDialog({ open, onClose, title, channelId }: StartPartyDialogProps) {
+  const router = useRouter();
+  const age = useOptionalAgeGate();
+  const guilds = useGuilds();
+  const channels = useAllChannels();
+  const dms = useDms();
+  const users = useUsers();
+  const [picked, setPicked] = useState<PickedTitle | null>(null);
+  const [dest, setDest] = useState(channelId ?? PRIVATE);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // The destination lists come from the live store; make sure the gateway is up while the dialog is open.
+  useEffect(() => {
+    if (!open) return;
+    return holdGateway();
+  }, [open]);
+  useEffect(() => {
+    if (open) {
+      setDest(channelId ?? PRIVATE);
+      setPicked(null);
+      setError(null);
+    }
+  }, [open, channelId]);
+
+  const groups = useMemo(
+    () =>
+      guilds
+        .map((g) => ({
+          guild: g,
+          list: (channels[g.id] ?? []).filter(
+            (c) =>
+              (c.type === 'text' || c.type === 'announcement'
+                ? c.canSend
+                : c.type === 'voice' && (c.permissions?.connect ?? true)) && !c.locked,
+          ),
+        }))
+        .filter((g) => g.list.length > 0),
+    [guilds, channels],
+  );
+
+  const chosen: { titleId: string; episodeId: string | null; variantId: string | null } | null =
+    title
+      ? {
+          titleId: title.titleId,
+          episodeId: title.episodeId ?? null,
+          variantId: title.variantId ?? null,
+        }
+      : picked
+        ? { titleId: picked.titleId, episodeId: picked.episodeId, variantId: null }
+        : null;
+  const label = title?.label ?? picked?.label;
+
+  const start = async () => {
+    if (!chosen) return;
+    setBusy(true);
+    setError(null);
+    const input = {
+      title_id: chosen.titleId,
+      episode_id: chosen.episodeId,
+      variant_id: chosen.variantId,
+      channel_id: dest === PRIVATE ? null : dest,
+    };
+    try {
+      let party;
+      try {
+        party = await httpPartyApi.create(input);
+      } catch (e) {
+        if (isAgeGateError(e) && age && (await age.ensureAdult()))
+          party = await httpPartyApi.create(input);
+        else throw e;
+      }
+      onClose();
+      router.history.push(`/cinema/party/${party.id}`);
+    } catch (e) {
+      if (isAgeGateError(e)) setError('Confirm that you are 18 or older to start this one.');
+      else if (e instanceof ApiError && e.status === 403)
+        setError('You cannot start a watch party there. Pick another place.');
+      else if (e instanceof ApiError && e.status === 409) setError(e.message);
+      else if (e instanceof ApiError && e.status === 404)
+        setError('That title or place is not available any more.');
+      else setError('We could not start the party. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Watch together"
+      description={
+        label ? `Start a party for ${label}.` : 'Pick something to watch, then where to watch it.'
+      }
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={() => void start()} loading={busy} disabled={!chosen}>
+            Start party
+          </Button>
+        </>
+      }
+    >
+      <div className="wp-start">
+        {!title && !picked && <TitlePicker onPick={setPicked} />}
+        {!title && picked && (
+          <p className="wp-now">
+            {picked.label}{' '}
+            <Button size="sm" variant="ghost" onClick={() => setPicked(null)}>
+              Change
+            </Button>
+          </p>
+        )}
+        <label className="wp-field">
+          <span>Where</span>
+          <select
+            value={dest}
+            onChange={(e) => setDest(e.target.value)}
+            aria-label="Where to watch"
+          >
+            <option value={PRIVATE}>Private party (invite link)</option>
+            {groups.map(({ guild, list }) => (
+              <optgroup key={guild.id} label={guild.name}>
+                {list.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.type === 'voice' ? 'Voice: ' : '#'}
+                    {c.name}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+            {dms.length > 0 && (
+              <optgroup label="Direct messages">
+                {dms.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name ||
+                      d.recipientIds.map((id) => users[id]?.displayName ?? 'Someone').join(', ')}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+        </label>
+        <p className="wp-muted">
+          {dest === PRIVATE
+            ? 'You get a link to send to the people you want to watch with.'
+            : 'People who can see that conversation can join. Voice keeps working as normal.'}
+        </p>
+        {error && (
+          <Notice variant="danger" role="alert">
+            {error}
+          </Notice>
+        )}
+      </div>
+    </Modal>
+  );
+}

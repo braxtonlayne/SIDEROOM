@@ -14946,6 +14946,63 @@
         ]
       }
     },
+    "/channels/{channel_id}/watch-party": {
+      "get": {
+        "tags": [
+          "watch_party"
+        ],
+        "summary": "The live party of a channel or DM.",
+        "operationId": "watch_party_in_channel",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchParty"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No party, or the channel is not visible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/channels/{channel_id}/webhooks": {
       "get": {
         "tags": [
@@ -30914,6 +30971,1448 @@
         ]
       }
     },
+    "/watch-parties": {
+      "post": {
+        "tags": [
+          "watch_party"
+        ],
+        "summary": "Start a party: bound to a channel or DM the caller may start one in (`START_WATCH_PARTY`), or private\n(shareable link). The title must be published and playable; a restricted one needs the caller's age\nconfirmation (403, code 900011). The caller becomes the host and leaves any other party.",
+        "operationId": "watch_party_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchPartyCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchParty"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No START_WATCH_PARTY, or age confirmation required (900011).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown channel or title.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The channel already has a party, or the server is at its party limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/watch-parties/me": {
+      "get": {
+        "tags": [
+          "watch_party"
+        ],
+        "summary": "The party the caller is in now.",
+        "operationId": "watch_party_mine",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchParty"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not in a party.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/watch-parties/time": {
+      "get": {
+        "tags": [
+          "watch_party"
+        ],
+        "summary": "The server clock. Clients sample it (with their own round-trip time) to estimate their clock offset\nbefore and while they are in a party.",
+        "operationId": "watch_party_time",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchPartyTime"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/watch-parties/{party_id}": {
+      "get": {
+        "tags": [
+          "watch_party"
+        ],
+        "summary": "A party. Members, and people who can see the bound channel, may read it; restricted content is masked for\nviewers without age confirmation.",
+        "operationId": "watch_party_get",
+        "parameters": [
+          {
+            "name": "party_id",
+            "in": "path",
+            "description": "Watch party snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchParty"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "watch_party"
+        ],
+        "summary": "End the party for everybody (host or channel manager).",
+        "operationId": "watch_party_end",
+        "parameters": [
+          {
+            "name": "party_id",
+            "in": "path",
+            "description": "Watch party snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "watch_party"
+        ],
+        "summary": "Change the settings (host or channel manager).",
+        "operationId": "watch_party_update",
+        "parameters": [
+          {
+            "name": "party_id",
+            "in": "path",
+            "description": "Watch party snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchPartySettingsInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchParty"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/watch-parties/{party_id}/audit": {
+      "get": {
+        "tags": [
+          "watch_party"
+        ],
+        "summary": "The audit trail of party-level actions, newest first (host or channel manager).",
+        "operationId": "watch_party_audit",
+        "parameters": [
+          {
+            "name": "party_id",
+            "in": "path",
+            "description": "Watch party snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WatchPartyAuditEntry"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/watch-parties/{party_id}/controllers/{user_id}": {
+      "put": {
+        "tags": [
+          "watch_party"
+        ],
+        "summary": "Name or unname a controller (host or channel manager).",
+        "operationId": "watch_party_set_controller",
+        "parameters": [
+          {
+            "name": "party_id",
+            "in": "path",
+            "description": "Watch party snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "User snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchPartyControllerInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchParty"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/watch-parties/{party_id}/heartbeat": {
+      "post": {
+        "tags": [
+          "watch_party"
+        ],
+        "summary": "The participant's heartbeat (every 15 to 30 s): liveness, round-trip estimate, buffering and ready\nflags. Answers with the server clock and the current playback. A participant silent for 90 s is dropped.",
+        "operationId": "watch_party_heartbeat",
+        "parameters": [
+          {
+            "name": "party_id",
+            "in": "path",
+            "description": "Watch party snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchPartyHeartbeat"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchPartyHeartbeatResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/watch-parties/{party_id}/host": {
+      "post": {
+        "tags": [
+          "watch_party"
+        ],
+        "summary": "Hand the host role to another participant (host or channel manager).",
+        "operationId": "watch_party_transfer_host",
+        "parameters": [
+          {
+            "name": "party_id",
+            "in": "path",
+            "description": "Watch party snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchPartyTransfer"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchParty"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/watch-parties/{party_id}/join": {
+      "post": {
+        "tags": [
+          "watch_party"
+        ],
+        "summary": "Join. A private party needs `invite_code`; a bound party needs access to its channel; a restricted title\nneeds the caller's age confirmation (403, 900011). Joining leaves the caller's other party.",
+        "operationId": "watch_party_join",
+        "parameters": [
+          {
+            "name": "party_id",
+            "in": "path",
+            "description": "Watch party snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchPartyJoin"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchParty"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The party is full.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/watch-parties/{party_id}/leave": {
+      "post": {
+        "tags": [
+          "watch_party"
+        ],
+        "summary": "Leave. The host role passes to the next person; an empty party ends after 5 minutes unless persistent.",
+        "operationId": "watch_party_leave",
+        "parameters": [
+          {
+            "name": "party_id",
+            "in": "path",
+            "description": "Watch party snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/watch-parties/{party_id}/media": {
+      "put": {
+        "tags": [
+          "watch_party"
+        ],
+        "summary": "Change what is playing (controllers). The title must be published and playable. For a restricted title,\nparticipants without age confirmation are removed from the party.",
+        "operationId": "watch_party_change_media",
+        "parameters": [
+          {
+            "name": "party_id",
+            "in": "path",
+            "description": "Watch party snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchPartyChangeMedia"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchParty"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a controller, or age confirmation required (900011).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/watch-parties/{party_id}/members/{user_id}": {
+      "delete": {
+        "tags": [
+          "watch_party"
+        ],
+        "summary": "Remove a participant and bar them from rejoining (host or channel manager).",
+        "operationId": "watch_party_kick",
+        "parameters": [
+          {
+            "name": "party_id",
+            "in": "path",
+            "description": "Watch party snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "User snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/watch-parties/{party_id}/messages": {
+      "post": {
+        "tags": [
+          "watch_party"
+        ],
+        "summary": "Send an ephemeral message to the party's own chat (used by private parties; parties bound to a channel\nuse that channel's text chat). Not stored.",
+        "operationId": "watch_party_say",
+        "parameters": [
+          {
+            "name": "party_id",
+            "in": "path",
+            "description": "Watch party snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchPartyMessageInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/watch-parties/{party_id}/next": {
+      "post": {
+        "tags": [
+          "watch_party"
+        ],
+        "summary": "Skip to the next queue entry (controllers).",
+        "operationId": "watch_party_next",
+        "parameters": [
+          {
+            "name": "party_id",
+            "in": "path",
+            "description": "Watch party snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchParty"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The queue is empty.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/watch-parties/{party_id}/playback": {
+      "post": {
+        "tags": [
+          "watch_party"
+        ],
+        "summary": "A playback command: `play`, `pause`, `seek` (`position_ms`), `rate` (0.5 to 2) or `ended`. Allowed for\nthe host and, per the shared-control setting, controllers or everybody; otherwise 403. A stale\n`expected_version` answers 409 with the current playback. The answer is the state after the command.",
+        "operationId": "watch_party_command",
+        "parameters": [
+          {
+            "name": "party_id",
+            "in": "path",
+            "description": "Watch party snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchPartyCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchPartyPlayback"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`expected_version` is stale.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionConflictBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/watch-parties/{party_id}/queue": {
+      "post": {
+        "tags": [
+          "watch_party"
+        ],
+        "summary": "Add to the queue (per the queue policy).",
+        "operationId": "watch_party_queue_add",
+        "parameters": [
+          {
+            "name": "party_id",
+            "in": "path",
+            "description": "Watch party snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchPartyQueueAdd"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchParty"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The queue is full.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/watch-parties/{party_id}/queue/{item_id}": {
+      "delete": {
+        "tags": [
+          "watch_party"
+        ],
+        "summary": "Remove a queue entry (per the queue policy; the person who added it may always).",
+        "operationId": "watch_party_queue_remove",
+        "parameters": [
+          {
+            "name": "party_id",
+            "in": "path",
+            "description": "Watch party snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "Queue entry snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchParty"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "watch_party"
+        ],
+        "summary": "Reorder the queue (controllers): move an entry to `position`.",
+        "operationId": "watch_party_queue_move",
+        "parameters": [
+          {
+            "name": "party_id",
+            "in": "path",
+            "description": "Watch party snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "description": "Queue entry snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchPartyQueueMove"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchParty"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/watch-parties/{party_id}/reactions": {
+      "post": {
+        "tags": [
+          "watch_party"
+        ],
+        "summary": "Send a floating emoji reaction to the party (rate limited).",
+        "operationId": "watch_party_react",
+        "parameters": [
+          {
+            "name": "party_id",
+            "in": "path",
+            "description": "Watch party snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchPartyReaction"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/webhooks/{webhook_id}": {
       "get": {
         "tags": [
@@ -44587,6 +46086,27 @@
           }
         }
       },
+      "VersionConflictBody": {
+        "type": "object",
+        "description": "The 409 body of a stale `expected_version`: the usual error object plus the current playback.",
+        "required": [
+          "code",
+          "message",
+          "playback"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string"
+          },
+          "playback": {
+            "$ref": "#/components/schemas/WatchPartyPlayback"
+          }
+        }
+      },
       "Volume": {
         "type": "object",
         "required": [
@@ -44634,6 +46154,756 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "WatchParty": {
+        "type": "object",
+        "description": "A watch party, as returned by the API and carried by `WATCH_PARTY_UPDATE`.",
+        "required": [
+          "id",
+          "host_id",
+          "binding",
+          "media",
+          "playback",
+          "settings",
+          "participants",
+          "queue",
+          "created_at_ms",
+          "ended"
+        ],
+        "properties": {
+          "binding": {
+            "$ref": "#/components/schemas/WatchPartyBinding"
+          },
+          "channel_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "ended": {
+            "type": "boolean"
+          },
+          "guild_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "host_id": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "invite_code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The secret of the share link. Only members see it (and only on private parties)."
+          },
+          "media": {
+            "$ref": "#/components/schemas/WatchPartyMedia"
+          },
+          "participants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WatchPartyParticipant"
+            }
+          },
+          "playback": {
+            "$ref": "#/components/schemas/WatchPartyPlayback"
+          },
+          "queue": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WatchPartyQueueItem"
+            }
+          },
+          "settings": {
+            "$ref": "#/components/schemas/WatchPartySettings"
+          },
+          "you": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WatchPartyYou",
+                "description": "What the viewing account may do (absent in gateway events, which go to everybody)."
+              }
+            ]
+          }
+        }
+      },
+      "WatchPartyAction": {
+        "type": "string",
+        "enum": [
+          "play",
+          "pause",
+          "seek",
+          "rate",
+          "ended"
+        ]
+      },
+      "WatchPartyAuditEntry": {
+        "type": "object",
+        "description": "An audit entry.",
+        "required": [
+          "id",
+          "action",
+          "detail",
+          "at_ms"
+        ],
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actor_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "detail": {
+            "type": "object"
+          },
+          "id": {
+            "type": "string"
+          },
+          "target_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "WatchPartyBinding": {
+        "type": "string",
+        "description": "Where the party lives.",
+        "enum": [
+          "channel",
+          "dm",
+          "private"
+        ]
+      },
+      "WatchPartyChangeMedia": {
+        "type": "object",
+        "description": "Body of `PUT /watch-parties/{id}/media`.",
+        "required": [
+          "title_id"
+        ],
+        "properties": {
+          "episode_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "start_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "title_id": {
+            "type": "string"
+          },
+          "variant_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "WatchPartyCommand": {
+        "type": "object",
+        "description": "Body of `POST /watch-parties/{id}/playback`.",
+        "required": [
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/WatchPartyAction"
+          },
+          "expected_version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The `version` the client last applied. A different current version answers 409 with the\ncurrent state; omit it for last-writer-wins."
+          },
+          "position_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "For `seek`."
+          },
+          "rate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "For `rate` (0.5 to 2.0)."
+          }
+        }
+      },
+      "WatchPartyControlMode": {
+        "type": "string",
+        "description": "Who may do something: the host alone, the host and members with `CONTROL_WATCH_PARTY` or the\nhost's explicit controllers, or everybody.",
+        "enum": [
+          "host",
+          "controllers",
+          "everyone"
+        ]
+      },
+      "WatchPartyControllerInput": {
+        "type": "object",
+        "description": "Body of `PUT /watch-parties/{id}/controllers/{user_id}`.",
+        "required": [
+          "controller"
+        ],
+        "properties": {
+          "controller": {
+            "type": "boolean"
+          }
+        }
+      },
+      "WatchPartyCreate": {
+        "type": "object",
+        "description": "Body of `POST /watch-parties`.",
+        "required": [
+          "title_id"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A guild channel (text or voice) or DM to bind to. Without it the party is private (link only)."
+          },
+          "episode_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "settings": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WatchPartySettingsInput"
+              }
+            ]
+          },
+          "start_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Where to start, in milliseconds (default 0)."
+          },
+          "title_id": {
+            "type": "string"
+          },
+          "variant_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "WatchPartyHeartbeat": {
+        "type": "object",
+        "description": "Body of `POST /watch-parties/{id}/heartbeat`: the member's liveness, clock estimate and player state.",
+        "properties": {
+          "buffering": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "`true` when the player has been stalled (report once it passes ~1.5 s), `false` when it recovered."
+          },
+          "ready": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "rtt_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "The member's round-trip estimate to the server."
+          }
+        }
+      },
+      "WatchPartyHeartbeatResult": {
+        "type": "object",
+        "description": "Answer of the heartbeat: the clock sample and the current playback (a fallback for a lost event).",
+        "required": [
+          "server_time_ms",
+          "playback",
+          "member"
+        ],
+        "properties": {
+          "member": {
+            "type": "boolean",
+            "description": "`false`: the caller is no longer in the party (removed or ended)."
+          },
+          "playback": {
+            "$ref": "#/components/schemas/WatchPartyPlayback"
+          },
+          "server_time_ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "WatchPartyJoin": {
+        "type": "object",
+        "description": "Body of `POST /watch-parties/{id}/join`.",
+        "properties": {
+          "invite_code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Required to join a private party."
+          }
+        }
+      },
+      "WatchPartyMedia": {
+        "type": "object",
+        "description": "What the party is playing.",
+        "required": [
+          "title_id",
+          "episode_id",
+          "asset_id",
+          "title",
+          "age_restricted",
+          "live"
+        ],
+        "properties": {
+          "age_restricted": {
+            "type": "boolean"
+          },
+          "asset_id": {
+            "type": "string",
+            "description": "The video asset; the viewer fetches HLS through `GET /cinema/assets/{asset_id}/playback`\n(the normal play checks apply to each viewer)."
+          },
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "episode_id": {
+            "type": "string",
+            "description": "`\"0\"` for a movie."
+          },
+          "episode_label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "live": {
+            "type": "boolean"
+          },
+          "title": {
+            "type": "string"
+          },
+          "title_id": {
+            "type": "string"
+          },
+          "variant_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "WatchPartyMessageInput": {
+        "type": "object",
+        "description": "Body of `POST /watch-parties/{id}/messages` (private parties' own chat; ephemeral).",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          }
+        }
+      },
+      "WatchPartyParticipant": {
+        "type": "object",
+        "description": "A person in the party.",
+        "required": [
+          "user_id",
+          "username",
+          "joined_at_ms",
+          "is_host",
+          "is_controller",
+          "ready",
+          "buffering"
+        ],
+        "properties": {
+          "buffering": {
+            "type": "boolean",
+            "description": "Currently stalled (reported by the member's player)."
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_controller": {
+            "type": "boolean",
+            "description": "Granted by the host: may control playback when shared control is `controllers`."
+          },
+          "is_host": {
+            "type": "boolean"
+          },
+          "joined_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "rtt_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
+      "WatchPartyPlayback": {
+        "type": "object",
+        "description": "Playback state as sent to clients (`WATCH_PARTY_PLAYBACK`, and inside the party object).\n\nThe media should be at `position_ms + (server_clock - at_ms) * rate` while `playing`; `expected_position_ms`\nis that value at `server_time_ms` (the moment the server built this object). Clients correct their clock\noffset (`server_time_ms - (client_now - rtt/2)`) and apply drift correction against it.",
+        "required": [
+          "version",
+          "playing",
+          "position_ms",
+          "rate",
+          "at_ms",
+          "server_time_ms",
+          "expected_position_ms",
+          "auto_paused",
+          "live"
+        ],
+        "properties": {
+          "at_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Server clock at which `position_ms` was true."
+          },
+          "auto_paused": {
+            "type": "boolean",
+            "description": "Paused by the buffering rule (\"Waiting for ...\"), not by a controller."
+          },
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "expected_position_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "`position_ms` advanced to `server_time_ms`."
+          },
+          "live": {
+            "type": "boolean"
+          },
+          "playing": {
+            "type": "boolean"
+          },
+          "position_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "rate": {
+            "type": "number",
+            "format": "double",
+            "description": "Playback speed (1.0 = normal)."
+          },
+          "server_time_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Server clock when this view was built (every state carries it, for the clock offset)."
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Strictly increasing; a client ignores any state older than the newest it applied."
+          }
+        }
+      },
+      "WatchPartyQueueAdd": {
+        "type": "object",
+        "description": "Body of `POST /watch-parties/{id}/queue`.",
+        "required": [
+          "title_id"
+        ],
+        "properties": {
+          "episode_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title_id": {
+            "type": "string"
+          },
+          "variant_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "WatchPartyQueueItem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/WatchPartyMedia"
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "position",
+              "added_at_ms"
+            ],
+            "properties": {
+              "added_at_ms": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "added_by": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "position": {
+                "type": "integer",
+                "format": "int32"
+              }
+            }
+          }
+        ],
+        "description": "An entry of the queue."
+      },
+      "WatchPartyQueueMove": {
+        "type": "object",
+        "description": "Body of `PATCH /watch-parties/{id}/queue/{item_id}`.",
+        "required": [
+          "position"
+        ],
+        "properties": {
+          "position": {
+            "type": "integer",
+            "format": "int32",
+            "description": "New zero-based index."
+          }
+        }
+      },
+      "WatchPartyReaction": {
+        "type": "object",
+        "description": "Body of `POST /watch-parties/{id}/reactions`.",
+        "required": [
+          "emoji"
+        ],
+        "properties": {
+          "emoji": {
+            "type": "string",
+            "description": "A unicode emoji (or `name:id` of a custom one), up to 32 bytes."
+          }
+        }
+      },
+      "WatchPartySettings": {
+        "type": "object",
+        "required": [
+          "shared_control",
+          "queue_policy",
+          "auto_pause_buffering",
+          "max_wait_ms",
+          "persistent",
+          "max_participants"
+        ],
+        "properties": {
+          "auto_pause_buffering": {
+            "type": "boolean",
+            "description": "Pause everybody when a participant buffers for more than 1.5 s."
+          },
+          "max_participants": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "max_wait_ms": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Longest wait for a stalled participant before continuing without them."
+          },
+          "persistent": {
+            "type": "boolean",
+            "description": "A bound party that outlives its members (the Watch Party channel behaviour)."
+          },
+          "queue_policy": {
+            "$ref": "#/components/schemas/WatchPartyControlMode"
+          },
+          "shared_control": {
+            "$ref": "#/components/schemas/WatchPartyControlMode"
+          }
+        }
+      },
+      "WatchPartySettingsInput": {
+        "type": "object",
+        "description": "Optional settings (on create and `PATCH`).",
+        "properties": {
+          "auto_pause_buffering": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "max_participants": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "max_wait_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "persistent": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "queue_policy": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WatchPartyControlMode"
+              }
+            ]
+          },
+          "shared_control": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WatchPartyControlMode"
+              }
+            ]
+          }
+        }
+      },
+      "WatchPartyTime": {
+        "type": "object",
+        "description": "Answer of `GET /watch-parties/time`.",
+        "required": [
+          "server_time_ms"
+        ],
+        "properties": {
+          "server_time_ms": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "WatchPartyTransfer": {
+        "type": "object",
+        "description": "Body of `POST /watch-parties/{id}/host`.",
+        "required": [
+          "user_id"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string"
+          }
+        }
+      },
+      "WatchPartyYou": {
+        "type": "object",
+        "description": "The viewing account's standing in the party.",
+        "required": [
+          "member",
+          "host",
+          "can_control",
+          "can_queue",
+          "can_manage"
+        ],
+        "properties": {
+          "can_control": {
+            "type": "boolean",
+            "description": "May play, pause, seek and change the speed now."
+          },
+          "can_manage": {
+            "type": "boolean",
+            "description": "May end the party, hand over the host role, kick."
+          },
+          "can_queue": {
+            "type": "boolean",
+            "description": "May add to the queue."
+          },
+          "host": {
+            "type": "boolean"
+          },
+          "member": {
+            "type": "boolean"
           }
         }
       },

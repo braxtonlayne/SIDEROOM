@@ -3,6 +3,7 @@ import { lazyNamed } from '../lib/lazyRoute';
 import { validateBrowseSearch } from './browseSearch';
 import { createPlayerRoutes } from './player/routes';
 import { createTvRoutes } from './tv/routes';
+import { createWatchPartyRoutes } from '../watchparty/routes';
 
 // Pages load on demand (XC-PERF-001).
 const CinemaRoot = lazyNamed(() => import('./CinemaRoot'), 'CinemaRoot');
@@ -67,5 +68,6 @@ export function createCinemaRoutes(root: AnyRoute) {
     title,
     ...createPlayerRoutes(layout),
     ...createTvRoutes(layout),
+    ...createWatchPartyRoutes(layout),
   ]);
 }

@@ -9,7 +9,9 @@ import './cinema.css';
 
 /** The player renders full screen, outside the section chrome (owned by p6-cinema-player). */
 const isPlayer = (path: string) =>
-  path.startsWith('/cinema/watch/') || path.startsWith('/cinema/tv/watch/');
+  path.startsWith('/cinema/watch/') ||
+  path.startsWith('/cinema/tv/watch/') ||
+  path.startsWith('/cinema/party/');
 
 function Frame() {
   const player = useRouterState({ select: (s) => isPlayer(s.location.pathname) });

@@ -20,6 +20,7 @@ pub mod search_jobs;
 pub mod settings_pg;
 pub mod tv_catalog;
 pub mod voice;
+pub mod watchparty;
 
 /// The OpenAPI document served at `/api/v1/openapi.json` and printed by
 /// `sr-server openapi`.
@@ -47,3 +48,4 @@ mod cinema_wiring_pg_tests;
 
 #[cfg(test)]
 mod tv_wiring_pg_tests;
+mod watchparty_pg_tests;

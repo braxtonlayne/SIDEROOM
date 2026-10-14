@@ -16,7 +16,7 @@ import {
   type MenuEntry,
 } from '@sideroom/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { ApiError } from '../api/client';
 import {
   getEpisodes,
@@ -45,6 +45,11 @@ import {
 } from './ui';
 
 const STANDARD_CUT = '__standard';
+
+// Loaded on first use: the destination picker pulls in the Lounge data hooks.
+const StartPartyDialog = lazy(() =>
+  import('../watchparty/StartPartyDialog').then((m) => ({ default: m.StartPartyDialog })),
+);
 
 function Meta({ d }: { d: TitleDetail }) {
   const t = d.title;
@@ -81,6 +86,7 @@ function Header({
   const qc = useQueryClient();
   const [trailer, setTrailer] = useState(false);
   const [download, setDownload] = useState(false);
+  const [together, setTogether] = useState(false);
   const refresh = () => void qc.invalidateQueries({ queryKey: ['cinema'] });
   const inList = t.my?.in_list ?? false;
   const list = useMutation({
@@ -179,15 +185,7 @@ function Header({
               </Button>
             }
           />
-          <Button
-            variant="secondary"
-            onClick={() =>
-              toast.show({
-                title: 'Watch together is coming soon',
-                description: 'Watch parties arrive with the player.',
-              })
-            }
-          >
+          <Button variant="secondary" onClick={() => setTogether(true)}>
             <Icon name="users" size={16} /> Watch together
           </Button>
           <Button variant="secondary" onClick={() => void share()}>
@@ -226,6 +224,20 @@ function Header({
         titleId={t.id}
         title={t.title}
       />
+      {together && (
+        <Suspense fallback={null}>
+          <StartPartyDialog
+            open
+            onClose={() => setTogether(false)}
+            title={{
+              titleId: t.id,
+              episodeId: t.my?.episode_id ?? null,
+              variantId: variant ?? null,
+              label: t.title,
+            }}
+          />
+        </Suspense>
+      )}
       {t.trailer_url && (
         <TrailerModal
           open={trailer}
