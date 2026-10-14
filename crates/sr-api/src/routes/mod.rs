@@ -18,6 +18,7 @@
 //!   outside `/api/v1`; the composition root merges [`cdn::layered`] at the top level.
 //! * `library`: `/library/*` catalog for members, `/admin/library/*` for publishers.
 //! * `cinema`: `/cinema/*` catalog for members, `/admin/cinema/*` for publishers.
+//! * `watchparty`: `/watch-parties/*` and `GET /channels/{id}/watch-party` (Watch Parties).
 //! * `voice`: `GET /sr/voice/turn` and `PATCH /guilds/{id}/voice-states/{user_id}`.
 //! * `social`: relationships, ignores, notes, DMs (`/users/@me/channels*`, `/channels/{id}/recipients/*`),
 //!   acks and read states, notification settings, profiles (`PATCH /users/@me`, `/users/{id}/profile`)
@@ -44,6 +45,7 @@ pub mod settings;
 pub mod social;
 pub mod threads;
 pub mod voice;
+pub mod watchparty;
 
 /// Extractor for a service registered on [`AppState`]. A missing service is a
 /// server misconfiguration: it logs once per request and answers 500
@@ -103,6 +105,7 @@ pub fn all() -> Router<AppState> {
         .merge(review::router())
         .merge(voice::router())
         .merge(cinema_social::router())
+        .merge(watchparty::router())
 }
 
 /// Feature-owned routers (`Feature::routes()`), nested under
@@ -133,6 +136,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(review::openapi());
     doc.merge(voice::openapi());
     doc.merge(cinema_social::openapi());
+    doc.merge(watchparty::openapi());
     doc
 }
 
