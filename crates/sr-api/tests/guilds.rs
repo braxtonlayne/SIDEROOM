@@ -66,6 +66,8 @@ fn fixture_with(audit: Option<Arc<dyn guilds::backend::AuditSink>>) -> Fx {
         BearerIdentity {
             user_id: 2,
             scopes: vec!["guilds".into()],
+            application_id: 0,
+            expires_at: i64::MAX,
         },
     );
     bearers.insert(
@@ -73,6 +75,8 @@ fn fixture_with(audit: Option<Arc<dyn guilds::backend::AuditSink>>) -> Fx {
         BearerIdentity {
             user_id: 2,
             scopes: vec!["identify".into()],
+            application_id: 0,
+            expires_at: i64::MAX,
         },
     );
     let settings = ApiSettings {

@@ -44,6 +44,10 @@ pub struct BearerIdentity {
     pub user_id: i64,
     /// Granted scopes (`identify`, `guilds`, ...).
     pub scopes: Vec<String>,
+    /// The application the token was issued to.
+    pub application_id: i64,
+    /// Access token expiry, Unix seconds.
+    pub expires_at: i64,
 }
 
 /// OAuth2 bearer token verification.
@@ -103,6 +107,12 @@ impl BotToken {
     /// The at-rest digest.
     pub fn hash(&self) -> TokenHash {
         TokenHash::digest(BOT_DOMAIN, &self.0)
+    }
+
+    /// The at-rest digest of a presented token string (call [`BotToken::parse_parts`] first
+    /// to reject junk).
+    pub fn hash_of(presented: &str) -> TokenHash {
+        TokenHash::digest(BOT_DOMAIN, presented)
     }
 }
 

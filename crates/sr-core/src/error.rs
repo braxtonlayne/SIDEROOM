@@ -44,6 +44,8 @@ error_codes! {
     UnknownWebhook = 10015, 404, "Unknown Webhook";
     UnknownSession = 10020, 404, "Unknown Session";
     UnknownBan = 10026, 404, "Unknown Ban";
+    UnknownInteraction = 10062, 404, "Unknown interaction";
+    UnknownApplicationCommand = 10063, 404, "Unknown application command";
     BotsCannotUseThisEndpoint = 20001, 403, "Bots cannot use this endpoint";
     OnlyBotsCanUseThisEndpoint = 20002, 403, "Only bots can use this endpoint";
     MaxGuilds = 30001, 400, "Maximum number of guilds reached";
@@ -64,6 +66,7 @@ error_codes! {
     FeatureDisabled = 40006, 403, "This feature has been temporarily disabled server-side";
     UserBanned = 40007, 403, "The user is banned from this guild";
     TargetNotInVoice = 40032, 400, "Target user is not connected to voice.";
+    InteractionAlreadyAcknowledged = 40060, 400, "Interaction has already been acknowledged.";
     TooManyRequests = 40062, 429, "You are being rate limited";
     TagRequired = 40067, 400, "A tag is required to create a forum post in this channel";
     MissingAccess = 50001, 403, "Missing Access";
@@ -74,6 +77,7 @@ error_codes! {
     CannotSendMessagesToUser = 50007, 403, "Cannot send messages to this user";
     MissingPermissions = 50013, 403, "Missing Permissions";
     InvalidAuthenticationToken = 50014, 401, "Invalid authentication token";
+    InvalidWebhookToken = 50027, 401, "Invalid webhook token";
     NoteTooLong = 50015, 400, "Note was too long";
     InvalidFormBody = 50035, 400, "Invalid Form Body";
     InvalidApiVersion = 50041, 400, "Invalid API version provided";
@@ -98,6 +102,8 @@ error_codes! {
     SrNotFound = 900009, 404, "Unknown resource";
     SrConflict = 900010, 409, "The current state does not allow this action";
     SrAgeConfirmationRequired = 900011, 403, "You need to confirm you are 18 or older to open this";
+    SrAppNotReleased = 900120, 403, "App not released";
+    SrAppSuspended = 900121, 403, "This application is suspended";
     SrIgnoreListFull = 900101, 400, "Your ignore list is full";
     SrInternal = 900500, 500, "Internal server error";
 }

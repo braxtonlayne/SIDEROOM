@@ -31,11 +31,20 @@ pub struct ApiSettings {
     /// Trust the proxy's `X-Forwarded-For` (last entry) for the client IP.
     /// Only enable behind a reverse proxy that appends to the header (Caddy).
     pub trust_forwarded_for: bool,
+    /// Apply the route policy of [`crate::auth::policy`] to bot and OAuth2 bearer
+    /// credentials (bearers only on the listed routes, bots never on the account and portal
+    /// routes). Production wiring ([`ApiSettings::for_public_url`]) turns it on; the
+    /// `Default` used by unit tests leaves it off because their fixtures use bot tokens as
+    /// stand-in users.
+    pub enforce_credential_policy: bool,
 }
 
 impl Default for ApiSettings {
     fn default() -> Self {
-        Self::for_public_url("http://localhost:8080")
+        Self {
+            enforce_credential_policy: false,
+            ..Self::for_public_url("http://localhost:8080")
+        }
     }
 }
 
@@ -50,6 +59,7 @@ impl ApiSettings {
             secure_cookies: public_url.starts_with("https://"),
             rate_limit: RateLimitConfig::default(),
             trust_forwarded_for: false,
+            enforce_credential_policy: true,
         }
     }
 }

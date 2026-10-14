@@ -12,6 +12,7 @@ pub mod crockford;
 pub mod email_token;
 pub mod error;
 pub mod invite;
+pub mod oauth;
 pub mod password;
 pub mod random;
 pub mod recovery;

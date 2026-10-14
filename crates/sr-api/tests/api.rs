@@ -50,6 +50,8 @@ fn fixture_with(settings: ApiSettings, extra: impl FnOnce(&mut AppStateBuilderEx
         BearerIdentity {
             user_id: 8,
             scopes: vec!["identify".into()],
+            application_id: 0,
+            expires_at: i64::MAX,
         },
     );
     let clock = Arc::new(ManualClock::new(NOW_MS));
