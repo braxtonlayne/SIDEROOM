@@ -91,6 +91,7 @@ describe('admin shell', () => {
       'Cinema catalog',
       'Cinema collections',
       'Cinema transcoding',
+      'Live TV',
       'Features',
       'Limits & settings',
       'System',
