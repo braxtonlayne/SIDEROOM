@@ -564,3 +564,103 @@ describe('library catalog', () => {
     expect(await screen.findByRole('button', { name: 'Unpublish chapter 1' })).toBeInTheDocument();
   });
 });
+
+describe('dashboard tiles and setup checklist', () => {
+  const STATS = {
+    accounts_active: 7,
+    accounts_banned: 0,
+    accounts_deactivated: 1,
+    accounts_deleted: 0,
+    jobs_dead: 2,
+    jobs_queued: 0,
+    jobs_running: 0,
+    sessions_active: 4,
+    staff: 1,
+  };
+
+  it('shows review sizes, donations against cost, alerts and the setup steps for the Owner', async () => {
+    asStaff({ perms: [], owner: true });
+    server.use(
+      http.get('*/api/v1/admin/stats', () => HttpResponse.json(STATS)),
+      http.get('*/api/v1/admin/settings', () =>
+        HttpResponse.json([
+          {
+            key: 'accounts.cap',
+            group: 'limits',
+            kind: 'integer',
+            description: '',
+            min: 1,
+            max: 99,
+            value: 20,
+            default: 20,
+            is_default: true,
+          },
+        ]),
+      ),
+      http.get('*/api/v1/admin/system', () =>
+        HttpResponse.json({
+          counts: STATS,
+          gateway_sessions: 2,
+          probes: [
+            { name: 'database', ok: true },
+            { name: 'object storage', ok: false, error: 'timeout' },
+          ],
+          version: '1',
+        }),
+      ),
+      http.get('*/api/v1/admin/review/queue', () =>
+        HttpResponse.json({ items: [], total: 12, limit: 1, offset: 0 }),
+      ),
+      http.get('*/api/v1/admin/developers/requests', () => HttpResponse.json([{ id: '1' }])),
+      http.get('*/api/v1/admin/developers/versions', () =>
+        HttpResponse.json([{ id: '2' }, { id: '3' }]),
+      ),
+      http.get('*/api/v1/admin/cinema/reports', () =>
+        HttpResponse.json({ items: [{ id: '1' }], next_before: null }),
+      ),
+      http.get('*/api/v1/admin/donations/config', () =>
+        HttpResponse.json({ hosting_cost_cents: 10_000 }),
+      ),
+      http.get('*/api/v1/admin/donations/report', () =>
+        HttpResponse.json({ credited_cents: 2_500, by_purpose: [], by_day: [], by_state: {} }),
+      ),
+      http.get('*/api/v1/admin/donations/status', () =>
+        HttpResponse.json({ wallet: null, needs_attention: 1, counts: {} }),
+      ),
+      http.get('*/api/v1/admin/access-log/verify', () =>
+        HttpResponse.json({ ok: false, rows_checked: 5, first_bad_seq: 4 }),
+      ),
+    );
+    openAdmin('dashboard');
+    expect(await screen.findByText('Library submissions waiting')).toBeInTheDocument();
+    const group = screen.getByRole('group', { name: 'Review queue sizes' });
+    expect(within(group).getByText('12')).toBeInTheDocument();
+    expect(within(group).getByText('3')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('progressbar', { name: /Donations credited/ }),
+    ).toBeInTheDocument();
+    const alerts = await screen.findByRole('list', { name: 'Recent alerts' });
+    expect(within(alerts).getByText(/object storage is failing: timeout/)).toBeInTheDocument();
+    expect(within(alerts).getByText(/breaks at entry 4/)).toBeInTheDocument();
+    expect(within(alerts).getByText(/2 background jobs have failed/)).toBeInTheDocument();
+
+    const setup = await screen.findByRole('list', { name: 'Setup checklist' });
+    expect(
+      within(setup).getByText('The storage probe is failing. Check the System page.'),
+    ).toBeInTheDocument();
+    expect(
+      within(setup).getByText('No wallet yet. Donations stay off until one is set.'),
+    ).toBeInTheDocument();
+    expect(within(setup).getAllByText('Cannot check yet')).toHaveLength(3);
+  });
+
+  it('shows none of it to basic staff', async () => {
+    asStaff({ perms: ['STAFF_BASIC'] });
+    server.use(http.get('*/api/v1/admin/stats', () => HttpResponse.json(STATS)));
+    openAdmin('dashboard');
+    await screen.findByText('Active accounts');
+    expect(screen.queryByText('Setup checklist')).toBeNull();
+    expect(screen.queryByText('Donations against hosting cost')).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Review queue sizes' })).toBeNull();
+  });
+});
