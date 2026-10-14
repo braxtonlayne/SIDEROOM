@@ -11,6 +11,26 @@ pub const DEFAULT_PAGE: usize = 50;
 pub const MAX_PAGE: usize = 100;
 pub const DAY_MS: i64 = 86_400_000;
 
+tokio::task_local! {
+    /// The `X-Audit-Log-Reason` of the request being served (LNG-SSET-056). The API
+    /// layer scopes it around every request, so a guild mutation that records an audit
+    /// entry carries the caller's reason without each route threading it through.
+    static AMBIENT_REASON: String;
+}
+
+/// Run `fut` with `reason` as the ambient audit-log reason.
+pub async fn with_ambient_reason<F: std::future::Future>(reason: String, fut: F) -> F::Output {
+    AMBIENT_REASON.scope(reason, fut).await
+}
+
+/// The request's ambient reason, clipped to the Discord limit; `None` outside a request.
+pub fn ambient_reason() -> Option<String> {
+    AMBIENT_REASON
+        .try_with(|r| r.trim().chars().take(MAX_REASON_CHARS).collect::<String>())
+        .ok()
+        .filter(|r| !r.is_empty())
+}
+
 macro_rules! audit_actions {
     ($($name:ident = $code:expr,)*) => {
         /// Discord audit-log event numbers (a subset; extend as modules land).
@@ -142,7 +162,10 @@ impl AuditEntry {
             action,
             changes: Vec::new(),
             options: None,
-            reason: normalize_reason(reason)?,
+            reason: match normalize_reason(reason)? {
+                Some(r) => Some(r),
+                None => ambient_reason(),
+            },
             created_at_ms: now_ms,
         })
     }
@@ -330,5 +353,27 @@ mod tests {
         );
         assert!(AuditRetention::from_setting(Some(&Value::from(-1))).is_err());
         assert!(AuditRetention::from_setting(Some(&Value::from("45"))).is_err());
+    }
+
+    #[tokio::test]
+    async fn the_request_reason_is_the_fallback_and_an_explicit_one_wins() {
+        let (g, u) = (GuildId::new(1), UserId::new(2));
+        let build = |explicit: Option<&str>| {
+            AuditEntry::new(1, g, u, AuditAction::GuildUpdate, None, explicit, 0).unwrap()
+        };
+        assert_eq!(build(None).reason, None);
+        let long = "x".repeat(MAX_REASON_CHARS + 50);
+        with_ambient_reason("  spam cleanup ".into(), async {
+            assert_eq!(build(None).reason.as_deref(), Some("spam cleanup"));
+            assert_eq!(build(Some("mine")).reason.as_deref(), Some("mine"));
+        })
+        .await;
+        with_ambient_reason(long, async {
+            assert_eq!(
+                build(None).reason.unwrap().chars().count(),
+                MAX_REASON_CHARS
+            );
+        })
+        .await;
     }
 }

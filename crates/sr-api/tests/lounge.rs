@@ -360,91 +360,92 @@ async fn next_event(s: &mut BoxStream<'static, DomainEvent>) -> Option<DomainEve
 
 #[tokio::test]
 async fn server_tag_is_shown_next_to_members_who_opt_in() {
+    // One implementation of server tags survives the phase-10 integration: the
+    // `guild_tags` / `user_primary_guilds` one (LNG-SSET-011/012). The lounge surface
+    // (`primary_guild` on member user references, LNG-GLD-011) reads from it.
     let w = world().await;
     let (gid, _) = w.guild("Club House").await;
+    let tag = format!("/guilds/{gid}/tag");
 
-    let (s, badges) = w.get(BOB, "/guilds/tag-badges").await;
-    assert_eq!(s, StatusCode::OK);
-    assert!(badges.as_array().unwrap().iter().any(|b| b == "crown"));
-
-    // Setting a tag takes MANAGE_GUILD; it is validated; a badge needs a tag.
-    let uri = format!("/guilds/{gid}");
-    let (s, _) = w.patch(BOB, &uri, json!({ "tag": "ZZ" })).await;
-    assert_eq!(s, StatusCode::FORBIDDEN);
-    for bad in [
-        json!({"tag": "x"}),
-        json!({"tag": "toolong"}),
-        json!({"tag_badge": "crown"}),
-    ] {
-        let (s, e) = w.patch(OWNER, &uri, bad).await;
-        assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");
-    }
-    let (s, e) = w
-        .patch(OWNER, &uri, json!({ "tag": "SR1", "tag_badge": "crown" }))
-        .await;
-    assert_eq!(s, StatusCode::OK, "{e}");
+    // The duplicate lounge routes and guild fields are gone (`tag-badges` now only matches
+    // `/guilds/{guild_id}` and is not a snowflake).
     assert_eq!(
-        (e["tag"].as_str(), e["tag_badge"].as_str()),
-        (Some("SR1"), Some("crown"))
+        w.get(BOB, "/guilds/tag-badges").await.0,
+        StatusCode::BAD_REQUEST
     );
-    let (s, e) = w
-        .patch(OWNER, &uri, json!({ "tag_badge": "unicorn" }))
-        .await;
-    assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");
-
-    // Nobody shows it until they choose to.
-    let (_, m) = w.get(OWNER, &format!("{uri}/members/{BOB}")).await;
-    assert!(m["user"].get("primary_guild").is_none(), "{m}");
-
-    // Bob opts in; non-members and tagless servers are refused.
-    let (s, u) = w
+    let (s, _) = w
         .patch(
             BOB,
             "/users/@me/primary-guild",
             json!({ "identity_guild_id": gid }),
         )
+        .await;
+    assert_eq!(s, StatusCode::METHOD_NOT_ALLOWED);
+    let (s, g) = w
+        .patch(OWNER, &format!("/guilds/{gid}"), json!({ "tag": "SR1" }))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{g}");
+    assert!(
+        g.get("tag").is_none() && g.get("tag_badge").is_none(),
+        "{g}"
+    );
+
+    // Managers set the tag; members adopt it.
+    let (s, _) = w.put(BOB, &tag, json!({ "tag": "SR1" })).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    let (s, t) = w
+        .put(
+            OWNER,
+            &tag,
+            json!({ "tag": "SR1", "badge": 8, "color": 0x00AA_33FF }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{t}");
+    let (_, m) = w.get(OWNER, &format!("/guilds/{gid}/members/{BOB}")).await;
+    assert!(m["user"].get("primary_guild").is_none(), "{m}");
+    let (s, u) = w
+        .put(BOB, "/users/@me/primary-guild", json!({ "guild_id": gid }))
         .await;
     assert_eq!(s, StatusCode::OK, "{u}");
     assert_eq!(u["primary_guild"]["tag"], "SR1");
-    assert_eq!(u["primary_guild"]["badge"], "crown");
-    assert_eq!(u["primary_guild"]["identity_guild_id"], gid);
-    assert_eq!(u["primary_guild"]["identity_enabled"], true);
-    let (_, m) = w.get(OWNER, &format!("{uri}/members/{BOB}")).await;
-    assert_eq!(m["user"]["primary_guild"]["tag"], "SR1");
+    assert_eq!(u["primary_guild"]["badge"], 8);
     let (s, _) = w
-        .patch(
+        .put(
             CAROL,
             "/users/@me/primary-guild",
-            json!({ "identity_guild_id": gid }),
+            json!({ "guild_id": gid }),
         )
         .await;
-    assert_eq!(s, StatusCode::FORBIDDEN, "carol is not a member");
-    let (other, _) = w.guild("No Tag").await;
-    let (s, e) = w
-        .patch(
-            OWNER,
-            "/users/@me/primary-guild",
-            json!({ "identity_guild_id": other }),
-        )
-        .await;
-    assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");
+    assert_eq!(s, StatusCode::BAD_REQUEST, "carol is not a member");
 
-    // Opting out hides it again; removing the tag removes the badge too.
-    let (s, u) = w
-        .patch(
-            BOB,
-            "/users/@me/primary-guild",
-            json!({ "identity_guild_id": null }),
-        )
-        .await;
-    assert_eq!(s, StatusCode::OK);
-    assert!(u.get("primary_guild").is_none(), "{u}");
-    let (s, e) = w.patch(OWNER, &uri, json!({ "tag": null })).await;
-    assert_eq!(s, StatusCode::OK, "{e}");
-    assert!(
-        e.get("tag").is_none() && e.get("tag_badge").is_none(),
-        "{e}"
+    // Member references carry what the user lookup resolves (on Postgres that is the
+    // `guild_tags` join, see sr-db `server_tag_adoption_shows_only_for_members_while_allowed`).
+    w.repo
+        .store
+        .lock()
+        .unwrap()
+        .users
+        .get_mut(&UserId::new(BOB as u64))
+        .unwrap()
+        .primary_guild = Some(sr_chat::settings::tags::PrimaryGuild {
+        guild_id: GuildId::new(gid.parse().unwrap()),
+        tag: "SR1".into(),
+        badge: 8,
+        color: 0x00AA_33FF,
+    });
+    let (_, m) = w.get(OWNER, &format!("/guilds/{gid}/members/{BOB}")).await;
+    let pg = &m["user"]["primary_guild"];
+    assert_eq!(
+        (
+            &pg["identity_guild_id"],
+            &pg["tag"],
+            &pg["badge"],
+            &pg["color"]
+        ),
+        (&json!(gid), &json!("SR1"), &json!(8), &json!(0x00AA_33FF)),
+        "{m}"
     );
+    assert_eq!(pg["identity_enabled"], true);
 }
 
 // ------------------------------------------------------------------ LNG-GLD-012

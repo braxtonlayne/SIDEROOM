@@ -19,6 +19,7 @@ use sr_chat::repo::{
     Page, ReactionSummary, RepoResult, StoreError, StoreResult, UploadState, UserLookup,
     UserSummary,
 };
+use sr_chat::settings::tags::PrimaryGuild;
 use sr_chat::threads::model::{ForumConfig, ThreadInfo};
 use sr_core::permissions::{Overwrite, OverwriteKind, Permissions};
 use sr_core::{AttachmentId, ChannelId, GuildId, MessageId, RoleId, Snowflake, UserId};
@@ -71,7 +72,7 @@ fn vis_parse(s: &str) -> RepoResult<Visibility> {
 
 pub(crate) const GUILD_COLS: &str = "id, name, description, icon_key, banner_key, splash_key, \
     owner_id, is_staff_guild, system_channel_id, verification_level, default_message_notifications, \
-    explicit_content_filter, preferred_locale, afk_channel_id, afk_timeout, tag, tag_badge, \
+    explicit_content_filter, preferred_locale, afk_channel_id, afk_timeout, \
     vanity_code::text AS vanity_code";
 
 pub(crate) fn guild_from(r: &PgRow) -> Result<Guild, sqlx::Error> {
@@ -99,8 +100,6 @@ pub(crate) fn guild_from(r: &PgRow) -> Result<Guild, sqlx::Error> {
         explicit_content_filter: u8::try_from(r.try_get::<i16, _>("explicit_content_filter")?)
             .unwrap_or(0),
         preferred_locale: r.try_get("preferred_locale")?,
-        tag: r.try_get("tag")?,
-        tag_badge: r.try_get("tag_badge")?,
         vanity_code: r.try_get("vanity_code")?,
     })
 }
@@ -448,7 +447,7 @@ impl GuildRepository for PgChatRepo {
 
     async fn get_guild(&self, id: GuildId) -> RepoResult<Option<Guild>> {
         let row = sqlx::query(sqlx::AssertSqlSafe(format!(
-            "SELECT {GUILD_COLS} FROM guilds WHERE id = $1"
+            "SELECT {GUILD_COLS} FROM guilds WHERE id = $1 AND deleted_at IS NULL"
         )))
         .bind(i(id.get()))
         .fetch_optional(&self.pool)
@@ -1544,16 +1543,16 @@ impl MessageStore for PgMessageStore {
 impl UserLookup for PgChatRepo {
     async fn users(&self, ids: &[UserId]) -> RepoResult<Vec<UserSummary>> {
         let ids: Vec<i64> = ids.iter().map(|u| i(u.get())).collect();
-        // The server tag shows only while the user still belongs to that server, the
-        // server still has a tag, and the user kept showing it (LNG-GLD-011).
+        // The adopted server tag shows only while it exists, members may display it and
+        // the user is still a member (LNG-SSET-012).
         let rows = sqlx::query(
             "SELECT a.id, a.username::text AS username, a.display_name, a.avatar_key, \
-             a.banner_key, a.is_bot, pg.id AS pg_id, pg.tag AS pg_tag, pg.tag_badge AS pg_badge \
+             a.banner_key, a.is_bot, t.guild_id AS tag_guild, t.tag, t.badge, t.color \
              FROM accounts a \
-             LEFT JOIN guilds pg ON pg.id = a.primary_guild_id AND a.primary_guild_enabled \
-                  AND pg.tag IS NOT NULL \
-                  AND EXISTS (SELECT 1 FROM guild_members gm \
-                              WHERE gm.guild_id = pg.id AND gm.user_id = a.id) \
+             LEFT JOIN user_primary_guilds p ON p.user_id = a.id \
+             LEFT JOIN guild_tags t ON t.guild_id = p.guild_id AND t.members_can_display \
+               AND EXISTS (SELECT 1 FROM guild_members m \
+                           WHERE m.guild_id = p.guild_id AND m.user_id = a.id) \
              WHERE a.id = ANY($1)",
         )
         .bind(ids)
@@ -1562,11 +1561,13 @@ impl UserLookup for PgChatRepo {
         .map_err(db)?;
         let mut out = Vec::with_capacity(rows.len());
         for r in &rows {
-            let primary_guild = match r.try_get::<Option<i64>, _>("pg_id").map_err(db)? {
-                Some(g) => Some(sr_chat::server_tag::PrimaryGuild {
+            let tag_guild: Option<i64> = r.try_get("tag_guild").map_err(db)?;
+            let primary_guild = match tag_guild {
+                Some(g) => Some(PrimaryGuild {
                     guild_id: GuildId::new(u(g)),
-                    tag: r.try_get("pg_tag").map_err(db)?,
-                    badge: r.try_get("pg_badge").map_err(db)?,
+                    tag: r.try_get("tag").map_err(db)?,
+                    badge: u8::try_from(r.try_get::<i16, _>("badge").map_err(db)?).unwrap_or(0),
+                    color: u32::try_from(r.try_get::<i32, _>("color").map_err(db)?).unwrap_or(0),
                 }),
                 None => None,
             };

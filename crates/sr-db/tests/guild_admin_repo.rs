@@ -449,3 +449,81 @@ async fn prune_spares_members_seen_recently() {
         0
     );
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn delete_guild_soft_deletes_messages_and_removes_members() {
+    let pool = pool().await;
+    let (svc, ids) = service(&pool);
+    let owner = account(&pool, &ids).await;
+    let bob = account(&pool, &ids).await;
+    let bp = svc.create_guild(owner, "Doomed Guild").await.unwrap();
+    let gid = bp.guild.id;
+    join(&pool, gid, bob).await;
+    let channel = bp.channels[2].id;
+    let msg = ids.generate().get() as i64;
+    let held = ids.generate().get() as i64;
+    let _: String = sqlx::query_scalar("SELECT sr_ensure_message_partition(CURRENT_DATE)")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO moderation_holds (id, reason) VALUES ($1, 'case')")
+        .bind(held)
+        .execute(&pool)
+        .await
+        .unwrap();
+    for (id, hold) in [(msg, None), (held, Some(held))] {
+        sqlx::query(
+            "INSERT INTO messages (id, channel_id, guild_id, author_id, content, hold_id) \
+             VALUES ($1, $2, $3, $4, 'hi', $5)",
+        )
+        .bind(id)
+        .bind(channel.get() as i64)
+        .bind(gid.get() as i64)
+        .bind(owner.get() as i64)
+        .bind(hold)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+
+    svc.delete_guild(owner, gid).await.unwrap();
+    assert!(matches!(
+        svc.get_guild(owner, gid).await,
+        Err(ChatError::UnknownGuild)
+    ));
+    assert!(svc.list_my_guilds(bob).await.unwrap().is_empty());
+
+    let members: i64 = sqlx::query_scalar("SELECT count(*) FROM guild_members WHERE guild_id = $1")
+        .bind(gid.get() as i64)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(members, 0);
+    let rows: Vec<(i64, String, bool)> = sqlx::query_as(
+        "SELECT id, visibility::text, purge_after > now() + interval '29 days' \
+         FROM messages WHERE channel_id = $1 ORDER BY id",
+    )
+    .bind(channel.get() as i64)
+    .fetch_all(&pool)
+    .await
+    .map(|r: Vec<(i64, String, Option<bool>)>| {
+        r.into_iter()
+            .map(|(a, b, c)| (a, b, c.unwrap_or(false)))
+            .collect()
+    })
+    .unwrap();
+    assert_eq!(rows.len(), 2);
+    for (id, vis, purge_in_30d) in rows {
+        assert_eq!(vis, "user_deleted");
+        // A held message keeps no purge time (D-122); the other gets the 30-day window.
+        assert_eq!(purge_in_30d, id == msg);
+    }
+    // The guild row is kept for the window.
+    let kept: bool = sqlx::query_scalar("SELECT deleted_at IS NOT NULL FROM guilds WHERE id = $1")
+        .bind(gid.get() as i64)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert!(kept);
+}

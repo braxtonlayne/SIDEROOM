@@ -166,32 +166,6 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
         Ok(guild)
     }
 
-    /// Choose the server whose tag `user` shows (LNG-GLD-011), or stop showing one with
-    /// `guild: None`. The server must have a tag and the user must be a member.
-    pub async fn set_primary_guild(
-        &self,
-        user: UserId,
-        guild: Option<GuildId>,
-        enabled: bool,
-    ) -> ChatResult<()> {
-        if let Some(gid) = guild {
-            let g = self.guild(gid).await?;
-            self.repo
-                .get_member(gid, user)
-                .await?
-                .ok_or(ChatError::MissingAccess)?;
-            if g.tag.is_none() {
-                return Err(ChatError::invalid(
-                    "identity_guild_id",
-                    "NO_SERVER_TAG",
-                    "This server has no tag.",
-                ));
-            }
-        }
-        self.repo.set_primary_guild(user, guild, enabled).await?;
-        Ok(())
-    }
-
     /// Owner-only; returns the deleted guild.
     pub async fn delete_guild(&self, actor: UserId, id: GuildId) -> ChatResult<Guild> {
         let c = self.ctx(actor, id).await?;

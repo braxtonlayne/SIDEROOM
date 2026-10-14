@@ -58,8 +58,6 @@ pub fn router() -> Router<AppState> {
         guild::delete_guild,
         guild::list_my_guilds,
         guild::leave_guild,
-        guild::list_tag_badges,
-        guild::set_primary_guild,
         channels::list_channels,
         channels::create_channel,
         channels::reorder_channels,
@@ -95,8 +93,6 @@ pub fn router() -> Router<AppState> {
     ),
     components(schemas(
         dto::UserRef,
-        dto::PrimaryGuildObject,
-        guild::PrimaryGuildBody,
         dto::RoleObject,
         dto::OverwriteObject,
         dto::ChannelObject,

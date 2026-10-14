@@ -77,8 +77,6 @@ pub fn plan_new_guild(
         icon_key: None,
         banner_key: None,
         splash_key: None,
-        tag: None,
-        tag_badge: None,
         vanity_code: None,
         owner_id: owner,
         is_staff_guild: false,

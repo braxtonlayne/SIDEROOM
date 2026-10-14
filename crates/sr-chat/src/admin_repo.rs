@@ -53,14 +53,6 @@ pub trait GuildAdminRepository: Send + Sync {
     /// Persist the vanity code of a guild (`None` clears it). `false` when another guild
     /// holds the code already (also when a concurrent claim wins the race).
     async fn set_vanity(&self, guild: GuildId, code: Option<&str>) -> RepoResult<bool>;
-    /// Choose which server's tag `user` shows (`None` clears the choice) and whether it is
-    /// shown (LNG-GLD-011). The caller checked that they are a member.
-    async fn set_primary_guild(
-        &self,
-        user: UserId,
-        guild: Option<GuildId>,
-        enabled: bool,
-    ) -> RepoResult<()>;
     /// Delete the guild and everything under it.
     async fn delete_guild(&self, id: GuildId) -> RepoResult<()>;
     /// Guilds `user` is a member of, ordered by guild id.

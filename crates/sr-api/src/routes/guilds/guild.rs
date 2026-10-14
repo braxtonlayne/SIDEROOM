@@ -1,9 +1,7 @@
 //! Guild create/get/modify/delete and the caller's guild list.
 
-use super::dto::{
-    CreateGuildBody, GuildObject, GuildPreviewObject, ModifyGuildBody, UserRef, nullable,
-};
-use super::util::{Api, actor, ce, id, users_for};
+use super::dto::{CreateGuildBody, GuildObject, GuildPreviewObject, ModifyGuildBody};
+use super::util::{Api, actor, ce, id};
 use crate::routes::settings::deps::{SettingsDeps, se};
 use crate::routes::{MaybeExt, media::MediaDeps};
 use crate::{AuthKind, Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
@@ -27,11 +25,6 @@ pub fn routes() -> Router<AppState> {
         .route(
             "/guilds/{guild_id}",
             axum::routing::patch(modify_guild).layer(crate::routes::media::body_limit()),
-        )
-        .route("/guilds/tag-badges", get(list_tag_badges))
-        .route(
-            "/users/@me/primary-guild",
-            axum::routing::patch(set_primary_guild),
         )
         .route("/users/@me/guilds", get(list_my_guilds))
         .route("/users/@me/guilds/{guild_id}", delete(leave_guild))
@@ -239,8 +232,6 @@ pub async fn modify_guild(
         icon_key,
         banner_key,
         splash_key,
-        tag: body.tag,
-        tag_badge: body.tag_badge,
     };
     let g = match api.edit_guild(user, gid, patch).await {
         Ok(g) => g,
@@ -346,53 +337,4 @@ pub async fn leave_guild(
     let gid: GuildId = id("guild_id", &guild_id)?;
     api.leave_guild(user, gid).await.map_err(ce)?;
     Ok(StatusCode::NO_CONTENT)
-}
-
-/// The badge icons a server tag may carry (LNG-GLD-011).
-#[utoipa::path(
-    get,
-    path = "/guilds/tag-badges",
-    responses((status = 200, body = Vec<String>), (status = 401, body = ErrorBody)),
-    security(("authorization" = []), ("session" = []))
-)]
-pub async fn list_tag_badges(p: Principal) -> ApiResult<Json<Vec<&'static str>>> {
-    actor(&p)?;
-    Ok(Json(sr_chat::server_tag::BADGES.to_vec()))
-}
-
-/// Body of `PATCH /users/@me/primary-guild`.
-#[derive(Debug, Default, serde::Deserialize, utoipa::ToSchema)]
-pub struct PrimaryGuildBody {
-    /// The server whose tag to show; `null` stops showing any.
-    #[serde(default, deserialize_with = "nullable")]
-    #[schema(value_type = Option<String>)]
-    pub identity_guild_id: Option<Option<String>>,
-    /// Show the tag (default true while a server is chosen).
-    pub identity_enabled: Option<bool>,
-}
-
-/// Choose which server\'s tag is shown next to your name everywhere (LNG-GLD-011). You must
-/// be a member of the server and it must have a tag. Returns your public user reference.
-#[utoipa::path(
-    patch,
-    path = "/users/@me/primary-guild",
-    request_body = PrimaryGuildBody,
-    responses((status = 200, body = UserRef), (status = 400, body = ErrorBody), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
-    security(("authorization" = []), ("session" = []))
-)]
-pub async fn set_primary_guild(
-    p: Principal,
-    Api(api): Api,
-    axum::Json(body): axum::Json<PrimaryGuildBody>,
-) -> ApiResult<Json<UserRef>> {
-    let me = actor(&p)?;
-    let guild: Option<GuildId> = match body.identity_guild_id {
-        Some(Some(raw)) => Some(id("identity_guild_id", &raw)?),
-        _ => None,
-    };
-    api.set_primary_guild(me, guild, body.identity_enabled.unwrap_or(true))
-        .await
-        .map_err(ce)?;
-    let users = users_for(&*api, [me]).await?;
-    Ok(Json(UserRef::of(me, &users)))
 }

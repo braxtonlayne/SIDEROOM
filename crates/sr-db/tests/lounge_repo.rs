@@ -1,12 +1,12 @@
-//! Postgres tests for the phase 10 lounge backend (migration 0620): server tags and the
-//! `primary_guild` lookup, vanity codes, temporary memberships, membership screening, the
+//! Postgres tests for the phase 10 lounge backend (migration 0620): vanity codes, temporary
+//! memberships, membership screening, the
 //! Server Directory, per-server member profiles, announcement followers and message flags.
 //! `SR_TEST_DATABASE_URL=postgres://... cargo test -p sr-db --test lounge_repo -- --ignored --test-threads=1`
 
 use std::sync::Arc;
 
 use sr_chat::admin_repo::GuildAdminRepository;
-use sr_chat::repo::{GuildRepository, MessageRepository, UserLookup};
+use sr_chat::repo::{GuildRepository, MessageRepository};
 use sr_chat::settings::SettingsError;
 use sr_chat::settings::community::CommunitySettings;
 use sr_chat::settings::directory::{
@@ -128,68 +128,6 @@ impl Fx {
             .unwrap()
             .is_some()
     }
-}
-
-#[tokio::test]
-#[ignore = "needs SR_TEST_DATABASE_URL"]
-async fn server_tag_shows_only_for_members_who_chose_it() {
-    let f = fx(1).await;
-    let bob = account(&f.pool, &f.ids).await;
-    let code = f.invite(false, 0).await;
-    f.join.join_via_invite(&code, bob, NOW).await.unwrap();
-
-    // Tag and badge persist with the guild.
-    let mut g = f.chat.get_guild(f.guild).await.unwrap().unwrap();
-    assert_eq!((g.tag.as_deref(), g.vanity_code.as_deref()), (None, None));
-    g.tag = Some("LNG".into());
-    g.tag_badge = Some("crown".into());
-    f.chat.update_guild(&g).await.unwrap();
-    let read = f.chat.get_guild(f.guild).await.unwrap().unwrap();
-    assert_eq!(
-        (read.tag.as_deref(), read.tag_badge.as_deref()),
-        (Some("LNG"), Some("crown"))
-    );
-
-    // Nobody shows it until they choose.
-    let shown = |u: UserId| {
-        let chat = f.chat.clone();
-        async move { chat.users(&[u]).await.unwrap().remove(0).primary_guild }
-    };
-    assert_eq!(shown(bob).await, None);
-    f.chat
-        .set_primary_guild(bob, Some(f.guild), true)
-        .await
-        .unwrap();
-    let pg = shown(bob).await.expect("bob shows the tag");
-    assert_eq!(
-        (pg.guild_id, pg.tag.as_str(), pg.badge.as_deref()),
-        (f.guild, "LNG", Some("crown"))
-    );
-    // Turning it off, removing the tag, or leaving the server each hide it.
-    f.chat
-        .set_primary_guild(bob, Some(f.guild), false)
-        .await
-        .unwrap();
-    assert_eq!(shown(bob).await, None);
-    f.chat
-        .set_primary_guild(bob, Some(f.guild), true)
-        .await
-        .unwrap();
-    g.tag = None;
-    g.tag_badge = None;
-    f.chat.update_guild(&g).await.unwrap();
-    assert_eq!(shown(bob).await, None, "no tag, nothing to show");
-    g.tag = Some("LNG".into());
-    f.chat.update_guild(&g).await.unwrap();
-    assert!(shown(bob).await.is_some());
-    f.chat.remove_member(f.guild, bob).await.unwrap();
-    assert_eq!(shown(bob).await, None, "left the server");
-    // Constraints reject malformed values.
-    let bad = sqlx::query("UPDATE guilds SET tag = 'toolong' WHERE id = $1")
-        .bind(f.guild.get() as i64)
-        .execute(&f.pool)
-        .await;
-    assert!(bad.is_err());
 }
 
 #[tokio::test]

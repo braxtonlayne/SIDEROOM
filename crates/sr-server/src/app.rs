@@ -359,19 +359,22 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // Threads: their own snowflake worker (process id + 5). The activity hook keeps
     // counters, reopens archived threads and auto-joins posters; it runs after the
     // social hooks on every stored message.
-    let threads_deps = Arc::new(routes::threads::ThreadsDeps::new(
-        sr_chat::threads::ThreadService::new(
-            PgChatRepo::new(pool.clone()),
-            clock.clone(),
-            SnowflakeGenerator::new(
+    let threads_deps = Arc::new(
+        routes::threads::ThreadsDeps::new(
+            sr_chat::threads::ThreadService::new(
+                PgChatRepo::new(pool.clone()),
                 clock.clone(),
-                cfg.server.worker_id,
-                (cfg.server.process_id + 5) % 32,
-            )
-            .context("thread snowflake generator")?,
-        ),
-        bus.clone(),
-    ));
+                SnowflakeGenerator::new(
+                    clock.clone(),
+                    cfg.server.worker_id,
+                    (cfg.server.process_id + 5) % 32,
+                )
+                .context("thread snowflake generator")?,
+            ),
+            bus.clone(),
+        )
+        .with_audit(audit_sink.clone()),
+    );
     let message_hooks: Arc<dyn sr_chat::message_hooks::MessageHooks> =
         Arc::new(sr_chat::threads::hooks::HookChain(vec![
             social,
@@ -395,6 +398,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     )
     .context("message snowflake generator")?
     .with_cdn_signer(cdn_signer.clone())
+    .with_audit(audit_sink.clone())
     // Age-restricted channels need the 18+ answer (D-032, LNG-CHN-006).
     .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone())));
     // Rich messages: polls, stickers and link previews (LNG-MSG-010, LNG-MSG-014).
@@ -944,6 +948,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     );
     let runner = crate::jobs::register_attachment_gc(runner, &pool, storage.clone());
     let runner = crate::jobs::register_audit_purge(runner, &pool);
+    let runner = crate::jobs::register_insights(runner, &pool);
     let runner = crate::jobs::register_thread_archive(runner, &pool, threads_deps.clone());
     let runner = crate::search_jobs::register(runner, &pool, indexer);
     let runner = crate::admin_jobs::register(runner, &pool, id_src.clone(), bus.clone());
@@ -962,6 +967,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::payments_jobs::register(runner, &pool, payments.service.clone());
     crate::jobs::schedule_recurring(&pool).await?;
     crate::jobs::schedule_audit_purge(&pool).await?;
+    crate::jobs::schedule_insights(&pool).await?;
     crate::jobs::schedule_thread_archive(&pool).await?;
     crate::jobs::schedule_attachment_gc(&pool).await?;
     crate::admin_jobs::schedule(&pool).await?;

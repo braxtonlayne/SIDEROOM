@@ -10,17 +10,24 @@ use sqlx::{PgPool, Row};
 
 use sr_chat::error::RepoError;
 use sr_chat::repo::RepoResult;
+use sr_chat::settings::applications::{
+    Answer, Application, ApplicationForm, ApplicationStatus, Question,
+};
 use sr_chat::settings::audit::{AuditAction, AuditChange, AuditEntry, AuditQuery};
 use sr_chat::settings::automod::{Action, AutoModRule, EventType, Trigger};
 use sr_chat::settings::community::{
     CommunitySettings, Onboarding, OnboardingPrompt, WelcomeChannel, WelcomeScreen,
 };
 use sr_chat::settings::expressions::{Emoji, Sticker, StickerFormat};
+use sr_chat::settings::guide::{Guide, GuideResource, GuideTodo};
+use sr_chat::settings::insights::{Insights, InsightsDay, TOP_CHANNELS, TopChannel};
 use sr_chat::settings::invites::GuildInvite;
 use sr_chat::settings::repo::{
-    AuditRepository, AutoModRepository, CommunityRepository, ExpressionRepository,
-    InviteRepository, TemplateRepository, WebhookRepository,
+    ApplicationRepository, AuditRepository, AutoModRepository, CommunityRepository,
+    ExpressionRepository, GuideRepository, InsightsRepository, InviteRepository, TagRepository,
+    TemplateRepository, WebhookRepository,
 };
+use sr_chat::settings::tags::GuildTag;
 use sr_chat::settings::templates::{GuildTemplate, TemplateSnapshot};
 use sr_chat::settings::webhooks::{Webhook, WebhookKind};
 use sr_core::{ApplicationId, ChannelId, EmojiId, GuildId, RoleId, StickerId, UserId, WebhookId};
@@ -1104,5 +1111,430 @@ impl CommunityRepository for PgSettingsRepo {
         .await
         .map_err(db)?;
         Ok(())
+    }
+}
+
+#[async_trait]
+impl TagRepository for PgSettingsRepo {
+    async fn get_guild_tag(&self, guild: GuildId) -> RepoResult<Option<GuildTag>> {
+        let row = sqlx::query(
+            "SELECT tag, badge, color, members_can_display FROM guild_tags WHERE guild_id = $1",
+        )
+        .bind(i(guild.get()))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        let Some(r) = row else { return Ok(None) };
+        let badge: i16 = get(&r, "badge")?;
+        let color: i32 = get(&r, "color")?;
+        Ok(Some(GuildTag {
+            guild_id: guild,
+            tag: get(&r, "tag")?,
+            badge: u8::try_from(badge).unwrap_or(0),
+            color: u32::try_from(color).unwrap_or(0),
+            members_can_display: get(&r, "members_can_display")?,
+        }))
+    }
+
+    async fn put_guild_tag(&self, t: &GuildTag) -> RepoResult<()> {
+        sqlx::query(
+            "INSERT INTO guild_tags (guild_id, tag, badge, color, members_can_display) \
+             VALUES ($1, $2, $3, $4, $5) \
+             ON CONFLICT (guild_id) DO UPDATE SET tag = EXCLUDED.tag, badge = EXCLUDED.badge, \
+               color = EXCLUDED.color, members_can_display = EXCLUDED.members_can_display, \
+               updated_at = now()",
+        )
+        .bind(i(t.guild_id.get()))
+        .bind(&t.tag)
+        .bind(i16::from(t.badge))
+        .bind(i32::try_from(t.color).unwrap_or(0))
+        .bind(t.members_can_display)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
+
+    async fn delete_guild_tag(&self, guild: GuildId) -> RepoResult<bool> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        sqlx::query("DELETE FROM user_primary_guilds WHERE guild_id = $1")
+            .bind(i(guild.get()))
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        let n = sqlx::query("DELETE FROM guild_tags WHERE guild_id = $1")
+            .bind(i(guild.get()))
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?
+            .rows_affected();
+        tx.commit().await.map_err(db)?;
+        Ok(n > 0)
+    }
+
+    async fn get_primary_guild(&self, user: UserId) -> RepoResult<Option<GuildId>> {
+        let g: Option<i64> =
+            sqlx::query_scalar("SELECT guild_id FROM user_primary_guilds WHERE user_id = $1")
+                .bind(i(user.get()))
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(db)?;
+        Ok(g.map(|g| GuildId::new(u(g))))
+    }
+
+    async fn set_primary_guild(&self, user: UserId, guild: Option<GuildId>) -> RepoResult<()> {
+        match guild {
+            Some(g) => {
+                sqlx::query(
+                    "INSERT INTO user_primary_guilds (user_id, guild_id) VALUES ($1, $2) \
+                     ON CONFLICT (user_id) DO UPDATE SET guild_id = EXCLUDED.guild_id, set_at = now()",
+                )
+                .bind(i(user.get()))
+                .bind(i(g.get()))
+                .execute(&self.pool)
+                .await
+                .map_err(db)?;
+            }
+            None => {
+                sqlx::query("DELETE FROM user_primary_guilds WHERE user_id = $1")
+                    .bind(i(user.get()))
+                    .execute(&self.pool)
+                    .await
+                    .map_err(db)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl InsightsRepository for PgSettingsRepo {
+    async fn insights(&self, guild: GuildId, days: u32, now_ms: i64) -> RepoResult<Insights> {
+        // The window is the `days` completed UTC days before today.
+        const WINDOW: &str = "day >= (to_timestamp($2::double precision / 1000.0) AT TIME ZONE 'UTC')::date - $3::int \
+             AND day < (to_timestamp($2::double precision / 1000.0) AT TIME ZONE 'UTC')::date";
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT to_char(day, 'YYYY-MM-DD') AS d, members, joins, messages, voice_minutes \
+             FROM guild_insights_daily WHERE guild_id = $1 AND {WINDOW} ORDER BY day"
+        )))
+        .bind(i(guild.get()))
+        .bind(now_ms)
+        .bind(i32::try_from(days).unwrap_or(30))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        let mut out = Insights::default();
+        for r in &rows {
+            let n = |col: &str| -> RepoResult<i64> { Ok(i64::from(get::<i32>(r, col)?)) };
+            out.days.push(InsightsDay {
+                day: get(r, "d")?,
+                members: n("members")?,
+                joins: n("joins")?,
+                messages: n("messages")?,
+                voice_minutes: n("voice_minutes")?,
+            });
+        }
+        let top = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT channel_id, sum(messages)::bigint AS n FROM guild_insights_channel_daily \
+             WHERE guild_id = $1 AND {WINDOW} GROUP BY channel_id ORDER BY n DESC, channel_id \
+             LIMIT {TOP_CHANNELS}"
+        )))
+        .bind(i(guild.get()))
+        .bind(now_ms)
+        .bind(i32::try_from(days).unwrap_or(30))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        for r in &top {
+            out.top_channels.push(TopChannel {
+                channel_id: ChannelId::new(u(get(r, "channel_id")?)),
+                messages: get(r, "n")?,
+            });
+        }
+        Ok(out)
+    }
+}
+
+/// How many days of insights are kept.
+pub const INSIGHTS_KEEP_DAYS: i32 = 90;
+
+/// Compute the counters of the UTC day that starts at `day_start_ms` for every live
+/// guild (LNG-SSET-068), replacing any earlier numbers for that day. Returns how many
+/// guilds were written. Also drops rows older than [`INSIGHTS_KEEP_DAYS`].
+pub async fn compute_insights_day(pool: &PgPool, day_start_ms: i64) -> RepoResult<u64> {
+    let mut tx = pool.begin().await.map_err(db)?;
+    // Message ids embed their creation time, so the id range prunes partitions.
+    const DAY: &str = "(to_timestamp($1::double precision / 1000.0) AT TIME ZONE 'UTC')::date";
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "DELETE FROM guild_insights_channel_daily WHERE day = {DAY}"
+    )))
+    .bind(day_start_ms)
+    .execute(&mut *tx)
+    .await
+    .map_err(db)?;
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO guild_insights_channel_daily (guild_id, day, channel_id, messages) \
+         SELECT c.guild_id, {DAY}, m.channel_id, count(*) \
+         FROM messages m JOIN channels c ON c.id = m.channel_id \
+         JOIN guilds g ON g.id = c.guild_id AND g.deleted_at IS NULL \
+         WHERE m.id >= sr_snowflake_floor(to_timestamp($1::double precision / 1000.0)) \
+           AND m.id < sr_snowflake_floor(to_timestamp(($1::double precision + 86400000) / 1000.0)) \
+         GROUP BY c.guild_id, m.channel_id"
+    )))
+    .bind(day_start_ms)
+    .execute(&mut *tx)
+    .await
+    .map_err(db)?;
+    let n = sqlx::query(sqlx::AssertSqlSafe(format!(
+        "INSERT INTO guild_insights_daily (guild_id, day, members, joins, messages) \
+         SELECT g.id, {DAY}, \
+           (SELECT count(*) FROM guild_members m WHERE m.guild_id = g.id \
+              AND m.joined_at < to_timestamp(($1::double precision + 86400000) / 1000.0)), \
+           (SELECT count(*) FROM guild_members m WHERE m.guild_id = g.id \
+              AND m.joined_at >= to_timestamp($1::double precision / 1000.0) \
+              AND m.joined_at < to_timestamp(($1::double precision + 86400000) / 1000.0)), \
+           COALESCE((SELECT sum(d.messages) FROM guild_insights_channel_daily d \
+                     WHERE d.guild_id = g.id AND d.day = {DAY}), 0) \
+         FROM guilds g WHERE g.deleted_at IS NULL \
+         ON CONFLICT (guild_id, day) DO UPDATE SET members = EXCLUDED.members, \
+           joins = EXCLUDED.joins, messages = EXCLUDED.messages"
+    )))
+    .bind(day_start_ms)
+    .execute(&mut *tx)
+    .await
+    .map_err(db)?
+    .rows_affected();
+    for table in ["guild_insights_daily", "guild_insights_channel_daily"] {
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "DELETE FROM {table} WHERE day < {DAY} - {INSIGHTS_KEEP_DAYS}"
+        )))
+        .bind(day_start_ms)
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
+    }
+    tx.commit().await.map_err(db)?;
+    Ok(n)
+}
+
+#[async_trait]
+impl GuideRepository for PgSettingsRepo {
+    async fn get_guide(&self, guild: GuildId) -> RepoResult<Guide> {
+        let row = sqlx::query(
+            "SELECT welcome_message, todos, resources FROM guild_guides WHERE guild_id = $1",
+        )
+        .bind(i(guild.get()))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        let Some(r) = row else {
+            return Ok(Guide {
+                guild_id: guild,
+                ..Guide::default()
+            });
+        };
+        let todos: Json<Vec<GuideTodo>> = get(&r, "todos")?;
+        let resources: Json<Vec<GuideResource>> = get(&r, "resources")?;
+        Ok(Guide {
+            guild_id: guild,
+            welcome_message: get(&r, "welcome_message")?,
+            todos: todos.0,
+            resources: resources.0,
+        })
+    }
+
+    async fn put_guide(&self, g: &Guide) -> RepoResult<()> {
+        sqlx::query(
+            "INSERT INTO guild_guides (guild_id, welcome_message, todos, resources) \
+             VALUES ($1, $2, $3, $4) \
+             ON CONFLICT (guild_id) DO UPDATE SET welcome_message = EXCLUDED.welcome_message, \
+               todos = EXCLUDED.todos, resources = EXCLUDED.resources, updated_at = now()",
+        )
+        .bind(i(g.guild_id.get()))
+        .bind(g.welcome_message.as_deref())
+        .bind(Json(&g.todos))
+        .bind(Json(&g.resources))
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
+}
+
+fn application_from(r: &PgRow) -> RepoResult<Application> {
+    let answers: Json<Vec<Answer>> = get(r, "answers")?;
+    let status: String = get(r, "status")?;
+    let reviewed_by: Option<i64> = get(r, "reviewed_by")?;
+    Ok(Application {
+        id: u(get(r, "id")?),
+        guild_id: GuildId::new(u(get(r, "guild_id")?)),
+        user_id: UserId::new(u(get(r, "user_id")?)),
+        answers: answers.0,
+        status: ApplicationStatus::parse(&status)
+            .ok_or_else(|| RepoError(format!("bad application status {status}")))?,
+        created_at_ms: get(r, "created_ms")?,
+        reviewed_by: reviewed_by.map(|v| UserId::new(u(v))),
+        reviewed_at_ms: get(r, "reviewed_ms")?,
+        rejection_reason: get(r, "rejection_reason")?,
+    })
+}
+
+const APPLICATION_COLS: &str = "id, guild_id, user_id, answers, status, reviewed_by, \
+     rejection_reason, (extract(epoch FROM created_at) * 1000)::bigint AS created_ms, \
+     (extract(epoch FROM reviewed_at) * 1000)::bigint AS reviewed_ms";
+
+#[async_trait]
+impl ApplicationRepository for PgSettingsRepo {
+    async fn get_application_form(&self, guild: GuildId) -> RepoResult<ApplicationForm> {
+        let row = sqlx::query(
+            "SELECT enabled, description, questions FROM guild_application_forms WHERE guild_id = $1",
+        )
+        .bind(i(guild.get()))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        let Some(r) = row else {
+            return Ok(ApplicationForm {
+                guild_id: guild,
+                ..ApplicationForm::default()
+            });
+        };
+        let questions: Json<Vec<Question>> = get(&r, "questions")?;
+        Ok(ApplicationForm {
+            guild_id: guild,
+            enabled: get(&r, "enabled")?,
+            description: get(&r, "description")?,
+            questions: questions.0,
+        })
+    }
+
+    async fn put_application_form(&self, f: &ApplicationForm) -> RepoResult<()> {
+        sqlx::query(
+            "INSERT INTO guild_application_forms (guild_id, enabled, description, questions) \
+             VALUES ($1, $2, $3, $4) \
+             ON CONFLICT (guild_id) DO UPDATE SET enabled = EXCLUDED.enabled, \
+               description = EXCLUDED.description, questions = EXCLUDED.questions, \
+               updated_at = now()",
+        )
+        .bind(i(f.guild_id.get()))
+        .bind(f.enabled)
+        .bind(f.description.as_deref())
+        .bind(Json(&f.questions))
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
+    }
+
+    async fn insert_application(&self, a: &Application) -> RepoResult<bool> {
+        let n = sqlx::query(
+            "INSERT INTO guild_applications (id, guild_id, user_id, answers, status, created_at) \
+             VALUES ($1, $2, $3, $4, 'pending', to_timestamp($5::double precision / 1000.0)) \
+             ON CONFLICT DO NOTHING",
+        )
+        .bind(i(a.id))
+        .bind(i(a.guild_id.get()))
+        .bind(i(a.user_id.get()))
+        .bind(Json(&a.answers))
+        .bind(a.created_at_ms)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?
+        .rows_affected();
+        Ok(n > 0)
+    }
+
+    async fn get_application(&self, guild: GuildId, id: u64) -> RepoResult<Option<Application>> {
+        let row = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT {APPLICATION_COLS} FROM guild_applications WHERE guild_id = $1 AND id = $2"
+        )))
+        .bind(i(guild.get()))
+        .bind(i(id))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        row.as_ref().map(application_from).transpose()
+    }
+
+    async fn latest_application(
+        &self,
+        guild: GuildId,
+        user: UserId,
+    ) -> RepoResult<Option<Application>> {
+        let row = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT {APPLICATION_COLS} FROM guild_applications \
+             WHERE guild_id = $1 AND user_id = $2 ORDER BY id DESC LIMIT 1"
+        )))
+        .bind(i(guild.get()))
+        .bind(i(user.get()))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(db)?;
+        row.as_ref().map(application_from).transpose()
+    }
+
+    async fn list_applications(
+        &self,
+        guild: GuildId,
+        status: Option<ApplicationStatus>,
+        before: Option<u64>,
+        limit: usize,
+    ) -> RepoResult<Vec<Application>> {
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SELECT {APPLICATION_COLS} FROM guild_applications \
+             WHERE guild_id = $1 AND ($2::text IS NULL OR status = $2) \
+               AND ($3::bigint IS NULL OR id < $3) ORDER BY id DESC LIMIT $4"
+        )))
+        .bind(i(guild.get()))
+        .bind(status.map(ApplicationStatus::as_str))
+        .bind(before.map(i))
+        .bind(i64::try_from(limit).unwrap_or(100))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter().map(application_from).collect()
+    }
+
+    async fn decide_application(
+        &self,
+        guild: GuildId,
+        id: u64,
+        approve: bool,
+        reviewer: UserId,
+        now_ms: i64,
+        reason: Option<&str>,
+    ) -> RepoResult<Option<Application>> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        let row = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "UPDATE guild_applications SET status = $3, reviewed_by = $4, \
+               reviewed_at = to_timestamp($5::double precision / 1000.0), rejection_reason = $6 \
+             WHERE guild_id = $1 AND id = $2 AND status = 'pending' \
+             RETURNING {APPLICATION_COLS}"
+        )))
+        .bind(i(guild.get()))
+        .bind(i(id))
+        .bind(if approve { "approved" } else { "rejected" })
+        .bind(i(reviewer.get()))
+        .bind(now_ms)
+        .bind(reason.filter(|_| !approve))
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(db)?;
+        let Some(row) = row else { return Ok(None) };
+        let app = application_from(&row)?;
+        if approve {
+            // The applicant may have joined another way meanwhile; the join is idempotent.
+            sqlx::query(
+                "INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2) \
+                 ON CONFLICT DO NOTHING",
+            )
+            .bind(i(guild.get()))
+            .bind(i(app.user_id.get()))
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
+        }
+        tx.commit().await.map_err(db)?;
+        Ok(Some(app))
     }
 }

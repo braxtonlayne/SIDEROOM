@@ -1075,7 +1075,7 @@ impl AppsRepository for PgAppsRepo {
     async fn guild_stats(&self, guild: i64) -> AppsResult<Option<GuildStats>> {
         let r = sqlx::query(
             "SELECT g.owner_id, (SELECT count(*) FROM guild_members m WHERE m.guild_id = g.id) AS members \
-             FROM guilds g WHERE g.id = $1",
+             FROM guilds g WHERE g.id = $1 AND g.deleted_at IS NULL",
         )
         .bind(guild)
         .fetch_optional(&self.pool)
@@ -1113,7 +1113,7 @@ impl AppsRepository for PgAppsRepo {
 
     async fn install(&self, req: InstallWrite) -> AppsResult<InstallOutcome> {
         let mut tx = self.pool.begin().await.map_err(db)?;
-        sqlx::query("SELECT 1 FROM guilds WHERE id = $1 FOR SHARE")
+        sqlx::query("SELECT 1 FROM guilds WHERE id = $1 AND deleted_at IS NULL FOR SHARE")
             .bind(req.guild_id)
             .fetch_optional(&mut *tx)
             .await

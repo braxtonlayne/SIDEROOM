@@ -1,8 +1,9 @@
--- 0620: lounge servers backend gaps (phase 10; LNG-GLD-008/011/012/013, LNG-INV-004/005,
+-- 0620: lounge servers backend gaps (phase 10; LNG-GLD-008/012/013, LNG-INV-004/005,
 -- LNG-CHN-004).
 --
--- * Server tag (LNG-GLD-011): a short tag and a badge on the guild; a member opts in by
---   choosing one guild as their primary one (`accounts.primary_guild_id`).
+-- * Server tag (LNG-GLD-011) is NOT stored here: it lives in `guild_tags` and
+--   `user_primary_guilds` (0631, LNG-SSET-011/012), the one implementation kept when the
+--   phase-10 branches were integrated.
 -- * Vanity URL (LNG-INV-004): `guilds.vanity_code` already exists (0010); this adds its
 --   shape check and a use counter.
 -- * Temporary membership (LNG-INV-005): `guild_members.temporary` is set when the member
@@ -13,15 +14,9 @@
 --   since 0010; nothing to add.
 
 ALTER TABLE guilds
-    ADD COLUMN tag        TEXT CHECK (tag IS NULL OR tag ~ '^[0-9A-Za-z]{2,4}$'),
-    ADD COLUMN tag_badge  TEXT CHECK (tag_badge IS NULL OR tag_badge ~ '^[a-z][a-z0-9-]{1,31}$'),
     ADD COLUMN vanity_uses INTEGER NOT NULL DEFAULT 0 CHECK (vanity_uses >= 0),
     ADD CONSTRAINT guilds_vanity_code_shape
         CHECK (vanity_code IS NULL OR vanity_code::text ~ '^[0-9A-Za-z-]{3,32}$');
-
-ALTER TABLE accounts
-    ADD COLUMN primary_guild_id      BIGINT REFERENCES guilds (id) ON DELETE SET NULL,
-    ADD COLUMN primary_guild_enabled BOOLEAN NOT NULL DEFAULT TRUE;
 
 ALTER TABLE guild_members
     ADD COLUMN temporary BOOLEAN NOT NULL DEFAULT FALSE;

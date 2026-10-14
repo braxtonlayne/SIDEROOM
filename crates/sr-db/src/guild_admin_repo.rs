@@ -96,31 +96,12 @@ impl GuildAdminRepository for PgChatRepo {
         }
     }
 
-    async fn set_primary_guild(
-        &self,
-        user: UserId,
-        guild: Option<GuildId>,
-        enabled: bool,
-    ) -> RepoResult<()> {
-        sqlx::query(
-            "UPDATE accounts SET primary_guild_id = $2, primary_guild_enabled = $3, \
-             updated_at = now() WHERE id = $1",
-        )
-        .bind(i(user.get()))
-        .bind(guild.map(|g| i(g.get())))
-        .bind(enabled)
-        .execute(&self.pool)
-        .await
-        .map_err(db)?;
-        Ok(())
-    }
-
     async fn update_guild(&self, g: &Guild) -> RepoResult<()> {
         sqlx::query(
             "UPDATE guilds SET name = $2, description = $3, icon_key = $4, owner_id = $5, \
              system_channel_id = $6, verification_level = $7, default_message_notifications = $8, \
              explicit_content_filter = $9, preferred_locale = $10, banner_key = $11, splash_key = $12, \
-             afk_channel_id = $13, afk_timeout = $14, tag = $15, tag_badge = $16, \
+             afk_channel_id = $13, afk_timeout = $14, \
              updated_at = now() WHERE id = $1",
         )
         .bind(i(g.id.get()))
@@ -137,8 +118,6 @@ impl GuildAdminRepository for PgChatRepo {
         .bind(g.splash_key.as_deref())
         .bind(g.afk_channel_id.map(|c| i(c.get())))
         .bind(i32::try_from(g.afk_timeout).unwrap_or(300))
-        .bind(g.tag.as_deref())
-        .bind(g.tag_badge.as_deref())
         .execute(&self.pool)
         .await
         .map_err(db)?;
@@ -146,13 +125,54 @@ impl GuildAdminRepository for PgChatRepo {
     }
 
     async fn delete_guild(&self, id: GuildId) -> RepoResult<()> {
-        // Roles, members, bans and channels cascade.
-        sqlx::query("DELETE FROM guilds WHERE id = $1 AND NOT is_staff_guild")
+        // LNG-SSET-073: soft delete. Messages become `user_deleted` with the 30-day
+        // purge window (held ones keep no purge time, D-122); the guild row and its
+        // channels stay until the purge job finds nothing left (see sr-server jobs).
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        let stamped = sqlx::query(
+            "UPDATE guilds SET deleted_at = now() \
+             WHERE id = $1 AND NOT is_staff_guild AND deleted_at IS NULL",
+        )
+        .bind(i(id.get()))
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?
+        .rows_affected();
+        if stamped == 0 {
+            return tx.commit().await.map_err(db);
+        }
+        sqlx::query(
+            "DELETE FROM pins WHERE channel_id IN (SELECT id FROM channels WHERE guild_id = $1)",
+        )
+        .bind(i(id.get()))
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
+        sqlx::query(
+            "UPDATE messages SET visibility = 'user_deleted', pinned = FALSE, deleted_at = now(), \
+             purge_after = CASE WHEN hold_id IS NULL THEN now() + interval '30 days' END \
+             WHERE visibility = 'visible' \
+               AND channel_id IN (SELECT id FROM channels WHERE guild_id = $1)",
+        )
+        .bind(i(id.get()))
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
+        for table in [
+            "guild_members",
+            "guild_invites",
+            "webhooks",
+            "application_installs",
+        ] {
+            sqlx::query(sqlx::AssertSqlSafe(format!(
+                "DELETE FROM {table} WHERE guild_id = $1"
+            )))
             .bind(i(id.get()))
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await
             .map_err(db)?;
-        Ok(())
+        }
+        tx.commit().await.map_err(db)
     }
 
     async fn list_user_guilds(&self, user: UserId) -> RepoResult<Vec<Guild>> {

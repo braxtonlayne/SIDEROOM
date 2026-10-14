@@ -166,8 +166,6 @@ pub(crate) mod fixtures {
             icon_key: None,
             banner_key: None,
             splash_key: None,
-            tag: None,
-            tag_badge: None,
             vanity_code: None,
             owner_id: UserId::new(OWNER),
             is_staff_guild: false,

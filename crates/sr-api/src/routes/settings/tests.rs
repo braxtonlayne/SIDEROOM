@@ -2634,3 +2634,257 @@ async fn auto_publish_sends_every_message_to_followers() {
             .all(|m| m["content"] != "manual only")
     );
 }
+
+#[tokio::test]
+async fn server_tags_are_managed_by_managers_and_adopted_by_members() {
+    let e = env().await;
+    let url = e.g("/tag");
+    let me = "/users/@me/primary-guild";
+
+    // No tag yet.
+    assert_eq!(e.get(&url, "bob").await.0, StatusCode::NOT_FOUND);
+    assert_eq!(
+        e.put(me, "bob", json!({"guild_id": e.guild.to_string()}))
+            .await
+            .0,
+        StatusCode::BAD_REQUEST
+    );
+    // Only managers set it, and the text is validated.
+    let body = json!({"tag": "SIDE", "badge": 3, "color": 0xAA00FF});
+    assert_eq!(
+        e.put(&url, "bob", body.clone()).await.0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        e.put(&url, "mod", json!({"tag": "toolong"})).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    let (s, t) = e.put(&url, "mod", body).await;
+    assert_eq!(s, StatusCode::OK, "{t}");
+    assert_eq!(t["tag"], "SIDE");
+    assert_eq!(t["members_can_display"], true);
+    assert_eq!(e.get(&url, "bob").await.1["badge"], 3);
+    // Non-members cannot read the tag or adopt it.
+    assert_eq!(e.get(&url, "carol").await.0, StatusCode::FORBIDDEN);
+    assert_eq!(
+        e.put(me, "carol", json!({"guild_id": e.guild.to_string()}))
+            .await
+            .0,
+        StatusCode::BAD_REQUEST
+    );
+
+    // A member adopts it.
+    let (s, p) = e
+        .put(me, "bob", json!({"guild_id": e.guild.to_string()}))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{p}");
+    assert_eq!(p["primary_guild"]["tag"], "SIDE");
+    assert_eq!(p["primary_guild"]["identity_enabled"], true);
+    assert_eq!(
+        p["primary_guild"]["identity_guild_id"],
+        e.guild.to_string().as_str()
+    );
+    assert_eq!(e.get(me, "bob").await.1["primary_guild"]["tag"], "SIDE");
+
+    // Turning "members can display" off hides it and blocks new adoption.
+    e.put(
+        &url,
+        "mod",
+        json!({"tag": "SIDE", "members_can_display": false}),
+    )
+    .await;
+    assert!(e.get(me, "bob").await.1["primary_guild"].is_null());
+
+    // Removing the tag is audited; adoption is cleared with null.
+    assert_eq!(e.delete(&url, "mod").await.0, StatusCode::NO_CONTENT);
+    assert_eq!(e.get(&url, "bob").await.0, StatusCode::NOT_FOUND);
+    let (s, p) = e.put(me, "bob", json!({"guild_id": null})).await;
+    assert_eq!(s, StatusCode::OK);
+    assert!(p["primary_guild"].is_null());
+    assert!(e.audit_actions().await.contains(&1));
+}
+
+#[tokio::test]
+async fn insights_need_a_manager_or_the_insights_permission() {
+    let e = env().await;
+    let url = e.g("/sr/insights?days=7");
+    assert_eq!(e.get(&url, "bob").await.0, StatusCode::FORBIDDEN);
+    assert_eq!(e.get(&url, "carol").await.0, StatusCode::FORBIDDEN);
+    let (s, body) = e.get(&url, "mod").await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    // Nothing computed yet.
+    assert_eq!(body["days"], json!([]));
+    assert_eq!(body["top_channels"], json!([]));
+}
+
+#[tokio::test]
+async fn server_guide_is_edited_by_managers_and_read_by_members_while_enabled() {
+    let e = env().await;
+    let url = e.g("/sr/guide");
+    let body = json!({
+        "welcome_message": "Welcome aboard",
+        "todos": [{"title": "Say hi", "channel_id": e.ch.to_string()}],
+        "resources": [{"title": "Rules", "content": "Be kind."}],
+    });
+    assert_eq!(
+        e.put(&url, "bob", body.clone()).await.0,
+        StatusCode::FORBIDDEN
+    );
+    let (s, g) = e
+        .put(
+            &url,
+            "mod",
+            json!({"todos": [{"title": "x", "channel_id": "123"}]}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{g}");
+    let (s, g) = e.put(&url, "mod", body).await;
+    assert_eq!(s, StatusCode::OK, "{g}");
+    assert!(g["todos"][0]["id"].is_string());
+    assert_eq!(g["resources"][0]["content"], "Be kind.");
+    assert_eq!(g["enabled"], false);
+
+    // Hidden from members until the guide is switched on.
+    assert_eq!(e.get(&url, "bob").await.0, StatusCode::FORBIDDEN);
+    assert_eq!(e.get(&url, "mod").await.0, StatusCode::OK);
+    let (s, _) = e
+        .patch(&e.g("/sr/community"), "mod", json!({"guide_enabled": true}))
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    let (s, g) = e.get(&url, "bob").await;
+    assert_eq!(s, StatusCode::OK, "{g}");
+    assert_eq!(g["welcome_message"], "Welcome aboard");
+    assert_eq!(g["enabled"], true);
+    assert_eq!(e.get(&url, "carol").await.0, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn membership_applications_flow() {
+    let e = env().await;
+    let form = e.g("/sr/applications/form");
+    let apps = e.g("/sr/applications");
+
+    // Closed: outsiders cannot see the form, cannot apply.
+    assert_eq!(e.get(&form, "carol").await.0, StatusCode::FORBIDDEN);
+    assert_eq!(
+        e.post(&apps, "carol", json!({"answers": []})).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    // Only managers set it up.
+    let body = json!({"enabled": true, "description": "Tell us about you",
+        "questions": [{"label": "Why join?", "kind": "paragraph", "required": true},
+                      {"label": "Handle", "kind": "short"}]});
+    assert_eq!(
+        e.put(&form, "bob", body.clone()).await.0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        e.put(
+            &form,
+            "mod",
+            json!({"questions": [{"label": "x", "kind": "huge"}]})
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    let (s, f) = e.put(&form, "mod", body).await;
+    assert_eq!(s, StatusCode::OK, "{f}");
+    let q1 = f["questions"][0]["id"].as_str().unwrap().to_owned();
+    assert_eq!(f["questions"][1]["kind"], "short");
+
+    // Open: an outsider reads the form and applies; members cannot.
+    assert_eq!(
+        e.get(&form, "carol").await.1["description"],
+        "Tell us about you"
+    );
+    assert_eq!(
+        e.post(
+            &apps,
+            "bob",
+            json!({"answers": [{"question_id": q1, "value": "x"}]})
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        e.post(&apps, "carol", json!({"answers": []})).await.0,
+        StatusCode::BAD_REQUEST,
+        "a required question is unanswered"
+    );
+    let (s, a) = e
+        .post(
+            &apps,
+            "carol",
+            json!({"answers": [{"question_id": q1, "value": "I like manga"}]}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{a}");
+    assert_eq!(a["status"], "pending");
+    let app_id = a["id"].as_str().unwrap().to_owned();
+    // One at a time.
+    assert_eq!(
+        e.post(
+            &apps,
+            "carol",
+            json!({"answers": [{"question_id": q1, "value": "again"}]})
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        e.get(&format!("{apps}/@me"), "carol").await.1["id"],
+        app_id.as_str()
+    );
+
+    // The queue is for managers.
+    assert_eq!(e.get(&apps, "bob").await.0, StatusCode::FORBIDDEN);
+    let (s, q) = e.get(&format!("{apps}?status=pending"), "mod").await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(q.as_array().unwrap().len(), 1);
+    assert_eq!(q[0]["answers"][0]["value"], "I like manga");
+    assert_eq!(
+        e.get(&format!("{apps}?status=bogus"), "mod").await.0,
+        StatusCode::BAD_REQUEST
+    );
+
+    // Reject, then apply again and get approved; a decided application stays decided.
+    let decision = format!("{apps}/{app_id}/decision");
+    assert_eq!(
+        e.post(&decision, "bob", json!({"approve": false})).await.0,
+        StatusCode::FORBIDDEN
+    );
+    let (s, r) = e
+        .post(
+            &decision,
+            "mod",
+            json!({"approve": false, "reason": "not now"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    assert_eq!(r["status"], "rejected");
+    assert_eq!(r["rejection_reason"], "not now");
+    assert_eq!(
+        e.post(&decision, "mod", json!({"approve": true})).await.0,
+        StatusCode::NOT_FOUND
+    );
+    let (_, a2) = e
+        .post(
+            &apps,
+            "carol",
+            json!({"answers": [{"question_id": q1, "value": "second try"}]}),
+        )
+        .await;
+    let (s, ok) = e
+        .post(
+            &format!("{apps}/{}/decision", a2["id"].as_str().unwrap()),
+            "mod",
+            json!({"approve": true}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{ok}");
+    assert_eq!(ok["status"], "approved");
+    assert_eq!(ok["reviewed_by"], MOD.to_string().as_str());
+}

@@ -1,6 +1,6 @@
 //! Server-settings REST API (docs/specs/lounge-chat.md section 11, inventory
 //! `06-lounge-server-settings.md`): invites, audit log, emoji and stickers,
-//! AutoMod rules, webhooks, templates and community/onboarding settings.
+//! AutoMod rules, webhooks, templates, community/onboarding settings and server tags.
 //!
 //! Wiring, in the composition root:
 //!
@@ -21,6 +21,7 @@
 //! joined member through [`join::MemberJoiner`] (the composition root wires the
 //! bus-backed [`join::InviteMemberJoiner`]).
 
+pub mod applications;
 pub mod audit;
 pub mod automod;
 pub mod automod_gate;
@@ -29,10 +30,13 @@ pub mod deps;
 pub mod events;
 pub mod expressions;
 pub mod follow;
+pub mod guide;
+pub mod insights;
 pub mod invites;
 pub mod join;
 pub mod presence;
 pub mod repo;
+pub mod tags;
 pub mod templates;
 pub mod timeout;
 pub mod webhooks;
@@ -67,6 +71,10 @@ pub fn router() -> Router<AppState> {
         .merge(follow::routes())
         .merge(templates::routes())
         .merge(community::routes())
+        .merge(tags::routes())
+        .merge(insights::routes())
+        .merge(guide::routes())
+        .merge(applications::routes())
 }
 
 /// OpenAPI fragment for these routes; merge into [`crate::openapi::base`].
@@ -126,6 +134,20 @@ pub fn router() -> Router<AppState> {
         community::get_member_verification,
         community::accept_screening,
         community::post_onboarding_responses,
+        tags::get_tag,
+        tags::put_tag,
+        tags::delete_tag,
+        tags::get_primary_guild,
+        tags::put_primary_guild,
+        insights::get_insights,
+        guide::get_guide,
+        guide::put_guide,
+        applications::get_form,
+        applications::put_form,
+        applications::submit_application,
+        applications::get_my_application,
+        applications::list_applications,
+        applications::decide_application,
     ),
     components(schemas(
         ErrorBody,
@@ -173,6 +195,26 @@ pub fn router() -> Router<AppState> {
         community::AcceptScreeningBody,
         community::OnboardingResponseBody,
         community::OnboardingResultObject,
+        tags::GuildTagObject,
+        tags::PutGuildTagBody,
+        tags::PrimaryGuildResponse,
+        tags::PutPrimaryGuildBody,
+        insights::InsightsObject,
+        guide::GuideObject,
+        guide::GuideTodoDto,
+        guide::GuideResourceDto,
+        guide::PutGuideBody,
+        applications::QuestionDto,
+        applications::PutFormBody,
+        applications::FormObject,
+        applications::AnswerDto,
+        applications::ApplicationObject,
+        applications::AnswerBody,
+        applications::SubmitBody,
+        applications::DecisionBody,
+        insights::InsightsDayObject,
+        insights::InsightsChannelObject,
+        crate::routes::social::model::PrimaryGuildObject,
     ))
 )]
 pub struct SettingsApiDoc;

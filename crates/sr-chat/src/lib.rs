@@ -22,7 +22,6 @@ pub mod poll_rules;
 pub mod repo;
 pub mod rich_repo;
 pub mod role_rules;
-pub mod server_tag;
 pub mod service;
 pub mod settings;
 pub mod social;

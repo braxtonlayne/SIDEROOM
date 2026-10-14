@@ -18,7 +18,7 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 
 ## Server Tag
 - [ ] **LNG-SSET-011** [FE] Tag text (≤ 4 chars), badge picker (icon set + color), preview next to a member name, "Members can choose to display" toggle *(p5: not backed, the server stores no tag; the Overview says so)*
-- [ ] **LNG-SSET-012** [BE] Tag adoption by members (User Settings → Profiles) + global display
+- [x] **LNG-SSET-012** [BE] Tag adoption by members (User Settings → Profiles) + global display *(p10: `guild_tags` + `user_primary_guilds` (migration 0631), `GET/PUT/DELETE /guilds/{id}/tag`, `GET/PUT /users/@me/primary-guild`; other users see `primary_guild` on message authors and user objects while the tag exists, members may display it and the user is still a member; tests `guild_tags_are_adopted_only_while_members_may_display_them`, `server_tags_are_managed_by_managers_and_adopted_by_members`, `server_tag_adoption_shows_only_for_members_while_allowed`)*
 
 ## Engagement
 - [ ] **LNG-SSET-013** [FE] System Messages channel + toggles (random welcome message, sticker reply button, support contribution messages, setup tips) *(p5: system messages channel select is built; the four toggles need server support (no system_channel_flags))*
@@ -42,7 +42,7 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 
 ## Soundboard
 - [ ] **LNG-SSET-025** [FE] Sound list (play, name, emoji, volume, uploader), Upload modal (file, trim to 5s with waveform, name, emoji, volume)
-- [ ] **LNG-SSET-026** [BE] Sound trimming/transcode to Opus (`symphonia` decode + `opus` encode)
+- [ ] **LNG-SSET-026** [BE] Sound trimming/transcode to Opus (`symphonia` decode + `opus` encode) *(p10: not built. There is no soundboard store or API yet (VOX-SB-001), and the only Opus encoder is the `opus` crate, a binding to the C libopus, which this repo's rustls-only, pure-Rust-first policy (docs/03 section 4, marked with a warning) leaves for an ADR; `symphonia` decode alone is pure Rust. See handoff feat-p10-sset-be)*
 
 ## Members
 - [ ] **LNG-SSET-027** [FE] Member table (avatar/name, member since, joined platform, join method/invite code, roles chips, signals), search, sort, filters (roles, join date, unusual activity), pagination *(p5: search and role filter use the server endpoints, with paging; sort, join method and signals are not built)*
@@ -66,7 +66,7 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 - [ ] **LNG-SSET-039** [FE] Access mode (invite-only / apply to join / Directory-listed if approved)
 - [x] **LNG-SSET-040** [FE] Verification level radio (None, Low (verified email), Medium (account 5+ min), High (member 10+ min), Highest (2FA)) *(p5: Moderation, Safety Setup tab)*
 - [ ] **LNG-SSET-041** [FE] Rules screening editor (rules list, "agree" required)
-- [ ] **LNG-SSET-042** [FE] Membership applications (questions form; review queue of applicants with approve/deny)
+- [ ] **LNG-SSET-042** [FE] Membership applications (questions form; review queue of applicants with approve/deny) *(p10 backend half is built: `GET/PUT /guilds/{id}/sr/applications/form`, `POST /guilds/{id}/sr/applications`, `GET /sr/applications` queue, `POST /sr/applications/{id}/decision`; the editor and queue UI are not)*
 - [x] **LNG-SSET-043** [FE] Age-restricted server toggle *(p5: Community, Age-restricted server)*
 
 ## Integrations
@@ -88,7 +88,7 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 - [ ] **LNG-SSET-055** [FE] Require 2FA for moderator actions
 
 ## Audit Log
-- [ ] **LNG-SSET-056** [BE] Audit log entry writing for all guild mutations (Discord action types) + X-Audit-Log-Reason
+- [x] **LNG-SSET-056** [BE] Audit log entry writing for all guild mutations (Discord action types) + X-Audit-Log-Reason *(p10: every guild mutation writes an entry (guild, channel, overwrite, role, member, ban, kick, prune, invite, webhook, emoji, sticker, automod, onboarding questions, thread create/update/delete, pin, unpin, message delete by a moderator, bulk delete); `X-Audit-Log-Reason` is scoped per request (`router.rs` audit_reason_scope, `settings/audit.rs` ambient reason). Soundboard, scheduled event and integration actions have no feature to audit yet)*
 - [x] **LNG-SSET-057** [FE] Audit log list (filter by user and action, expandable diff rows, icons per action)
 
 ## Bans
@@ -96,7 +96,7 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 
 ## AutoMod
 - [x] **LNG-SSET-059** [BE] AutoMod engine (keyword lists w/ wildcards, regex (Rust `regex`), allow list, preset lists, mention spam, spam heuristic, member profile names) with actions block/custom message/alert channel/timeout
-- [ ] **LNG-SSET-060** [GW] AUTO_MODERATION_RULE_*, AUTO_MODERATION_ACTION_EXECUTION
+- [x] **LNG-SSET-060** [GW] AUTO_MODERATION_RULE_*, AUTO_MODERATION_ACTION_EXECUTION *(p10 verified: SettingsEvent maps to DomainEvent in routes/settings/events.rs, gateway passthrough with intents in sr-gateway hub.rs/protocol.rs; tests in routes/settings/tests.rs)*
 - [x] **LNG-SSET-061** [FE] AutoMod page: rule cards (Block Custom Words ×N, Block Mention Spam, Block Spam Content, Flag words in profiles), rule editor (keywords, regex tester, exemptions roles/channels, actions)
 - [ ] **LNG-SSET-062** [FE] AutoMod alert message renderer in alert channel (actions: delete, timeout, kick, ban)
 
@@ -104,9 +104,9 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 - [ ] **LNG-SSET-063** [FE] Enable Community wizard (Safety checks → Set up basics (rules channel, updates channel) → Finishing touches (default notifications, remove @everyone moderation perms, agree to guidelines))
 - [x] **LNG-SSET-064** [FE] Community Overview (rules/updates channels, safety notifications channel, description, locale, disable community) *(p5)*
 - [ ] **LNG-SSET-065** [FE] Onboarding editor (default channels, questions with options mapping to channels/roles, preview, enable) *(p5: editor with default channels, questions and options exists; no preview and no 2-step wizard (LNG-SSET-063))*
-- [ ] **LNG-SSET-066** [FE] Server Guide editor (welcome message, new member to-dos, resource pages)
+- [ ] **LNG-SSET-066** [FE] Server Guide editor (welcome message, new member to-dos, resource pages) *(p10 backend half is built: `GET/PUT /guilds/{id}/sr/guide`; the editor is not)*
 - [x] **LNG-SSET-067** [FE] Welcome Screen editor (description, up to 5 channel cards with emoji + description) *(p5)*
-- [ ] **LNG-SSET-068** [FE] Server Insights (basic: members over time, messages per day, voice minutes, top channels), computed by a daily job
+- [ ] **LNG-SSET-068** [FE] Server Insights (basic: members over time, messages per day, voice minutes, top channels), computed by a daily job *(p10 backend half is built: daily job `insights.daily` + `GET /guilds/{id}/sr/insights`; voice minutes stay 0 until voice sessions are persisted; the page is not)*
 - [ ] **LNG-SSET-069** [FE] Directory listing request (category, tags, description, status: pending/approved/denied + staff note)
 
 ## Server Template
@@ -115,4 +115,4 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 
 ## Delete Server
 - [ ] **LNG-SSET-072** [FE] Delete modal (type server name, 2FA code if enabled), owner only
-- [ ] **LNG-SSET-073** [BE] Guild deletion → channels/messages to user_deleted (30-day window), members removed, GUILD_DELETE
+- [x] **LNG-SSET-073** [BE] Guild deletion → channels/messages to user_deleted (30-day window), members removed, GUILD_DELETE *(p10: soft delete in `guild_admin_repo.rs` + migration 0630: messages to user_deleted with a 30-day purge, members/invites/webhooks/installs removed, GUILD_DELETE emitted; the purge job reaps the guild once no message is left; tests `delete_guild_soft_deletes_messages_and_removes_members`, `reap_removes_deleted_guilds_only_once_their_messages_are_gone`)*

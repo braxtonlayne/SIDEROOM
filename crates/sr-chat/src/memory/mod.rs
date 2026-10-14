@@ -443,29 +443,6 @@ impl GuildAdminRepository for MemoryRepo {
         Ok(true)
     }
 
-    async fn set_primary_guild(
-        &self,
-        user: UserId,
-        guild: Option<GuildId>,
-        enabled: bool,
-    ) -> RepoResult<()> {
-        let mut s = self.lock()?;
-        let shown = guild
-            .filter(|_| enabled)
-            .and_then(|g| s.guilds.get(&g))
-            .and_then(|g| {
-                g.tag.clone().map(|tag| crate::server_tag::PrimaryGuild {
-                    guild_id: g.id,
-                    tag,
-                    badge: g.tag_badge.clone(),
-                })
-            });
-        if let Some(u) = s.users.get_mut(&user) {
-            u.primary_guild = shown;
-        }
-        Ok(())
-    }
-
     async fn update_guild(&self, guild: &Guild) -> RepoResult<()> {
         self.lock()?.guilds.insert(guild.id, guild.clone());
         Ok(())

@@ -973,6 +973,35 @@ async fn guild_mutations_are_audited_and_role_creation_announces_shifted_roles()
     assert_eq!(log[2].2.as_deref(), Some("spam"));
 }
 
+#[tokio::test]
+async fn overwrite_audit_tells_create_update_and_clear_apart() {
+    let rec = Arc::new(Recorder::default());
+    let f = fixture_with(Some(rec.clone()));
+    let (_, g) = guild(&f).await;
+    let ch = g["channels"][2]["id"].as_str().unwrap().to_owned();
+    let url = format!("/channels/{ch}/permissions/2");
+    for allow in ["1024", "3072", "0"] {
+        let (s, _) = put(
+            &f,
+            &url,
+            "owner",
+            json!({ "type": 1, "allow": allow, "deny": "0" }),
+        )
+        .await;
+        assert_eq!(s, StatusCode::NO_CONTENT);
+    }
+    let log = rec.0.lock().unwrap().clone();
+    let actions: Vec<_> = log.iter().map(|e| (e.0, e.1)).collect();
+    assert_eq!(
+        actions,
+        vec![
+            (AuditAction::ChannelOverwriteCreate, Some(2)),
+            (AuditAction::ChannelOverwriteUpdate, Some(2)),
+            (AuditAction::ChannelOverwriteDelete, Some(2)),
+        ]
+    );
+}
+
 fn png_uri(w: u32, h: u32, seed: u8) -> String {
     let img = image::RgbaImage::from_fn(w, h, |x, y| {
         image::Rgba([(x % 255) as u8, (y % 255) as u8, seed, 255])

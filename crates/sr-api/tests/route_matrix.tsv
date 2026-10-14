@@ -1,5 +1,5 @@
 # XC-SEC-005 route matrix. See crates/sr-api/tests/route_matrix.rs.
-# METHOD	PATH	ACCESS	AUTHZ	BOT	BEARER
+# METHOD	PATH	ACCESS	AUTHZ	BOT	BEARER (a trailing ? on AUTHZ means unreviewed)
 DELETE	/admin/cinema/collections/{collection_id}	authenticated	staff	deny	-
 DELETE	/admin/cinema/episodes/{episode_id}	authenticated	staff	deny	-
 DELETE	/admin/cinema/seasons/{season_id}	authenticated	staff	deny	-
@@ -53,6 +53,7 @@ DELETE	/guilds/{guild_id}/members/{user_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/members/{user_id}/roles/{role_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/roles/{role_id}	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-
+DELETE	/guilds/{guild_id}/tag	authenticated	membership	allow	-
 DELETE	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-
 DELETE	/invites/{code}	authenticated	membership	allow	-
 DELETE	/library/bookmarks/{bookmark_id}	authenticated	other	allow	-
@@ -205,7 +206,6 @@ GET	/donations/leaderboards/{board}	authenticated	other	allow	-
 GET	/donations/me	authenticated	other	allow	-
 GET	/gateway	public	none	allow	-
 GET	/gateway/bot	authenticated	other	allow	-
-GET	/guilds/tag-badges	authenticated	other	allow	-
 GET	/guilds/templates/builtin	authenticated	membership	allow	-
 GET	/guilds/templates/{code}	authenticated	membership	allow	-
 GET	/guilds/{guild_id}	authenticated	membership	allow	-
@@ -229,11 +229,17 @@ GET	/guilds/{guild_id}/onboarding	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/prune	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/roles	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/roles/{role_id}/members	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/sr/applications	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/sr/applications/@me	authenticated	other	allow	-
+GET	/guilds/{guild_id}/sr/applications/form	authenticated	other	allow	-
 GET	/guilds/{guild_id}/sr/community	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/sr/guide	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/sr/insights	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/stickers	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/stickers/{sticker_id}	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/stickers/{sticker_id}/url	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/support	authenticated	membership	allow	-
+GET	/guilds/{guild_id}/tag	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/templates	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/threads/active	authenticated	membership	allow	-
 GET	/guilds/{guild_id}/vanity-url	authenticated	membership	allow	-
@@ -284,6 +290,7 @@ GET	/users/@me/ignores	authenticated	self	deny	-
 GET	/users/@me/notes/{user_id}	authenticated	self	deny	-
 GET	/users/@me/notification-defaults	authenticated	self	deny	-
 GET	/users/@me/presence	authenticated	self	allow	-
+GET	/users/@me/primary-guild	authenticated	self	deny	-
 GET	/users/@me/privacy	authenticated	self	deny	-
 GET	/users/@me/profile	authenticated	self	allow	-
 GET	/users/@me/read-states	authenticated	self	allow	-
@@ -333,7 +340,6 @@ PATCH	/users/@me/channels/{channel_id}	authenticated	membership	allow	-
 PATCH	/users/@me/guilds/{guild_id}/settings	authenticated	membership	allow	-
 PATCH	/users/@me/notification-defaults	authenticated	self	deny	-
 PATCH	/users/@me/presence	authenticated	self	allow	-
-PATCH	/users/@me/primary-guild	authenticated	self	deny	-
 PATCH	/users/@me/privacy	authenticated	self	deny	-
 PATCH	/users/@me/relationships/{user_id}	authenticated	self	deny	-
 PATCH	/users/@me/settings	authenticated	self	deny	-
@@ -452,6 +458,8 @@ POST	/guilds/{guild_id}/emojis	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/onboarding-responses	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/prune	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/roles	authenticated	membership	allow	-
+POST	/guilds/{guild_id}/sr/applications	authenticated	other	allow	-
+POST	/guilds/{guild_id}/sr/applications/{application_id}/decision	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/stickers	authenticated	membership	allow	-
 POST	/guilds/{guild_id}/templates	authenticated	membership	allow	-
 POST	/interactions	authenticated	other	deny	-
@@ -544,6 +552,9 @@ PUT	/guilds/{guild_id}/directory	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/members/{user_id}/roles/{role_id}	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/onboarding	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/requests/@me	authenticated	membership	allow	-
+PUT	/guilds/{guild_id}/sr/applications/form	authenticated	membership	allow	-
+PUT	/guilds/{guild_id}/sr/guide	authenticated	membership	allow	-
+PUT	/guilds/{guild_id}/tag	authenticated	membership	allow	-
 PUT	/guilds/{guild_id}/templates/{code}	authenticated	membership	allow	-
 PUT	/library/chapters/{chapter_id}/bookmarks	authenticated	other	allow	-
 PUT	/library/chapters/{chapter_id}/progress	authenticated	other	allow	-
@@ -555,6 +566,7 @@ PUT	/submissions/{submission_id}/library/series	authenticated	other	allow	-
 PUT	/users/@me/channels/{channel_id}/request	authenticated	membership	allow	-
 PUT	/users/@me/ignores/{user_id}	authenticated	self	deny	-
 PUT	/users/@me/notes/{user_id}	authenticated	self	deny	-
+PUT	/users/@me/primary-guild	authenticated	self	deny	-
 PUT	/users/@me/relationships/{user_id}	authenticated	self	deny	-
 PUT	/watch-parties/{party_id}/controllers/{user_id}	authenticated	other	allow	-
 PUT	/watch-parties/{party_id}/media	authenticated	other	allow	-

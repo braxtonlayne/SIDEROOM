@@ -43,10 +43,6 @@ pub struct GuildPatch {
     pub icon_key: Option<Option<String>>,
     pub banner_key: Option<Option<String>>,
     pub splash_key: Option<Option<String>>,
-    /// Server tag text (LNG-GLD-011); `Some(None)` removes it.
-    pub tag: Option<Option<String>>,
-    /// Server tag badge slug; `Some(None)` removes it.
-    pub tag_badge: Option<Option<String>>,
 }
 
 impl GuildPatch {
@@ -63,8 +59,6 @@ impl GuildPatch {
             && self.icon_key.is_none()
             && self.banner_key.is_none()
             && self.splash_key.is_none()
-            && self.tag.is_none()
-            && self.tag_badge.is_none()
     }
 }
 
@@ -196,23 +190,6 @@ pub fn plan_edit_guild(
     }
     if let Some(k) = patch.splash_key {
         out.splash_key = k;
-    }
-    if let Some(t) = patch.tag {
-        out.tag = crate::server_tag::validate_tag(t.as_deref())?;
-        if out.tag.is_none() {
-            // A badge without a tag would show nowhere.
-            out.tag_badge = None;
-        }
-    }
-    if let Some(b) = patch.tag_badge {
-        out.tag_badge = crate::server_tag::validate_badge(b.as_deref())?;
-        if out.tag_badge.is_some() && out.tag.is_none() {
-            return Err(ChatError::invalid(
-                "tag_badge",
-                "TAG_REQUIRED",
-                "Set a tag before choosing a badge.",
-            ));
-        }
     }
     if let Some(l) = patch.preferred_locale {
         let l = l.trim();
@@ -591,68 +568,6 @@ mod tests {
             perms,
             top_position: top,
         }
-    }
-
-    #[test]
-    fn server_tag_and_badge_rules() {
-        let g = guild();
-        let manager = actor_with(Permissions::MANAGE_GUILD, 1);
-        let edit = |patch: GuildPatch, g: &Guild| {
-            plan_edit_guild(UserId::new(5), &manager, g, patch, None, false, false)
-        };
-        let tagged = edit(
-            GuildPatch {
-                tag: Some(Some(" SR1 ".into())),
-                tag_badge: Some(Some("crown".into())),
-                ..Default::default()
-            },
-            &g,
-        )
-        .unwrap();
-        assert_eq!(
-            (tagged.tag.as_deref(), tagged.tag_badge.as_deref()),
-            (Some("SR1"), Some("crown"))
-        );
-        // A badge needs a tag; bad text and unknown badges are refused.
-        assert!(
-            edit(
-                GuildPatch {
-                    tag_badge: Some(Some("crown".into())),
-                    ..Default::default()
-                },
-                &g
-            )
-            .is_err()
-        );
-        for bad in ["a", "toolong", "no space"] {
-            let p = GuildPatch {
-                tag: Some(Some(bad.into())),
-                ..Default::default()
-            };
-            assert!(edit(p, &g).is_err(), "{bad}");
-        }
-        let bad_badge = GuildPatch {
-            tag_badge: Some(Some("unicorn".into())),
-            ..Default::default()
-        };
-        assert!(edit(bad_badge, &tagged).is_err());
-        // Removing the tag takes the badge with it.
-        let cleared = edit(
-            GuildPatch {
-                tag: Some(None),
-                ..Default::default()
-            },
-            &tagged,
-        )
-        .unwrap();
-        assert_eq!((cleared.tag, cleared.tag_badge), (None, None));
-        // Plain members cannot set a tag.
-        let plain = actor_with(Permissions::empty(), 0);
-        let set = GuildPatch {
-            tag: Some(Some("SR".into())),
-            ..Default::default()
-        };
-        assert!(plan_edit_guild(UserId::new(5), &plain, &g, set, None, false, false).is_err());
     }
 
     #[test]

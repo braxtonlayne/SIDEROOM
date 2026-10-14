@@ -57,6 +57,21 @@ edits AS ( \
     RETURNING id) \
 SELECT (SELECT count(*) FROM doomed)";
 
+/// Hard-deletes soft-deleted guilds (LNG-SSET-073) whose messages are all gone. Held
+/// messages are never purged (D-122), so a guild that still owns one stays; the cascade
+/// then takes channels, roles and the guild's audit log with it.
+pub(crate) const REAP_GUILDS_SQL: &str = "\
+DELETE FROM guilds g WHERE g.deleted_at IS NOT NULL AND NOT g.is_staff_guild \
+  AND NOT EXISTS (SELECT 1 FROM messages m JOIN channels c ON c.id = m.channel_id \
+                  WHERE c.guild_id = g.id)";
+
+async fn reap_deleted_guilds(pool: &PgPool) -> DbResult<u64> {
+    Ok(sqlx::query(REAP_GUILDS_SQL)
+        .execute(pool)
+        .await?
+        .rows_affected())
+}
+
 fn now_unix_ms() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -92,6 +107,10 @@ async fn purge_deleted_messages(pool: &PgPool) -> DbResult<i64> {
 
 async fn purge_handler(pool: PgPool, job: Job) -> Result<(), HandlerError> {
     let purged = purge_deleted_messages(&pool).await?;
+    let reaped = reap_deleted_guilds(&pool).await?;
+    if reaped > 0 {
+        tracing::info!(reaped, "removed deleted guilds");
+    }
     if purged > 0 {
         tracing::info!(purged, "purged deleted messages");
     }
@@ -261,6 +280,54 @@ pub async fn schedule_audit_purge(pool: &PgPool) -> DbResult<()> {
         AUDIT_PURGE_KIND,
         &json!({}),
         audit_purge_delay(),
+    )
+    .await?;
+    Ok(())
+}
+
+/// Reserved singleton id for `insights.daily`.
+pub const INSIGHTS_JOB_ID: i64 = 630;
+/// Kind of the daily Server Insights computation (LNG-SSET-068).
+pub const INSIGHTS_KIND: &str = "insights.daily";
+const INSIGHTS_HOUR_UTC: u32 = 0;
+const INSIGHTS_MINUTE_UTC: u32 = 20;
+/// Completed days recomputed on each run, so a missed run heals itself.
+const INSIGHTS_CATCH_UP_DAYS: i64 = 2;
+
+fn insights_delay() -> Duration {
+    jobs::delay_until_daily_utc(now_unix_ms(), INSIGHTS_HOUR_UTC, INSIGHTS_MINUTE_UTC)
+}
+
+async fn insights_handler(pool: PgPool, job: Job) -> Result<(), HandlerError> {
+    const DAY_MS: i64 = 86_400_000;
+    let today = now_unix_ms().div_euclid(DAY_MS) * DAY_MS;
+    for back in (1..=INSIGHTS_CATCH_UP_DAYS).rev() {
+        let guilds = sr_db::settings_repo::compute_insights_day(&pool, today - back * DAY_MS)
+            .await
+            .map_err(|e| HandlerError::from(e.to_string()))?;
+        tracing::debug!(guilds, back, "server insights computed");
+    }
+    jobs::reschedule_running(&pool, job.id, insights_delay()).await?;
+    Ok(())
+}
+
+/// Register the daily Server Insights job on `runner`. Pair with [`schedule_insights`].
+pub fn register_insights(runner: JobRunner, pool: &PgPool) -> JobRunner {
+    let pool = pool.clone();
+    runner.register(INSIGHTS_KIND, 1, move |job| {
+        Box::pin(insights_handler(pool.clone(), job))
+    })
+}
+
+/// Create or re-arm the insights singleton. Call only when [`register_insights`] is on
+/// the runner.
+pub async fn schedule_insights(pool: &PgPool) -> DbResult<()> {
+    jobs::schedule_singleton(
+        pool,
+        INSIGHTS_JOB_ID,
+        INSIGHTS_KIND,
+        &json!({}),
+        insights_delay(),
     )
     .await?;
     Ok(())
@@ -512,6 +579,75 @@ mod hold_guard_tests {
             .await
             .expect("delete");
         assert_eq!(removed, 1, "the held row is not deletable by the sweep");
+        db.cleanup().await.expect("cleanup");
+    }
+
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn reap_removes_deleted_guilds_only_once_their_messages_are_gone() {
+        let db = TestDb::new().await.expect("test db");
+        let pool = db.pool();
+        exec(pool, "INSERT INTO persons (id) VALUES (1)", &[]).await;
+        exec(
+            pool,
+            "INSERT INTO accounts (id, person_id, username, email, password_hash) \
+             VALUES (1, 1, 'u1', 'u1@example.test', 'x')",
+            &[],
+        )
+        .await;
+        exec(
+            pool,
+            "INSERT INTO moderation_holds (id, reason) VALUES (7, 'case')",
+            &[],
+        )
+        .await;
+        // 20: deleted and empty; 21: deleted with a held message; 22: not deleted.
+        for (gid, deleted) in [(20_i64, "now()"), (21, "now()"), (22, "NULL")] {
+            exec(
+                pool,
+                &format!(
+                    "INSERT INTO guilds (id, name, owner_id, deleted_at) \
+                     VALUES ({gid}, 'guild{gid}', 1, {deleted})"
+                ),
+                &[],
+            )
+            .await;
+            exec(
+                pool,
+                &format!(
+                    "INSERT INTO channels (id, guild_id, type) VALUES ({}, {gid}, 0)",
+                    gid * 10
+                ),
+                &[],
+            )
+            .await;
+        }
+        let _: String = sqlx::query_scalar("SELECT sr_ensure_message_partition(CURRENT_DATE)")
+            .fetch_one(pool)
+            .await
+            .expect("partition");
+        let base: i64 =
+            sqlx::query_scalar("SELECT sr_snowflake_floor(date_trunc('month', now())) + 2000")
+                .fetch_one(pool)
+                .await
+                .expect("floor");
+        exec(
+            pool,
+            "INSERT INTO messages (id, channel_id, author_id, visibility, deleted_at, hold_id) \
+             VALUES ($1, 210, 1, 'user_deleted', now(), 7)",
+            &[base],
+        )
+        .await;
+        assert_eq!(reap_deleted_guilds(pool).await.expect("reap"), 1);
+        let left: Vec<i64> = sqlx::query_scalar("SELECT id FROM guilds ORDER BY id")
+            .fetch_all(pool)
+            .await
+            .expect("ids");
+        assert_eq!(
+            left,
+            vec![21, 22],
+            "held message keeps its guild; live guild stays"
+        );
         db.cleanup().await.expect("cleanup");
     }
 }

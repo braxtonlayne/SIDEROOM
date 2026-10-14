@@ -18,7 +18,7 @@
 
 use async_trait::async_trait;
 use serde_json::Value;
-use sr_core::{ChannelId, GuildId};
+use sr_core::{ChannelId, GuildId, UserId};
 use sr_events::{DomainEvent, EventBus};
 use std::sync::Arc;
 
@@ -74,6 +74,12 @@ pub enum SettingsEvent {
         guild: GuildId,
         payload: Value,
     },
+    /// A membership application was approved; `payload` is the member object.
+    MemberJoined {
+        guild: GuildId,
+        user: UserId,
+        payload: Value,
+    },
 }
 
 impl SettingsEvent {
@@ -89,7 +95,8 @@ impl SettingsEvent {
             | Self::AutoModRuleDeleted { guild, .. }
             | Self::AutoModActionExecuted { guild, .. }
             | Self::AuditLogEntryCreated { guild, .. }
-            | Self::CommunityChanged { guild, .. } => *guild,
+            | Self::CommunityChanged { guild, .. }
+            | Self::MemberJoined { guild, .. } => *guild,
         }
     }
 
@@ -106,6 +113,7 @@ impl SettingsEvent {
             Self::AutoModActionExecuted { .. } => "AUTO_MODERATION_ACTION_EXECUTION",
             Self::AuditLogEntryCreated { .. } => "GUILD_AUDIT_LOG_ENTRY_CREATE",
             Self::CommunityChanged { .. } => "GUILD_UPDATE",
+            Self::MemberJoined { .. } => "GUILD_MEMBER_ADD",
         }
     }
 }
@@ -180,6 +188,15 @@ impl SettingsEvent {
             Self::CommunityChanged { guild, payload } => {
                 DomainEvent::GuildUpdated { guild, payload }
             }
+            Self::MemberJoined {
+                guild,
+                user,
+                payload,
+            } => DomainEvent::MemberJoined {
+                guild,
+                user,
+                payload,
+            },
         }
     }
 }

@@ -158,6 +158,7 @@ pub struct MessagesDeps {
     dm_announcer: Option<Arc<dyn DmAnnouncer>>,
     /// Source of the 18+ confirmation for age-restricted channels (D-032).
     age: Option<Arc<dyn crate::routes::search::AgeGate>>,
+    audit: Option<Arc<dyn crate::routes::guilds::backend::AuditSink>>,
     pub limits: ChatLimits,
     pub size_policy: SizePolicy,
     /// How long a nonce keeps deduplicating (Discord: a few minutes).
@@ -207,6 +208,7 @@ impl MessagesDeps {
             cdn: None,
             dm_announcer: None,
             age: None,
+            audit: None,
             limits,
             size_policy: SizePolicy::default(),
             nonce_window_ms: i64::try_from(NONCE_WINDOW.as_millis()).unwrap_or(i64::MAX),
@@ -220,6 +222,28 @@ impl MessagesDeps {
     pub fn with_cdn_signer(mut self, signer: CdnSigner) -> Self {
         self.cdn = Some(signer);
         self
+    }
+
+    /// Write moderator message actions (pin, unpin, delete, bulk delete) to the guild
+    /// audit log (LNG-SSET-056).
+    pub fn with_audit(mut self, sink: Arc<dyn crate::routes::guilds::backend::AuditSink>) -> Self {
+        self.audit = Some(sink);
+        self
+    }
+
+    /// Record `action` in `guild`'s audit log; a no-op for DMs or without a sink.
+    pub async fn audit(
+        &self,
+        guild: Option<sr_core::GuildId>,
+        actor: UserId,
+        action: sr_chat::settings::audit::AuditAction,
+        target_id: Option<u64>,
+        options: serde_json::Value,
+    ) {
+        if let (Some(sink), Some(guild)) = (&self.audit, guild) {
+            sink.record_with_options(guild, actor, action, target_id, options)
+                .await;
+        }
     }
 
     /// Announce DMs to recipients who have not heard of them (see [`DmAnnouncer`]).

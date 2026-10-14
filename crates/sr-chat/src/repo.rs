@@ -156,9 +156,8 @@ pub struct UserSummary {
     pub banner_key: Option<String>,
     /// A bot account (an application's bot user).
     pub bot: bool,
-    /// The server tag the user chose to show (LNG-GLD-011); only set while they are still
-    /// a member of that server and it still has a tag.
-    pub primary_guild: Option<crate::server_tag::PrimaryGuild>,
+    /// The server tag the user displays (LNG-SSET-012); only set where it is visible.
+    pub primary_guild: Option<crate::settings::tags::PrimaryGuild>,
 }
 
 /// Looks up the user fields that Discord embeds in member, ban and message

@@ -64,7 +64,7 @@ fn opt_id<T: std::str::FromStr>(field: &str, raw: &Option<String>) -> ApiResult<
 }
 
 /// Every channel id must belong to the guild.
-async fn require_guild_channels(
+pub(super) async fn require_guild_channels(
     deps: &SettingsDeps,
     guild: GuildId,
     field: &str,

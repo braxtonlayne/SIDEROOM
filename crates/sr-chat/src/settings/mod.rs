@@ -7,16 +7,20 @@
 //! implementation lives in `sr-db::settings_repo`. The REST routes are in
 //! `sr-api::routes::settings`.
 
+pub mod applications;
 pub mod audit;
 pub mod automod;
 pub mod community;
 pub mod directory;
 pub mod error;
 pub mod expressions;
+pub mod guide;
+pub mod insights;
 pub mod invites;
 pub mod join;
 pub mod repo;
 pub mod service;
+pub mod tags;
 pub mod templates;
 pub mod webhooks;
 
