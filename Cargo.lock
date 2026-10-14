@@ -5014,10 +5014,12 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.0",
+ "sqlx",
  "sr-admin",
  "sr-auth",
  "sr-chat",
  "sr-cinema",
+ "sr-cinema-social",
  "sr-core",
  "sr-events",
  "sr-features",
@@ -5087,6 +5089,23 @@ dependencies = [
  "sr-core",
  "sr-storage",
  "tantivy",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "utoipa",
+]
+
+[[package]]
+name = "sr-cinema-social"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "sr-core",
+ "sr-db",
+ "sr-events",
  "thiserror 2.0.21",
  "tokio",
  "tracing",
@@ -5321,6 +5340,7 @@ dependencies = [
  "sr-auth",
  "sr-chat",
  "sr-cinema",
+ "sr-cinema-social",
  "sr-core",
  "sr-db",
  "sr-events",

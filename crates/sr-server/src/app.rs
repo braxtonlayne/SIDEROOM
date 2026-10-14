@@ -518,6 +518,20 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             ))),
     );
 
+    // Cinema social and progress (CIN-PLY-007/009, CIN-MY-002, CIN-SOC-001/002). The catalog port is
+    // empty until `sr-cinema` provides the real `CatalogLookup`; swap `NoCatalog` for it there.
+    let cinema_social_deps = Arc::new(
+        routes::cinema_social::CinemaSocialDeps::new(
+            sr_cinema_social::CinemaService::new(
+                pool.clone(),
+                Arc::new(sr_cinema_social::NoCatalog),
+                id_src.clone(),
+            )
+            .with_events(Arc::new(sr_cinema_social::BusEvents::new(bus.clone()))),
+        )
+        .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone()))),
+    );
+
     // The review pipeline (REV-*): submissions of the Library kinds, reviewed by staff with
     // REVIEW_READING and published through the same Library service. The submitter hears
     // about every step as SR_SUBMISSION_UPDATE.
@@ -648,6 +662,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(search_deps)
         .extension(library_deps)
         .extension(cinema_deps)
+        .extension(cinema_social_deps)
         .extension(review_deps)
         .extension(Arc::new(routes::media::MediaDeps::new(storage.clone())))
         .extension(Arc::new(routes::cdn::CdnDeps::new(
