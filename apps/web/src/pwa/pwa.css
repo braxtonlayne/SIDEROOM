@@ -44,7 +44,7 @@
 .sr-share-preview {
   margin: 12px 0 24px;
   padding: 12px 16px;
-  border-left: 3px solid var(--sr-line, #2a2b24);
+  border-inline-start: 3px solid var(--sr-line, #2a2b24);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
