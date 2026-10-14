@@ -1,4 +1,4 @@
-//! The SSRF policy: which URLs and addresses the unfurler may touch.
+//! The SSRF policy: which URLs and addresses outbound fetches may touch.
 //!
 //! Everything here is pure so it can be tested as a table. The rules are applied
 //! to the URL before any DNS lookup, to every address a lookup returns, and again
@@ -43,6 +43,10 @@ pub struct Policy {
     /// TEST ONLY. Disables the address check so a loopback test server can be
     /// fetched. Must stay `false` in every real deployment.
     pub allow_private_for_tests: bool,
+    /// Operator opt-in for integrations that legitimately live on the private network
+    /// (for example a self-hosted esplora node). Off by default; only ever set from an
+    /// explicit operator setting, never from user input.
+    pub allow_private_hosts: bool,
 }
 
 impl Policy {
@@ -94,7 +98,7 @@ impl Policy {
 
     /// Check one resolved address.
     pub fn check_ip(&self, ip: IpAddr) -> Result<(), Blocked> {
-        if !self.allow_private_for_tests && is_forbidden_ip(ip) {
+        if !(self.allow_private_for_tests || self.allow_private_hosts) && is_forbidden_ip(ip) {
             Err(Blocked::PrivateAddress(ip))
         } else {
             Ok(())

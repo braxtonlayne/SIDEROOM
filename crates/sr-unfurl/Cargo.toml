@@ -9,6 +9,7 @@ workspace = true
 
 [dependencies]
 async-trait.workspace = true
+sr-net = { path = "../sr-net" }
 
 encoding_rs = "0.8.42"
 imagesize = "0.15.0"

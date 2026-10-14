@@ -368,6 +368,78 @@ fn is_hex_key(key: &str) -> bool {
     key.len() == 64 && key.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
+/// Config keys that can be supplied from a file through `SR_<KEY>_FILE` (Docker and
+/// Kubernetes secrets, systemd credentials). `server.secret_key_previous` is a list.
+pub const SECRET_FILE_KEYS: &[&str] = &[
+    "server.secret_key",
+    "database.url",
+    "smtp.password",
+    "voice.token_secret",
+    "voice.turn.secret",
+    "storage.access_key",
+    "storage.secret_key",
+    "discord.client_secret",
+];
+
+/// The list-valued key that reads one entry per line from `SR_<KEY>_FILE`.
+pub const SECRET_FILE_LIST_KEY: &str = "server.secret_key_previous";
+
+/// The environment variable that names the file for `key` (`database.url` becomes
+/// `SR_DATABASE__URL_FILE`).
+pub fn secret_file_var(key: &str) -> String {
+    format!("SR_{}_FILE", key.to_ascii_uppercase().replace('.', "__"))
+}
+
+/// Read a secret file: one value, trailing newline trimmed, never empty.
+fn read_secret_file(var: &str, path: &str) -> Result<String, ConfigError> {
+    let raw = std::fs::read_to_string(path)
+        .map_err(|e| invalid(&format!("{var}: cannot read {path}: {e}")))?;
+    let v = raw.trim_end_matches(['\r', '\n']).to_owned();
+    if v.is_empty() {
+        return Err(invalid(&format!("{var}: {path} is empty")));
+    }
+    Ok(v)
+}
+
+fn invalid(msg: &str) -> ConfigError {
+    ConfigError::Invalid(Box::new(figment::Error::from(msg.to_owned())))
+}
+
+/// Merge `SR_*_FILE` secrets into `f`. `lookup` reads the environment (injected for
+/// tests). A file beats nothing else silently: setting both `SR_X` and `SR_X_FILE` is an
+/// error, so a stale plain value can never shadow a rotated secret file.
+pub fn with_secret_files(
+    mut f: Figment,
+    lookup: &dyn Fn(&str) -> Option<String>,
+) -> Result<Figment, ConfigError> {
+    let keys = SECRET_FILE_KEYS.iter().chain([&SECRET_FILE_LIST_KEY]);
+    for key in keys {
+        let var = secret_file_var(key);
+        let Some(path) = lookup(&var).filter(|p| !p.is_empty()) else {
+            continue;
+        };
+        let plain = var.trim_end_matches("_FILE");
+        if lookup(plain).is_some_and(|v| !v.is_empty()) {
+            return Err(invalid(&format!("set only one of {plain} and {var}")));
+        }
+        let value = if *key == SECRET_FILE_LIST_KEY {
+            let raw = std::fs::read_to_string(&path)
+                .map_err(|e| invalid(&format!("{var}: cannot read {path}: {e}")))?;
+            let list: Vec<String> = raw
+                .lines()
+                .map(str::trim)
+                .filter(|l| !l.is_empty())
+                .map(str::to_owned)
+                .collect();
+            figment::value::Value::serialize(list)?
+        } else {
+            figment::value::Value::serialize(read_secret_file(&var, &path)?)?
+        };
+        f = f.merge(Serialized::default(key, value));
+    }
+    Ok(f)
+}
+
 impl Config {
     /// Build the layered figment: defaults, optional TOML file, `SR_*` env.
     pub fn figment(toml_path: Option<&Path>) -> Figment {
@@ -380,7 +452,8 @@ impl Config {
 
     /// Load and validate configuration.
     pub fn load(toml_path: Option<&Path>) -> Result<Self, ConfigError> {
-        Self::from_figment(&Self::figment(toml_path))
+        let f = with_secret_files(Self::figment(toml_path), &|k| std::env::var(k).ok())?;
+        Self::from_figment(&f)
     }
 
     pub fn from_figment(f: &Figment) -> Result<Self, ConfigError> {
@@ -622,5 +695,112 @@ secret_key = \"abc\"
     fn secrets_are_redacted() {
         let dbg = format!("{:?}", Config::default());
         assert!(!dbg.contains("sideroom:sideroom"));
+    }
+
+    fn secret_file(name: &str, body: &str) -> String {
+        let p = std::env::temp_dir().join(format!("sr_cfg_{}_{name}", std::process::id()));
+        std::fs::write(&p, body).unwrap();
+        p.to_string_lossy().into_owned()
+    }
+
+    fn base() -> Figment {
+        Figment::from(Serialized::defaults(Config::default()))
+    }
+
+    #[test]
+    fn secret_files_fill_secrets_and_trim_the_newline() {
+        let key = "ab".repeat(32);
+        let sk = secret_file("sk", &format!("{key}\n"));
+        let db = secret_file("db", "postgres://u:p@db/x\r\n");
+        let prev = secret_file(
+            "prev",
+            &format!("{}\n\n{}\n", "cd".repeat(32), "ef".repeat(32)),
+        );
+        let env = move |k: &str| match k {
+            "SR_SERVER__SECRET_KEY_FILE" => Some(sk.clone()),
+            "SR_DATABASE__URL_FILE" => Some(db.clone()),
+            "SR_SERVER__SECRET_KEY_PREVIOUS_FILE" => Some(prev.clone()),
+            _ => None,
+        };
+        let cfg = Config::from_figment(&with_secret_files(base(), &env).unwrap()).unwrap();
+        assert_eq!(cfg.server.secret_key.expose(), key);
+        assert_eq!(cfg.database.url.expose(), "postgres://u:p@db/x");
+        assert_eq!(cfg.server.secret_key_previous.len(), 2);
+    }
+
+    #[test]
+    fn secret_file_errors_are_loud() {
+        let empty = secret_file("empty", "\n");
+        let good = secret_file("good", "s3cret-value-123456");
+        let var = "SR_VOICE__TOKEN_SECRET_FILE";
+        // Missing file.
+        let missing = |k: &str| (k == var).then(|| "/nonexistent/sr/secret".to_owned());
+        assert!(with_secret_files(base(), &missing).is_err());
+        // Empty file.
+        let e = empty.clone();
+        assert!(with_secret_files(base(), &move |k| (k == var).then(|| e.clone())).is_err());
+        // Both the plain variable and the file: refused.
+        let g = good.clone();
+        let both = move |k: &str| match k {
+            "SR_VOICE__TOKEN_SECRET_FILE" => Some(g.clone()),
+            "SR_VOICE__TOKEN_SECRET" => Some("plain".to_owned()),
+            _ => None,
+        };
+        assert!(with_secret_files(base(), &both).is_err());
+        // The file alone works.
+        let g = good.clone();
+        let f = with_secret_files(base(), &move |k| (k == var).then(|| g.clone())).unwrap();
+        assert_eq!(
+            Config::from_figment(&f)
+                .unwrap()
+                .voice
+                .token_secret
+                .expose(),
+            "s3cret-value-123456"
+        );
+    }
+
+    #[test]
+    fn every_secret_field_has_a_file_variable() {
+        // Every `Secret` in the config tree must be reachable through `_FILE`; adding a new
+        // secret field without listing it here fails this test.
+        let json = serde_json::to_value(Config::default()).unwrap();
+        let mut secrets = Vec::new();
+        fn walk(v: &serde_json::Value, path: &str, out: &mut Vec<String>) {
+            if let serde_json::Value::Object(m) = v {
+                for (k, v) in m {
+                    let p = if path.is_empty() {
+                        k.clone()
+                    } else {
+                        format!("{path}.{k}")
+                    };
+                    walk(v, &p, out);
+                }
+            } else if let Some(name) = path.rsplit('.').next()
+                && [
+                    "secret",
+                    "password",
+                    "token_secret",
+                    "secret_key",
+                    "access_key",
+                    "url",
+                ]
+                .contains(&name)
+                && !path.starts_with("unfurl")
+            {
+                out.push(path.to_owned());
+            }
+        }
+        walk(&json, "", &mut secrets);
+        for s in secrets {
+            // `server.public_url`/`metrics` style URLs are not secrets; only `database.url` is.
+            if s.ends_with("public_url") || s == "server.secret_key_previous" {
+                continue;
+            }
+            assert!(
+                SECRET_FILE_KEYS.contains(&s.as_str()),
+                "{s} looks like a secret but is missing from SECRET_FILE_KEYS"
+            );
+        }
     }
 }

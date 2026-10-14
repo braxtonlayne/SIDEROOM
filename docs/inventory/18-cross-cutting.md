@@ -24,10 +24,10 @@ All phases.
 
 ## XC-SEC — Security
 - [x] **XC-SEC-001** [BE] CSP, HSTS, Permissions-Policy, COOP/COEP where needed (WASM threads), X-Content-Type-Options _(sr-api layer, Caddyfile.prod, Vite dev and preview. COEP is not needed yet: no SharedArrayBuffer.)_
-- [ ] **XC-SEC-002** [BE] Upload content sniffing + MIME allowlist per surface, SVG sanitization or rejection
-- [ ] **XC-SEC-003** [BE] SSRF-safe HTTP client shared crate (unfurls, RSS, metadata lookup, webhooks out)
-- [ ] **XC-SEC-004** [BE] Secrets management (file-based, rotation docs), token hashing everywhere
-- [ ] **XC-SEC-005** [BE] Audit of permission checks (test matrix generator per route)
+- [x] **XC-SEC-002** [BE] Upload content sniffing + MIME allowlist per surface, SVG sanitization or rejection _(crates/sr-storage/src/upload/surface.rs: per-surface allowlist; SVG/HTML/XML rejected for inline images, kept as octet-stream downloads for attachments, no sanitizer by design. Video/library ingest keep their own decoders.)_
+- [x] **XC-SEC-003** [BE] SSRF-safe HTTP client shared crate (unfurls, RSS, metadata lookup, webhooks out) _(new crate sr-net; unfurl, image proxy and payments use it. Discord OAuth talks only to fixed discord.com URLs and keeps its own no-redirect client. Outbound webhooks do not exist yet.)_
+- [x] **XC-SEC-004** [BE] Secrets management (file-based, rotation docs), token hashing everywhere _(SR_*_FILE secrets, credential-column test, rotation docs in doc 12 section 3.1. Invite and template codes stay plaintext by design.)_
+- [x] **XC-SEC-005** [BE] Audit of permission checks (test matrix generator per route) _(partial: crates/sr-api/tests/route_matrix.tsv with a 401 test for every authenticated route; AUTHZ column is heuristic-seeded from path/security and needs owner review; it is not a per-handler proof of each permission bit.)_
 - [x] **XC-SEC-006** [OPS] Dependency audit in CI (`cargo-deny`, `pnpm audit`) _(The pnpm audit job is advisory and has not run on GitHub yet.)_
 - [x] **XC-SEC-007** [DOC] Threat model document (accounts, invites, payments, E2EE, staff access) _(docs/15-threat-model.md)_
 

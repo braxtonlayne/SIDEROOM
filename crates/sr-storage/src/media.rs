@@ -175,6 +175,10 @@ pub fn prepare_bytes(
     raw: &[u8],
     limits: &Limits,
 ) -> Result<PreparedMedia, MediaError> {
+    // SVG, HTML and XML never reach the decoder (XC-SEC-002).
+    if crate::upload::surface::is_active_content(raw) {
+        return Err(MediaError::BadType);
+    }
     let n = normalize(raw, kind.fit(), limits)?;
     let mut h = Sha256::new();
     h.update(kind.salt().as_bytes());
@@ -272,6 +276,16 @@ mod tests {
         );
         assert_eq!(
             prepare(MediaKind::UserAvatar, &html).unwrap_err(),
+            MediaError::BadType
+        );
+        // Declared PNG, actually an SVG with script: refused before any decoder runs.
+        let svg = format!(
+            "data:image/png;base64,{}",
+            base64::engine::general_purpose::STANDARD
+                .encode(b"<?xml version=\"1.0\"?><svg onload=\"alert(1)\"/>")
+        );
+        assert_eq!(
+            prepare(MediaKind::GuildIcon, &svg).unwrap_err(),
             MediaError::BadType
         );
         assert_eq!(
