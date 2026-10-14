@@ -2555,6 +2555,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/channels/{channel_id}/watch-party": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The live party of a channel or DM. */
+        get: operations["watch_party_in_channel"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/channels/{channel_id}/webhooks": {
         parameters: {
             query?: never;
@@ -5407,6 +5424,341 @@ export interface paths {
         get: operations["get_profile"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start a party: bound to a channel or DM the caller may start one in (`START_WATCH_PARTY`), or private
+         *     (shareable link). The title must be published and playable; a restricted one needs the caller's age
+         *     confirmation (403, code 900011). The caller becomes the host and leaves any other party.
+         */
+        post: operations["watch_party_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The party the caller is in now. */
+        get: operations["watch_party_mine"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/time": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The server clock. Clients sample it (with their own round-trip time) to estimate their clock offset
+         *     before and while they are in a party.
+         */
+        get: operations["watch_party_time"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A party. Members, and people who can see the bound channel, may read it; restricted content is masked for
+         *     viewers without age confirmation.
+         */
+        get: operations["watch_party_get"];
+        put?: never;
+        post?: never;
+        /** End the party for everybody (host or channel manager). */
+        delete: operations["watch_party_end"];
+        options?: never;
+        head?: never;
+        /** Change the settings (host or channel manager). */
+        patch: operations["watch_party_update"];
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The audit trail of party-level actions, newest first (host or channel manager). */
+        get: operations["watch_party_audit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/controllers/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Name or unname a controller (host or channel manager). */
+        put: operations["watch_party_set_controller"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The participant's heartbeat (every 15 to 30 s): liveness, round-trip estimate, buffering and ready
+         *     flags. Answers with the server clock and the current playback. A participant silent for 90 s is dropped.
+         */
+        post: operations["watch_party_heartbeat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/host": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Hand the host role to another participant (host or channel manager). */
+        post: operations["watch_party_transfer_host"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Join. A private party needs `invite_code`; a bound party needs access to its channel; a restricted title
+         *     needs the caller's age confirmation (403, 900011). Joining leaves the caller's other party.
+         */
+        post: operations["watch_party_join"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/leave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Leave. The host role passes to the next person; an empty party ends after 5 minutes unless persistent. */
+        post: operations["watch_party_leave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change what is playing (controllers). The title must be published and playable. For a restricted title,
+         *     participants without age confirmation are removed from the party.
+         */
+        put: operations["watch_party_change_media"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/members/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a participant and bar them from rejoining (host or channel manager). */
+        delete: operations["watch_party_kick"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send an ephemeral message to the party's own chat (used by private parties; parties bound to a channel
+         *     use that channel's text chat). Not stored.
+         */
+        post: operations["watch_party_say"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/next": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Skip to the next queue entry (controllers). */
+        post: operations["watch_party_next"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/playback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * A playback command: `play`, `pause`, `seek` (`position_ms`), `rate` (0.5 to 2) or `ended`. Allowed for
+         *     the host and, per the shared-control setting, controllers or everybody; otherwise 403. A stale
+         *     `expected_version` answers 409 with the current playback. The answer is the state after the command.
+         */
+        post: operations["watch_party_command"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add to the queue (per the queue policy). */
+        post: operations["watch_party_queue_add"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/queue/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a queue entry (per the queue policy; the person who added it may always). */
+        delete: operations["watch_party_queue_remove"];
+        options?: never;
+        head?: never;
+        /** Reorder the queue (controllers): move an entry to `position`. */
+        patch: operations["watch_party_queue_move"];
+        trace?: never;
+    };
+    "/watch-parties/{party_id}/reactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a floating emoji reaction to the party (rate limited). */
+        post: operations["watch_party_react"];
         delete?: never;
         options?: never;
         head?: never;
@@ -9204,6 +9556,13 @@ export interface components {
             /** Format: int32 */
             runtime_min?: number | null;
         };
+        /** @description The 409 body of a stale `expected_version`: the usual error object plus the current playback. */
+        VersionConflictBody: {
+            /** Format: int32 */
+            code: number;
+            message: string;
+            playback: components["schemas"]["WatchPartyPlayback"];
+        };
         Volume: {
             edition_id: string;
             id: string;
@@ -9216,6 +9575,272 @@ export interface components {
             /** Format: double */
             number: number;
             title?: string | null;
+        };
+        /** @description A watch party, as returned by the API and carried by `WATCH_PARTY_UPDATE`. */
+        WatchParty: {
+            binding: components["schemas"]["WatchPartyBinding"];
+            channel_id?: string | null;
+            /** Format: int64 */
+            created_at_ms: number;
+            ended: boolean;
+            guild_id?: string | null;
+            host_id: string;
+            id: string;
+            /** @description The secret of the share link. Only members see it (and only on private parties). */
+            invite_code?: string | null;
+            media: components["schemas"]["WatchPartyMedia"];
+            participants: components["schemas"]["WatchPartyParticipant"][];
+            playback: components["schemas"]["WatchPartyPlayback"];
+            queue: components["schemas"]["WatchPartyQueueItem"][];
+            settings: components["schemas"]["WatchPartySettings"];
+            you?: null | components["schemas"]["WatchPartyYou"];
+        };
+        /** @enum {string} */
+        WatchPartyAction: "play" | "pause" | "seek" | "rate" | "ended";
+        /** @description An audit entry. */
+        WatchPartyAuditEntry: {
+            action: string;
+            actor_id?: string | null;
+            /** Format: int64 */
+            at_ms: number;
+            detail: Record<string, never>;
+            id: string;
+            target_id?: string | null;
+        };
+        /**
+         * @description Where the party lives.
+         * @enum {string}
+         */
+        WatchPartyBinding: "channel" | "dm" | "private";
+        /** @description Body of `PUT /watch-parties/{id}/media`. */
+        WatchPartyChangeMedia: {
+            episode_id?: string | null;
+            /** Format: int64 */
+            start_ms?: number | null;
+            title_id: string;
+            variant_id?: string | null;
+        };
+        /** @description Body of `POST /watch-parties/{id}/playback`. */
+        WatchPartyCommand: {
+            action: components["schemas"]["WatchPartyAction"];
+            /**
+             * Format: int64
+             * @description The `version` the client last applied. A different current version answers 409 with the
+             *     current state; omit it for last-writer-wins.
+             */
+            expected_version?: number | null;
+            /**
+             * Format: int64
+             * @description For `seek`.
+             */
+            position_ms?: number | null;
+            /**
+             * Format: double
+             * @description For `rate` (0.5 to 2.0).
+             */
+            rate?: number | null;
+        };
+        /**
+         * @description Who may do something: the host alone, the host and members with `CONTROL_WATCH_PARTY` or the
+         *     host's explicit controllers, or everybody.
+         * @enum {string}
+         */
+        WatchPartyControlMode: "host" | "controllers" | "everyone";
+        /** @description Body of `PUT /watch-parties/{id}/controllers/{user_id}`. */
+        WatchPartyControllerInput: {
+            controller: boolean;
+        };
+        /** @description Body of `POST /watch-parties`. */
+        WatchPartyCreate: {
+            /** @description A guild channel (text or voice) or DM to bind to. Without it the party is private (link only). */
+            channel_id?: string | null;
+            episode_id?: string | null;
+            settings?: null | components["schemas"]["WatchPartySettingsInput"];
+            /**
+             * Format: int64
+             * @description Where to start, in milliseconds (default 0).
+             */
+            start_ms?: number | null;
+            title_id: string;
+            variant_id?: string | null;
+        };
+        /** @description Body of `POST /watch-parties/{id}/heartbeat`: the member's liveness, clock estimate and player state. */
+        WatchPartyHeartbeat: {
+            /** @description `true` when the player has been stalled (report once it passes ~1.5 s), `false` when it recovered. */
+            buffering?: boolean | null;
+            ready?: boolean | null;
+            /**
+             * Format: int32
+             * @description The member's round-trip estimate to the server.
+             */
+            rtt_ms?: number | null;
+        };
+        /** @description Answer of the heartbeat: the clock sample and the current playback (a fallback for a lost event). */
+        WatchPartyHeartbeatResult: {
+            /** @description `false`: the caller is no longer in the party (removed or ended). */
+            member: boolean;
+            playback: components["schemas"]["WatchPartyPlayback"];
+            /** Format: int64 */
+            server_time_ms: number;
+        };
+        /** @description Body of `POST /watch-parties/{id}/join`. */
+        WatchPartyJoin: {
+            /** @description Required to join a private party. */
+            invite_code?: string | null;
+        };
+        /** @description What the party is playing. */
+        WatchPartyMedia: {
+            age_restricted: boolean;
+            /**
+             * @description The video asset; the viewer fetches HLS through `GET /cinema/assets/{asset_id}/playback`
+             *     (the normal play checks apply to each viewer).
+             */
+            asset_id: string;
+            /** Format: int64 */
+            duration_ms?: number | null;
+            /** @description `"0"` for a movie. */
+            episode_id: string;
+            episode_label?: string | null;
+            live: boolean;
+            title: string;
+            title_id: string;
+            variant_id?: string | null;
+        };
+        /** @description Body of `POST /watch-parties/{id}/messages` (private parties' own chat; ephemeral). */
+        WatchPartyMessageInput: {
+            content: string;
+        };
+        /** @description A person in the party. */
+        WatchPartyParticipant: {
+            /** @description Currently stalled (reported by the member's player). */
+            buffering: boolean;
+            display_name?: string | null;
+            /** @description Granted by the host: may control playback when shared control is `controllers`. */
+            is_controller: boolean;
+            is_host: boolean;
+            /** Format: int64 */
+            joined_at_ms: number;
+            ready: boolean;
+            /** Format: int32 */
+            rtt_ms?: number | null;
+            user_id: string;
+            username: string;
+        };
+        /**
+         * @description Playback state as sent to clients (`WATCH_PARTY_PLAYBACK`, and inside the party object).
+         *
+         *     The media should be at `position_ms + (server_clock - at_ms) * rate` while `playing`; `expected_position_ms`
+         *     is that value at `server_time_ms` (the moment the server built this object). Clients correct their clock
+         *     offset (`server_time_ms - (client_now - rtt/2)`) and apply drift correction against it.
+         */
+        WatchPartyPlayback: {
+            /**
+             * Format: int64
+             * @description Server clock at which `position_ms` was true.
+             */
+            at_ms: number;
+            /** @description Paused by the buffering rule ("Waiting for ..."), not by a controller. */
+            auto_paused: boolean;
+            /** Format: int64 */
+            duration_ms?: number | null;
+            /**
+             * Format: int64
+             * @description `position_ms` advanced to `server_time_ms`.
+             */
+            expected_position_ms: number;
+            live: boolean;
+            playing: boolean;
+            /** Format: int64 */
+            position_ms: number;
+            /**
+             * Format: double
+             * @description Playback speed (1.0 = normal).
+             */
+            rate: number;
+            /**
+             * Format: int64
+             * @description Server clock when this view was built (every state carries it, for the clock offset).
+             */
+            server_time_ms: number;
+            /**
+             * Format: int64
+             * @description Strictly increasing; a client ignores any state older than the newest it applied.
+             */
+            version: number;
+        };
+        /** @description Body of `POST /watch-parties/{id}/queue`. */
+        WatchPartyQueueAdd: {
+            episode_id?: string | null;
+            title_id: string;
+            variant_id?: string | null;
+        };
+        /** @description An entry of the queue. */
+        WatchPartyQueueItem: components["schemas"]["WatchPartyMedia"] & {
+            /** Format: int64 */
+            added_at_ms: number;
+            added_by?: string | null;
+            id: string;
+            /** Format: int32 */
+            position: number;
+        };
+        /** @description Body of `PATCH /watch-parties/{id}/queue/{item_id}`. */
+        WatchPartyQueueMove: {
+            /**
+             * Format: int32
+             * @description New zero-based index.
+             */
+            position: number;
+        };
+        /** @description Body of `POST /watch-parties/{id}/reactions`. */
+        WatchPartyReaction: {
+            /** @description A unicode emoji (or `name:id` of a custom one), up to 32 bytes. */
+            emoji: string;
+        };
+        WatchPartySettings: {
+            /** @description Pause everybody when a participant buffers for more than 1.5 s. */
+            auto_pause_buffering: boolean;
+            /** Format: int32 */
+            max_participants: number;
+            /**
+             * Format: int32
+             * @description Longest wait for a stalled participant before continuing without them.
+             */
+            max_wait_ms: number;
+            /** @description A bound party that outlives its members (the Watch Party channel behaviour). */
+            persistent: boolean;
+            queue_policy: components["schemas"]["WatchPartyControlMode"];
+            shared_control: components["schemas"]["WatchPartyControlMode"];
+        };
+        /** @description Optional settings (on create and `PATCH`). */
+        WatchPartySettingsInput: {
+            auto_pause_buffering?: boolean | null;
+            /** Format: int32 */
+            max_participants?: number | null;
+            /** Format: int32 */
+            max_wait_ms?: number | null;
+            persistent?: boolean | null;
+            queue_policy?: null | components["schemas"]["WatchPartyControlMode"];
+            shared_control?: null | components["schemas"]["WatchPartyControlMode"];
+        };
+        /** @description Answer of `GET /watch-parties/time`. */
+        WatchPartyTime: {
+            /** Format: int64 */
+            server_time_ms: number;
+        };
+        /** @description Body of `POST /watch-parties/{id}/host`. */
+        WatchPartyTransfer: {
+            user_id: string;
+        };
+        /** @description The viewing account's standing in the party. */
+        WatchPartyYou: {
+            /** @description May play, pause, seek and change the speed now. */
+            can_control: boolean;
+            /** @description May end the party, hand over the host role, kick. */
+            can_manage: boolean;
+            /** @description May add to the queue. */
+            can_queue: boolean;
+            host: boolean;
+            member: boolean;
         };
         WebhookObject: {
             avatar?: string | null;
@@ -18329,6 +18954,45 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_in_channel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description No party, or the channel is not visible. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -28103,6 +28767,978 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchPartyCreate"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description No START_WATCH_PARTY, or age confirmation required (900011). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unknown channel or title. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The channel already has a party, or the server is at its party limit. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_mine: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not in a party. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_time: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchPartyTime"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_end: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchPartySettingsInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_audit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchPartyAuditEntry"][];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_set_controller: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+                /** @description User snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchPartyControllerInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_heartbeat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchPartyHeartbeat"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchPartyHeartbeatResult"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_transfer_host: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchPartyTransfer"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_join: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchPartyJoin"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The party is full. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_leave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_change_media: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchPartyChangeMedia"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not a controller, or age confirmation required (900011). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_kick: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+                /** @description User snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_say: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchPartyMessageInput"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_next: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The queue is empty. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_command: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchPartyCommand"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchPartyPlayback"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description `expected_version` is stale. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionConflictBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_queue_add: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchPartyQueueAdd"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The queue is full. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_queue_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+                /** @description Queue entry snowflake */
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_queue_move: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+                /** @description Queue entry snowflake */
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchPartyQueueMove"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WatchParty"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    watch_party_react: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Watch party snowflake */
+                party_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WatchPartyReaction"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
