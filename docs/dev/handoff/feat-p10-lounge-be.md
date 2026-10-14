@@ -1,7 +1,7 @@
 # Handoff: feat/p10-lounge-be (phase 10, Lounge servers, channels, invites: backend) - COMPLETE
 
 Worktree C:/Users/braxt/Desktop/SIDEROOM_wt/p10-lounge-be, branch feat/p10-lounge-be (base integration/phase10).
-CARGO_TARGET_DIR=C:/Users/braxt/Desktop/SIDEROOM_wt/p10-lounge-be-target. Scratch DB `sr_p10_lounge_be` (kept for the integrator; password in %TEMP%\sr_pg_pw.txt, never commit). Migration range 0620-0629: only `0620_lounge_servers.sql` is used.
+CARGO_TARGET_DIR=C:/Users/braxt/Desktop/SIDEROOM_wt/p10-lounge-be-target. Tests ran on a scratch DB `sr_p10_lounge_be`, dropped afterwards. Migration range 0620-0629: only `0620_lounge_servers.sql` is used.
 
 Scope: docs/inventory/04-lounge-servers-channels.md, backend and gateway items LNG-GLD-005, 006, 008, 009, 010, 011, 012, 013, LNG-CHN-004, 005, 006, 007, LNG-INV-003, 004, 005. All fifteen are ticked.
 
