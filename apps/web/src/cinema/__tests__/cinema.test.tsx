@@ -367,7 +367,7 @@ describe('Title page', () => {
     expect(screen.getByRole('button', { name: /Play/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Watch together/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Share to Lounge/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Download/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Download/ })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Trailer' })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Episodes' })).toBeNull();
     expect(screen.getByRole('tab', { name: 'Reviews' })).toBeEnabled();
@@ -394,6 +394,19 @@ describe('Title page', () => {
       }),
     );
     expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it('Download opens the download modal; a non-Patron is told downloads are for Patrons', async () => {
+    useCinemaApi({ detail: detail(DUNE) });
+    server.use(
+      http.get('*/api/v1/cinema/titles/1/downloads', () =>
+        HttpResponse.json({ code: 40300, message: 'Patrons only' }, { status: 403 }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderAt('/cinema/t/1');
+    await user.click(await screen.findByRole('button', { name: /Download/ }));
+    expect(await screen.findByText(/Downloads are for Patrons/)).toBeInTheDocument();
   });
 
   it('Play carries the chosen variant to the player route', async () => {
