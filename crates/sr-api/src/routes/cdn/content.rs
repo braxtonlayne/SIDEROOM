@@ -71,6 +71,29 @@ pub fn from_extension(filename: &str) -> Option<Presentation> {
     Some(from_mime(mime))
 }
 
+/// Types of the files of an HLS asset (kind `hls`; written by the transcoder, never by users): playlists,
+/// fMP4 segments, WebVTT, ASS and the fonts that go with it. Served with the types players expect;
+/// `nosniff` and the sandbox CSP still apply. Anything else falls back to [`from_extension`].
+pub fn from_hls_extension(filename: &str) -> Option<Presentation> {
+    let ext = filename.rsplit_once('.')?.1.to_ascii_lowercase();
+    let content_type = match ext.as_str() {
+        "m3u8" => "application/vnd.apple.mpegurl",
+        "m4s" => "video/iso.segment",
+        "vtt" => "text/vtt",
+        "ass" => "text/x-ssa",
+        "ttf" => "font/ttf",
+        "otf" => "font/otf",
+        "ttc" => "font/collection",
+        "woff" => "font/woff",
+        "woff2" => "font/woff2",
+        _ => return from_extension(filename),
+    };
+    Some(Presentation {
+        content_type,
+        inline: true,
+    })
+}
+
 /// Presentation for sniffed leading bytes (fallback for unknown extensions).
 pub fn from_sniffed(head: &[u8]) -> Presentation {
     sr_storage::upload::sniff_mime(head).map_or(DOWNLOAD, from_mime)

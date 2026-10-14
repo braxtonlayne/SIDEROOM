@@ -525,8 +525,17 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .await
         .map_err(|e| anyhow::anyhow!("indexing the cinema catalog: {e}"))?;
     tracing::info!(titles = cinema_titles, "cinema search index rebuilt");
+    // Playback (spec section 10): renditions come from a `PlaybackSource`. The Postgres source over the
+    // ingest tables (`video_assets` / `renditions`) is plugged in here when those tables exist; until then the
+    // source is empty, so the playback routes answer 404 for every asset.
+    let playback_deps = Arc::new(routes::cinema::PlaybackDeps::new(
+        Arc::new(sr_media::playback::MemoryPlaybackSource::new()),
+        Arc::new(cdn_signer.clone()),
+        clock.clone(),
+    ));
     let cinema_deps = Arc::new(
         routes::cinema::CinemaDeps::new(cinema_service)
+            .with_playback(playback_deps.clone())
             .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone())))
             .with_prefs(Arc::new(crate::settings_pg::PgCinemaPrefs::new(
                 pool.clone(),
@@ -672,10 +681,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(cinema_social_deps)
         .extension(review_deps)
         .extension(Arc::new(routes::media::MediaDeps::new(storage.clone())))
-        .extension(Arc::new(routes::cdn::CdnDeps::new(
-            storage.clone(),
-            cdn_signer,
-        )))
+        .extension(Arc::new(
+            routes::cdn::CdnDeps::new(storage.clone(), cdn_signer).with_playlists(playback_deps),
+        ))
         .extension(external_images)
         .readiness(Arc::new(DbReady::new(pool.clone(), readiness_timeout)))
         .readiness(Arc::new(StorageReady::new(storage.clone())))
