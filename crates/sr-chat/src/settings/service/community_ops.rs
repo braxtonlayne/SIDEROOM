@@ -158,19 +158,71 @@ impl<R: SettingsRepository> SettingsService<R> {
         validate_onboarding(&onboarding, writable)?;
         let old = self.repo.get_onboarding(onboarding.guild_id).await?;
         self.repo.put_onboarding(&onboarding).await?;
-        self.record_audit(
-            onboarding.guild_id,
-            actor,
-            AuditAction::OnboardingUpdate,
-            Some(onboarding.guild_id.get()),
-            vec![AuditChange::new(
+        let guild = onboarding.guild_id;
+        // Discord logs each question separately (163 to 165) and the settings once (167).
+        for p in &onboarding.prompts {
+            let (action, old_title) = match old.prompts.iter().find(|o| o.id == p.id) {
+                None => (AuditAction::OnboardingPromptCreate, None),
+                Some(o) if o == p => continue,
+                Some(o) => (AuditAction::OnboardingPromptUpdate, Some(o.title.clone())),
+            };
+            let changes = vec![AuditChange::new(
+                "title",
+                old_title.map(Into::into),
+                Some(p.title.clone().into()),
+            )];
+            self.record_audit(guild, actor, action, Some(p.id), changes, None)
+                .await?;
+        }
+        for o in old
+            .prompts
+            .iter()
+            .filter(|o| !onboarding.prompts.iter().any(|p| p.id == o.id))
+        {
+            let changes = vec![AuditChange::new(
+                "title",
+                Some(o.title.clone().into()),
+                None,
+            )];
+            self.record_audit(
+                guild,
+                actor,
+                AuditAction::OnboardingPromptDelete,
+                Some(o.id),
+                changes,
+                None,
+            )
+            .await?;
+        }
+        let mut changes = Vec::new();
+        if old.enabled != onboarding.enabled {
+            changes.push(AuditChange::new(
                 "enabled",
                 Some(old.enabled.into()),
                 Some(onboarding.enabled.into()),
-            )],
-            None,
-        )
-        .await?;
+            ));
+        }
+        if old.default_channel_ids != onboarding.default_channel_ids {
+            let ids = |v: &[ChannelId]| {
+                serde_json::Value::from(v.iter().map(|c| c.to_string()).collect::<Vec<_>>())
+            };
+            changes.push(AuditChange::new(
+                "default_channel_ids",
+                Some(ids(&old.default_channel_ids)),
+                Some(ids(&onboarding.default_channel_ids)),
+            ));
+        }
+        if !changes.is_empty() {
+            self.record_audit(
+                guild,
+                actor,
+                AuditAction::OnboardingUpdate,
+                Some(guild.get()),
+                changes,
+                None,
+            )
+            .await?;
+        }
         Ok(onboarding)
     }
 

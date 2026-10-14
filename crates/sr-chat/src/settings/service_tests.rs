@@ -384,3 +384,50 @@ async fn audit_observer_sees_each_stored_entry() {
         .unwrap();
     assert_eq!(*seen.lock().unwrap(), vec![(e.id, AuditAction::RoleCreate)]);
 }
+
+#[tokio::test]
+async fn onboarding_saves_log_each_question_and_the_settings_separately() {
+    use super::community::{Onboarding, OnboardingOption, OnboardingPrompt};
+    let (svc, _) = setup();
+    let prompt = |id: u64, title: &str| OnboardingPrompt {
+        id,
+        title: title.into(),
+        single_select: true,
+        required: false,
+        in_onboarding: true,
+        options: vec![OnboardingOption {
+            id: id * 10,
+            title: "Option".into(),
+            description: None,
+            emoji: None,
+            channel_ids: vec![],
+            role_ids: vec![],
+        }],
+    };
+    let save = |o: Onboarding| svc.save_onboarding(Permissions::MANAGE_GUILD, ADMIN, o, |_| true);
+    let base = |prompts: Vec<OnboardingPrompt>, enabled: bool| Onboarding {
+        guild_id: G,
+        enabled,
+        default_channel_ids: if enabled {
+            (30..37).map(ChannelId::new).collect()
+        } else {
+            vec![]
+        },
+        prompts,
+    };
+    save(base(vec![prompt(1, "Pick"), prompt(2, "Gone")], false))
+        .await
+        .unwrap();
+    save(base(vec![prompt(1, "Pick one")], true)).await.unwrap();
+
+    let log = svc
+        .list_audit(Permissions::VIEW_AUDIT_LOG, &AuditQuery::new(G))
+        .await
+        .unwrap();
+    let count = |a: AuditAction| log.iter().filter(|e| e.action == a).count();
+    assert_eq!(count(AuditAction::OnboardingPromptCreate), 2);
+    assert_eq!(count(AuditAction::OnboardingPromptUpdate), 1);
+    assert_eq!(count(AuditAction::OnboardingPromptDelete), 1);
+    // Only the second save flipped `enabled`.
+    assert_eq!(count(AuditAction::OnboardingUpdate), 1);
+}
