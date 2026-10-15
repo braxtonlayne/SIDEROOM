@@ -473,25 +473,19 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         return;
       case 'remind': {
         const at = new Date(Date.now() + r.ms);
-        const stamp = Date.now();
-        useSaved.getState().addReminder(
-          {
-            message_id: `remind-${stamp}`,
-            channel_id: channelId,
-            guild_id: guildId ?? null,
-            preview: r.text,
-            author: 'You',
-            saved_at: new Date(stamp).toISOString(),
-          },
-          at,
-        );
-        toast.show({
-          title: t('lounge.composer.remindAt', {
-            time: formatTime(at, { hour: 'numeric', minute: '2-digit' }),
-          }),
-          variant: 'success',
-          duration: 3000,
-        });
+        useSaved
+          .getState()
+          .addReminder({ note: r.text, remindAt: at })
+          .then(() =>
+            toast.show({
+              title: t('lounge.composer.remindAt', {
+                time: formatTime(at, { hour: 'numeric', minute: '2-digit' }),
+              }),
+              variant: 'success',
+              duration: 3000,
+            }),
+          )
+          .catch(() => fail(t('lounge.composer.remindFailed')));
         done();
         return;
       }

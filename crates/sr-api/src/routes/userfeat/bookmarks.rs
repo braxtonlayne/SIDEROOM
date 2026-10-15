@@ -33,6 +33,8 @@ pub struct ListQuery {
     /// Message id of the last row of the previous page.
     pub before: Option<String>,
     pub limit: Option<i64>,
+    /// `false` skips loading the messages (the panel needs them, the message menus only need the ids).
+    pub messages: Option<bool>,
 }
 
 /// Bookmark a message, or change the note of an existing bookmark.
@@ -92,6 +94,7 @@ pub async fn save(
     params(
         ("before" = Option<String>, Query, description = "Message id to page from"),
         ("limit" = Option<i64>, Query, description = "1 to 100, default 50"),
+        ("messages" = Option<bool>, Query, description = "false to leave the messages out"),
     ),
     responses((status = 200, body = Vec<BookmarkEntry>), (status = 400, body = ErrorBody)),
     security(("authorization" = []), ("session" = []))
@@ -114,7 +117,11 @@ pub async fn list(
             .map_err(uerr)?;
     let mut out = Vec::with_capacity(rows.len());
     for bookmark in rows {
-        let message = visible(&m, user, &bookmark).await;
+        let message = if q.messages == Some(false) {
+            None
+        } else {
+            visible(&m, user, &bookmark).await
+        };
         out.push(BookmarkEntry { bookmark, message });
     }
     Ok(Json(out))

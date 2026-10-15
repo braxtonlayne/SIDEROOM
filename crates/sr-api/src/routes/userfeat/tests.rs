@@ -175,6 +175,7 @@ fn routes() -> Vec<Call> {
             Some(json!({ "note": "n" })),
         ),
         (Method::DELETE, "/users/@me/bookmarks/8", None),
+        (Method::GET, "/guilds/9/modules", None),
         (Method::GET, "/users/@me/birthday", None),
         (
             Method::PUT,

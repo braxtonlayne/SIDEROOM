@@ -47,6 +47,51 @@ async fn manager(
     Ok((user, gid, access))
 }
 
+// ------------------------------------------------------------------ which modules are on
+
+/// The modules of this crate and whether each is on in the server, so menus show only what works. Members only.
+#[derive(Debug, serde::Serialize, ToSchema)]
+pub struct ModuleFlags {
+    /// Feature id -> on in this server.
+    pub modules: std::collections::BTreeMap<String, bool>,
+}
+
+/// Which feature modules are switched on in a server.
+#[utoipa::path(
+    get,
+    path = "/guilds/{guild_id}/modules",
+    params(("guild_id" = String, Path, description = "Guild snowflake")),
+    responses((status = 200, body = ModuleFlags), (status = 403, body = ErrorBody)),
+    security(("authorization" = []), ("session" = []))
+)]
+pub async fn modules(
+    p: Principal,
+    Ext(d): Ext<UserFeatDeps>,
+    Ext(s): Ext<SettingsDeps>,
+    Path(guild): Path<String>,
+) -> MsgResult<Json<ModuleFlags>> {
+    use sr_userfeat::features as f;
+    let (_, gid, _) = member(&s, &p, &guild).await?;
+    let mut modules = std::collections::BTreeMap::new();
+    for id in [
+        f::SCHEDULED_ID,
+        f::REMINDERS_ID,
+        f::BOOKMARKS_ID,
+        f::POLL_TEMPLATES_ID,
+        f::BIRTHDAYS_ID,
+        f::LEVELING_ID,
+        f::RSS_ID,
+        f::LIBRARY_FEED_ID,
+        f::WATCH_PARTY_ANNOUNCER_ID,
+        f::SUGGESTIONS_ID,
+        f::TICKETS_ID,
+    ] {
+        let on = d.uf.enabled(id, Some(gid)).await.map_err(uerr)?;
+        modules.insert(id.to_owned(), on);
+    }
+    Ok(Json(ModuleFlags { modules }))
+}
+
 // ------------------------------------------------------------------ birthdays
 
 /// The caller's birthday.

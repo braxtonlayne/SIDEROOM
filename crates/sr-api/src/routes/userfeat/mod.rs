@@ -130,6 +130,8 @@ pub fn router() -> Router<AppState> {
             "/users/@me/bookmarks/{message_id}",
             patch(bookmarks::edit).delete(bookmarks::remove),
         )
+        // Which modules a server runs.
+        .route("/guilds/{guild_id}/modules", get(community::modules))
         // Birthdays.
         .route(
             "/users/@me/birthday",
@@ -203,6 +205,7 @@ pub fn router() -> Router<AppState> {
         bookmarks::list,
         bookmarks::edit,
         bookmarks::remove,
+        community::modules,
         community::get_birthday,
         community::set_birthday,
         community::clear_birthday,
@@ -241,6 +244,7 @@ pub fn router() -> Router<AppState> {
         sr_userfeat::birthdays::UpcomingBirthday,
         sr_userfeat::leveling::RankCard,
         sr_userfeat::leveling::LeaderboardEntry,
+        community::ModuleFlags,
         community::LevelingOptBody,
         sr_userfeat::rss::RssFeed,
         sr_userfeat::rss::RssFeedInput,

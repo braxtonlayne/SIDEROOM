@@ -445,12 +445,15 @@ export function MessageList({
     [actions],
   );
   const onBookmark = useCallback(
-    (m: Message) => useSaved.getState().toggleBookmark(toSaved(m, guildId)),
+    (m: Message) => void useSaved.getState().toggleBookmark(toSaved(m, guildId)),
     [guildId],
   );
   const onRemind = useCallback(
     (m: Message, ms: number) =>
-      useSaved.getState().addReminder(toSaved(m, guildId), new Date(Date.now() + ms)),
+      void useSaved
+        .getState()
+        .addReminder({ note: '', remindAt: new Date(Date.now() + ms), ref: toSaved(m, guildId) })
+        .catch(() => undefined),
     [guildId],
   );
   const onCreateThread = useCallback(
