@@ -34,6 +34,9 @@ export interface LoungeUser {
   bot?: boolean;
   /** Server-tag chip (short text), shown next to the name. */
   tag?: string;
+  /** Badge id (0 to 15) and 24-bit colour of the server tag; the chip draws them when present. */
+  tagBadge?: number;
+  tagColor?: number;
 }
 
 export interface Activity {

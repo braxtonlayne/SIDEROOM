@@ -512,6 +512,10 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         if (guildId) openDialog({ kind: 'createThread', guildId, channelId });
         done();
         return;
+      case 'community':
+        if (guildId) openDialog({ kind: 'community', guildId, tab: r.tab });
+        done();
+        return;
       case 'msg':
         createDm([r.userId])
           .then((dm) => {
@@ -1094,6 +1098,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       )}
       <PollModal
         open={pollOpen}
+        guildId={guildId}
         onClose={() => setPollOpen(false)}
         onCreate={(poll) => {
           setPollOpen(false);

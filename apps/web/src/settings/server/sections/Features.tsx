@@ -17,8 +17,12 @@ import * as api from '../featuresApi';
 import { useResource } from '../hooks';
 import { ActionStatus, Async, SectionHeader, useAction } from '../ui';
 import type { SectionProps } from '../ServerSettings';
+import { MessagePicker } from './MessagePicker';
+import { RssPanel } from './RssFeeds';
 
 const TEMP_ROLES_ID = 'moderation.temp_roles';
+const RSS_ID = 'community.rss';
+const REACTION_ROLES_ID = 'lounge.reaction_roles';
 /** Channel type code of a category; it holds channels and is not somewhere a module can post. */
 const CATEGORY = 4;
 
@@ -146,7 +150,25 @@ function FeatureCard({
           </Button>
           {open && (
             <div id={`${id}-form`}>
-              <SchemaForm fields={fields} values={values} pickers={pickers} onChange={setValues} />
+              <SchemaForm
+                fields={fields}
+                values={values}
+                pickers={pickers}
+                onChange={setValues}
+                {...(feature.id === REACTION_ROLES_ID
+                  ? {
+                      customText: (f, value, set) =>
+                        f.key === 'message' ? (
+                          <MessagePicker
+                            guildId={guildId}
+                            label={f.label}
+                            value={value}
+                            onChange={set}
+                          />
+                        ) : undefined,
+                    }
+                  : {})}
+              />
               <div className="ss-actions">
                 <Button size="sm" disabled={!dirty || act.busy} onClick={save}>
                   {t('settings.features.save', { name: feature.name })}
@@ -166,6 +188,7 @@ function FeatureCard({
       )}
       <ActionStatus error={act.error} done={act.done} />
       {feature.id === TEMP_ROLES_ID && feature.enabled && <TempRolesPanel guildId={guildId} />}
+      {feature.id === RSS_ID && feature.enabled && <RssPanel guildId={guildId} />}
     </article>
   );
 }

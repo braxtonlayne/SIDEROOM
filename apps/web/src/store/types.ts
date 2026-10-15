@@ -7,6 +7,14 @@ export interface User {
   global_name?: string | null;
   avatar?: string | null;
   bot?: boolean;
+  /** The server tag this person displays (LNG-SSET-012); the API sends it only while the server allows it. */
+  primary_guild?: {
+    identity_guild_id?: string | null;
+    identity_enabled?: boolean;
+    tag?: string | null;
+    badge?: number | null;
+    color?: number | null;
+  } | null;
 }
 
 export interface Guild {

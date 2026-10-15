@@ -59,7 +59,6 @@ export default {
   'lounge.friends.requestSent': 'Success! Your friend request to {username} was sent.',
   'lounge.friends.rateLimited':
     'You are sending requests too quickly. Wait a moment and try again.',
-  'lounge.friends.addFailed': 'Hm, didn’t work. Double check that the username is correct.',
   'lounge.friends.addHint': 'You can add friends with their SIDE ROOM username.',
   'lounge.friends.usernameLabel': 'Username',
   'lounge.friends.usernamePlaceholder': 'You can add friends with their username',

@@ -170,7 +170,21 @@ export function toLoungeUser(u: S.User): LoungeUser {
     // Avatar hashes need a CDN URL scheme that the API does not publish yet; initials are shown instead.
     avatarUrl: null,
     ...(u.bot ? { bot: true } : {}),
+    ...serverTagOf(u),
   };
+}
+
+/**
+ * The server tag to draw next to a name. The API sends `primary_guild` only while the member still belongs to the
+ * server and the server lets members display its tag; `identity_enabled: false` is honoured here as well.
+ */
+export function serverTagOf(
+  u: Pick<S.User, 'primary_guild'>,
+): Pick<LoungeUser, 'tag' | 'tagBadge' | 'tagColor'> {
+  const g = u.primary_guild;
+  const tag = g?.tag?.trim();
+  if (!g || g.identity_enabled === false || !tag) return {};
+  return { tag: tag.toUpperCase(), tagBadge: g.badge ?? 0, tagColor: g.color ?? 0 };
 }
 
 const CHANNEL_TYPE: Record<number, ChannelType> = {

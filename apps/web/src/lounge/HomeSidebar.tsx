@@ -27,6 +27,7 @@ import { isMuted, MUTE_DURATIONS, useNotifSettings } from './shell/notifSettings
 import { useSupportEnabled } from './shell/useSupportEnabled';
 import { useUserMenuEntries } from './shell/userMenu';
 import { useLoungeUi } from './store';
+import { ServerTagChip } from './components/ServerTagChip';
 
 function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
   const t = useT();
@@ -141,7 +142,7 @@ function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
           <span className="lng-dm-text">
             <span className="lng-dm-name">
               {title}
-              {!group && first?.tag && <span className="lng-tag">{first.tag}</span>}
+              {!group && first && <ServerTagChip user={first} />}
             </span>
             {sub && <span className="lng-dm-sub">{sub}</span>}
           </span>

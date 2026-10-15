@@ -17,6 +17,7 @@ import { NicknameDialog, NoteDialog } from './shell/UserDialogs';
 import { LeaveServerDialog } from './shell/LeaveServerDialog';
 import { NotificationDialog } from './shell/NotificationDialog';
 import { TransferOwnershipDialog } from './shell/TransferOwnershipDialog';
+import { CommunityDialog } from './community/CommunityDialog';
 import { CreateThreadDialog } from './threads/CreateThreadDialog';
 import { useLoungeUi } from './store';
 import './shell/shell.css';
@@ -26,6 +27,8 @@ export function LoungeDialogs() {
   const close = useLoungeUi((s) => s.closeDialog);
   if (!dialog) return null;
   switch (dialog.kind) {
+    case 'community':
+      return <CommunityDialog guildId={dialog.guildId} tab={dialog.tab} onClose={close} />;
     case 'addServer':
       return <AddServerDialog onClose={close} />;
     case 'guildProfile':

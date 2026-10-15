@@ -30,6 +30,7 @@ import { REMIND_CHOICES } from './shell/savedMessages';
 import { Sticker } from './msg/Sticker';
 import { isSystemMessage, SystemMessage } from './msg/SystemMessage';
 import { formatClock, formatFullTime, formatMessageTime } from './time';
+import { ServerTagChip } from './components/ServerTagChip';
 
 /** Name styling taken from the author's roles (LNG-MSGUI-002). */
 export interface NameDecor {
@@ -590,7 +591,7 @@ function MessageItemImpl(props: MessageItemProps) {
                     {nameDecor.icon}
                   </span>
                 )}
-                {m.author.tag && <span className="lng-tag">{m.author.tag}</span>}
+                <ServerTagChip user={m.author} />
                 {m.author.bot && (
                   <span className="lng-bot">{t('lounge.messageItem.appBadge')}</span>
                 )}
