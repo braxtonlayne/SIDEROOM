@@ -3,6 +3,7 @@ import { apiFetch } from '../../api/client';
 import { useT } from '../../i18n';
 import { stickerUrl } from '../msg/Sticker';
 import { EmojiPicker } from './EmojiPicker';
+import { GifPicker, type Gif } from './GifPicker';
 
 export type ExpressionTab = 'gifs' | 'stickers' | 'emoji';
 
@@ -138,11 +139,13 @@ export function ExpressionPicker({
   guildId,
   onEmoji,
   onSticker,
+  onGif,
 }: {
   initial?: ExpressionTab;
   guildId: string | undefined;
   onEmoji: (emoji: string) => void;
   onSticker: (s: GuildSticker) => void;
+  onGif?: (g: Gif) => void;
 }) {
   const t = useT();
   const [tab, setTab] = useState<ExpressionTab>(initial);
@@ -173,9 +176,12 @@ export function ExpressionPicker({
         ))}
       </div>
       <div role="tabpanel" id={`expr-panel-${tab}`} aria-labelledby={`expr-tab-${tab}`}>
-        {tab === 'gifs' && (
-          <p className="lng-muted lng-expr-note">{t('lounge.expressionPicker.gifsNotSetUp')}</p>
-        )}
+        {tab === 'gifs' &&
+          (onGif ? (
+            <GifPicker onPick={onGif} />
+          ) : (
+            <p className="lng-muted lng-expr-note">{t('lounge.expressionPicker.gifsNotSetUp')}</p>
+          ))}
         {tab === 'stickers' && <StickerPicker guildId={guildId} onPick={onSticker} />}
         {tab === 'emoji' && <EmojiPicker onPick={onEmoji} />}
       </div>

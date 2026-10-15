@@ -510,6 +510,17 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
     }
   };
 
+  const sendGif = (g: { url: string }) => {
+    actions.sendMessage(channelId, g.url, replyTo?.id ?? null, {
+      ...(replyTo && !ping ? { mentionRepliedUser: false } : {}),
+    });
+    onCancelReply();
+    if (slowmodeSeconds && !bypassSlowmode) {
+      setCooldownEnd(Date.now() + slowmodeSeconds * 1000);
+      setNow(Date.now());
+    }
+  };
+
   const sendVoice = (clip: VoiceClip) => {
     const pending: PendingFile = {
       id: `f${Date.now().toString(36)}${fileCounter++}`,
@@ -890,6 +901,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                   ref.current?.focus();
                 }}
                 onSticker={sendSticker}
+                onGif={sendGif}
               />
             </Popover>
             <Popover
@@ -914,6 +926,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
                   ref.current?.focus();
                 }}
                 onSticker={sendSticker}
+                onGif={sendGif}
               />
             </Popover>
           </>
