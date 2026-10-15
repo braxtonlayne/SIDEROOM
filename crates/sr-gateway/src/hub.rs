@@ -129,7 +129,7 @@ pub(crate) struct Inner {
     pub cfg: GatewayConfig,
     pub auth: Arc<dyn Authenticator>,
     pub dir: Arc<dyn GuildDirectory>,
-    bus: Arc<dyn EventBus>,
+    pub(crate) bus: Arc<dyn EventBus>,
     state: Mutex<State>,
     next_conn: AtomicU64,
     /// Users seen since the last [`Gateway::drain_seen`] (D-166).
@@ -464,6 +464,9 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
         DomainEvent::SoundboardUpdated { payload, .. } => {
             passthrough("GUILD_SOUNDBOARD_SOUNDS_UPDATE", payload, None)
         }
+        DomainEvent::ScheduledEvent { kind, payload, .. } => {
+            passthrough(kind.dispatch_name(), payload, None)
+        }
         DomainEvent::WebhooksUpdated { guild, channel } => Dispatch {
             name: "WEBHOOKS_UPDATE",
             data: json!({ "guild_id": guild, "channel_id": channel }),
@@ -490,6 +493,9 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
         DomainEvent::GuildCreated { .. }
         | DomainEvent::GuildDeleted { .. }
         | DomainEvent::FeatureSettingsChanged { .. }
+        // Internal voice presence for feature modules; clients get VOICE_STATE_UPDATE.
+        | DomainEvent::VoiceJoined { .. }
+        | DomainEvent::VoiceLeft { .. }
         | DomainEvent::StaffAlert { .. }
         | DomainEvent::StaffFeed { .. }
         // Merged with the live sessions by `Gateway::on_user_event`.

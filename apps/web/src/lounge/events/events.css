@@ -1,0 +1,109 @@
+/* Scheduled events: the list dialog, the create form and the channel-list row (LNG-CHN-011). */
+.lng-events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lng-event {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--ui-surface-raised, rgb(255 255 255 / 4%));
+  border: 1px solid var(--ui-border, rgb(255 255 255 / 10%));
+}
+
+.lng-event[data-live] {
+  border-color: var(--ui-success, #3ba55d);
+}
+
+.lng-event-main {
+  min-inline-size: 0;
+  flex: 1 1 14rem;
+}
+
+.lng-event-when {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--ui-text-muted);
+}
+
+.lng-event-name {
+  margin: 2px 0;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.lng-event-desc {
+  margin: 4px 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.lng-event-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.lng-event-times {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 480px) {
+  .lng-event-times {
+    grid-template-columns: 1fr;
+  }
+}
+
+.lng-select {
+  inline-size: 100%;
+  padding-block: 8px;
+  padding-inline: 10px;
+  border-radius: 6px;
+  border: 1px solid var(--ui-border, rgb(255 255 255 / 15%));
+  background: var(--ui-surface, transparent);
+  color: inherit;
+}
+
+/* The "Events" row at the top of the channel list. */
+.lng-events-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  inline-size: calc(100% - 16px);
+  margin-inline: 8px;
+  margin-block-end: 4px;
+  padding-block: 6px;
+  padding-inline: 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ui-text-muted);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.lng-events-row:hover,
+.lng-events-row:focus-visible {
+  background: var(--ui-surface-hover, rgb(255 255 255 / 6%));
+  color: var(--ui-text);
+}
+
+.lng-events-row-count {
+  margin-inline-start: auto;
+  font-size: 0.75rem;
+  font-weight: 600;
+}

@@ -329,3 +329,127 @@ async fn sticker_packs_list_published_packs_and_their_stickers() {
     assert!(both.is_err());
     db.cleanup().await.unwrap();
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn scheduled_events_round_trip_interest_and_due_queries() {
+    use sr_chat::settings::repo::ScheduledEventRepository;
+    use sr_chat::settings::scheduled_events::{EntityType, EventStatus, ScheduledEvent};
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool().clone();
+    let test_ids = ids(6);
+    let owner = account(&pool, &test_ids).await;
+    let bp = service(&pool)
+        .create_guild(owner, "Events Club")
+        .await
+        .unwrap();
+    let (g, voice) = (bp.guild.id, bp.channels[3].id);
+    let repo = PgSettingsRepo::new(pool.clone());
+    let t0 = 1_800_000_000_000_i64;
+    let mk = |id: u64, start: i64, end: Option<i64>, kind: EntityType| ScheduledEvent {
+        id,
+        guild_id: g,
+        channel_id: (kind != EntityType::External).then_some(voice),
+        creator_id: owner,
+        name: format!("event {id}"),
+        description: Some("d".into()),
+        start_ms: start,
+        end_ms: end,
+        status: EventStatus::Scheduled,
+        entity_type: kind,
+        location: (kind == EntityType::External).then(|| "park".to_owned()),
+        created_at_ms: t0,
+    };
+    let a = mk(test_ids.generate().get(), t0 + 3_000, None, EntityType::Voice);
+    let b = mk(
+        test_ids.generate().get(),
+        t0 + 1_000,
+        Some(t0 + 2_000),
+        EntityType::External,
+    );
+    repo.insert_event(&a).await.unwrap();
+    repo.insert_event(&b).await.unwrap();
+
+    // Soonest first, round-trips every field, counts only open ones.
+    let open = repo.list_open_events(g).await.unwrap();
+    assert_eq!(
+        open.iter().map(|e| e.id).collect::<Vec<_>>(),
+        [b.id, a.id]
+    );
+    assert_eq!(open[0], b);
+    assert_eq!(open[1], a);
+    assert_eq!(repo.count_open_events(g).await.unwrap(), 2);
+    assert_eq!(repo.get_event(g, a.id).await.unwrap().unwrap(), a);
+    assert!(
+        repo.get_event(GuildId::new(7), a.id)
+            .await
+            .unwrap()
+            .is_none(),
+        "events belong to their guild"
+    );
+
+    // Interest: idempotent, counted, listed and paged by user id.
+    let users = [
+        account(&pool, &test_ids).await,
+        account(&pool, &test_ids).await,
+        account(&pool, &test_ids).await,
+    ];
+    for u in users {
+        assert!(repo.add_interest(a.id, u, t0).await.unwrap());
+    }
+    assert!(!repo.add_interest(a.id, users[0], t0).await.unwrap());
+    assert_eq!(repo.interest_counts(&[a.id, b.id]).await.unwrap()[&a.id], 3);
+    assert!(
+        repo.interested_in(users[1], &[a.id, b.id])
+            .await
+            .unwrap()
+            .contains(&a.id)
+    );
+    let all = repo.list_interested(a.id, None, None, 100).await.unwrap();
+    assert_eq!(all, users);
+    let after = repo
+        .list_interested(a.id, None, Some(users[0]), 1)
+        .await
+        .unwrap();
+    assert_eq!(after, [users[1]]);
+    let before = repo
+        .list_interested(a.id, Some(users[2]), None, 1)
+        .await
+        .unwrap();
+    assert_eq!(before, [users[1]], "before pages from the end");
+    assert!(repo.remove_interest(a.id, users[0]).await.unwrap());
+    assert!(!repo.remove_interest(a.id, users[0]).await.unwrap());
+
+    // The clock: b is due at its start, a only at its own; a running event ends at its end time.
+    assert!(repo.due_events(t0).await.unwrap().is_empty());
+    let due = repo.due_events(t0 + 1_500).await.unwrap();
+    assert_eq!(due.iter().map(|e| e.id).collect::<Vec<_>>(), [b.id]);
+    let mut running = b.clone();
+    running.status = EventStatus::Active;
+    repo.update_event(&running).await.unwrap();
+    assert!(repo.due_events(t0 + 1_500).await.unwrap().is_empty());
+    assert_eq!(
+        repo.due_events(t0 + 2_500).await.unwrap()[0].status,
+        EventStatus::Active
+    );
+    running.status = EventStatus::Completed;
+    repo.update_event(&running).await.unwrap();
+    assert_eq!(repo.count_open_events(g).await.unwrap(), 1);
+    assert_eq!(repo.list_open_events(g).await.unwrap().len(), 1);
+
+    // A deleted voice channel leaves an orphan the scheduler can wind up.
+    sqlx::query("DELETE FROM channels WHERE id = $1")
+        .bind(voice.get() as i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let orphan = repo.due_events(t0).await.unwrap();
+    assert_eq!(orphan.len(), 1);
+    assert!(orphan[0].channel_id.is_none());
+
+    // Deleting an event takes its interest with it.
+    assert!(repo.delete_event(g, a.id).await.unwrap());
+    assert!(!repo.delete_event(g, a.id).await.unwrap());
+    assert!(repo.interest_counts(&[a.id]).await.unwrap().is_empty());
+    db.cleanup().await.unwrap();
+}

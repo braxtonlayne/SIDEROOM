@@ -92,6 +92,31 @@ impl StaffAlertKind {
     }
 }
 
+/// Which `GUILD_SCHEDULED_EVENT_*` dispatch a [`DomainEvent::ScheduledEvent`] becomes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScheduledEventKind {
+    Create,
+    Update,
+    Delete,
+    /// A member marked themselves interested; `payload` is
+    /// `{guild_scheduled_event_id, user_id, guild_id}`.
+    UserAdd,
+    UserRemove,
+}
+
+impl ScheduledEventKind {
+    pub const fn dispatch_name(self) -> &'static str {
+        match self {
+            Self::Create => "GUILD_SCHEDULED_EVENT_CREATE",
+            Self::Update => "GUILD_SCHEDULED_EVENT_UPDATE",
+            Self::Delete => "GUILD_SCHEDULED_EVENT_DELETE",
+            Self::UserAdd => "GUILD_SCHEDULED_EVENT_USER_ADD",
+            Self::UserRemove => "GUILD_SCHEDULED_EVENT_USER_REMOVE",
+        }
+    }
+}
+
 /// Events emitted by domain logic. Extend as modules need them.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -355,6 +380,25 @@ pub enum DomainEvent {
         guild: GuildId,
         payload: Value,
     },
+    /// `GUILD_SCHEDULED_EVENT_*`; `payload` is the event object (or the user pair).
+    ScheduledEvent {
+        guild: GuildId,
+        kind: ScheduledEventKind,
+        payload: Value,
+    },
+    /// A member entered a guild voice or stage channel (a fresh join or a move; a move is a
+    /// `VoiceLeft` followed by this). Internal: clients learn it from `VOICE_STATE_UPDATE`.
+    VoiceJoined {
+        guild: GuildId,
+        channel: ChannelId,
+        user: UserId,
+    },
+    /// A member left a guild voice or stage channel (disconnected, moved away, or lost).
+    VoiceLeft {
+        guild: GuildId,
+        channel: ChannelId,
+        user: UserId,
+    },
     /// `SR_ENTITLEMENT_UPDATE` for the members of a guild (its support level or pool changed);
     /// `payload` is `{type:"guild", guild_id, level, pool_cents}`.
     GuildEntitlementUpdated {
@@ -511,6 +555,9 @@ impl DomainEvent {
             | Self::EmojisUpdated { guild, .. }
             | Self::StickersUpdated { guild, .. }
             | Self::SoundboardUpdated { guild, .. }
+            | Self::ScheduledEvent { guild, .. }
+            | Self::VoiceJoined { guild, .. }
+            | Self::VoiceLeft { guild, .. }
             | Self::GuildEntitlementUpdated { guild, .. }
             | Self::WebhooksUpdated { guild, .. }
             | Self::AutoModRuleCreated { guild, .. }

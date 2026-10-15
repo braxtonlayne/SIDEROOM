@@ -81,6 +81,7 @@ pub mod intents {
     pub const GUILD_MESSAGES: u64 = 1 << 9;
     pub const GUILD_MESSAGE_REACTIONS: u64 = 1 << 10;
     pub const GUILD_MESSAGE_TYPING: u64 = 1 << 11;
+    pub const GUILD_SCHEDULED_EVENTS: u64 = 1 << 16;
     pub const GUILD_MESSAGE_POLLS: u64 = 1 << 24;
     pub const MESSAGE_CONTENT: u64 = 1 << 15;
     pub const AUTO_MODERATION_CONFIGURATION: u64 = 1 << 20;
@@ -109,6 +110,11 @@ pub mod intents {
                 Some(GUILD_EXPRESSIONS)
             }
             "VOICE_CHANNEL_EFFECT_SEND" => Some(GUILD_VOICE_STATES),
+            "GUILD_SCHEDULED_EVENT_CREATE"
+            | "GUILD_SCHEDULED_EVENT_UPDATE"
+            | "GUILD_SCHEDULED_EVENT_DELETE"
+            | "GUILD_SCHEDULED_EVENT_USER_ADD"
+            | "GUILD_SCHEDULED_EVENT_USER_REMOVE" => Some(GUILD_SCHEDULED_EVENTS),
             "WEBHOOKS_UPDATE" => Some(GUILD_WEBHOOKS),
             "INVITE_CREATE" | "INVITE_DELETE" => Some(GUILD_INVITES),
             "AUTO_MODERATION_RULE_CREATE"

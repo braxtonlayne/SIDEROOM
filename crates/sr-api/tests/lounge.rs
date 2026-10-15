@@ -70,6 +70,8 @@ struct World {
     storage: Arc<ObjectStoreStorage>,
     features: sr_features::FeatureService,
     social: Arc<SocialDeps>,
+    settings_deps: Arc<settings::SettingsDeps>,
+    clock: Arc<ManualClock>,
     tokens: HashMap<i64, String>,
 }
 
@@ -131,6 +133,7 @@ async fn world() -> World {
             5,
         )
         .unwrap()
+        .with_events(Arc::new(settings::events::BusSettingsEvents::new(bus.clone())))
         .with_joiner(joiner.clone()),
     );
 
@@ -218,7 +221,7 @@ async fn world() -> World {
         .bots(Arc::new(MemoryBots::new()))
         .clock(dyn_clock)
         .extension(Arc::new(guild_api))
-        .extension(settings_deps)
+        .extension(settings_deps.clone())
         .extension(social_deps.clone())
         .extension(Arc::new(
             DirectoryDeps::new(Arc::new(MemoryDirectory::default()))
@@ -246,6 +249,8 @@ async fn world() -> World {
         storage,
         features,
         social: social_deps,
+        settings_deps,
+        clock,
         tokens,
     }
 }
@@ -1532,4 +1537,268 @@ async fn community_dm_and_spam_protection_fields_are_patchable() {
     );
     let (_, c) = w.get(OWNER, &format!("/guilds/{gid}/sr/community")).await;
     assert_eq!(c["hide_suspicious_links"], true);
+}
+
+// ---- scheduled events ----
+
+fn at(offset_ms: i64) -> String {
+    sr_api::routes::guilds::dto::iso8601(T0 + offset_ms)
+}
+
+const HOUR: i64 = 3_600_000;
+
+async fn voice_channel(w: &World, gid: &str) -> String {
+    let (_, chans) = w.get(OWNER, &format!("/guilds/{gid}/channels")).await;
+    chans
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["type"] == 2)
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned()
+}
+
+#[tokio::test]
+async fn scheduled_events_validate_and_follow_discord_shapes() {
+    let w = world().await;
+    let (gid, general) = w.guild("Event Club").await;
+    w.add_member(&gid, CAROL);
+    let voice = voice_channel(&w, &gid).await;
+    let path = format!("/guilds/{gid}/scheduled-events");
+    let external = json!({
+        "name": "Park meetup",
+        "entity_type": 3,
+        "entity_metadata": { "location": "the park" },
+        "scheduled_start_time": at(HOUR),
+        "scheduled_end_time": at(2 * HOUR),
+        "privacy_level": 2,
+    });
+    // Everybody may create events by default (CREATE_EVENTS); the shape follows Discord.
+    let (s, ev) = w.post(BOB, &path, external.clone()).await;
+    assert_eq!(s, StatusCode::OK, "{ev}");
+    assert_eq!(ev["status"], 1);
+    assert_eq!(ev["entity_type"], 3);
+    assert_eq!(ev["entity_metadata"]["location"], "the park");
+    assert_eq!(ev["privacy_level"], 2);
+    assert_eq!(ev["creator_id"], BOB.to_string());
+    assert_eq!(ev["creator"]["username"], "bob");
+    assert!(ev["channel_id"].is_null());
+    assert_eq!(ev["user_count"], 0);
+
+    // Validation: past start, ends before it starts, external without location or end time, a
+    // channel on an external event, a text channel for a voice event, a bad privacy level.
+    let bad = |patch: Value| {
+        let mut b = external.clone();
+        for (k, v) in patch.as_object().unwrap() {
+            b[k] = v.clone();
+        }
+        b
+    };
+    for body in [
+        bad(json!({ "scheduled_start_time": at(-HOUR) })),
+        bad(json!({ "scheduled_end_time": at(HOUR) })),
+        bad(json!({ "entity_metadata": null })),
+        bad(json!({ "scheduled_end_time": null })),
+        bad(json!({ "channel_id": voice })),
+        bad(json!({ "privacy_level": 1 })),
+        bad(json!({ "name": "  " })),
+        bad(json!({ "scheduled_start_time": "tomorrow" })),
+        bad(json!({ "entity_type": 9 })),
+        json!({ "name": "Movie", "entity_type": 2, "channel_id": general, "scheduled_start_time": at(HOUR) }),
+        json!({ "name": "Movie", "entity_type": 2, "scheduled_start_time": at(HOUR) }),
+        json!({ "name": "Stage", "entity_type": 1, "channel_id": voice, "scheduled_start_time": at(HOUR) }),
+    ] {
+        let (s, e) = w.post(BOB, &path, body.clone()).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{body} -> {e}");
+    }
+
+    // A voice event in a voice channel.
+    let (s, v) = w
+        .post(
+            CAROL,
+            &path,
+            json!({ "name": "Movie night", "entity_type": 2, "channel_id": voice, "scheduled_start_time": at(3 * HOUR) }),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["channel_id"], voice.as_str());
+    assert!(v["entity_metadata"].is_null());
+
+    // The list is soonest first, counts on request, and outsiders see nothing.
+    let (s, _) = w.get(DAVE, &path).await;
+    assert_ne!(s, StatusCode::OK, "not a member");
+    let (s, list) = w.get(BOB, &format!("{path}?with_user_count=true")).await;
+    assert_eq!(s, StatusCode::OK);
+    let names: Vec<_> = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["Park meetup", "Movie night"]);
+    assert_eq!(list[0]["user_count"], 0);
+    let (_, plain) = w.get(BOB, &path).await;
+    assert!(plain[0].get("user_count").is_none());
+}
+
+#[tokio::test]
+async fn scheduled_event_rsvp_status_and_permissions() {
+    let w = world().await;
+    let (gid, _) = w.guild("RSVP Club").await;
+    w.add_member(&gid, CAROL);
+    let mut bus = w.events(&gid);
+    let path = format!("/guilds/{gid}/scheduled-events");
+    let (_, ev) = w
+        .post(
+            BOB,
+            &path,
+            json!({
+                "name": "Quiz", "entity_type": 3, "entity_metadata": { "location": "online" },
+                "scheduled_start_time": at(HOUR), "scheduled_end_time": at(2 * HOUR)
+            }),
+        )
+        .await;
+    let eid = ev["id"].as_str().unwrap().to_owned();
+    let one = format!("{path}/{eid}");
+
+    // RSVP: put and delete are idempotent; counts and the list of users follow.
+    for who in [CAROL, BOB] {
+        assert_eq!(
+            w.put(who, &format!("{one}/users/@me"), json!({})).await.0,
+            StatusCode::NO_CONTENT
+        );
+    }
+    assert_eq!(
+        w.put(CAROL, &format!("{one}/users/@me"), json!({})).await.0,
+        StatusCode::NO_CONTENT
+    );
+    let (_, got) = w.get(CAROL, &format!("{one}?with_user_count=true")).await;
+    assert_eq!(got["user_count"], 2);
+    assert_eq!(got["user_rsvp"], true);
+    let (_, users) = w.get(BOB, &format!("{one}/users?with_member=true")).await;
+    let ids: Vec<_> = users
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|u| u["user"]["id"].as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(ids, [BOB.to_string(), CAROL.to_string()]);
+    assert!(users[0]["member"]["joined_at"].is_string());
+    let (_, after_bob) = w
+        .get(BOB, &format!("{one}/users?after={BOB}&limit=1"))
+        .await;
+    assert_eq!(after_bob.as_array().unwrap().len(), 1);
+    assert_eq!(
+        w.delete(CAROL, &format!("{one}/users/@me")).await.0,
+        StatusCode::NO_CONTENT
+    );
+    let (_, got) = w.get(CAROL, &format!("{one}?with_user_count=true")).await;
+    assert_eq!((got["user_count"].as_u64(), got["user_rsvp"].as_bool()), (Some(1), Some(false)));
+
+    // Only the creator (CREATE_EVENTS) or a MANAGE_EVENTS holder changes or deletes it.
+    assert_eq!(
+        w.patch(CAROL, &one, json!({ "name": "Hijack" })).await.0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(w.delete(CAROL, &one).await.0, StatusCode::FORBIDDEN);
+    let (s, ev) = w.patch(BOB, &one, json!({ "name": "Pub quiz" })).await;
+    assert_eq!(s, StatusCode::OK, "{ev}");
+    assert_eq!(ev["name"], "Pub quiz");
+    let (s, ev) = w.patch(OWNER, &one, json!({ "description": "Teams of four" })).await;
+    assert_eq!(s, StatusCode::OK, "{ev}");
+
+    // Status: scheduled -> active -> completed; no skipping, nothing after the end.
+    assert_eq!(
+        w.patch(BOB, &one, json!({ "status": 3 })).await.0,
+        StatusCode::BAD_REQUEST,
+        "a scheduled event cannot end before it started"
+    );
+    let (s, ev) = w.patch(BOB, &one, json!({ "status": 2 })).await;
+    assert_eq!((s, ev["status"].as_u64()), (StatusCode::OK, Some(2)));
+    assert_eq!(
+        w.patch(BOB, &one, json!({ "status": 4 })).await.0,
+        StatusCode::BAD_REQUEST,
+        "a running event cannot be canceled"
+    );
+    assert_eq!(
+        w.patch(BOB, &one, json!({ "scheduled_start_time": at(5 * HOUR) }))
+            .await
+            .0,
+        StatusCode::BAD_REQUEST,
+        "a running event keeps its start"
+    );
+    let (s, ev) = w.patch(BOB, &one, json!({ "status": 3 })).await;
+    assert_eq!((s, ev["status"].as_u64()), (StatusCode::OK, Some(3)));
+    assert_eq!(
+        w.patch(BOB, &one, json!({ "name": "again" })).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        w.put(CAROL, &format!("{one}/users/@me"), json!({})).await.0,
+        StatusCode::BAD_REQUEST,
+        "no RSVP after the end"
+    );
+    let (_, list) = w.get(BOB, &path).await;
+    assert_eq!(list, json!([]), "ended events leave the list");
+    assert_eq!(w.get(BOB, &one).await.1["status"], 3, "but can still be read");
+
+    // Deleting removes it for good, and unknown ids answer 10070.
+    assert_eq!(w.delete(OWNER, &one).await.0, StatusCode::NO_CONTENT);
+    let (s, gone) = w.get(BOB, &one).await;
+    assert_eq!((s, gone["code"].as_u64()), (StatusCode::NOT_FOUND, Some(10070)));
+
+    // The gateway heard about all of it, in order.
+    let mut seen = Vec::new();
+    while let Ok(Some(ev)) = tokio::time::timeout(Duration::from_millis(50), bus.next()).await {
+        if let DomainEvent::ScheduledEvent { kind, .. } = ev {
+            seen.push(kind.dispatch_name());
+        }
+    }
+    assert_eq!(seen.first(), Some(&"GUILD_SCHEDULED_EVENT_CREATE"));
+    assert!(seen.contains(&"GUILD_SCHEDULED_EVENT_USER_ADD"), "{seen:?}");
+    assert!(seen.contains(&"GUILD_SCHEDULED_EVENT_USER_REMOVE"), "{seen:?}");
+    assert_eq!(seen.last(), Some(&"GUILD_SCHEDULED_EVENT_DELETE"));
+    assert!(
+        seen.iter().filter(|n| **n == "GUILD_SCHEDULED_EVENT_UPDATE").count() >= 3,
+        "{seen:?}"
+    );
+}
+
+#[tokio::test]
+async fn scheduled_events_start_and_end_by_the_clock_and_are_audited() {
+    let w = world().await;
+    let (gid, _) = w.guild("Clock Club").await;
+    let path = format!("/guilds/{gid}/scheduled-events");
+    let (_, ev) = w
+        .post(
+            BOB,
+            &path,
+            json!({
+                "name": "Stream party", "entity_type": 3, "entity_metadata": { "location": "online" },
+                "scheduled_start_time": at(HOUR), "scheduled_end_time": at(2 * HOUR)
+            }),
+        )
+        .await;
+    let eid = ev["id"].as_str().unwrap().to_owned();
+    sr_api::routes::settings::scheduled_events::advance(&w.settings_deps).await;
+    assert_eq!(w.get(BOB, &format!("{path}/{eid}")).await.1["status"], 1);
+
+    w.clock.advance_ms(HOUR + 1);
+    sr_api::routes::settings::scheduled_events::advance(&w.settings_deps).await;
+    assert_eq!(w.get(BOB, &format!("{path}/{eid}")).await.1["status"], 2);
+    w.clock.advance_ms(HOUR);
+    sr_api::routes::settings::scheduled_events::advance(&w.settings_deps).await;
+    assert_eq!(w.get(BOB, &format!("{path}/{eid}")).await.1["status"], 3);
+
+    // Create and update are in the audit log (action 100 and 101).
+    let (_, log) = w.get(OWNER, &format!("/guilds/{gid}/audit-logs")).await;
+    let actions: Vec<u64> = log["audit_log_entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|e| e["action_type"].as_u64())
+        .collect();
+    assert!(actions.contains(&100), "{log}");
 }

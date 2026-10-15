@@ -1728,10 +1728,10 @@ impl ScheduledEventRepository for PgSettingsRepo {
     }
 
     async fn get_event(&self, guild: GuildId, id: u64) -> RepoResult<Option<ScheduledEvent>> {
-        let row = sqlx::query(&format!(
+        let row = sqlx::query(sqlx::AssertSqlSafe(format!(
             "SELECT {} FROM guild_scheduled_events WHERE guild_id = $1 AND id = $2",
             event_cols()
-        ))
+        )))
         .bind(i(guild.get()))
         .bind(i(id))
         .fetch_optional(&self.pool)
@@ -1741,10 +1741,10 @@ impl ScheduledEventRepository for PgSettingsRepo {
     }
 
     async fn list_open_events(&self, guild: GuildId) -> RepoResult<Vec<ScheduledEvent>> {
-        let rows = sqlx::query(&format!(
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
             "SELECT {} FROM guild_scheduled_events WHERE guild_id = $1 AND status IN (1, 2) ORDER BY scheduled_start, id",
             event_cols()
-        ))
+        )))
         .bind(i(guild.get()))
         .fetch_all(&self.pool)
         .await
@@ -1883,10 +1883,10 @@ impl ScheduledEventRepository for PgSettingsRepo {
     }
 
     async fn due_events(&self, now_ms: i64) -> RepoResult<Vec<ScheduledEvent>> {
-        let rows = sqlx::query(&format!(
+        let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
             "SELECT {} FROM guild_scheduled_events WHERE (status = 1 AND scheduled_start <= to_timestamp($1::bigint / 1000.0)) OR (status = 2 AND scheduled_end IS NOT NULL AND scheduled_end <= to_timestamp($1::bigint / 1000.0)) OR (status IN (1, 2) AND entity_type IN (1, 2) AND channel_id IS NULL) ORDER BY scheduled_start, id LIMIT 500",
             event_cols()
-        ))
+        )))
         .bind(now_ms)
         .fetch_all(&self.pool)
         .await

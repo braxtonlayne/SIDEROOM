@@ -22,7 +22,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sr_core::{ChannelId, GuildId, Permissions, UserId};
-use sr_events::DomainEvent;
+use sr_events::{DomainEvent, Topic};
 use sr_voice_proto::select::select_endpoint;
 use sr_voice_proto::token::TOKEN_TTL_SECS;
 use sr_voice_proto::{JoinClaims, TokenSigner, TurnConfig, VoiceCommand, VoiceRelay};
@@ -843,6 +843,17 @@ impl Gateway {
         }
         self.dispatch_state(&new, new.to_json(true, member), &channels, &[s.user])
             .await;
+        match &cur {
+            // A move inside one guild: left the old room, joined the new one.
+            Some(old) if old.guild_id == guild && old.channel_id != channel => {
+                self.publish_voice(old, false).await;
+                self.publish_voice(&new, true).await;
+            }
+            // A state change in place (mute, deafen, camera): nobody entered or left.
+            Some(old) if old.guild_id == guild => {}
+            // Fresh, or arriving from another guild (announce_left already said goodbye there).
+            _ => self.publish_voice(&new, true).await,
+        }
         if let Some(old) = &cur
             && old.channel_id != channel
         {
@@ -870,7 +881,30 @@ impl Gateway {
             .ok_or(JoinDenied::Unavailable)
     }
 
+    /// Tell the bus who entered or left a guild voice channel (join-to-create and other
+    /// feature modules read it). DM calls are not announced.
+    pub(crate) async fn publish_voice(&self, st: &VoiceState, joined: bool) {
+        let Some(guild) = st.guild_id else { return };
+        let (channel, user) = (st.channel_id, st.user_id);
+        let ev = if joined {
+            DomainEvent::VoiceJoined {
+                guild,
+                channel,
+                user,
+            }
+        } else {
+            DomainEvent::VoiceLeft {
+                guild,
+                channel,
+                user,
+            }
+        };
+        // Best effort: the voice state already changed, and the event only feeds feature modules.
+        let _ = self.inner.bus.publish(Topic::Guild(guild), ev).await;
+    }
+
     async fn announce_left(&self, old: &VoiceState) {
+        self.publish_voice(old, false).await;
         let mut body = old.to_json(true, None);
         if let Some(o) = body.as_object_mut() {
             o.insert("channel_id".into(), Value::Null);
@@ -1102,6 +1136,8 @@ impl Gateway {
         self.dispatch_state(&new, new.to_json(true, member), &channels, &[cur.user_id])
             .await;
         if moved {
+            self.publish_voice(cur, false).await;
+            self.publish_voice(&new, true).await;
             self.voice_after_removal(cur).await;
             // The moved member reconnects to the new room with a fresh token.
             let _ = self.voice_server_update(&new, flags);

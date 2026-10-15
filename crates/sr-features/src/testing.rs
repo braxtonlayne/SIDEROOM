@@ -25,6 +25,10 @@ pub enum Call {
     Thread(ChannelId, u64, String),
     Slowmode(ChannelId, u32),
     Rename(ChannelId, String),
+    /// `(guild, name, parent, user_limit, owner)`
+    CreateVoice(GuildId, String, Option<ChannelId>, u32, Option<UserId>),
+    Move(GuildId, UserId, ChannelId),
+    DeleteChannel(ChannelId),
 }
 
 #[derive(Default)]
@@ -37,6 +41,8 @@ struct Inner {
     guilds: BTreeMap<u64, GuildInfo>,
     reactions: BTreeMap<(u64, String), BTreeSet<u64>>,
     roles: BTreeSet<(u64, u64, u64)>,
+    /// Connected members per voice channel.
+    voice: BTreeMap<u64, BTreeSet<u64>>,
     fail_posts: bool,
 }
 
@@ -138,6 +144,26 @@ impl FakeActions {
                 .map(|(_, _, r)| *r)
                 .collect()
         })
+    }
+
+    /// Put members in a voice channel (replacing who was there).
+    pub fn set_occupants(&self, channel: u64, users: &[u64]) {
+        self.with(|i| {
+            i.voice.insert(channel, users.iter().copied().collect());
+        });
+    }
+
+    pub fn occupants_of(&self, channel: u64) -> Vec<u64> {
+        self.with(|i| {
+            i.voice
+                .get(&channel)
+                .map(|s| s.iter().copied().collect())
+                .unwrap_or_default()
+        })
+    }
+
+    pub fn channel_exists(&self, channel: u64) -> bool {
+        self.with(|i| i.channels.contains_key(&channel))
     }
 
     pub fn fail_posts(&self, fail: bool) {
@@ -321,6 +347,71 @@ impl FeatureActions for FakeActions {
             }
         });
         Ok(())
+    }
+
+    async fn voice_occupants(&self, channel: ChannelId) -> ActionResult<Vec<UserId>> {
+        Ok(self.occupants_of(channel.get()).into_iter().map(UserId::new).collect())
+    }
+
+    async fn move_member(&self, guild: GuildId, user: UserId, to: ChannelId) -> ActionResult<()> {
+        self.with(|i| {
+            i.calls.push(Call::Move(guild, user, to));
+            let was_in = i.voice.values().any(|s| s.contains(&user.get()));
+            if !was_in {
+                return Err(ActionError::NotFound);
+            }
+            for s in i.voice.values_mut() {
+                s.remove(&user.get());
+            }
+            i.voice.entry(to.get()).or_default().insert(user.get());
+            Ok(())
+        })
+    }
+
+    async fn create_voice_channel(
+        &self,
+        guild: GuildId,
+        name: &str,
+        parent: Option<ChannelId>,
+        user_limit: u32,
+        owner: Option<UserId>,
+    ) -> ActionResult<ChannelId> {
+        self.with(|i| {
+            i.calls.push(Call::CreateVoice(
+                guild,
+                name.to_owned(),
+                parent,
+                user_limit,
+                owner,
+            ));
+            i.next_id += 1;
+            let id = ChannelId::new(i.next_id);
+            i.channels.insert(
+                id.get(),
+                ChannelInfo {
+                    id,
+                    guild: Some(guild),
+                    kind: 2,
+                    name: name.to_owned(),
+                    nsfw: false,
+                    parent,
+                    rate_limit_per_user: 0,
+                    everyone_can_view: true,
+                },
+            );
+            Ok(id)
+        })
+    }
+
+    async fn delete_channel(&self, channel: ChannelId) -> ActionResult<()> {
+        self.with(|i| {
+            i.calls.push(Call::DeleteChannel(channel));
+            i.voice.remove(&channel.get());
+            i.channels
+                .remove(&channel.get())
+                .map(|_| ())
+                .ok_or(ActionError::NotFound)
+        })
     }
 
     async fn set_channel_name(&self, channel: ChannelId, name: &str) -> ActionResult<()> {

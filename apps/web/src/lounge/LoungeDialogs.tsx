@@ -4,6 +4,8 @@
  */
 import { AddServerDialog } from './AddServerDialog';
 import { CreateChannelDialog } from './CreateChannelDialog';
+import { CreateEventDialog } from './events/CreateEventDialog';
+import { EventsDialog } from './events/EventsDialog';
 import { InviteDialog } from './InviteDialog';
 import { GuildProfileDialog } from './shell/GuildProfileDialog';
 import { DirectoryDialog } from './shell/DirectoryDialog';
@@ -40,6 +42,12 @@ export function LoungeDialogs() {
           category={dialog.category}
           onClose={close}
         />
+      );
+    case 'events':
+      return <EventsDialog guildId={dialog.guildId} onClose={close} />;
+    case 'createEvent':
+      return (
+        <CreateEventDialog guildId={dialog.guildId} channelId={dialog.channelId} onClose={close} />
       );
     case 'invite':
       return <InviteDialog guildId={dialog.guildId} channelId={dialog.channelId} onClose={close} />;

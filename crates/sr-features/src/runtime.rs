@@ -33,7 +33,9 @@ pub fn guild_of(ev: &DomainEvent) -> Option<GuildId> {
         | E::MemberUpdated { guild, .. }
         | E::MemberBanned { guild, .. }
         | E::MemberUnbanned { guild, .. }
-        | E::ThreadCreated { guild, .. } => Some(*guild),
+        | E::ThreadCreated { guild, .. }
+        | E::VoiceJoined { guild, .. }
+        | E::VoiceLeft { guild, .. } => Some(*guild),
         E::MessageSent { guild, .. }
         | E::MessageEdited { guild, .. }
         | E::MessageDeleted { guild, .. }
