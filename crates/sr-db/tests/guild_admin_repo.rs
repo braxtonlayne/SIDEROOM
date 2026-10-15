@@ -527,3 +527,59 @@ async fn delete_guild_soft_deletes_messages_and_removes_members() {
         .unwrap();
     assert!(kept);
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_system_user_is_not_a_visible_member() {
+    use sr_chat::admin_repo::{GuildAdminRepository, MemberFilter};
+    use sr_chat::repo::GuildRepository;
+
+    let pool = pool().await;
+    let (svc, ids) = service(&pool);
+    let [owner, bob, system] = [
+        account(&pool, &ids).await,
+        account(&pool, &ids).await,
+        account(&pool, &ids).await,
+    ];
+    sqlx::query("UPDATE accounts SET flags = flags | 1 WHERE id = $1")
+        .bind(system.get() as i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let bp = svc.create_guild(owner, "System Hidden").await.unwrap();
+    let gid = bp.guild.id;
+    for u in [bob, system] {
+        join(&pool, gid, u).await;
+    }
+    sqlx::query(
+        "UPDATE guild_members SET joined_at = now() - interval '40 days' \
+         WHERE guild_id = $1 AND user_id <> $2",
+    )
+    .bind(gid.get() as i64)
+    .bind(owner.get() as i64)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let repo = PgChatRepo::new(pool.clone());
+    // Counts, the lazy list's member source and the REST list leave it out ...
+    assert_eq!(repo.count_members(gid).await.unwrap(), 2);
+    let page: Vec<UserId> = repo
+        .page_members(gid, None, 100)
+        .await
+        .unwrap()
+        .iter()
+        .map(|m| m.user_id)
+        .collect();
+    assert!(page.contains(&bob) && !page.contains(&system));
+    let listed = repo
+        .list_members(gid, &MemberFilter::default(), None, 100)
+        .await
+        .unwrap();
+    assert!(listed.iter().all(|m| m.user_id != system));
+    // ... prune never lists it, but where it posts it still has its membership row.
+    let mut removed = svc.prune(owner, gid, 7, &[]).await.unwrap();
+    removed.sort();
+    assert_eq!(removed, vec![bob]);
+    assert!(repo.get_member(gid, system).await.unwrap().is_some());
+}

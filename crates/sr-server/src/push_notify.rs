@@ -32,12 +32,40 @@ const TTL_SECS: u32 = 4 * 3600;
 /// Characters of the message body sent in the push.
 const BODY_CHARS: usize = 140;
 
+/// Whether a user is at a live, non-idle session (the gateway answers; D-191).
+pub trait SessionActivity: Send + Sync {
+    fn has_active_session(&self, user: UserId) -> bool;
+}
+
+impl SessionActivity for sr_gateway::Gateway {
+    fn has_active_session(&self, user: UserId) -> bool {
+        sr_gateway::Gateway::has_active_session(self, user)
+    }
+}
+
+/// Drop the targets that are using the app right now: no Web Push while any session of the
+/// user is connected and not idle (D-191).
+pub fn without_active(
+    targets: Vec<(u64, NotifyDecision)>,
+    activity: Option<&dyn SessionActivity>,
+) -> Vec<(u64, NotifyDecision)> {
+    match activity {
+        Some(a) => targets
+            .into_iter()
+            .filter(|(u, _)| !a.has_active_session(UserId::new(*u)))
+            .collect(),
+        None => targets,
+    }
+}
+
 pub struct PushNotifier {
     pub messages: Arc<MessagesDeps>,
     pub social: Arc<SocialDeps>,
     pub store: Arc<dyn PushStore>,
     pub sender: Arc<dyn PushSender>,
     pub pool: PgPool,
+    /// Gateway view of who is active; `None` never suppresses.
+    pub activity: Option<Arc<dyn SessionActivity>>,
 }
 
 /// Start the consumer. Subscribe to the tap before calling, so nothing published
@@ -228,6 +256,7 @@ impl PushNotifier {
                 targets.push((raw, decision));
             }
         }
+        let targets = without_active(targets, self.activity.as_deref());
         if targets.is_empty() {
             return Ok(());
         }
@@ -329,6 +358,26 @@ mod tests {
         assert!(!k.direct && k.reply && k.role);
     }
 
+    struct Fake(Vec<u64>);
+    impl SessionActivity for Fake {
+        fn has_active_session(&self, user: UserId) -> bool {
+            self.0.contains(&user.get())
+        }
+    }
+
+    #[test]
+    fn active_sessions_suppress_push_and_idle_or_absent_ones_do_not() {
+        let d = NotifyDecision {
+            notify: true,
+            push: true,
+            reason: Some(NotifyReason::AllMessages),
+        };
+        let targets = vec![(1, d), (2, d), (3, d)];
+        // 1 is using the app; 2 is idle or gone; 3 has no gateway session.
+        let kept = without_active(targets.clone(), Some(&Fake(vec![1])));
+        assert_eq!(kept.iter().map(|t| t.0).collect::<Vec<_>>(), vec![2, 3]);
+        assert_eq!(without_active(targets, None).len(), 3);
+    }
     #[test]
     fn system_messages_never_notify() {
         assert!(notifies(MessageType::Default));

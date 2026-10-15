@@ -1085,6 +1085,22 @@ impl Gateway {
 
     /// What other users see for `user`: `None` without any live or resumable session,
     /// `offline` without an attached socket, otherwise the chosen status.
+    /// Whether `user` has an attached session that is not idle (D-191). Web Push is held
+    /// back while this is true. A session that never reported counts as active; one idle
+    /// session does not make the user idle while another is active.
+    pub fn has_active_session(&self, user: UserId) -> bool {
+        let st = self.st();
+        st.sessions
+            .values()
+            .filter(|s| s.user == user && s.is_attached())
+            .any(|s| {
+                st.session_presence
+                    .get(&s.id)
+                    .and_then(|sp| sp.update.as_ref())
+                    .is_none_or(|u| !(u.afk || u.status == "idle"))
+            })
+    }
+
     pub fn presence(&self, user: UserId) -> Option<PresenceUpdate> {
         Self::effective(&self.st(), user)
     }

@@ -423,3 +423,33 @@ mod age_gate_tests {
         c.await_dispatch("MESSAGE_CREATE").await;
     }
 }
+
+#[cfg(test)]
+mod activity_tests {
+    use super::*;
+    use crate::intents;
+
+    #[tokio::test]
+    async fn connected_sessions_are_active_until_every_one_is_idle() {
+        let w = TestWorld::new(GatewayConfig::default());
+        let me = UserId::new(1);
+        w.add_member(me, GuildId::new(1));
+        assert!(!w.gw.has_active_session(me), "nobody connected");
+        let mut a = w.connect_users(&[1], intents::GUILDS).await.remove(0);
+        assert!(w.gw.has_active_session(me), "connected, no report: active");
+        a.send(json!({"op": 3, "d": {"status": "online", "afk": true, "activities": []}}))
+            .await;
+        a.drain().await;
+        assert!(!w.gw.has_active_session(me), "the only session is idle");
+        let mut b = w.connect_users(&[1], intents::GUILDS).await.remove(0);
+        assert!(w.gw.has_active_session(me), "a second, active session");
+        b.send(json!({"op": 3, "d": {"status": "idle", "afk": false, "activities": []}}))
+            .await;
+        b.drain().await;
+        assert!(!w.gw.has_active_session(me), "status idle counts as idle");
+        a.send(json!({"op": 3, "d": {"status": "online", "afk": false, "activities": []}}))
+            .await;
+        a.drain().await;
+        assert!(w.gw.has_active_session(me), "input clears afk");
+    }
+}

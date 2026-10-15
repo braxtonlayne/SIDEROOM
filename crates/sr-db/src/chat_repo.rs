@@ -467,7 +467,10 @@ impl GuildRepository for PgChatRepo {
     }
 
     async fn count_members(&self, guild: GuildId) -> RepoResult<u64> {
-        let n: i64 = sqlx::query_scalar("SELECT count(*) FROM guild_members WHERE guild_id = $1")
+        let n: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "SELECT count(*) FROM guild_members gm WHERE gm.guild_id = $1 AND {}",
+            crate::accounts::NOT_SYSTEM_MEMBER
+        )))
             .bind(i(guild.get()))
             .fetch_one(&self.pool)
             .await
@@ -488,6 +491,8 @@ impl GuildRepository for PgChatRepo {
              COALESCE((SELECT array_agg(mr.role_id) FROM member_roles mr \
                        WHERE mr.guild_id = gm.guild_id AND mr.user_id = gm.user_id), '{}') AS role_ids \
              FROM guild_members gm WHERE gm.guild_id = $1 AND gm.user_id > $2 \
+             AND NOT EXISTS (SELECT 1 FROM accounts sys WHERE sys.id = gm.user_id \
+                             AND (sys.flags & 1) <> 0) \
              ORDER BY gm.user_id LIMIT $3",
         )
         .bind(i(guild.get()))

@@ -11,6 +11,7 @@ use sr_chat::repo::RepoResult;
 use sr_core::permissions::{Overwrite, OverwriteKind};
 use sr_core::{ChannelId, GuildId, RoleId, Snowflake, UserId};
 
+use crate::accounts::NOT_SYSTEM_MEMBER;
 use crate::chat_repo::{GUILD_COLS, PgChatRepo, db, guild_from, i, u};
 
 fn lim(limit: usize) -> i64 {
@@ -202,7 +203,7 @@ impl GuildAdminRepository for PgChatRepo {
         limit: usize,
     ) -> RepoResult<Vec<Member>> {
         let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
-            "{MEMBER_SELECT} WHERE gm.guild_id = $1 AND gm.user_id > $2 \
+            "{MEMBER_SELECT} WHERE gm.guild_id = $1 AND gm.user_id > $2 AND {NOT_SYSTEM_MEMBER} \
              AND ($4::bigint IS NULL OR $4 = $1 OR EXISTS (SELECT 1 FROM member_roles mr \
                   WHERE mr.guild_id = gm.guild_id AND mr.user_id = gm.user_id AND mr.role_id = $4)) \
              AND ($5::text IS NULL OR gm.nick ILIKE $5 ESCAPE '!' OR EXISTS (SELECT 1 FROM accounts a \
@@ -232,7 +233,7 @@ impl GuildAdminRepository for PgChatRepo {
     ) -> RepoResult<Vec<Member>> {
         let include: Vec<i64> = criteria.include_roles.iter().map(|r| i(r.get())).collect();
         let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
-            "{MEMBER_SELECT} WHERE gm.guild_id = $1 \
+            "{MEMBER_SELECT} WHERE gm.guild_id = $1 AND {NOT_SYSTEM_MEMBER} \
              AND gm.joined_at < to_timestamp($2::bigint::double precision / 1000.0) \
              AND gm.user_id <> (SELECT owner_id FROM guilds WHERE id = $1) \
              AND NOT EXISTS (SELECT 1 FROM member_roles mr WHERE mr.guild_id = gm.guild_id \
