@@ -1,6 +1,6 @@
 # Open question answers
 
-> Historical record: this file keeps the full answer to every original open question. The live list of questions that still need a human is in [open-questions.md](open-questions.md). The Phase 2 round of answers (entries OQ-1 to OQ-34 and the handoff decisions P2-A to P2-J) is appended at the end under "Phase 2 answers (2026-10-13)".
+> Historical record: this file keeps the full answer to every original open question. The live list of questions that still need a human is in [open-questions.md](open-questions.md). The Phase 2 round of answers (entries OQ-1 to OQ-34 and the handoff decisions P2-A to P2-J) is appended at the end under "Phase 2 answers (2026-10-13)". The Phase 8 to 11 handoff round (P8-*, P9-*, P10-*, P11-* and MOD-1 to MOD-11, with decisions D-185 to D-216) follows it under "Phase 8 to 11 handoff questions (answered 2026-10-15)".
 
 Answers to every entry in [open-questions.md](open-questions.md) (171 questions, same numbering, state as of `integration/phase0` at `a21ac26`). Rules applied: [01-decisions-log.md](01-decisions-log.md) wins over everything; Discord parity by default (AGENTS.md §3.3); Rust first (D-150); no telemetry; product-level limits live in the database, infrastructure in config (doc 12 §3).
 
@@ -1186,3 +1186,465 @@ Status: `DEFAULT` (D-183)
 - **OQ-13 (token calibration): agreed**, to be done now that the fonts have landed.
 
 - **OQ-13 (token calibration): done for the built screens (2026-10-13).** The entrance landing and login pages were compared with `entrance-landing.jpg` and `entrance-login.jpg` at 1704 px. Colour tokens already matched the sampled mockup pixels within a few levels (page `#121210` vs `--sr-bg-0` `#111110`, panel `#161614` vs `#161613`, gold button `#c0b08d` vs `#c2b08f`), and layout metrics matched within a few pixels (header 159 px, hero 1030 px, headline 102.4 px, tagline 18 px), so no token values changed. Changes: Newsreader now ships the optical-size (opsz) variable files, so the headline uses the display cut; the door photograph is scaled and positioned to the mockup crop with a left fade instead of a hard panel edge; the login door panel has its own crop; wide screens (min-width 1200 px) get the mockup form sizes (76 px fields, 78 px buttons, sentence-case 14 px labels) scoped to `.ent-form`. Not checked: below 900 px, Cinema, Library and Lounge (no UI or no committed mockups yet), and the wordmark weight.
+
+## Phase 8 to 11 handoff questions (answered 2026-10-15)
+
+Every open owner question from the Phase 8 to 11 handoffs (`docs/dev/handoff/feat-p8-*.md`, `feat-p9-*.md`, `feat-p10-*.md`, `feat-p11-*.md`), the gaps list in `feat-p11-integration.md`, and the eleven questions in `docs/specs/moderation-compliance.md` section 14, de-duplicated. Rules applied as before: [01-decisions-log.md](01-decisions-log.md) wins; Discord parity by default (AGENTS.md section 3.3); privacy and safety per docs 09 and 15; Rust first per doc 03 (a C binding not in doc 03 section 4 needs an ADR); conservative security defaults; the production context is one Owner running a friend-group instance on one rented box (doc 00 section 2). Earlier handoffs (Phase 2 to 7) contain no unanswered explicit questions; their "Decisions" sections are statements that stand as built.
+
+Status key for this round: `ADOPTED` = a product decision, recorded as D-185 onward; `DEFAULT` = engineering default, implement without the owner; `NEEDS-OWNER` = needs the human (legal, money, artwork, external accounts or keys), with the default that applies until they answer; `NO-CODE` = a human action or informational. The implementation work is listed in [dev/answers-followups-p12.md](dev/answers-followups-p12.md) (items `G-nn`).
+
+| Status | Count |
+|---|---|
+| ADOPTED | 32 |
+| DEFAULT | 58 |
+| NEEDS-OWNER | 9 |
+| NO-CODE | 4 |
+
+103 questions in all (P10-ADM-7 is folded into P11-CLI-2). The NEEDS-OWNER items are P8-DON-4, P11-MSG-1, P11-SHL-3, P11-CLI-1, P11-USB-2, P11-LIB-2, MOD-4, MOD-5 and MOD-6; each states the default that applies until the owner answers.
+
+### Developer platform (P8-DEV, P11-DEV)
+
+**P8-DEV-1. Should an unreleased application be installable by testers other than its owner (`app_testers`)?**
+Decision: yes. Doc 11 section 2.2 lists an App Testers tab, so this is parity, not an extension. `app_testers (application_id, account_id, state invited|accepted, invited_by, created_at)`, at most 25 testers per application; the owner invites by username and the tester accepts from a system DM (the same offer pattern as staff appointments). A `development` application may then be installed into a guild where the owner **or an accepted tester** holds `MANAGE_GUILD`, still only while the guild has at most 25 members (doc 11 section 2.1, error `900120`). Testers can use the app's commands anywhere it is installed; they get no portal access.
+Status: `ADOPTED` (D-204). Follow-up: G-01.
+
+**P8-DEV-2. Is the install permission cap (bot role permissions = requested AND the installer's own) too strict?**
+Decision: keep it. A `MANAGE_GUILD` holder who lacks `ADMINISTRATOR` must not be able to mint an administrator bot; the cap is the "no escalation" rule of doc 15 T7 and the install dialog already explains which requested permissions were dropped. Difference from Discord recorded in the porting notes (doc 05 section 7).
+Status: `ADOPTED` (D-205). Follow-up: G-02 (docs only).
+
+**P8-DEV-3. Should interaction responses be allowed without the bot's `SEND_MESSAGES`, like Discord's token-based responses?**
+Decision: no for channel-visible responses, yes for ephemeral ones. A non-ephemeral response is a message in the channel and obeys the channel's permissions (a bot muted in `#announcements` stays mute); an ephemeral response only reaches the invoker and is always allowed, so a bot can still explain itself. Deferred responses follow the same rule when they resolve. Difference from Discord recorded in doc 05 section 7.
+Status: `ADOPTED` (D-206). Follow-up: G-03.
+
+**P8-DEV-4. Privileged intents in `development` are developer-toggled without review; review everywhere?**
+Decision: keep as built. In `development` the 25-member test-guild rule is the guard and the data at stake is the developer's own test servers; a release version that requests a privileged intent goes through version review (doc 11 section 2.1), which is where the review belongs. Doc 05 is clarified to say "reviewed at release".
+Status: `DEFAULT`. Follow-up: G-02 (docs only).
+
+**P8-DEV-5. Bearer tokens 7 days, refresh 90 days, codes 5 minutes, 25 applications per account: confirm?**
+Decision: confirmed. 7-day access tokens match Discord; 90-day refresh with rotation and reuse detection is the conservative end; 5-minute codes are enough for a redirect round trip; 25 applications is generous for one person. All four are constants in `sr-apps` and can move into `platform_settings` if an operator ever asks.
+Status: `DEFAULT`. No follow-up.
+
+**P8-DEV-6. Application icons are served from the bot's avatar path; dedicated CDN kind?**
+Decision: keep the bot avatar path. Every application has exactly one bot account, the avatar pipeline already does the sniffing, resizing and hashing, and Discord clients read `application.icon` as a hash under `/app-icons/`, which the client maps; a second kind would duplicate the storage code for no user-visible gain.
+Status: `DEFAULT`. No follow-up.
+
+**P8-DEV-7. The `rustls` advisories (RUSTSEC-2026-0346 to 0349) need a lock bump.**
+Decision: resolved on the integration branch: `Cargo.lock` carries `rustls 0.23.46`. The next CI run of `cargo deny check advisories` confirms it; nothing else to decide.
+Status: `NO-CODE`.
+
+**P8-DEV-8. Should a signed-in session read and manage an application's commands in the portal (the web agent built a builder instead)?**
+Decision: no. Discord's portal has no command manager either; commands are managed with the bot token through the API, and `sr-cli`/the SDK are the tooling. The builder stays and gains "copy as curl" only.
+Status: `DEFAULT`. No follow-up.
+
+**P11-DEV-1. The interactions-endpoint signing seed is stored unencrypted in the database.**
+Decision: seal it. `applications.interactions_signing_seed` is encrypted with `server.secret_key` the way TOTP secrets and the VAPID private key are (doc 15 T11); the public key stays derivable, a migration re-encrypts existing rows, and `sr-db/tests/secret_columns.rs` lists the column as sealed, not `PLAINTEXT_OK`. Deriving from the server key alone was rejected because rotating `server.secret_key` would silently change every application's public key.
+Status: `ADOPTED` (D-185). Follow-up: G-04.
+
+**P11-DEV-2. Endpoint URLs must be https on public addresses only (no private-network opt-in). Confirm?**
+Decision: confirmed. Interaction deliveries are outbound requests to URLs that members supply, so they go through `sr_net::SafeClient` with its private-range policy (doc 15 T8). Developers who run their app on a LAN use a tunnel, as with Discord. The operator opt-in that payments has (`SR_PAYMENTS_ALLOW_PRIVATE_HOSTS`) is not extended to app endpoints.
+Status: `DEFAULT`. No follow-up.
+
+**P11-DEV-3. No auto-disable of an endpoint after repeated failures (Discord disables).**
+Decision: parity. After 25 consecutive failed deliveries (timeout, non-2xx, bad signature echo) within 10 minutes the endpoint is marked `disabled`, interactions fall back to gateway delivery, the application owner gets a system DM, and the portal card shows "Disabled after repeated failures" with a "Verify and re-enable" button that runs the PING check. Success resets the counter.
+Status: `ADOPTED` (D-186). Follow-up: G-05.
+
+**P11-DEV-4. Typed `name:value` option syntax plus a form, where Discord has chip-style inputs.**
+Decision: keep until the Lexical composer. Chip inputs are inline tokens, which is exactly what LNG-CMP-001 (D-174) adds; building chips in the textarea now would be rewritten. The form stays as the accessible path afterwards.
+Status: `DEFAULT`. No follow-up (part of LNG-CMP-001).
+
+### Donations (P8-DON)
+
+**P8-DON-1. Accept `MITNFA` for `hex_lit` and move to BDK later, or keep the in-house derivation?**
+Decision: keep the in-house derivation on `secp256k1`, `bitcoin_hashes` and `bech32`. It is verified against the BIP-84 and BIP-380 vectors, pulls about 270 fewer crates (doc 15 T14) and needs no licence exception. ADR-0006 named `bdk_wallet`; it gets an addendum recording the substitution and the trigger for revisiting (BDK dropping `hex_lit`, or a need for descriptors beyond `wpkh`). `secp256k1-sys` compiles C the way `libwebp-sys` does and is covered by the same reasoning as ADR-0005 (a vetted reference implementation of a format, orchestrated from Rust).
+Status: `ADOPTED` (D-207). Follow-up: G-06 (docs).
+
+**P8-DON-2. Is the 60-minute price risk acceptable, or should the dialog require a refreshed quote after 30 minutes?**
+Decision: accept the 60-minute lock. At the configured amounts ($5 to $50) the exposure is cents, and a stable BIP21 QR for the whole invoice life is worth more than a re-quote step that confuses payers mid-payment. Both numbers stay operator-editable in `DonationConfig`; an operator who sells many $20 invite credits can shorten the invoice life instead.
+Status: `DEFAULT`. No follow-up.
+
+**P8-DON-3. When to turn off `SR_DOWNLOADS_LEGACY_FALLBACK` and drop `cinema_download_grants`?**
+Decision: now. Migration 0542 copied every unexpired grant; the default flips to `0` in this phase, the flag is removed one phase later, and a forward-only migration drops the table then. The runbook tells an operator upgrading from an earlier build to check Admin → Entitlements first.
+Status: `DEFAULT`. Follow-up: G-07.
+
+**P8-DON-4. Which Esplora endpoint and which price sources does the installation use?**
+Decision: the owner's. The recommended default: a self-hosted `electrs` (or mempool backend) on the same box, so invoice addresses never leave it (the handoff's privacy note), and two public price APIs with the median rule (doc 08 section 1). Until the owner sets them the Admin → Donations page shows the sources as "not configured" and invoices cannot be created.
+Status: `NEEDS-OWNER` (external services). No code follow-up.
+
+**P8-DON-5. Should the Cinema and Library footers link the leaderboards before contributor boards exist?**
+Decision: build the contributor boards first, then link. `contribution_credits` now exists (REV-CORE-006, Phase 11), so the three boards from doc 08 section 4 (movies, episodes, chapters) can be computed; the footer links (DON-LB-003) land in the same change.
+Status: `DEFAULT`. Follow-up: G-08.
+
+**P8-DON-6. The eleven build decisions in the donations handoff (descriptor forms, tolerance, anonymity, `boost_level`, config row, reorg revert, routes, descriptor storage, Esplora paging).**
+Decision: confirmed as built. One note: decision 10 (the descriptor is readable by anyone with database access) is already covered by doc 15 T11 (disk encryption on the host); the spec sentence is enough.
+Status: `DEFAULT`. No follow-up.
+
+### Live TV (P8-TV)
+
+**P8-TV-1. Programme durations come from `runtime_min`, not from the asset.**
+Decision: use the asset. When a block's title resolves to a transcoded asset, its `duration_ms` is the block length and `runtime_min` is the fallback for pool filtering only; a stalled tail (block longer than media) must not happen for library content.
+Status: `DEFAULT`. Follow-up: G-09.
+
+**P8-TV-2. The guide's Remind me calls an assumed `PUT|DELETE /tv/reminders/{block_id}`.**
+Decision: that is the route. A `tv_reminders (account_id, block_id, remind_at)` table; the 15-second scheduler of `sr-userfeat` fires them as a Lounge reminder notification plus Web Push (LNG-NTF-003), five minutes before the programme by default. Reminders for a block that is regenerated away are dropped with a notice.
+Status: `DEFAULT`. Follow-up: G-10.
+
+**P8-TV-3. A daypart from 00:00 to 00:00 means "all day" (unverified against the server).**
+Decision: yes, by definition: an end at or before the start wraps midnight, so equal times are a full 24 hours. A test pins it and the admin editor says "All day" for that case.
+Status: `DEFAULT`. Follow-up: G-11.
+
+**P8-TV-4. Time zones come from a built-in table of 40 zones with hand-coded DST rules.**
+Decision: replace with `jiff` (pure Rust, bundles the IANA database, handles historical rule changes). The table was a stop-gap because nothing could be downloaded; a crate added through Cargo is normal dependency work. `GET /tv/timezones` then lists every IANA zone.
+Status: `DEFAULT`. Follow-up: G-12.
+
+### Watch parties (P8-WP)
+
+**P8-WP-1. Should there be a dedicated "Watch Party" channel type (WP-BE-009)?**
+Decision: no new channel type. A persistent party bound to a voice channel already behaves as a watch-party channel (survives being empty, first joiner hosts); a channel type would touch the permission pipeline, the channel editor and every ported bot's channel-type table for a cosmetic gain. The channel editor gets a "Watch party room" preset that creates a voice channel with a persistent party, which is the user-facing feature the spec wanted.
+Status: `ADOPTED` (D-208). Follow-up: G-13.
+
+**P8-WP-2. Concurrent party limits are a constant 2 until server levels exist.**
+Decision: server levels exist now (Phase 8 donations). `GuildLimits` is implemented over `sr_payments::Entitlements` with doc 08 section 2.2's numbers (2/4/8/16), invalidated on `SR_ENTITLEMENT_UPDATE`.
+Status: `DEFAULT`. Follow-up: G-14.
+
+**P8-WP-3. The drift ignore band is 100 ms instead of the spec's 250 ms.**
+Decision: accepted; the simulation showed 250 ms misses the 300 ms acceptance criterion. Spec updated to 100 ms.
+Status: `DEFAULT`. Follow-up: G-15 (docs).
+
+**P8-WP-4. Clock sync over HTTP; gateway op 100 stays reserved.**
+Decision: accepted. Fewer moving parts and testable without a socket; op 100 remains reserved and unused.
+Status: `DEFAULT`. No follow-up.
+
+**P8-WP-5. Live TV parties (WP-BE-010) and "Watch together" on a live channel.**
+Decision: wire them: `sr-tv` supplies the `PlayGate` for `live` parties (no seek, pause or speed, as tested), the live guide's now panel gets "Watch together", and the Lounge message card too.
+Status: `DEFAULT`. Follow-up: G-16.
+
+### Phase 9 cross-cutting (P9)
+
+**P9-I18N-1. The account `locale` has no UI; the web Language preference is separate, and mails follow `accounts.locale`.**
+Decision: one setting. The Language picker writes `PATCH /users/@me {locale}` and mirrors it into the settings blob for first paint; mails, push text and system DMs read `accounts.locale`.
+Status: `DEFAULT`. Follow-up: G-17.
+
+**P9-PWA-1. Build the push backend, and teach the Share Target about files.**
+Decision: the push backend exists since Phase 11 (LNG-NTF-003). Files: the manifest `share_target` becomes a POST form intercepted in `sw.js`, which stores the files in IndexedDB and opens `/share` with them queued as composer attachments for the chosen channel; the GET text path stays.
+Status: `DEFAULT`. Follow-up: G-18.
+
+**P9-PWA-2. The app badge counts mentions only; add a dot for plain unread?**
+Decision: no. Discord's badge is mentions and DMs; a count-less dot would make the badge mean "anything happened", which is noise for a chat app.
+Status: `DEFAULT`. No follow-up.
+
+**P9-PWA-3. Real-device checks (iOS keyboard, Android share sheet, installed-PWA badge).**
+Decision: a human with the devices does them after the next deploy; nothing to decide.
+Status: `NO-CODE`.
+
+**P9-SEC-1. The route matrix AUTHZ column is heuristic-seeded (160 rows `other`), not hand-verified per handler.**
+Decision: accepted as the baseline. Every feature PR that touches a route hand-verifies its rows (the PR template gets a checkbox); a one-off pass over the 160 `other` rows is scheduled as a small item rather than blocking anything.
+Status: `DEFAULT`. Follow-up: G-19.
+
+**P9-SEC-2. Nine `/sr/auth/*` routes answered 500 instead of 401 without an auth service.**
+Decision: fixed in Phase 10 (`feat-p10-admin-be`, extractor order swapped, `NEEDS_DEPS_FIRST` removed).
+Status: `NO-CODE` (done).
+
+**P9-SEC-3. The router-literal scan is textual; routes registered otherwise rely on `#undocumented`.**
+Decision: accepted. Feature-nest and cdn routers are few and listed; the test fails loudly when a literal appears outside the list, which is the property we want.
+Status: `DEFAULT`. No follow-up.
+
+**P9-SEC-4. Outbound webhooks, RSS and metadata fetchers must use `sr_net::SafeClient`.**
+Decision: a standing rule: every outbound HTTP request to an address that is not a fixed first-party constant goes through `sr_net::SafeClient` (unfurl, image proxy, RSS, payments, connections, push, interaction endpoints already do). `cargo deny` bans a direct `reqwest` dependency in every crate except `sr-net` and the two fixed-URL exceptions (Discord OAuth, Tenor).
+Status: `ADOPTED` (D-203). Follow-up: G-20.
+
+### Phase 10 admin (P10-ADM, P10-ADF)
+
+**P10-ADM-1. Direct `POST /admin/staff` (appoint without acceptance) is still there, behind re-auth. Remove it, or restrict to the Owner?**
+Decision: remove it. Doc 07 section 4 says the appointee accepts, and the offer flow is that path; bootstrap and emergencies use `sr-cli staff appoint` (the D-157 pattern: an operator CLI action with a `platform_audit_log` row), which needs host access, not a web session.
+Status: `ADOPTED` (D-197). Follow-up: G-21.
+
+**P10-ADM-2. Delegations give `APPOINT_STAFF` with a ceiling; the Senior Staff template also grants it outright. Both?**
+Decision: both, as built. The template bit is the D-162 default for the Owner's most trusted role; a delegation is the scoped form for anyone else. The Admin → Staff page explains the difference in one line.
+Status: `DEFAULT`. No code follow-up.
+
+**P10-ADM-3. Badge names and bits (`early_member`, `contributor`, `bug_hunter`, `honorary` at `accounts.flags` bits 8 to 11).**
+Decision: accepted. Staff cannot touch bits 0/1; `patron`, `staff`, `owner`, `app_developer` and `bot` stay derived.
+Status: `DEFAULT`. No follow-up.
+
+**P10-ADM-4. Re-auth is ON by default and locks staff without TOTP or a passkey out of sensitive actions, the Owner included. Keep?**
+Decision: keep, and close the gap at the front: accepting a staff appointment offer requires an enrolled second factor (the offer DM says so, the Accept button answers "enrol first"), so nobody holds staff powers without one. `SR_ADMIN_REQUIRE_REAUTH=0` stays a development and e2e switch only.
+Status: `ADOPTED` (D-198). Follow-up: G-22.
+
+**P10-ADM-5. `revoked_by` of an appointment closed by the leave trigger is the member themselves.**
+Decision: accepted; the feed alert and the guild audit (kick) are the record. The appointment row gets `revoked_reason` (`left`, `kicked`, `revoked`) so the Staff page can say which.
+Status: `DEFAULT`. Follow-up: G-23.
+
+**P10-ADM-6. Email alerts go to the Staff Server owner's account email only.**
+Decision: accepted for now; `alerts.email_to` (a list, default empty = the Owner) can follow when a second operator exists.
+Status: `DEFAULT`. No follow-up.
+
+**P10-ADM-7. Announcement DMs go to everyone at once; no opt-out or schedule.** (Merged with P11-CLI-2.)
+Decision: see P11-CLI-2 / D-192.
+
+**P10-ADM-8. ADM-GRAPH-003 WebGL renderer: owner decision.**
+Decision: no WebGL. The tree and list views cover the realistic graph (under 100 accounts); when the graph passes about 500 nodes a 2D canvas renderer on the existing `sr-graph-wasm` layout is enough and adds no dependency. ADM-GRAPH-003 is re-scoped to "canvas 2D".
+Status: `DEFAULT`. Follow-up: G-24 (inventory).
+
+**P10-ADF-1. Should the Staff Server profile badge be a user-profile badge or only the rail frame?**
+Decision: a profile badge, as doc 07 section 4 says ("SIDE ROOM Staff badge on profiles, configurable"). `GET /users/{id}/profile` `badges` includes `staff` (and `owner` for the Owner) computed from the active appointment; the staff member can hide it with the user setting `staff.show_badge` (default on).
+Status: `DEFAULT`. Follow-up: G-25.
+
+**P10-ADF-2. Is "Merge series" meant for `PUBLISH_READING` only? The API also requires `DELETE_CONTENT`.**
+Decision: already decided: merge needs both (D-172). The catalog UI hides Merge unless the viewer holds both bits.
+Status: `DEFAULT`. Follow-up: G-26.
+
+### Phase 10 Lounge servers and channels (P10-LBE, P10-LFE)
+
+**P10-LBE-1. Should the gateway stop dispatching NSFW channel messages to accounts that have not confirmed 18+, or is the REST gate enough?**
+Decision: the gateway must gate too. `MESSAGE_CREATE/UPDATE/DELETE`, reactions, typing, pins and thread events from an `nsfw` channel (or a thread of one) are not delivered to a session whose account lacks `age_confirmed_at`; the channel object itself is still delivered (everyone sees that the room exists, D-184's spirit). `GuildDirectory::age_confirmed` already exists for voice. The server is the boundary (AGENTS.md section 5); a REST-only gate leaks content through the socket.
+Status: `ADOPTED` (D-199). Follow-up: G-27.
+
+**P10-LBE-2. Is a 60-second offline grace for temporary members right, or immediate like Discord?**
+Decision: keep 60 seconds. A PWA reload or a mobile network blink is a disconnect and reconnect, and Discord's instant removal would throw people out of a server for a page refresh. Recorded as a parity exception. A startup sweep removes temporary members whose last session ended before the restart.
+Status: `ADOPTED` (D-200). Follow-up: G-28.
+
+**P10-LBE-3. Are the 12 directory categories right, and should staff manage them instead of the built-in list?**
+Decision: keep the built-in list (Discord's discovery categories are fixed too). A platform setting `directory.hidden_categories` lets the operator hide ones that make no sense for their instance; editing names waits for a request.
+Status: `DEFAULT`. Follow-up: G-29.
+
+**P10-LFE-1. Should a channel-follow API (announcement Follow) and a guild "updates channel" field be added?**
+Decision: both exist now (`POST /channels/{id}/followers` from Phase 10 lounge-be; `public_updates_channel_id` in the community settings). The Follow button and the updates-channel badge wire to them.
+Status: `DEFAULT`. Follow-up: G-30.
+
+**P10-LFE-2. Is a real route for a thread full view wanted?**
+Decision: yes, parity: `/channels/{guild}/{thread_id}` resolves a thread id to its parent channel with the thread pane open in full view, so threads can be linked and bookmarked like on Discord.
+Status: `DEFAULT`. Follow-up: G-31.
+
+### Phase 10 server settings (P10-SBE, P10-SFE)
+
+**P10-SBE-1. Allow the `opus` crate (libopus) for soundboard transcoding via an ADR, or wait for a pure-Rust encoder?**
+Decision: neither; drop the server-side transcode. Judged against doc 03: libopus is **not** in section 4's allowed list (section 2's "opus bindings" row was aspirational), so it would need a new ADR, and the ADR would buy nothing: browsers decode MP3, Ogg and WAV with `decodeAudioData`, soundboard playback goes through the user's mic path where the browser encodes Opus, and voice messages are encoded client-side already. Server-side Opus is only wanted for normalising storage, which 512 KiB files do not need. Spec section 7 loses "→ Opus"; `symphonia` remains the only audio decoder in scope and is only added when a feature needs server-side decoding. Revisit if a maintained pure-Rust Opus encoder appears.
+Status: `ADOPTED` (D-201). Follow-up: G-32 (docs).
+
+**P10-SBE-2. Should an approved membership application write an audit entry?**
+Decision: yes. Guild audit action `200 APPLICATION_DECISION` (SIDE ROOM range 200 to 255, outside Discord's ids; ported bots ignore unknown actions) with `options {status, application_id}`; one entry per decision.
+Status: `DEFAULT`. Follow-up: G-33.
+
+**P10-SBE-3. Should the server tag also be shown on guild member lists?**
+Decision: yes (Discord shows tags in the member list). `primary_guild` goes on the member and ban `UserRef` (`routes/guilds/dto.rs`) and the lazy member list payloads, then the chat renderer and member list draw it with the existing `TagPreview`.
+Status: `DEFAULT`. Follow-up: G-34.
+
+**P10-SFE-1. Should the Community wizard block when safety checks fail instead of fixing them on Finish?**
+Decision: block, like Discord: the safety step shows the two switches and Next is disabled until both are on; Finish then writes what the user enabled, never silently.
+Status: `DEFAULT`. Follow-up: G-35.
+
+**P10-SFE-2. Store preset banners as a colour pair instead of generated PNGs?**
+Decision: no. Discord stores images only; the PNG round-trips through every client and bot without a new field.
+Status: `DEFAULT`. No follow-up.
+
+**P10-SFE-3. Which backend items are wanted before the next settings pass?**
+Decision, in order: (1) the Server Settings → Features page already renders guild feature modules since Phase 11 (nothing to add); (2) access mode and membership applications: the backend exists (Phase 10 sset-be), the UI is next; (3) DM and spam protection settings (LNG-SSET-052) and the moderator 2FA requirement (`mfa_level`, Discord parity) need backend fields; (4) `system_channel_flags` and widget settings are small parity fields that go with (3). The rest waits for a request.
+Status: `DEFAULT`. Follow-up: G-36.
+
+### Phase 10 voice (P10-VBE, P10-VFE)
+
+**P10-VBE-1. Shard the SFU actor now or later?**
+Decision: later. One actor at about 280 Mbit/s covers the production instance (doc 08 section 6.2: a free channel worst case is 78 Mbit/s) many times over; the first sharding number must come from the AX42-class host, not a shared Windows box. VOX-SFU-011's exit gate stays open and is measured on the real hardware before any code moves.
+Status: `DEFAULT`. No follow-up now.
+
+**P10-VBE-2. Turn `voice.video_bwe` on by default for video-heavy deployments?**
+Decision: off by default. The 50 kbit/s padding per connection is a real cost on audio-only rooms; the loss-based fallback is the right default for a friend-group box. `docs/dev/server.md` tells a video-heavy operator when to flip it.
+Status: `DEFAULT`. No follow-up.
+
+**P10-VBE-3. Backfill `USE_EXTERNAL_SOUNDS` into existing guilds' `@everyone` roles?**
+Decision: yes, by migration, together with `START_WATCH_PARTY` (Phase 8 added it to new servers only). Both are free features (D-044, D-110); a server owner who removed one of them on purpose has not had the chance yet, so the backfill cannot undo a choice.
+Status: `ADOPTED` (D-202). Follow-up: G-37.
+
+**P10-VBE-4. Persist stage instances and running calls, or keep them tied to the in-memory voice states?**
+Decision: keep them in memory with the voice states. A restart ends the voice session anyway and members rejoin; persistence only pays off with a multi-node SFU, which is the same milestone as sharding (P10-VBE-1).
+Status: `DEFAULT`. No follow-up.
+
+**P10-VBE-5. Should `GUILD_CREATE` carry `stage_instances` and `soundboard_sounds` like Discord's?**
+Decision: yes (D-060). The REST routes and op 31 stay for refresh.
+Status: `DEFAULT`. Follow-up: G-38.
+
+**P10-VFE-1. Should Decline on a ringing DM call tell the server?**
+Decision: yes, and the route exists: `POST /channels/{id}/call/stop-ringing` (Phase 10 voice-be). The client calls it on Decline; `CALL_UPDATE` shrinks `ringing`.
+Status: `DEFAULT`. Follow-up: G-39.
+
+**P10-VFE-2. Is 30 seconds the ring time?**
+Decision: the server is authoritative and rings for 45 seconds (`RING_TIMEOUT`); the client's overlay follows `CALL_UPDATE/DELETE` and its local fallback timer becomes 45 seconds.
+Status: `DEFAULT`. Follow-up: G-39.
+
+**P10-VFE-3. Confirm the camera and share presets (480p30 to 1080p60) and the free cap (720p30).**
+Decision: confirmed; they are the doc 08 section 2.2 ladder (720p30 free; 720p60/1080p30 at Level 1; 1080p60 at Level 2+ and for Patrons). `CALL_CREATE` gains `video: bool` so the ring says "video call" (Phase 10 integration gap).
+Status: `DEFAULT`. Follow-up: G-40.
+
+### Phase 11 feature modules (P11-FM)
+
+**P11-FM-1. A starboard post is removed when the count falls below the threshold; a moderator-deleted post is not reposted.**
+Decision: accepted (matches the common bots people port from).
+Status: `DEFAULT`. No follow-up.
+
+**P11-FM-2. Module actions run as the server owner in the audit log. Acceptable, or add a system actor?**
+Decision: a system actor. Audit entries written by a feature module name the system user (id 1) as `user_id` with `options.module = "<feature id>"`, the way Discord attributes AutoMod actions to AutoMod rather than to whoever enabled the rule. The audit viewer shows "SIDE ROOM · Starboard". The owner's name must not appear on actions they did not take.
+Status: `ADOPTED` (D-187). Follow-up: G-41.
+
+**P11-FM-3. Reaction-role "verify" mode grants once; un-reacting keeps the role.**
+Decision: accepted (that is what "verify" means in the bots it replaces).
+Status: `DEFAULT`. No follow-up.
+
+**P11-FM-4. Is the system user joining servers as a visible member acceptable?**
+Decision: no. The system user keeps its membership row (the message path needs it) but is excluded from member lists, member counts, the lazy list, prune, mentions autocomplete and `@everyone` fan-out; its messages carry Discord's `SYSTEM` tag and it cannot be kicked, banned or given roles. Members see posts "from SIDE ROOM", not a member called SIDE ROOM.
+Status: `ADOPTED` (D-188). Follow-up: G-42.
+
+**P11-FM-5. Scheduled-message and reminder routes allow bot tokens; should they deny?**
+Decision: deny. They are user-scope features (a person's own reminders and scheduled posts); a bot that wants scheduling has its own clock. The bot deny-list in `auth/policy.rs` gains `/users/@me/reminders*`, `/users/@me/scheduled-messages*`, `/users/@me/bookmarks*` and the birthday routes.
+Status: `ADOPTED` (D-189). Follow-up: G-43.
+
+### Phase 11 Lounge messages, shell, profiles (P11-MSG, P11-SHL, P11-INT, P11-CLI)
+
+**P11-MSG-1. Default sticker packs: procedurally drawn original artwork, or supplied artwork?**
+Decision: supplied, and only when the owner has some. No procedural art ships. The `sticker_packs` table and the send-path change (message creation accepts a pack sticker id) are built now so a pack can be added as a reviewed layer-4 `sticker_pack` package (doc 11 section 4) without code; until then the sticker picker shows guild stickers only.
+Status: `NEEDS-OWNER` (artwork). Default: no default packs. Follow-up: G-44.
+
+**P11-MSG-2. Add Klipy now, or is Tenor enough?**
+Decision: Tenor is enough. A second provider is a feature-flagged addition if Tenor's key policy ever bites. The Tenor API key is operator configuration (`[gif] api_key`), which the operator obtains from Google.
+Status: `DEFAULT`. No follow-up.
+
+**P11-MSG-3. Suppress push while the user has an active gateway session (Discord does)?**
+Decision: yes. A push is not sent while any of the user's sessions is connected and not idle (`afk: false`); when every session is idle or gone, push goes out. DMs and direct mentions only, as now.
+Status: `ADOPTED` (D-191). Follow-up: G-45.
+
+**P11-SHL-1. Reading activity wire type: 6, or type 3 with a marker?**
+Decision: 6. Discord's types are 0 to 5; a SIDE ROOM value outside that range is ignored by ported bots and never mistaken for Watching. Documented in doc 05 as the one activity-type extension.
+Status: `ADOPTED` (D-193). Follow-up: G-46 (docs).
+
+**P11-SHL-2 / P11-INT-2. Group DM invite links: confirm `POST /channels/{id}/invites` on a group DM.**
+Decision: confirmed, parity with Discord's group DM invites: the group owner creates one (`{code, channel: {type: 3}}`, 24-hour expiry, unlimited uses, revocable), `/invite/{code}` joins the group after login (D-021), and the invite is always in-platform (never single use, D-022 does not apply).
+Status: `DEFAULT`. Follow-up: G-47.
+
+**P11-SHL-3. Decoration and effect pack catalogue: where do approved free packs live?**
+Decision: a built-in catalogue in Rust (`sr_chat::profile::catalog`: slug, kind, asset path, label key) served by `GET /sr/profile-catalog` and validated on `PATCH /users/@me`; assets live under `apps/web/public/profile/` with their licence file. The four CSS effects (`sparkle`, `aurora`, `snow`, `embers`) are the catalogue today; avatar decorations need artwork, which is the owner's to supply or to approve as a layer-4 package later.
+Status: `NEEDS-OWNER` (artwork). Default: effects only, no decorations. Follow-up: G-48.
+
+**P11-SHL-4. The PWA update toast and the Lounge notices-bar entry can both show.**
+Decision: the bar wins inside the Lounge (the toast is suppressed there); the toast stays for the Entrance, Cinema and Library, which have no bar.
+Status: `DEFAULT`. Follow-up: G-49.
+
+**P11-INT-1. Group DM icon: the server stores `icon` verbatim and accepts any string.**
+Decision: parity with guild icons: `PATCH /users/@me/channels/{id} {icon}` takes a data URI through the media pipeline (`MediaKind::ChannelIcon`), stores the hash and rejects anything else.
+Status: `DEFAULT`. Follow-up: G-50.
+
+**P11-INT-3. The client never sends `afk: true`; the gateway drops `platform`, `party` and `expires_at_ms` from activities.**
+Decision: the client sends op 3 with `afk: true` after 10 minutes without input (Discord's idle rule) and `false` on the next input; the activity whitelist keeps `platform`, `party.id` and `expires_at_ms` (SIDE ROOM extensions, documented in doc 05).
+Status: `DEFAULT`. Follow-up: G-51.
+
+**P11-INT-4. Per-server profile has no pronouns, theme or effect overrides.**
+Decision: add them (D-044 makes the Nitro-only per-server cosmetics free): `guild_members.pronouns`, `theme_primary`, `theme_accent`, `profile_effect`, `avatar_decoration`, editable through `PATCH /guilds/{id}/members/@me` and returned in `guild_member_profile`.
+Status: `DEFAULT`. Follow-up: G-52.
+
+**P11-INT-5. Badge descriptions are client labels; the server sends no tooltip text.**
+Decision: the server sends `badges: [{id, description, icon}]` from one Rust catalogue (`sr_admin::BADGES` extended); the client translates known ids and falls back to the server text.
+Status: `DEFAULT`. Follow-up: G-53.
+
+**P11-INT-6. Connection stats keys are shown as sent.**
+Decision: stats keys are a closed set (`followers`, `subscribers`, `karma`, `stars`, `repos`) with i18n labels; unknown keys render as sent.
+Status: `DEFAULT`. Follow-up: G-53.
+
+**P11-CLI-1. Server-tag badge glyphs 0 to 15 are plain Unicode symbols; replace with artwork?**
+Decision: keep the Unicode set until artwork exists; a 16-glyph SVG sheet drops into `lib/serverTag.ts` without a data change.
+Status: `NEEDS-OWNER` (artwork). Default: Unicode glyphs. No code follow-up.
+
+**P11-CLI-2 (and P10-ADM-7). Should critical announcements be undismissable, and should announcement DMs have an opt-out or a schedule?**
+Decision: critical announcements (`critical: true`, meant for outages and security notices) cannot be dismissed and are always DM'd; ordinary announcements are dismissable in the bar and are DM'd only when the author ticks "also send as DM" and the recipient has not turned off `notifications.platform_dm` (default on). No scheduling: the author posts when it should go out.
+Status: `ADOPTED` (D-192). Follow-up: G-54.
+
+### Phase 11 user settings and account (P11-USB, P11-USF)
+
+**P11-USB-1. Should deletion also be blocked for accounts holding the Owner or a staff role?**
+Decision: yes. An account with an active staff appointment cannot delete itself; it must leave the Staff Server first (which revokes staff status at once, D-130) and the error says so. The Owner cannot delete at all until `sr-cli staff transfer-owner` has run. This closes a path where a departing staff member could erase their own trail.
+Status: `ADOPTED` (D-194). Follow-up: G-55.
+
+**P11-USB-2. Reuse the `[discord]` OAuth app for account linking, or a separate one?**
+Decision: the owner registers the second redirect URI on the existing Discord application; a separate app is only needed if Discord's per-app limits are hit. Until the URI is registered the Discord connection button is hidden (`available: false`).
+Status: `NEEDS-OWNER` (external account). Default: reuse the one app.
+
+**P11-USF-1. Should Copy ID stay always visible, or be gated on Developer Mode like Discord?**
+Decision: gate it on Developer Mode (parity; the earlier "always shown" choice is overridden). Copy Link stays always visible.
+Status: `ADOPTED` (D-195). Follow-up: G-56.
+
+**P11-USF-2. Auto-enable Streamer Mode when OBS is detected?**
+Decision: not possible in a browser; the manual switch is the feature. Revisit with native clients (D-140).
+Status: `NO-CODE`.
+
+**P11-USF-3. Which invite and credit routes should the backend add so the Invites section (LNG-USET-025 to 029) can be built?**
+Decision: three member routes: `GET /sr/invites` (remaining credits, frozen flag and reason, open codes with created/expires, ledger of redeemed ones with the invitee's username), `POST /sr/invites` (one code; refused with `900013` when no credit, frozen or at the account cap, D-014/D-024/D-026), `DELETE /sr/invites/{code}` (revoke while unredeemed). Session only, bots denied, rate limited 10 per hour.
+Status: `DEFAULT`. Follow-up: G-57.
+
+### Phase 11 Library and review (P11-LIB, P11-REV)
+
+**P11-LIB-1. Reading-privacy setting for the Friends and "People you know" trending and rankings scopes.**
+Decision: no new setting; the D-120 one applies. The scoped aggregates count only members whose "Share my watching & reading activity" (Library section toggle) is on and whose history is not paused, and never age-restricted titles for members with "Hide age-restricted titles from my activity" on. Those toggles move from the client prefs blob to server-readable user settings (`activity.share_cinema`, `activity.share_library`, `activity.share_tv`, `activity.hide_age_restricted`, `activity.paused`) so the gateway presence, the aggregates and the profile tab all read the same values.
+Status: `ADOPTED` (D-190). Follow-up: G-58.
+
+**P11-LIB-2. PDF rasterization (pdfium) approval (also `docs/open-questions.md` item 2).**
+Decision: pdfium is already on the doc 03 section 4 list (ADR-0005), so no new ADR; what needs the owner is bundling a prebuilt pdfium binary beside the ingest worker, which is a download. Recommended default: do not bundle. PDFs are read in the browser with `pdf.js` (doc 03 section 3, the planned reader), the cover thumbnail is rendered client-side by `pdf.js` at upload time and submitted as the cover image, and the server never rasterizes. Image-mode PDFs (pre-rendered page images) stay unbuilt unless the owner approves the bundle.
+Status: `NEEDS-OWNER` (download). Default: client-side `pdf.js`, no server rasterizer. Follow-up: G-59.
+
+**P11-REV-1. Should the daily upload limit be an operator setting instead of the constant 50 GB?**
+Decision: yes: platform setting `submissions.daily_upload_bytes` (default 50 GiB, `0` = unlimited), declared in the feature registry so Admin → Limits renders it; staff stay exempt (D-082).
+Status: `ADOPTED` (D-196). Follow-up: G-60.
+
+**P11-REV-2. Should abandoned or rejected Cinema submissions purge uploaded media too?**
+Decision: yes; doc 09 section 1 already says rejected submission files are purged after 14 days (metadata kept), and abandoned drafts follow the same rule. The Cinema kinds implement `SubmissionKind::purge` (originals and any transcode output of the unpublished item) and `credit_refs` (replacements earn nothing, D-074).
+Status: `DEFAULT`. Follow-up: G-61.
+
+**P11-REV-3. REV-CORE-001: the tables are `content_requests` / `content_request_votes`, not `requests` / `request_votes`.**
+Decision: the built names stand (clearer in a schema that also has data requests and staff offers); the inventory line is updated and the box ticked.
+Status: `DEFAULT`. Follow-up: G-62 (inventory).
+
+### Moderation and compliance spec, section 14 (MOD)
+
+**MOD-1. Who triages reports in a server, and may server moderators see the reporter?**
+Decision: a report on guild content goes to that guild's moderators (`MANAGE_MESSAGES`, or the configured report channel) and only they see it; platform staff see it when it is escalated, when the category is `illegal_content` or `child_safety` (always escalated), or when the target is a DM, a user outside a guild, a server, or a library or cinema item (spec section 3.4). Reporter identity: hidden from server moderators unless the reporter ticks "moderators may see my name" (off by default); always visible to platform staff and access-logged (D-125).
+Status: `ADOPTED` (D-209). Follow-up: G-63 (spec wording only now; code in Phase 7).
+
+**MOD-2. Dedicated `MANAGE_CASES` and `MANAGE_TAKEDOWNS` platform bits, or reuse?**
+Decision: add the two bits now, before Phase 7 code exists: `MANAGE_CASES` (bit 22: open, assign, act on and close cases; place and release holds) and `MANAGE_TAKEDOWNS` (bit 23: the takedown register and the data-request queue). Reusing `MANAGE_ACCOUNTS` would hand the Support role case access it should not have. Defaults: Moderator gains `MANAGE_CASES`; Senior Staff gains both; the Owner has everything. Doc 07 section 3 and the D-162 table are updated by a migration of `staff_role_templates`.
+Status: `ADOPTED` (D-210). Follow-up: G-64.
+
+**MOD-3. Which `reason_category` values are serious by default for D-031, and is the list right?**
+Decision: the list stands. Serious by default: `illegal_content`, `child_safety`, `fraud`, `platform_abuse`; `harassment` and `ban_evasion` default to standard and the ban dialog lets staff raise them; `spam`, `nsfw_policy`, `other` default to standard. The stored `category` remains what the invite graph reads, so the defaults are only presets.
+Status: `ADOPTED` (D-211). Follow-up: G-65.
+
+**MOD-4. Copyright: public takedown form and formal counter-notice, or staff-entered only? Repeat-infringer threshold?**
+Decision: the owner's, since the process is jurisdiction policy. Recommended default: staff-entered notices only (spec section 5), counter-notices recorded by staff, repeat-infringer threshold `moderation.strike_review_threshold` = 3 upheld takedowns in 12 months opening a review case (never an automatic suspension). The contact address for notices is published by the operator (doc 12 section 9).
+Status: `NEEDS-OWNER` (legal). Default as stated.
+
+**MOD-5. Underage accounts: ban, or reset-and-restrict? Is there a minimum registration age?**
+Decision: the owner's (legal). Recommended default: a minimum registration age of 13, stated in the invite landing and enforced only by self-declaration (no verification); an account found to be under 18 gets its age confirmation reset and restricted spaces closed (reset-and-restrict, not a ban); an account found to be under 13 is suspended with `reason_category = other` and a note, and the inviter is told only that the invitee did not meet the entry rules. A platform setting `accounts.minimum_age` (default 13) carries the number.
+Status: `NEEDS-OWNER` (legal). Default as stated.
+
+**MOD-6. Data-subject deadlines and jurisdiction; is keeping the Person record after erasure acceptable, and should the deletion copy say so?**
+Decision: the jurisdiction is the owner's to name. Defaults that do not depend on it: the queue shows a due date from `compliance.data_request_deadline_days` (default 30, the GDPR number, which is the strictest common one); the deletion screen and the data-export README state plainly that the Person record, invite graph, invoices and staff-side moderation history are kept (D-124) and why. Whether that retention is lawful where the instance runs is the owner's call.
+Status: `NEEDS-OWNER` (legal). Default as stated. Follow-up: G-66 (copy).
+
+**MOD-7. How long are closed cases, evidence and notices kept, and should holds expire or be reviewed?**
+Decision: kept forever (consistent with D-124); holds never expire on their own but are flagged for review after `moderation.hold_review_days` (default 90) on the holds dashboard, and a release needs a reason. Nothing silently unfreezes.
+Status: `ADOPTED` (D-212).
+
+**MOD-8. May server moderators place holds, or only platform staff?**
+Decision: platform staff only (`MANAGE_CASES`). Server moderators delete, time out, kick and ban inside their server; a hold is a platform evidence action that overrides the author's deletion rights (D-122), which a server moderator must not be able to invoke.
+Status: `ADOPTED` (D-213).
+
+**MOD-9. May a platform reviewer see a reported DM message, given D-125?**
+Decision: yes, within the snapshot only: the reported message and the ten before and after it, taken at report time by the reporter's own action (a participant exposing a conversation they are part of). Opening the snapshot is access-logged with the case id as the reason; reading anything beyond the snapshot needs `READ_PRIVATE_CONTENT` and the normal D-125 flow.
+Status: `ADOPTED` (D-214).
+
+**MOD-10. Are appeals wanted at launch, and who reviews them when staff are few?**
+Decision: yes, minimal: one appeal per decision, from the ban screen, reviewed by a different staff member than the decider; when nobody else holds the bit, the Owner reviews; no second appeal.
+Status: `ADOPTED` (D-215).
+
+**MOD-11. Should the web client get a flag-read endpoint so `moderation.reports` can be turned on per environment without a rebuild?**
+Decision: yes: `GET /sr/features/flags` (any signed-in human, bots denied) returns the platform-scope flags whose schema marks them `client_visible`; the client reads it at boot and on `SR_FEATURE_UPDATE`, replacing the build-time `VITE_FEATURE_MODERATION_REPORTS` seed. Guild-scope flags keep `GET /guilds/{id}/modules`.
+Status: `ADOPTED` (D-216). Follow-up: G-67.
+
+### Still with the owner from earlier rounds
+
+`docs/open-questions.md` keeps the UnRAR licence confirmation (D-170) as before; its PDF item is answered above as P11-LIB-2.
