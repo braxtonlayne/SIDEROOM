@@ -230,7 +230,7 @@ fn zip_err(e: impl std::fmt::Display) -> DbError {
 fn put<W: Write + Seek>(zip: &mut ZipWriter<W>, name: &str, value: &Value) -> DbResult<()> {
     zip.start_file(name, SimpleFileOptions::default())
         .map_err(zip_err)?;
-    let bytes = serde_json::to_vec_pretty(value).map_err(|e| zip_err(e))?;
+    let bytes = serde_json::to_vec_pretty(value).map_err(zip_err)?;
     zip.write_all(&bytes).map_err(zip_err)?;
     Ok(())
 }
