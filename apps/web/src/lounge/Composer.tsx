@@ -53,6 +53,7 @@ import {
   type Trigger,
 } from './msg/autocomplete';
 import { AutocompletePopup } from './msg/AutocompletePopup';
+import { ScheduleDialog } from './features/ScheduleDialog';
 import { PollModal } from './msg/PollModal';
 import { commandSuggestions, runSlash, type SlashContext } from './msg/slashCommands';
 import { UploadTray } from './msg/UploadTray';
@@ -386,6 +387,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
       });
   };
 
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const showSendButton = useSavedPrefs().showSendButton;
   const send = () => {
     if (sending || cooldownLeft > 0) return;
@@ -912,6 +914,17 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             </Popover>
           </>
         )}
+        <Tooltip content={t('lounge.composer.schedule')}>
+          <button
+            type="button"
+            className="lng-icon-btn"
+            aria-label={t('lounge.composer.schedule')}
+            disabled={!hasContent || text.trim().startsWith('/')}
+            onClick={() => setScheduleOpen(true)}
+          >
+            <Icon name="clock" size={20} />
+          </button>
+        </Tooltip>
         <Popover
           label={t('lounge.composer.emojiPicker')}
           placement="top-end"
@@ -972,6 +985,16 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           </>
         )}
       </div>
+      <ScheduleDialog
+        open={scheduleOpen}
+        channelId={channelId}
+        content={resolveTokens(text.trim(), tokens.current)}
+        onClose={() => setScheduleOpen(false)}
+        onScheduled={() => {
+          setScheduleOpen(false);
+          finishSend();
+        }}
+      />
       <PollModal
         open={pollOpen}
         onClose={() => setPollOpen(false)}

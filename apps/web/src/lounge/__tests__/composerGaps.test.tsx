@@ -216,6 +216,19 @@ describe('composer', () => {
         await record('PATCH')(ctx);
         return HttpResponse.json({ version: 2, settings: {} });
       }),
+      http.post('*/api/v1/users/@me/reminders', async (ctx) => {
+        const b = (await ctx.request.clone().json()) as Record<string, unknown>;
+        return HttpResponse.json({
+          id: '9',
+          note: b.note,
+          remind_at: b.remind_at,
+          status: 'pending',
+          channel_id: null,
+          guild_id: null,
+          message_id: null,
+          created_at: '',
+        });
+      }),
       http.post('*/api/v1/channels/c1/messages', async (ctx) => {
         await record('POST')(ctx);
         return HttpResponse.json(msg('201', { author: me }));
@@ -233,10 +246,10 @@ describe('composer', () => {
     expect(box).toHaveValue('');
 
     await userEvent.type(box, '/remind 1h pay the rent{Enter}');
-    await waitFor(() => expect(Object.keys(useSaved.getState().reminders)).toHaveLength(1));
-    const r = Object.values(useSaved.getState().reminders)[0]!;
-    expect(r.preview).toBe('pay the rent');
-    expect(Date.parse(r.due_at) - Date.now()).toBeGreaterThan(59 * 60_000);
+    await waitFor(() => expect(useSaved.getState().reminders).toHaveLength(1));
+    const r = useSaved.getState().reminders[0]!;
+    expect(r.note).toBe('pay the rent');
+    expect(Date.parse(r.remind_at) - Date.now()).toBeGreaterThan(59 * 60_000);
 
     await userEvent.type(box, '/tts read this out{Enter}');
     await waitFor(() =>

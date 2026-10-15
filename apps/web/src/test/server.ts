@@ -34,6 +34,10 @@ export const server = setupServer(
   http.get('*/api/v1/users/@me/notification-defaults', () =>
     HttpResponse.json({ message_notifications: null }),
   ),
+  // Saved items (bookmarks, reminders, scheduled messages) start empty.
+  http.get('*/api/v1/users/@me/bookmarks', () => HttpResponse.json([])),
+  http.get('*/api/v1/users/@me/reminders', () => HttpResponse.json([])),
+  http.get('*/api/v1/users/@me/scheduled-messages', () => HttpResponse.json([])),
   http.get('*/api/v1/sr/csrf', () => HttpResponse.json({ token: 'test' })),
   // The Lounge loads notification settings for every server; default to "nothing muted".
   http.get('*/api/v1/users/@me/guilds/:id/settings', () =>

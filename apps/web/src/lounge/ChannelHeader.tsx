@@ -2,6 +2,7 @@ import { Avatar, Icon, Modal, Tooltip, type IconName } from '@sideroom/ui';
 import { useState } from 'react';
 import { useT } from '../i18n';
 import { NotifyButton } from './header/NotifyButton';
+import { SavedButton } from './features/SavedButton';
 import { PinsButton } from './header/PinsButton';
 import { SearchBox } from './SearchBox';
 import { ThreadsButton } from './threads/ThreadsButton';
@@ -99,6 +100,7 @@ export function ChannelHeader({
           <>
             <NotifyButton guildId={guildId} channelId={channelId} />
             <PinsButton guildId={guildId} channelId={channelId} canUnpin={!!canUnpin} />
+            <SavedButton />
           </>
         ) : (
           <>

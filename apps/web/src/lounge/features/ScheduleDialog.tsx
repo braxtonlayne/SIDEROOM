@@ -19,7 +19,7 @@ export function schedulePresets(now: Date): { id: 'hour' | 'tomorrow' | 'monday'
   tomorrow.setDate(tomorrow.getDate() + 1);
   tomorrow.setHours(9, 0, 0, 0);
   const monday = new Date(now);
-  const ahead = ((8 - monday.getDay()) % 7) || 7;
+  const ahead = (8 - monday.getDay()) % 7 || 7;
   monday.setDate(monday.getDate() + ahead);
   monday.setHours(9, 0, 0, 0);
   return [
