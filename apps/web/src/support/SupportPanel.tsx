@@ -30,6 +30,95 @@ export function perkLines(p: PerkSet): string[] {
   return lines;
 }
 
+/** One row of the free-versus-Patron table: a label and the text for each plan. */
+export function perkRows(
+  free: PerkSet,
+  patron: PerkSet,
+): { label: string; free: string; patron: string }[] {
+  const best = (p: PerkSet) =>
+    [...p.video_profiles].sort((a, b) => b.height * b.fps - a.height * a.fps)[0];
+  const video = (p: PerkSet) => {
+    const b = best(p);
+    return b ? `${b.height}p${b.fps}` : '';
+  };
+  const num = (n: number, text: (n: number) => string) => (n > 0 ? text(n) : '');
+  const mb = (n: number) => t('support.panel.tableMb', { n });
+  const kbps = (n: number) => t('support.panel.tableKbps', { n });
+  const perDay = (n: number) => t('support.panel.tablePerDay', { n });
+  const rows = [
+    {
+      label: t('support.panel.tableUpload'),
+      free: num(free.upload_mib, mb),
+      patron: num(patron.upload_mib, mb),
+    },
+    { label: t('support.panel.tableVideo'), free: video(free), patron: video(patron) },
+    {
+      label: t('support.panel.tableSenders'),
+      free: num(free.video_senders, String),
+      patron: num(patron.video_senders, String),
+    },
+    {
+      label: t('support.panel.tableViewers'),
+      free: num(free.stream_viewers, String),
+      patron: num(patron.stream_viewers, String),
+    },
+    {
+      label: t('support.panel.tableAudio'),
+      free: num(free.audio_kbps, kbps),
+      patron: num(patron.audio_kbps, kbps),
+    },
+    {
+      label: t('support.panel.tableParties'),
+      free: num(free.watch_parties, String),
+      patron: num(patron.watch_parties, String),
+    },
+    {
+      label: t('support.panel.tableDownloads'),
+      free: num(free.downloads_per_day, perDay),
+      patron: num(patron.downloads_per_day, perDay),
+    },
+  ];
+  // A Patron value of zero means the free value still applies; a free value of zero means not included.
+  return rows
+    .filter((r) => r.free || r.patron)
+    .map((r) => ({
+      label: r.label,
+      free: r.free || t('support.panel.tableNone'),
+      patron: r.patron || (r.free ? t('support.panel.tableSame') : t('support.panel.tableNone')),
+    }));
+}
+
+function PerksTable({ cfg }: { cfg: DonationConfig }) {
+  const t = useT();
+  return (
+    <Card
+      id="sup-perks"
+      title={t('support.panel.tableTitle')}
+      description={t('support.panel.tableDesc')}
+    >
+      <table className="sup-levels">
+        <caption className="us-sr">{t('support.panel.tableCaption')}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{t('support.panel.tablePerk')}</th>
+            <th scope="col">{t('support.panel.tableFree')}</th>
+            <th scope="col">{t('support.panel.tablePatron')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {perkRows(cfg.free_perks, cfg.patron.perks).map((r) => (
+            <tr key={r.label}>
+              <th scope="row">{r.label}</th>
+              <td>{r.free}</td>
+              <td>{r.patron}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
+  );
+}
+
 /** Money text for a custom amount typed in dollars; `null` when it is not a usable amount. */
 export function parseDollars(raw: string): number | null {
   const body = raw.trim().replace(/^\$/, '');
@@ -353,6 +442,18 @@ function History({ onOpen, version }: { onOpen: (inv: Invoice) => void; version:
                       </strong>
                       <p className="us-muted">
                         {formatDate(inv.created_at_ms, {})} · {api.STATE_COPY[inv.state]}
+                        {inv.explorer_url && (
+                          <>
+                            {' · '}
+                            <a href={inv.explorer_url} target="_blank" rel="noreferrer">
+                              {t('support.panel.txLink')}
+                              <span className="us-sr">
+                                {' '}
+                                {t('support.panel.invoiceSr', { id: inv.id })}
+                              </span>
+                            </a>
+                          </>
+                        )}
                       </p>
                     </div>
                     <Button variant="secondary" size="sm" onClick={() => onOpen(inv)}>
@@ -373,6 +474,63 @@ function History({ onOpen, version }: { onOpen: (inv: Invoice) => void; version:
                 </Notice>
               )}
             </>
+          );
+        }}
+      </Loaded>
+    </Card>
+  );
+}
+
+/** Server contributions (LNG-USET-033): the paid invoices that supported a server, newest first. */
+export function Contributions({
+  onOpen,
+  version,
+}: {
+  onOpen: (inv: Invoice) => void;
+  version: number;
+}) {
+  const t = useT();
+  const guilds = useGuilds();
+  const res = useResource(() => api.listInvoices({ limit: 50 }));
+  const reload = res.reload;
+  useEffect(() => {
+    if (version > 0) reload();
+  }, [version, reload]);
+  return (
+    <Card
+      id="sup-contributions"
+      title={t('support.panel.contribTitle')}
+      description={t('support.panel.contribDesc')}
+    >
+      <Loaded res={res} what={t('support.panel.contribWhat')}>
+        {(page) => {
+          const rows = page.items.filter(
+            (i) => i.purpose === 'server_level' && api.isPaid(i.state),
+          );
+          return rows.length === 0 ? (
+            <p className="us-muted">{t('support.panel.contribNone')}</p>
+          ) : (
+            <ul className="us-list">
+              {rows.map((inv) => (
+                <li key={inv.id}>
+                  <div className="us-row-main">
+                    <strong>
+                      {guilds.find((g) => g.id === inv.guild_id)?.name ??
+                        t('support.panel.contribUnknown')}
+                      , {usd(inv.usd_cents)}
+                    </strong>
+                    <p className="us-muted">
+                      {formatDate(inv.created_at_ms, {})}
+                      {inv.anonymous ? ` · ${t('support.panel.contribAnon')}` : ''}
+                    </p>
+                  </div>
+                  <Button variant="secondary" size="sm" onClick={() => onOpen(inv)}>
+                    {t('support.panel.receipt')}
+                    <span className="us-sr"> {t('support.panel.invoiceSr', { id: inv.id })}</span>
+                  </Button>
+                </li>
+              ))}
+            </ul>
           );
         }}
       </Loaded>
@@ -442,6 +600,7 @@ export function SupportSection() {
               busy={busy}
               onPay={(months) => void create({ purpose: 'patron', months })}
             />
+            <PerksTable cfg={c} />
             <Card
               id="sup-donate"
               title={t('support.panel.donateTitle')}
@@ -514,6 +673,7 @@ export function SupportSection() {
           </>
         )}
       </Loaded>
+      <Contributions version={version} onOpen={setInvoice} />
       <History version={version} onOpen={setInvoice} />
       {invoice && (
         <InvoiceModal

@@ -21,3 +21,23 @@
   border-radius: 50%;
   vertical-align: baseline;
 }
+
+/* Inline media size (Settings > Text & Images): caps the width of pictures and videos drawn in messages. */
+[data-media-size='small'] .lng-mosaic,
+[data-media-size='small'] .lng-video {
+  max-width: min(100%, 260px);
+}
+[data-media-size='large'] .lng-mosaic,
+[data-media-size='large'] .lng-video {
+  max-width: min(100%, 720px);
+}
+
+/* Streamer Mode: personal details are blurred until the pointer or keyboard focus is on them. */
+[data-streamer-personal='true'] .sr-personal {
+  filter: blur(6px);
+  user-select: none;
+}
+[data-streamer-personal='true'] .sr-personal:hover,
+[data-streamer-personal='true'] .sr-personal:focus-within {
+  filter: none;
+}

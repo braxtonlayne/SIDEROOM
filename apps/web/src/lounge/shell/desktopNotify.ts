@@ -9,7 +9,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { onDispatch } from '../../store/events';
 import { useStore } from '../../store';
 import type { Message } from '../../store';
-import { usePrefsStore } from '../../settings/user/prefs';
+import { streamerState, usePrefsStore } from '../../settings/user/prefs';
 import { useT } from '../../i18n';
 import { HOME } from '../channels';
 import { useLoungeRoute } from '../nav';
@@ -91,6 +91,8 @@ export function useDesktopNotify(): void {
         const me = st.currentUserId;
         if (!me) return;
         const prefs = usePrefsStore.getState().prefs;
+        // Streamer Mode (LNG-USET-052) silences sounds and notifications alike.
+        if (streamerState(prefs).silence) return;
         const scopeKey = msg.guild_id ?? HOME;
         await useNotifSettings.getState().load(scopeKey);
         const kind = desktopDecision(msg, {

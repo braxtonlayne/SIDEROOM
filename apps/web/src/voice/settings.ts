@@ -40,8 +40,20 @@ export interface VoiceSettings {
   soundJoinLeave: boolean;
   soundMuteDeafen: boolean;
   soundPtt: boolean;
+  /** The incoming-call ring. */
+  soundRing: boolean;
   /** Volume of the cue sounds, percent 0..100. */
   soundVolume: number;
+  /** Percent the other voices are lowered while you speak, 0 (off) to 100. */
+  attenuation: number;
+  /** Camera chosen in Settings; "default" follows the system. */
+  cameraDeviceId: string;
+  /** Show a preview and ask before the camera goes live. */
+  alwaysPreviewVideo: boolean;
+  /** Screen share defaults: quality preset id, share-audio switch and content hint. */
+  sharePresetId: string;
+  shareAudio: boolean;
+  shareHint: 'motion' | 'detail';
   keybinds: Record<KeybindAction, Keybind | null>;
   /** Per-person playback volume, percent 0..200 (absent = 100). */
   userVolumes: Record<string, number>;
@@ -63,7 +75,14 @@ export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
   soundJoinLeave: true,
   soundMuteDeafen: true,
   soundPtt: true,
+  soundRing: true,
   soundVolume: 60,
+  attenuation: 0,
+  cameraDeviceId: 'default',
+  alwaysPreviewVideo: false,
+  sharePresetId: '720p30',
+  shareAudio: true,
+  shareHint: 'motion',
   keybinds: { ptt: null, toggleMute: null, toggleDeafen: null, disconnect: null },
   userVolumes: {},
   localMuted: {},
@@ -111,6 +130,13 @@ export function sanitizeVoiceSettings(raw: unknown): VoiceSettings {
     soundJoinLeave: bool(r.soundJoinLeave, d.soundJoinLeave),
     soundMuteDeafen: bool(r.soundMuteDeafen, d.soundMuteDeafen),
     soundPtt: bool(r.soundPtt, d.soundPtt),
+    soundRing: bool(r.soundRing, d.soundRing),
+    attenuation: clamp(r.attenuation, 0, 100, d.attenuation),
+    cameraDeviceId: text(r.cameraDeviceId, d.cameraDeviceId),
+    alwaysPreviewVideo: bool(r.alwaysPreviewVideo, d.alwaysPreviewVideo),
+    sharePresetId: text(r.sharePresetId, d.sharePresetId),
+    shareAudio: bool(r.shareAudio, d.shareAudio),
+    shareHint: r.shareHint === 'detail' ? 'detail' : 'motion',
     soundVolume: clamp(r.soundVolume, 0, 100, d.soundVolume),
     keybinds: {
       ptt: sanitizeKeybind(kb.ptt),

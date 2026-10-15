@@ -139,6 +139,15 @@ export const USER_SETTINGS_SECTIONS = [
     },
   },
   {
+    id: 'streamer',
+    get label() {
+      return t('settings.userNav.streamer');
+    },
+    get group() {
+      return t('settings.userNav.groupApp');
+    },
+  },
+  {
     id: 'advanced',
     get label() {
       return t('settings.userNav.advanced');

@@ -1,6 +1,7 @@
 import { Switch } from '@sideroom/ui';
 import { useT } from '../../../i18n';
 import { Card, SectionTitle, Unavailable } from '../parts';
+import { CinemaDefaultsCard, CinemaHistoryCard, LibraryDefaultsCard } from './ActivityHistory';
 import type { PrefsFormProps } from './Appearance';
 
 /**
@@ -73,6 +74,9 @@ export function ActivitySection({ prefs, setPrefs }: PrefsFormProps) {
         />
         <Unavailable>{t('settings.activity.unavailable')}</Unavailable>
       </Card>
+      <CinemaHistoryCard />
+      <CinemaDefaultsCard />
+      <LibraryDefaultsCard />
     </>
   );
 }

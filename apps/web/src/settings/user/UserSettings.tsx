@@ -22,6 +22,7 @@ import { AccessibilitySection } from './sections/Accessibility';
 import { AccountSection } from './sections/Account';
 import { ActivitySection } from './sections/Activity';
 import { AdvancedSection, LanguageSection } from './sections/App';
+import { StreamerSection } from './sections/Streamer';
 import { VoiceVideoSection } from './sections/VoiceVideo';
 import { AppearanceSection } from './sections/Appearance';
 import { AuthorizedAppsSection } from './sections/AuthorizedApps';
@@ -168,6 +169,7 @@ function Body({
         {section === 'voice' && <VoiceVideoSection />}
         {section === 'keybinds' && <KeybindsSection {...prefsProps} />}
         {section === 'language' && <LanguageSection {...prefsProps} />}
+        {section === 'streamer' && <StreamerSection {...prefsProps} />}
         {section === 'advanced' && <AdvancedSection {...prefsProps} />}
       </SettingsLayout>
       <Modal

@@ -1,7 +1,7 @@
 import { SegmentedControl, Switch } from '@sideroom/ui';
 import { useT } from '../../../i18n';
 import { Card, SectionTitle } from '../parts';
-import type { SpoilerMode } from '../prefs';
+import type { MediaSize, SpoilerMode } from '../prefs';
 import type { PrefsFormProps } from './Appearance';
 import { RemoteImagesCard } from './Privacy';
 
@@ -32,6 +32,22 @@ export function TextImagesSection({ prefs, setPrefs }: PrefsFormProps) {
           description={t('settings.textImages.inlineDesc')}
           checked={prefs.inlineAttachments}
           onChange={(e) => setPrefs({ inlineAttachments: e.target.checked })}
+        />
+      </Card>
+      <Card
+        id="us-media-size"
+        title={t('settings.textImages.mediaSize')}
+        description={t('settings.textImages.mediaSizeDesc')}
+      >
+        <SegmentedControl
+          label={t('settings.textImages.mediaSize')}
+          value={prefs.inlineMediaSize}
+          onValueChange={(v) => setPrefs({ inlineMediaSize: v as MediaSize })}
+          options={[
+            { value: 'small', label: t('settings.textImages.sizeSmall') },
+            { value: 'medium', label: t('settings.textImages.sizeMedium') },
+            { value: 'large', label: t('settings.textImages.sizeLarge') },
+          ]}
         />
       </Card>
       <Card id="us-emoji" title={t('settings.textImages.emojiReactions')}>

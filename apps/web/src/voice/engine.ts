@@ -84,6 +84,8 @@ export interface VoiceEngine {
   setUserVolume(userId: string, percent: number): void;
   setUserMuted(userId: string, muted: boolean): void;
   setMasterVolume(percent: number): void;
+  /** Optional: lower the other voices by this percent (attenuation while you speak). */
+  setAttenuation?(percent: number): void;
   setInputVolume(percent: number): void;
   setInputDevice(opts: MicOptions): Promise<void>;
   setOutputDevice(deviceId: string): Promise<void>;
@@ -594,6 +596,9 @@ export class RtcVoiceEngine implements VoiceEngine {
   }
   setMasterVolume(percent: number): void {
     this.playback.setMasterVolume(percent);
+  }
+  setAttenuation(percent: number): void {
+    this.playback.setAttenuation(percent);
   }
   setInputVolume(percent: number): void {
     this.mic.setInputVolume(percent);
