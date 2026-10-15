@@ -45,4 +45,9 @@ export default {
   'lounge.inbox.forYouInvites': 'Invites redeemed',
   'lounge.inbox.forYouSomeone': 'Someone',
   'lounge.inbox.forYouJoined': 'joined with your invite',
+  // LNG-CMP-005 upload size check
+  'lounge.uploadTray.overLimit':
+    'This file is larger than your {limit} upload limit and may be refused.',
+  'lounge.uploadTray.overLimitPatron':
+    'This file is larger than your {limit} upload limit and may be refused. Patrons can upload larger files.',
 } satisfies Record<string, string>;

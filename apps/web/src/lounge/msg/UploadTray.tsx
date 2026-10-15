@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useT } from '../../i18n';
 import { fileIcon } from './Attachments';
 import { formatBytes } from './format';
+import { CHECK_FROM, limitHint, useUploadLimits } from './uploadLimit';
 import type { PendingFile } from './upload';
 
 function Thumb({ file }: { file: File }) {
@@ -42,6 +43,7 @@ export function UploadTray({
   const [name, setName] = useState('');
   const [alt, setAlt] = useState('');
   const [spoiler, setSpoiler] = useState(false);
+  const limits = useUploadLimits(files.some((f) => f.file.size > CHECK_FROM));
 
   useEffect(() => {
     if (target) {
@@ -69,6 +71,15 @@ export function UploadTray({
                 label={t('lounge.uploadTray.uploading', { name: f.name })}
                 size={6}
               />
+            )}
+            {f.status === 'queued' && limitHint(f.file.size, limits) && (
+              <span className="lng-failed" role="status">
+                {limits?.patron
+                  ? t('lounge.uploadTray.overLimit', { limit: formatBytes(limits.bytes) })
+                  : t('lounge.uploadTray.overLimitPatron', {
+                      limit: formatBytes(limits?.bytes ?? 0),
+                    })}
+              </span>
             )}
             {f.status === 'error' && (
               <span className="lng-failed" role="alert">
