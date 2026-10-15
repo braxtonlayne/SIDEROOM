@@ -17,6 +17,7 @@ pub mod model;
 pub mod notifications;
 pub mod presence;
 pub mod ratings;
+pub mod recommend;
 pub mod reviews;
 pub mod rules;
 pub mod service;

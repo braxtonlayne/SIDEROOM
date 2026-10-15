@@ -327,7 +327,7 @@ pub struct ListDetail {
     pub items: Vec<ListItemView>,
 }
 
-async fn cards_for(ctx: &MemberCtx, ids: &[i64]) -> ApiResult<HashMap<i64, Series>> {
+pub(super) async fn cards_for(ctx: &MemberCtx, ids: &[i64]) -> ApiResult<HashMap<i64, Series>> {
     Ok(ctx
         .deps
         .service

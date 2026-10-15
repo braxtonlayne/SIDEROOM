@@ -364,3 +364,53 @@ pub struct NotificationCount {
     /// Capped at 99.
     pub unread: i64,
 }
+
+// ---- related, recommendations, contributors (LIB-SOC-005, LIB-SER-005) --------
+
+/// A series like another one.
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = LibraryRelatedSeries)]
+pub struct RelatedSeries {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub series_id: i64,
+    pub score: f64,
+    /// Why: `tags` (shared genres and tags) and/or `coread` (people you know read both).
+    pub reasons: Vec<String>,
+}
+
+/// One "Because you read X" row.
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = LibraryBecauseRow)]
+pub struct BecauseRow {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub seed_id: i64,
+    pub seed_title: String,
+    pub items: Vec<RelatedSeries>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = LibraryContributor)]
+pub struct Contributor {
+    #[serde(with = "id")]
+    #[schema(value_type = String)]
+    pub user_id: i64,
+    pub name: String,
+    /// Credited chapters in this series.
+    pub chapters: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = LibraryReleaseGroup)]
+pub struct ReleaseGroup {
+    pub name: String,
+    pub chapters: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+#[schema(as = LibraryContributors)]
+pub struct Contributors {
+    pub members: Vec<Contributor>,
+    pub groups: Vec<ReleaseGroup>,
+}

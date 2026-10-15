@@ -25,6 +25,7 @@
 
 mod admin;
 mod comments;
+mod discover;
 mod downloads;
 mod member;
 mod presence;
@@ -372,6 +373,15 @@ pub fn router() -> Router<AppState> {
             "/library/me/notifications/seen",
             post(presence::notifications_seen),
         )
+        .route(
+            "/library/series/{series_id}/related",
+            get(discover::related),
+        )
+        .route(
+            "/library/series/{series_id}/contributors",
+            get(discover::contributors),
+        )
+        .route("/library/recommendations", get(discover::recommendations))
         .route("/library/me/downloads", get(downloads::allowance))
         .route(
             "/library/chapters/{chapter_id}/download",
@@ -550,6 +560,9 @@ pub fn router() -> Router<AppState> {
         uploads::complete,
         uploads::status,
         uploads::list,
+        discover::related,
+        discover::contributors,
+        discover::recommendations,
         presence::heartbeat,
         presence::stop,
         presence::friends_reading,
@@ -622,6 +635,13 @@ pub fn router() -> Router<AppState> {
         sr_library::reading::BookmarkEntry,
         sr_library::reading::BookmarkPage,
         social::CountBody,
+        discover::RelatedEntry,
+        discover::RelatedBody,
+        discover::BecauseEntry,
+        discover::BecauseBody,
+        sr_library_social::model::Contributor,
+        sr_library_social::model::ReleaseGroup,
+        sr_library_social::model::Contributors,
         downloads::Allowance,
         sr_library_social::model::FriendReading,
         sr_library_social::model::FriendsReading,

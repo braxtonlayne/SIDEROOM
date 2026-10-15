@@ -1213,3 +1213,128 @@ async fn download_slots_follow_the_daily_allowance() {
     );
     e.teardown().await;
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn related_series_use_tags_and_coreading_among_known() {
+    let e = Env::new().await;
+    let (me, friend) = (e.user().await, e.user().await);
+    e.befriend(me.user_id, friend.user_id).await;
+    let (seed, same, other, coread, unrelated) = (
+        e.series("Seed", false).await,
+        e.series("Same tags", false).await,
+        e.series("Partial tags", false).await,
+        e.series("Co-read", false).await,
+        e.series("Unrelated", false).await,
+    );
+    for (s, genres, tags) in [
+        (seed, vec!["action", "fantasy"], vec!["magic"]),
+        (same, vec!["action", "fantasy"], vec!["magic"]),
+        (other, vec!["action"], vec!["school"]),
+        (coread, vec!["romance"], vec![]),
+        (unrelated, vec!["sports"], vec![]),
+    ] {
+        sqlx::query("UPDATE reading_series SET genres = $2, tags = $3 WHERE id = $1")
+            .bind(s)
+            .bind(genres)
+            .bind(tags)
+            .execute(e.pool())
+            .await
+            .unwrap();
+    }
+    let (cs, cc) = (e.chapter(seed, 1.0).await, e.chapter(coread, 1.0).await);
+    e.progress(friend.user_id, seed, cs, true).await;
+    e.progress(friend.user_id, coread, cc, true).await;
+    let related = e.svc.related(me, seed, None).await.unwrap();
+    let ids: Vec<i64> = related.iter().map(|r| r.series_id).collect();
+    assert_eq!(ids[0], same);
+    assert_eq!(related[0].reasons, ["tags"]);
+    assert!(ids.contains(&other) && ids.contains(&coread));
+    assert!(!ids.contains(&unrelated) && !ids.contains(&seed));
+    assert_eq!(
+        related
+            .iter()
+            .find(|r| r.series_id == coread)
+            .unwrap()
+            .reasons,
+        ["coread"]
+    );
+    // A friend who stops sharing no longer counts as a co-reader.
+    sqlx::query(
+        "INSERT INTO user_settings (user_id, settings) VALUES ($1, '{\"activity\":{\"share_library\":false}}'::jsonb)",
+    )
+    .bind(friend.user_id)
+    .execute(e.pool())
+    .await
+    .unwrap();
+    let again = e.svc.related(me, seed, None).await.unwrap();
+    assert!(!again.iter().any(|r| r.series_id == coread));
+    // "Because you read": based on what I read, minus what I already started.
+    let mine = e.chapter(seed, 2.0).await;
+    e.progress(me.user_id, seed, mine, false).await;
+    let rows = e.svc.because_you_read(me, None).await.unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].seed_id, seed);
+    assert!(rows[0].items.iter().any(|r| r.series_id == same));
+    assert!(!rows[0].items.iter().any(|r| r.series_id == seed));
+    e.teardown().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn contributors_list_credited_members_and_release_groups() {
+    let e = Env::new().await;
+    let (a, b) = (e.user().await, e.user().await);
+    let s = e.series("Credited", false).await;
+    let (c1, c2, c3) = (
+        e.chapter(s, 1.0).await,
+        e.chapter(s, 2.0).await,
+        e.chapter(s, 3.0).await,
+    );
+    sqlx::query("UPDATE reading_chapters SET release_group = 'Scan Team' WHERE id IN ($1, $2)")
+        .bind(c1)
+        .bind(c2)
+        .execute(e.pool())
+        .await
+        .unwrap();
+    for (n, (chapter, user)) in [(c1, a.user_id), (c2, a.user_id), (c3, b.user_id)]
+        .into_iter()
+        .enumerate()
+    {
+        sqlx::query(
+            "INSERT INTO contribution_credits (id, section, ref_id, user_id, label) \
+             VALUES ($1, 'library', $2, $3, 'x')",
+        )
+        .bind(9_000_000 + n as i64 + chapter % 1000)
+        .bind(chapter)
+        .bind(user)
+        .execute(e.pool())
+        .await
+        .unwrap();
+    }
+    let c = e.svc.contributors(s).await.unwrap();
+    assert_eq!(c.members.len(), 2);
+    assert_eq!(
+        (c.members[0].user_id, c.members[0].chapters),
+        (a.user_id, 2)
+    );
+    assert_eq!(
+        (c.groups[0].name.as_str(), c.groups[0].chapters),
+        ("Scan Team", 2)
+    );
+    // Revoked credits and members who hide their contributions drop out.
+    sqlx::query("UPDATE contribution_credits SET revoked_at = now() WHERE ref_id = $1")
+        .bind(c1)
+        .execute(e.pool())
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO donor_preferences (user_id, hide_contributions) VALUES ($1, TRUE)")
+        .bind(b.user_id)
+        .execute(e.pool())
+        .await
+        .unwrap();
+    let c = e.svc.contributors(s).await.unwrap();
+    assert_eq!(c.members.len(), 1);
+    assert_eq!(c.members[0].chapters, 1);
+    e.teardown().await;
+}
