@@ -1648,3 +1648,187 @@ Status: `ADOPTED` (D-216). Follow-up: G-67.
 ### Still with the owner from earlier rounds
 
 `docs/open-questions.md` keeps the UnRAR licence confirmation (D-170) as before; its PDF item is answered above as P11-LIB-2.
+
+## Phase 12 handoff questions (answered 2026-10-15)
+
+Every open owner question, "still open" item and "decision" left for confirmation in the Phase 12 handoffs (`docs/dev/handoff/feat-p12-admin-ui.md`, `feat-p12-feat-ui.md`, `feat-p12-web-followups.md`, `feat-p12-firstpaint.md`, `feat-p12-admin-mod-be.md`, `feat-p12-devplat-be.md`, each on its own branch), plus the one item of [open-questions.md](open-questions.md) that was not legal, money, artwork or an external account (PDF rasterization, item 2, now closed). Same rules as the earlier rounds: [01-decisions-log.md](01-decisions-log.md) wins; Discord parity by default; privacy and safety per docs 09 and 15; Rust first per doc 03; conservative security defaults; one Owner running a friend-group instance.
+
+Four of these were decided by the owner in chat today and are recorded here as given (direct appointment kept for the Owner, slash commands offered everywhere, the birthday card's home, `pdfjs-dist`). Status key as before: `ADOPTED` = a product decision, recorded as D-217 onward (or, for the direct-appointment answer, the already-rewritten D-197); `DEFAULT` = engineering default, implement without the owner; `NEEDS-OWNER` = needs the human, with the default that applies meanwhile; `NO-CODE` = informational or already resolved on another branch. Follow-ups are G-68 onward in [dev/answers-followups-p12.md](dev/answers-followups-p12.md).
+
+| Status | Count |
+|---|---|
+| ADOPTED | 6 |
+| DEFAULT | 29 |
+| NEEDS-OWNER | 0 |
+| NO-CODE | 2 |
+
+37 questions in all (the `#review-queue` card-action item appears in two handoffs and is answered once, as P12-AUI-5). Nothing in this round needs the owner: no legal, money, artwork or external-account question was raised. Of the previous round's nine NEEDS-OWNER items, P11-LIB-2 is closed by the `pdfjs-dist` decision (P12-WFU-1); the other eight stand unchanged in [open-questions.md](open-questions.md).
+
+### Admin web UI (P12-AUI, branch `feat/p12-admin-ui`)
+
+**P12-AUI-1. Direct appoint is shown to the Owner only. Remove it entirely or keep it?**
+Decision (owner, 2026-10-15): keep it, Owner only, behind re-auth. `POST /admin/staff` refuses everyone except the Owner (staff with `APPOINT_STAFF` included) and still needs the 15-minute second-factor window; "Send appointment offer" stays the primary action for everyone. This is the same owner decision the `feat/p12-admin-mod-be` branch already recorded by rewriting D-197 and the P10-ADM-1 entry above; the admin-ui branch's Owner-only "Appoint directly" button is the matching UI and nothing is removed. How the button is presented is P12-AMB-2.
+Status: `ADOPTED` (D-197 as amended on `feat/p12-admin-mod-be`; no new decision number). No further follow-up beyond G-80.
+
+**P12-AUI-2. The delegation ceiling excludes Owner and the Owner-only permissions (`READ_PRIVATE_CONTENT`, `APPOINT_STAFF`, `VIEW_ACCESS_LOG`, `OPERATOR`) in the UI; the server also refuses them.**
+Decision: confirmed, exactly D-162's grant rule ("only the Owner may grant" those four) applied to delegations. The client hides what the server refuses so nobody builds a ceiling that cannot be saved; the server stays the boundary.
+Status: `DEFAULT`. No follow-up.
+
+**P12-AUI-3. The announcement composer sends `reason` only when typed.**
+Decision: confirmed. `reason` is the audit note, optional on the route, and an empty string must not become an audit row that says nothing.
+Status: `DEFAULT`. No follow-up.
+
+**P12-AUI-4. Voice rooms and egress dashboard tiles: `/admin/stats` had no such fields.**
+Decision: resolved on `feat/p12-admin-mod-be`, which added `voice_rooms` and `egress_bytes` (null without the embedded SFU) to `GET /admin/stats`; the tiles light up at integration. Nothing to decide.
+Status: `NO-CODE`.
+
+**P12-AUI-5. `#review-queue` Approve/Reject card buttons: the card-action registry knows only `sr:ack`, `sr:clear-suspicion` and `sr:retry-job`, and nothing posts review cards.** (Also raised by `feat-p12-admin-mod-be.md`.)
+Decision: build the feed as doc 07 section 4 describes it ("bot-fed feed of submissions with Approve/Deny buttons"). When a submission enters review, the review service posts a system card to `#review-queue` (title, kind, submitter, size, a link to the review page) with buttons `sr:review-approve:<submission id>` and `sr:review-reject:<submission id>`. Approve runs the same service call as `POST /admin/review/...` under the same permission bit for that kind (`REVIEW_READING`, `REVIEW_MEDIA`, `REVIEW_APPS`, `REVIEW_PACKAGES`) and the same re-auth rule; Reject needs a reason (D-082 rejection copy), so the button opens the review page with the reject dialog focused rather than rejecting blind. The card is edited to its outcome ("Approved by X", "Rejected by X: reason") and the buttons are removed, as the staff-offer cards already do. One decision per card: a second press answers "already decided".
+Status: `DEFAULT`. Follow-up: G-68.
+
+**P12-AUI-6. Announcement edit: there is no `PUT` route, so "Reuse" prefills the composer.**
+Decision: add `PATCH /admin/announcements/{id}` for an announcement that has not ended (`title`, `message`, `ends_at`; `severity`, `critical` and `send_dm` are fixed at publish). An edit never re-sends the system DM (a DM is a one-time delivery; the announcement bar shows the current text) and writes `platform_audit_log` `announcement.edit` with the diff. The composer's "Reuse" stays for ended announcements; active ones get "Edit".
+Status: `DEFAULT`. Follow-up: G-69.
+
+### Feature-module web UIs (P12-FUI, branch `feat/p12-feat-ui`)
+
+**P12-FUI-1. The slash commands `/rank`, `/suggest` and `/ticket` are always offered in servers; the Community dialog says so when no module is on.**
+Decision (owner, 2026-10-15): confirmed. The commands are offered in every server; when the matching module is off, the dialog explains that and (for people who manage the server) links to Server Settings → Features. The alternative, a per-server command list that changes as modules toggle, would need a gateway refresh of the command set for a marginal gain.
+Status: `ADOPTED` (D-218). No follow-up.
+
+**P12-FUI-2. The birthday card lives on User Settings → Profiles → Servers, not the main profile tab.**
+Decision (owner, 2026-10-15): confirmed. The birthday is announced per server (the module's announcement channel and role are server settings), so it sits with the per-server profile; the main profile tab stays what Discord shows there.
+Status: `ADOPTED` (D-219). No follow-up.
+
+**P12-FUI-3. English slash-command descriptions stay literal, like the existing ones, because the command table is not yet in the catalogue.**
+Decision: confirmed for now. When the built-in command table is moved into the i18n catalogue (a P9-I18N follow-up, not this round), the three descriptions move with the rest; nothing is special about them.
+Status: `DEFAULT`. No separate follow-up.
+
+**P12-FUI-4. Level roles are visible only to people who can read the module settings (Manage Server); there is no member route.**
+Decision: expose them to members. The rank response that every member already reads (the leveling module's own rank route, whatever its final path) gains `level_roles: [{level, role_id}]`, filtered to roles the member can see in the guild; no second route. Members should know what they are climbing towards, and the data is not sensitive (role names are in `GUILD_CREATE`).
+Status: `DEFAULT`. Follow-up: G-70.
+
+**P12-FUI-5. Suggestion and ticket staff controls are shown to Manage Server only; the module's `staff_role` members are authorised by the API but the client cannot know the role without the settings route. A `can_respond` flag on `GET /guilds/{id}/modules` would fix it.**
+Decision: yes. Each entry of `GET /guilds/{id}/modules` gains `member_capabilities`, a small map computed server-side for the caller (`can_respond` for suggestions and tickets now; other modules add keys as they need them). The server computes it from the same rule the API enforces (`MANAGE_GUILD` or a member of `staff_role`), so the client never guesses and the settings route stays Manage Server only.
+Status: `DEFAULT`. Follow-up: G-71.
+
+**P12-FUI-6. Suggestion vote counts are inferred from the card message's reactions, minus the system user's seed vote. A `votes` field would be sturdier.**
+Decision: add `votes: {up, down}` to the suggestion DTO, computed by the module from the card's reactions with the system user's seed excluded (the module owns the card and already reads the reactions to update status); the client stops counting reactions. A member's own vote is reported as `my_vote: up | down | null` so the buttons can show state.
+Status: `DEFAULT`. Follow-up: G-72.
+
+**P12-FUI-7. The ticket "open" route is still not tested end to end on the backend (since p11).**
+Decision: write the test before anything else touches tickets: open → thread created with the opener and `staff_role` added → close → thread archived, in the `sr-server` Postgres suite with `TestWorld`.
+Status: `DEFAULT`. Follow-up: G-73.
+
+**P12-FUI-8. Slowmode presets applied on demand (FTR-SLOW-001): the backend has only weekly schedules, so there is no UI.**
+Decision: add the on-demand action. `POST /guilds/{id}/sr/slowmode/apply {preset_id, channel_ids, minutes?}` (needs `MANAGE_CHANNELS` in every listed channel) sets each channel's `rate_limit_per_user` from the preset, writes the usual `CHANNEL_UPDATE` audit entries attributed per D-187, and, when `minutes` is given, schedules a one-shot revert to the previous value. Web: "Apply slowmode preset" in the channel context menu and on the module card. The weekly schedules stay as built.
+Status: `DEFAULT`. Follow-up: G-74.
+
+### Web follow-ups (P12-WFU, branch `feat/p12-web-followups`)
+
+**P12-WFU-1. Approve `pdfjs-dist` as an npm dependency (a download).** (Closes open-questions.md item 2 and the P11-LIB-2 default.)
+Decision (owner, 2026-10-15): approved and added. `pdfjs-dist` 6.4.299 is a dependency of `apps/web`, loaded lazily as its own chunk with the worker as a separate asset, so it never enters a first-load bundle. PDFs are read in the browser; the server validates them (`pdf.rs`) and never rasterizes. `pdfium-render` stays listed under ADR-0005 but is not used and is not bundled; LIB-ING-004's image mode is closed, not deferred. Doc 03 section 3 already names `pdf.js` for the reader; section 4 gains a note that pdfium is approved but unused.
+Status: `ADOPTED` (D-217). Follow-up: G-88 (docs).
+
+**P12-WFU-2. Should the pdf.js worker run as a real worker (`worker-src 'self' blob:` already allows it)?**
+Decision: yes, a real `Worker` from the `?url` asset, as the branch now does. Parsing on the main thread would freeze the reader on large files, and the CSP needs no change.
+Status: `DEFAULT`. No follow-up.
+
+**P12-WFU-3. G-17 backend: `PATCH /users/@me` must accept `locale` (BCP 47 tags with catalogues). Today the field is ignored.**
+Decision: accept it. The server validates against the list of catalogues it ships (`en`, the pseudo-locales excluded) and stores `accounts.locale`; the user object returns it (Discord's `locale` field), `USER_UPDATE` carries it, and outbound email uses it. Unknown tags are a 400 field error.
+Status: `DEFAULT`. Follow-up: G-75.
+
+**P12-WFU-4. The Updates badge reads `public_updates_channel_id` from `GET /guilds/{id}/sr/community`; it would be cheaper on the guild object.**
+Decision: put it on the guild object, which is Discord's shape: `public_updates_channel_id`, `rules_channel_id` and `safety_alerts_channel_id` are fields of Discord's guild object, so `GET /guilds/{id}` and `GUILD_CREATE` carry them (null when the community features are off) and `GUILD_UPDATE` follows changes. The `sr/community` route keeps them too.
+Status: `DEFAULT`. Follow-up: G-76.
+
+**P12-WFU-5. A `POST /share` only works while the service worker is active; the server has no `/share` POST route, so a fresh visit gets the shell or a 405.**
+Decision: add the fallback. `sr-server` answers `POST /share` with `303 See Other` to `/share` (the files are dropped, since nothing can hold them without the worker) and the page says "Open SIDE ROOM once, then share again". Cheap, and it avoids a proxy error page from an installed-app share on a cleared browser.
+Status: `DEFAULT`. Follow-up: G-77.
+
+**P12-WFU-6. G-59 remainder: no cover-submission endpoint for member submissions, no image mode, no reading progress for PDFs.**
+Decision: cover endpoint yes, image mode no, progress yes. `POST /library/submissions/{id}/cover` (submitter only, while the submission is `draft` or `pending`) takes one JPEG or PNG up to 2 MiB, sniffed and re-encoded by the existing cover pipeline; the web submits `renderPdfCover(file)`'s blob after upload. Image mode is closed with D-217 (no server rasterizer). PDF reading progress uses the existing chapter-progress route with the page index as the position, like image chapters.
+Status: `DEFAULT`. Follow-up: G-78.
+
+**P12-WFU-7. G-35: the community wizard's safety switches write the guild immediately when toggled, so Finish never changes verification level or content filter.**
+Decision: confirmed. Each switch is an explicit, audited `GUILD_UPDATE`; a silent change on Finish was the bug the item fixed.
+Status: `DEFAULT`. No follow-up.
+
+**P12-WFU-8. G-56: the earlier tests that expected Copy ID without Developer Mode were changed to turn it on.**
+Decision: that is the correct consequence of D-195.
+Status: `NO-CODE`.
+
+**P12-WFU-9. G-17: the pseudo-locales never go to the account; the "Language & region" formatting select is untouched.**
+Decision: confirmed. Pseudo-locales are a development aid and must never leak into email or another device; formatting (number and date locale) stays a separate device preference, as Discord separates language from region.
+Status: `DEFAULT`. No follow-up.
+
+### First paint (P12-FP, branch `feat/p12-firstpaint`)
+
+The handoff raises no owner question. Two notes it leaves are taken up as follow-ups so they are not lost.
+
+**P12-FP-1. Entrance components still contain some hard-coded English strings (for example LoginLink).**
+Decision: move them into the `entrance` fragment, which the first-paint scan test already guards; no new mechanism.
+Status: `DEFAULT`. Follow-up: G-86.
+
+**P12-FP-2. On a cold direct load of a Lounge URL, the catalogue and the lazy route chunk are fetched in series behind the gate.**
+Decision: start the route chunk import in parallel with the catalogue (kick off the `lazyNamed` import when the gate mounts, render when both resolve). Only if the measured gain on the throttled profile is at least 200 ms; otherwise record the measurement and close the item.
+Status: `DEFAULT`. Follow-up: G-87.
+
+### Admin and moderation backend (P12-AMB, branch `feat/p12-admin-mod-be`)
+
+**P12-AMB-1. Should `staff.show_badge` and `notifications.platform_dm` get Settings switches (and a user-settings schema) now, or wait for the settings registry?**
+Decision: add the two switches now; do not wait. Two nested keys in the settings blob, written as a merge patch like `cinema.share_watching`, need no registry: "Show the SIDE ROOM Staff badge on my profile" under Settings → Profiles (visible only while an appointment is active) and "Platform announcements by direct message" under Settings → Notifications. When a user-settings schema registry lands, both move into it with the rest of the blob keys. A setting that exists server-side but cannot be changed is a trap.
+Status: `DEFAULT`. Follow-up: G-79.
+
+**P12-AMB-2. Should the Staff screen keep both "Send offer" and the Owner-only direct form visible, or hide the direct form behind an "Emergency" fold?**
+Decision: fold it. "Send appointment offer" is the one visible action; below the offers card the Owner sees a collapsed disclosure "Appoint directly (emergency)" with one line of explanation (the appointee is added without accepting; use when the offer flow cannot be used; always logged) and the form inside. The fold is remembered closed. This keeps the Owner's default path the same as everyone else's while honouring the owner decision that the route stays.
+Status: `DEFAULT`. Follow-up: G-80.
+
+**P12-AMB-3. G-67: no gateway dispatch on a flag change (`SR_FEATURE_UPDATE` would need a new event); clients read the flags at boot.**
+Decision: add the event, as D-216 already names it: `SR_FEATURE_UPDATE {scope: "platform", flags: {…}}` to every session when a `client_visible` platform flag changes (guild-scope module toggles keep their existing dispatch). The payload is the full visible-flag map, so clients replace rather than merge. Without it a flag flip only reaches members on their next reload.
+Status: `DEFAULT`. Follow-up: G-81.
+
+**P12-AMB-4. G-66: `compliance.data_request_deadline_days` is not declared (no request queue yet), and Settings → Account removal still shows "not available yet" (LNG-USET-006 open) although `POST /sr/auth/account/delete` exists.**
+Decision: the deadline setting waits for the request queue, as G-66 says. The deletion UI does not wait: Settings → Account → Delete account calls the existing route behind re-auth (password plus second factor when enrolled), shows the D-124 retention text the branch already wrote, and renders the route's `staff` / `owner` field errors as the "leave the Staff Server first" / "transfer ownership first" notices. Whatever cooling-off the route implements is shown as is; this item adds no new deletion semantics.
+Status: `DEFAULT`. Follow-up: G-82.
+
+**P12-AMB-5. G-60 reads `platform_settings` directly through an `AllowanceSource` port, not "through `sr-features`".**
+Decision: accepted. The Limits catalogue is the platform-settings store, `sr-review` has no `sr-features` dependency and should not gain one for a single integer; the port is the right seam. G-60's wording is corrected in the checklist.
+Status: `DEFAULT`. No follow-up.
+
+**P12-AMB-6. `#review-queue` Approve/Reject card action.**
+Decision: see P12-AUI-5.
+
+**P12-AMB-7. G-54: the admin composer on this branch lacks `critical` and `send_dm`; the admin-ui branch must add them.**
+Decision: integration work for the admin-ui composer: the severity picker's `critical` value sets `critical: true` (always DM'd, not dismissable, the warning text says so and the confirm button reads "Publish and message everyone"); the existing system-DM toggle becomes `send_dm` and is forced on and disabled for `critical`.
+Status: `DEFAULT`. Follow-up: G-83.
+
+### Developer platform backend (P12-DPB, branch `feat/p12-devplat-be`)
+
+**P12-DPB-1. The cap of 25 testers counts open invitations too; the answers said "up to 25 accepted".**
+Decision: count invitations. A pending invitation holds a slot, which stops invitation spam (25 pending invitations is the most any application can have out) and matches how Discord's App Testers list counts entries. The developer frees a slot by withdrawing a pending invitation (`DELETE /applications/{id}/testers/{account_id}` already removes either state). D-204's wording is amended.
+Status: `ADOPTED` (D-220, amending D-204). No code follow-up.
+
+**P12-DPB-2. An accepted tester may install a private `development` application; the checklist did not say.**
+Decision: allowed. Testers exist to try the application before release, and the private flag ("only the owner can install") is about strangers, not people the owner invited by name; the 25-member guild rule and `MANAGE_GUILD` still apply. Limiting testers to public apps would make the tab useless for the common case of a bot written for one friend group.
+Status: `ADOPTED` (D-220). No code follow-up.
+
+**P12-DPB-3. Declining an invitation deletes the row; there is no "declined" state.**
+Decision: keep it deleted (less personal data kept for no purpose, doc 09), with one guard: the same account cannot be re-invited to the same application within 24 hours of declining, enforced by a short-lived `app_tester_declines (application_id, account_id, declined_at)` row that the housekeeping job removes after 24 hours. Without the guard a decline can be answered by an immediate re-invite, which is a nag vector through system DMs.
+Status: `DEFAULT`. Follow-up: G-84.
+
+**P12-DPB-4. The endpoint failure window starts at the first failure of a streak; a success resets the streak.**
+Decision: confirmed; that is what D-186 means by "25 consecutive failures within 10 minutes".
+Status: `DEFAULT`. No follow-up.
+
+**P12-DPB-5. Drop the plaintext column `applications.interactions_signing_seed` once every deployment has run `apps.seal_seeds`.**
+Decision: next phase, migration `0800_drop_plaintext_signing_seed.sql`, guarded: it raises (and the server refuses to start) if any row still has a non-NULL plaintext seed, with the message "run the server once on the previous release to seal seeds". The release notes carry the upgrade order. `secret_columns.rs` drops the `PLAINTEXT_OK` legacy entry in the same PR.
+Status: `DEFAULT`. Follow-up: G-85.
+
+**P12-DPB-6. The Testers list lives on the Installation tab; DEV-PORT-003 stays unticked because Emojis, Webhooks, Rich Presence and Activities are not built.**
+Decision: accepted. Installation is where install eligibility is decided, so testers belong there; a separate App Testers tab appears when the portal reaches Discord's full tab set, and DEV-PORT-003 stays open until then.
+Status: `DEFAULT`. No follow-up.
+
+### Still with the owner from earlier rounds
+
+Unchanged: the UnRAR licence confirmation (D-170) and the eight remaining NEEDS-OWNER items of the Phase 8 to 11 round (P8-DON-4, P11-MSG-1, P11-SHL-3, P11-CLI-1, P11-USB-2, MOD-4, MOD-5, MOD-6); P11-LIB-2 is closed by D-217. [open-questions.md](open-questions.md) lists them with their defaults.
