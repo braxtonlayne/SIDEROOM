@@ -699,6 +699,7 @@ mod events_clock {
             channel: ChannelId,
             topic: &str,
             _by: UserId,
+            _event_id: u64,
         ) -> Result<(), String> {
             if *self.stage_busy.lock().unwrap() {
                 return Err("A stage is already running in this channel.".into());

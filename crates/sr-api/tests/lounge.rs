@@ -100,6 +100,7 @@ impl settings::EventWorld for FakeVoice {
         channel: ChannelId,
         topic: &str,
         _by: UserId,
+        _event_id: u64,
     ) -> Result<(), String> {
         self.log.lock().unwrap().push(format!("start {topic}"));
         self.live.lock().unwrap().push(channel);

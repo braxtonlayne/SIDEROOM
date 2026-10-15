@@ -352,7 +352,7 @@ async fn open_stage(
     ev.empty_since_ms = None;
     if let (EntityType::StageInstance, Some(ch)) = (ev.entity_type, ev.channel_id) {
         world
-            .start_stage(ev.guild_id, ch, &ev.name, by)
+            .start_stage(ev.guild_id, ch, &ev.name, by, ev.id)
             .await
             .map_err(|why| {
                 SettingsError::invalid("status", "GUILD_SCHEDULED_EVENT_STAGE_BUSY", &why)

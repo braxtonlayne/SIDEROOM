@@ -20,7 +20,7 @@ use sr_core::{ApiError, ChannelId, Clock, ErrorCode, GuildId, SnowflakeGenerator
 use sr_storage::ObjectStorage;
 use std::collections::HashMap;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 /// Source of 64-bit entropy for invite codes and webhook tokens. Production
 /// wiring must back it with a CSPRNG.
@@ -35,8 +35,8 @@ pub struct SettingsDeps {
     joiner: Arc<dyn MemberJoiner>,
     timeouter: Arc<dyn MemberTimeouter>,
     presence: Option<Arc<dyn PresenceCounter>>,
-    event_world: Arc<dyn EventWorld>,
-    event_notifier: Arc<dyn EventStartNotifier>,
+    event_world: OnceLock<Arc<dyn EventWorld>>,
+    event_notifier: OnceLock<Arc<dyn EventStartNotifier>>,
 }
 
 /// A guild resolved for one acting user.
@@ -78,8 +78,8 @@ impl SettingsDeps {
             joiner: Arc::new(UnwiredMemberJoiner),
             timeouter: Arc::new(UnwiredMemberTimeouter),
             presence: None,
-            event_world: Arc::new(NoWorld),
-            event_notifier: Arc::new(NoNotifier),
+            event_world: OnceLock::new(),
+            event_notifier: OnceLock::new(),
         })
     }
 
@@ -115,23 +115,36 @@ impl SettingsDeps {
     }
 
     /// The voice side the event clock reads and the stage instances it opens (G-91, G-93).
-    pub fn with_event_world(mut self, world: Arc<dyn EventWorld>) -> Self {
-        self.event_world = world;
+    pub fn with_event_world(self, world: Arc<dyn EventWorld>) -> Self {
+        self.set_event_world(world);
         self
+    }
+
+    /// Like [`Self::with_event_world`] for deps that are already shared (the gateway exists
+    /// only after them). Returns `false` when one was set before.
+    pub fn set_event_world(&self, world: Arc<dyn EventWorld>) -> bool {
+        self.event_world.set(world).is_ok()
     }
 
     /// Who tells interested members that an event started (G-93).
-    pub fn with_event_notifier(mut self, notifier: Arc<dyn EventStartNotifier>) -> Self {
-        self.event_notifier = notifier;
+    pub fn with_event_notifier(self, notifier: Arc<dyn EventStartNotifier>) -> Self {
+        self.set_event_notifier(notifier);
         self
     }
 
+    /// Like [`Self::with_event_notifier`] for deps that are already shared.
+    pub fn set_event_notifier(&self, notifier: Arc<dyn EventStartNotifier>) -> bool {
+        self.event_notifier.set(notifier).is_ok()
+    }
+
     pub fn event_world(&self) -> &dyn EventWorld {
-        &*self.event_world
+        static UNWIRED: NoWorld = NoWorld;
+        self.event_world.get().map_or(&UNWIRED, |w| &**w)
     }
 
     pub fn event_notifier(&self) -> &dyn EventStartNotifier {
-        &*self.event_notifier
+        static UNWIRED: NoNotifier = NoNotifier;
+        self.event_notifier.get().map_or(&UNWIRED, |n| &**n)
     }
 
     pub(crate) fn presence(&self) -> Option<&dyn PresenceCounter> {

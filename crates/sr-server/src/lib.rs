@@ -9,6 +9,7 @@ pub mod backends;
 pub mod cinema_catalog;
 pub mod cinema_jobs;
 pub mod endpoint_client;
+pub mod events_jobs;
 pub mod external_jobs;
 pub mod feature_actions;
 pub mod features_store;

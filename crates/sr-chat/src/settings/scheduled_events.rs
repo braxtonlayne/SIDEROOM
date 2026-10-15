@@ -467,6 +467,7 @@ pub trait EventWorld: Send + Sync {
         channel: ChannelId,
         topic: &str,
         by: UserId,
+        event_id: u64,
     ) -> Result<(), String>;
     /// Delete the stage instance of `channel` when one is live.
     async fn end_stage(&self, channel: ChannelId);
@@ -491,6 +492,7 @@ impl EventWorld for NoWorld {
         _channel: ChannelId,
         _topic: &str,
         _by: UserId,
+        _event_id: u64,
     ) -> Result<(), String> {
         Ok(())
     }
