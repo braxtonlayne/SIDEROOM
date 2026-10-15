@@ -11,7 +11,7 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [x] **LNG-MSG-006** [BE] Bulk delete (2–100, ≤ 14 days old, Discord parity)
 - [x] **LNG-MSG-007** [BE] Forward message (snapshot into target channel, permission checks)
 - [x] **LNG-MSG-008** [BE] Pins (pin/unpin/list, 250 cap), system message on pin
-- [ ] **LNG-MSG-009** [BE] Reactions add/remove (own, others with permission, all, per-emoji), list users, burst reactions
+- [x] **LNG-MSG-009** [BE] Reactions add/remove (own, others with permission, all, per-emoji), list users, burst reactions *Built: reactions.rs routes and events, tests reactions_lifecycle and reaction_limits_and_permissions in routes/messages/tests.rs.*
 - [x] **LNG-MSG-010** [BE] Polls: create, vote/unvote, end, expiry job, results, `MESSAGE_POLL_VOTE_ADD/REMOVE`
 - [x] **LNG-MSG-011** [BE] Mentions extraction via `sr-markdown`; @everyone/@here permission gate; role mentionable gate
 - [x] **LNG-MSG-012** [BE] Read states: ack message, mention counts, mark guild read, mark unread (set ack to previous)
@@ -19,13 +19,13 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [x] **LNG-MSG-014** [BE] Link unfurler: SSRF-safe fetch (deny private IPs, size/time limits), OpenGraph/Twitter cards/oEmbed parse, image proxying, cache by URL, operator allow/deny lists *(the proxy is `GET /cdn/external/{hmac}/{url_b64}`; the allow/deny lists are `[unfurl] allow_hosts` / `deny_hosts` in the config. The Admin → Features → Embeds page for them is not built yet.)*
 - [ ] **LNG-MSG-015** [BE] Embed suppression (flag), spoiler handling in embeds
 - [ ] **LNG-MSG-016** [BE] System messages (member join with randomized lines, pin, thread created, call start/missed/ended, follow added, server support contribution)
-- [ ] **LNG-MSG-017** [BE] Message components storage (buttons/selects) for app messages
-- [ ] **LNG-MSG-018** [BE] Crosspost (announcement) publish
+- [x] **LNG-MSG-017** [BE] Message components storage (buttons/selects) for app messages *Built: components are accepted on create and stored in messages.components (sr-chat message.rs, routes/messages/send.rs).*
+- [x] **LNG-MSG-018** [BE] Crosspost (announcement) publish *Built: routes/messages/crosspost.rs with auto-publish; tested in routes/settings/tests.rs.*
 - [ ] **LNG-MSG-019** [BE] Voice messages: upload with duration + waveform (computed server-side via `symphonia`), playback URLs
-- [ ] **LNG-MSG-020** [GW] MESSAGE_CREATE/UPDATE/DELETE/DELETE_BULK, MESSAGE_REACTION_ADD/REMOVE/REMOVE_ALL/REMOVE_EMOJI, TYPING_START, MESSAGE_ACK
-- [ ] **LNG-MSG-021** [JOB] `purge_deleted_messages` (hourly, respects hold_id, purges edits + attachments objects)
-- [ ] **LNG-MSG-022** [JOB] `expire_large_attachments` (hourly, marks expired, deletes object, dispatch MESSAGE_UPDATE)
-- [ ] **LNG-MSG-023** [TEST] Clock-override tests for 30-day purge and 7-day expiry incl. holds
+- [x] **LNG-MSG-020** [GW] MESSAGE_CREATE/UPDATE/DELETE/DELETE_BULK, MESSAGE_REACTION_ADD/REMOVE/REMOVE_ALL/REMOVE_EMOJI, TYPING_START, MESSAGE_ACK *Built: DomainEvent variants in sr-events event.rs cover create/update/delete/bulk/reactions/typing; MESSAGE_ACK in social/read_state.rs.*
+- [x] **LNG-MSG-021** [JOB] `purge_deleted_messages` (hourly, respects hold_id, purges edits + attachments objects) *crates/sr-server/src/jobs.rs purge_deleted_messages now also deletes attachment objects; hold-aware.*
+- [x] **LNG-MSG-022** [JOB] `expire_large_attachments` (hourly, marks expired, deletes object, dispatch MESSAGE_UPDATE) *crates/sr-server/src/jobs.rs expire_large_attachments (hourly singleton, deletes object, marks expired, dispatches MESSAGE_UPDATE).*
+- [x] **LNG-MSG-023** [TEST] Clock-override tests for 30-day purge and 7-day expiry incl. holds *jobs.rs retention_clock_tests (Postgres, now_ms parameter) cover the 30-day purge and 7-day expiry including holds.*
 
 ## LNG-MD — `sr-markdown`
 - [x] **LNG-MD-001** [BE][WASM] Parser: bold, italic, underline, strike, spoiler, inline code, code block with lang, block quote (single/multi), headers 1–3, subtext, ordered/unordered lists, masked links, autolinks, escapes
@@ -90,22 +90,22 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 - [ ] **LNG-CMP-001** [FE] Rich composer on Lexical (inline tokens for mentions, emoji, channels, timestamps) *(scheduled after the LNG-MSGUI gaps; the composer stays a textarea through Phase 2, D-174)*
 
 ## LNG-EXP — Expression (emoji, stickers, GIFs, soundboard data)
-- [ ] **LNG-EXP-001** [DB] emojis, stickers, sticker_packs, soundboard_sounds
-- [ ] **LNG-EXP-002** [BE] Guild emoji CRUD (PNG/GIF/WebP ≤ 256 KB, auto-resize 128px, animated), role restrictions
-- [ ] **LNG-EXP-003** [BE] Guild stickers CRUD (PNG/APNG/GIF ≤ 512 KB, 320×320, related emoji, description, tags)
+- [ ] **LNG-EXP-001** [DB] emojis, stickers, sticker_packs, soundboard_sounds *Partial: emojis, emoji_roles, stickers (0032) and soundboard_sounds (0640) exist; sticker_packs does not (default packs, EXP-004).*
+- [x] **LNG-EXP-002** [BE] Guild emoji CRUD (PNG/GIF/WebP ≤ 256 KB, auto-resize 128px, animated), role restrictions *Built in routes/settings/expressions.rs; uploads are now shrunk to 128 px (animated GIF stays animated, undecodable animated WebP is stored as uploaded).*
+- [x] **LNG-EXP-003** [BE] Guild stickers CRUD (PNG/APNG/GIF ≤ 512 KB, 320×320, related emoji, description, tags) *Built in expressions.rs; static PNG/GIF are shrunk to 320 px, APNG and Lottie stored as is.*
 - [ ] **LNG-EXP-004** [BE] Default sticker packs (original artwork)
-- [ ] **LNG-EXP-005** [BE] GIF provider proxy (Tenor/Klipy API key in admin, or disabled), trending/search/categories, privacy proxy of media
-- [ ] **LNG-EXP-006** [GW] GUILD_EMOJIS_UPDATE, GUILD_STICKERS_UPDATE
-- [ ] **LNG-EXP-007** [FE] Emoji picker (search, categories sidebar with server icons, frequently used, favorites (right-click), skin tone selector, hover preview footer, "use anywhere" free)
+- [x] **LNG-EXP-005** [BE] GIF provider proxy (Tenor/Klipy API key in admin, or disabled), trending/search/categories, privacy proxy of media *routes/gifs.rs: Tenor v2 only, off unless [gif] provider and api_key are set; previews go through the signed image proxy. Klipy is not implemented.*
+- [x] **LNG-EXP-006** [GW] GUILD_EMOJIS_UPDATE, GUILD_STICKERS_UPDATE *Built: SettingsEvent::EmojisUpdated/StickersUpdated publish GUILD_EMOJIS_UPDATE and GUILD_STICKERS_UPDATE.*
+- [x] **LNG-EXP-007** [FE] Emoji picker (search, categories sidebar with server icons, frequently used, favorites (right-click), skin tone selector, hover preview footer, "use anywhere" free) *lounge/components/EmojiPicker.tsx: frequently used, favorites (right-click), skin tone, server emoji section, hover footer. Server icons in a categories sidebar are not built.*
 - [x] **LNG-EXP-008** [FE] Sticker picker (packs, search, server sections) *Current server's stickers with search; no default packs yet (LNG-EXP-004).*
-- [ ] **LNG-EXP-009** [FE] GIF picker (trending categories grid, search, favorites star)
+- [x] **LNG-EXP-009** [FE] GIF picker (trending categories grid, search, favorites star) *lounge/components/GifPicker.tsx (trending, categories, search, favorites in localStorage).*
 - [x] **LNG-EXP-010** [FE] Expression picker tabs container (GIFs / Stickers / Emoji) *The GIF tab explains that no GIF provider is connected.*
 - [ ] **LNG-EXP-011** [FE] Emoji tooltip/popout on click (name, source server, "Join server" if public)
 - [ ] **LNG-EXP-012** [FE] Super/burst reaction picker variant + animations
 
 ## LNG-SRC — Search
 - [x] **LNG-SRC-001** [BE] Tantivy message index schema (content, author, channel, guild, has-flags, timestamps, pinned, author type, mentions)
-- [ ] **LNG-SRC-002** [JOB] Index on create/edit, remove on delete; full reindex command
+- [x] **LNG-SRC-002** [JOB] Index on create/edit, remove on delete; full reindex command *Built: sr-server search_jobs.rs (index/remove jobs, search.reindex).*
 - [x] **LNG-SRC-003** [BE] Search API (guild & DM/channel scopes) with filters from:, mentions:, has:, before:, during:, after:, in:, pinned:, authorType:; permission filtering; sort; pagination; total count
 - [x] **LNG-SRC-004** [FE] Search box with filter autocomplete popover (options list, user/channel pickers, date picker)
 - [x] **LNG-SRC-005** [FE] Results pane (grouped by channel, context lines, Jump, sort New/Old/Relevant, pagination)
@@ -113,11 +113,11 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §6, §9, §10, §14; doc 
 
 ## LNG-NTF — Notifications & inbox
 - [x] **LNG-NTF-001** [BE] Notification settings model (guild/category/channel overrides, mute with expiry, suppress everyone/roles/highlights, mobile push)
-- [ ] **LNG-NTF-002** [BE] Notification decision engine (mentions, replies, DMs, keyword highlights, thread follows)
-- [ ] **LNG-NTF-003** [BE] Web Push (VAPID) subscription management + delivery (`web-push` crate) with collapse keys
-- [ ] **LNG-NTF-004** [FE] Notification Settings modal (server: All / Only @mentions / Nothing; suppress toggles; mobile push; channel overrides list)
-- [ ] **LNG-NTF-005** [FE] Channel bell menu (Use Category Default / All / Only @mentions / Nothing, Mute ▸)
-- [ ] **LNG-NTF-006** [FE] Inbox popout: Mentions (filters: all servers / include roles / include everyone), Unreads (mark all read per channel), For You (friend requests, library updates, submission decisions, invites redeemed)
-- [ ] **LNG-NTF-007** [FE] Desktop notifications (Notification API) + sounds + DND suppression
-- [ ] **LNG-NTF-008** [FE] Unread title/favicon badge + PWA Badging API
+- [x] **LNG-NTF-002** [BE] Notification decision engine (mentions, replies, DMs, keyword highlights, thread follows) *sr-chat social/notifications.rs decide() plus SocialService::decide_notification; keyword highlights are supported by the engine but there is no per-user keyword list yet.*
+- [x] **LNG-NTF-003** [BE] Web Push (VAPID) subscription management + delivery (`web-push` crate) with collapse keys *crates/sr-push (VAPID, RFC 8291, SSRF-safe sender, RFC test vector), routes/push.rs, sr-server push_notify.rs fan-out with collapse keys. Own implementation on RustCrypto instead of the web-push crate.*
+- [x] **LNG-NTF-004** [FE] Notification Settings modal (server: All / Only @mentions / Nothing; suppress toggles; mobile push; channel overrides list) *NotificationDialog: suppress everyone/roles/highlights, mobile push, channel overrides list with reset.*
+- [x] **LNG-NTF-005** [FE] Channel bell menu (Use Category Default / All / Only @mentions / Nothing, Mute ▸) *header/NotifyButton.tsx: Use category default / All / Only @mentions / Nothing plus Mute.*
+- [ ] **LNG-NTF-006** [FE] Inbox popout: Mentions (filters: all servers / include roles / include everyone), Unreads (mark all read per channel), For You (friend requests, library updates, submission decisions, invites redeemed) *Partial: Mentions (GET /users/@me/mentions with role/everyone/server filters) and Unreads (mark read) are built in lounge/inbox; the For You tab is not.*
+- [x] **LNG-NTF-007** [FE] Desktop notifications (Notification API) + sounds + DND suppression *lounge/shell/desktopNotify.ts: Notification API, Web Audio blips, DND and focus suppression.*
+- [x] **LNG-NTF-008** [FE] Unread title/favicon badge + PWA Badging API *pwa/titleBadge.ts (title prefix, favicon dot) plus the existing Badging API hook.*
 - [ ] **LNG-NTF-009** [FE] In-app toasts for DMs when not focused on that DM (optional)
