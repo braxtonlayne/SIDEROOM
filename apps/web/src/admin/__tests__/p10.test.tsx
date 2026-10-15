@@ -618,7 +618,9 @@ describe('G-26 library merge needs both bits', () => {
     openAdmin('library-catalog');
     await screen.findByRole('table', { name: 'Library series' });
     await userEvent.click(screen.getByRole('button', { name: 'Edit Blue Lantern' }));
-    expect(await screen.findByRole('button', { name: 'Merge into another series' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: 'Merge into another series' }),
+    ).toBeInTheDocument();
   });
 });
 

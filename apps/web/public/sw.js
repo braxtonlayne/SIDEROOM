@@ -28,7 +28,8 @@ const STATIC_FILES = ['/manifest.webmanifest', '/offline.css', '/offline.html'];
 /** 'bypass' (do not intercept), 'share' (Share Target POST), 'navigate' (app shell), or 'static' (immutable build output). */
 function classify(request, origin) {
   const url = new URL(request.url);
-  if (request.method === 'POST' && url.origin === origin && url.pathname === '/share') return 'share';
+  if (request.method === 'POST' && url.origin === origin && url.pathname === '/share')
+    return 'share';
   if (request.method !== 'GET') return 'bypass';
   if (url.origin !== origin) return 'bypass';
   const p = url.pathname;

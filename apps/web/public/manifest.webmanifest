@@ -28,7 +28,12 @@
       "title": "title",
       "text": "text",
       "url": "url",
-      "files": [{ "name": "files", "accept": ["image/*", "video/*", "audio/*", "application/pdf", "text/*"] }]
+      "files": [
+        {
+          "name": "files",
+          "accept": ["image/*", "video/*", "audio/*", "application/pdf", "text/*"]
+        }
+      ]
     }
   },
   "shortcuts": [

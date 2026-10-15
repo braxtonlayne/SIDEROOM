@@ -9,7 +9,10 @@ export interface SharedContent {
 
 export function parseShare(search: string): SharedContent {
   const q = new URLSearchParams(search);
-  return { title: q.get('title') ?? '', text: q.get('text') ?? '', url: q.get('url') ?? '',
+  return {
+    title: q.get('title') ?? '',
+    text: q.get('text') ?? '',
+    url: q.get('url') ?? '',
     hasFiles: q.get('files') === '1',
   };
 }

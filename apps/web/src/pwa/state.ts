@@ -21,7 +21,10 @@ export interface PwaState {
   noticesBar: boolean;
 }
 
-let state: PwaState = { updateReady: false, canInstall: false, installed: isStandalone(),
+let state: PwaState = {
+  updateReady: false,
+  canInstall: false,
+  installed: isStandalone(),
   noticesBar: false,
 };
 let deferred: BeforeInstallPromptEvent | null = null;

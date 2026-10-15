@@ -52,9 +52,9 @@ describe('service worker policy', () => {
 
   it('intercepts only the Share Target POST to /share', () => {
     expect(sw.classify(req('/share', { method: 'POST' }), ORIGIN)).toBe('share');
-    expect(sw.classify(req('/share', { method: 'POST', origin: 'https://o.example' }), ORIGIN)).toBe(
-      'bypass',
-    );
+    expect(
+      sw.classify(req('/share', { method: 'POST', origin: 'https://o.example' }), ORIGIN),
+    ).toBe('bypass');
     expect(sw.classify(req('/share/x', { method: 'POST' }), ORIGIN)).toBe('bypass');
     expect(sw.classify(req('/api/v10/share', { method: 'POST' }), ORIGIN)).toBe('bypass');
   });
